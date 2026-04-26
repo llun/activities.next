@@ -79,7 +79,7 @@ export const GET = traceApiRoute(
 
 const EditNoteSchema = z.object({
   status: z.string().optional(),
-  spoiler_text: z.string().optional(),
+  spoiler_text: z.string().nullish(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
 
@@ -99,32 +99,84 @@ export const PUT = traceApiRoute(
     const { database, currentActor } = context
     const statusId = idToUrl(encodedStatusId)
     try {
-      const changes = EditNoteSchema.parse(await req.json())
+      const parsed = EditNoteSchema.safeParse(await req.json())
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const changes = parsed.data
 
       let updatedNote
 
-      if (changes.visibility !== undefined && changes.status === undefined) {
-        updatedNote = await updateNoteVisibilityFromUserInput({
-          statusId,
-          currentActor,
-          visibility: changes.visibility,
-          database
-        })
-      } else if (changes.status !== undefined) {
-        updatedNote = await updateNoteFromUserInput({
-          statusId,
-          currentActor,
-          text: changes.status,
-          summary: changes.spoiler_text,
-          database
-        })
-      } else {
+      const shouldUpdateContent =
+        changes.status !== undefined || changes.spoiler_text !== undefined
+      const visibility = changes.visibility
+
+      if (!shouldUpdateContent && visibility === undefined) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: ERROR_422,
           responseStatusCode: 422
         })
+      }
+
+      const existingStatus = await database.getStatus({ statusId })
+      if (
+        !existingStatus ||
+        existingStatus.type !== StatusType.enum.Note ||
+        existingStatus.actorId !== currentActor.id
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_403,
+          responseStatusCode: 403
+        })
+      }
+
+      if (visibility !== undefined) {
+        updatedNote = await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor,
+          visibility,
+          publish: !shouldUpdateContent,
+          status: existingStatus,
+          database
+        })
+        if (!updatedNote)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
+      }
+
+      if (shouldUpdateContent) {
+        updatedNote = await updateNoteFromUserInput({
+          statusId,
+          currentActor,
+          text: changes.status,
+          summary: changes.spoiler_text,
+          publish: true,
+          status:
+            updatedNote?.type === StatusType.enum.Note
+              ? updatedNote
+              : existingStatus,
+          database
+        })
+        if (!updatedNote)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
       }
 
       if (!updatedNote)

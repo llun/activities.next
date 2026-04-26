@@ -153,6 +153,7 @@ export const getVisibilityFromReplyStatus = (
 
 interface CreateNoteFromUserInputParams {
   text: string
+  summary?: string | null
   replyNoteId?: string
   currentActor: Actor
   attachments?: PostBoxAttachment[]
@@ -162,6 +163,7 @@ interface CreateNoteFromUserInputParams {
 }
 export const createNoteFromUserInput = async ({
   text,
+  summary,
   replyNoteId,
   currentActor,
   attachments = [],
@@ -219,7 +221,7 @@ export const createNoteFromUserInput = async ({
     actorId: currentActor.id,
 
     text,
-    summary: null,
+    summary: summary?.trim() || null,
 
     to,
     cc,

@@ -1,18 +1,21 @@
 'use client'
 
 import { formatDistance } from 'date-fns'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { votePoll } from '@/lib/client'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 interface Props {
   status: Status
-  currentTime: Date
+  currentTime: number
   currentActorId?: string
 }
 
 export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
+  const pollEndAt =
+    status.type === StatusType.enum.Poll ? status.endAt : undefined
+  const [now, setNow] = useState(currentTime)
   const [selectedChoices, setSelectedChoices] = useState<number[]>([])
   const [isVoting, setIsVoting] = useState(false)
   const [votedChoices, setVotedChoices] = useState<number[]>(
@@ -21,10 +24,30 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
       : []
   )
 
+  useEffect(() => {
+    setNow(currentTime)
+  }, [currentTime])
+
+  useEffect(() => {
+    if (pollEndAt === undefined) return
+
+    const nextNow = Date.now()
+    setNow(nextNow)
+    if (nextNow >= pollEndAt) return
+
+    const timeout = setTimeout(() => {
+      setNow(Date.now())
+    }, pollEndAt - nextNow)
+
+    return () => {
+      clearTimeout(timeout)
+    }
+  }, [pollEndAt, status.id])
+
   if (status.type !== StatusType.enum.Poll) return null
   if (!status.choices) return null
 
-  const isPollClosed = currentTime.getTime() > status.endAt
+  const isPollClosed = now >= status.endAt
   const choices = status.choices
   const totalVotes =
     choices.reduce((sum, choice) => sum + choice.totalVotes, 0) || 1
@@ -123,7 +146,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
       {isPollClosed ? <div className="text-sm">Poll closed</div> : null}
       {!isPollClosed ? (
         <div className="text-sm">
-          Poll close in {formatDistance(status.endAt, currentTime)}
+          Poll close in {formatDistance(status.endAt, now)}
         </div>
       ) : null}
     </div>

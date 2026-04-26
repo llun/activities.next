@@ -33,13 +33,23 @@ export const POST = traceApiRoute(
   'getAccountOutbox',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
-    const body = await req.json()
     try {
-      const request = PostRequest.parse(body)
+      const body = await req.json()
+      const parsed = PostRequest.safeParse(body)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const request = parsed.data
       switch (request.type) {
         case 'note': {
           const {
             message,
+            contentWarning,
             replyStatus,
             attachments,
             fitnessFileId,
@@ -48,6 +58,7 @@ export const POST = traceApiRoute(
           const status = await createNoteFromUserInput({
             currentActor,
             text: message,
+            summary: contentWarning,
             replyNoteId: replyStatus?.id,
             attachments,
             fitnessFileId,
@@ -74,6 +85,7 @@ export const POST = traceApiRoute(
         case 'poll': {
           const {
             message,
+            contentWarning,
             replyStatus,
             choices,
             durationInSeconds,
@@ -84,6 +96,7 @@ export const POST = traceApiRoute(
           await createPollFromUserInput({
             currentActor,
             text: message,
+            summary: contentWarning,
             replyStatusId: replyStatus?.id,
             choices,
             endAt,
@@ -123,9 +136,18 @@ export const DELETE = traceApiRoute(
   'deleteAccountOutbox',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
-    const body = await req.json()
     try {
-      const request = DeleteStatusRequest.parse(body)
+      const body = await req.json()
+      const parsed = DeleteStatusRequest.safeParse(body)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const request = parsed.data
       await deleteStatusFromUserInput({
         currentActor,
         database,

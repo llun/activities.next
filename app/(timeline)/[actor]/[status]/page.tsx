@@ -47,7 +47,7 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   const { actor, status: statusParam } = await params
-  const currentTime = new Date()
+  const currentTime = Date.now()
   const decodedActor = decodeURIComponent(actor)
   const decodedStatusParam = (() => {
     try {

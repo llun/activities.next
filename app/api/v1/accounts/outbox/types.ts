@@ -8,6 +8,7 @@ import { MastodonVisibility } from '@/lib/utils/getVisibility'
 export const CreateNoteRequest = z.object({
   type: z.literal('note'),
   message: z.string(),
+  contentWarning: z.string().optional(),
   replyStatus: Status.optional(),
   attachments: PostBoxAttachment.array().optional(),
   fitnessFileId: z.string().optional(),
@@ -20,6 +21,7 @@ export type CreateNoteRequest = z.infer<typeof CreateNoteRequest>
 export const CreatePollRequest = z.object({
   type: z.literal('poll'),
   message: z.string(),
+  contentWarning: z.string().optional(),
   choices: z.string().array(),
   pollType: z.enum(['oneOf', 'anyOf']).optional(),
   durationInSeconds: z

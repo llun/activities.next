@@ -18,7 +18,7 @@ import { StatusLikes } from './StatusLikes'
 interface Props {
   host: string
   mapboxAccessToken?: string
-  currentTime: Date
+  currentTime: number
   currentActor?: ActorProfile | null
   status: Status
   variant?: 'detail' | 'comment'

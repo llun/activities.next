@@ -19,7 +19,7 @@ interface Props {
   className?: string
   currentActor?: ActorProfile
   showActions?: boolean
-  currentTime: Date
+  currentTime: number
   statuses: Status[]
   isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit

@@ -20,6 +20,7 @@ interface Props {
   onAddAttachment: (attachment: PostBoxAttachment) => void
   onDuplicateError: () => void
   onUploadStart: () => void
+  onBeforeAddAttachments?: () => boolean | void | Promise<boolean | void>
 }
 
 export const UploadMediaButton: FC<Props> = ({
@@ -27,7 +28,8 @@ export const UploadMediaButton: FC<Props> = ({
   attachments = [],
   onAddAttachment,
   onDuplicateError,
-  onUploadStart
+  onUploadStart,
+  onBeforeAddAttachments
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
@@ -41,53 +43,73 @@ export const UploadMediaButton: FC<Props> = ({
     if (!event.currentTarget.files) return
     if (!event.currentTarget.files.length) return
 
+    const selectedFiles = Array.from(event.currentTarget.files)
     onUploadStart()
 
     const availableSlots = MAX_ATTACHMENTS - attachments.length
     if (availableSlots <= 0) return
 
-    const filteredFiles = Array.from(event.currentTarget.files).filter(
-      (file) => {
-        return !attachments.some((attachment) => attachment.name === file.name)
-      }
-    )
+    const filteredFiles = selectedFiles.filter((file) => {
+      return !attachments.some((attachment) => attachment.name === file.name)
+    })
 
-    if (filteredFiles.length !== event.currentTarget.files.length) {
+    if (filteredFiles.length !== selectedFiles.length) {
       onDuplicateError()
     }
 
     const files = filteredFiles.slice(0, availableSlots)
 
-    await Promise.all(
-      files.map(async (targetFile) => {
-        const previewUrl = URL.createObjectURL(targetFile)
-        try {
-          const tempId = crypto.randomUUID()
-          const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
-          onAddAttachment({
-            type: MEDIA_TYPE,
-            id: tempId,
-            mediaType: targetFile.type,
-            url: previewUrl,
-            width: 0,
-            height: 0,
-            name: targetFile.name,
-            file
-          })
-        } catch (error) {
-          logger.error(
-            {
-              error,
-              fileName: targetFile.name,
-              fileType: targetFile.type
-            },
-            'Failed to process file'
-          )
-          // Revoke the blob URL if processing fails
-          URL.revokeObjectURL(previewUrl)
+    const processedAttachments = (
+      await Promise.all(
+        files.map(async (targetFile): Promise<PostBoxAttachment | null> => {
+          const previewUrl = URL.createObjectURL(targetFile)
+          try {
+            const tempId = crypto.randomUUID()
+            const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
+            return {
+              type: MEDIA_TYPE,
+              id: tempId,
+              mediaType: targetFile.type,
+              url: previewUrl,
+              width: 0,
+              height: 0,
+              name: targetFile.name,
+              file
+            }
+          } catch (error) {
+            logger.error(
+              {
+                error,
+                fileName: targetFile.name,
+                fileType: targetFile.type
+              },
+              'Failed to process file'
+            )
+            // Revoke the blob URL if processing fails
+            URL.revokeObjectURL(previewUrl)
+            return null
+          }
+        })
+      )
+    ).filter(
+      (attachment): attachment is PostBoxAttachment => attachment !== null
+    )
+
+    if (!processedAttachments.length) return
+
+    const shouldAddAttachments = await onBeforeAddAttachments?.()
+    if (shouldAddAttachments === false) {
+      processedAttachments.forEach((attachment) => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url)
         }
       })
-    )
+      return
+    }
+
+    processedAttachments.forEach((attachment) => {
+      onAddAttachment(attachment)
+    })
   }
 
   if (!isMediaUploadEnabled) {

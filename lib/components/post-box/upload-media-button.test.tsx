@@ -29,13 +29,14 @@ describe('UploadMediaButton', () => {
   const mockOnAddAttachment = jest.fn()
   const mockOnDuplicateError = jest.fn()
   const mockOnUploadStart = jest.fn()
+  const mockOnBeforeAddAttachments = jest.fn()
 
   const createMockFile = (name: string, type = 'image/jpeg') => {
     return new File(['test'], name, { type })
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    jest.resetAllMocks()
     mockResizeImage.mockImplementation((file) => Promise.resolve(file))
 
     // Mock crypto.randomUUID
@@ -192,6 +193,35 @@ describe('UploadMediaButton', () => {
   })
 
   describe('async file processing', () => {
+    it('does not add processed files when the before-add hook returns false', async () => {
+      mockOnBeforeAddAttachments.mockResolvedValue(false)
+
+      render(
+        <UploadMediaButton
+          isMediaUploadEnabled={true}
+          attachments={[]}
+          onAddAttachment={mockOnAddAttachment}
+          onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
+          onBeforeAddAttachments={mockOnBeforeAddAttachments}
+        />
+      )
+
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const file = createMockFile('file1.jpg')
+
+      fireEvent.change(input, { target: { files: [file] } })
+
+      await waitFor(() => {
+        expect(mockOnBeforeAddAttachments).toHaveBeenCalledTimes(1)
+      })
+
+      expect(mockResizeImage).toHaveBeenCalledTimes(1)
+      expect(mockOnAddAttachment).not.toHaveBeenCalled()
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-url')
+    })
+
     it('awaits all file processing before completing', async () => {
       const processingOrder: string[] = []
 

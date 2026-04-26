@@ -127,7 +127,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           <Posts
             host={host}
             className="mt-0"
-            currentTime={new Date(currentTime)}
+            currentTime={currentTime}
             statuses={currentStatuses}
             currentActor={currentActor}
             showActions={Boolean(currentActor)}

@@ -12,7 +12,7 @@ interface Props {
 export const AdminHashtagPosts = ({ host, statuses, currentTime }: Props) => (
   <Posts
     host={host}
-    currentTime={new Date(currentTime)}
+    currentTime={currentTime}
     statuses={statuses}
     showActions={false}
   />

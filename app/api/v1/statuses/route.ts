@@ -34,10 +34,20 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
     try {
       const content = await req.json()
-      const note = NoteSchema.parse(content)
+      const parsed = NoteSchema.safeParse(content)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const note = parsed.data
       const status = await createNoteFromUserInput({
         currentActor,
         text: note.status,
+        summary: note.spoiler_text,
         replyNoteId: note.in_reply_to_id,
         visibility: note.visibility,
         attachments: [],

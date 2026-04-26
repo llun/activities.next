@@ -15,6 +15,7 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
   message: string
+  contentWarning?: string
   replyStatus?: Status
   attachments?: PostBoxAttachment[]
   fitnessFileId?: string
@@ -22,6 +23,7 @@ export interface CreateNoteParams {
 }
 export const createNote = async ({
   message,
+  contentWarning,
   replyStatus,
   attachments = [],
   fitnessFileId,
@@ -44,6 +46,7 @@ export const createNote = async ({
       type: 'note',
       replyStatus,
       message,
+      contentWarning,
       attachments,
       fitnessFileId,
       visibility
@@ -62,11 +65,19 @@ export const createNote = async ({
 
 export interface UpdateNoteParams {
   statusId: string
-  message: string
+  message?: string
+  contentWarning?: string
 }
-export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
-  if (message.trim().length === 0) {
-    throw new Error('Message must not be empty')
+export const updateNote = async ({
+  statusId,
+  message,
+  contentWarning
+}: UpdateNoteParams) => {
+  const normalizedMessage =
+    message !== undefined && message.trim().length > 0 ? message : undefined
+
+  if (normalizedMessage === undefined && contentWarning === undefined) {
+    throw new Error('Message or content warning must be provided')
   }
 
   const response = await fetch(`/api/v1/statuses/${statusId}`, {
@@ -75,7 +86,8 @@ export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      status: message
+      ...(normalizedMessage !== undefined ? { status: normalizedMessage } : {}),
+      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {})
     })
   })
   if (response.status !== 200) {
@@ -122,6 +134,7 @@ export const updateStatusVisibility = async ({
 
 export interface CreatePollParams {
   message: string
+  contentWarning?: string
   choices: string[]
   durationInSeconds: Duration
   pollType?: 'oneOf' | 'anyOf'
@@ -131,6 +144,7 @@ export interface CreatePollParams {
 
 export const createPoll = async ({
   message,
+  contentWarning,
   choices,
   durationInSeconds,
   pollType,
@@ -157,6 +171,7 @@ export const createPoll = async ({
       type: 'poll',
       replyStatus,
       message,
+      contentWarning,
       durationInSeconds,
       pollType,
       choices,

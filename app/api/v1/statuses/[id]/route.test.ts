@@ -1,15 +1,51 @@
+import { NextRequest } from 'next/server'
+
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
+import { PUT } from './route'
+
+const mockGetServerSession = jest.fn()
+jest.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
+}))
+
+let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+jest.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
+
+jest.mock('next/headers', () => ({
+  cookies: jest.fn().mockResolvedValue({
+    get: jest.fn().mockReturnValue(undefined)
+  })
+}))
+
+jest.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: jest.fn()
+}))
+
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
+}))
+
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
+  getConfig: jest.fn().mockReturnValue({
+    allowEmails: [],
+    host: 'llun.test',
+    secretPhase: 'test-secret'
+  })
 }))
 
 /**
@@ -24,11 +60,20 @@ describe('GET /api/v1/statuses/[id]', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    mockDatabase = database
   })
 
   afterAll(async () => {
     if (!database) return
+    mockDatabase = null
     await database.destroy()
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
   })
 
   describe('status retrieval and format', () => {
@@ -275,6 +320,132 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(mastodonStatus?.sensitive).toBe(true)
       expect(mastodonStatus?.spoiler_text).toBe('CW: Sensitive topic')
+    })
+  })
+
+  describe('status update', () => {
+    it('applies visibility updates when spoiler_text is also present', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-visibility-with-cw`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public edit target',
+        summary: 'Existing warning',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              visibility: 'private',
+              spoiler_text: ''
+            }),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      const updatedStatus = await database.getStatus({ statusId })
+
+      expect(data.visibility).toBe('private')
+      expect(data.spoiler_text).toBe('')
+      expect(updatedStatus?.summary).toBeNull()
+      expect(updatedStatus?.to).toEqual([`${ACTOR1_ID}/followers`])
+      expect(updatedStatus?.cc).toEqual([])
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears content warning when spoiler_text is null', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-null-cw`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Content warning target',
+        summary: 'Existing warning',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              spoiler_text: null
+            }),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      const updatedStatus = await database.getStatus({ statusId })
+
+      expect(data.spoiler_text).toBe('')
+      expect(updatedStatus?.summary).toBeNull()
+    })
+
+    it('does not partially apply visibility when content update is forbidden', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-forbidden-combined`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public edit target',
+        summary: 'Existing warning',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              visibility: 'private',
+              spoiler_text: ''
+            }),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      const updatedStatus = await database.getStatus({ statusId })
+
+      expect(response.status).toBe(403)
+      expect(updatedStatus?.summary).toBe('Existing warning')
+      expect(updatedStatus?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+      expect(updatedStatus?.cc).toEqual([`${ACTOR1_ID}/followers`])
+      expect(getQueue().publish).not.toHaveBeenCalled()
     })
   })
 
