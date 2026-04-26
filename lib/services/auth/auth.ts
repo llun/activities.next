@@ -40,7 +40,7 @@ export const getAuth = memoize(() => {
       }),
       twoFactor({
         issuer: config.serviceName ?? 'Activities.next',
-        allowPasswordless: true
+        allowPasswordless: false
       }),
       oauthProvider({
         loginPage: '/auth/signin',

@@ -8,6 +8,7 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
+import { getAuthErrorMessage } from '@/lib/services/auth/getAuthErrorMessage'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -15,13 +16,6 @@ interface Props {
 }
 
 type VerificationMode = 'totp' | 'backup'
-
-const getErrorMessage = (
-  error: { message?: unknown } | null | undefined,
-  fallback: string
-): string => {
-  return typeof error?.message === 'string' ? error.message : fallback
-}
 
 export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
   const router = useRouter()
@@ -55,11 +49,12 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
             })
 
       if (result.error) {
-        setError(getErrorMessage(result.error, 'Verification failed'))
+        setError(getAuthErrorMessage(result.error, 'Verification failed'))
         setLoading(false)
         return
       }
 
+      setLoading(false)
       router.push(redirectBack)
       router.refresh()
     } catch {

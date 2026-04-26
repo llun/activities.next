@@ -9,6 +9,7 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
+import { getAuthErrorMessage } from '@/lib/services/auth/getAuthErrorMessage'
 
 interface Props {
   enabled: boolean
@@ -19,13 +20,6 @@ interface SetupState {
   totpURI: string
   backupCodes: string[]
   secret: string
-}
-
-const getErrorMessage = (
-  error: { message?: unknown } | null | undefined,
-  fallback: string
-): string => {
-  return typeof error?.message === 'string' ? error.message : fallback
 }
 
 const getSecretFromTotpURI = (totpURI: string): string => {
@@ -111,7 +105,7 @@ export const TwoFactorManager: FC<Props> = ({
         issuer: serviceName
       })
       if (result.error) {
-        setError(getErrorMessage(result.error, 'Failed to start setup'))
+        setError(getAuthErrorMessage(result.error, 'Failed to start setup'))
         return
       }
       if (!result.data?.totpURI) {
@@ -147,7 +141,7 @@ export const TwoFactorManager: FC<Props> = ({
         code: verificationCode.trim()
       })
       if (result.error) {
-        setError(getErrorMessage(result.error, 'Invalid verification code'))
+        setError(getAuthErrorMessage(result.error, 'Invalid verification code'))
         return
       }
 
@@ -179,7 +173,7 @@ export const TwoFactorManager: FC<Props> = ({
         password: disablePassword
       })
       if (result.error) {
-        setError(getErrorMessage(result.error, 'Failed to disable 2FA'))
+        setError(getAuthErrorMessage(result.error, 'Failed to disable 2FA'))
         return
       }
 
@@ -211,7 +205,7 @@ export const TwoFactorManager: FC<Props> = ({
       })
       if (result.error) {
         setError(
-          getErrorMessage(result.error, 'Failed to generate backup codes')
+          getAuthErrorMessage(result.error, 'Failed to generate backup codes')
         )
         return
       }

@@ -17,10 +17,9 @@ const requiresTwoFactor = (
   data: unknown
 ): data is { twoFactorRedirect: true } => {
   if (!data || typeof data !== 'object') return false
-  return (
-    'twoFactorRedirect' in data &&
-    (data as { twoFactorRedirect?: unknown }).twoFactorRedirect === true
-  )
+  // better-auth 1.6.6's twoFactorClient checks this response field but
+  // does not export a typed guard; re-verify this on better-auth upgrades.
+  return Reflect.get(data, 'twoFactorRedirect') === true
 }
 
 export const CredentialForm: FC<Props> = ({ providerName }) => {

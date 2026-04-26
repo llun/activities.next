@@ -122,4 +122,52 @@ describe('TwoFactorManager', () => {
       screen.getByText('Two-factor authentication is on')
     ).toBeInTheDocument()
   })
+
+  it('disables 2FA after confirming the current password', async () => {
+    mockDisable.mockResolvedValue({ data: { success: true } })
+
+    render(<TwoFactorManager enabled={true} serviceName="Activities" />)
+
+    fireEvent.change(
+      screen.getByLabelText('Current password', {
+        selector: '#twoFactorDisablePassword'
+      }),
+      {
+        target: { value: 'password' }
+      }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Disable 2FA' }))
+
+    await waitFor(() => {
+      expect(mockDisable).toHaveBeenCalledWith({ password: 'password' })
+    })
+    expect(screen.getByText('2FA is off')).toBeInTheDocument()
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it('generates and renders replacement backup codes', async () => {
+    mockGenerateBackupCodes.mockResolvedValue({
+      data: { backupCodes: ['new-backup-one', 'new-backup-two'] }
+    })
+
+    render(<TwoFactorManager enabled={true} serviceName="Activities" />)
+
+    fireEvent.change(
+      screen.getByLabelText('Current password', {
+        selector: '#twoFactorBackupPassword'
+      }),
+      {
+        target: { value: 'password' }
+      }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Generate codes' }))
+
+    await waitFor(() => {
+      expect(mockGenerateBackupCodes).toHaveBeenCalledWith({
+        password: 'password'
+      })
+    })
+    expect(screen.getByText('new-backup-one')).toBeInTheDocument()
+    expect(screen.getByText('new-backup-two')).toBeInTheDocument()
+  })
 })

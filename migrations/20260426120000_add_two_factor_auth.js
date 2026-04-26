@@ -10,7 +10,7 @@ exports.up = async (knex) => {
 
     await trx.schema.createTable('twoFactor', (table) => {
       table.string('id').primary()
-      table.text('secret').notNullable().index()
+      table.text('secret').notNullable()
       table.text('backupCodes').notNullable()
       table
         .string('userId')
@@ -20,7 +20,6 @@ exports.up = async (knex) => {
         .onDelete('CASCADE')
       table.boolean('verified').notNullable().defaultTo(true)
       table.unique(['userId'])
-      table.index(['userId'])
     })
   })
 }

@@ -367,17 +367,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
                 ? getCompatibleTime(sqlAccount.emailChangeCodeExpiresAt)
                 : null
             },
-            ...{
-              passwordResetCodeExpiresAt: sqlAccount.passwordResetCodeExpiresAt
-                ? getCompatibleTime(sqlAccount.passwordResetCodeExpiresAt)
-                : null
-            },
-            ...{
-              twoFactorEnabled:
-                sqlAccount.twoFactorEnabled != null
-                  ? Boolean(sqlAccount.twoFactorEnabled)
-                  : false
-            }
+            passwordResetCodeExpiresAt: sqlAccount.passwordResetCodeExpiresAt
+              ? getCompatibleTime(sqlAccount.passwordResetCodeExpiresAt)
+              : null,
+            twoFactorEnabled:
+              sqlAccount.twoFactorEnabled != null
+                ? Boolean(sqlAccount.twoFactorEnabled)
+                : false
           })
         }
       : null

@@ -25,9 +25,8 @@ export const toDomainAccount = (row: SQLAccount): Account =>
           )
         }
       : null),
-    ...(row.twoFactorEnabled != null
-      ? { twoFactorEnabled: Boolean(row.twoFactorEnabled) }
-      : null),
+    twoFactorEnabled:
+      row.twoFactorEnabled != null ? Boolean(row.twoFactorEnabled) : false,
     createdAt: getCompatibleTime(row.createdAt),
     updatedAt: getCompatibleTime(row.updatedAt)
   })
