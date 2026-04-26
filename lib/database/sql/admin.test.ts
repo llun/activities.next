@@ -247,6 +247,41 @@ describe('AdminDatabase', () => {
         await expect(database.getDomainBlockById(block.id)).resolves.toBeNull()
       })
 
+      it('matches the most specific domain rule in SQL', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const parentDomain = `parent-${suffix}.test`
+        const childDomain = `sub.${parentDomain}`
+        const parent = await database.createDomainBlock({
+          domain: parentDomain,
+          severity: 'silence'
+        })
+        const child = await database.createDomainBlock({
+          domain: childDomain,
+          severity: 'suspend'
+        })
+
+        await expect(
+          database.getDomainBlockForDomain(`deep.${childDomain}`)
+        ).resolves.toMatchObject({ id: child.id })
+        await expect(
+          database.getDomainBlockForDomain(parentDomain)
+        ).resolves.toMatchObject({ id: parent.id })
+      })
+
+      it('does not match wildcard rules against the parent domain', async () => {
+        const domain = `wild-${crypto.randomUUID().slice(0, 8)}.test`
+        const wildcard = await database.createDomainAllow({
+          domain: `*.${domain}`
+        })
+
+        await expect(
+          database.getDomainAllowForDomain(`sub.${domain}`)
+        ).resolves.toMatchObject({ id: wildcard.id })
+        await expect(
+          database.getDomainAllowForDomain(domain)
+        ).resolves.toBeNull()
+      })
+
       it('creates and deletes domain allows idempotently', async () => {
         const domain = `allowed-${crypto.randomUUID().slice(0, 8)}.test`
 
@@ -304,6 +339,14 @@ describe('AdminDatabase', () => {
         ).resolves.toMatchObject({
           severity: 'suspend',
           source: 'oliphant-tier0'
+        })
+
+        await expect(
+          database.getDomainFederationRuleStats()
+        ).resolves.toMatchObject({
+          sourceCounts: expect.objectContaining({
+            'oliphant-tier0': expect.any(Number)
+          })
         })
       })
     })

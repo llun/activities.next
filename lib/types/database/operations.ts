@@ -1099,6 +1099,13 @@ export type CreateDomainAllowParams = {
 
 export type ImportDomainBlockParams = CreateDomainBlockParams
 
+export type DomainFederationRuleStats = {
+  blocks: number
+  allows: number
+  sourceBlocks: number
+  sourceCounts: Record<string, number>
+}
+
 export interface AdminDatabase {
   getAllAccounts(params: GetAllAccountsParams): Promise<GetAllAccountsResult>
   getAccountWithActors(
@@ -1121,6 +1128,7 @@ export interface AdminDatabase {
   getDomainAllowById(id: string): Promise<DomainAllow | null>
   getDomainBlockForDomain(domain: string): Promise<DomainBlock | null>
   getDomainAllowForDomain(domain: string): Promise<DomainAllow | null>
+  getDomainFederationRuleStats(): Promise<DomainFederationRuleStats>
   createDomainBlock(params: CreateDomainBlockParams): Promise<DomainBlock>
   updateDomainBlock(
     params: UpdateDomainBlockParams

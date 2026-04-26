@@ -1,6 +1,10 @@
 import { Database } from '@/lib/database/types'
 
-import { canFederateWithDomain, isDomainAllowed } from './domainPolicy'
+import {
+  canFederateWithDomain,
+  filterFederatedUrls,
+  isDomainAllowed
+} from './domainPolicy'
 
 const mockGetConfig = jest.fn()
 jest.mock('@/lib/config', () => ({
@@ -93,5 +97,20 @@ describe('domainPolicy', () => {
     await expect(
       canFederateWithDomain(database, 'https://alias.test/users/a')
     ).resolves.toBe(true)
+  })
+
+  it('filters URLs with one lookup per unique domain', async () => {
+    const database = createDatabase({ blocks: ['blocked.test'] })
+    const blockLookup = jest.spyOn(database, 'getDomainBlockForDomain')
+
+    await expect(
+      filterFederatedUrls(database, [
+        'https://blocked.test/users/a/inbox',
+        'https://blocked.test/users/b/inbox',
+        'https://ok.test/users/a/inbox',
+        'https://ok.test/users/a/inbox'
+      ])
+    ).resolves.toEqual(['https://ok.test/users/a/inbox'])
+    expect(blockLookup).toHaveBeenCalledTimes(2)
   })
 })

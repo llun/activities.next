@@ -35,16 +35,30 @@ const parseSeverity = (value: string | undefined): DomainBlockSeverity => {
 }
 
 export const parseCsvLine = (line: string): string[] => {
-  const fields: string[] = []
-  let current = ''
+  return parseCsvRecords(line)[0] ?? []
+}
+
+export const parseCsvRecords = (csv: string): string[][] => {
+  const records: string[][] = []
+  let fields: string[] = []
+  let field = ''
   let inQuotes = false
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-    const next = line[i + 1]
+  const pushRecord = () => {
+    fields.push(field)
+    if (fields.some((value) => value.trim())) {
+      records.push(fields)
+    }
+    fields = []
+    field = ''
+  }
+
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i]
+    const next = csv[i + 1]
 
     if (char === '"' && inQuotes && next === '"') {
-      current += '"'
+      field += '"'
       i++
       continue
     }
@@ -55,32 +69,35 @@ export const parseCsvLine = (line: string): string[] => {
     }
 
     if (char === ',' && !inQuotes) {
-      fields.push(current)
-      current = ''
+      fields.push(field)
+      field = ''
       continue
     }
 
-    current += char
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') i++
+      pushRecord()
+      continue
+    }
+
+    field += char
   }
 
-  fields.push(current)
-  return fields
+  if (field || fields.length) {
+    pushRecord()
+  }
+
+  return records
 }
 
 export const parseDomainBlockCsv = (
   csv: string,
   source: string
 ): ImportDomainBlockParams[] => {
-  const lines = csv
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line)
-  const [headerLine, ...rows] = lines
-  if (!headerLine) return []
+  const [headerFields, ...rows] = parseCsvRecords(csv)
+  if (!headerFields) return []
 
-  const headers = parseCsvLine(headerLine).map((field) =>
-    field.trim().replace(/^#/, '')
-  )
+  const headers = headerFields.map((field) => field.trim().replace(/^#/, ''))
   const domainIndex = headers.indexOf('domain')
   if (domainIndex < 0) return []
 
@@ -91,8 +108,7 @@ export const parseDomainBlockCsv = (
 
   const blocks = new Map<string, ImportDomainBlockParams>()
 
-  for (const row of rows) {
-    const fields = parseCsvLine(row)
+  for (const fields of rows) {
     const domain = normalizeDomain(fields[domainIndex] ?? '')
     if (!domain) continue
 

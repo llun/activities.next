@@ -12,7 +12,6 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   DEFAULT_DOMAIN_BLOCK_SEVERITY,
-  findMatchingDomainRule,
   normalizeDomain
 } from '@/lib/services/federation/domainRules'
 import {
@@ -98,6 +97,18 @@ const normalizeOrThrow = (domain: string): string => {
   const normalized = normalizeDomain(domain)
   if (!normalized) throw new Error('Invalid domain')
   return normalized
+}
+
+const getDomainRuleCandidates = (domain: string): string[] => {
+  if (domain === '*') return ['*']
+
+  const parts = domain.split('.')
+  const exactCandidates = parts.map((_, index) => parts.slice(index).join('.'))
+  const wildcardCandidates = exactCandidates
+    .slice(1)
+    .map((candidate) => `*.${candidate}`)
+
+  return [...new Set([...exactCandidates, ...wildcardCandidates, '*'])]
 }
 
 const buildDomainBlockInsert = (
@@ -377,16 +388,70 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     const normalized = normalizeDomain(domain)
     if (!normalized) return null
 
-    const blocks = await this.getDomainBlocks({ limit: 10_000 })
-    return findMatchingDomainRule(normalized, blocks)
+    const row = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where('type', 'block')
+      .whereIn('domain', getDomainRuleCandidates(normalized))
+      .orderByRaw('length(domain) DESC')
+      .orderByRaw("case when domain like '*.%' then 1 else 0 end asc")
+      .first()
+
+    return row ? toDomainBlock(row) : null
   },
 
   async getDomainAllowForDomain(domain: string) {
     const normalized = normalizeDomain(domain)
     if (!normalized) return null
 
-    const allows = await this.getDomainAllows({ limit: 10_000 })
-    return findMatchingDomainRule(normalized, allows)
+    const row = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where('type', 'allow')
+      .whereIn('domain', getDomainRuleCandidates(normalized))
+      .orderByRaw('length(domain) DESC')
+      .orderByRaw("case when domain like '*.%' then 1 else 0 end asc")
+      .first()
+
+    return row ? toDomainAllow(row) : null
+  },
+
+  async getDomainFederationRuleStats() {
+    const [blockCount, allowCount, sourceRows] = await Promise.all([
+      database('domain_federation_rules')
+        .where('type', 'block')
+        .count<{ count: string | number }>('id as count')
+        .first(),
+      database('domain_federation_rules')
+        .where('type', 'allow')
+        .count<{ count: string | number }>('id as count')
+        .first(),
+      database('domain_federation_rules')
+        .select('source')
+        .where('type', 'block')
+        .whereNotNull('source')
+        .groupBy('source')
+        .count<{ source: string; count: string | number }>('id as count')
+    ])
+    const sourceCounts = Object.fromEntries(
+      (
+        sourceRows as unknown as {
+          source: string
+          count: string | number
+        }[]
+      ).map((row) => [row.source, Number(row.count)])
+    )
+    const sourceBlocks = Object.values(sourceCounts).reduce(
+      (total, count) => total + count,
+      0
+    )
+
+    return {
+      blocks: Number(blockCount?.count ?? 0),
+      allows: Number(allowCount?.count ?? 0),
+      sourceBlocks,
+      sourceCounts
+    }
   },
 
   async createDomainBlock(params) {

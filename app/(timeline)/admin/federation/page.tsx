@@ -9,6 +9,11 @@ import {
   importKnownDomainBlocklistAction
 } from '@/app/(timeline)/admin/federation/actions'
 import { Button } from '@/lib/components/ui/button'
+import { Checkbox } from '@/lib/components/ui/checkbox'
+import { Input } from '@/lib/components/ui/input'
+import { Label } from '@/lib/components/ui/label'
+import { Select } from '@/lib/components/ui/select'
+import { Textarea } from '@/lib/components/ui/textarea'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -32,6 +37,8 @@ const STATUS_MESSAGES: Record<string, string> = {
   'invalid-source': 'Choose a known blocklist source'
 }
 
+const ADMIN_FEDERATION_PAGE_SIZE = 100
+
 const getStatusMessage = (status?: string): string | null => {
   if (!status) return null
   if (STATUS_MESSAGES[status]) return STATUS_MESSAGES[status]
@@ -50,17 +57,14 @@ const Page = async ({ searchParams }: Props) => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  const [{ status }, blocks, allows] = await Promise.all([
+  const [{ status }, blocks, allows, stats] = await Promise.all([
     searchParams,
-    database.getDomainBlocks({ limit: 10_000 }),
-    database.getDomainAllows({ limit: 10_000 })
+    database.getDomainBlocks({ limit: ADMIN_FEDERATION_PAGE_SIZE }),
+    database.getDomainAllows({ limit: ADMIN_FEDERATION_PAGE_SIZE }),
+    database.getDomainFederationRuleStats()
   ])
   const statusMessage = getStatusMessage(status)
-  const sourceCounts = new Map<string, number>()
-  blocks.forEach((block) => {
-    if (!block.source) return
-    sourceCounts.set(block.source, (sourceCounts.get(block.source) ?? 0) + 1)
-  })
+  const sourceCounts = new Map(Object.entries(stats.sourceCounts))
   const config = getConfig()
   const federationMode = config.federationMode ?? 'open'
 
@@ -87,7 +91,7 @@ const Page = async ({ searchParams }: Props) => {
             <ShieldBan className="h-5 w-5 text-destructive" />
             <div>
               <p className="text-sm text-muted-foreground">Blocked domains</p>
-              <p className="text-2xl font-bold">{blocks.length}</p>
+              <p className="text-2xl font-bold">{stats.blocks}</p>
             </div>
           </div>
         </div>
@@ -96,15 +100,13 @@ const Page = async ({ searchParams }: Props) => {
             <ShieldCheck className="h-5 w-5 text-green-600" />
             <div>
               <p className="text-sm text-muted-foreground">Allowed domains</p>
-              <p className="text-2xl font-bold">{allows.length}</p>
+              <p className="text-2xl font-bold">{stats.allows}</p>
             </div>
           </div>
         </div>
         <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
           <p className="text-sm text-muted-foreground">Shared-list entries</p>
-          <p className="text-2xl font-bold">
-            {blocks.filter((block) => block.source).length}
-          </p>
+          <p className="text-2xl font-bold">{stats.sourceBlocks}</p>
         </div>
       </div>
 
@@ -144,50 +146,48 @@ const Page = async ({ searchParams }: Props) => {
         <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">Add Domain Block</h2>
           <form action={createDomainBlockAction} className="space-y-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Domain</span>
-              <input
+            <div className="space-y-1">
+              <Label htmlFor="block-domain">Domain</Label>
+              <Input
+                id="block-domain"
                 required
                 name="domain"
                 placeholder="example.social"
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
               />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Severity</span>
-              <select
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="block-severity">Severity</Label>
+              <Select
+                id="block-severity"
                 name="severity"
                 defaultValue="suspend"
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
               >
                 <option value="suspend">Suspend</option>
                 <option value="silence">Silence</option>
                 <option value="noop">Noop</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">
-                Public comment
-              </span>
-              <textarea
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="block-public-comment">Public comment</Label>
+              <Textarea
+                id="block-public-comment"
                 name="publicComment"
                 rows={2}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
               />
-            </label>
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input name="rejectMedia" type="checkbox" />
+              <Label>
+                <Checkbox name="rejectMedia" />
                 Reject media
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input name="rejectReports" type="checkbox" />
+              </Label>
+              <Label>
+                <Checkbox name="rejectReports" />
                 Reject reports
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input name="obfuscate" type="checkbox" />
+              </Label>
+              <Label>
+                <Checkbox name="obfuscate" />
                 Obfuscate
-              </label>
+              </Label>
             </div>
             <Button type="submit">Save block</Button>
           </form>
@@ -196,15 +196,15 @@ const Page = async ({ searchParams }: Props) => {
         <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">Add Domain Allow</h2>
           <form action={createDomainAllowAction} className="space-y-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Domain</span>
-              <input
+            <div className="space-y-1">
+              <Label htmlFor="allow-domain">Domain</Label>
+              <Input
+                id="allow-domain"
                 required
                 name="domain"
                 placeholder="trusted.social"
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
               />
-            </label>
+            </div>
             <Button type="submit">Save allow</Button>
           </form>
         </div>
@@ -212,6 +212,11 @@ const Page = async ({ searchParams }: Props) => {
 
       <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold">Domain Blocks</h2>
+        {stats.blocks > blocks.length && (
+          <p className="mb-3 text-sm text-muted-foreground">
+            Showing first {blocks.length} of {stats.blocks} blocked domains.
+          </p>
+        )}
         <div className="space-y-2">
           {blocks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No domains blocked</p>
@@ -250,6 +255,11 @@ const Page = async ({ searchParams }: Props) => {
 
       <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold">Domain Allows</h2>
+        {stats.allows > allows.length && (
+          <p className="mb-3 text-sm text-muted-foreground">
+            Showing first {allows.length} of {stats.allows} allowed domains.
+          </p>
+        )}
         <div className="space-y-2">
           {allows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No domains allowed</p>

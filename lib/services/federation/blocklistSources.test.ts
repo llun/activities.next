@@ -1,6 +1,7 @@
 import {
   fetchKnownDomainBlocklist,
   parseCsvLine,
+  parseCsvRecords,
   parseDomainBlockCsv
 } from './blocklistSources'
 
@@ -10,6 +11,14 @@ describe('blocklistSources', () => {
       'a',
       'b, c',
       'd "quoted"'
+    ])
+  })
+
+  it('parses quoted CSV fields with newlines', () => {
+    expect(parseCsvRecords('a,b\none,"two\nlines"\nthree,four')).toEqual([
+      ['a', 'b'],
+      ['one', 'two\nlines'],
+      ['three', 'four']
     ])
   })
 

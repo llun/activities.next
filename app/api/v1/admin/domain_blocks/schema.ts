@@ -5,7 +5,8 @@ import { DomainBlockSeverity } from '@/lib/types/database/operations'
 
 const Booleanish = z.union([z.boolean(), z.string()]).transform((value) => {
   if (typeof value === 'boolean') return value
-  return value.toLowerCase() === 'true' || value === '1'
+  const normalized = value.toLowerCase()
+  return normalized === 'true' || normalized === '1' || normalized === 'on'
 })
 
 export const DomainBlockRequest = z.object({

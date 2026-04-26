@@ -72,11 +72,27 @@ export const filterFederatedUrls = async (
   urls: string[]
 ): Promise<string[]> => {
   const uniqueUrls = [...new Set(urls)]
-  const allowed = await Promise.all(
-    uniqueUrls.map(async (url) =>
-      (await canFederateWithDomain(database, url)) ? url : null
+  const domains = [
+    ...new Set(
+      uniqueUrls
+        .map((url) => getDomainFromUrl(url))
+        .filter((domain): domain is string => domain !== null)
     )
+  ]
+  const domainResults = await Promise.all(
+    domains.map(async (domain) => ({
+      domain,
+      allowed: await canFederateWithDomain(database, domain)
+    }))
+  )
+  const allowedDomains = new Set(
+    domainResults
+      .filter((result) => result.allowed)
+      .map((result) => result.domain)
   )
 
-  return allowed.filter((url): url is string => url !== null)
+  return uniqueUrls.filter((url) => {
+    const domain = getDomainFromUrl(url)
+    return domain ? allowedDomains.has(domain) : false
+  })
 }

@@ -109,4 +109,57 @@ describe('/api/v1/admin/domain_blocks', () => {
       source: null
     })
   })
+
+  it('creates domain blocks from checkbox-style values', async () => {
+    mockDatabase.createDomainBlock.mockResolvedValue({
+      id: 'block-3',
+      type: 'block',
+      domain: 'form.test',
+      severity: 'suspend',
+      rejectMedia: true,
+      rejectReports: false,
+      privateComment: null,
+      publicComment: null,
+      obfuscate: true,
+      source: null,
+      createdAt: 0,
+      updatedAt: 0
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          domain: 'form.test',
+          reject_media: 'on',
+          obfuscate: 'on'
+        })
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.createDomainBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'form.test',
+        rejectMedia: true,
+        obfuscate: true
+      })
+    )
+  })
+
+  it('rejects invalid JSON bodies', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{'
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockDatabase.createDomainBlock).not.toHaveBeenCalled()
+  })
 })

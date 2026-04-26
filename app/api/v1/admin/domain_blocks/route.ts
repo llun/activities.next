@@ -8,6 +8,7 @@ import { toAdminDomainBlock } from '@/lib/services/federation/domainRules'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
+  ERROR_400,
   ERROR_422,
   HTTP_STATUS,
   apiResponse,
@@ -39,7 +40,19 @@ export const GET = traceApiRoute(
 export const POST = traceApiRoute(
   'adminCreateDomainBlock',
   AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
-    const parsed = DomainBlockRequest.safeParse(await readRequestData(req))
+    let data: unknown
+    try {
+      data = await readRequestData(req)
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+      })
+    }
+
+    const parsed = DomainBlockRequest.safeParse(data)
     if (!parsed.success) {
       return apiResponse({
         req,

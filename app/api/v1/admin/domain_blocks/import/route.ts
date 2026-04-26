@@ -7,6 +7,7 @@ import {
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
+  ERROR_400,
   ERROR_422,
   HTTP_STATUS,
   apiResponse,
@@ -21,8 +22,23 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const POST = traceApiRoute(
   'adminImportDomainBlocks',
   AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
-    const body = await req.json().catch(() => ({}))
-    const parsed = KnownDomainBlocklistSourceId.safeParse(body.source)
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+      })
+    }
+
+    const source =
+      typeof body === 'object' && body !== null && 'source' in body
+        ? body.source
+        : undefined
+    const parsed = KnownDomainBlocklistSourceId.safeParse(source)
     if (!parsed.success) {
       return apiResponse({
         req,
