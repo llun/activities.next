@@ -18,6 +18,8 @@ import {
   AdminDatabase,
   AdminHashtag,
   CreateDomainBlockParams,
+  DomainAllow,
+  DomainBlock,
   GetAccountWithActorsParams,
   GetAllAccountsParams,
   GetAllHashtagsParams,
@@ -67,7 +69,7 @@ const toDomainActor = (row: SQLActor): Actor => {
 const toBoolean = (value: boolean | number | undefined | null): boolean =>
   value === true || value === 1
 
-const toDomainBlock = (row: SQLDomainFederationRule) => ({
+const toDomainBlock = (row: SQLDomainFederationRule): DomainBlock => ({
   id: row.id,
   domain: row.domain,
   type: 'block' as const,
@@ -85,7 +87,7 @@ const toDomainBlock = (row: SQLDomainFederationRule) => ({
   updatedAt: getCompatibleTime(row.updatedAt)
 })
 
-const toDomainAllow = (row: SQLDomainFederationRule) => ({
+const toDomainAllow = (row: SQLDomainFederationRule): DomainAllow => ({
   id: row.id,
   domain: row.domain,
   type: 'allow' as const,
@@ -109,6 +111,48 @@ const getDomainRuleCandidates = (domain: string): string[] => {
     .map((candidate) => `*.${candidate}`)
 
   return [...new Set([...exactCandidates, ...wildcardCandidates, '*'])]
+}
+
+const normalizeDomains = (domains: string[]): string[] => [
+  ...new Set(
+    domains
+      .map((domain) => normalizeDomain(domain))
+      .filter((domain): domain is string => domain !== null)
+  )
+]
+
+const compareDomainRuleRows = (
+  left: SQLDomainFederationRule,
+  right: SQLDomainFederationRule
+) => {
+  if (left.domain === right.domain) return 0
+  if (left.domain === '*') return 1
+  if (right.domain === '*') return -1
+
+  const lengthDiff = right.domain.length - left.domain.length
+  if (lengthDiff !== 0) return lengthDiff
+
+  return (
+    Number(left.domain.startsWith('*.')) - Number(right.domain.startsWith('*.'))
+  )
+}
+
+const resolveDomainRuleMatches = <T extends DomainBlock | DomainAllow>(
+  domains: string[],
+  rows: SQLDomainFederationRule[],
+  toDomainRule: (row: SQLDomainFederationRule) => T
+): Record<string, T | null> => {
+  const sortedRows = [...rows].sort(compareDomainRuleRows)
+
+  return Object.fromEntries(
+    domains.map((domain) => {
+      const candidates = new Set(getDomainRuleCandidates(domain))
+      const row =
+        sortedRows.find((candidate) => candidates.has(candidate.domain)) ?? null
+
+      return [domain, row ? toDomainRule(row) : null]
+    })
+  )
 }
 
 const SQL_BATCH_SIZE = 50
@@ -412,6 +456,21 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     return row ? toDomainBlock(row) : null
   },
 
+  async getDomainBlocksForDomains(domains: string[]) {
+    const normalizedDomains = normalizeDomains(domains)
+    if (normalizedDomains.length === 0) return {}
+
+    const rows = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where('type', 'block')
+      .whereIn('domain', [
+        ...new Set(normalizedDomains.flatMap(getDomainRuleCandidates))
+      ])
+
+    return resolveDomainRuleMatches(normalizedDomains, rows, toDomainBlock)
+  },
+
   async getDomainAllowForDomain(domain: string) {
     const normalized = normalizeDomain(domain)
     if (!normalized) return null
@@ -426,6 +485,21 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
       .first()
 
     return row ? toDomainAllow(row) : null
+  },
+
+  async getDomainAllowsForDomains(domains: string[]) {
+    const normalizedDomains = normalizeDomains(domains)
+    if (normalizedDomains.length === 0) return {}
+
+    const rows = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where('type', 'allow')
+      .whereIn('domain', [
+        ...new Set(normalizedDomains.flatMap(getDomainRuleCandidates))
+      ])
+
+    return resolveDomainRuleMatches(normalizedDomains, rows, toDomainAllow)
   },
 
   async getDomainFederationRuleStats() {

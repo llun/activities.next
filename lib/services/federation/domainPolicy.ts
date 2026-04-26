@@ -70,6 +70,44 @@ export const canFederateWithDomain = async (
   return true
 }
 
+const getFederationDecisionsForDomains = async (
+  database: Database,
+  domains: string[]
+): Promise<Map<string, boolean>> => {
+  const uniqueDomains = [...new Set(domains)]
+  const decisions = new Map<string, boolean>()
+  const remoteDomains: string[] = []
+
+  for (const domain of uniqueDomains) {
+    if (isLocalFederationDomain(domain)) {
+      decisions.set(domain, true)
+    } else {
+      remoteDomains.push(domain)
+    }
+  }
+
+  if (remoteDomains.length === 0) return decisions
+
+  const blockRules = await database.getDomainBlocksForDomains(remoteDomains)
+  const unblockedDomains = remoteDomains.filter((domain) => {
+    const block = blockRules[domain] ?? null
+    const isBlocked = block ? shouldSuspendDomainBlock(block) : false
+    decisions.set(domain, !isBlocked)
+    return !isBlocked
+  })
+
+  if (getFederationMode() !== 'allowlist' || unblockedDomains.length === 0) {
+    return decisions
+  }
+
+  const allowRules = await database.getDomainAllowsForDomains(unblockedDomains)
+  for (const domain of unblockedDomains) {
+    decisions.set(domain, Boolean(allowRules[domain]))
+  }
+
+  return decisions
+}
+
 export const filterFederatedUrls = async (
   database: Database,
   urls: string[]
@@ -82,20 +120,10 @@ export const filterFederatedUrls = async (
         .filter((domain): domain is string => domain !== null)
     )
   ]
-  const domainResults = await Promise.all(
-    domains.map(async (domain) => ({
-      domain,
-      allowed: await canFederateWithDomain(database, domain)
-    }))
-  )
-  const allowedDomains = new Set(
-    domainResults
-      .filter((result) => result.allowed)
-      .map((result) => result.domain)
-  )
+  const decisions = await getFederationDecisionsForDomains(database, domains)
 
   return uniqueUrls.filter((url) => {
     const domain = getDomainFromUrl(url)
-    return domain ? allowedDomains.has(domain) : false
+    return domain ? decisions.get(domain) === true : false
   })
 }

@@ -268,6 +268,46 @@ describe('AdminDatabase', () => {
         ).resolves.toMatchObject({ id: parent.id })
       })
 
+      it('matches domain rules for multiple domains in one batch', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const parentDomain = `batch-parent-${suffix}.test`
+        const childDomain = `sub.${parentDomain}`
+        const parent = await database.createDomainBlock({
+          domain: parentDomain,
+          severity: 'silence'
+        })
+        const child = await database.createDomainBlock({
+          domain: childDomain,
+          severity: 'suspend'
+        })
+        const allowDomain = `batch-allow-${suffix}.test`
+        const wildcardAllow = await database.createDomainAllow({
+          domain: `*.${allowDomain}`
+        })
+
+        const blockMatches = await database.getDomainBlocksForDomains([
+          `deep.${childDomain}`,
+          parentDomain,
+          `unknown-${suffix}.test`
+        ])
+        expect(blockMatches[`deep.${childDomain}`]).toMatchObject({
+          id: child.id
+        })
+        expect(blockMatches[parentDomain]).toMatchObject({
+          id: parent.id
+        })
+        expect(blockMatches[`unknown-${suffix}.test`]).toBeNull()
+
+        const allowMatches = await database.getDomainAllowsForDomains([
+          `sub.${allowDomain}`,
+          allowDomain
+        ])
+        expect(allowMatches[`sub.${allowDomain}`]).toMatchObject({
+          id: wildcardAllow.id
+        })
+        expect(allowMatches[allowDomain]).toBeNull()
+      })
+
       it('does not match wildcard rules against the parent domain', async () => {
         const domain = `wild-${crypto.randomUUID().slice(0, 8)}.test`
         const wildcard = await database.createDomainAllow({

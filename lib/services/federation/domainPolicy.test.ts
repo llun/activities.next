@@ -12,43 +12,57 @@ jest.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
-const createDatabase = (params: { blocks?: string[]; allows?: string[] }) =>
-  ({
-    getDomainBlockForDomain: async (domain: string) =>
-      params.blocks?.some(
-        (block) => domain === block || domain.endsWith(`.${block}`)
-      )
-        ? {
-            id: 'block',
-            type: 'block',
-            domain,
-            severity: 'suspend',
-            rejectMedia: false,
-            rejectReports: false,
-            privateComment: null,
-            publicComment: null,
-            obfuscate: false,
-            source: null,
-            createdAt: 0,
-            updatedAt: 0
-          }
-        : null,
-    getDomainAllowForDomain: async (domain: string) => {
-      const allow = params.allows?.find(
-        (rule) => domain === rule || domain.endsWith(`.${rule}`)
-      )
+const createDatabase = (params: { blocks?: string[]; allows?: string[] }) => {
+  const findBlock = (domain: string) =>
+    params.blocks?.some(
+      (block) => domain === block || domain.endsWith(`.${block}`)
+    )
+      ? {
+          id: 'block',
+          type: 'block' as const,
+          domain,
+          severity: 'suspend' as const,
+          rejectMedia: false,
+          rejectReports: false,
+          privateComment: null,
+          publicComment: null,
+          obfuscate: false,
+          source: null,
+          createdAt: 0,
+          updatedAt: 0
+        }
+      : null
+  const findAllow = (domain: string) => {
+    const allow = params.allows?.find(
+      (rule) => domain === rule || domain.endsWith(`.${rule}`)
+    )
 
-      return allow
-        ? {
-            id: 'allow',
-            type: 'allow',
-            domain: allow,
-            createdAt: 0,
-            updatedAt: 0
-          }
-        : null
-    }
-  }) as unknown as Database
+    return allow
+      ? {
+          id: 'allow',
+          type: 'allow' as const,
+          domain: allow,
+          createdAt: 0,
+          updatedAt: 0
+        }
+      : null
+  }
+
+  return {
+    getDomainBlockForDomain: jest.fn(async (domain: string) =>
+      findBlock(domain)
+    ),
+    getDomainAllowForDomain: jest.fn(async (domain: string) =>
+      findAllow(domain)
+    ),
+    getDomainBlocksForDomains: jest.fn(async (domains: string[]) =>
+      Object.fromEntries(domains.map((domain) => [domain, findBlock(domain)]))
+    ),
+    getDomainAllowsForDomains: jest.fn(async (domains: string[]) =>
+      Object.fromEntries(domains.map((domain) => [domain, findAllow(domain)]))
+    )
+  } as unknown as Database
+}
 
 describe('domainPolicy', () => {
   beforeEach(() => {
@@ -120,9 +134,8 @@ describe('domainPolicy', () => {
     )
   })
 
-  it('filters URLs with one lookup per unique domain', async () => {
+  it('filters URLs with a batched block lookup', async () => {
     const database = createDatabase({ blocks: ['blocked.test'] })
-    const blockLookup = jest.spyOn(database, 'getDomainBlockForDomain')
 
     await expect(
       filterFederatedUrls(database, [
@@ -132,6 +145,36 @@ describe('domainPolicy', () => {
         'https://ok.test/users/a/inbox'
       ])
     ).resolves.toEqual(['https://ok.test/users/a/inbox'])
-    expect(blockLookup).toHaveBeenCalledTimes(2)
+    expect(database.getDomainBlocksForDomains).toHaveBeenCalledWith([
+      'blocked.test',
+      'ok.test'
+    ])
+    expect(database.getDomainBlockForDomain).not.toHaveBeenCalled()
+  })
+
+  it('filters URLs with batched allow lookups in allowlist mode', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'local.test',
+      allowActorDomains: [],
+      federationMode: 'allowlist'
+    })
+    const database = createDatabase({ allows: ['trusted.test'] })
+
+    await expect(
+      filterFederatedUrls(database, [
+        'https://trusted.test/users/a/inbox',
+        'https://other.test/users/a/inbox',
+        'https://trusted.test/users/a/inbox'
+      ])
+    ).resolves.toEqual(['https://trusted.test/users/a/inbox'])
+    expect(database.getDomainBlocksForDomains).toHaveBeenCalledWith([
+      'trusted.test',
+      'other.test'
+    ])
+    expect(database.getDomainAllowsForDomains).toHaveBeenCalledWith([
+      'trusted.test',
+      'other.test'
+    ])
+    expect(database.getDomainAllowForDomain).not.toHaveBeenCalled()
   })
 })

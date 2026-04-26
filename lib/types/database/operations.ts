@@ -1128,6 +1128,12 @@ export interface AdminDatabase {
   getDomainAllowById(id: string): Promise<DomainAllow | null>
   getDomainBlockForDomain(domain: string): Promise<DomainBlock | null>
   getDomainAllowForDomain(domain: string): Promise<DomainAllow | null>
+  getDomainBlocksForDomains(
+    domains: string[]
+  ): Promise<Record<string, DomainBlock | null>>
+  getDomainAllowsForDomains(
+    domains: string[]
+  ): Promise<Record<string, DomainAllow | null>>
   getDomainFederationRuleStats(): Promise<DomainFederationRuleStats>
   createDomainBlock(params: CreateDomainBlockParams): Promise<DomainBlock>
   updateDomainBlock(
