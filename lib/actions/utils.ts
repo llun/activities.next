@@ -1,5 +1,6 @@
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { Actor } from '@/lib/types/domain/actor'
 
 interface RecordActorIfNeededParams {
@@ -10,6 +11,10 @@ export const recordActorIfNeeded = async ({
   actorId,
   database
 }: RecordActorIfNeededParams): Promise<Actor | undefined> => {
+  if (!(await canFederateWithDomain(database, actorId))) {
+    return undefined
+  }
+
   const existingActor = await database.getActorFromId({
     id: actorId
   })

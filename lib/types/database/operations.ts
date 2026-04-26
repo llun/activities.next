@@ -1036,6 +1036,69 @@ export interface GetAllHashtagsResult {
   total: number
 }
 
+export const DomainFederationRuleType = z.enum(['block', 'allow'])
+export type DomainFederationRuleType = z.infer<typeof DomainFederationRuleType>
+
+export const DomainBlockSeverity = z.enum(['noop', 'silence', 'suspend'])
+export type DomainBlockSeverity = z.infer<typeof DomainBlockSeverity>
+
+export interface DomainFederationRule {
+  id: string
+  domain: string
+  type: DomainFederationRuleType
+  createdAt: number
+  updatedAt: number
+}
+
+export interface DomainBlock extends DomainFederationRule {
+  type: 'block'
+  severity: DomainBlockSeverity
+  rejectMedia: boolean
+  rejectReports: boolean
+  privateComment: string | null
+  publicComment: string | null
+  obfuscate: boolean
+  source: string | null
+}
+
+export interface DomainAllow extends DomainFederationRule {
+  type: 'allow'
+}
+
+export type ListDomainFederationRulesParams = {
+  type: DomainFederationRuleType
+  limit?: number
+  offset?: number
+}
+
+export type CreateDomainBlockParams = {
+  domain: string
+  severity?: DomainBlockSeverity
+  rejectMedia?: boolean
+  rejectReports?: boolean
+  privateComment?: string | null
+  publicComment?: string | null
+  obfuscate?: boolean
+  source?: string | null
+}
+
+export type UpdateDomainBlockParams = {
+  id: string
+  severity?: DomainBlockSeverity
+  rejectMedia?: boolean
+  rejectReports?: boolean
+  privateComment?: string | null
+  publicComment?: string | null
+  obfuscate?: boolean
+  source?: string | null
+}
+
+export type CreateDomainAllowParams = {
+  domain: string
+}
+
+export type ImportDomainBlockParams = CreateDomainBlockParams
+
 export interface AdminDatabase {
   getAllAccounts(params: GetAllAccountsParams): Promise<GetAllAccountsResult>
   getAccountWithActors(
@@ -1046,4 +1109,26 @@ export interface AdminDatabase {
     params: GetServiceStatsBucketsParams
   ): Promise<ServiceStatsBucket[]>
   getAllHashtags(params: GetAllHashtagsParams): Promise<GetAllHashtagsResult>
+  getDomainBlocks(params?: {
+    limit?: number
+    offset?: number
+  }): Promise<DomainBlock[]>
+  getDomainAllows(params?: {
+    limit?: number
+    offset?: number
+  }): Promise<DomainAllow[]>
+  getDomainBlockById(id: string): Promise<DomainBlock | null>
+  getDomainAllowById(id: string): Promise<DomainAllow | null>
+  getDomainBlockForDomain(domain: string): Promise<DomainBlock | null>
+  getDomainAllowForDomain(domain: string): Promise<DomainAllow | null>
+  createDomainBlock(params: CreateDomainBlockParams): Promise<DomainBlock>
+  updateDomainBlock(
+    params: UpdateDomainBlockParams
+  ): Promise<DomainBlock | null>
+  deleteDomainBlock(id: string): Promise<DomainBlock | null>
+  createDomainAllow(params: CreateDomainAllowParams): Promise<DomainAllow>
+  deleteDomainAllow(id: string): Promise<DomainAllow | null>
+  importDomainBlocks(params: {
+    blocks: ImportDomainBlockParams[]
+  }): Promise<{ created: number; updated: number; skipped: number }>
 }

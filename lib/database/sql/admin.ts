@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { Knex } from 'knex'
 
 import {
@@ -10,15 +11,27 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
+  DEFAULT_DOMAIN_BLOCK_SEVERITY,
+  findMatchingDomainRule,
+  normalizeDomain
+} from '@/lib/services/federation/domainRules'
+import {
   AdminDatabase,
   AdminHashtag,
+  CreateDomainBlockParams,
   GetAccountWithActorsParams,
   GetAllAccountsParams,
   GetAllHashtagsParams,
   GetServiceStatsBucketsParams,
-  HashtagSortOrder
+  HashtagSortOrder,
+  UpdateDomainBlockParams
 } from '@/lib/types/database/operations'
-import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
+import {
+  ActorSettings,
+  SQLAccount,
+  SQLActor,
+  SQLDomainFederationRule
+} from '@/lib/types/database/rows'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -51,6 +64,74 @@ const toDomainActor = (row: SQLActor): Actor => {
         : null
   })
 }
+
+const toBoolean = (value: boolean | number | undefined | null): boolean =>
+  value === true || value === 1
+
+const toDomainBlock = (row: SQLDomainFederationRule) => ({
+  id: row.id,
+  domain: row.domain,
+  type: 'block' as const,
+  severity:
+    row.severity === 'noop' || row.severity === 'silence'
+      ? row.severity
+      : DEFAULT_DOMAIN_BLOCK_SEVERITY,
+  rejectMedia: toBoolean(row.rejectMedia),
+  rejectReports: toBoolean(row.rejectReports),
+  privateComment: row.privateComment ?? null,
+  publicComment: row.publicComment ?? null,
+  obfuscate: toBoolean(row.obfuscate),
+  source: row.source ?? null,
+  createdAt: getCompatibleTime(row.createdAt),
+  updatedAt: getCompatibleTime(row.updatedAt)
+})
+
+const toDomainAllow = (row: SQLDomainFederationRule) => ({
+  id: row.id,
+  domain: row.domain,
+  type: 'allow' as const,
+  createdAt: getCompatibleTime(row.createdAt),
+  updatedAt: getCompatibleTime(row.updatedAt)
+})
+
+const normalizeOrThrow = (domain: string): string => {
+  const normalized = normalizeDomain(domain)
+  if (!normalized) throw new Error('Invalid domain')
+  return normalized
+}
+
+const buildDomainBlockInsert = (
+  params: CreateDomainBlockParams,
+  now: Date,
+  id = crypto.randomUUID()
+) => ({
+  id,
+  domain: normalizeOrThrow(params.domain),
+  type: 'block',
+  severity: params.severity ?? DEFAULT_DOMAIN_BLOCK_SEVERITY,
+  rejectMedia: params.rejectMedia ?? false,
+  rejectReports: params.rejectReports ?? false,
+  privateComment: params.privateComment ?? null,
+  publicComment: params.publicComment ?? null,
+  obfuscate: params.obfuscate ?? false,
+  source: params.source ?? null,
+  createdAt: now,
+  updatedAt: now
+})
+
+const buildDomainBlockUpdate = (
+  params: UpdateDomainBlockParams | CreateDomainBlockParams,
+  now: Date
+) => ({
+  severity: params.severity ?? DEFAULT_DOMAIN_BLOCK_SEVERITY,
+  rejectMedia: params.rejectMedia ?? false,
+  rejectReports: params.rejectReports ?? false,
+  privateComment: params.privateComment ?? null,
+  publicComment: params.publicComment ?? null,
+  obfuscate: params.obfuscate ?? false,
+  source: params.source ?? null,
+  updatedAt: now
+})
 
 export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   async getAllAccounts({ limit, offset }: GetAllAccountsParams) {
@@ -246,5 +327,204 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
       hashtags,
       total: parseInt(String(countResult?.count ?? '0'), 10)
     }
+  },
+
+  async getDomainBlocks({ limit = 100, offset = 0 } = {}) {
+    const rows = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where('type', 'block')
+      .orderBy('domain', 'asc')
+      .limit(limit)
+      .offset(offset)
+
+    return rows.map(toDomainBlock)
+  },
+
+  async getDomainAllows({ limit = 100, offset = 0 } = {}) {
+    const rows = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where('type', 'allow')
+      .orderBy('domain', 'asc')
+      .limit(limit)
+      .offset(offset)
+
+    return rows.map(toDomainAllow)
+  },
+
+  async getDomainBlockById(id: string) {
+    const row = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where({ id, type: 'block' })
+      .first()
+
+    return row ? toDomainBlock(row) : null
+  },
+
+  async getDomainAllowById(id: string) {
+    const row = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where({ id, type: 'allow' })
+      .first()
+
+    return row ? toDomainAllow(row) : null
+  },
+
+  async getDomainBlockForDomain(domain: string) {
+    const normalized = normalizeDomain(domain)
+    if (!normalized) return null
+
+    const blocks = await this.getDomainBlocks({ limit: 10_000 })
+    return findMatchingDomainRule(normalized, blocks)
+  },
+
+  async getDomainAllowForDomain(domain: string) {
+    const normalized = normalizeDomain(domain)
+    if (!normalized) return null
+
+    const allows = await this.getDomainAllows({ limit: 10_000 })
+    return findMatchingDomainRule(normalized, allows)
+  },
+
+  async createDomainBlock(params) {
+    const now = new Date()
+    const row = buildDomainBlockInsert(params, now)
+    const existing = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where({ type: 'block', domain: row.domain })
+      .first()
+
+    if (existing) {
+      await database<SQLDomainFederationRule>('domain_federation_rules')
+        .where('id', existing.id)
+        .update(buildDomainBlockUpdate(params, now))
+      const updated = await this.getDomainBlockById(existing.id)
+      if (!updated) throw new Error('Failed to update domain block')
+      return updated
+    }
+
+    await database('domain_federation_rules').insert(row)
+    const created = await this.getDomainBlockById(row.id)
+    if (!created) throw new Error('Failed to create domain block')
+    return created
+  },
+
+  async updateDomainBlock(params) {
+    const existing = await this.getDomainBlockById(params.id)
+    if (!existing) return null
+
+    await database<SQLDomainFederationRule>('domain_federation_rules')
+      .where({ id: params.id, type: 'block' })
+      .update({
+        severity: params.severity ?? existing.severity,
+        rejectMedia: params.rejectMedia ?? existing.rejectMedia,
+        rejectReports: params.rejectReports ?? existing.rejectReports,
+        privateComment:
+          params.privateComment === undefined
+            ? existing.privateComment
+            : params.privateComment,
+        publicComment:
+          params.publicComment === undefined
+            ? existing.publicComment
+            : params.publicComment,
+        obfuscate: params.obfuscate ?? existing.obfuscate,
+        source: params.source === undefined ? existing.source : params.source,
+        updatedAt: new Date()
+      })
+
+    return this.getDomainBlockById(params.id)
+  },
+
+  async deleteDomainBlock(id: string) {
+    const existing = await this.getDomainBlockById(id)
+    if (!existing) return null
+
+    await database('domain_federation_rules')
+      .where({ id, type: 'block' })
+      .delete()
+    return existing
+  },
+
+  async createDomainAllow({ domain }) {
+    const normalized = normalizeOrThrow(domain)
+    const existing = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where({ type: 'allow', domain: normalized })
+      .first()
+    if (existing) return toDomainAllow(existing)
+
+    const now = new Date()
+    const row = {
+      id: crypto.randomUUID(),
+      domain: normalized,
+      type: 'allow',
+      severity: null,
+      rejectMedia: false,
+      rejectReports: false,
+      privateComment: null,
+      publicComment: null,
+      obfuscate: false,
+      source: null,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    await database('domain_federation_rules').insert(row)
+    const created = await this.getDomainAllowById(row.id)
+    if (!created) throw new Error('Failed to create domain allow')
+    return created
+  },
+
+  async deleteDomainAllow(id: string) {
+    const existing = await this.getDomainAllowById(id)
+    if (!existing) return null
+
+    await database('domain_federation_rules')
+      .where({ id, type: 'allow' })
+      .delete()
+    return existing
+  },
+
+  async importDomainBlocks({ blocks }) {
+    let created = 0
+    let updated = 0
+    let skipped = 0
+
+    await database.transaction(async (trx) => {
+      for (const block of blocks) {
+        const normalized = normalizeDomain(block.domain)
+        if (!normalized) {
+          skipped++
+          continue
+        }
+
+        const now = new Date()
+        const existing = await trx<SQLDomainFederationRule>(
+          'domain_federation_rules'
+        )
+          .where({ type: 'block', domain: normalized })
+          .first()
+
+        if (existing) {
+          await trx<SQLDomainFederationRule>('domain_federation_rules')
+            .where('id', existing.id)
+            .update(buildDomainBlockUpdate(block, now))
+          updated++
+          continue
+        }
+
+        await trx('domain_federation_rules').insert(
+          buildDomainBlockInsert(block, now)
+        )
+        created++
+      }
+    })
+
+    return { created, updated, skipped }
   }
 })

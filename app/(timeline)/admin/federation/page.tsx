@@ -1,0 +1,283 @@
+import { Download, ShieldBan, ShieldCheck, Trash2 } from 'lucide-react'
+import { redirect } from 'next/navigation'
+
+import {
+  createDomainAllowAction,
+  createDomainBlockAction,
+  deleteDomainAllowAction,
+  deleteDomainBlockAction,
+  importKnownDomainBlocklistAction
+} from '@/app/(timeline)/admin/federation/actions'
+import { Button } from '@/lib/components/ui/button'
+import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { KNOWN_DOMAIN_BLOCKLIST_SOURCES } from '@/lib/services/federation/blocklistSources'
+import { toPublicDomainBlock } from '@/lib/services/federation/domainRules'
+import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+
+export const dynamic = 'force-dynamic'
+
+interface Props {
+  searchParams: Promise<Record<string, string | undefined>>
+}
+
+const STATUS_MESSAGES: Record<string, string> = {
+  'block-saved': 'Domain block saved',
+  'block-deleted': 'Domain block deleted',
+  'allow-saved': 'Domain allow saved',
+  'allow-deleted': 'Domain allow deleted',
+  'invalid-block-domain': 'Enter a valid domain to block',
+  'invalid-allow-domain': 'Enter a valid domain to allow',
+  'invalid-source': 'Choose a known blocklist source'
+}
+
+const getStatusMessage = (status?: string): string | null => {
+  if (!status) return null
+  if (STATUS_MESSAGES[status]) return STATUS_MESSAGES[status]
+
+  const match = /^imported-(\d+)-(\d+)-(\d+)$/.exec(status)
+  if (!match) return null
+
+  return `Imported ${match[1]} new block${match[1] === '1' ? '' : 's'}, updated ${match[2]}, skipped ${match[3]}`
+}
+
+const Page = async ({ searchParams }: Props) => {
+  const database = getDatabase()
+  if (!database) throw new Error('Failed to load database')
+
+  const session = await getServerAuthSession()
+  const admin = await getAdminFromSession(database, session)
+  if (!admin) return redirect('/')
+
+  const [{ status }, blocks, allows] = await Promise.all([
+    searchParams,
+    database.getDomainBlocks({ limit: 10_000 }),
+    database.getDomainAllows({ limit: 10_000 })
+  ])
+  const statusMessage = getStatusMessage(status)
+  const sourceCounts = new Map<string, number>()
+  blocks.forEach((block) => {
+    if (!block.source) return
+    sourceCounts.set(block.source, (sourceCounts.get(block.source) ?? 0) + 1)
+  })
+  const config = getConfig()
+  const federationMode = config.federationMode ?? 'open'
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Federation</h1>
+        <p className="text-sm text-muted-foreground">
+          {federationMode === 'allowlist'
+            ? 'Limited federation mode'
+            : 'Open federation mode'}
+        </p>
+      </div>
+
+      {statusMessage && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100">
+          {statusMessage}
+        </div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <ShieldBan className="h-5 w-5 text-destructive" />
+            <div>
+              <p className="text-sm text-muted-foreground">Blocked domains</p>
+              <p className="text-2xl font-bold">{blocks.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-5 w-5 text-green-600" />
+            <div>
+              <p className="text-sm text-muted-foreground">Allowed domains</p>
+              <p className="text-2xl font-bold">{allows.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Shared-list entries</p>
+          <p className="text-2xl font-bold">
+            {blocks.filter((block) => block.source).length}
+          </p>
+        </div>
+      </div>
+
+      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Known Blocklist</h2>
+            <p className="text-sm text-muted-foreground">
+              Import a Mastodon-compatible CSV source.
+            </p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {KNOWN_DOMAIN_BLOCKLIST_SOURCES.map((source) => (
+            <form
+              key={source.id}
+              action={importKnownDomainBlocklistAction}
+              className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <input type="hidden" name="source" value={source.id} />
+              <div>
+                <p className="font-medium">{source.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {sourceCounts.get(source.id) ?? 0} imported entries
+                </p>
+              </div>
+              <Button type="submit" className="sm:w-auto">
+                <Download className="h-4 w-4" />
+                Import
+              </Button>
+            </form>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Add Domain Block</h2>
+          <form action={createDomainBlockAction} className="space-y-4">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Domain</span>
+              <input
+                required
+                name="domain"
+                placeholder="example.social"
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Severity</span>
+              <select
+                name="severity"
+                defaultValue="suspend"
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              >
+                <option value="suspend">Suspend</option>
+                <option value="silence">Silence</option>
+                <option value="noop">Noop</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">
+                Public comment
+              </span>
+              <textarea
+                name="publicComment"
+                rows={2}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input name="rejectMedia" type="checkbox" />
+                Reject media
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input name="rejectReports" type="checkbox" />
+                Reject reports
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input name="obfuscate" type="checkbox" />
+                Obfuscate
+              </label>
+            </div>
+            <Button type="submit">Save block</Button>
+          </form>
+        </div>
+
+        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Add Domain Allow</h2>
+          <form action={createDomainAllowAction} className="space-y-4">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Domain</span>
+              <input
+                required
+                name="domain"
+                placeholder="trusted.social"
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <Button type="submit">Save allow</Button>
+          </form>
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold">Domain Blocks</h2>
+        <div className="space-y-2">
+          {blocks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No domains blocked</p>
+          ) : (
+            blocks.map((block) => {
+              const publicBlock = toPublicDomainBlock(block)
+              return (
+                <div
+                  key={block.id}
+                  className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{block.domain}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {block.severity}
+                      {publicBlock.comment ? ` - ${publicBlock.comment}` : ''}
+                    </p>
+                  </div>
+                  <form action={deleteDomainBlockAction}>
+                    <input type="hidden" name="id" value={block.id} />
+                    <Button
+                      type="submit"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete block for ${block.domain}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </form>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold">Domain Allows</h2>
+        <div className="space-y-2">
+          {allows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No domains allowed</p>
+          ) : (
+            allows.map((allow) => (
+              <div
+                key={allow.id}
+                className="flex items-center justify-between gap-3 rounded-lg border p-4"
+              >
+                <p className="min-w-0 truncate font-medium">{allow.domain}</p>
+                <form action={deleteDomainAllowAction}>
+                  <input type="hidden" name="id" value={allow.id} />
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete allow for ${allow.domain}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+export default Page

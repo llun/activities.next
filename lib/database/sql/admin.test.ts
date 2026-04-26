@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -197,6 +199,111 @@ describe('AdminDatabase', () => {
         ourTags.forEach((h) => {
           expect(h.latestPostAt).not.toBeNull()
           expect(typeof h.latestPostAt).toBe('number')
+        })
+      })
+    })
+
+    describe('domain federation rules', () => {
+      it('creates, matches, updates, and deletes domain blocks', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const domain = `blocked-${suffix}.test`
+        const block = await database.createDomainBlock({
+          domain: `https://${domain}/path`,
+          severity: 'suspend',
+          rejectMedia: true,
+          publicComment: 'spam source',
+          obfuscate: true
+        })
+
+        expect(block).toMatchObject({
+          domain,
+          severity: 'suspend',
+          rejectMedia: true,
+          publicComment: 'spam source',
+          obfuscate: true
+        })
+
+        await expect(
+          database.getDomainBlockForDomain(`sub.${domain}`)
+        ).resolves.toMatchObject({ id: block.id })
+
+        const updated = await database.updateDomainBlock({
+          id: block.id,
+          severity: 'silence',
+          rejectMedia: false,
+          publicComment: 'limited'
+        })
+        expect(updated).toMatchObject({
+          severity: 'silence',
+          rejectMedia: false,
+          publicComment: 'limited'
+        })
+
+        await expect(
+          database.deleteDomainBlock(block.id)
+        ).resolves.toMatchObject({
+          id: block.id
+        })
+        await expect(database.getDomainBlockById(block.id)).resolves.toBeNull()
+      })
+
+      it('creates and deletes domain allows idempotently', async () => {
+        const domain = `allowed-${crypto.randomUUID().slice(0, 8)}.test`
+
+        const first = await database.createDomainAllow({ domain })
+        const second = await database.createDomainAllow({
+          domain: `https://${domain}/users/a`
+        })
+
+        expect(second.id).toBe(first.id)
+        await expect(
+          database.getDomainAllowForDomain(`sub.${domain}`)
+        ).resolves.toMatchObject({ id: first.id })
+
+        await expect(
+          database.deleteDomainAllow(first.id)
+        ).resolves.toMatchObject({
+          id: first.id
+        })
+        await expect(database.getDomainAllowById(first.id)).resolves.toBeNull()
+      })
+
+      it('imports domain blocks with create, update, and skip counts', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const existingDomain = `existing-${suffix}.test`
+        const newDomain = `new-${suffix}.test`
+        await database.createDomainBlock({
+          domain: existingDomain,
+          severity: 'silence',
+          source: 'manual'
+        })
+
+        const result = await database.importDomainBlocks({
+          blocks: [
+            {
+              domain: existingDomain,
+              severity: 'suspend',
+              source: 'oliphant-tier0'
+            },
+            {
+              domain: newDomain,
+              severity: 'suspend',
+              source: 'oliphant-tier0'
+            },
+            {
+              domain: '',
+              severity: 'suspend',
+              source: 'oliphant-tier0'
+            }
+          ]
+        })
+
+        expect(result).toEqual({ created: 1, updated: 1, skipped: 1 })
+        await expect(
+          database.getDomainBlockForDomain(existingDomain)
+        ).resolves.toMatchObject({
+          severity: 'suspend',
+          source: 'oliphant-tier0'
         })
       })
     })

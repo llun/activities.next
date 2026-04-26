@@ -25,6 +25,7 @@ const Layout: FC<Props> = ({ children }) => {
     { name: 'Overview', url: '/admin' },
     { name: 'Accounts', url: '/admin/accounts' },
     { name: 'Hashtags', url: '/admin/tags' },
+    { name: 'Federation', url: '/admin/federation' },
     { name: 'System', url: '/admin/system' }
   ]
 
