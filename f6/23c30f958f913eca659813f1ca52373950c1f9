@@ -1,0 +1,37 @@
+lib/types/database/operations.ts
+  aec9357be833f4ad 1104,1123
+app/(timeline)/admin/federation/page.tsx
+  aec9357be833f4ad 1-9,29,49-55,68-148,157-170,174,178-185,199-206,301-308,350-360,362-374,377-394,424-441
+lib/database/sql/admin.test.ts
+  aec9357be833f4ad 250-306
+lib/services/federation/blocklistSources.ts
+  aec9357be833f4ad 1,12,27-39,148,155-160,164-175
+lib/services/federation/blocklistSources.test.ts
+  aec9357be833f4ad 2-3,63-66,71,74-78,86-110
+app/api/v1/instance/domain_blocks/route.ts
+  aec9357be833f4ad 16-44,47,49-54,57
+app/api/v1/instance/domain_blocks/route.test.ts
+  aec9357be833f4ad 38,56-60,62
+lib/database/sql/admin.ts
+  aec9357be833f4ad 399-400,406-411,510-533,549,559-565,570-571,628-639
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f623c30f958f913eca659813f1ca52373950c1f9",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 3210,
+      "total_deletions": 144,
+      "accepted_lines": 1288,
+      "overriden_lines": 0
+    }
+  }
+}
