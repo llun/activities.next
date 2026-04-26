@@ -16,6 +16,7 @@ import { ChangeEmailForm } from './ChangeEmailForm'
 import { ChangeNameForm } from './ChangeNameForm'
 import { ChangePasswordForm } from './ChangePasswordForm'
 import { PasskeyManager } from './PasskeyManager'
+import { TwoFactorManager } from './TwoFactorManager'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +42,7 @@ const Page = async ({
 
   const account = actor.account
   const { error } = await searchParams
-  const { auth } = getConfig()
+  const { auth, serviceName } = getConfig()
   const [nonCredentialsProviders, connectedProviders] = await Promise.all([
     [
       auth?.github && { id: 'github', name: 'GitHub' }
@@ -130,6 +131,20 @@ const Page = async ({
         </div>
 
         <ChangePasswordForm />
+      </section>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Two-Factor Authentication</h2>
+          <p className="text-sm text-muted-foreground">
+            Add a verification code after password sign-in.
+          </p>
+        </div>
+
+        <TwoFactorManager
+          enabled={account.twoFactorEnabled}
+          serviceName={serviceName ?? 'Activities.next'}
+        />
       </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">

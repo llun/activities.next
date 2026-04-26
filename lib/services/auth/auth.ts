@@ -2,7 +2,7 @@ import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
-import { jwt } from 'better-auth/plugins'
+import { jwt, twoFactor } from 'better-auth/plugins'
 import memoize from 'lodash/memoize'
 
 import { getBaseURL, getConfig } from '@/lib/config'
@@ -37,6 +37,10 @@ export const getAuth = memoize(() => {
         rpID: new URL(baseURL).hostname,
         rpName: config.serviceName ?? 'Activities.next',
         origin: new URL(baseURL).origin
+      }),
+      twoFactor({
+        issuer: config.serviceName ?? 'Activities.next',
+        allowPasswordless: false
       }),
       oauthProvider({
         loginPage: '/auth/signin',
