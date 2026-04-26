@@ -68,6 +68,7 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
         )
         return
       }
+      router.refresh()
       router.push(redirectBack)
     } catch {
       setError('Sign in failed. Please try again.')

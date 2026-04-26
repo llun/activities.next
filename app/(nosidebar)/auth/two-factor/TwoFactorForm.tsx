@@ -55,8 +55,8 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
       }
 
       setLoading(false)
-      router.push(redirectBack)
       router.refresh()
+      router.push(redirectBack)
     } catch {
       setError('Verification failed')
       setLoading(false)

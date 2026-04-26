@@ -146,7 +146,11 @@ export const TwoFactorManager: FC<Props> = ({
         return
       }
 
+      const setupBackupCodes = setup?.backupCodes ?? []
       setEnabled(true)
+      if (setupBackupCodes.length > 0) {
+        setNewBackupCodes(setupBackupCodes)
+      }
       setSetup(undefined)
       setPassword('')
       setVerificationCode('')

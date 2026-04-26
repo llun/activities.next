@@ -96,7 +96,7 @@ describe('TwoFactorManager', () => {
       data: {
         totpURI:
           'otpauth://totp/Activities:test@example.com?secret=SECRET123&issuer=Activities',
-        backupCodes: []
+        backupCodes: ['backup-after-verify']
       }
     })
     mockVerifyTotp.mockResolvedValue({ data: { token: 'token' } })
@@ -121,6 +121,8 @@ describe('TwoFactorManager', () => {
     expect(
       screen.getByText('Two-factor authentication is on')
     ).toBeInTheDocument()
+    expect(screen.getByText('New backup codes')).toBeInTheDocument()
+    expect(screen.getByText('backup-after-verify')).toBeInTheDocument()
   })
 
   it('disables 2FA after confirming the current password', async () => {
