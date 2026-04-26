@@ -10,13 +10,3 @@ export const DomainAllowRequest = z.object({
     .max(255)
     .refine((value) => normalizeDomain(value) !== null)
 })
-
-export const readRequestData = async (req: Request) => {
-  const contentType = req.headers.get('content-type') ?? ''
-  if (contentType.includes('application/json')) {
-    return req.json()
-  }
-
-  const formData = await req.formData()
-  return Object.fromEntries(formData.entries())
-}

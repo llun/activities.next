@@ -1,12 +1,10 @@
 import { NextRequest } from 'next/server'
 
-import {
-  DomainBlockUpdateRequest,
-  readRequestData
-} from '@/app/api/v1/admin/domain_blocks/schema'
+import { DomainBlockUpdateRequest } from '@/app/api/v1/admin/domain_blocks/schema'
 import { toAdminDomainBlock } from '@/lib/services/federation/domainRules'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import {
   ERROR_400,
   ERROR_404,
@@ -59,7 +57,7 @@ export const PUT = traceApiRoute(
     async (req: NextRequest, { database, params }) => {
       let data: unknown
       try {
-        data = await readRequestData(req)
+        data = await getRequestBody(req)
       } catch {
         return apiResponse({
           req,

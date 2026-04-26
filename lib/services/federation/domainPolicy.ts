@@ -19,13 +19,16 @@ export const isLocalFederationDomain = (value: string): boolean => {
   if (!domain) return false
 
   const config = getConfig()
-  const localDomains = config.allowActorDomains?.length
-    ? config.allowActorDomains
-    : [config.host]
+  const host = normalizeDomain(config.host)
+  if (domain === host) return true
 
-  return localDomains.some((localDomain) =>
-    domainMatchesRule(domain, localDomain)
-  )
+  return (config.allowActorDomains ?? []).some((localDomain) => {
+    const normalized = normalizeDomain(localDomain)
+    if (!normalized) return false
+    if (normalized.startsWith('*.'))
+      return domainMatchesRule(domain, normalized)
+    return domain === normalized
+  })
 }
 
 export const isDomainBlocked = async (

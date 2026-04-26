@@ -1,13 +1,11 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import {
-  DomainAllowRequest,
-  readRequestData
-} from '@/app/api/v1/admin/domain_allows/schema'
+import { DomainAllowRequest } from '@/app/api/v1/admin/domain_allows/schema'
 import { toAdminDomainAllow } from '@/lib/services/federation/domainRules'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import {
   ERROR_400,
   ERROR_422,
@@ -67,7 +65,7 @@ export const POST = traceApiRoute(
   AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
     let data: unknown
     try {
-      data = await readRequestData(req)
+      data = await getRequestBody(req)
     } catch {
       return apiResponse({
         req,

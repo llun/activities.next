@@ -3,7 +3,8 @@ import { Database } from '@/lib/database/types'
 import {
   canFederateWithDomain,
   filterFederatedUrls,
-  isDomainAllowed
+  isDomainAllowed,
+  isLocalFederationDomain
 } from './domainPolicy'
 
 const mockGetConfig = jest.fn()
@@ -97,6 +98,26 @@ describe('domainPolicy', () => {
     await expect(
       canFederateWithDomain(database, 'https://alias.test/users/a')
     ).resolves.toBe(true)
+  })
+
+  it('treats only exact local domains and configured wildcards as local', () => {
+    mockGetConfig.mockReturnValue({
+      host: 'local.test',
+      allowActorDomains: ['alias.test', '*.trusted.test'],
+      federationMode: 'open'
+    })
+
+    expect(isLocalFederationDomain('https://local.test/users/a')).toBe(true)
+    expect(isLocalFederationDomain('https://evil.local.test/users/a')).toBe(
+      false
+    )
+    expect(isLocalFederationDomain('https://alias.test/users/a')).toBe(true)
+    expect(isLocalFederationDomain('https://sub.alias.test/users/a')).toBe(
+      false
+    )
+    expect(isLocalFederationDomain('https://sub.trusted.test/users/a')).toBe(
+      true
+    )
   })
 
   it('filters URLs with one lookup per unique domain', async () => {

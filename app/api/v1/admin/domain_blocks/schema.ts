@@ -37,13 +37,3 @@ export const DomainBlockRequest = z.object({
 export const DomainBlockUpdateRequest = DomainBlockRequest.omit({
   domain: true
 }).partial()
-
-export const readRequestData = async (req: Request) => {
-  const contentType = req.headers.get('content-type') ?? ''
-  if (contentType.includes('application/json')) {
-    return req.json()
-  }
-
-  const formData = await req.formData()
-  return Object.fromEntries(formData.entries())
-}
