@@ -125,12 +125,12 @@ export const PUT = traceApiRoute(
         })
       }
 
-      if (shouldUpdateContent) {
-        updatedNote = await updateNoteFromUserInput({
+      if (visibility !== undefined) {
+        updatedNote = await updateNoteVisibilityFromUserInput({
           statusId,
           currentActor,
-          text: changes.status,
-          summary: changes.spoiler_text,
+          visibility,
+          publish: !shouldUpdateContent,
           database
         })
         if (!updatedNote)
@@ -142,13 +142,22 @@ export const PUT = traceApiRoute(
           })
       }
 
-      if (visibility !== undefined) {
-        updatedNote = await updateNoteVisibilityFromUserInput({
+      if (shouldUpdateContent) {
+        updatedNote = await updateNoteFromUserInput({
           statusId,
           currentActor,
-          visibility,
+          text: changes.status,
+          summary: changes.spoiler_text,
+          publish: true,
           database
         })
+        if (!updatedNote)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
       }
 
       if (!updatedNote)

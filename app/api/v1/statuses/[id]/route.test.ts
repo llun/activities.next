@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -69,6 +70,7 @@ describe('GET /api/v1/statuses/[id]', () => {
   })
 
   beforeEach(() => {
+    jest.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -362,6 +364,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedStatus?.summary).toBeNull()
       expect(updatedStatus?.to).toEqual([`${ACTOR1_ID}/followers`])
       expect(updatedStatus?.cc).toEqual([])
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
     })
   })
 

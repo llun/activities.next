@@ -18,6 +18,7 @@ interface UpdateNoteVisibilityFromUserInput {
   statusId: string
   currentActor: Actor
   visibility: MastodonVisibility
+  publish?: boolean
   database: Database
 }
 
@@ -25,6 +26,7 @@ export const updateNoteVisibilityFromUserInput = async ({
   statusId,
   currentActor,
   visibility,
+  publish = true,
   database
 }: UpdateNoteVisibilityFromUserInput) => {
   const span = getSpan('actions', 'updateNoteVisibilityFromUser', { statusId })
@@ -61,11 +63,13 @@ export const updateNoteVisibilityFromUserInput = async ({
 
   await addStatusToTimelines(database, updatedStatus)
 
-  await getQueue().publish({
-    id: getHashFromString(statusId),
-    name: SEND_UPDATE_NOTE_JOB_NAME,
-    data: { actorId: currentActor.id, statusId }
-  })
+  if (publish) {
+    await getQueue().publish({
+      id: getHashFromString(statusId),
+      name: SEND_UPDATE_NOTE_JOB_NAME,
+      data: { actorId: currentActor.id, statusId }
+    })
+  }
 
   span.end()
   return updatedStatus

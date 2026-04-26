@@ -183,12 +183,13 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       return DEFAULT_STATE
     }
     case 'setAttachments': {
-      const hasAttachments = action.attachments.length > 0
+      const isEnteringAttachmentMode =
+        state.attachments.length === 0 && action.attachments.length > 0
       return {
         ...state,
         attachments: action.attachments,
-        fitnessFile: hasAttachments ? undefined : state.fitnessFile,
-        poll: hasAttachments
+        fitnessFile: isEnteringAttachmentMode ? undefined : state.fitnessFile,
+        poll: isEnteringAttachmentMode
           ? {
               ...DEFAULT_STATE.poll
             }
@@ -277,7 +278,11 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       if (state.attachments.length >= MAX_ATTACHMENTS) return state
       return {
         ...state,
-        attachments: [...state.attachments, action.attachment]
+        attachments: [...state.attachments, action.attachment],
+        fitnessFile: undefined,
+        poll: {
+          ...DEFAULT_STATE.poll
+        }
       }
     }
     case 'updateAttachment': {

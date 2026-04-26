@@ -198,7 +198,7 @@ export const Post: FC<PostProps> = (props) => {
 
       <Poll
         status={actualStatus}
-        currentTime={new Date()}
+        currentTime={props.currentTime}
         currentActorId={props.currentActor?.id}
       />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />

@@ -11,6 +11,7 @@ interface UpdateNoteFromUserInput {
   currentActor: Actor
   text?: string
   summary?: string | null
+  publish?: boolean
   database: Database
 }
 
@@ -19,6 +20,7 @@ export const updateNoteFromUserInput = async ({
   currentActor,
   text,
   summary,
+  publish = true,
   database
 }: UpdateNoteFromUserInput) => {
   const span = getSpan('actions', 'updateNoteFromUser', { statusId })
@@ -42,14 +44,16 @@ export const updateNoteFromUserInput = async ({
     return null
   }
 
-  await getQueue().publish({
-    id: getHashFromString(statusId),
-    name: SEND_UPDATE_NOTE_JOB_NAME,
-    data: {
-      actorId: currentActor.id,
-      statusId
-    }
-  })
+  if (publish) {
+    await getQueue().publish({
+      id: getHashFromString(statusId),
+      name: SEND_UPDATE_NOTE_JOB_NAME,
+      data: {
+        actorId: currentActor.id,
+        statusId
+      }
+    })
+  }
 
   span.end()
   return updatedStatus

@@ -1,5 +1,6 @@
 import {
   DEFAULT_STATE,
+  addAttachment,
   setAttachments,
   setContentWarning,
   setContentWarningVisibility,
@@ -83,7 +84,7 @@ describe('post-box reducers', () => {
     expect(nextState.fitnessFile).toBe(stateWithFitnessFile.fitnessFile)
   })
 
-  it('clears poll and fitness state when attachments are added', () => {
+  it('clears poll and fitness state when entering attachment mode', () => {
     const stateWithPoll = {
       ...DEFAULT_STATE,
       poll: {
@@ -112,6 +113,84 @@ describe('post-box reducers', () => {
           height: 100
         }
       ])
+    )
+
+    expect(nextState.attachments).toHaveLength(1)
+    expect(nextState.poll.showing).toBe(false)
+    expect(nextState.fitnessFile).toBeUndefined()
+  })
+
+  it('preserves state when managing an existing attachment list', () => {
+    const stateWithAttachments = {
+      ...DEFAULT_STATE,
+      attachments: [
+        {
+          type: 'upload' as const,
+          id: 'media-1',
+          mediaType: 'image/png',
+          url: 'https://llun.test/media-1.png',
+          width: 100,
+          height: 100
+        },
+        {
+          type: 'upload' as const,
+          id: 'media-2',
+          mediaType: 'image/png',
+          url: 'https://llun.test/media-2.png',
+          width: 100,
+          height: 100
+        }
+      ],
+      contentWarning: 'Spoilers',
+      contentWarningVisible: true,
+      fitnessFile: {
+        file: {
+          name: 'activity.fit',
+          size: 2048,
+          type: 'application/vnd.ant.fit'
+        } as File,
+        uploading: false
+      }
+    }
+
+    const nextState = statusExtensionReducer(
+      stateWithAttachments,
+      setAttachments(stateWithAttachments.attachments.slice(0, 1))
+    )
+
+    expect(nextState.attachments).toHaveLength(1)
+    expect(nextState.contentWarning).toBe('Spoilers')
+    expect(nextState.contentWarningVisible).toBe(true)
+    expect(nextState.fitnessFile).toBe(stateWithAttachments.fitnessFile)
+  })
+
+  it('clears poll and fitness state when adding an attachment', () => {
+    const stateWithPoll = {
+      ...DEFAULT_STATE,
+      poll: {
+        ...DEFAULT_STATE.poll,
+        showing: true
+      },
+      fitnessFile: {
+        file: {
+          name: 'activity.fit',
+          size: 2048,
+          type: 'application/vnd.ant.fit'
+        } as File,
+        uploading: false
+      }
+    }
+
+    const nextState = statusExtensionReducer(
+      stateWithPoll,
+      addAttachment({
+        type: 'upload',
+        id: 'media-id',
+        mediaType: 'image/png',
+        url: 'https://llun.test/media.png',
+        width: 100,
+        height: 100
+      })
     )
 
     expect(nextState.attachments).toHaveLength(1)
