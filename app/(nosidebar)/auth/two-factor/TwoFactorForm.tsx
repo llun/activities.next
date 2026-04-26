@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { FC, FormEvent, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
+import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
@@ -55,7 +56,6 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
       }
 
       setLoading(false)
-      router.refresh()
       router.push(redirectBack)
     } catch {
       setError('Verification failed')
@@ -106,12 +106,10 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
       </div>
 
       <div className="flex items-center gap-2">
-        <input
+        <Checkbox
           id="trustDevice"
-          type="checkbox"
           checked={trustDevice}
           onChange={(event) => setTrustDevice(event.target.checked)}
-          className="size-4 rounded border-input"
         />
         <Label
           htmlFor="trustDevice"

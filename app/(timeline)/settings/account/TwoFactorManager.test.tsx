@@ -121,7 +121,7 @@ describe('TwoFactorManager', () => {
     expect(
       screen.getByText('Two-factor authentication is on')
     ).toBeInTheDocument()
-    expect(screen.getByText('New backup codes')).toBeInTheDocument()
+    expect(screen.getByText('Save your backup codes')).toBeInTheDocument()
     expect(screen.getByText('backup-after-verify')).toBeInTheDocument()
   })
 

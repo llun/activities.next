@@ -60,7 +60,7 @@ describe('TwoFactorForm', () => {
       })
     })
     expect(mockPush).toHaveBeenCalledWith('/settings/account')
-    expect(mockRefresh).toHaveBeenCalled()
+    expect(mockRefresh).not.toHaveBeenCalled()
   })
 
   it('verifies a backup code when backup mode is selected', async () => {

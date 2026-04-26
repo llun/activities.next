@@ -433,7 +433,7 @@ export const TwoFactorManager: FC<Props> = ({
           {backupCodes.length > 0 && (
             <div className="space-y-3 rounded-lg border bg-muted/30 p-4 md:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium">New backup codes</p>
+                <p className="text-sm font-medium">Save your backup codes</p>
                 <Button
                   type="button"
                   variant="outline"
