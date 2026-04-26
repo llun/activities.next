@@ -349,6 +349,39 @@ describe('AdminDatabase', () => {
           })
         })
       })
+
+      it('imports domain blocks in batches', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const existingDomain = `batch-existing-${suffix}.test`
+        await database.createDomainBlock({
+          domain: existingDomain,
+          severity: 'silence',
+          source: 'manual'
+        })
+
+        const result = await database.importDomainBlocks({
+          blocks: [
+            {
+              domain: existingDomain,
+              severity: 'suspend',
+              source: 'oliphant-tier0'
+            },
+            ...Array.from({ length: 60 }, (_, index) => ({
+              domain: `batch-${index}-${suffix}.test`,
+              severity: 'suspend' as const,
+              source: 'oliphant-tier0'
+            }))
+          ]
+        })
+
+        expect(result).toEqual({ created: 60, updated: 1, skipped: 0 })
+        await expect(
+          database.getDomainBlockForDomain(existingDomain)
+        ).resolves.toMatchObject({
+          severity: 'suspend',
+          source: 'oliphant-tier0'
+        })
+      })
     })
   })
 })

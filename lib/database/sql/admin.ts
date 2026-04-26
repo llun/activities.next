@@ -111,6 +111,18 @@ const getDomainRuleCandidates = (domain: string): string[] => {
   return [...new Set([...exactCandidates, ...wildcardCandidates, '*'])]
 }
 
+const SQL_BATCH_SIZE = 50
+
+const chunkArray = <T>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = []
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+
+  return chunks
+}
+
 const buildDomainBlockInsert = (
   params: CreateDomainBlockParams,
   now: Date,
@@ -559,34 +571,57 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     let created = 0
     let updated = 0
     let skipped = 0
+    const normalizedBlocks = new Map<string, CreateDomainBlockParams>()
+
+    blocks.forEach((block) => {
+      const normalized = normalizeDomain(block.domain)
+      if (!normalized) {
+        skipped++
+        return
+      }
+
+      normalizedBlocks.set(normalized, { ...block, domain: normalized })
+    })
+
+    const normalizedDomains = [...normalizedBlocks.keys()]
+    if (normalizedDomains.length === 0) {
+      return { created, updated, skipped }
+    }
 
     await database.transaction(async (trx) => {
-      for (const block of blocks) {
-        const normalized = normalizeDomain(block.domain)
-        if (!normalized) {
-          skipped++
-          continue
-        }
-
-        const now = new Date()
-        const existing = await trx<SQLDomainFederationRule>(
+      const existingDomains = new Set<string>()
+      for (const domainChunk of chunkArray(normalizedDomains, SQL_BATCH_SIZE)) {
+        const rows = await trx<SQLDomainFederationRule>(
           'domain_federation_rules'
         )
-          .where({ type: 'block', domain: normalized })
-          .first()
+          .select('domain')
+          .where('type', 'block')
+          .whereIn('domain', domainChunk)
 
-        if (existing) {
-          await trx<SQLDomainFederationRule>('domain_federation_rules')
-            .where('id', existing.id)
-            .update(buildDomainBlockUpdate(block, now))
-          updated++
-          continue
-        }
+        rows.forEach((row) => existingDomains.add(row.domain))
+      }
 
-        await trx('domain_federation_rules').insert(
-          buildDomainBlockInsert(block, now)
-        )
-        created++
+      const now = new Date()
+      const rows = [...normalizedBlocks.values()].map((block) =>
+        buildDomainBlockInsert(block, now)
+      )
+      created = rows.filter((row) => !existingDomains.has(row.domain)).length
+      updated = rows.length - created
+
+      for (const rowChunk of chunkArray(rows, SQL_BATCH_SIZE)) {
+        await trx('domain_federation_rules')
+          .insert(rowChunk)
+          .onConflict(['type', 'domain'])
+          .merge([
+            'severity',
+            'rejectMedia',
+            'rejectReports',
+            'privateComment',
+            'publicComment',
+            'obfuscate',
+            'source',
+            'updatedAt'
+          ])
       }
     })
 
