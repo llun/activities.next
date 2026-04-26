@@ -34,7 +34,8 @@ const STATUS_MESSAGES: Record<string, string> = {
   'allow-deleted': 'Domain allow deleted',
   'invalid-block-domain': 'Enter a valid domain to block',
   'invalid-allow-domain': 'Enter a valid domain to allow',
-  'invalid-source': 'Choose a known blocklist source'
+  'invalid-source': 'Choose a known blocklist source',
+  'import-failed': 'Unable to import the blocklist'
 }
 
 const ADMIN_FEDERATION_PAGE_SIZE = 100

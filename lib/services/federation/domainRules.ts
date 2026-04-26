@@ -17,13 +17,17 @@ export const normalizeDomain = (value: string): string | null => {
   if (!trimmed) return null
   if (trimmed === '*') return '*'
 
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`
+  const hasWildcard = trimmed.startsWith('*.')
+  const domainToParse = hasWildcard ? trimmed.slice(2) : trimmed
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(domainToParse)
+    ? domainToParse
+    : `https://${domainToParse}`
 
   try {
     const url = new URL(withScheme)
-    return url.hostname.replace(/\.$/, '') || null
+    const normalized = url.hostname.replace(/\.$/, '')
+    if (!normalized) return null
+    return hasWildcard ? `*.${normalized}` : normalized
   } catch {
     return null
   }

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 
 import {
   DomainAllowRequest,
@@ -21,18 +22,42 @@ const CORS_HEADERS = [
   HttpMethod.enum.GET,
   HttpMethod.enum.POST
 ]
+const DomainRuleListQueryParams = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  offset: z.coerce.number().int().min(0).default(0)
+})
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute(
   'adminListDomainAllows',
   AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
-    const allows = await database.getDomainAllows({ limit: 10_000 })
+    const queryParams = Object.fromEntries(new URL(req.url).searchParams)
+    const parsedParams = DomainRuleListQueryParams.safeParse(queryParams)
+    if (!parsedParams.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+      })
+    }
+
+    const { limit, offset } = parsedParams.data
+    const [allows, stats] = await Promise.all([
+      database.getDomainAllows({ limit, offset }),
+      database.getDomainFederationRuleStats()
+    ])
 
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: allows.map(toAdminDomainAllow)
+      data: allows.map(toAdminDomainAllow),
+      additionalHeaders: [
+        ['X-Total-Count', `${stats.allows}`],
+        ['X-Offset', `${offset}`],
+        ['X-Limit', `${limit}`]
+      ]
     })
   })
 )

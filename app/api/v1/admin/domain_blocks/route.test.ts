@@ -4,6 +4,7 @@ import { GET, POST } from './route'
 
 const mockDatabase = {
   getDomainBlocks: jest.fn(),
+  getDomainFederationRuleStats: jest.fn(),
   createDomainBlock: jest.fn()
 }
 
@@ -31,6 +32,7 @@ jest.mock('@/lib/config', () => ({
 describe('/api/v1/admin/domain_blocks', () => {
   beforeEach(() => {
     mockDatabase.getDomainBlocks.mockReset()
+    mockDatabase.getDomainFederationRuleStats.mockReset()
     mockDatabase.createDomainBlock.mockReset()
   })
 
@@ -51,14 +53,29 @@ describe('/api/v1/admin/domain_blocks', () => {
         updatedAt: 0
       }
     ])
+    mockDatabase.getDomainFederationRuleStats.mockResolvedValue({
+      blocks: 42,
+      allows: 0,
+      sourceBlocks: 0,
+      sourceCounts: {}
+    })
 
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/admin/domain_blocks'),
+      new NextRequest(
+        'https://llun.test/api/v1/admin/domain_blocks?limit=25&offset=5'
+      ),
       { params: Promise.resolve({}) }
     )
     const data = await response.json()
 
     expect(response.status).toBe(200)
+    expect(response.headers.get('x-total-count')).toBe('42')
+    expect(response.headers.get('x-offset')).toBe('5')
+    expect(response.headers.get('x-limit')).toBe('25')
+    expect(mockDatabase.getDomainBlocks).toHaveBeenCalledWith({
+      limit: 25,
+      offset: 5
+    })
     expect(data[0]).toMatchObject({
       id: 'block-1',
       domain: 'blocked.test',

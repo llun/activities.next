@@ -12,6 +12,7 @@ describe('domainRules', () => {
     expect(normalizeDomain('https://Sub.Example.Social/path')).toBe(
       'sub.example.social'
     )
+    expect(normalizeDomain('*.Example.Social')).toBe('*.example.social')
     expect(normalizeDomain('')).toBeNull()
   })
 

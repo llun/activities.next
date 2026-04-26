@@ -48,8 +48,19 @@ export const POST = traceApiRoute(
       })
     }
 
-    const blocks = await fetchKnownDomainBlocklist(parsed.data)
-    const result = await database.importDomainBlocks({ blocks })
+    let blocks: Awaited<ReturnType<typeof fetchKnownDomainBlocklist>>
+    let result: Awaited<ReturnType<typeof database.importDomainBlocks>>
+    try {
+      blocks = await fetchKnownDomainBlocklist(parsed.data)
+      result = await database.importDomainBlocks({ blocks })
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+      })
+    }
 
     return apiResponse({
       req,

@@ -99,10 +99,18 @@ export async function importKnownDomainBlocklistAction(formData: FormData) {
     ? source.data
     : redirectWithStatus('invalid-source')
 
-  const blocks = await fetchKnownDomainBlocklist(sourceId)
-  const result = await database.importDomainBlocks({ blocks })
+  let created = 0
+  let updated = 0
+  let skipped = 0
+  try {
+    const blocks = await fetchKnownDomainBlocklist(sourceId)
+    const result = await database.importDomainBlocks({ blocks })
+    created = result.created
+    updated = result.updated
+    skipped = result.skipped
+  } catch {
+    redirectWithStatus('import-failed')
+  }
 
-  redirectWithStatus(
-    `imported-${result.created}-${result.updated}-${result.skipped}`
-  )
+  redirectWithStatus(`imported-${created}-${updated}-${skipped}`)
 }

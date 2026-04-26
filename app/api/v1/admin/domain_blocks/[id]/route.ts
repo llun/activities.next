@@ -124,7 +124,7 @@ export const DELETE = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: {}
+      data: toAdminDomainBlock(block)
     })
   })
 )

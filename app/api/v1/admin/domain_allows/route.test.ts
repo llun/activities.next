@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server'
 
-import { POST } from './route'
+import { GET, POST } from './route'
 
 const mockDatabase = {
+  getDomainAllows: jest.fn(),
+  getDomainFederationRuleStats: jest.fn(),
   createDomainAllow: jest.fn()
 }
 
@@ -29,7 +31,48 @@ jest.mock('@/lib/config', () => ({
 
 describe('/api/v1/admin/domain_allows', () => {
   beforeEach(() => {
+    mockDatabase.getDomainAllows.mockReset()
+    mockDatabase.getDomainFederationRuleStats.mockReset()
     mockDatabase.createDomainAllow.mockReset()
+  })
+
+  it('lists admin domain allows with pagination', async () => {
+    mockDatabase.getDomainAllows.mockResolvedValue([
+      {
+        id: 'allow-1',
+        type: 'allow',
+        domain: 'trusted.test',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ])
+    mockDatabase.getDomainFederationRuleStats.mockResolvedValue({
+      blocks: 0,
+      allows: 12,
+      sourceBlocks: 0,
+      sourceCounts: {}
+    })
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/admin/domain_allows?limit=10&offset=2'
+      ),
+      { params: Promise.resolve({}) }
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-total-count')).toBe('12')
+    expect(response.headers.get('x-offset')).toBe('2')
+    expect(response.headers.get('x-limit')).toBe('10')
+    expect(mockDatabase.getDomainAllows).toHaveBeenCalledWith({
+      limit: 10,
+      offset: 2
+    })
+    expect(data[0]).toMatchObject({
+      id: 'allow-1',
+      domain: 'trusted.test'
+    })
   })
 
   it('rejects invalid JSON bodies', async () => {
