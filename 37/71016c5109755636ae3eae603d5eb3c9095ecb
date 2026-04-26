@@ -1,0 +1,45 @@
+app/api/v1/admin/domain_blocks/import/route.ts
+  aec9357be833f4ad 51-63
+app/api/v1/admin/domain_blocks/route.test.ts
+  aec9357be833f4ad 7,35,56-61,64-66,72-78
+lib/services/federation/domainRules.test.ts
+  aec9357be833f4ad 15
+app/api/v1/admin/domain_blocks/route.ts
+  aec9357be833f4ad 2,25-28,35-50,55-60
+lib/services/federation/domainRules.ts
+  aec9357be833f4ad 20-24,28-30
+app/api/v1/admin/domain_blocks/[id]/route.test.ts
+  aec9357be833f4ad 1-66
+app/api/v1/admin/domain_allows/route.test.ts
+  aec9357be833f4ad 3,6-7,34-35,39-75
+app/(timeline)/admin/federation/actions.ts
+  aec9357be833f4ad 102-115
+app/api/v1/admin/domain_blocks/import/route.test.ts
+  aec9357be833f4ad 1-64
+app/(timeline)/admin/federation/page.tsx
+  aec9357be833f4ad 37-38
+app/api/v1/admin/domain_allows/route.ts
+  aec9357be833f4ad 2,25-28,35-50,55-60
+app/api/v1/admin/domain_blocks/[id]/route.ts
+  aec9357be833f4ad 127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "3771016c5109755636ae3eae603d5eb3c9095ecb",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 284,
+      "total_deletions": 19,
+      "accepted_lines": 1028,
+      "overriden_lines": 0
+    }
+  }
+}
