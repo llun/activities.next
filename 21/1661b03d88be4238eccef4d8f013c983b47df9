@@ -1,0 +1,53 @@
+app/(nosidebar)/auth/two-factor/page.tsx
+  d2c3212d6ca3c1fc 1-49
+app/(timeline)/settings/account/page.tsx
+  d2c3212d6ca3c1fc 19,45,136-147
+lib/types/domain/account.ts
+  d2c3212d6ca3c1fc 17
+app/(nosidebar)/auth/two-factor/TwoFactorForm.test.tsx
+  d2c3212d6ca3c1fc 1-85
+app/(nosidebar)/auth/two-factor/TwoFactorForm.tsx
+  d2c3212d6ca3c1fc 1-136
+lib/services/auth/knexAdapter.ts
+  d2c3212d6ca3c1fc 8-12,91-92
+lib/database/sql/utils/toDomainAccount.ts
+  d2c3212d6ca3c1fc 28-30
+app/(timeline)/settings/account/TwoFactorManager.tsx
+  d2c3212d6ca3c1fc 1-466
+lib/services/auth/auth-client.ts
+  d2c3212d6ca3c1fc 5,9
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  d2c3212d6ca3c1fc 16-25,66-69
+lib/services/auth/auth.ts
+  d2c3212d6ca3c1fc 5,41-43
+migrations/20260426120000_add_two_factor_auth.js
+  d2c3212d6ca3c1fc 1-39
+lib/types/database/rows.ts
+  d2c3212d6ca3c1fc 69
+lib/database/sql/actor.ts
+  d2c3212d6ca3c1fc 374-379
+app/(timeline)/settings/account/TwoFactorManager.test.tsx
+  d2c3212d6ca3c1fc 1-125
+package.json
+  d2c3212d6ca3c1fc 64,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "211661b03d88be4238eccef4d8f013c983b47df9",
+  "prompts": {
+    "d2c3212d6ca3c1fc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dca71-f70d-7e70-a0c5-c941a7ae2e97",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 1646,
+      "total_deletions": 4,
+      "accepted_lines": 1646,
+      "overriden_lines": 0
+    }
+  }
+}
