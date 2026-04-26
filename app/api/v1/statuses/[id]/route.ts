@@ -80,7 +80,6 @@ export const GET = traceApiRoute(
 const EditNoteSchema = z.object({
   status: z.string().optional(),
   spoiler_text: z.string().optional(),
-  sensitive: z.boolean().optional(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
 
@@ -113,21 +112,20 @@ export const PUT = traceApiRoute(
 
       let updatedNote
 
-      if (
-        changes.visibility !== undefined &&
-        changes.status === undefined &&
-        changes.spoiler_text === undefined
-      ) {
-        updatedNote = await updateNoteVisibilityFromUserInput({
-          statusId,
-          currentActor,
-          visibility: changes.visibility,
-          database
+      const shouldUpdateContent =
+        changes.status !== undefined || changes.spoiler_text !== undefined
+      const visibility = changes.visibility
+
+      if (!shouldUpdateContent && visibility === undefined) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
         })
-      } else if (
-        changes.status !== undefined ||
-        changes.spoiler_text !== undefined
-      ) {
+      }
+
+      if (shouldUpdateContent) {
         updatedNote = await updateNoteFromUserInput({
           statusId,
           currentActor,
@@ -135,12 +133,21 @@ export const PUT = traceApiRoute(
           summary: changes.spoiler_text,
           database
         })
-      } else {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
+        if (!updatedNote)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
+      }
+
+      if (visibility !== undefined) {
+        updatedNote = await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor,
+          visibility,
+          database
         })
       }
 

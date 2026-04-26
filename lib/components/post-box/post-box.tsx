@@ -170,9 +170,11 @@ export const PostBox: FC<Props> = ({
           message,
           contentWarning: postExtension.contentWarning
         })
-        editStatus.text = content
-        editStatus.summary = postExtension.contentWarning.trim() || null
-        onPostUpdated(editStatus)
+        onPostUpdated({
+          ...editStatus,
+          text: content,
+          summary: postExtension.contentWarning.trim() || null
+        })
         dispatch(resetExtension())
 
         setText('')

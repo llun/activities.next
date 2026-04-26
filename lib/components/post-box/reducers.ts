@@ -183,13 +183,16 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       return DEFAULT_STATE
     }
     case 'setAttachments': {
-      // Preserve visibility when loading attachments (e.g., when editing)
+      const hasAttachments = action.attachments.length > 0
       return {
-        ...DEFAULT_STATE,
+        ...state,
         attachments: action.attachments,
-        contentWarning: state.contentWarning,
-        contentWarningVisible: state.contentWarningVisible,
-        visibility: state.visibility
+        fitnessFile: hasAttachments ? undefined : state.fitnessFile,
+        poll: hasAttachments
+          ? {
+              ...DEFAULT_STATE.poll
+            }
+          : state.poll
       }
     }
     case 'setPollVisibility': {

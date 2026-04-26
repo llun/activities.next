@@ -24,7 +24,6 @@ const NoteSchema = z.object({
   status: z.string(),
   in_reply_to_id: z.string().optional(),
   spoiler_text: z.string().optional(),
-  sensitive: z.boolean().optional(),
   media_ids: z.array(z.string()).optional(),
   visibility: VisibilitySchema.optional()
 })

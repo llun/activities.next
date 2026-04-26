@@ -1,5 +1,6 @@
 import {
   DEFAULT_STATE,
+  setAttachments,
   setContentWarning,
   setContentWarningVisibility,
   setFitnessFile,
@@ -55,5 +56,66 @@ describe('post-box reducers', () => {
 
     expect(nextState.contentWarning).toBe('')
     expect(nextState.contentWarningVisible).toBe(false)
+  })
+
+  it('preserves compatible composer state when attachments are updated', () => {
+    const file = {
+      name: 'activity.fit',
+      size: 2048,
+      type: 'application/vnd.ant.fit'
+    } as File
+    const stateWithFitnessFile = statusExtensionReducer(
+      {
+        ...DEFAULT_STATE,
+        contentWarning: 'Spoilers',
+        contentWarningVisible: true
+      },
+      setFitnessFile(file)
+    )
+
+    const nextState = statusExtensionReducer(
+      stateWithFitnessFile,
+      setAttachments([])
+    )
+
+    expect(nextState.contentWarning).toBe('Spoilers')
+    expect(nextState.contentWarningVisible).toBe(true)
+    expect(nextState.fitnessFile).toBe(stateWithFitnessFile.fitnessFile)
+  })
+
+  it('clears poll and fitness state when attachments are added', () => {
+    const stateWithPoll = {
+      ...DEFAULT_STATE,
+      poll: {
+        ...DEFAULT_STATE.poll,
+        showing: true
+      },
+      fitnessFile: {
+        file: {
+          name: 'activity.fit',
+          size: 2048,
+          type: 'application/vnd.ant.fit'
+        } as File,
+        uploadedId: 'fitness-file-id'
+      }
+    }
+
+    const nextState = statusExtensionReducer(
+      stateWithPoll,
+      setAttachments([
+        {
+          type: 'upload',
+          id: 'media-id',
+          mediaType: 'image/png',
+          url: 'https://llun.test/media.png',
+          width: 100,
+          height: 100
+        }
+      ])
+    )
+
+    expect(nextState.attachments).toHaveLength(1)
+    expect(nextState.poll.showing).toBe(false)
+    expect(nextState.fitnessFile).toBeUndefined()
   })
 })
