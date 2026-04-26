@@ -13,6 +13,16 @@ interface Props {
   providerName: string
 }
 
+const requiresTwoFactor = (
+  data: unknown
+): data is { twoFactorRedirect: true } => {
+  if (!data || typeof data !== 'object') return false
+  return (
+    'twoFactorRedirect' in data &&
+    (data as { twoFactorRedirect?: unknown }).twoFactorRedirect === true
+  )
+}
+
 export const CredentialForm: FC<Props> = ({ providerName }) => {
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(false)
@@ -51,6 +61,12 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
       if (result.error) {
         setError(result.error.message || 'Sign in failed')
         setLoading(false)
+        return
+      }
+      if (requiresTwoFactor(result.data)) {
+        router.push(
+          `/auth/two-factor?redirectBack=${encodeURIComponent(redirectBack)}`
+        )
         return
       }
       router.push(redirectBack)
