@@ -1,7 +1,7 @@
 import {
   KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES,
   KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS,
-  fetchKnownDomainBlocklist,
+  downloadKnownDomainBlocklist,
   parseCsvLine,
   parseCsvRecords,
   parseDomainBlockCsv
@@ -66,7 +66,7 @@ describe('blocklistSources', () => {
       body: 'domain,severity,reject_media,reject_reports,public_comment,obfuscate\nbad.test,suspend,False,False,spam,False'
     })
 
-    const blocks = await fetchKnownDomainBlocklist(
+    const blocks = await downloadKnownDomainBlocklist(
       'oliphant-tier0',
       requestImpl
     )
@@ -74,7 +74,8 @@ describe('blocklistSources', () => {
     expect(requestImpl).toHaveBeenCalledWith({
       url: 'https://codeberg.org/oliphant/blocklists/raw/branch/main/blocklists/_unified_tier0_blocklist.csv',
       responseTimeout: KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS,
-      numberOfRetry: 0
+      numberOfRetry: 0,
+      maxResponseSize: KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES
     })
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
@@ -94,7 +95,7 @@ describe('blocklistSources', () => {
     })
 
     await expect(
-      fetchKnownDomainBlocklist('oliphant-tier0', requestImpl)
+      downloadKnownDomainBlocklist('oliphant-tier0', requestImpl)
     ).rejects.toThrow('Blocklist response too large')
   })
 
@@ -106,7 +107,7 @@ describe('blocklistSources', () => {
     })
 
     await expect(
-      fetchKnownDomainBlocklist('oliphant-tier0', requestImpl)
+      downloadKnownDomainBlocklist('oliphant-tier0', requestImpl)
     ).rejects.toThrow('Blocklist response too large')
   })
 })

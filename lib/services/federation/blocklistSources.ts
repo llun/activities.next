@@ -9,7 +9,7 @@ import {
   DomainBlockSeverity,
   ImportDomainBlockParams
 } from '@/lib/types/database/operations'
-import { RequestOptions, request } from '@/lib/utils/request'
+import { RequestOptions, RequestResult, request } from '@/lib/utils/request'
 
 export const KnownDomainBlocklistSourceId = z.enum(['oliphant-tier0'])
 export type KnownDomainBlocklistSourceId = z.infer<
@@ -27,16 +27,12 @@ export const KNOWN_DOMAIN_BLOCKLIST_SOURCES = [
 export const KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS = 30_000
 export const KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES = 10 * 1024 * 1024
 
-type BlocklistResponse = {
-  statusCode: number
-  headers: Record<string, string | string[] | undefined>
-  body: string
+type BlocklistRequest = (options: RequestOptions) => Promise<RequestResult>
+
+const defaultBlocklistRequest: BlocklistRequest = async (options) => {
+  const { statusCode, headers, body } = await request(options)
+  return { statusCode, headers, body }
 }
-
-type BlocklistRequest = (options: RequestOptions) => Promise<BlocklistResponse>
-
-const defaultBlocklistRequest: BlocklistRequest = async (options) =>
-  request(options)
 
 const parseBoolean = (value: string | undefined): boolean =>
   value?.trim().toLowerCase() === 'true'
@@ -143,7 +139,7 @@ export const parseDomainBlockCsv = (
   return [...blocks.values()]
 }
 
-export const fetchKnownDomainBlocklist = async (
+export const downloadKnownDomainBlocklist = async (
   sourceId: KnownDomainBlocklistSourceId,
   requestImpl: BlocklistRequest = defaultBlocklistRequest
 ): Promise<ImportDomainBlockParams[]> => {
@@ -155,10 +151,11 @@ export const fetchKnownDomainBlocklist = async (
   const response = await requestImpl({
     url: source.url,
     responseTimeout: KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS,
-    numberOfRetry: 0
+    numberOfRetry: 0,
+    maxResponseSize: KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES
   })
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(`Failed to fetch ${source.name}`)
+    throw new Error(`Failed to download ${source.name}`)
   }
 
   const contentLength = response.headers['content-length']

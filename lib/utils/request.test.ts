@@ -1,8 +1,106 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+import { type Server, createServer } from 'node:http'
+import { type AddressInfo } from 'node:net'
 
 import { request } from './request'
 
+jest.mock('got', () => {
+  type GotMockOptions = {
+    method?: string
+    body?: string
+    headers?: Record<string, string>
+  }
+
+  const { Buffer } = jest.requireActual(
+    'node:buffer'
+  ) as typeof import('node:buffer')
+  const { Readable } = jest.requireActual(
+    'node:stream'
+  ) as typeof import('node:stream')
+
+  const readResponse = async (url: string, options: GotMockOptions) => {
+    const response = await fetch(url, {
+      method: options.method,
+      body: options.body,
+      headers: options.headers
+    })
+    const body = await response.text()
+
+    return { response, body }
+  }
+
+  const gotMock = Object.assign(
+    async (url: string, options: GotMockOptions) => {
+      const { response, body } = await readResponse(url, options)
+
+      return {
+        statusCode: response.status,
+        body
+      }
+    },
+    {
+      stream: (url: string, options: GotMockOptions) => {
+        const stream = new Readable({
+          read() {}
+        })
+
+        void (async () => {
+          try {
+            const { response, body } = await readResponse(url, options)
+            const headers: Record<string, string> = {}
+            response.headers.forEach((value, key) => {
+              headers[key] = value
+            })
+
+            stream.emit('response', {
+              statusCode: response.status,
+              headers
+            })
+            stream.push(Buffer.from(body))
+            stream.push(null)
+          } catch (error) {
+            stream.destroy(
+              error instanceof Error ? error : new Error(String(error))
+            )
+          }
+        })()
+
+        return stream
+      }
+    }
+  )
+
+  return gotMock
+})
+
 enableFetchMocks()
+
+const createTestServer = async (body: string) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/plain' })
+    response.end(body)
+  })
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve)
+  })
+
+  const { port } = server.address() as AddressInfo
+  return { server, url: `http://127.0.0.1:${port}` }
+}
+
+const closeServer = async (server: Server) => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+
+      resolve()
+    })
+  })
+}
 
 describe('request utility', () => {
   beforeEach(() => {
@@ -88,6 +186,41 @@ describe('request utility', () => {
           method: 'GET'
         })
       )
+    })
+
+    it('returns a streamed response within the response size limit', async () => {
+      fetchMock.dontMock()
+      const { server, url } = await createTestServer('small body')
+
+      try {
+        const response = await request({
+          url,
+          numberOfRetry: 0,
+          maxResponseSize: 64
+        })
+
+        expect(response.statusCode).toBe(200)
+        expect(response.body).toBe('small body')
+      } finally {
+        await closeServer(server)
+      }
+    })
+
+    it('rejects a streamed response over the response size limit', async () => {
+      fetchMock.dontMock()
+      const { server, url } = await createTestServer('x'.repeat(32))
+
+      try {
+        await expect(
+          request({
+            url,
+            numberOfRetry: 0,
+            maxResponseSize: 8
+          })
+        ).rejects.toThrow('Response body too large')
+      } finally {
+        await closeServer(server)
+      }
     })
   })
 })

@@ -7,7 +7,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   KnownDomainBlocklistSourceId,
-  fetchKnownDomainBlocklist
+  downloadKnownDomainBlocklist
 } from '@/lib/services/federation/blocklistSources'
 import {
   DEFAULT_DOMAIN_BLOCK_SEVERITY,
@@ -103,7 +103,7 @@ export async function importKnownDomainBlocklistAction(formData: FormData) {
   let updated = 0
   let skipped = 0
   try {
-    const blocks = await fetchKnownDomainBlocklist(sourceId)
+    const blocks = await downloadKnownDomainBlocklist(sourceId)
     const result = await database.importDomainBlocks({ blocks })
     created = result.created
     updated = result.updated

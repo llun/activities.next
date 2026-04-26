@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import {
   KnownDomainBlocklistSourceId,
-  fetchKnownDomainBlocklist
+  downloadKnownDomainBlocklist
 } from '@/lib/services/federation/blocklistSources'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -48,10 +48,10 @@ export const POST = traceApiRoute(
       })
     }
 
-    let blocks: Awaited<ReturnType<typeof fetchKnownDomainBlocklist>>
+    let blocks: Awaited<ReturnType<typeof downloadKnownDomainBlocklist>>
     let result: Awaited<ReturnType<typeof database.importDomainBlocks>>
     try {
-      blocks = await fetchKnownDomainBlocklist(parsed.data)
+      blocks = await downloadKnownDomainBlocklist(parsed.data)
       result = await database.importDomainBlocks({ blocks })
     } catch {
       return apiResponse({
