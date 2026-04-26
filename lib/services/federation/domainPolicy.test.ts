@@ -28,14 +28,21 @@ const createDatabase = (params: { blocks?: string[]; allows?: string[] }) =>
             updatedAt: 0
           }
         : null,
-    getDomainAllows: async () =>
-      (params.allows ?? []).map((domain, index) => ({
-        id: String(index),
-        type: 'allow',
-        domain,
-        createdAt: 0,
-        updatedAt: 0
-      }))
+    getDomainAllowForDomain: async (domain: string) => {
+      const allow = params.allows?.find(
+        (rule) => domain === rule || domain.endsWith(`.${rule}`)
+      )
+
+      return allow
+        ? {
+            id: 'allow',
+            type: 'allow',
+            domain: allow,
+            createdAt: 0,
+            updatedAt: 0
+          }
+        : null
+    }
   }) as unknown as Database
 
 describe('domainPolicy', () => {

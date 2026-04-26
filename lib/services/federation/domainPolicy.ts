@@ -4,7 +4,6 @@ import { Database } from '@/lib/database/types'
 import {
   FederationMode,
   domainMatchesRule,
-  findMatchingDomainRule,
   normalizeDomain,
   shouldSuspendDomainBlock
 } from './domainRules'
@@ -48,8 +47,7 @@ export const isDomainAllowed = async (
   if (!domain) return false
   if (isLocalFederationDomain(domain)) return true
 
-  const allows = await database.getDomainAllows()
-  return Boolean(findMatchingDomainRule(domain, allows))
+  return Boolean(await database.getDomainAllowForDomain(domain))
 }
 
 export const canFederateWithDomain = async (
