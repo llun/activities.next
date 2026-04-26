@@ -118,6 +118,7 @@ export const TwoFactorManager: FC<Props> = ({
         backupCodes: result.data.backupCodes ?? [],
         secret: getSecretFromTotpURI(result.data.totpURI)
       })
+      setPassword('')
       setSuccess('Scan the code and enter a verification code to finish setup')
     } catch {
       setError('Failed to start setup')

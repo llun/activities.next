@@ -105,15 +105,21 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2">
         <input
+          id="trustDevice"
           type="checkbox"
           checked={trustDevice}
           onChange={(event) => setTrustDevice(event.target.checked)}
           className="size-4 rounded border-input"
         />
-        Trust this device for 30 days
-      </label>
+        <Label
+          htmlFor="trustDevice"
+          className="text-sm font-normal text-muted-foreground"
+        >
+          Trust this device for 30 days
+        </Label>
+      </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

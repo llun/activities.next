@@ -18,7 +18,7 @@ exports.up = async (knex) => {
         .references('id')
         .inTable('accounts')
         .onDelete('CASCADE')
-      table.boolean('verified').notNullable().defaultTo(true)
+      table.boolean('verified').notNullable().defaultTo(false)
       table.unique(['userId'])
     })
   })
