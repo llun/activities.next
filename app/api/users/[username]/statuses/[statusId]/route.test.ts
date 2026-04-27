@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 
 import { type Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET } from './route'
 
 const mockDatabase = {
-  getStatus: jest.fn()
+  getStatus: jest.fn(),
+  getStatusReplies: jest.fn()
 }
 const mockActor: Actor = {
   id: 'https://example.com/users/test',
@@ -33,10 +35,14 @@ jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
       handle(mockDatabase, mockActor, req, query)
 }))
 
-jest.mock('@/lib/types/domain/status', () => ({
-  toActivityPubObject: (...params: unknown[]) =>
-    mockToActivityPubObject(...params)
-}))
+jest.mock('@/lib/types/domain/status', () => {
+  const actual = jest.requireActual('@/lib/types/domain/status')
+  return {
+    ...actual,
+    toActivityPubObject: (...params: unknown[]) =>
+      mockToActivityPubObject(...params)
+  }
+})
 
 const createRequest = (accept: string) =>
   new NextRequest('https://example.com/api/users/test/statuses/123', {
@@ -48,8 +54,13 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
     jest.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue({
       id: 'https://example.com/users/test/statuses/123',
+      url: 'https://example.com/users/test/statuses/123',
+      type: 'Note',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
       actor: { domain: 'example.com' }
     })
+    mockDatabase.getStatusReplies.mockResolvedValue([])
     mockToActivityPubObject.mockReturnValue({
       id: 'https://example.com/users/test/statuses/123',
       type: 'Note',
@@ -67,7 +78,7 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
     expect(response.headers.get('content-type')).toBe('application/json')
     expect(mockDatabase.getStatus).toHaveBeenCalledWith({
       statusId: 'https://example.com/users/test/statuses/123',
-      withReplies: true
+      withReplies: false
     })
 
     const data = await response.json()
@@ -89,5 +100,48 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
     )
     expect(response.headers.get('server')).toBe('activities.next')
     expect(response.headers.get('vary')).toBe('Accept')
+  })
+
+  it('returns not found for a non-public ActivityPub object request', async () => {
+    mockDatabase.getStatus.mockResolvedValue({
+      id: 'https://example.com/users/test/statuses/123',
+      url: 'https://example.com/users/test/statuses/123',
+      type: 'Note',
+      to: ['https://example.com/users/test/followers'],
+      cc: [],
+      actor: { domain: 'example.com' }
+    })
+
+    const response = await GET(createRequest('application/activity+json'), {
+      params: Promise.resolve({ username: 'test', statusId: '123' })
+    })
+
+    expect(response.status).toBe(404)
+    expect(mockDatabase.getStatusReplies).not.toHaveBeenCalled()
+    expect(mockToActivityPubObject).not.toHaveBeenCalled()
+  })
+
+  it('filters non-public replies from public ActivityPub object responses', async () => {
+    const publicReply = {
+      id: 'https://example.com/users/other/statuses/public-reply',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    }
+    const privateReply = {
+      id: 'https://example.com/users/other/statuses/private-reply',
+      to: ['https://example.com/users/other/followers'],
+      cc: []
+    }
+    mockDatabase.getStatusReplies.mockResolvedValue([publicReply, privateReply])
+
+    await GET(createRequest('application/activity+json'), {
+      params: Promise.resolve({ username: 'test', statusId: '123' })
+    })
+
+    expect(mockToActivityPubObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replies: [publicReply]
+      })
+    )
   })
 })

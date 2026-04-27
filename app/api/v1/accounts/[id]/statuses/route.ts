@@ -1,8 +1,9 @@
 import { z } from 'zod'
 
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -49,7 +50,7 @@ const StatusQueryParams = z.object({
 
 export const GET = traceApiRoute(
   'getAccountStatuses',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
     if (!encodedAccountId) {
@@ -74,7 +75,16 @@ export const GET = traceApiRoute(
 
     const url = new URL(req.url)
     const queryParams = Object.fromEntries(url.searchParams.entries())
-    const parsedParams = StatusQueryParams.parse(queryParams)
+    const parsed = StatusQueryParams.safeParse(queryParams)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+    const parsedParams = parsed.data
 
     const {
       limit = 20,
@@ -87,13 +97,27 @@ export const GET = traceApiRoute(
       actorId: id,
       maxStatusId: maxId,
       minStatusId: minId || sinceId,
-      limit
+      limit,
+      publicOnly: currentActor === null
     })
+    const readableStatuses = (
+      await Promise.all(
+        statuses.map(async (status) =>
+          (await canActorReadStatus({
+            database,
+            status,
+            currentActor
+          }))
+            ? status
+            : null
+        )
+      )
+    ).filter((status): status is (typeof statuses)[number] => status !== null)
 
     const mastodonStatuses = (
       await Promise.all(
-        statuses.map((status) =>
-          getMastodonStatus(database, status, currentActor.id)
+        readableStatuses.map((status) =>
+          getMastodonStatus(database, status, currentActor?.id)
         )
       )
     ).filter((status): status is Mastodon.Status => status !== null)

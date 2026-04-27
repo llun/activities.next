@@ -439,6 +439,7 @@ export type GetActorStatusesParams = {
   minStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
+  publicOnly?: boolean
 }
 export type GetStatusesByIdsParams = {
   statusIds: string[]

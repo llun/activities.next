@@ -52,7 +52,10 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -708,12 +711,25 @@ export const StatusSQLDatabaseMixin = (
     actorId,
     minStatusId,
     maxStatusId,
-    limit = PER_PAGE_LIMIT
+    limit = PER_PAGE_LIMIT,
+    publicOnly = false
   }: GetActorStatusesParams) {
     let query = database('statuses')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(limit)
+
+    if (publicOnly) {
+      query = query.whereIn(
+        'statuses.id',
+        database('recipients')
+          .select('statusId')
+          .whereIn('recipients.actorId', [
+            ACTIVITY_STREAM_PUBLIC,
+            ACTIVITY_STREAM_PUBLIC_COMPACT
+          ])
+      )
+    }
 
     if (minStatusId) {
       const minStatus = await database('statuses')
