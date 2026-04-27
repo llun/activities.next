@@ -474,7 +474,7 @@ describe('AdminDatabase', () => {
               severity: 'suspend',
               source: 'oliphant-tier0'
             },
-            ...Array.from({ length: 60 }, (_, index) => ({
+            ...Array.from({ length: 510 }, (_, index) => ({
               domain: `batch-${index}-${suffix}.test`,
               severity: 'suspend' as const,
               source: 'oliphant-tier0'
@@ -482,7 +482,7 @@ describe('AdminDatabase', () => {
           ]
         })
 
-        expect(result).toEqual({ created: 60, updated: 1, skipped: 0 })
+        expect(result).toEqual({ created: 510, updated: 1, skipped: 0 })
         await expect(
           database.getDomainBlockForDomain(existingDomain)
         ).resolves.toMatchObject({

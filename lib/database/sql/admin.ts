@@ -159,7 +159,7 @@ const resolveDomainRuleMatches = <T extends DomainBlock | DomainAllow>(
   )
 }
 
-const SQL_BATCH_SIZE = 50
+const SQL_BATCH_SIZE = 500
 
 const chunkArray = <T>(items: T[], size: number): T[][] => {
   const chunks: T[][] = []
