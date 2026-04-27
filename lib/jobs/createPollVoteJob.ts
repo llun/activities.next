@@ -1,4 +1,7 @@
-import { recordActorIfNeeded } from '@/lib/actions/utils'
+import {
+  assertActorCanFederate,
+  recordActorIfNeeded
+} from '@/lib/actions/utils'
 import { ENTITY_TYPE_NOTE, Note } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
@@ -52,6 +55,11 @@ export const createPollVoteJob = createJobHandle(
     if (choiceIndex === -1) {
       return
     }
+
+    await assertActorCanFederate({
+      actorId: note.attributedTo,
+      database
+    })
 
     await recordActorIfNeeded({
       actorId: note.attributedTo,

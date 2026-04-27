@@ -53,6 +53,33 @@ describe('Announce action', () => {
     expect(status.originalStatus).toEqual(boostedStatus)
   })
 
+  it('does not create announces from blocked actor domains', async () => {
+    const statusId = 'https://blocked-announce.test/statuses/boost-1'
+    const announceStatusId =
+      'https://somewhere.test/statuses/blocked-announce-target'
+    await database.createDomainBlock({
+      domain: 'blocked-announce.test',
+      severity: 'suspend'
+    })
+
+    await expect(
+      createAnnounceJob(database, {
+        id: 'id',
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: MockAnnounceStatus({
+          actorId: 'https://blocked-announce.test/actors/bad',
+          statusId,
+          announceStatusId
+        })
+      })
+    ).rejects.toThrow('Federation with actor domain is blocked')
+
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
+    expect(fetchMock).not.toHaveBeenCalledWith(announceStatusId)
+  })
+
   it('accepts announce object with id field', async () => {
     const statusId = stubNoteId()
     const announceStatusId =

@@ -137,6 +137,29 @@ describe('createPollJob', () => {
     expect(status?.cc).toEqual(question.cc)
   })
 
+  it('does not create polls from blocked actor domains', async () => {
+    const question = MockActivityPubQuestion({
+      id: 'https://blocked-poll.test/questions/1',
+      from: 'https://blocked-poll.test/actors/pollcreator'
+    })
+    await database.createDomainBlock({
+      domain: 'blocked-poll.test',
+      severity: 'suspend'
+    })
+
+    await expect(
+      createPollJob(database, {
+        id: 'id',
+        name: CREATE_POLL_JOB_NAME,
+        data: question
+      })
+    ).rejects.toThrow('Federation with actor domain is blocked')
+
+    await expect(
+      database.getStatus({ statusId: question.id })
+    ).resolves.toBeNull()
+  })
+
   it('creates poll with oneOf choices', async () => {
     const question = MockActivityPubQuestion({
       oneOf: [createOption('Option A'), createOption('Option B')]

@@ -158,6 +158,29 @@ describe('createNoteJob', () => {
     })
   })
 
+  it('does not create notes from blocked actor domains', async () => {
+    const actorId = 'https://blocked-note.test/actors/bad'
+    const note = MockMastodonActivityPubNote({
+      id: 'https://blocked-note.test/statuses/1',
+      from: actorId,
+      content: '<p>Blocked</p>'
+    })
+    await database.createDomainBlock({
+      domain: 'blocked-note.test',
+      severity: 'suspend'
+    })
+
+    await expect(
+      createNoteJob(database, {
+        id: 'id',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note
+      })
+    ).rejects.toThrow('Federation with actor domain is blocked')
+
+    await expect(database.getStatus({ statusId: note.id })).resolves.toBeNull()
+  })
+
   it('adds note with single content map when contentMap is array', async () => {
     const note = MockMastodonActivityPubNote({
       content: '<p>Hello</p>',

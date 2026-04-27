@@ -7,13 +7,28 @@ interface RecordActorIfNeededParams {
   actorId: string
   database: Database
 }
+
+export class BlockedFederationDomainError extends Error {
+  constructor(actorId: string) {
+    super(`Federation with actor domain is blocked: ${actorId}`)
+    this.name = 'BlockedFederationDomainError'
+  }
+}
+
+export const assertActorCanFederate = async ({
+  actorId,
+  database
+}: RecordActorIfNeededParams): Promise<void> => {
+  if (!(await canFederateWithDomain(database, actorId))) {
+    throw new BlockedFederationDomainError(actorId)
+  }
+}
+
 export const recordActorIfNeeded = async ({
   actorId,
   database
 }: RecordActorIfNeededParams): Promise<Actor | undefined> => {
-  if (!(await canFederateWithDomain(database, actorId))) {
-    return undefined
-  }
+  await assertActorCanFederate({ actorId, database })
 
   const existingActor = await database.getActorFromId({
     id: actorId
