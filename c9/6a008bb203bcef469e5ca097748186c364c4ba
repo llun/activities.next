@@ -1,0 +1,25 @@
+app/api/inbox/route.test.ts
+  aec9357be833f4ad 1-73
+lib/actions/utils.test.ts
+  aec9357be833f4ad 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "c96a008bb203bcef469e5ca097748186c364c4ba",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 578,
+      "total_deletions": 1,
+      "accepted_lines": 1553,
+      "overriden_lines": 0
+    }
+  }
+}
