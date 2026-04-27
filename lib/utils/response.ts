@@ -150,12 +150,19 @@ export const apiResponse = ({
     }
   }
 
-  return Response.json(data, {
+  const headers = new Headers([
+    ['Server', SERVICE_NAME],
+    ...Object.entries(getCORSHeaders(allowedMethods, req.headers)),
+    ...additionalHeaders
+  ])
+  const responseOptions = {
     ...defaultStatusOption(responseStatusCode),
-    headers: new Headers([
-      ['Server', SERVICE_NAME],
-      ...Object.entries(getCORSHeaders(allowedMethods, req.headers)),
-      ...additionalHeaders
-    ])
-  })
+    headers
+  }
+
+  if (headers.has('content-type')) {
+    return new Response(JSON.stringify(data) ?? 'null', responseOptions)
+  }
+
+  return Response.json(data, responseOptions)
 }

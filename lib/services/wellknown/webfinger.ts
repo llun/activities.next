@@ -18,41 +18,67 @@ interface GetWebFingerParams {
   resource: string
 }
 
+const getAccountFromResource = (resource: string) => {
+  const trimmedResource = resource.trim()
+  const account = trimmedResource.toLowerCase().startsWith('acct:')
+    ? trimmedResource.slice('acct:'.length)
+    : trimmedResource
+  const parts = account.split('@')
+
+  if (parts.length !== 2) return null
+
+  const [username, domain] = parts.map((part) => part.trim())
+  if (!username || !domain) return null
+
+  return {
+    username,
+    domain,
+    normalizedDomain: domain.toLowerCase()
+  }
+}
+
 export const getWebFingerResponse = async ({
   database,
   resource
 }: GetWebFingerParams): Promise<WebFingerResponse | null> => {
-  const account = resource.startsWith('acct:') ? resource.slice(5) : resource
+  const account = getAccountFromResource(resource)
+  if (!account) return null
 
-  const [username, domain] = account.split('@')
-  if (!domain) return null
-
-  const actor = await database.getActorFromUsername({ username, domain })
+  const actor =
+    (await database.getActorFromUsername({
+      username: account.username,
+      domain: account.domain
+    })) ??
+    (account.domain === account.normalizedDomain
+      ? null
+      : await database.getActorFromUsername({
+          username: account.username,
+          domain: account.normalizedDomain
+        }))
 
   // This is not local actors
   if (!actor?.privateKey) return null
 
+  const profilePageUrl = `https://${actor.domain}/@${actor.username}`
+
   return {
-    subject: `acct:${username}@${domain}`,
-    aliases: [
-      `https://${domain}/@${username}`,
-      `https://${domain}/users/${username}`
-    ],
+    subject: `acct:${actor.username}@${actor.domain}`,
+    aliases: [profilePageUrl, actor.id],
     links: [
       {
         rel: 'http://webfinger.net/rel/profile-page',
         type: 'text/html',
-        href: `https://${domain}/@${username}`
+        href: profilePageUrl
       },
       {
         rel: 'self',
         type: 'application/activity+json',
-        href: `https://${domain}/users/${username}`
+        href: actor.id
       },
       {
         rel: 'self',
         type: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-        href: `https://${domain}/users/${username}`
+        href: actor.id
       }
     ]
   }

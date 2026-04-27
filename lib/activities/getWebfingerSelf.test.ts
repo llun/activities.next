@@ -22,6 +22,15 @@ describe('#getWebfingerSelf', () => {
     expect(selfUrl).toBeNull()
   })
 
+  it('does not request malformed account names', async () => {
+    const selfUrl = await getWebfingerSelf({
+      account: 'user@example.com@evil.test'
+    })
+
+    expect(selfUrl).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('returns self href from webfinger without aliases (Misskey format)', async () => {
     // Misskey doesn't include aliases in webfinger response
     fetchMock.mockResponseOnce(
@@ -43,5 +52,19 @@ describe('#getWebfingerSelf', () => {
     )
     const selfUrl = await getWebfingerSelf({ account: 'user@misskey.test' })
     expect(selfUrl).toEqual('https://misskey.test/users/abc123')
+  })
+
+  it('requests a JRD response using an encoded acct resource', async () => {
+    const selfUrl = await getWebfingerSelf({ account: 'test1@llun.test' })
+
+    expect(selfUrl).toEqual('https://llun.test/users/test1')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://llun.test/.well-known/webfinger?resource=acct%3Atest1%40llun.test',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: 'application/jrd+json, application/json'
+        })
+      })
+    )
   })
 })

@@ -147,6 +147,16 @@ describe('#getWebFingerResponse', () => {
     expect(result).toBeNull()
   })
 
+  it('returns null when account resource contains multiple at signs', async () => {
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'acct:user@example.com@elsewhere.test'
+    })
+
+    expect(result).toBeNull()
+    expect(mockDatabase.getActorFromUsername).not.toHaveBeenCalled()
+  })
+
   it('returns null when actor not found', async () => {
     mockDatabase.getActorFromUsername.mockResolvedValue(null)
 
@@ -224,6 +234,56 @@ describe('#getWebFingerResponse', () => {
     })
   })
 
+  it('uses the requested domain casing before falling back to normalized domain casing', async () => {
+    mockDatabase.getActorFromUsername
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'https://example.com/users/user',
+        username: 'user',
+        domain: 'example.com',
+        privateKey: 'key'
+      })
+
+    await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'ACCT:user@EXAMPLE.COM'
+    })
+
+    expect(mockDatabase.getActorFromUsername).toHaveBeenNthCalledWith(1, {
+      username: 'user',
+      domain: 'EXAMPLE.COM'
+    })
+    expect(mockDatabase.getActorFromUsername).toHaveBeenNthCalledWith(2, {
+      username: 'user',
+      domain: 'example.com'
+    })
+  })
+
+  it('preserves stored domain casing when the exact lookup matches', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://Example.COM/users/user',
+      username: 'user',
+      domain: 'Example.COM',
+      privateKey: 'key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'ACCT:user@Example.COM'
+    })
+
+    expect(mockDatabase.getActorFromUsername).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
+      username: 'user',
+      domain: 'Example.COM'
+    })
+    expect(result?.subject).toBe('acct:user@Example.COM')
+    expect(result?.aliases).toEqual([
+      'https://Example.COM/@user',
+      'https://Example.COM/users/user'
+    ])
+  })
+
   it('handles resource without acct: prefix', async () => {
     mockDatabase.getActorFromUsername.mockResolvedValue({
       id: 'https://example.com/users/user',
@@ -240,6 +300,40 @@ describe('#getWebFingerResponse', () => {
     expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
       username: 'user',
       domain: 'example.com'
+    })
+  })
+
+  it('returns aliases and self links from the canonical actor id', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://fitness.example/users/runner',
+      username: 'runner',
+      domain: 'fitness.example',
+      privateKey: 'key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'acct:runner@fitness.example'
+    })
+
+    expect(result).toMatchObject({
+      subject: 'acct:runner@fitness.example',
+      aliases: [
+        'https://fitness.example/@runner',
+        'https://fitness.example/users/runner'
+      ],
+      links: expect.arrayContaining([
+        expect.objectContaining({
+          rel: 'self',
+          type: 'application/activity+json',
+          href: 'https://fitness.example/users/runner'
+        }),
+        expect.objectContaining({
+          rel: 'self',
+          type: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+          href: 'https://fitness.example/users/runner'
+        })
+      ])
     })
   })
 })
