@@ -14,6 +14,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 export const dynamic = 'force-dynamic'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+const WEBFINGER_CONTENT_TYPE = 'application/jrd+json; charset=utf-8'
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -51,5 +52,10 @@ export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
       responseStatusCode: 404
     })
 
-  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: response })
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: response,
+    additionalHeaders: [['Content-Type', WEBFINGER_CONTENT_TYPE]]
+  })
 })

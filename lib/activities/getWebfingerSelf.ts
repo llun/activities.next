@@ -12,17 +12,24 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
     'activities.getWebfingerSelf',
     { attributes: { account } },
     async (span) => {
-      const [user, domain] = account.split('@')
+      const [user, domain, ...rest] = account.split('@')
       if (!user || !domain) {
+        span.end()
+        return null
+      }
+      if (rest.length > 0) {
         span.end()
         return null
       }
 
       try {
+        const url = new URL(`https://${domain}/.well-known/webfinger`)
+        url.searchParams.set('resource', `acct:${account}`)
+
         const { statusCode, body } = await request({
-          url: `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
+          url: url.toString(),
           headers: {
-            Accept: 'application/json'
+            Accept: 'application/jrd+json, application/json'
           }
         })
         if (statusCode !== 200) {

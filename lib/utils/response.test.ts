@@ -8,6 +8,7 @@ import {
   ERROR_422,
   ERROR_500,
   HTTP_STATUS,
+  apiResponse,
   codeMap,
   defaultStatusOption,
   statusText
@@ -74,6 +75,24 @@ describe('response utilities', () => {
         status: 404,
         statusText: 'Not Found'
       })
+    })
+  })
+
+  describe('#apiResponse', () => {
+    it('preserves explicit content type headers', async () => {
+      const response = apiResponse({
+        req: new Request('https://example.com') as never,
+        allowedMethods: ['GET'],
+        data: { ok: true },
+        additionalHeaders: [
+          ['Content-Type', 'application/jrd+json; charset=utf-8']
+        ]
+      })
+
+      expect(response.headers.get('content-type')).toBe(
+        'application/jrd+json; charset=utf-8'
+      )
+      expect(await response.json()).toEqual({ ok: true })
     })
   })
 })
