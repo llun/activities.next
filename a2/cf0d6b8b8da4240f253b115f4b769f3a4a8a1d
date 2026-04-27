@@ -1,0 +1,25 @@
+lib/services/guards/ActivityPubVerifyGuard.ts
+  d8810db94a9025cd 74-75
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  d8810db94a9025cd 92-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a2cf0d6b8b8da4240f253b115f4b769f3a4a8a1d",
+  "prompts": {
+    "d8810db94a9025cd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcfd1-2090-7e53-9c60-8f078f058999",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 2,
+      "accepted_lines": 324,
+      "overriden_lines": 0
+    }
+  }
+}
