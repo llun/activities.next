@@ -1,0 +1,31 @@
+lib/services/guards/ActivityPubVerifyGuard.ts
+  d8810db94a9025cd 1,6-13,20-79,81-84,87,90-91,94-105,108,121
+app/api/inbox/route.ts
+  d8810db94a9025cd 68
+app/api/users/[username]/inbox/route.test.ts
+  d8810db94a9025cd 1-133
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  d8810db94a9025cd 1-83
+app/api/users/[username]/inbox/route.ts
+  d8810db94a9025cd 12-16,35-40,44-45,47-50,54-55,57-91,93-95,97,107,112,120-167,175,179-180,182-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f0a1982ce38e58e6ecccdd66f8cfd633e73fc437",
+  "prompts": {
+    "d8810db94a9025cd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcfd1-2090-7e53-9c60-8f078f058999",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 684,
+      "total_deletions": 242,
+      "accepted_lines": 625,
+      "overriden_lines": 0
+    }
+  }
+}
