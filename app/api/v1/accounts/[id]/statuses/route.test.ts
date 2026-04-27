@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { seedActor3 } from '@/lib/stub/seed/actor3'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -152,6 +155,78 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
 
     expect(uris).toContain(privateStatusId)
     expect(uris).toContain(directStatusId)
+  })
+
+  it('allows accepted followers to read followers-only account statuses', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    await database.createFollow({
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR1_ID,
+      inbox: `${ACTOR2_ID}/inbox`,
+      sharedInbox: `https://${TEST_DOMAIN}/inbox`,
+      status: FollowStatus.enum.Accepted
+    })
+
+    const privateStatusId = `${ACTOR1_ID}/statuses/account-private-follower-read`
+    await database.createNote({
+      id: privateStatusId,
+      url: privateStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account private follower read',
+      to: [`${ACTOR1_ID}/followers`],
+      cc: []
+    })
+
+    const response = await GET(createRequest('?limit=50'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+
+    const data = (await response.json()) as Array<{ uri: string }>
+    const uris = data.map((status) => status.uri)
+
+    expect(uris).toContain(privateStatusId)
+  })
+
+  it('applies account visibility filtering before limiting results', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor3.email }
+    })
+
+    const publicStatusId = `${ACTOR1_ID}/statuses/account-visible-before-limit`
+    const privateStatusId = `${ACTOR1_ID}/statuses/account-hidden-before-limit`
+    await database.createNote({
+      id: publicStatusId,
+      url: publicStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account visible before limit',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createNote({
+      id: privateStatusId,
+      url: privateStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account hidden before limit',
+      to: [`${ACTOR1_ID}/followers`],
+      cc: []
+    })
+
+    const response = await GET(createRequest('?limit=1'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+
+    const data = (await response.json()) as Array<{ uri: string }>
+    const uris = data.map((status) => status.uri)
+
+    expect(uris).toEqual([publicStatusId])
+    expect(uris).not.toContain(privateStatusId)
   })
 
   it('returns bad request for invalid query params', async () => {

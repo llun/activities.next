@@ -712,22 +712,35 @@ export const StatusSQLDatabaseMixin = (
     minStatusId,
     maxStatusId,
     limit = PER_PAGE_LIMIT,
-    publicOnly = false
+    publicOnly = false,
+    visibleToActorId,
+    includeFollowersOnly = false
   }: GetActorStatusesParams) {
     let query = database('statuses')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(limit)
 
-    if (publicOnly) {
+    const recipientActorIds =
+      publicOnly || visibleToActorId || includeFollowersOnly
+        ? [ACTIVITY_STREAM_PUBLIC, ACTIVITY_STREAM_PUBLIC_COMPACT]
+        : null
+
+    if (recipientActorIds) {
+      if (!publicOnly) {
+        if (includeFollowersOnly) {
+          recipientActorIds.push(`${actorId}/followers`)
+        }
+        if (visibleToActorId) {
+          recipientActorIds.push(visibleToActorId)
+        }
+      }
+
       query = query.whereIn(
         'statuses.id',
         database('recipients')
           .select('statusId')
-          .whereIn('recipients.actorId', [
-            ACTIVITY_STREAM_PUBLIC,
-            ACTIVITY_STREAM_PUBLIC_COMPACT
-          ])
+          .whereIn('recipients.actorId', recipientActorIds)
       )
     }
 

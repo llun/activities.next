@@ -94,13 +94,6 @@ export const GET = traceApiRoute(
       since_id: sinceId
     } = parsedParams
 
-    const statuses = await database.getActorStatuses({
-      actorId: id,
-      maxStatusId: maxId,
-      minStatusId: minId || sinceId,
-      limit,
-      publicOnly: currentActor === null
-    })
     const follow =
       currentActor && currentActor.id !== id
         ? await database.getAcceptedOrRequestedFollow({
@@ -112,6 +105,16 @@ export const GET = traceApiRoute(
       currentActor && currentActor.id !== id
         ? follow?.status === FollowStatus.enum.Accepted
         : undefined
+    const isOwner = currentActor?.id === id
+    const statuses = await database.getActorStatuses({
+      actorId: id,
+      maxStatusId: maxId,
+      minStatusId: minId || sinceId,
+      limit,
+      publicOnly: currentActor === null,
+      visibleToActorId: currentActor && !isOwner ? currentActor.id : undefined,
+      includeFollowersOnly: isFollower
+    })
     const readableStatuses = (
       await Promise.all(
         statuses.map(async (status) =>

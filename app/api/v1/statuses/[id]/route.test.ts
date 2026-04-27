@@ -207,6 +207,34 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(404)
     })
 
+    it('allows direct recipients to read direct statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-direct-recipient-read`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Direct recipient read target',
+        to: [ACTOR2_ID],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.visibility).toBe('direct')
+    })
+
     it('returns status with correct Mastodon format', async () => {
       const statusId = `${ACTOR1_ID}/statuses/post-1`
       const status = (await database.getStatus({ statusId })) as Status

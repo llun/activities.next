@@ -107,6 +107,47 @@ describe('status access helpers', () => {
     ).resolves.toBe(true)
   })
 
+  it('does not allow requested followers to read followers-only statuses', async () => {
+    const database = {
+      getAcceptedOrRequestedFollow: jest.fn().mockResolvedValue({
+        status: FollowStatus.enum.Requested
+      })
+    }
+    const status = note({
+      id: `${ACTOR_ID}/statuses/private-for-requested-follower`,
+      to: [FOLLOWERS_URL],
+      cc: []
+    })
+
+    await expect(
+      canActorReadStatus({
+        database: database as never,
+        status,
+        currentActor: actor
+      })
+    ).resolves.toBe(false)
+  })
+
+  it('allows direct recipients to read direct statuses', async () => {
+    const database = {
+      getAcceptedOrRequestedFollow: jest.fn()
+    }
+    const status = note({
+      id: `${ACTOR_ID}/statuses/direct-for-recipient`,
+      to: [FOLLOWER_ID],
+      cc: []
+    })
+
+    await expect(
+      canActorReadStatus({
+        database: database as never,
+        status,
+        currentActor: actor
+      })
+    ).resolves.toBe(true)
+    expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
+
   it('uses pre-fetched follower state when provided', async () => {
     const database = {
       getAcceptedOrRequestedFollow: jest.fn()
