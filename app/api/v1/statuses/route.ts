@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
-import { getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
@@ -99,19 +99,7 @@ const getNoteRequestInput = async (req: Request): Promise<unknown> => {
   }
 }
 
-const getMediaUrl = (path: string) => {
-  const { host } = getConfig()
-  if (host.includes('://')) return `${host}/api/v1/files/${path}`
-
-  const protocol =
-    host.startsWith('localhost') ||
-    host.startsWith('127.0.0.1') ||
-    host.startsWith('::1') ||
-    host.startsWith('[::1]')
-      ? 'http'
-      : 'https'
-  return `${protocol}://${host}/api/v1/files/${path}`
-}
+const getMediaUrl = (path: string) => `${getBaseURL()}/api/v1/files/${path}`
 
 const getAttachmentsFromMediaIds = async (
   database: Database,
@@ -166,12 +154,13 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
+          data: ERROR_422,
+          responseStatusCode: 422
         })
       }
       const note = parsed.data
-      if (note.media_ids.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
+      const mediaIds = [...new Set(note.media_ids)]
+      if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -182,7 +171,7 @@ export const POST = traceApiRoute(
       const attachments = await getAttachmentsFromMediaIds(
         database,
         currentActor,
-        note.media_ids
+        mediaIds
       )
       if (!attachments) {
         return apiResponse({

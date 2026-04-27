@@ -185,6 +185,86 @@ describe('POST /api/v1/statuses', () => {
     })
   })
 
+  it('attaches multipart media_ids[] and ignores duplicates', async () => {
+    const firstMedia = await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/multipart-status-first.webp',
+        bytes: 4096,
+        mimeType: 'image/png',
+        metaData: { width: 300, height: 200 },
+        fileName: 'multipart-status-first.png'
+      }
+    })
+    const secondMedia = await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/multipart-status-second.webp',
+        bytes: 4096,
+        mimeType: 'image/png',
+        metaData: { width: 400, height: 300 },
+        fileName: 'multipart-status-second.png'
+      }
+    })
+
+    expect(firstMedia).not.toBeNull()
+    expect(secondMedia).not.toBeNull()
+
+    const form = new FormData()
+    form.set('status', 'Status created from multipart data')
+    form.append('media_ids[]', firstMedia!.id)
+    form.append('media_ids[]', firstMedia!.id)
+    form.append('media_ids[]', secondMedia!.id)
+    const request = new NextRequest('https://llun.test/api/v1/statuses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data; boundary=test-boundary'
+      }
+    })
+    Object.defineProperty(request, 'formData', {
+      value: jest.fn().mockResolvedValue(form)
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.media_attachments).toHaveLength(2)
+    expect(mastodonStatus.media_attachments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          url: 'https://llun.test/api/v1/files/medias/multipart-status-first.webp'
+        }),
+        expect.objectContaining({
+          url: 'https://llun.test/api/v1/files/medias/multipart-status-second.webp'
+        })
+      ])
+    )
+
+    const attachments = await database.getAttachmentsWithMedia({
+      statusId: mastodonStatus.uri
+    })
+    expect(attachments).toHaveLength(2)
+  })
+
+  it('returns 422 when status has neither text nor media', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: '   '
+        }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
   it('rejects media_ids that do not belong to the authenticated account', async () => {
     const media = await database.createMedia({
       actorId: ACTOR2_ID,
