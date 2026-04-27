@@ -43,8 +43,10 @@ export const recordActorIfNeeded = async ({
   }
 
   const getResolvedSigningActor = async () => {
-    const resolvedSigningActor =
-      signingActor ?? (await getFederationSigningActor(database))
+    const resolvedSigningActor = await getFederationSigningActor(
+      database,
+      signingActor
+    )
     if (!resolvedSigningActor) {
       logger.warn({
         message: 'Fetching remote actor without a federation signing actor',
