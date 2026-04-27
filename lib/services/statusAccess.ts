@@ -10,7 +10,9 @@ const isPublicOrUnlisted = (status: Status): boolean => {
 }
 
 const hasFollowersAudience = (status: Status): boolean =>
-  [...status.to, ...status.cc].some((item) => item.endsWith('/followers'))
+  [...status.to, ...status.cc].includes(
+    status.actor?.followersUrl ?? `${status.actorId}/followers`
+  )
 
 const isDirectRecipient = (status: Status, actor: Actor): boolean =>
   status.to.includes(actor.id) || status.cc.includes(actor.id)
@@ -29,18 +31,22 @@ const canActorReadSingleStatus = async ({
   database,
   status,
   currentActor,
-  isFollower
+  isFollower,
+  followerStateByActorId
 }: {
   database: Database
   status: Status
   currentActor: Actor
   isFollower?: boolean
+  followerStateByActorId?: ReadonlyMap<string, boolean>
 }): Promise<boolean> => {
   if (isPublicOrUnlisted(status)) return true
   if (currentActor.id === status.actorId) return true
 
   if (hasFollowersAudience(status)) {
-    if (isFollower !== undefined) return isFollower
+    const prefetchedIsFollower =
+      isFollower ?? followerStateByActorId?.get(status.actorId)
+    if (prefetchedIsFollower !== undefined) return prefetchedIsFollower
 
     const follow = await database.getAcceptedOrRequestedFollow({
       actorId: currentActor.id,
@@ -56,12 +62,14 @@ export const canActorReadStatus = async ({
   database,
   status,
   currentActor,
-  isFollower
+  isFollower,
+  followerStateByActorId
 }: {
   database: Database
   status: Status
   currentActor: Actor | null
   isFollower?: boolean
+  followerStateByActorId?: ReadonlyMap<string, boolean>
 }): Promise<boolean> => {
   if (isStatusPubliclyReadable(status)) return true
   if (!currentActor) return false
@@ -71,7 +79,8 @@ export const canActorReadStatus = async ({
       database,
       status,
       currentActor,
-      isFollower
+      isFollower,
+      followerStateByActorId
     })
 
     if (!canReadAnnounce) return false
@@ -79,7 +88,8 @@ export const canActorReadStatus = async ({
     return canActorReadStatus({
       database,
       status: status.originalStatus,
-      currentActor
+      currentActor,
+      followerStateByActorId
     })
   }
 
@@ -87,6 +97,7 @@ export const canActorReadStatus = async ({
     database,
     status,
     currentActor,
-    isFollower
+    isFollower,
+    followerStateByActorId
   })
 }

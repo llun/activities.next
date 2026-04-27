@@ -442,6 +442,7 @@ export type GetActorStatusesParams = {
   publicOnly?: boolean
   visibleToActorId?: string | null
   includeFollowersOnly?: boolean
+  followersAudience?: string | null
 }
 export type GetStatusesByIdsParams = {
   statusIds: string[]

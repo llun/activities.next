@@ -7,6 +7,7 @@ import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -64,7 +65,7 @@ export const GET = traceApiRoute(
     }
     const id = idToUrl(encodedAccountId)
 
-    const actor = await database.getMastodonActorFromId({ id })
+    const actor = await database.getActorFromId({ id })
     if (!actor) {
       return apiResponse({
         req,
@@ -113,8 +114,45 @@ export const GET = traceApiRoute(
       limit,
       publicOnly: currentActor === null,
       visibleToActorId: currentActor && !isOwner ? currentActor.id : undefined,
-      includeFollowersOnly: isFollower
+      includeFollowersOnly: isFollower,
+      followersAudience: actor.followersUrl
     })
+    const followerStateByActorId = currentActor
+      ? new Map<string, boolean>()
+      : undefined
+    if (currentActor && !isOwner && isFollower !== undefined) {
+      followerStateByActorId?.set(id, isFollower)
+    }
+    const originalAuthorIds = currentActor
+      ? [
+          ...new Set(
+            statuses
+              .flatMap((status) =>
+                status.type === StatusType.enum.Announce
+                  ? [status.originalStatus.actorId]
+                  : []
+              )
+              .filter(
+                (actorId) =>
+                  actorId !== currentActor.id &&
+                  !followerStateByActorId?.has(actorId)
+              )
+          )
+        ]
+      : []
+    await Promise.all(
+      originalAuthorIds.map(async (targetActorId) => {
+        if (!currentActor) return
+        const originalFollow = await database.getAcceptedOrRequestedFollow({
+          actorId: currentActor.id,
+          targetActorId
+        })
+        followerStateByActorId?.set(
+          targetActorId,
+          originalFollow?.status === FollowStatus.enum.Accepted
+        )
+      })
+    )
     const readableStatuses = (
       await Promise.all(
         statuses.map(async (status) =>
@@ -122,7 +160,8 @@ export const GET = traceApiRoute(
             database,
             status,
             currentActor,
-            isFollower
+            isFollower,
+            followerStateByActorId
           }))
             ? status
             : null

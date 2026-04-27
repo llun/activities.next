@@ -17,6 +17,10 @@ const note = ({ id, to, cc }: { id: string; to: string[]; cc: string[] }) =>
   ({
     id,
     actorId: ACTOR_ID,
+    actor: {
+      id: ACTOR_ID,
+      followersUrl: FOLLOWERS_URL
+    },
     type: StatusType.enum.Note,
     to,
     cc
@@ -164,6 +168,39 @@ describe('status access helpers', () => {
         status,
         currentActor: actor,
         isFollower: true
+      })
+    ).resolves.toBe(true)
+    expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
+
+  it('uses pre-fetched follower state for announced originals', async () => {
+    const database = {
+      getAcceptedOrRequestedFollow: jest.fn()
+    }
+    const originalStatus = note({
+      id: `${ACTOR_ID}/statuses/private-original-for-announce`,
+      to: [FOLLOWERS_URL],
+      cc: []
+    })
+    const announce = {
+      id: `${FOLLOWER_ID}/statuses/announce-private-original`,
+      actorId: FOLLOWER_ID,
+      actor: {
+        id: FOLLOWER_ID,
+        followersUrl: `${FOLLOWER_ID}/followers`
+      },
+      type: StatusType.enum.Announce,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      originalStatus
+    } as Status
+
+    await expect(
+      canActorReadStatus({
+        database: database as never,
+        status: announce,
+        currentActor: actor,
+        followerStateByActorId: new Map([[ACTOR_ID, true]])
       })
     ).resolves.toBe(true)
     expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()

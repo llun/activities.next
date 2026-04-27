@@ -714,7 +714,8 @@ export const StatusSQLDatabaseMixin = (
     limit = PER_PAGE_LIMIT,
     publicOnly = false,
     visibleToActorId,
-    includeFollowersOnly = false
+    includeFollowersOnly = false,
+    followersAudience
   }: GetActorStatusesParams) {
     let query = database('statuses')
       .where('actorId', actorId)
@@ -729,7 +730,7 @@ export const StatusSQLDatabaseMixin = (
     if (recipientActorIds) {
       if (!publicOnly) {
         if (includeFollowersOnly) {
-          recipientActorIds.push(`${actorId}/followers`)
+          recipientActorIds.push(followersAudience ?? `${actorId}/followers`)
         }
         if (visibleToActorId) {
           recipientActorIds.push(visibleToActorId)
