@@ -20,6 +20,7 @@ import {
   CreateDomainBlockParams,
   DomainAllow,
   DomainBlock,
+  DomainFederationRuleType,
   GetAccountWithActorsParams,
   GetAllAccountsParams,
   GetAllHashtagsParams,
@@ -169,6 +170,26 @@ const chunkArray = <T>(items: T[], size: number): T[][] => {
   }
 
   return chunks
+}
+
+const getDomainRuleCandidateRows = async (
+  database: Knex,
+  type: DomainFederationRuleType,
+  domains: string[]
+): Promise<SQLDomainFederationRule[]> => {
+  const candidates = [...new Set(domains.flatMap(getDomainRuleCandidates))]
+  const rows: SQLDomainFederationRule[] = []
+
+  for (const domainChunk of chunkArray(candidates, SQL_BATCH_SIZE)) {
+    const chunkRows = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where('type', type)
+      .whereIn('domain', domainChunk)
+    rows.push(...chunkRows)
+  }
+
+  return rows
 }
 
 const buildDomainBlockInsert = (
@@ -470,13 +491,11 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     const normalizedDomains = normalizeDomains(domains)
     if (normalizedDomains.length === 0) return {}
 
-    const rows = await database<SQLDomainFederationRule>(
-      'domain_federation_rules'
+    const rows = await getDomainRuleCandidateRows(
+      database,
+      'block',
+      normalizedDomains
     )
-      .where('type', 'block')
-      .whereIn('domain', [
-        ...new Set(normalizedDomains.flatMap(getDomainRuleCandidates))
-      ])
 
     return resolveDomainRuleMatches(normalizedDomains, rows, toDomainBlock)
   },
@@ -503,13 +522,11 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     const normalizedDomains = normalizeDomains(domains)
     if (normalizedDomains.length === 0) return {}
 
-    const rows = await database<SQLDomainFederationRule>(
-      'domain_federation_rules'
+    const rows = await getDomainRuleCandidateRows(
+      database,
+      'allow',
+      normalizedDomains
     )
-      .where('type', 'allow')
-      .whereIn('domain', [
-        ...new Set(normalizedDomains.flatMap(getDomainRuleCandidates))
-      ])
 
     return resolveDomainRuleMatches(normalizedDomains, rows, toDomainAllow)
   },

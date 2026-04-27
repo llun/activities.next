@@ -373,6 +373,35 @@ describe('AdminDatabase', () => {
         expect(allowMatches[allowDomain]).toBeNull()
       })
 
+      it('matches domain rules for large domain batches', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const blockDomain = `large-block-${suffix}.test`
+        const allowDomain = `large-allow-${suffix}.test`
+        const block = await database.createDomainBlock({
+          domain: blockDomain,
+          severity: 'suspend'
+        })
+        const allow = await database.createDomainAllow({
+          domain: allowDomain
+        })
+        const domains = [
+          blockDomain,
+          allowDomain,
+          ...Array.from(
+            { length: 1100 },
+            (_, index) => `large-${index}-${suffix}.test`
+          )
+        ]
+
+        const blockMatches = await database.getDomainBlocksForDomains(domains)
+        const allowMatches = await database.getDomainAllowsForDomains(domains)
+
+        expect(blockMatches[blockDomain]).toMatchObject({ id: block.id })
+        expect(allowMatches[allowDomain]).toMatchObject({ id: allow.id })
+        expect(blockMatches[domains[2]]).toBeNull()
+        expect(allowMatches[domains[2]]).toBeNull()
+      })
+
       it('does not match wildcard rules against the parent domain', async () => {
         const domain = `wild-${crypto.randomUUID().slice(0, 8)}.test`
         const wildcard = await database.createDomainAllow({

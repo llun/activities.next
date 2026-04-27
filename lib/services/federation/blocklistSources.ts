@@ -53,6 +53,7 @@ export const parseCsvRecords = (csv: string): string[][] => {
   let fields: string[] = []
   let field = ''
   let inQuotes = false
+  let atFieldStart = true
 
   const pushRecord = () => {
     fields.push(field)
@@ -61,6 +62,13 @@ export const parseCsvRecords = (csv: string): string[][] => {
     }
     fields = []
     field = ''
+    atFieldStart = true
+  }
+
+  const pushField = () => {
+    fields.push(field)
+    field = ''
+    atFieldStart = true
   }
 
   for (let i = 0; i < csv.length; i++) {
@@ -73,14 +81,19 @@ export const parseCsvRecords = (csv: string): string[][] => {
       continue
     }
 
-    if (char === '"') {
-      inQuotes = !inQuotes
+    if (char === '"' && atFieldStart) {
+      inQuotes = true
+      atFieldStart = false
+      continue
+    }
+
+    if (char === '"' && inQuotes) {
+      inQuotes = false
       continue
     }
 
     if (char === ',' && !inQuotes) {
-      fields.push(field)
-      field = ''
+      pushField()
       continue
     }
 
@@ -91,6 +104,7 @@ export const parseCsvRecords = (csv: string): string[][] => {
     }
 
     field += char
+    atFieldStart = false
   }
 
   if (field || fields.length) {
@@ -98,6 +112,25 @@ export const parseCsvRecords = (csv: string): string[][] => {
   }
 
   return records
+}
+
+const getDownloadErrorDetail = (body: string): string => {
+  const trimmed = body.trim()
+  if (!trimmed) return ''
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    if (parsed && typeof parsed === 'object') {
+      const message = Reflect.get(parsed, 'message')
+      if (typeof message === 'string') return message
+      const error = Reflect.get(parsed, 'error')
+      if (typeof error === 'string') return error
+    }
+  } catch {
+    // Fall back to raw response text below.
+  }
+
+  return trimmed.slice(0, 1000)
 }
 
 export const parseDomainBlockCsv = (
@@ -155,7 +188,12 @@ export const downloadKnownDomainBlocklist = async (
     maxResponseSize: KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES
   })
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(`Failed to download ${source.name}`)
+    const detail = getDownloadErrorDetail(response.body)
+    throw new Error(
+      detail
+        ? `Failed to download ${source.name}: ${detail}`
+        : `Failed to download ${source.name}`
+    )
   }
 
   const contentLength = response.headers['content-length']

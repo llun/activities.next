@@ -14,6 +14,9 @@ describe('domainRules', () => {
     )
     expect(normalizeDomain('*.Example.Social')).toBe('*.example.social')
     expect(normalizeDomain('')).toBeNull()
+    expect(
+      normalizeDomain(Array.from({ length: 5 }, () => 'a'.repeat(63)).join('.'))
+    ).toBeNull()
   })
 
   it('matches exact domains and wildcard subdomains', () => {

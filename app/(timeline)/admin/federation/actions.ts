@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/federation/domainRules'
 import { DomainBlockSeverity } from '@/lib/types/database/operations'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+import { logger } from '@/lib/utils/logger'
 
 const ADMIN_FEDERATION_PATH = '/admin/federation'
 
@@ -108,7 +109,12 @@ export async function importKnownDomainBlocklistAction(formData: FormData) {
     created = result.created
     updated = result.updated
     skipped = result.skipped
-  } catch {
+  } catch (error) {
+    logger.error({
+      message: 'Failed to import known domain blocklist',
+      sourceId,
+      error
+    })
     redirectWithStatus('import-failed')
   }
 

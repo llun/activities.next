@@ -27,7 +27,10 @@ export const normalizeDomain = (value: string): string | null => {
     const url = new URL(withScheme)
     const normalized = url.hostname.replace(/\.$/, '')
     if (!normalized) return null
-    return hasWildcard ? `*.${normalized}` : normalized
+    const domain = hasWildcard ? `*.${normalized}` : normalized
+    if (domain.length > 255) return null
+
+    return domain
   } catch {
     return null
   }

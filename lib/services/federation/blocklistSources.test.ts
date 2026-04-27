@@ -16,6 +16,13 @@ describe('blocklistSources', () => {
     ])
   })
 
+  it('keeps quotes literal when they do not start a field', () => {
+    expect(parseCsvLine('bad.test,spam "quote" marker')).toEqual([
+      'bad.test',
+      'spam "quote" marker'
+    ])
+  })
+
   it('parses quoted CSV fields with newlines', () => {
     expect(parseCsvRecords('a,b\none,"two\nlines"\nthree,four')).toEqual([
       ['a', 'b'],
@@ -83,6 +90,20 @@ describe('blocklistSources', () => {
       severity: 'suspend',
       source: 'oliphant-tier0'
     })
+  })
+
+  it('includes response error details when downloading a known source fails', async () => {
+    const requestImpl = jest.fn().mockResolvedValue({
+      statusCode: 500,
+      headers: {},
+      body: '{"message":"upstream unavailable"}'
+    })
+
+    await expect(
+      downloadKnownDomainBlocklist('oliphant-tier0', requestImpl)
+    ).rejects.toThrow(
+      'Failed to download Oliphant unified tier 0: upstream unavailable'
+    )
   })
 
   it('rejects oversized known source responses by content length', async () => {
