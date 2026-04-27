@@ -1,4 +1,7 @@
-import { recordActorIfNeeded } from '@/lib/actions/utils'
+import {
+  assertActorCanFederate,
+  recordActorIfNeeded
+} from '@/lib/actions/utils'
 import {
   getContent,
   getReply,
@@ -47,6 +50,11 @@ export const createPollJob = createJobHandle(
       question.oneOf?.map((item) => item.name) ??
       question.anyOf?.map((item) => item.name) ??
       []
+
+    await assertActorCanFederate({
+      actorId: question.attributedTo,
+      database
+    })
 
     const [, status] = await Promise.all([
       recordActorIfNeeded({

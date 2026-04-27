@@ -1,0 +1,160 @@
+import { parse } from 'csv-parse/sync'
+import { Buffer } from 'node:buffer'
+import { z } from 'zod'
+
+import {
+  DEFAULT_DOMAIN_BLOCK_SEVERITY,
+  normalizeDomain
+} from '@/lib/services/federation/domainRules'
+import {
+  DomainBlockSeverity,
+  ImportDomainBlockParams
+} from '@/lib/types/database/operations'
+import { RequestOptions, RequestResult, request } from '@/lib/utils/request'
+
+export const KnownDomainBlocklistSourceId = z.enum(['oliphant-tier0'])
+export type KnownDomainBlocklistSourceId = z.infer<
+  typeof KnownDomainBlocklistSourceId
+>
+
+export const KNOWN_DOMAIN_BLOCKLIST_SOURCES = [
+  {
+    id: KnownDomainBlocklistSourceId.enum['oliphant-tier0'],
+    name: 'Oliphant unified tier 0',
+    url: 'https://codeberg.org/oliphant/blocklists/raw/branch/main/blocklists/_unified_tier0_blocklist.csv'
+  }
+] as const
+
+export const KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS = 30_000
+export const KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES = 10 * 1024 * 1024
+
+type BlocklistRequest = (options: RequestOptions) => Promise<RequestResult>
+
+const defaultBlocklistRequest: BlocklistRequest = async (options) => {
+  const { statusCode, headers, body } = await request(options)
+  return { statusCode, headers, body }
+}
+
+const parseBoolean = (value: string | undefined): boolean =>
+  value?.trim().toLowerCase() === 'true'
+
+const parseSeverity = (value: string | undefined): DomainBlockSeverity => {
+  const severity = value?.trim().toLowerCase()
+  return severity === 'noop' || severity === 'silence' || severity === 'suspend'
+    ? severity
+    : DEFAULT_DOMAIN_BLOCK_SEVERITY
+}
+
+export const parseCsvLine = (line: string): string[] => {
+  return parseCsvRecords(line)[0] ?? []
+}
+
+export const parseCsvRecords = (csv: string): string[][] => {
+  const records = parse(csv, {
+    bom: true,
+    relax_column_count: true,
+    relax_quotes: true,
+    skip_empty_lines: true
+  }) as string[][]
+
+  return records.filter((fields) => fields.some((value) => value.trim()))
+}
+
+const getDownloadErrorDetail = (body: string): string => {
+  const trimmed = body.trim()
+  if (!trimmed) return ''
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    if (parsed && typeof parsed === 'object') {
+      const message = Reflect.get(parsed, 'message')
+      if (typeof message === 'string') return message
+      const error = Reflect.get(parsed, 'error')
+      if (typeof error === 'string') return error
+    }
+  } catch {
+    // Fall back to raw response text below.
+  }
+
+  return trimmed.slice(0, 1000)
+}
+
+export const parseDomainBlockCsv = (
+  csv: string,
+  source: string
+): ImportDomainBlockParams[] => {
+  const [headerFields, ...rows] = parseCsvRecords(csv)
+  if (!headerFields) return []
+
+  const headers = headerFields.map((field) =>
+    field.trim().toLowerCase().replace(/^#/, '')
+  )
+  const domainIndex = headers.indexOf('domain')
+  if (domainIndex < 0) return []
+
+  const getField = (fields: string[], name: string): string | undefined => {
+    const index = headers.indexOf(name)
+    return index >= 0 ? fields[index] : undefined
+  }
+
+  const blocks = new Map<string, ImportDomainBlockParams>()
+
+  for (const fields of rows) {
+    const domain = normalizeDomain(fields[domainIndex] ?? '')
+    if (!domain) continue
+
+    blocks.set(domain, {
+      domain,
+      severity: parseSeverity(getField(fields, 'severity')),
+      rejectMedia: parseBoolean(getField(fields, 'reject_media')),
+      rejectReports: parseBoolean(getField(fields, 'reject_reports')),
+      publicComment: getField(fields, 'public_comment')?.trim() || null,
+      privateComment: getField(fields, 'private_comment')?.trim() || null,
+      obfuscate: parseBoolean(getField(fields, 'obfuscate')),
+      source
+    })
+  }
+
+  return [...blocks.values()]
+}
+
+export const downloadKnownDomainBlocklist = async (
+  sourceId: KnownDomainBlocklistSourceId,
+  requestImpl: BlocklistRequest = defaultBlocklistRequest
+): Promise<ImportDomainBlockParams[]> => {
+  const source = KNOWN_DOMAIN_BLOCKLIST_SOURCES.find(
+    (item) => item.id === sourceId
+  )
+  if (!source) throw new Error('Unknown domain blocklist source')
+
+  const response = await requestImpl({
+    url: source.url,
+    responseTimeout: KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS,
+    numberOfRetry: 0,
+    maxResponseSize: KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES
+  })
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    const detail = getDownloadErrorDetail(response.body)
+    throw new Error(
+      detail
+        ? `Failed to download ${source.name}: ${detail}`
+        : `Failed to download ${source.name}`
+    )
+  }
+
+  const contentLength = response.headers['content-length']
+  const contentLengthValue = Array.isArray(contentLength)
+    ? contentLength[0]
+    : contentLength
+  const expectedBytes = Number(contentLengthValue ?? 0)
+  if (expectedBytes > KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES) {
+    throw new Error('Blocklist response too large')
+  }
+
+  const csv = response.body
+  if (Buffer.byteLength(csv, 'utf8') > KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES) {
+    throw new Error('Blocklist response too large')
+  }
+
+  return parseDomainBlockCsv(csv, source.id)
+}

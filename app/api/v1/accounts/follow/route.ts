@@ -5,6 +5,7 @@
  */
 import { follow, unfollow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -56,6 +57,15 @@ export const POST = traceApiRoute(
     const { database, currentActor } = context
     const body = await req.json()
     const { target } = FollowRequest.parse(body)
+    if (!(await canFederateWithDomain(database, target))) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { status: 'Forbidden' },
+        responseStatusCode: HTTP_STATUS.FORBIDDEN
+      })
+    }
+
     const person = await getActorPerson({ actorId: target })
     if (!person)
       return apiResponse({
@@ -98,8 +108,9 @@ export const DELETE = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
+    const canFederate = await canFederateWithDomain(database, target)
     await Promise.all([
-      unfollow(currentActor, follow),
+      canFederate ? unfollow(currentActor, follow) : undefined,
       database.updateFollowStatus({
         followId: follow.id,
         status: FollowStatus.enum.Undo

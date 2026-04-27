@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
 
@@ -19,6 +20,10 @@ export const ActivityPubVerifySenderGuard =
 
     const signatureParts = await parse(requestSignature)
     if (!signatureParts.keyId) return apiErrorResponse(400)
+
+    if (!(await canFederateWithDomain(database, signatureParts.keyId))) {
+      return apiErrorResponse(403)
+    }
 
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)

@@ -21,6 +21,8 @@ import { PushConfig, getPushConfig } from './push'
 import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
 
+const FederationMode = z.enum(['open', 'allowlist'])
+
 const Config = z.object({
   host: z.string(),
   serviceName: z.string().nullish(),
@@ -33,6 +35,7 @@ const Config = z.object({
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
   allowActorDomains: z.string().array().optional(),
+  federationMode: FederationMode.default('open'),
   auth: AuthConfig.optional(),
   email: z
     .union([SMTPConfig, LambdaConfig, ResendConfig, SESConfig])
@@ -79,6 +82,7 @@ const getConfigFromEnvironment = () => {
       allowActorDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS || '[]'
       ),
+      federationMode: process.env.ACTIVITIES_FEDERATION_MODE || 'open',
       ...getEmailConfig(),
       ...getAuthConfig(),
       ...getDatabaseConfig(),

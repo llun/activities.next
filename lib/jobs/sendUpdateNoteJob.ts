@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { sendUpdateNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
@@ -86,7 +87,7 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
         .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
       inboxes.push(...toInboxes)
 
-      const uniqueInboxes = [...new Set(inboxes)]
+      const uniqueInboxes = await filterFederatedUrls(database, inboxes)
       await Promise.all(
         uniqueInboxes.map(async (inbox) => {
           try {

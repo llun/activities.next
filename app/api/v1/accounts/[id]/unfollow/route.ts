@@ -1,5 +1,6 @@
 import { unfollow } from '@/lib/activities'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -37,8 +38,9 @@ export const POST = traceApiRoute(
     })
 
     if (existingFollow) {
+      const canFederate = await canFederateWithDomain(database, targetActorId)
       await Promise.all([
-        unfollow(currentActor, existingFollow),
+        canFederate ? unfollow(currentActor, existingFollow) : undefined,
         database.updateFollowStatus({
           followId: existingFollow.id,
           status: FollowStatus.enum.Undo

@@ -1,4 +1,7 @@
-import { recordActorIfNeeded } from '@/lib/actions/utils'
+import {
+  assertActorCanFederate,
+  recordActorIfNeeded
+} from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
@@ -27,6 +30,8 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     } else {
       return
     }
+
+    await assertActorCanFederate({ actorId: status.actor, database })
 
     const existingStatus = await database.getStatus({
       statusId: object,

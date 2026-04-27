@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { Note } from '@/lib/types/activitypub/objects'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
@@ -17,6 +18,7 @@ const fetchRemoteStatus = async (
   depth = 0
 ): Promise<Status | null> => {
   if (depth > 3) return null
+  if (!(await canFederateWithDomain(database, statusId))) return null
 
   // 1. Check if already in database
   const existing = await database.getStatus({ statusId })
@@ -107,6 +109,7 @@ export const fetchRemoteStatusJob = createJobHandle(
 
     const client = {
       fetch: async (url: string) => {
+        if (!(await canFederateWithDomain(database, url))) return null
         const { body, statusCode } = await request({
           url,
           headers: { Accept: 'application/activity+json' }
@@ -174,6 +177,15 @@ export const fetchRemoteStatusJob = createJobHandle(
           const sanitizedReply = normalizeActivityPubContent(
             activityOrNote
           ) as Note
+          if (
+            !(await canFederateWithDomain(
+              database,
+              sanitizedReply.attributedTo
+            ))
+          ) {
+            return
+          }
+
           const actor = await recordActorIfNeeded({
             actorId: sanitizedReply.attributedTo,
             database
