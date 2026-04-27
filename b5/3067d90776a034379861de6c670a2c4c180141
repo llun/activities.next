@@ -1,0 +1,35 @@
+app/(timeline)/admin/federation/actions.ts
+  aec9357be833f4ad 18,112-117
+lib/services/federation/domainRules.ts
+  aec9357be833f4ad 30-33
+lib/services/federation/blocklistSources.ts
+  aec9357be833f4ad 56,65-71,84-91,96,107,117-135,191-196
+lib/services/federation/domainRules.test.ts
+  aec9357be833f4ad 17-19
+lib/database/sql/admin.ts
+  aec9357be833f4ad 23,175-194,494-497,525-528
+lib/services/federation/blocklistSources.test.ts
+  aec9357be833f4ad 19-25,95-106
+lib/database/sql/admin.test.ts
+  aec9357be833f4ad 376-404
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "b53067d90776a034379861de6c670a2c4c180141",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 179,
+      "total_deletions": 24,
+      "accepted_lines": 1031,
+      "overriden_lines": 0
+    }
+  }
+}
