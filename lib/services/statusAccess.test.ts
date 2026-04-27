@@ -106,4 +106,25 @@ describe('status access helpers', () => {
       })
     ).resolves.toBe(true)
   })
+
+  it('uses pre-fetched follower state when provided', async () => {
+    const database = {
+      getAcceptedOrRequestedFollow: jest.fn()
+    }
+    const status = note({
+      id: `${ACTOR_ID}/statuses/private-prefetched-follower`,
+      to: [FOLLOWERS_URL],
+      cc: []
+    })
+
+    await expect(
+      canActorReadStatus({
+        database: database as never,
+        status,
+        currentActor: actor,
+        isFollower: true
+      })
+    ).resolves.toBe(true)
+    expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
 })

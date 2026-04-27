@@ -6,6 +6,7 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -100,13 +101,25 @@ export const GET = traceApiRoute(
       limit,
       publicOnly: currentActor === null
     })
+    const follow =
+      currentActor && currentActor.id !== id
+        ? await database.getAcceptedOrRequestedFollow({
+            actorId: currentActor.id,
+            targetActorId: id
+          })
+        : null
+    const isFollower =
+      currentActor && currentActor.id !== id
+        ? follow?.status === FollowStatus.enum.Accepted
+        : undefined
     const readableStatuses = (
       await Promise.all(
         statuses.map(async (status) =>
           (await canActorReadStatus({
             database,
             status,
-            currentActor
+            currentActor,
+            isFollower
           }))
             ? status
             : null

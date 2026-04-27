@@ -28,16 +28,20 @@ export const isStatusPubliclyReadable = (status: Status): boolean => {
 const canActorReadSingleStatus = async ({
   database,
   status,
-  currentActor
+  currentActor,
+  isFollower
 }: {
   database: Database
   status: Status
   currentActor: Actor
+  isFollower?: boolean
 }): Promise<boolean> => {
   if (isPublicOrUnlisted(status)) return true
   if (currentActor.id === status.actorId) return true
 
   if (hasFollowersAudience(status)) {
+    if (isFollower !== undefined) return isFollower
+
     const follow = await database.getAcceptedOrRequestedFollow({
       actorId: currentActor.id,
       targetActorId: status.actorId
@@ -51,11 +55,13 @@ const canActorReadSingleStatus = async ({
 export const canActorReadStatus = async ({
   database,
   status,
-  currentActor
+  currentActor,
+  isFollower
 }: {
   database: Database
   status: Status
   currentActor: Actor | null
+  isFollower?: boolean
 }): Promise<boolean> => {
   if (isStatusPubliclyReadable(status)) return true
   if (!currentActor) return false
@@ -64,7 +70,8 @@ export const canActorReadStatus = async ({
     const canReadAnnounce = await canActorReadSingleStatus({
       database,
       status,
-      currentActor
+      currentActor,
+      isFollower
     })
 
     if (!canReadAnnounce) return false
@@ -76,5 +83,10 @@ export const canActorReadStatus = async ({
     })
   }
 
-  return canActorReadSingleStatus({ database, status, currentActor })
+  return canActorReadSingleStatus({
+    database,
+    status,
+    currentActor,
+    isFollower
+  })
 }
