@@ -1,5 +1,6 @@
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import {
+  activityPubRedirectResponse,
   activityPubResponse,
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
@@ -20,6 +21,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    return Response.redirect(`https://${actor.domain}/@${actor.username}`)
+    return activityPubRedirectResponse(
+      `https://${actor.domain}/@${actor.username}`
+    )
   })
 )

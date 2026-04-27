@@ -44,7 +44,25 @@ const splitHeaderValue = (value: string, delimiter: ',' | ';') => {
 const unquote = (value: string) => {
   const trimmed = value.trim()
   if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    return trimmed.slice(1, -1).replace(/\\"/g, '"')
+    let unquoted = ''
+    let escaped = false
+
+    for (const character of trimmed.slice(1, -1)) {
+      if (escaped) {
+        unquoted += character
+        escaped = false
+        continue
+      }
+
+      if (character === '\\') {
+        escaped = true
+        continue
+      }
+
+      unquoted += character
+    }
+
+    return escaped ? `${unquoted}\\` : unquoted
   }
 
   return trimmed

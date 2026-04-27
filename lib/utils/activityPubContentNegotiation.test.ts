@@ -23,6 +23,14 @@ describe('#negotiateActivityPubContentType', () => {
     ).toBe(ACTIVITYSTREAM_LD_CONTENT_TYPE)
   })
 
+  it('recognizes ActivityStreams JSON-LD profile requests with multiple profile tokens', () => {
+    expect(
+      negotiateActivityPubContentType(
+        'application/ld+json; profile="https://www.w3.org/ns/activitystreams https://example.com/other"'
+      )
+    ).toBe(ACTIVITYSTREAM_LD_CONTENT_TYPE)
+  })
+
   it('does not treat blank JSON-LD profiles as ActivityStreams requests', () => {
     expect(
       negotiateActivityPubContentType('application/ld+json; profile=""')
@@ -46,6 +54,15 @@ describe('#negotiateActivityPubContentType', () => {
       negotiateActivityPubContentType(
         'text/html, application/xhtml+xml, */*;q=0.8'
       )
+    ).toBeNull()
+  })
+
+  it('uses header order to break equal preference ties between ActivityPub and HTML', () => {
+    expect(
+      negotiateActivityPubContentType('application/activity+json, text/html')
+    ).toBe(ACTIVITYPUB_CONTENT_TYPE)
+    expect(
+      negotiateActivityPubContentType('text/html, application/activity+json')
     ).toBeNull()
   })
 

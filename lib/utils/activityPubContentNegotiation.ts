@@ -19,9 +19,10 @@ type ActivityPubCandidate = {
 
 const isActivityStreamsProfile = (profile: string | undefined) => {
   if (profile === undefined) return true
-  if (!profile.trim()) return false
+  const trimmed = profile.trim()
+  if (!trimmed) return false
 
-  return profile.trim().split(/\s+/).includes(ACTIVITY_STREAM_URL)
+  return trimmed.split(/\s+/).includes(ACTIVITY_STREAM_URL)
 }
 
 const isHtmlType = ({ type }: AcceptedContentType) =>
@@ -123,5 +124,15 @@ export const activityPubResponse = ({
       ['Content-Type', responseContentType],
       ['Vary', 'Accept']
     ]
+  })
+}
+
+export const activityPubRedirectResponse = (url: string) => {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: url,
+      Vary: 'Accept'
+    }
   })
 }

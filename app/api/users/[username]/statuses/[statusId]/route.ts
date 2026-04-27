@@ -5,6 +5,7 @@ import {
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { toActivityPubObject } from '@/lib/types/domain/status'
 import {
+  activityPubRedirectResponse,
   activityPubResponse,
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
@@ -38,7 +39,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    return Response.redirect(
+    return activityPubRedirectResponse(
       `https://${status.actor?.domain}/@${actor.username}/${statusId}`
     )
   })

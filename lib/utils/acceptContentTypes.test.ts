@@ -42,4 +42,16 @@ describe('#acceptContentTypes', () => {
       }
     ])
   })
+
+  it('unescapes generic quoted-pair parameter values', () => {
+    const value = String.raw`application/json; note="a\\b\t\"quoted";q=0.9`
+
+    expect(parseAcceptContentTypes(value)).toMatchObject([
+      {
+        type: 'application/json',
+        parameters: { note: 'a\\bt"quoted' },
+        quality: 0.9
+      }
+    ])
+  })
 })
