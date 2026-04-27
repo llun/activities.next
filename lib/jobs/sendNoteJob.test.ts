@@ -102,6 +102,41 @@ describe('sendNoteJob', () => {
     // Job should complete without error
   })
 
+  it('does not send notes to suspended domains', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    await database.createDomainBlock({
+      domain: 'somewhere.test',
+      severity: 'suspend'
+    })
+
+    const statusId = `${actor1.id}/statuses/blocked-note-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${actor1.id}/followers`],
+      text: 'Blocked domain should not receive this',
+      createdAt: Date.now()
+    })
+
+    await sendNoteJob(database, {
+      id: 'job-blocked',
+      name: SEND_NOTE_JOB_NAME,
+      data: {
+        actorId: actor1.id,
+        statusId
+      }
+    })
+
+    expect(
+      fetchMock.mock.calls.some(
+        (call) => call[0] === 'https://somewhere.test/inbox'
+      )
+    ).toBe(false)
+  })
+
   it('handles note with mentions', async () => {
     if (!actor1) fail('Actor1 is required')
 

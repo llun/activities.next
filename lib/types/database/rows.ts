@@ -73,3 +73,18 @@ export interface SQLAccount {
   updatedAt: number | Date
   verifiedAt?: number | Date
 }
+
+export interface SQLDomainFederationRule {
+  id: string
+  domain: string
+  type: string
+  severity?: string | null
+  rejectMedia: boolean | number
+  rejectReports: boolean | number
+  privateComment?: string | null
+  publicComment?: string | null
+  obfuscate: boolean | number
+  source?: string | null
+  createdAt: number | Date
+  updatedAt: number | Date
+}

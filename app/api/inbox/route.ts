@@ -1,10 +1,12 @@
 import { StatusActivity } from '@/lib/activities/statusAction'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   ERROR_400,
+  ERROR_403,
   ERROR_404,
   apiResponse,
   defaultOptions
@@ -22,7 +24,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export const POST = traceApiRoute(
   'sharedInbox',
-  ActivityPubVerifySenderGuard(async (request) => {
+  ActivityPubVerifySenderGuard(async (request, { database }) => {
     const body = await request.json()
     if (
       !isRecord(body) ||
@@ -37,6 +39,15 @@ export const POST = traceApiRoute(
       })
     }
     const activity = body as unknown as StatusActivity
+    if (!(await canFederateWithDomain(database, activity.actor))) {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
+    }
+
     const jobMessage = getJobMessage(activity)
     if (!jobMessage) {
       return apiResponse({

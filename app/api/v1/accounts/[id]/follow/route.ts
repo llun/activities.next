@@ -1,6 +1,7 @@
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -8,6 +9,7 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
   ERROR_404,
+  HTTP_STATUS,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -36,6 +38,14 @@ export const POST = traceApiRoute(
       })
 
     const targetActorId = idToUrl(encodedAccountId)
+    if (!(await canFederateWithDomain(database, targetActorId))) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { status: 'Forbidden' },
+        responseStatusCode: HTTP_STATUS.FORBIDDEN
+      })
+    }
 
     // Check if target actor exists
     const person = await getActorPerson({ actorId: targetActorId })

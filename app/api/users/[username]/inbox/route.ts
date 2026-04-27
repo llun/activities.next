@@ -8,6 +8,7 @@ import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { UndoLike } from '@/lib/activities/undoLike'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -30,6 +31,15 @@ export const POST = traceApiRoute(
   OnlyLocalUserGuard(async (database, _, req) => {
     try {
       const activity = Activity.parse(await req.json())
+      if (!(await canFederateWithDomain(database, activity.actor))) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { status: 'Forbidden' },
+          responseStatusCode: 403
+        })
+      }
+
       switch (activity.type) {
         case 'Accept': {
           const follow = await acceptFollowRequest({ activity, database })

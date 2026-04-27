@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { recordActorIfNeeded } from '@/lib/actions/utils'
+import {
+  assertActorCanFederate,
+  recordActorIfNeeded
+} from '@/lib/actions/utils'
 import {
   BaseNote,
   getAttachments,
@@ -60,6 +63,11 @@ export const createNoteJob = createJobHandle(
     const summary = getSummary(note)
 
     const publishedAt = new Date(note.published).getTime()
+
+    await assertActorCanFederate({
+      actorId: note.attributedTo,
+      database
+    })
 
     const [, status] = await Promise.all([
       recordActorIfNeeded({ actorId: note.attributedTo, database }),

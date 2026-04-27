@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { undoAnnounce } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
 import { StatusType } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
@@ -39,8 +40,9 @@ export const sendUndoAnnounceJob: JobHandle = createJobHandle(
       const inboxes = await database.getFollowersInbox({
         targetActorId: actorId
       })
+      const federatedInboxes = await filterFederatedUrls(database, inboxes)
       await Promise.all(
-        inboxes.map((inbox) =>
+        federatedInboxes.map((inbox) =>
           undoAnnounce({ currentActor: actor, inbox, announce: status })
         )
       )

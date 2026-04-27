@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { sendAnnounce } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
 import { getTracer } from '@/lib/utils/trace'
 
@@ -36,8 +37,9 @@ export const sendAnnounceJob: JobHandle = createJobHandle(
       const inboxes = await database.getFollowersInbox({
         targetActorId: actorId
       })
+      const federatedInboxes = await filterFederatedUrls(database, inboxes)
       await Promise.all(
-        inboxes.map((inbox) =>
+        federatedInboxes.map((inbox) =>
           sendAnnounce({ currentActor: actor, inbox, status })
         )
       )

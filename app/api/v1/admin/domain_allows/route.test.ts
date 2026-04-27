@@ -1,0 +1,91 @@
+import { NextRequest } from 'next/server'
+
+import { GET, POST } from './route'
+
+const mockDatabase = {
+  getDomainAllows: jest.fn(),
+  getDomainFederationRuleStats: jest.fn(),
+  createDomainAllow: jest.fn()
+}
+
+jest.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
+
+jest.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: jest.fn().mockResolvedValue({
+    user: { email: 'admin@llun.test' }
+  })
+}))
+
+jest.mock('@/lib/utils/getAdminFromSession', () => ({
+  getAdminFromSession: jest.fn().mockResolvedValue({
+    id: 'admin',
+    email: 'admin@llun.test'
+  })
+}))
+
+jest.mock('@/lib/config', () => ({
+  getConfig: () => ({ host: 'llun.test', allowEmails: [] })
+}))
+
+describe('/api/v1/admin/domain_allows', () => {
+  beforeEach(() => {
+    mockDatabase.getDomainAllows.mockReset()
+    mockDatabase.getDomainFederationRuleStats.mockReset()
+    mockDatabase.createDomainAllow.mockReset()
+  })
+
+  it('lists admin domain allows with pagination', async () => {
+    mockDatabase.getDomainAllows.mockResolvedValue([
+      {
+        id: 'allow-1',
+        type: 'allow',
+        domain: 'trusted.test',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ])
+    mockDatabase.getDomainFederationRuleStats.mockResolvedValue({
+      blocks: 0,
+      allows: 12,
+      sourceBlocks: 0,
+      sourceCounts: {}
+    })
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/admin/domain_allows?limit=10&offset=2'
+      ),
+      { params: Promise.resolve({}) }
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-total-count')).toBe('12')
+    expect(response.headers.get('x-offset')).toBe('2')
+    expect(response.headers.get('x-limit')).toBe('10')
+    expect(mockDatabase.getDomainAllows).toHaveBeenCalledWith({
+      limit: 10,
+      offset: 2
+    })
+    expect(data[0]).toMatchObject({
+      id: 'allow-1',
+      domain: 'trusted.test'
+    })
+  })
+
+  it('rejects invalid JSON bodies', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/admin/domain_allows', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{'
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockDatabase.createDomainAllow).not.toHaveBeenCalled()
+  })
+})

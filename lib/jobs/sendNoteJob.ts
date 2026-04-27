@@ -4,6 +4,7 @@ import { sendNote } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
@@ -96,9 +97,10 @@ export const sendNoteJob: JobHandle = createJobHandle(
       const inboxes = Array.from(
         new Set([...remoteActorsInbox, ...followersInbox])
       )
+      const federatedInboxes = await filterFederatedUrls(database, inboxes)
 
       await Promise.all(
-        inboxes.map(async (inbox) => {
+        federatedInboxes.map(async (inbox) => {
           try {
             await sendNote({
               currentActor: actor,
