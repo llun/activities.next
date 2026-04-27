@@ -1,0 +1,1 @@
+export const MAX_STATUS_MEDIA_ATTACHMENTS = 4

@@ -4,6 +4,7 @@ import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -170,6 +171,14 @@ export const POST = traceApiRoute(
         })
       }
       const note = parsed.data
+      if (note.media_ids.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
       const attachments = await getAttachmentsFromMediaIds(
         database,
         currentActor,

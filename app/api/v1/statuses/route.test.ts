@@ -215,4 +215,39 @@ describe('POST /api/v1/statuses', () => {
 
     expect(response.status).toBe(422)
   })
+
+  it('rejects more media_ids than the instance advertises', async () => {
+    const mediaIds: string[] = []
+    for (let index = 0; index < 5; index += 1) {
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: `medias/too-many-attachments-${index}.webp`,
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 },
+          fileName: `too-many-attachments-${index}.jpg`
+        }
+      })
+      expect(media).not.toBeNull()
+      mediaIds.push(media!.id)
+    }
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'This should not exceed the advertised attachment limit',
+          media_ids: mediaIds
+        }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
 })
