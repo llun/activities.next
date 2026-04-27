@@ -1,0 +1,27 @@
+lib/activities/index.ts
+  b25d2f3fab6a325a 61,114,175,234,290,352,410,461,511,560,606,655,733
+lib/utils/signature.test.ts
+  b25d2f3fab6a325a 172,201,218-237
+lib/database/sql/actor.test.ts
+  b25d2f3fab6a325a 5-6,8,12,21-54,161-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "10ea5388d14767fed9f83e4e5ffa80a6ea674e00",
+  "prompts": {
+    "b25d2f3fab6a325a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcfd1-ab95-7542-a5bc-19960d49a8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 1731,
+      "total_deletions": 79,
+      "accepted_lines": 1837,
+      "overriden_lines": 0
+    }
+  }
+}
