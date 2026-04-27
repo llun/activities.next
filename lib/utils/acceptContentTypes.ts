@@ -10,8 +10,21 @@ const splitHeaderValue = (value: string, delimiter: ',' | ';') => {
   const items: string[] = []
   let current = ''
   let inQuotes = false
+  let escaped = false
 
   for (const character of value) {
+    if (escaped) {
+      current += character
+      escaped = false
+      continue
+    }
+
+    if (character === '\\' && inQuotes) {
+      current += character
+      escaped = true
+      continue
+    }
+
     if (character === '"') {
       inQuotes = !inQuotes
     }

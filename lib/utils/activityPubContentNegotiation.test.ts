@@ -2,6 +2,7 @@ import {
   ACTIVITYPUB_CONTENT_TYPE,
   ACTIVITYSTREAM_LD_CONTENT_TYPE,
   JSON_CONTENT_TYPE,
+  activityPubResponse,
   negotiateActivityPubContentType
 } from './activityPubContentNegotiation'
 
@@ -20,6 +21,12 @@ describe('#negotiateActivityPubContentType', () => {
         'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
       )
     ).toBe(ACTIVITYSTREAM_LD_CONTENT_TYPE)
+  })
+
+  it('does not treat blank JSON-LD profiles as ActivityStreams requests', () => {
+    expect(
+      negotiateActivityPubContentType('application/ld+json; profile=""')
+    ).toBeNull()
   })
 
   it('recognizes generic JSON requests', () => {
@@ -44,5 +51,32 @@ describe('#negotiateActivityPubContentType', () => {
 
   it('treats a missing Accept header as accepting ActivityPub JSON', () => {
     expect(negotiateActivityPubContentType(null)).toBe(ACTIVITYPUB_CONTENT_TYPE)
+  })
+})
+
+describe('#activityPubResponse', () => {
+  it('marks negotiated responses as varying by Accept', () => {
+    const response = activityPubResponse({
+      req: new Request('https://example.com', {
+        headers: { accept: 'application/activity+json' }
+      }) as never,
+      data: { ok: true }
+    })
+
+    expect(response.headers.get('vary')).toBe('Accept')
+  })
+
+  it('allows callers to override CORS methods', () => {
+    const response = activityPubResponse({
+      req: new Request('https://example.com', {
+        headers: { accept: 'application/activity+json' }
+      }) as never,
+      data: { ok: true },
+      allowedMethods: ['GET', 'POST']
+    })
+
+    expect(response.headers.get('access-control-allow-methods')).toBe(
+      'GET,POST'
+    )
   })
 })

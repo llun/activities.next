@@ -18,7 +18,8 @@ type ActivityPubCandidate = {
 }
 
 const isActivityStreamsProfile = (profile: string | undefined) => {
-  if (!profile) return true
+  if (profile === undefined) return true
+  if (!profile.trim()) return false
 
   return profile
     .split(/\s+/)
@@ -104,11 +105,13 @@ export const negotiateActivityPubContentType = (
 export const activityPubResponse = ({
   req,
   data,
-  contentType
+  contentType,
+  allowedMethods = [HttpMethod.enum.GET]
 }: {
   req: NextRequest
   data: unknown
   contentType?: string | null
+  allowedMethods?: HttpMethod[]
 }) => {
   const responseContentType =
     contentType ??
@@ -117,8 +120,11 @@ export const activityPubResponse = ({
 
   return apiResponse({
     req,
-    allowedMethods: [HttpMethod.enum.GET],
+    allowedMethods,
     data,
-    additionalHeaders: [['Content-Type', responseContentType]]
+    additionalHeaders: [
+      ['Content-Type', responseContentType],
+      ['Vary', 'Accept']
+    ]
   })
 }
