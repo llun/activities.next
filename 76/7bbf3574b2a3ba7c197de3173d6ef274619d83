@@ -1,0 +1,25 @@
+app/api/v1/admin/domain_blocks/[id]/route.test.ts
+  aec9357be833f4ad 3,6-7,34,37-68,70-99,102,104-107
+app/api/v1/admin/domain_blocks/schema.ts
+  aec9357be833f4ad 12-15,26-27,31-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "767bbf3574b2a3ba7c197de3173d6ef274619d83",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 85,
+      "total_deletions": 28,
+      "accepted_lines": 939,
+      "overriden_lines": 0
+    }
+  }
+}
