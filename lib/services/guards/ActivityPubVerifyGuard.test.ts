@@ -156,4 +156,31 @@ describe('ActivityPubVerifySenderGuard', () => {
     expect(response.status).toBe(200)
     expect(handler).toHaveBeenCalled()
   })
+
+  it('includes query strings when verifying GET request targets', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      new NextRequest(
+        'https://activities.local/api/users/alice/outbox?page=true&min_id=0',
+        {
+          method: 'GET',
+          headers: {
+            date: new Date().toUTCString(),
+            signature:
+              'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="signature"'
+          }
+        }
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockVerify).toHaveBeenCalledWith(
+      'get /api/users/alice/outbox?page=true&min_id=0',
+      expect.any(Headers),
+      'public-key'
+    )
+  })
 })

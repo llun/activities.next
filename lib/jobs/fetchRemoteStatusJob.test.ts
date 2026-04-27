@@ -3,7 +3,9 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { fetchRemoteStatusJob } from '@/lib/jobs/fetchRemoteStatusJob'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
@@ -32,6 +34,12 @@ describe('fetchRemoteStatusJob', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    await database.createAccount({
+      ...seedActor1,
+      email: `signed-fetch-signer@${TEST_DOMAIN}`,
+      username: 'signed-fetch-signer',
+      domain: TEST_DOMAIN
+    })
   })
 
   afterAll(async () => {
@@ -288,5 +296,6 @@ describe('fetchRemoteStatusJob', () => {
         REPLY_ITEM_ID
       ])
     )
+    expect(signedFetches.filter((url) => url === STATUS_ID)).toHaveLength(1)
   })
 })

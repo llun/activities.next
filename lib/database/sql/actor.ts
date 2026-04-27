@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { getConfig } from '@/lib/config'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -88,6 +89,11 @@ const parseStatusContent = (
 }
 
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
+
+const getConfiguredActorDomain = () => {
+  const host = getConfig().host
+  return host.includes('://') ? new URL(host).host : host
+}
 
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async createActor({
@@ -266,11 +272,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
   async getFederationSigningActor() {
     const persistedActor = await database<SQLActor>('actors')
+      .where('domain', getConfiguredActorDomain())
       .whereNotNull('accountId')
       .whereNotNull('privateKey')
       .where('privateKey', '<>', '')
       .whereNull('deletionStatus')
       .orderBy('createdAt', 'asc')
+      .orderBy('id', 'asc')
       .first<{ id: string }>('id')
     if (!persistedActor) return null
 

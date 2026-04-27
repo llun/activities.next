@@ -12,6 +12,8 @@ interface StringMap {
   [key: string]: string
 }
 
+type SignedHttpMethod = 'GET' | 'POST'
+
 export async function parse(signature: string): Promise<StringMap> {
   try {
     const result: StringMap = {}
@@ -68,7 +70,7 @@ export async function verify(
 
 export function signedHeaders(
   currentActor: Actor,
-  method: string,
+  method: SignedHttpMethod,
   targetUrl: string,
   content?: unknown
 ) {
@@ -76,6 +78,7 @@ export function signedHeaders(
   const host = url.host
   const date = new Date().toUTCString()
   const requestTargetPath = `${url.pathname}${url.search}`
+  const requestTargetMethod = method.toLowerCase()
   const headers: Record<string, string> = {
     host,
     date
@@ -100,7 +103,7 @@ export function signedHeaders(
   const signedString = headerKeys
     .map((key) => {
       if (key === '(request-target)') {
-        return `(request-target): ${method.toLowerCase()} ${requestTargetPath}`
+        return `(request-target): ${requestTargetMethod} ${requestTargetPath}`
       }
       return `${key}: ${headers[key]}`
     })

@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getSenderPublicKey } from '@/lib/services/guards/getSenderPublicKey'
 import { mockRequests } from '@/lib/stub/activities'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -14,6 +15,12 @@ describe('getSenderPublicKey', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    await database.createAccount({
+      ...seedActor1,
+      email: `signed-key-signer@${TEST_DOMAIN}`,
+      username: 'signed-key-signer',
+      domain: TEST_DOMAIN
+    })
   })
 
   afterAll(async () => {

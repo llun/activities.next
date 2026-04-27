@@ -169,7 +169,7 @@ describe('#signedHeaders', () => {
       publicKey: keyPair.publicKey
     } as Actor
 
-    const headers = signedHeaders(actor, 'post', 'https://target.com/inbox', {
+    const headers = signedHeaders(actor, 'POST', 'https://target.com/inbox', {
       type: 'Note',
       content: 'test'
     })
@@ -198,7 +198,7 @@ describe('#signedHeaders', () => {
       publicKey: keyPair.publicKey
     } as Actor
 
-    const headers = signedHeaders(actor, 'get', 'https://target.com/inbox')
+    const headers = signedHeaders(actor, 'GET', 'https://target.com/inbox')
 
     expect(headers.digest).toBeUndefined()
     expect(headers['content-type']).toBeUndefined()
@@ -206,6 +206,26 @@ describe('#signedHeaders', () => {
 
     const verifyResult = await verify(
       'get /inbox',
+      {
+        ...headers,
+        signature: headers.signature as string
+      },
+      keyPair.publicKey
+    )
+    expect(verifyResult).toBeTruthy()
+  }, 15000)
+
+  it('uses only the path for GET request targets without query strings', async () => {
+    const actor = {
+      id: 'https://test.com/actor',
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey
+    } as Actor
+
+    const headers = signedHeaders(actor, 'GET', 'https://target.com/outbox')
+
+    const verifyResult = await verify(
+      'get /outbox',
       {
         ...headers,
         signature: headers.signature as string

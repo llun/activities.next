@@ -58,7 +58,7 @@ export const getNote = async ({
           headers: {
             Accept: DEFAULT_ACCEPT,
             ...(signingActor
-              ? signedHeaders(signingActor, 'get', statusId)
+              ? signedHeaders(signingActor, 'GET', statusId)
               : {})
           }
         })
@@ -111,12 +111,7 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
           url: inbox,
           method,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              inbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, inbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           body: JSON.stringify(activity)
@@ -177,12 +172,7 @@ export const sendUpdateNote = async ({
           url: inbox,
           method,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              inbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, inbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           body: JSON.stringify(activity)
@@ -241,12 +231,7 @@ export const sendAnnounce = async ({
         await request({
           url: inbox,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              inbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, inbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           method,
@@ -302,12 +287,7 @@ export const deleteStatus = async ({
         await request({
           url: inbox,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              inbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, inbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           method,
@@ -369,12 +349,7 @@ export const undoAnnounce = async ({
           url: inbox,
           method,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              inbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, inbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           body: JSON.stringify(activity)
@@ -432,12 +407,7 @@ export const follow = async (
           url: targetInbox,
           method,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              targetInbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, targetInbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           body: JSON.stringify(activity)
@@ -488,12 +458,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) =>
         const { statusCode } = await request({
           url: targetInbox,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              targetInbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, targetInbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           method,
@@ -543,12 +508,7 @@ export const acceptFollow = async (
           url: followingInbox,
           method,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              followingInbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, followingInbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           body: JSON.stringify(activity)
@@ -597,12 +557,7 @@ export const rejectFollow = async (
           url: followingInbox,
           method,
           headers: {
-            ...signedHeaders(
-              currentActor,
-              method.toLowerCase(),
-              followingInbox,
-              activity
-            ),
+            ...signedHeaders(currentActor, method, followingInbox, activity),
             Accept: DEFAULT_ACCEPT
           },
           body: JSON.stringify(activity)
@@ -648,7 +603,7 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
           headers: {
             ...signedHeaders(
               currentActor,
-              method.toLowerCase(),
+              method,
               status.actor.inboxUrl,
               activity
             ),
@@ -697,7 +652,7 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
           headers: {
             ...signedHeaders(
               currentActor,
-              method.toLowerCase(),
+              method,
               status.actor.inboxUrl,
               activity
             ),
@@ -775,7 +730,7 @@ export const sendPollVotes = async ({
             headers: {
               ...signedHeaders(
                 currentActor,
-                method.toLowerCase(),
+                method,
                 status.actor.inboxUrl,
                 activity
               ),

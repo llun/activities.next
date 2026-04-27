@@ -15,18 +15,23 @@ import { signedHeaders } from '@/lib/utils/signature'
 import { createJobHandle } from './createJobHandle'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from './names'
 
+interface FetchRemoteStatusResult {
+  status: Status
+  note?: Note
+}
+
 const fetchRemoteStatus = async (
   database: Database,
   statusId: string,
   depth = 0,
   signingActor?: Actor
-): Promise<Status | null> => {
+): Promise<FetchRemoteStatusResult | null> => {
   if (depth > 3) return null
   if (!(await canFederateWithDomain(database, statusId))) return null
 
   // 1. Check if already in database
   const existing = await database.getStatus({ statusId })
-  if (existing) return existing
+  if (existing) return { status: existing }
 
   // 2. Fetch the Note
   const note = await getNote({ statusId, signingActor })
@@ -97,7 +102,9 @@ const fetchRemoteStatus = async (
     await fetchRemoteStatus(database, status.reply, depth + 1, signingActor)
   }
 
-  return status
+  if (!status) return null
+
+  return { status, note: sanitizedNote }
 }
 
 export const fetchRemoteStatusJob = createJobHandle(
@@ -106,11 +113,11 @@ export const fetchRemoteStatusJob = createJobHandle(
     const { statusId } = z.object({ statusId: z.string() }).parse(message.data)
     const signingActor = await getFederationSigningActor(database)
 
-    const status = await fetchRemoteStatus(database, statusId, 0, signingActor)
-    if (!status) return
+    const result = await fetchRemoteStatus(database, statusId, 0, signingActor)
+    if (!result) return
 
     // 8. Fetch replies (up to 100)
-    const note = await getNote({ statusId, signingActor })
+    const note = result.note ?? (await getNote({ statusId, signingActor }))
     if (!note) return
 
     const client = {
@@ -120,7 +127,7 @@ export const fetchRemoteStatusJob = createJobHandle(
           url,
           headers: {
             Accept: 'application/activity+json',
-            ...(signingActor ? signedHeaders(signingActor, 'get', url) : {})
+            ...(signingActor ? signedHeaders(signingActor, 'GET', url) : {})
           }
         })
         if (statusCode !== 200) return null
