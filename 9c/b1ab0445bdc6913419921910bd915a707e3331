@@ -1,0 +1,45 @@
+app/api/v1/statuses/[id]/route.test.ts
+  760a65f49b0e54f1 10,15,81-209
+app/api/users/[username]/statuses/[statusId]/route.ts
+  760a65f49b0e54f1 6-12,31-34,36-53,55-56,64
+lib/database/sql/status.ts
+  760a65f49b0e54f1 55-58,714-715,722-732
+lib/types/database/operations.ts
+  760a65f49b0e54f1 441
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  760a65f49b0e54f1 1-164
+app/api/v1/accounts/[id]/statuses/route.ts
+  760a65f49b0e54f1 3,6,53,78-87,100-101,103-115,119-120
+app/api/v1/statuses/[id]/route.ts
+  760a65f49b0e54f1 6-9,11,42,54-57,66-78,82
+lib/services/statusAccess.test.ts
+  760a65f49b0e54f1 1-109
+app/api/users/[username]/statuses/[statusId]/route.test.ts
+  760a65f49b0e54f1 4,9-10,38-45,57-60,63,81,104-145
+lib/services/guards/types.ts
+  760a65f49b0e54f1 18-27
+lib/services/statusAccess.ts
+  760a65f49b0e54f1 1-80
+lib/services/guards/OAuthGuard.ts
+  760a65f49b0e54f1 14-18,58-88,90-94,96-100,102-106,108-129,132-148,150-151,153-175,179-180,184,186,191-194,196-198,200-203,205-207,212-231,233-234,246-275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9cb1ab0445bdc6913419921910bd915a707e3331",
+  "prompts": {
+    "760a65f49b0e54f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd091-aada-7022-81be-c067036c88c3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 1030,
+      "total_deletions": 134,
+      "accepted_lines": 1027,
+      "overriden_lines": 0
+    }
+  }
+}
