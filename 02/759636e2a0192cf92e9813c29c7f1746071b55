@@ -1,0 +1,27 @@
+app/api/users/[username]/statuses/[statusId]/route.test.ts
+  8c5ae23a13f33fe0 90
+lib/utils/activityPubContentNegotiation.ts
+  8c5ae23a13f33fe0 3,136
+app/api/users/[username]/route.test.ts
+  8c5ae23a13f33fe0 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "02759636e2a0192cf92e9813c29c7f1746071b55",
+  "prompts": {
+    "8c5ae23a13f33fe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcfd2-8329-7460-a0df-07bcbac67a6f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 873,
+      "total_deletions": 0,
+      "accepted_lines": 873,
+      "overriden_lines": 0
+    }
+  }
+}
