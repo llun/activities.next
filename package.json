@@ -46,6 +46,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "content-type": "^1.0.5",
+    "csv-parse": "^6.2.1",
     "date-fns": "^4.1.0",
     "fast-xml-parser": "^5.7.2",
     "fit-file-parser": "^2.3.3",

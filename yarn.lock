@@ -5641,6 +5641,7 @@ __metadata:
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
     content-type: "npm:^1.0.5"
+    csv-parse: "npm:^6.2.1"
     date-fns: "npm:^4.1.0"
     dotenv-flow: "npm:^4.1.0"
     eslint: "npm:^10.2.1"
@@ -6740,6 +6741,13 @@ __metadata:
   version: 3.2.3
   resolution: "csstype@npm:3.2.3"
   checksum: 10c0/cd29c51e70fa822f1cecd8641a1445bed7063697469d35633b516e60fe8c1bde04b08f6c5b6022136bb669b64c63d4173af54864510fbb4ee23281801841a3ce
+  languageName: node
+  linkType: hard
+
+"csv-parse@npm:^6.2.1":
+  version: 6.2.1
+  resolution: "csv-parse@npm:6.2.1"
+  checksum: 10c0/8b6f14b244ca62476d4217aac721131ba0ada3e4ed7614e43ebc99203807564dcb054144d1de4ef22ee8b0c63b431640f75d46a0e1e0f72853a954b279ba1c61
   languageName: node
   linkType: hard
 

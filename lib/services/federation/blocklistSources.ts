@@ -1,3 +1,4 @@
+import { parse } from 'csv-parse/sync'
 import { Buffer } from 'node:buffer'
 import { z } from 'zod'
 
@@ -49,69 +50,14 @@ export const parseCsvLine = (line: string): string[] => {
 }
 
 export const parseCsvRecords = (csv: string): string[][] => {
-  const records: string[][] = []
-  let fields: string[] = []
-  let field = ''
-  let inQuotes = false
-  let atFieldStart = true
+  const records = parse(csv, {
+    bom: true,
+    relax_column_count: true,
+    relax_quotes: true,
+    skip_empty_lines: true
+  }) as string[][]
 
-  const pushRecord = () => {
-    fields.push(field)
-    if (fields.some((value) => value.trim())) {
-      records.push(fields)
-    }
-    fields = []
-    field = ''
-    atFieldStart = true
-  }
-
-  const pushField = () => {
-    fields.push(field)
-    field = ''
-    atFieldStart = true
-  }
-
-  for (let i = 0; i < csv.length; i++) {
-    const char = csv[i]
-    const next = csv[i + 1]
-
-    if (char === '"' && inQuotes && next === '"') {
-      field += '"'
-      i++
-      continue
-    }
-
-    if (char === '"' && atFieldStart) {
-      inQuotes = true
-      atFieldStart = false
-      continue
-    }
-
-    if (char === '"' && inQuotes) {
-      inQuotes = false
-      continue
-    }
-
-    if (char === ',' && !inQuotes) {
-      pushField()
-      continue
-    }
-
-    if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && next === '\n') i++
-      pushRecord()
-      continue
-    }
-
-    field += char
-    atFieldStart = false
-  }
-
-  if (field || fields.length) {
-    pushRecord()
-  }
-
-  return records
+  return records.filter((fields) => fields.some((value) => value.trim()))
 }
 
 const getDownloadErrorDetail = (body: string): string => {

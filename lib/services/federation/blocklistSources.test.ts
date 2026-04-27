@@ -31,6 +31,12 @@ describe('blocklistSources', () => {
     ])
   })
 
+  it('allows records with different column counts', () => {
+    expect(
+      parseCsvRecords('domain,severity\nbad.test\nworse.test,suspend')
+    ).toEqual([['domain', 'severity'], ['bad.test'], ['worse.test', 'suspend']])
+  })
+
   it('parses Mastodon-compatible domain block CSV rows', () => {
     const blocks = parseDomainBlockCsv(
       [
