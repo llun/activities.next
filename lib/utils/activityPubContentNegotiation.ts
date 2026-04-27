@@ -21,10 +21,7 @@ const isActivityStreamsProfile = (profile: string | undefined) => {
   if (profile === undefined) return true
   if (!profile.trim()) return false
 
-  return profile
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .includes(ACTIVITY_STREAM_URL)
+  return profile.trim().split(/\s+/).includes(ACTIVITY_STREAM_URL)
 }
 
 const isHtmlType = ({ type }: AcceptedContentType) =>

@@ -84,10 +84,8 @@ export const parseAcceptContentTypes = (
           const value = parameter.slice(equalsIndex + 1)
           if (!name) return params
 
-          return {
-            ...params,
-            [name]: unquote(value)
-          }
+          params[name] = unquote(value)
+          return params
         },
         {}
       )
