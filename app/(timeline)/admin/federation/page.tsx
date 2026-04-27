@@ -289,6 +289,10 @@ const Page = async ({ searchParams }: Props) => {
                 <option value="silence">Silence</option>
                 <option value="noop">Noop</option>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Only Suspend rejects federation. Silence and Noop are stored for
+                Mastodon-compatible metadata.
+              </p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="block-public-comment">Public comment</Label>

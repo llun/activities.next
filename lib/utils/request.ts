@@ -76,6 +76,15 @@ const requestWithResponseSizeLimit = (
     stream.on('response', (response) => {
       statusCode = response.statusCode
       headers = response.headers
+
+      const declaredLengthHeader = response.headers['content-length']
+      const declaredLengthValue = Array.isArray(declaredLengthHeader)
+        ? declaredLengthHeader[0]
+        : declaredLengthHeader
+      const declaredLength = Number(declaredLengthValue ?? 0)
+      if (Number.isFinite(declaredLength) && declaredLength > maxResponseSize) {
+        stream.destroy(new Error('Response body too large'))
+      }
     })
     stream.on('data', (chunk) => {
       const buffer = Buffer.from(chunk)

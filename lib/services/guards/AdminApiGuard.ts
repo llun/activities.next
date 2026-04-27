@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { Scope } from '@/lib/types/database/operations'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { HTTP_STATUS, apiResponse } from '@/lib/utils/response'
@@ -16,6 +17,9 @@ type AdminApiHandle<P> = (
     params: Promise<P>
   }
 ) => Promise<Response> | Response
+
+const getRequiredOAuthScopes = (method: string): Scope[] =>
+  method === HttpMethod.enum.GET ? [Scope.enum.read] : [Scope.enum.write]
 
 export const AdminApiGuard =
   <P>(allowedMethods: HttpMethod[], handle: AdminApiHandle<P>) =>
@@ -32,7 +36,11 @@ export const AdminApiGuard =
 
     const session = await getServerAuthSession()
     const admin = await getAdminFromSession(database, session)
-    if (!admin) {
+    if (admin) {
+      return handle(req, { database, params: context.params })
+    }
+
+    if (!req.headers.get('Authorization')) {
       return apiResponse({
         req,
         allowedMethods,
@@ -41,5 +49,20 @@ export const AdminApiGuard =
       })
     }
 
-    return handle(req, { database, params: context.params })
+    const { OAuthGuard } = await import('./OAuthGuard')
+    return OAuthGuard<P>(
+      getRequiredOAuthScopes(req.method),
+      async (oauthReq, { currentActor, database: oauthDatabase, params }) => {
+        if (currentActor.account?.role !== 'admin') {
+          return apiResponse({
+            req: oauthReq,
+            allowedMethods,
+            data: { error: 'Forbidden' },
+            responseStatusCode: HTTP_STATUS.FORBIDDEN
+          })
+        }
+
+        return handle(oauthReq, { database: oauthDatabase, params })
+      }
+    )(req, context)
   }

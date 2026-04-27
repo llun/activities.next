@@ -224,8 +224,11 @@ describe('AdminDatabase', () => {
         })
 
         await expect(
-          database.getDomainBlockForDomain(`sub.${domain}`)
+          database.getDomainBlockForDomain(domain)
         ).resolves.toMatchObject({ id: block.id })
+        await expect(
+          database.getDomainBlockForDomain(`sub.${domain}`)
+        ).resolves.toBeNull()
 
         const updated = await database.updateDomainBlock({
           id: block.id,
@@ -304,12 +307,12 @@ describe('AdminDatabase', () => {
         expect(suspendDomains.has(noopDomain)).toBe(false)
       })
 
-      it('matches the most specific domain rule in SQL', async () => {
+      it('matches exact domains before wildcard rules in SQL', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const parentDomain = `parent-${suffix}.test`
         const childDomain = `sub.${parentDomain}`
-        const parent = await database.createDomainBlock({
-          domain: parentDomain,
+        const wildcard = await database.createDomainBlock({
+          domain: `*.${parentDomain}`,
           severity: 'silence'
         })
         const child = await database.createDomainBlock({
@@ -318,19 +321,22 @@ describe('AdminDatabase', () => {
         })
 
         await expect(
-          database.getDomainBlockForDomain(`deep.${childDomain}`)
+          database.getDomainBlockForDomain(childDomain)
         ).resolves.toMatchObject({ id: child.id })
         await expect(
+          database.getDomainBlockForDomain(`deep.${childDomain}`)
+        ).resolves.toMatchObject({ id: wildcard.id })
+        await expect(
           database.getDomainBlockForDomain(parentDomain)
-        ).resolves.toMatchObject({ id: parent.id })
+        ).resolves.toBeNull()
       })
 
       it('matches domain rules for multiple domains in one batch', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const parentDomain = `batch-parent-${suffix}.test`
         const childDomain = `sub.${parentDomain}`
-        const parent = await database.createDomainBlock({
-          domain: parentDomain,
+        const wildcardParent = await database.createDomainBlock({
+          domain: `*.${parentDomain}`,
           severity: 'silence'
         })
         const child = await database.createDomainBlock({
@@ -343,16 +349,18 @@ describe('AdminDatabase', () => {
         })
 
         const blockMatches = await database.getDomainBlocksForDomains([
+          childDomain,
           `deep.${childDomain}`,
           parentDomain,
           `unknown-${suffix}.test`
         ])
-        expect(blockMatches[`deep.${childDomain}`]).toMatchObject({
+        expect(blockMatches[childDomain]).toMatchObject({
           id: child.id
         })
-        expect(blockMatches[parentDomain]).toMatchObject({
-          id: parent.id
+        expect(blockMatches[`deep.${childDomain}`]).toMatchObject({
+          id: wildcardParent.id
         })
+        expect(blockMatches[parentDomain]).toBeNull()
         expect(blockMatches[`unknown-${suffix}.test`]).toBeNull()
 
         const allowMatches = await database.getDomainAllowsForDomains([
@@ -389,8 +397,11 @@ describe('AdminDatabase', () => {
 
         expect(second.id).toBe(first.id)
         await expect(
-          database.getDomainAllowForDomain(`sub.${domain}`)
+          database.getDomainAllowForDomain(domain)
         ).resolves.toMatchObject({ id: first.id })
+        await expect(
+          database.getDomainAllowForDomain(`sub.${domain}`)
+        ).resolves.toBeNull()
 
         await expect(
           database.deleteDomainAllow(first.id)

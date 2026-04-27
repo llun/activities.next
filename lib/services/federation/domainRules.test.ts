@@ -16,9 +16,11 @@ describe('domainRules', () => {
     expect(normalizeDomain('')).toBeNull()
   })
 
-  it('matches exact domains, subdomains, and wildcard allows', () => {
+  it('matches exact domains and wildcard subdomains', () => {
     expect(domainMatchesRule('example.social', 'example.social')).toBe(true)
-    expect(domainMatchesRule('sub.example.social', 'example.social')).toBe(true)
+    expect(domainMatchesRule('sub.example.social', 'example.social')).toBe(
+      false
+    )
     expect(domainMatchesRule('example.social', '*.example.social')).toBe(false)
     expect(domainMatchesRule('sub.example.social', '*.example.social')).toBe(
       true
@@ -29,6 +31,7 @@ describe('domainRules', () => {
   it('finds the most specific matching rule', () => {
     const match = findMatchingDomainRule('sub.example.social', [
       { id: '1', type: 'block' as const, domain: 'example.social' },
+      { id: '3', type: 'block' as const, domain: '*.example.social' },
       { id: '2', type: 'block' as const, domain: 'sub.example.social' }
     ])
 

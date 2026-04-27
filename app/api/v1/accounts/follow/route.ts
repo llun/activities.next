@@ -108,8 +108,9 @@ export const DELETE = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
+    const canFederate = await canFederateWithDomain(database, target)
     await Promise.all([
-      unfollow(currentActor, follow),
+      canFederate ? unfollow(currentActor, follow) : undefined,
       database.updateFollowStatus({
         followId: follow.id,
         status: FollowStatus.enum.Undo

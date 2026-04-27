@@ -46,7 +46,11 @@ jest.mock('got', () => {
 
         void (async () => {
           try {
-            const { response, body } = await readResponse(url, options)
+            const response = await fetch(url, {
+              method: options.method,
+              body: options.body,
+              headers: options.headers
+            })
             const headers: Record<string, string> = {}
             response.headers.forEach((value, key) => {
               headers[key] = value
@@ -56,6 +60,11 @@ jest.mock('got', () => {
               statusCode: response.status,
               headers
             })
+            if (stream.destroyed) return
+
+            const body = await response.text()
+            if (stream.destroyed) return
+
             stream.push(Buffer.from(body))
             stream.push(null)
           } catch (error) {
@@ -75,9 +84,12 @@ jest.mock('got', () => {
 
 enableFetchMocks()
 
-const createTestServer = async (body: string) => {
+const createTestServer = async (
+  body: string,
+  headers: Record<string, string> = {}
+) => {
   const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/plain' })
+    response.writeHead(200, { 'content-type': 'text/plain', ...headers })
     response.end(body)
   })
 
@@ -209,6 +221,25 @@ describe('request utility', () => {
     it('rejects a streamed response over the response size limit', async () => {
       fetchMock.dontMock()
       const { server, url } = await createTestServer('x'.repeat(32))
+
+      try {
+        await expect(
+          request({
+            url,
+            numberOfRetry: 0,
+            maxResponseSize: 8
+          })
+        ).rejects.toThrow('Response body too large')
+      } finally {
+        await closeServer(server)
+      }
+    })
+
+    it('rejects a streamed response with an oversized content length', async () => {
+      fetchMock.dontMock()
+      const { server, url } = await createTestServer('small body', {
+        'content-length': '32'
+      })
 
       try {
         await expect(

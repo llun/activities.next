@@ -105,12 +105,14 @@ const getDomainRuleCandidates = (domain: string): string[] => {
   if (domain === '*') return ['*']
 
   const parts = domain.split('.')
-  const exactCandidates = parts.map((_, index) => parts.slice(index).join('.'))
-  const wildcardCandidates = exactCandidates
+  const parentCandidates = parts
     .slice(1)
-    .map((candidate) => `*.${candidate}`)
+    .map((_, index) => parts.slice(index + 1).join('.'))
+  const wildcardCandidates = parentCandidates.map(
+    (candidate) => `*.${candidate}`
+  )
 
-  return [...new Set([...exactCandidates, ...wildcardCandidates, '*'])]
+  return [...new Set([domain, ...wildcardCandidates, '*'])]
 }
 
 const normalizeDomains = (domains: string[]): string[] => [
@@ -129,12 +131,14 @@ const compareDomainRuleRows = (
   if (left.domain === '*') return 1
   if (right.domain === '*') return -1
 
+  const wildcardDiff =
+    Number(left.domain.startsWith('*.')) - Number(right.domain.startsWith('*.'))
+  if (wildcardDiff !== 0) return wildcardDiff
+
   const lengthDiff = right.domain.length - left.domain.length
   if (lengthDiff !== 0) return lengthDiff
 
-  return (
-    Number(left.domain.startsWith('*.')) - Number(right.domain.startsWith('*.'))
-  )
+  return 0
 }
 
 const resolveDomainRuleMatches = <T extends DomainBlock | DomainAllow>(
@@ -453,8 +457,10 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     )
       .where('type', 'block')
       .whereIn('domain', getDomainRuleCandidates(normalized))
+      .orderByRaw(
+        "case when domain = '*' or domain like '*.%' then 1 else 0 end asc"
+      )
       .orderByRaw('length(domain) DESC')
-      .orderByRaw("case when domain like '*.%' then 1 else 0 end asc")
       .first()
 
     return row ? toDomainBlock(row) : null
@@ -484,8 +490,10 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     )
       .where('type', 'allow')
       .whereIn('domain', getDomainRuleCandidates(normalized))
+      .orderByRaw(
+        "case when domain = '*' or domain like '*.%' then 1 else 0 end asc"
+      )
       .orderByRaw('length(domain) DESC')
-      .orderByRaw("case when domain like '*.%' then 1 else 0 end asc")
       .first()
 
     return row ? toDomainAllow(row) : null

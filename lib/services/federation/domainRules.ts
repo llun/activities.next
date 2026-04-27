@@ -49,10 +49,7 @@ export const domainMatchesRule = (
     return normalizedDomain.endsWith(`.${parent}`)
   }
 
-  return (
-    normalizedDomain === normalizedRule ||
-    normalizedDomain.endsWith(`.${normalizedRule}`)
-  )
+  return normalizedDomain === normalizedRule
 }
 
 export const findMatchingDomainRule = <
@@ -63,7 +60,14 @@ export const findMatchingDomainRule = <
 ): T | null =>
   rules
     .filter((rule) => domainMatchesRule(domain, rule.domain))
-    .sort((a, b) => b.domain.length - a.domain.length)[0] ?? null
+    .sort((a, b) => {
+      const wildcardDiff =
+        Number(a.domain.startsWith('*.') || a.domain === '*') -
+        Number(b.domain.startsWith('*.') || b.domain === '*')
+      if (wildcardDiff !== 0) return wildcardDiff
+
+      return b.domain.length - a.domain.length
+    })[0] ?? null
 
 export const shouldSuspendDomainBlock = (block: DomainBlock): boolean =>
   block.severity === 'suspend'
