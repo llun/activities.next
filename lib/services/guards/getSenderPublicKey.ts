@@ -17,8 +17,8 @@ export async function getSenderPublicKey(database: Database, actorId: string) {
         return localActor.publicKey
       }
 
+      const signingActor = await getFederationSigningActor(database)
       try {
-        const signingActor = await getFederationSigningActor(database)
         const sender = await getActorPerson({ actorId, signingActor })
         return sender?.publicKey.publicKeyPem ?? ''
       } catch (error) {
@@ -31,7 +31,7 @@ export async function getSenderPublicKey(database: Database, actorId: string) {
           const url = new URL(actorId)
           const sender = await getActorPerson({
             actorId: `${url.protocol}//${url.host}/actor#main-key`,
-            signingActor: await getFederationSigningActor(database)
+            signingActor
           })
           return sender?.publicKey.publicKeyPem ?? ''
         }
