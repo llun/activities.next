@@ -264,6 +264,19 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     )
   },
 
+  async getFederationSigningActor() {
+    const persistedActor = await database<SQLActor>('actors')
+      .whereNotNull('accountId')
+      .whereNotNull('privateKey')
+      .where('privateKey', '<>', '')
+      .whereNull('deletionStatus')
+      .orderBy('createdAt', 'asc')
+      .first<{ id: string }>('id')
+    if (!persistedActor) return null
+
+    return this.getActorFromId({ id: persistedActor.id })
+  },
+
   async getMastodonActorFromUsername({
     username,
     domain

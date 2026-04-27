@@ -123,6 +123,7 @@ export interface ActorDatabase {
   getActorFromUsername(
     params: GetActorFromUsernameParams
   ): Promise<Actor | null>
+  getFederationSigningActor(): Promise<Actor | null>
   getMastodonActorFromEmail(
     params: GetActorFromEmailParams
   ): Promise<Mastodon.Account | null>

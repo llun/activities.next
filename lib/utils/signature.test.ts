@@ -214,4 +214,38 @@ describe('#signedHeaders', () => {
     )
     expect(verifyResult).toBeTruthy()
   }, 15000)
+
+  it('includes query strings in GET request targets', async () => {
+    const actor = {
+      id: 'https://test.com/actor',
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey
+    } as Actor
+
+    const headers = signedHeaders(
+      actor,
+      'GET',
+      'https://target.com/outbox?page=true&min_id=0'
+    )
+
+    const verifyResult = await verify(
+      'get /outbox?page=true&min_id=0',
+      {
+        ...headers,
+        signature: headers.signature as string
+      },
+      keyPair.publicKey
+    )
+    expect(verifyResult).toBeTruthy()
+
+    const missingQueryVerifyResult = await verify(
+      'get /outbox',
+      {
+        ...headers,
+        signature: headers.signature as string
+      },
+      keyPair.publicKey
+    )
+    expect(missingQueryVerifyResult).toBeFalsy()
+  }, 15000)
 })

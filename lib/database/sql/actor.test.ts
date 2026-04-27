@@ -110,6 +110,19 @@ describe('ActorDatabase', () => {
       })
     })
 
+    describe('#getFederationSigningActor', () => {
+      it('returns a local actor with a private key', async () => {
+        const actor = await database.getFederationSigningActor()
+
+        expect(actor).toMatchObject({
+          domain: TEST_DOMAIN,
+          privateKey: expect.toBeString(),
+          publicKey: expect.toBeString()
+        })
+        expect(actor?.account).toBeDefined()
+      })
+    })
+
     describe('mastodon actor', () => {
       it('returns mastodon actor from id', async () => {
         const actor = await database.getMastodonActorFromId({

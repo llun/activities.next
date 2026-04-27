@@ -66,7 +66,10 @@ export const POST = traceApiRoute(
       })
     }
 
-    const person = await getActorPerson({ actorId: target })
+    const person = await getActorPerson({
+      actorId: target,
+      signingActor: currentActor
+    })
     if (!person)
       return apiResponse({
         req,

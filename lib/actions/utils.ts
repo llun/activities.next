@@ -6,6 +6,7 @@ import { Actor } from '@/lib/types/domain/actor'
 interface RecordActorIfNeededParams {
   actorId: string
   database: Database
+  signingActor?: Actor
 }
 
 export class BlockedFederationDomainError extends Error {
@@ -26,7 +27,8 @@ export const assertActorCanFederate = async ({
 
 export const recordActorIfNeeded = async ({
   actorId,
-  database
+  database,
+  signingActor
 }: RecordActorIfNeededParams): Promise<Actor | undefined> => {
   await assertActorCanFederate({ actorId, database })
 
@@ -38,7 +40,7 @@ export const recordActorIfNeeded = async ({
     return existingActor
   }
   if (!existingActor) {
-    const person = await getActorPerson({ actorId })
+    const person = await getActorPerson({ actorId, signingActor })
     if (!person) return
     const actor = await database.createActor({
       actorId,
@@ -57,7 +59,7 @@ export const recordActorIfNeeded = async ({
   const currentTime = Date.now()
   // Update actor if it's older than 3 day
   if (currentTime - existingActor.updatedAt > 3 * 86_400_000) {
-    const person = await getActorPerson({ actorId })
+    const person = await getActorPerson({ actorId, signingActor })
     if (!person) return undefined
     const actor = await database.updateActor({
       actorId,

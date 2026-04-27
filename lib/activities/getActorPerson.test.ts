@@ -1,6 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { mockRequests } from '@/lib/stub/activities'
+import { MockActor } from '@/lib/stub/actor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
@@ -33,5 +34,23 @@ describe('#getActorPerson', () => {
       actorId: 'notexist'
     })
     expect(person).toBeNull()
+  })
+
+  it('signs GET requests when a signing actor is provided', async () => {
+    const remoteActorId = 'https://remote.test/users/signed'
+    const person = await getActorPerson({
+      actorId: remoteActorId,
+      signingActor: MockActor({ id: 'https://llun.test/users/local' })
+    })
+
+    expect(person).not.toBeNull()
+
+    const call = fetchMock.mock.calls.find(([url]) => url === remoteActorId)
+    expect(call).toBeDefined()
+    const request = call?.[1]
+    expect(request?.headers).toMatchObject({
+      host: 'remote.test',
+      signature: expect.stringContaining('headers="(request-target) host date"')
+    })
   })
 })

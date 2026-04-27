@@ -75,6 +75,7 @@ export function signedHeaders(
   const url = new URL(targetUrl)
   const host = url.host
   const date = new Date().toUTCString()
+  const requestTargetPath = `${url.pathname}${url.search}`
   const headers: Record<string, string> = {
     host,
     date
@@ -99,7 +100,7 @@ export function signedHeaders(
   const signedString = headerKeys
     .map((key) => {
       if (key === '(request-target)') {
-        return `(request-target): ${method} ${url.pathname}`
+        return `(request-target): ${method.toLowerCase()} ${requestTargetPath}`
       }
       return `${key}: ${headers[key]}`
     })

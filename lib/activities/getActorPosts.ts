@@ -56,7 +56,10 @@ export const getActorPosts: GetActorPostsFunction = async ({
             })
             if (localStatus) return localStatus
 
-            const note = await getNote({ statusId: item.object })
+            const note = await getNote({
+              statusId: item.object,
+              signingActor
+            })
             if (!note) return null
             const originalStatus = fromNote(note)
             if (actor) originalStatus.actor = actor

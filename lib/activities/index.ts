@@ -42,9 +42,11 @@ import { getTracer } from '@/lib/utils/trace'
 
 interface GetNoteParams {
   statusId: string
+  signingActor?: Actor
 }
 export const getNote = async ({
-  statusId
+  statusId,
+  signingActor
 }: GetNoteParams): Promise<Note | null> =>
   getTracer().startActiveSpan(
     'activities.getNote',
@@ -53,7 +55,12 @@ export const getNote = async ({
       try {
         const { statusCode, body } = await request({
           url: statusId,
-          headers: { Accept: DEFAULT_ACCEPT }
+          headers: {
+            Accept: DEFAULT_ACCEPT,
+            ...(signingActor
+              ? signedHeaders(signingActor, 'get', statusId)
+              : {})
+          }
         })
         if (statusCode !== 200) return null
         return JSON.parse(body)
@@ -409,7 +416,10 @@ export const follow = async (
         actor: currentActor.id,
         object: targetActorId
       }
-      const person = await getActorPerson({ actorId: targetActorId })
+      const person = await getActorPerson({
+        actorId: targetActorId,
+        signingActor: currentActor
+      })
       const targetInbox = person?.inbox
       if (!targetInbox) {
         span.end()
@@ -467,7 +477,10 @@ export const unfollow = async (currentActor: Actor, follow: Follow) =>
         }
       }
 
-      const person = await getActorPerson({ actorId: follow.targetActorId })
+      const person = await getActorPerson({
+        actorId: follow.targetActorId,
+        signingActor: currentActor
+      })
       const targetInbox = person?.inbox ?? `${follow.targetActorId}/inbox`
 
       const method = 'POST'

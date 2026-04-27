@@ -4,10 +4,13 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Note } from '@/lib/types/activitypub/objects'
+import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { request } from '@/lib/utils/request'
+import { signedHeaders } from '@/lib/utils/signature'
 
 import { createJobHandle } from './createJobHandle'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from './names'
@@ -15,7 +18,8 @@ import { FETCH_REMOTE_STATUS_JOB_NAME } from './names'
 const fetchRemoteStatus = async (
   database: Database,
   statusId: string,
-  depth = 0
+  depth = 0,
+  signingActor?: Actor
 ): Promise<Status | null> => {
   if (depth > 3) return null
   if (!(await canFederateWithDomain(database, statusId))) return null
@@ -25,7 +29,7 @@ const fetchRemoteStatus = async (
   if (existing) return existing
 
   // 2. Fetch the Note
-  const note = await getNote({ statusId })
+  const note = await getNote({ statusId, signingActor })
   if (!note) return null
 
   // 3. Check if public
@@ -48,7 +52,8 @@ const fetchRemoteStatus = async (
   const sanitizedNote = normalizeActivityPubContent(note) as Note
   const actor = await recordActorIfNeeded({
     actorId: sanitizedNote.attributedTo,
-    database
+    database,
+    signingActor
   })
   if (!actor) return null
 
@@ -89,7 +94,7 @@ const fetchRemoteStatus = async (
 
   // 7. Fetch parent (if any)
   if (status && status.type !== StatusType.enum.Announce && status.reply) {
-    await fetchRemoteStatus(database, status.reply, depth + 1)
+    await fetchRemoteStatus(database, status.reply, depth + 1, signingActor)
   }
 
   return status
@@ -99,12 +104,13 @@ export const fetchRemoteStatusJob = createJobHandle(
   FETCH_REMOTE_STATUS_JOB_NAME,
   async (database, message) => {
     const { statusId } = z.object({ statusId: z.string() }).parse(message.data)
+    const signingActor = await getFederationSigningActor(database)
 
-    const status = await fetchRemoteStatus(database, statusId)
+    const status = await fetchRemoteStatus(database, statusId, 0, signingActor)
     if (!status) return
 
     // 8. Fetch replies (up to 100)
-    const note = await getNote({ statusId })
+    const note = await getNote({ statusId, signingActor })
     if (!note) return
 
     const client = {
@@ -112,7 +118,10 @@ export const fetchRemoteStatusJob = createJobHandle(
         if (!(await canFederateWithDomain(database, url))) return null
         const { body, statusCode } = await request({
           url,
-          headers: { Accept: 'application/activity+json' }
+          headers: {
+            Accept: 'application/activity+json',
+            ...(signingActor ? signedHeaders(signingActor, 'get', url) : {})
+          }
         })
         if (statusCode !== 200) return null
         return JSON.parse(body)
@@ -188,7 +197,8 @@ export const fetchRemoteStatusJob = createJobHandle(
 
           const actor = await recordActorIfNeeded({
             actorId: sanitizedReply.attributedTo,
-            database
+            database,
+            signingActor
           })
           if (!actor) return
 
