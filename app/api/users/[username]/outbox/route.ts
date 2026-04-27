@@ -4,6 +4,7 @@ import {
   CreateAction
 } from '@/lib/types/activitypub/activities'
 import { StatusType } from '@/lib/types/domain/status'
+import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -16,13 +17,16 @@ export const GET = traceApiRoute(
     const pageParam = url.searchParams.get('page')
     if (!pageParam) {
       const outboxId = `${actor.id}/outbox`
-      return Response.json({
-        '@context': ACTIVITY_STREAM_URL,
-        id: outboxId,
-        type: 'OrderedCollection',
-        totalItems: actor.statusCount,
-        first: `${outboxId}?page=true`,
-        last: `${outboxId}?min_id=0&page=true`
+      return activityPubResponse({
+        req,
+        data: {
+          '@context': ACTIVITY_STREAM_URL,
+          id: outboxId,
+          type: 'OrderedCollection',
+          totalItems: actor.statusCount,
+          first: `${outboxId}?page=true`,
+          last: `${outboxId}?min_id=0&page=true`
+        }
       })
     }
 
@@ -51,12 +55,15 @@ export const GET = traceApiRoute(
       }
     })
 
-    return Response.json({
-      '@context': ACTIVITY_STREAM_URL,
-      id: `${actor.id}/outbox?page=true`,
-      type: 'OrderedCollectionPage',
-      partOf: `${actor.id}/outbox`,
-      orderedItems: items
+    return activityPubResponse({
+      req,
+      data: {
+        '@context': ACTIVITY_STREAM_URL,
+        id: `${actor.id}/outbox?page=true`,
+        type: 'OrderedCollectionPage',
+        partOf: `${actor.id}/outbox`,
+        orderedItems: items
+      }
     })
   })
 )
