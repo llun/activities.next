@@ -71,7 +71,8 @@ const isDateHeaderFresh = (
 
 const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
   const digestHeader = getHeadersValue(request.headers, 'digest')
-  if (!digestHeader) return true
+  if (!digestHeader)
+    return ['GET', 'HEAD'].includes(request.method.toUpperCase())
   if (Array.isArray(digestHeader)) return false
   if (!signedHeaders.includes('digest')) return false
 

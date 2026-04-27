@@ -89,6 +89,28 @@ describe('ActivityPubVerifySenderGuard', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
+  it('rejects POST requests without a digest header', async () => {
+    const handler = jest.fn()
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      new NextRequest('https://activities.local/api/inbox', {
+        method: 'POST',
+        headers: {
+          date: new Date().toUTCString(),
+          signature:
+            'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="signature"'
+        },
+        body: JSON.stringify({ type: 'Follow' })
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+  })
+
   it('rejects mismatched signed digest headers', async () => {
     const handler = jest.fn()
     const guard = ActivityPubVerifySenderGuard(handler)
