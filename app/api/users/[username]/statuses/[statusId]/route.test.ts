@@ -87,6 +87,7 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
     expect(response.headers.get('location')).toBe(
       'https://example.com/@test/123'
     )
+    expect(response.headers.get('server')).toBe('activities.next')
     expect(response.headers.get('vary')).toBe('Accept')
   })
 })

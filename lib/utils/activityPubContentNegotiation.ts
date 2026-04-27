@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { SERVICE_NAME } from '@/lib/constants'
 import {
   type AcceptedContentType,
   parseAcceptContentTypes
@@ -132,6 +133,7 @@ export const activityPubRedirectResponse = (url: string) => {
     status: 302,
     headers: {
       Location: url,
+      Server: SERVICE_NAME,
       Vary: 'Accept'
     }
   })
