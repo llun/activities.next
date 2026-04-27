@@ -1,16 +1,46 @@
 import { NextRequest } from 'next/server'
+import crypto from 'node:crypto'
 
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 
 import { ActivityPubVerifySenderGuard } from './ActivityPubVerifyGuard'
 
+const mockCanFederateWithDomain = jest.fn()
 const mockDatabase = {}
+const mockGetSenderPublicKey = jest.fn()
+const mockVerify = jest.fn()
 
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
+jest.mock('@/lib/services/federation/domainPolicy', () => ({
+  canFederateWithDomain: (...params: unknown[]) =>
+    mockCanFederateWithDomain(...params)
+}))
+
+jest.mock('@/lib/services/guards/getSenderPublicKey', () => ({
+  getSenderPublicKey: (...params: unknown[]) =>
+    mockGetSenderPublicKey(...params)
+}))
+
+jest.mock('@/lib/utils/signature', () => {
+  const actual = jest.requireActual('@/lib/utils/signature')
+
+  return {
+    ...actual,
+    verify: (...params: unknown[]) => mockVerify(...params)
+  }
+})
+
 describe('ActivityPubVerifySenderGuard', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockGetSenderPublicKey.mockResolvedValue('public-key')
+    mockVerify.mockResolvedValue(true)
+  })
+
   it('returns CORS headers on verification errors when methods are provided', async () => {
     const handler = jest.fn()
     const guard = ActivityPubVerifySenderGuard(handler, [
@@ -79,5 +109,29 @@ describe('ActivityPubVerifySenderGuard', () => {
 
     expect(response.status).toBe(400)
     expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('accepts a matching sha-256 value from a multi-value signed digest header', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+    const body = JSON.stringify({ type: 'Follow' })
+    const digest = crypto.createHash('sha256').update(body).digest('base64')
+
+    const response = await guard(
+      new NextRequest('https://activities.local/api/inbox', {
+        method: 'POST',
+        headers: {
+          date: new Date().toUTCString(),
+          digest: `SHA-512=ignored, SHA-256=${digest}`,
+          signature:
+            'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="signature"'
+        },
+        body
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(handler).toHaveBeenCalled()
   })
 })

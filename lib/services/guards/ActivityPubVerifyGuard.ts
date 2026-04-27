@@ -1,5 +1,5 @@
-import crypto from 'crypto'
 import { NextRequest } from 'next/server'
+import crypto from 'node:crypto'
 
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -17,7 +17,7 @@ import { getSenderPublicKey } from './getSenderPublicKey'
 import { headerHost } from './headerHost'
 import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
-const SIGNATURE_CLOCK_SKEW_MS = 12 * 60 * 60 * 1000
+const SIGNATURE_CLOCK_SKEW_MS = 5 * 60 * 1000
 
 const guardErrorResponse = (
   request: NextRequest,
@@ -36,6 +36,22 @@ const guardErrorResponse = (
 
 const getSignedHeaders = (signatureParts: Record<string, string>) =>
   (signatureParts.headers ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+
+const getExpectedSha256Digest = (digestHeader: string) =>
+  digestHeader
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const separatorIndex = part.indexOf('=')
+      if (separatorIndex === -1) return null
+
+      return {
+        algorithm: part.slice(0, separatorIndex).trim().toLowerCase(),
+        value: part.slice(separatorIndex + 1).trim()
+      }
+    })
+    .find((part) => part?.algorithm === 'sha-256')?.value
 
 const isDateHeaderFresh = (
   headers: Headers,
@@ -59,15 +75,14 @@ const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
   if (Array.isArray(digestHeader)) return false
   if (!signedHeaders.includes('digest')) return false
 
-  const separatorIndex = digestHeader.indexOf('=')
-  if (separatorIndex === -1) return false
+  const expectedDigest = getExpectedSha256Digest(digestHeader)
+  if (!expectedDigest) return false
 
-  const algorithm = digestHeader.slice(0, separatorIndex).toLowerCase()
-  const expectedDigest = digestHeader.slice(separatorIndex + 1)
-  if (algorithm !== 'sha-256') return false
-
-  const body = await request.clone().text()
-  const actualDigest = crypto.createHash('sha256').update(body).digest('base64')
+  const bodyBuffer = Buffer.from(await request.clone().arrayBuffer())
+  const actualDigest = crypto
+    .createHash('sha256')
+    .update(bodyBuffer)
+    .digest('base64')
 
   const actualDigestBuffer = Buffer.from(actualDigest, 'base64')
   const expectedDigestBuffer = Buffer.from(expectedDigest, 'base64')

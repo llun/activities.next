@@ -19,6 +19,7 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   ERROR_400,
+  ERROR_403,
   ERROR_404,
   apiResponse,
   defaultOptions
@@ -51,7 +52,7 @@ export const POST = traceApiRoute(
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: { status: 'Forbidden' },
+              data: ERROR_403,
               responseStatusCode: 403
             })
           }
