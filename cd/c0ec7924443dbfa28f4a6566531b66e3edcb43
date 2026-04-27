@@ -1,0 +1,37 @@
+lib/utils/response.ts
+  0fe628b6c922f87b 153-158,160-169
+lib/activities/getWebfingerSelf.ts
+  0fe628b6c922f87b 15,20-23,26-28,30,32
+lib/services/wellknown/webfinger.ts
+  0fe628b6c922f87b 21-38,43-44,46,51-52,54-55,60,65,70
+lib/utils/response.test.ts
+  0fe628b6c922f87b 11,80-95
+lib/services/wellknown/index.test.ts
+  0fe628b6c922f87b 150-159,237-255,274-305
+app/api/well-known/webfinger/route.test.ts
+  0fe628b6c922f87b 1-79
+app/api/well-known/webfinger/route.ts
+  0fe628b6c922f87b 17,55-60
+lib/activities/getWebfingerSelf.test.ts
+  0fe628b6c922f87b 25-33,56-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "cdc0ec7924443dbfa28f4a6566531b66e3edcb43",
+  "prompts": {
+    "0fe628b6c922f87b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcdff-34a1-7e70-b24d-07a9615dd1c5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 248,
+      "total_deletions": 27,
+      "accepted_lines": 245,
+      "overriden_lines": 0
+    }
+  }
+}
