@@ -9,7 +9,11 @@ import { FollowRequest } from '@/lib/activities/followAction'
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { UndoLike } from '@/lib/activities/undoLike'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
-import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
+import {
+  OnlyLocalUserGuard,
+  OnlyLocalUserGuardParams
+} from '@/lib/services/guards/OnlyLocalUserGuard'
 import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -28,88 +32,34 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = traceApiRoute(
   'actorInbox',
-  OnlyLocalUserGuard(async (database, _, req) => {
-    try {
-      const activity = Activity.parse(await req.json())
-      if (!(await canFederateWithDomain(database, activity.actor))) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: { status: 'Forbidden' },
-          responseStatusCode: 403
-        })
-      }
+  ActivityPubVerifySenderGuard<OnlyLocalUserGuardParams>(
+    (req, context) =>
+      OnlyLocalUserGuard(async (database, _, req) => {
+        try {
+          const parsed = Activity.safeParse(await req.json())
+          if (!parsed.success) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_400,
+              responseStatusCode: 400
+            })
+          }
 
-      switch (activity.type) {
-        case 'Accept': {
-          const follow = await acceptFollowRequest({ activity, database })
-          if (!follow)
+          const activity = parsed.data
+          if (!(await canFederateWithDomain(database, activity.actor))) {
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: ERROR_404,
-              responseStatusCode: 404
+              data: { status: 'Forbidden' },
+              responseStatusCode: 403
             })
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: DEFAULT_202,
-            responseStatusCode: 202
-          })
-        }
-        case 'Reject': {
-          const follow = await rejectFollowRequest({ activity, database })
-          if (!follow)
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: ERROR_404,
-              responseStatusCode: 404
-            })
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: DEFAULT_202,
-            responseStatusCode: 202
-          })
-        }
-        case 'Follow': {
-          const follow = await createFollower({
-            followRequest: activity as FollowRequest,
-            database
-          })
-          if (!follow)
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: ERROR_404,
-              responseStatusCode: 404
-            })
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: { target: follow.object },
-            responseStatusCode: 202
-          })
-        }
-        case 'Like': {
-          await likeRequest({ activity, database })
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: DEFAULT_202,
-            responseStatusCode: 202
-          })
-        }
-        case 'Undo': {
-          const undoRequest = activity as UndoFollow | UndoLike
-          switch (undoRequest.object.type) {
-            case 'Follow': {
-              const result = await undoFollowRequest({
-                database,
-                request: undoRequest as UndoFollow
-              })
-              if (!result)
+          }
+
+          switch (activity.type) {
+            case 'Accept': {
+              const follow = await acceptFollowRequest({ activity, database })
+              if (!follow)
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
@@ -119,18 +69,47 @@ export const POST = traceApiRoute(
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,
-                data: { target: undoRequest.object.object },
+                data: DEFAULT_202,
+                responseStatusCode: 202
+              })
+            }
+            case 'Reject': {
+              const follow = await rejectFollowRequest({ activity, database })
+              if (!follow)
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: ERROR_404,
+                  responseStatusCode: 404
+                })
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: DEFAULT_202,
+                responseStatusCode: 202
+              })
+            }
+            case 'Follow': {
+              const follow = await createFollower({
+                followRequest: activity as FollowRequest,
+                database
+              })
+              if (!follow)
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: ERROR_404,
+                  responseStatusCode: 404
+                })
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: { target: follow.object },
                 responseStatusCode: 202
               })
             }
             case 'Like': {
-              await database.deleteLike({
-                actorId: undoRequest.object.actor,
-                statusId:
-                  typeof undoRequest.object.object === 'string'
-                    ? undoRequest.object.object
-                    : undoRequest.object.object.id
-              })
+              await likeRequest({ activity, database })
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,
@@ -138,31 +117,70 @@ export const POST = traceApiRoute(
                 responseStatusCode: 202
               })
             }
-            default: {
+            case 'Undo': {
+              const undoRequest = activity as UndoFollow | UndoLike
+              switch (undoRequest.object.type) {
+                case 'Follow': {
+                  const result = await undoFollowRequest({
+                    database,
+                    request: undoRequest as UndoFollow
+                  })
+                  if (!result)
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: ERROR_404,
+                      responseStatusCode: 404
+                    })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: { target: undoRequest.object.object },
+                    responseStatusCode: 202
+                  })
+                }
+                case 'Like': {
+                  await database.deleteLike({
+                    actorId: undoRequest.object.actor,
+                    statusId:
+                      typeof undoRequest.object.object === 'string'
+                        ? undoRequest.object.object
+                        : undoRequest.object.object.id
+                  })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+                default: {
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+              }
+            }
+            default:
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,
                 data: DEFAULT_202,
                 responseStatusCode: 202
               })
-            }
           }
-        }
-        default:
+        } catch {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: DEFAULT_202,
-            responseStatusCode: 202
+            data: ERROR_400,
+            responseStatusCode: 400
           })
-      }
-    } catch {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-  })
+        }
+      })(req, context),
+    CORS_HEADERS
+  )
 )
