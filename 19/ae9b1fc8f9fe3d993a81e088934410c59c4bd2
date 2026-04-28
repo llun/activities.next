@@ -1,0 +1,79 @@
+lib/services/federation/getFederationSigningActor.ts
+  a49f82315b1c1f8c 2,7,9
+app/api/v1/accounts/follow/route.test.ts
+  a49f82315b1c1f8c 5,7,14-20,23-24,28,70,80-110,134-142
+lib/services/guards/OnlyLocalUserGuard.ts
+  a49f82315b1c1f8c 5,36
+app/api/well-known/webfinger/route.test.ts
+  a49f82315b1c1f8c 52-80
+lib/types/database/rows.ts
+  a49f82315b1c1f8c 1-2,40,45
+lib/services/federation/instanceActor.ts
+  a49f82315b1c1f8c 1-27
+lib/database/sql/actor.ts
+  a49f82315b1c1f8c 16-22,48,106-133,137,165,181,209,314-343,345-368,370-398,516,567-570,588-591,731-736
+lib/types/database/operations.ts
+  a49f82315b1c1f8c 8,32
+app/api/v1/accounts/types.ts
+  a49f82315b1c1f8c 3-4,6-12
+app/api/v1/accounts/[id]/follow/route.ts
+  a49f82315b1c1f8c 5,52,55,79
+migrations/20260428120000_add_actor_type.js
+  a49f82315b1c1f8c 1-19
+app/api/v1/accounts/follow/route.ts
+  a49f82315b1c1f8c 1-2,11,35-50,77-89,99,102,118,132-144,157-159,161
+app/api/v1/accounts/[id]/unfollow/route.ts
+  a49f82315b1c1f8c 4,43-45,47-49
+lib/database/sql/status.test.ts
+  a49f82315b1c1f8c 51
+lib/activities/index.ts
+  a49f82315b1c1f8c 375-376,397,428-432,457
+lib/database/sql/actor.test.ts
+  a49f82315b1c1f8c 10-14,157,161-163,168,171,191-196,200,204-243,246-249,253,262,264,363-435,655-660
+app/api/v1/actors/route.ts
+  a49f82315b1c1f8c 6,19-25
+lib/services/wellknown/webfinger.ts
+  a49f82315b1c1f8c 62-75,79,81
+lib/utils/getPersonFromActor.ts
+  a49f82315b1c1f8c 8-12,34-38,42,50
+app/api/users/[username]/route.test.ts
+  a49f82315b1c1f8c 8,39-58,116-164
+app/api/users/[username]/route.ts
+  a49f82315b1c1f8c 24-30
+app/api/v1/accounts/types.test.ts
+  a49f82315b1c1f8c 1-16
+app/api/v1/actors/route.test.ts
+  a49f82315b1c1f8c 4,121-134
+lib/actions/utils.ts
+  a49f82315b1c1f8c 67
+migrations/schema.sql
+  a49f82315b1c1f8c 55
+lib/database/sql/account.ts
+  a49f82315b1c1f8c 100,381,434
+lib/types/domain/actor.ts
+  a49f82315b1c1f8c 6-16,19
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  a49f82315b1c1f8c 4-5,58-67
+lib/services/federation/getFederationSigningActor.test.ts
+  a49f82315b1c1f8c 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "19ae9b1fc8f9fe3d993a81e088934410c59c4bd2",
+  "prompts": {
+    "a49f82315b1c1f8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd26f-8398-7d43-97e7-51e48287bd7d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 2260,
+      "total_deletions": 111,
+      "accepted_lines": 2206,
+      "overriden_lines": 0
+    }
+  }
+}
