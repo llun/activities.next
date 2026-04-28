@@ -23,6 +23,8 @@ type StatusParams = OnlyLocalUserGuardHandle & {
   statusId: string
 }
 
+const ACTIVITYPUB_REPLIES_LIMIT = 100
+
 export const GET = traceApiRoute(
   'getActorStatus',
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
@@ -43,7 +45,9 @@ export const GET = traceApiRoute(
             replies: (
               await database.getStatusReplies({
                 statusId: status.id,
-                url: status.url
+                url: status.url,
+                publicOnly: true,
+                limit: ACTIVITYPUB_REPLIES_LIMIT
               })
             ).filter(
               (reply): reply is StatusNote | StatusPoll =>

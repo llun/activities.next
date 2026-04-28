@@ -138,6 +138,12 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
       params: Promise.resolve({ username: 'test', statusId: '123' })
     })
 
+    expect(mockDatabase.getStatusReplies).toHaveBeenCalledWith({
+      statusId: 'https://example.com/users/test/statuses/123',
+      url: 'https://example.com/users/test/statuses/123',
+      publicOnly: true,
+      limit: 100
+    })
     expect(mockToActivityPubObject).toHaveBeenCalledWith(
       expect.objectContaining({
         replies: [publicReply]

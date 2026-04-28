@@ -390,6 +390,8 @@ export type GetStatusParams = BaseStatusParams & {
 }
 export type GetStatusRepliesParams = BaseStatusParams & {
   url?: string
+  limit?: number
+  publicOnly?: boolean
 }
 export type DeleteStatusParams = BaseStatusParams
 

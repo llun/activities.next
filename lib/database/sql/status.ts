@@ -652,8 +652,13 @@ export const StatusSQLDatabaseMixin = (
     return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
   }
 
-  async function getStatusReplies({ statusId, url }: GetStatusRepliesParams) {
-    const statuses = await database('statuses')
+  async function getStatusReplies({
+    statusId,
+    url,
+    limit,
+    publicOnly = false
+  }: GetStatusRepliesParams) {
+    let query = database('statuses')
       .where((builder) => {
         builder.where('reply', statusId)
         if (url) {
@@ -661,6 +666,24 @@ export const StatusSQLDatabaseMixin = (
         }
       })
       .orderBy('createdAt', 'desc')
+
+    if (publicOnly) {
+      query = query.whereIn(
+        'statuses.id',
+        database('recipients')
+          .select('statusId')
+          .whereIn('recipients.actorId', [
+            ACTIVITY_STREAM_PUBLIC,
+            ACTIVITY_STREAM_PUBLIC_COMPACT
+          ])
+      )
+    }
+
+    if (limit) {
+      query = query.limit(limit)
+    }
+
+    const statuses = await query
     const statusesWithAttachments = (
       await Promise.all(
         statuses.map((item) => getStatusWithAttachmentsFromData(item))

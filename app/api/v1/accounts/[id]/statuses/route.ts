@@ -105,7 +105,7 @@ export const GET = traceApiRoute(
     const isFollower =
       currentActor && currentActor.id !== id
         ? follow?.status === FollowStatus.enum.Accepted
-        : undefined
+        : false
     const isOwner = currentActor?.id === id
     const statuses = await database.getActorStatuses({
       actorId: id,
@@ -113,14 +113,14 @@ export const GET = traceApiRoute(
       minStatusId: minId || sinceId,
       limit,
       publicOnly: currentActor === null,
-      visibleToActorId: currentActor && !isOwner ? currentActor.id : undefined,
+      visibleToActorId: currentActor && !isOwner ? currentActor.id : null,
       includeFollowersOnly: isFollower,
       followersAudience: actor.followersUrl
     })
     const followerStateByActorId = currentActor
       ? new Map<string, boolean>()
       : undefined
-    if (currentActor && !isOwner && isFollower !== undefined) {
+    if (currentActor && !isOwner) {
       followerStateByActorId?.set(id, isFollower)
     }
     const originalAuthorIds = currentActor
@@ -147,10 +147,9 @@ export const GET = traceApiRoute(
           actorId: currentActor.id,
           targetActorId
         })
-        followerStateByActorId?.set(
-          targetActorId,
+        const originalIsFollower =
           originalFollow?.status === FollowStatus.enum.Accepted
-        )
+        followerStateByActorId?.set(targetActorId, originalIsFollower)
       })
     )
     const readableStatuses = (
