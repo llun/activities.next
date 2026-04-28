@@ -2,7 +2,7 @@ import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { Actor } from '@/lib/types/domain/actor'
 import { signedHeaders } from '@/lib/utils/signature'
 
-type ActivityPubMethod = 'GET' | 'POST'
+type ActivityPubMethod = Parameters<typeof signedHeaders>[1]
 
 interface ActivityPubRequestHeadersParams {
   url: string
