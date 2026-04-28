@@ -1,5 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_FILE_SIZE
@@ -36,7 +37,7 @@ export const GET = traceApiRoute(
           },
           statuses: {
             max_characters: 500,
-            max_media_attachments: 4,
+            max_media_attachments: MAX_STATUS_MEDIA_ATTACHMENTS,
             characters_reserved_per_url: 23
           },
           media_attachments: {

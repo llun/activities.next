@@ -4,6 +4,11 @@ import {
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { toActivityPubObject } from '@/lib/types/domain/status'
+import {
+  activityPubRedirectResponse,
+  activityPubResponse,
+  negotiateActivityPubContentType
+} from '@/lib/utils/activityPubContentNegotiation'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -23,22 +28,18 @@ export const GET = traceApiRoute(
     const note = toActivityPubObject(status)
     if (!note) return apiErrorResponse(404)
 
-    const acceptHeader = req.headers.get('accept')
-    if (acceptHeader?.startsWith('application/ld+json')) {
-      return Response.json(
-        { '@context': ACTIVITY_STREAM_URL, ...note },
-        { headers: { 'content-type': 'application/ld+json' } }
-      )
+    const contentType = negotiateActivityPubContentType(
+      req.headers.get('accept')
+    )
+    if (contentType) {
+      return activityPubResponse({
+        req,
+        data: { '@context': ACTIVITY_STREAM_URL, ...note },
+        contentType
+      })
     }
 
-    if (acceptHeader?.startsWith('application/activity+json')) {
-      return Response.json(
-        { '@context': ACTIVITY_STREAM_URL, ...note },
-        { headers: { 'content-type': 'activity+json' } }
-      )
-    }
-
-    return Response.redirect(
+    return activityPubRedirectResponse(
       `https://${status.actor?.domain}/@${actor.username}/${statusId}`
     )
   })

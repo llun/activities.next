@@ -65,5 +65,5 @@ export const POST = traceApiRoute(
       data: DEFAULT_202,
       responseStatusCode: 202
     })
-  })
+  }, CORS_HEADERS)
 )

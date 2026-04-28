@@ -1,9 +1,14 @@
 import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { getBaseURL } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -20,37 +25,169 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const VisibilitySchema = z.enum(['public', 'unlisted', 'private', 'direct'])
 
-const NoteSchema = z.object({
-  status: z.string(),
-  in_reply_to_id: z.string().optional(),
-  spoiler_text: z.string().optional(),
-  media_ids: z.array(z.string()).optional(),
-  visibility: VisibilitySchema.optional()
-})
+const NoteSchema = z
+  .object({
+    status: z.string().optional().default(''),
+    in_reply_to_id: z.string().optional(),
+    spoiler_text: z.string().optional(),
+    media_ids: z.array(z.coerce.string()).optional().default([]),
+    visibility: VisibilitySchema.optional()
+  })
+  .refine((note) => note.status.trim().length > 0 || note.media_ids.length > 0)
+
+const FORM_URL_ENCODED_CONTENT_TYPE = 'application/x-www-form-urlencoded'
+const FORM_CONTENT_TYPES = [
+  'multipart/form-data',
+  FORM_URL_ENCODED_CONTENT_TYPE
+]
+
+const isFormRequest = (req: Request) => {
+  const contentType = req.headers.get('content-type')?.toLowerCase()
+  return FORM_CONTENT_TYPES.some((type) => contentType?.includes(type))
+}
+
+const getFormString = (form: FormData, name: string) => {
+  const value = form.get(name)
+  return typeof value === 'string' ? value : undefined
+}
+
+const getFormStringArray = (form: FormData, ...names: string[]) =>
+  names
+    .flatMap((name) => form.getAll(name))
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+
+const getSearchParamString = (params: URLSearchParams, name: string) => {
+  const value = params.get(name)
+  return value === null ? undefined : value
+}
+
+const getSearchParamStringArray = (
+  params: URLSearchParams,
+  ...names: string[]
+) =>
+  names
+    .flatMap((name) => params.getAll(name))
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+
+const getNoteRequestInput = async (req: Request): Promise<unknown> => {
+  if (!isFormRequest(req)) {
+    return req.json()
+  }
+
+  const contentType = req.headers.get('content-type')?.toLowerCase()
+  if (contentType?.includes(FORM_URL_ENCODED_CONTENT_TYPE)) {
+    const params = new URLSearchParams(await req.text())
+    return {
+      status: getSearchParamString(params, 'status') ?? '',
+      in_reply_to_id: getSearchParamString(params, 'in_reply_to_id'),
+      spoiler_text: getSearchParamString(params, 'spoiler_text'),
+      media_ids: getSearchParamStringArray(params, 'media_ids', 'media_ids[]'),
+      visibility: getSearchParamString(params, 'visibility')
+    }
+  }
+
+  const form = await req.formData()
+  return {
+    status: getFormString(form, 'status') ?? '',
+    in_reply_to_id: getFormString(form, 'in_reply_to_id'),
+    spoiler_text: getFormString(form, 'spoiler_text'),
+    media_ids: getFormStringArray(form, 'media_ids', 'media_ids[]'),
+    visibility: getFormString(form, 'visibility')
+  }
+}
+
+const getMediaUrl = (path: string) => `${getBaseURL()}/api/v1/files/${path}`
+
+const getAttachmentsFromMediaIds = async (
+  database: Database,
+  currentActor: Actor,
+  mediaIds: string[]
+): Promise<PostBoxAttachment[] | null> => {
+  if (mediaIds.length === 0) return []
+
+  const accountId = currentActor.account?.id
+  if (!accountId) return null
+
+  const medias = await Promise.all(
+    mediaIds.map((mediaId) =>
+      database.getMediaByIdForAccount({
+        mediaId,
+        accountId
+      })
+    )
+  )
+
+  const attachments: PostBoxAttachment[] = []
+  for (const media of medias) {
+    if (!media) return null
+
+    attachments.push({
+      type: 'upload',
+      id: media.id,
+      mediaType: media.original.mimeType,
+      url: getMediaUrl(media.original.path),
+      width: media.original.metaData.width,
+      height: media.original.metaData.height,
+      ...(media.thumbnail
+        ? { posterUrl: getMediaUrl(media.thumbnail.path) }
+        : {}),
+      ...(media.description || media.original.fileName
+        ? { name: media.description || media.original.fileName }
+        : {})
+    })
+  }
+
+  return attachments
+}
 
 export const POST = traceApiRoute(
   'createStatus',
   OAuthGuard([Scope.enum.write], async (req, context) => {
     const { currentActor, database } = context
     try {
-      const content = await req.json()
+      const content = await getNoteRequestInput(req)
       const parsed = NoteSchema.safeParse(content)
       if (!parsed.success) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
+          data: ERROR_422,
+          responseStatusCode: 422
         })
       }
       const note = parsed.data
+      const mediaIds = [...new Set(note.media_ids)]
+      if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+      const attachments = await getAttachmentsFromMediaIds(
+        database,
+        currentActor,
+        mediaIds
+      )
+      if (!attachments) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
       const status = await createNoteFromUserInput({
         currentActor,
         text: note.status,
         summary: note.spoiler_text,
         replyNoteId: note.in_reply_to_id,
         visibility: note.visibility,
-        attachments: [],
+        attachments,
         database
       })
       if (!status)

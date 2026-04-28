@@ -27,7 +27,7 @@ export const getActorCollections = async ({
     url: string
   ): Record<string, string> => ({
     Accept: DEFAULT_ACCEPT,
-    ...(actor ? signedHeaders(actor, 'get', url) : {})
+    ...(actor ? signedHeaders(actor, 'GET', url) : {})
   })
 
   return getTracer().startActiveSpan(

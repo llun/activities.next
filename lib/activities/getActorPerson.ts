@@ -23,7 +23,7 @@ export const getActorPerson: GetActorPersonFunction = ({
 
       // Add signed headers if a signing actor is provided
       if (signingActor) {
-        const signatureHeaders = signedHeaders(signingActor, 'get', actorId)
+        const signatureHeaders = signedHeaders(signingActor, 'GET', actorId)
         Object.assign(headers, signatureHeaders)
       }
 

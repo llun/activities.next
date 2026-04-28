@@ -3,7 +3,9 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { fetchRemoteStatusJob } from '@/lib/jobs/fetchRemoteStatusJob'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
@@ -32,6 +34,12 @@ describe('fetchRemoteStatusJob', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    await database.createAccount({
+      ...seedActor1,
+      email: `signed-fetch-signer@${TEST_DOMAIN}`,
+      username: 'signed-fetch-signer',
+      domain: TEST_DOMAIN
+    })
   })
 
   afterAll(async () => {
@@ -201,5 +209,93 @@ describe('fetchRemoteStatusJob', () => {
     expect(main).toBeDefined()
     expect(reply).toBeDefined()
     expect(reply?.reply).toBe(STATUS_ID)
+  })
+
+  it('uses signed GET requests for remote status, actor, and replies fetches', async () => {
+    const STATUS_ID = `${REMOTE_STATUS_ID}/signed`
+    const REMOTE_SIGNED_ACTOR_ID =
+      'https://mastodon.social/users/signedFetchUser'
+    const REPLIES_ID = `${STATUS_ID}/replies`
+    const REPLY_ITEM_ID =
+      'https://mastodon.social/users/otherUser/statuses/signed-reply'
+    const signedFetches: string[] = []
+
+    fetchMock.mockResponse(async (req) => {
+      if (
+        req.url === STATUS_ID ||
+        req.url === REMOTE_SIGNED_ACTOR_ID ||
+        req.url === REPLIES_ID ||
+        req.url === REPLY_ITEM_ID
+      ) {
+        expect(req.headers.get('signature')).toContain(
+          'headers="(request-target) host date"'
+        )
+        signedFetches.push(req.url)
+      }
+
+      if (req.url === REMOTE_SIGNED_ACTOR_ID) {
+        return JSON.stringify({
+          ...MOCK_ACTOR,
+          id: REMOTE_SIGNED_ACTOR_ID,
+          preferredUsername: 'signedFetchUser',
+          inbox: `${REMOTE_SIGNED_ACTOR_ID}/inbox`,
+          outbox: `${REMOTE_SIGNED_ACTOR_ID}/outbox`,
+          publicKey: {
+            ...MOCK_ACTOR.publicKey,
+            id: `${REMOTE_SIGNED_ACTOR_ID}#main-key`,
+            owner: REMOTE_SIGNED_ACTOR_ID
+          }
+        })
+      }
+      if (req.url === STATUS_ID) {
+        return JSON.stringify({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: REMOTE_SIGNED_ACTOR_ID,
+          content: 'Signed Main Post',
+          to: [PUBLIC_STREAM],
+          replies: REPLIES_ID,
+          published: new Date().toISOString()
+        })
+      }
+      if (req.url === REPLIES_ID) {
+        return JSON.stringify({
+          id: REPLIES_ID,
+          type: 'Collection',
+          first: {
+            type: 'CollectionPage',
+            items: [REPLY_ITEM_ID]
+          }
+        })
+      }
+      if (req.url === REPLY_ITEM_ID) {
+        return JSON.stringify({
+          id: REPLY_ITEM_ID,
+          type: 'Note',
+          attributedTo: REMOTE_SIGNED_ACTOR_ID,
+          content: 'A signed reply',
+          inReplyTo: STATUS_ID,
+          to: [PUBLIC_STREAM],
+          published: new Date().toISOString()
+        })
+      }
+      return JSON.stringify({})
+    })
+
+    await fetchRemoteStatusJob(database, {
+      id: 'job-id',
+      name: FETCH_REMOTE_STATUS_JOB_NAME,
+      data: { statusId: STATUS_ID }
+    })
+
+    expect(signedFetches).toEqual(
+      expect.arrayContaining([
+        STATUS_ID,
+        REMOTE_SIGNED_ACTOR_ID,
+        REPLIES_ID,
+        REPLY_ITEM_ID
+      ])
+    )
+    expect(signedFetches.filter((url) => url === STATUS_ID)).toHaveLength(1)
   })
 })
