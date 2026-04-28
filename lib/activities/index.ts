@@ -1,8 +1,8 @@
 import crypto from 'crypto'
 
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
+import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
-import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { DeleteStatus } from '@/lib/activities/deleteStatus'
 import { FollowRequest } from '@/lib/activities/followAction'
@@ -37,7 +37,6 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { signedHeaders } from '@/lib/utils/signature'
 import { getTracer } from '@/lib/utils/trace'
 
 interface GetNoteParams {
@@ -55,12 +54,10 @@ export const getNote = async ({
       try {
         const { statusCode, body } = await request({
           url: statusId,
-          headers: {
-            Accept: DEFAULT_ACCEPT,
-            ...(signingActor
-              ? signedHeaders(signingActor, 'GET', statusId)
-              : {})
-          }
+          headers: activityPubRequestHeaders({
+            url: statusId,
+            signingActor
+          })
         })
         if (statusCode !== 200) return null
         return JSON.parse(body)
@@ -110,10 +107,12 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
         await request({
           url: inbox,
           method,
-          headers: {
-            ...signedHeaders(currentActor, method, inbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: inbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
       } catch (error) {
@@ -171,10 +170,12 @@ export const sendUpdateNote = async ({
         await request({
           url: inbox,
           method,
-          headers: {
-            ...signedHeaders(currentActor, method, inbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: inbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
       } catch (error) {
@@ -230,11 +231,13 @@ export const sendAnnounce = async ({
       try {
         await request({
           url: inbox,
-          headers: {
-            ...signedHeaders(currentActor, method, inbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
           method,
+          headers: activityPubRequestHeaders({
+            url: inbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
       } catch (error) {
@@ -286,11 +289,13 @@ export const deleteStatus = async ({
       try {
         await request({
           url: inbox,
-          headers: {
-            ...signedHeaders(currentActor, method, inbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
           method,
+          headers: activityPubRequestHeaders({
+            url: inbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
       } catch (error) {
@@ -348,10 +353,12 @@ export const undoAnnounce = async ({
         await request({
           url: inbox,
           method,
-          headers: {
-            ...signedHeaders(currentActor, method, inbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: inbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
       } catch (error) {
@@ -406,10 +413,12 @@ export const follow = async (
         const { statusCode } = await request({
           url: targetInbox,
           method,
-          headers: {
-            ...signedHeaders(currentActor, method, targetInbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: targetInbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
         return statusCode === 202
@@ -457,11 +466,13 @@ export const unfollow = async (currentActor: Actor, follow: Follow) =>
       try {
         const { statusCode } = await request({
           url: targetInbox,
-          headers: {
-            ...signedHeaders(currentActor, method, targetInbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
           method,
+          headers: activityPubRequestHeaders({
+            url: targetInbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
         return statusCode === 202
@@ -507,10 +518,12 @@ export const acceptFollow = async (
         const { statusCode } = await request({
           url: followingInbox,
           method,
-          headers: {
-            ...signedHeaders(currentActor, method, followingInbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: followingInbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
         return statusCode === 202
@@ -556,10 +569,12 @@ export const rejectFollow = async (
         const { statusCode } = await request({
           url: followingInbox,
           method,
-          headers: {
-            ...signedHeaders(currentActor, method, followingInbox, activity),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: followingInbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
         return statusCode === 202
@@ -600,15 +615,12 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
         await request({
           method,
           url: status.actor.inboxUrl,
-          headers: {
-            ...signedHeaders(
-              currentActor,
-              method,
-              status.actor.inboxUrl,
-              activity
-            ),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: status.actor.inboxUrl,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
       } catch (error) {
@@ -649,15 +661,12 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
         await request({
           method,
           url: status.actor.inboxUrl,
-          headers: {
-            ...signedHeaders(
-              currentActor,
-              method,
-              status.actor.inboxUrl,
-              activity
-            ),
-            Accept: DEFAULT_ACCEPT
-          },
+          headers: activityPubRequestHeaders({
+            url: status.actor.inboxUrl,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
           body: JSON.stringify(activity)
         })
       } catch (error) {
@@ -727,15 +736,12 @@ export const sendPollVotes = async ({
           await request({
             url: status.actor.inboxUrl,
             method,
-            headers: {
-              ...signedHeaders(
-                currentActor,
-                method,
-                status.actor.inboxUrl,
-                activity
-              ),
-              Accept: DEFAULT_ACCEPT
-            },
+            headers: activityPubRequestHeaders({
+              url: status.actor.inboxUrl,
+              method,
+              signingActor: currentActor,
+              content: activity
+            }),
             body: JSON.stringify(activity)
           })
         } catch (error) {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
+import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -10,7 +11,6 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { request } from '@/lib/utils/request'
-import { signedHeaders } from '@/lib/utils/signature'
 
 import { createJobHandle } from './createJobHandle'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from './names'
@@ -125,10 +125,11 @@ export const fetchRemoteStatusJob = createJobHandle(
         if (!(await canFederateWithDomain(database, url))) return null
         const { body, statusCode } = await request({
           url,
-          headers: {
-            Accept: 'application/activity+json',
-            ...(signingActor ? signedHeaders(signingActor, 'GET', url) : {})
-          }
+          headers: activityPubRequestHeaders({
+            url,
+            signingActor,
+            accept: 'application/activity+json'
+          })
         })
         if (statusCode !== 200) return null
         return JSON.parse(body)
