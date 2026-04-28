@@ -40,10 +40,7 @@ describe('#activityPubRequestHeaders', () => {
 
     const verified = await verify(
       'get /users/alice/outbox?page=true',
-      {
-        ...headers,
-        signature: headers.signature
-      },
+      headers,
       signingActor.publicKey
     )
     expect(verified).toBeTruthy()
@@ -69,10 +66,7 @@ describe('#activityPubRequestHeaders', () => {
 
     const verified = await verify(
       'post /inbox',
-      {
-        ...headers,
-        signature: headers.signature
-      },
+      headers,
       signingActor.publicKey
     )
     expect(verified).toBeTruthy()
