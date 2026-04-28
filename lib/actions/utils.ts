@@ -66,6 +66,7 @@ export const recordActorIfNeeded = async ({
     const iconUrl = getActorImageUrl(person.icon)
     const actor = await database.createActor({
       actorId,
+      type: person.type,
       username: person.preferredUsername,
       domain: new URL(person.id).hostname,
       followersUrl: person.followers ?? '',
@@ -89,6 +90,7 @@ export const recordActorIfNeeded = async ({
     const iconUrl = getActorImageUrl(person.icon)
     const actor = await database.updateActor({
       actorId,
+      type: person.type,
       followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,

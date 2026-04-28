@@ -6,6 +6,17 @@ const mockCanFederateWithDomain = jest.fn()
 const mockCreateFollower = jest.fn()
 const mockVerifyAllows = jest.fn()
 const mockDatabase = {}
+type MockActor = {
+  id: string
+  username: string
+  type: string
+  privateKey?: string
+}
+let mockActor: MockActor = {
+  id: 'https://activities.local/users/llun',
+  username: 'llun',
+  type: 'Person'
+}
 
 jest.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
@@ -43,18 +54,22 @@ jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
     (
       handle: (
         database: typeof mockDatabase,
-        actor: { id: string },
+        actor: typeof mockActor,
         req: NextRequest,
         query: { params: Promise<{ username: string }> }
-      ) => Promise<Response> | Response
+      ) => Promise<Response> | Response,
+      options?: { allowFederationSigningActor?: boolean }
     ) =>
-    (req: NextRequest, query: { params: Promise<{ username: string }> }) =>
-      handle(
-        mockDatabase,
-        { id: 'https://activities.local/users/llun' },
-        req,
-        query
-      )
+    (req: NextRequest, query: { params: Promise<{ username: string }> }) => {
+      if (
+        mockActor.username === '__instance__' &&
+        !options?.allowFederationSigningActor
+      ) {
+        return new Response(null, { status: 404 })
+      }
+
+      return handle(mockDatabase, mockActor, req, query)
+    }
 }))
 
 jest.mock('@/lib/actions/acceptFollowRequest', () => ({
@@ -77,26 +92,49 @@ jest.mock('@/lib/actions/undoFollowRequest', () => ({
   undoFollowRequest: jest.fn()
 }))
 
-const createFollowRequest = () =>
-  new NextRequest('https://activities.local/api/users/llun/inbox', {
+const createFollowRequest = (username = 'llun') =>
+  new NextRequest(`https://activities.local/api/users/${username}/inbox`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       id: 'https://remote.test/users/alice/follows/1',
       type: 'Follow',
       actor: 'https://remote.test/users/alice',
-      object: 'https://activities.local/users/llun'
+      object: `https://activities.local/users/${username}`
     })
   })
 
 describe('POST /api/users/[username]/inbox', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockActor = {
+      id: 'https://activities.local/users/llun',
+      username: 'llun',
+      type: 'Person'
+    }
     mockVerifyAllows.mockResolvedValue(true)
     mockCanFederateWithDomain.mockResolvedValue(true)
     mockCreateFollower.mockResolvedValue({
       object: 'https://activities.local/users/llun'
     })
+  })
+
+  it('accepts verified deliveries to the headless signer inbox without creating state', async () => {
+    mockActor = {
+      id: 'https://activities.local/users/__instance__',
+      username: '__instance__',
+      type: 'Service',
+      privateKey: 'private-key'
+    }
+
+    const response = await POST(createFollowRequest('__instance__'), {
+      params: Promise.resolve({ username: '__instance__' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockVerifyAllows).toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 
   it('rejects requests before processing when sender verification fails', async () => {

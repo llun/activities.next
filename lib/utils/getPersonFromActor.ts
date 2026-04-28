@@ -5,6 +5,11 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 export const getPersonFromActor = (
   actor: Actor
 ): ActivityPubActor & { '@context': string[] } => {
+  const actorType = actor.type ?? 'Person'
+  const profileUrl =
+    actorType === 'Service'
+      ? actor.id
+      : `https://${actor.domain}/@${actor.username}`
   const icon = actor.iconUrl
     ? {
         icon: {
@@ -26,15 +31,15 @@ export const getPersonFromActor = (
 
   const person = ActivityPubActor.parse({
     id: actor.id,
-    type: 'Person',
-    following: `https://${actor.domain}/users/${actor.username}/following`,
-    followers: `https://${actor.domain}/users/${actor.username}/followers`,
-    inbox: `https://${actor.domain}/users/${actor.username}/inbox`,
-    outbox: `https://${actor.domain}/users/${actor.username}/outbox`,
+    type: actorType,
+    following: `${actor.id}/following`,
+    followers: actor.followersUrl,
+    inbox: actor.inboxUrl,
+    outbox: `${actor.id}/outbox`,
     preferredUsername: actor.username,
     name: actor.name || '',
     summary: actor.summary || '',
-    url: `https://${actor.domain}/@${actor.username}`,
+    url: profileUrl,
     published: getISOTimeUTC(actor.createdAt),
     publicKey: {
       id: `${actor.id}#main-key`,
@@ -42,7 +47,7 @@ export const getPersonFromActor = (
       publicKeyPem: actor.publicKey
     },
     endpoints: {
-      sharedInbox: `https://${actor.domain}/inbox`
+      sharedInbox: actor.sharedInboxUrl
     },
     ...icon,
     ...headerImage

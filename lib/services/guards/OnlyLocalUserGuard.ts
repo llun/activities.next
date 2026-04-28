@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
+import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
 import { Actor } from '@/lib/types/domain/actor'
 import { apiErrorResponse } from '@/lib/utils/response'
 
@@ -19,8 +20,12 @@ export type OnlyLocalUserGuardHandle = (
   query: AppRouterParams<OnlyLocalUserGuardParams>
 ) => Promise<Response> | Response
 
+export type OnlyLocalUserGuardOptions = {
+  allowFederationSigningActor?: boolean
+}
+
 export const OnlyLocalUserGuard =
-  (handle: OnlyLocalUserGuardHandle) =>
+  (handle: OnlyLocalUserGuardHandle, options: OnlyLocalUserGuardOptions = {}) =>
   async (
     req: NextRequest,
     query: AppRouterParams<OnlyLocalUserGuardParams>
@@ -32,7 +37,10 @@ export const OnlyLocalUserGuard =
     const host = headerHost(req.headers)
     const id = `https://${host}/users/${username}`
     const actor = await database.getActorFromId({ id })
-    if (!actor || !actor.account) {
+    const isAllowedActor =
+      actor?.account ||
+      (options.allowFederationSigningActor && isFederationSigningActor(actor))
+    if (!actor || !isAllowedActor) {
       return apiErrorResponse(404)
     }
 

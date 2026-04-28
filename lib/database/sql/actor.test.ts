@@ -1,11 +1,18 @@
 import crypto from 'crypto'
 
+import { type SQLActorDatabase } from '@/lib/database/sql/actor'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
   getTestSQLDatabase
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import {
+  FEDERATION_SIGNING_ACTOR_TYPE,
+  FEDERATION_SIGNING_ACTOR_USERNAME,
+  getFederationSigningActorId,
+  getFederationSigningActorUsername
+} from '@/lib/services/federation/instanceActor'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
@@ -86,6 +93,35 @@ describe('ActorDatabase', () => {
       })
     })
 
+    describe('#getActor', () => {
+      it('falls back to Person for unknown persisted actor types', () => {
+        const actor = (database as SQLActorDatabase).getActor(
+          {
+            id: `https://${TEST_DOMAIN}/users/unknown-type`,
+            type: 'UnknownType' as never,
+            username: 'unknown-type',
+            domain: TEST_DOMAIN,
+            accountId: null,
+            publicKey: 'public-key',
+            privateKey: '',
+            settings: JSON.stringify({
+              followersUrl: `https://${TEST_DOMAIN}/users/unknown-type/followers`,
+              inboxUrl: `https://${TEST_DOMAIN}/users/unknown-type/inbox`,
+              sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`
+            }),
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          },
+          0,
+          0,
+          0,
+          0
+        )
+
+        expect(actor.type).toBe('Person')
+      })
+    })
+
     describe('deprecated actor', () => {
       it('returns actor from id', async () => {
         const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
@@ -148,18 +184,34 @@ describe('ActorDatabase', () => {
     })
 
     describe('#getFederationSigningActor', () => {
-      it('returns a local actor with a private key', async () => {
+      it('creates a dedicated headless instance actor with a private key', async () => {
         const actor = await database.getFederationSigningActor()
 
         expect(actor).toMatchObject({
+          id: getFederationSigningActorId(TEST_DOMAIN),
+          type: FEDERATION_SIGNING_ACTOR_TYPE,
+          username: FEDERATION_SIGNING_ACTOR_USERNAME,
           domain: TEST_DOMAIN,
           privateKey: expect.toBeString(),
           publicKey: expect.toBeString()
         })
-        expect(actor?.account).toBeDefined()
+        expect(actor?.account).toBeUndefined()
       })
 
-      it('returns null when no local actor has a private key', async () => {
+      it('returns one signer for concurrent first-run bootstrap calls', async () => {
+        await withFreshDatabase(async (database) => {
+          const [first, second] = await Promise.all([
+            database.getFederationSigningActor(),
+            database.getFederationSigningActor()
+          ])
+
+          expect(first?.id).toBe(getFederationSigningActorId(TEST_DOMAIN))
+          expect(second?.id).toBe(first?.id)
+          expect(second?.privateKey).toBe(first?.privateKey)
+        })
+      })
+
+      it('creates the headless actor when no user actors exist', async () => {
         await withFreshDatabase(async (database) => {
           await database.createActor({
             actorId: EXTERNAL_ACTORS[0].id,
@@ -179,24 +231,69 @@ describe('ActorDatabase', () => {
             domain: TEST_DOMAIN_2
           })
 
-          await expect(database.getFederationSigningActor()).resolves.toBeNull()
+          const actor = await database.getFederationSigningActor()
+          expect(actor).toMatchObject({
+            id: getFederationSigningActorId(TEST_DOMAIN),
+            type: FEDERATION_SIGNING_ACTOR_TYPE
+          })
+          expect(actor?.account).toBeUndefined()
         })
       })
 
-      it('skips actors scheduled for deletion', async () => {
+      it('uses an alternate headless actor instead of a real user actor when the reserved id is unavailable', async () => {
         await withFreshDatabase(async (database) => {
           const username = 'deleting-signer'
           await createSigningAccount(database, username)
-          await database.scheduleActorDeletion({
-            actorId: `https://${TEST_DOMAIN}/users/${username}`,
-            scheduledAt: null
+
+          await database.createActor({
+            actorId: getFederationSigningActorId(TEST_DOMAIN),
+            type: FEDERATION_SIGNING_ACTOR_TYPE,
+            username: FEDERATION_SIGNING_ACTOR_USERNAME,
+            domain: TEST_DOMAIN,
+            followersUrl: `${getFederationSigningActorId(TEST_DOMAIN)}/followers`,
+            inboxUrl: `${getFederationSigningActorId(TEST_DOMAIN)}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: '',
+            createdAt: Date.now()
           })
 
-          await expect(database.getFederationSigningActor()).resolves.toBeNull()
+          const actor = await database.getFederationSigningActor()
+          const fallbackUsername = getFederationSigningActorUsername(1)
+
+          expect(actor).toMatchObject({
+            id: getFederationSigningActorId(TEST_DOMAIN, fallbackUsername),
+            type: FEDERATION_SIGNING_ACTOR_TYPE,
+            username: fallbackUsername,
+            domain: TEST_DOMAIN,
+            privateKey: expect.toBeString()
+          })
+          expect(actor?.account).toBeUndefined()
         })
       })
 
-      it('deterministically returns the oldest eligible actor', async () => {
+      it('does not reuse arbitrary service actors as the federation signer', async () => {
+        await withFreshDatabase(async (database) => {
+          await database.createActor({
+            actorId: `https://${TEST_DOMAIN}/users/not-the-instance`,
+            type: FEDERATION_SIGNING_ACTOR_TYPE,
+            username: 'not-the-instance',
+            domain: TEST_DOMAIN,
+            followersUrl: `https://${TEST_DOMAIN}/users/not-the-instance/followers`,
+            inboxUrl: `https://${TEST_DOMAIN}/users/not-the-instance/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            privateKey: 'private-key',
+            createdAt: Date.now()
+          })
+
+          const actor = await database.getFederationSigningActor()
+
+          expect(actor?.id).toBe(getFederationSigningActorId(TEST_DOMAIN))
+          expect(actor?.username).toBe(FEDERATION_SIGNING_ACTOR_USERNAME)
+        })
+      })
+
+      it('deterministically returns the reserved headless actor', async () => {
         await withFreshDatabase(async (database) => {
           await createSigningAccount(database, 'older-signer')
           await new Promise((resolve) => setTimeout(resolve, 5))
@@ -205,8 +302,9 @@ describe('ActorDatabase', () => {
           const first = await database.getFederationSigningActor()
           const second = await database.getFederationSigningActor()
 
-          expect(first?.id).toBe(`https://${TEST_DOMAIN}/users/older-signer`)
+          expect(first?.id).toBe(getFederationSigningActorId(TEST_DOMAIN))
           expect(second?.id).toBe(first?.id)
+          expect(second?.privateKey).toBe(first?.privateKey)
         })
       })
     })
@@ -303,6 +401,79 @@ describe('ActorDatabase', () => {
           statuses_count: 0,
           followers_count: 0,
           following_count: 0
+        })
+      })
+
+      it('returns local headless signer as undiscoverable bot account', async () => {
+        await withFreshDatabase(async (database) => {
+          const signingActor = await database.getFederationSigningActor()
+          expect(signingActor).toBeTruthy()
+
+          const actor = await database.getMastodonActorFromId({
+            id: signingActor!.id
+          })
+
+          expect(actor).toMatchObject({
+            username: FEDERATION_SIGNING_ACTOR_USERNAME,
+            bot: true,
+            group: false,
+            discoverable: false,
+            noindex: true,
+            statuses_count: 0,
+            followers_count: 0,
+            following_count: 0
+          })
+        })
+      })
+
+      it('maps remote ActivityPub actor types to Mastodon fields', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const serviceActorId = `https://remote-${suffix}.example/users/service`
+          const groupActorId = `https://remote-${suffix}.example/users/group`
+
+          await database.createActor({
+            actorId: serviceActorId,
+            type: 'Service',
+            username: 'service',
+            domain: `remote-${suffix}.example`,
+            followersUrl: `${serviceActorId}/followers`,
+            inboxUrl: `${serviceActorId}/inbox`,
+            sharedInboxUrl: `${serviceActorId}/inbox`,
+            publicKey: 'servicePublicKey',
+            createdAt: Date.now()
+          })
+          await database.createActor({
+            actorId: groupActorId,
+            type: 'Group',
+            username: 'group',
+            domain: `remote-${suffix}.example`,
+            followersUrl: `${groupActorId}/followers`,
+            inboxUrl: `${groupActorId}/inbox`,
+            sharedInboxUrl: `${groupActorId}/inbox`,
+            publicKey: 'groupPublicKey',
+            createdAt: Date.now()
+          })
+
+          const serviceActor = await database.getMastodonActorFromId({
+            id: serviceActorId
+          })
+          const groupActor = await database.getMastodonActorFromId({
+            id: groupActorId
+          })
+
+          expect(serviceActor).toMatchObject({
+            bot: true,
+            group: false,
+            discoverable: true,
+            noindex: false
+          })
+          expect(groupActor).toMatchObject({
+            bot: false,
+            group: true,
+            discoverable: true,
+            noindex: false
+          })
         })
       })
     })
@@ -444,6 +615,39 @@ describe('ActorDatabase', () => {
           privateKey: expect.toBeString()
         })
       })
+
+      it('updates actor type for refreshed remote actors', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `remote-service-${suffix}`
+        const domain = `remote-service-${suffix}.test`
+        const actorId = `https://${domain}/users/${username}`
+
+        await database.createActor({
+          actorId,
+          type: 'Person',
+          username,
+          domain,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `https://${domain}/inbox`,
+          publicKey: 'public-key',
+          createdAt: Date.now()
+        })
+
+        await database.updateActor({
+          actorId,
+          type: 'Service'
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.type).toBe('Service')
+
+        const mastodonActor = await database.getMastodonActorFromUsername({
+          username,
+          domain
+        })
+        expect(mastodonActor?.bot).toBeTrue()
+      })
     })
 
     describe('#getActorSettings', () => {
@@ -522,6 +726,38 @@ describe('ActorDatabase', () => {
           actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         })
         expect(result).toBeTrue()
+      })
+
+      it('returns true for the headless instance actor', async () => {
+        const actor = await database.getFederationSigningActor()
+        if (!actor) fail('Expected federation signing actor')
+
+        const result = await database.isInternalActor({
+          actorId: actor.id
+        })
+        expect(result).toBeTrue()
+      })
+
+      it('returns false for non-signer accountless local service actors', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `local-service-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createActor({
+          actorId,
+          type: 'Service',
+          username,
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+          publicKey: 'public-key',
+          privateKey: 'private-key',
+          createdAt: Date.now()
+        })
+
+        const result = await database.isInternalActor({ actorId })
+        expect(result).toBeFalse()
       })
 
       it('returns false when actor is external', async () => {

@@ -13,6 +13,14 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import {
+  FEDERATION_SIGNING_ACTOR_TYPE,
+  FEDERATION_SIGNING_ACTOR_USERNAME,
+  getFederationSigningActorId,
+  getFederationSigningActorUsername,
+  isFederationSigningActor,
+  isFederationSigningActorUsername
+} from '@/lib/services/federation/instanceActor'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   ActorDatabase,
@@ -35,9 +43,10 @@ import {
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
-import { Actor } from '@/lib/types/domain/actor'
+import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
 
 export interface SQLActorDatabase extends ActorDatabase {
@@ -95,9 +104,45 @@ const getConfiguredActorDomain = () => {
   return host.includes('://') ? new URL(host).host : host
 }
 
+const getFederationSigningActorSettings = (
+  actorId: string,
+  domain: string
+) => ({
+  followersUrl: `${actorId}/followers`,
+  inboxUrl: `${actorId}/inbox`,
+  sharedInboxUrl: `https://${domain}/inbox`
+})
+
+const isValidFederationSigningSQLActor = (
+  sqlActor: SQLActor | undefined,
+  domain: string
+): sqlActor is SQLActor =>
+  Boolean(
+    sqlActor &&
+    sqlActor.type === FEDERATION_SIGNING_ACTOR_TYPE &&
+    sqlActor.domain === domain &&
+    sqlActor.accountId == null &&
+    sqlActor.privateKey &&
+    !sqlActor.deletionStatus &&
+    isFederationSigningActorUsername(sqlActor.username)
+  )
+
+const FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN = `${FEDERATION_SIGNING_ACTOR_USERNAME.replace(/[\\%_]/g, '\\$&')}%`
+
+const federationSigningActorCreationLocks = new Map<
+  string,
+  Promise<Actor | null>
+>()
+// Process-local only; cross-process races still rely on the actor id unique
+// constraint plus insert recovery below.
+
+const isMastodonBotActorType = (type: SQLActor['type']) =>
+  type === 'Service' || type === 'Application' || type === 'Organization'
+
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async createActor({
     actorId,
+    type = 'Person',
 
     username,
     domain,
@@ -125,6 +170,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     }
     await database('actors').insert({
       id: actorId,
+      type,
       username,
       domain,
       name,
@@ -140,6 +186,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
   async createMastodonActor({
     actorId,
+    type = 'Person',
 
     username,
     domain,
@@ -167,6 +214,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     }
     await database('actors').insert({
       id: actorId,
+      type,
       username,
       domain,
       name,
@@ -271,18 +319,105 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async getFederationSigningActor() {
-    const persistedActor = await database<SQLActor>('actors')
-      .where('domain', getConfiguredActorDomain())
-      .whereNotNull('accountId')
-      .whereNotNull('privateKey')
-      .where('privateKey', '<>', '')
-      .whereNull('deletionStatus')
-      .orderBy('createdAt', 'asc')
-      .orderBy('id', 'asc')
-      .first<{ id: string }>('id')
-    if (!persistedActor) return null
+    const domain = getConfiguredActorDomain()
+    const actorId = getFederationSigningActorId(domain)
+    const getActorFromRow = (sqlActor: SQLActor | undefined) => {
+      if (!isValidFederationSigningSQLActor(sqlActor, domain)) return null
 
-    return this.getActorFromId({ id: persistedActor.id })
+      return this.getActor(sqlActor, 0, 0, 0, 0)
+    }
+    const getExistingHeadlessActor = async () => {
+      const localServiceActors = await database<SQLActor>('actors')
+        .where('domain', domain)
+        .andWhere('type', FEDERATION_SIGNING_ACTOR_TYPE)
+        .whereRaw("?? LIKE ? ESCAPE '\\'", [
+          'username',
+          FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
+        ])
+        .whereNull('accountId')
+        .whereNotNull('privateKey')
+        .where('privateKey', '<>', '')
+        .whereNull('deletionStatus')
+        .orderBy('createdAt', 'asc')
+        .orderBy('id', 'asc')
+
+      for (const sqlActor of localServiceActors) {
+        const actor = getActorFromRow(sqlActor)
+        if (actor) return actor
+      }
+
+      return null
+    }
+
+    const pendingActor = federationSigningActorCreationLocks.get(domain)
+    if (pendingActor) return pendingActor
+
+    const createSigningActor = async () => {
+      const reservedActor = getActorFromRow(
+        await database<SQLActor>('actors').where('id', actorId).first()
+      )
+      if (reservedActor) return reservedActor
+
+      const existingHeadlessActor = await getExistingHeadlessActor()
+      if (existingHeadlessActor) return existingHeadlessActor
+
+      const usedUsernames = new Set(
+        (
+          await database<SQLActor>('actors')
+            .where('domain', domain)
+            .whereRaw("?? LIKE ? ESCAPE '\\'", [
+              'username',
+              FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
+            ])
+            .select('username')
+        ).map((actor) => actor.username)
+      )
+      let username = FEDERATION_SIGNING_ACTOR_USERNAME
+      for (let index = 0; usedUsernames.has(username); index += 1) {
+        username = getFederationSigningActorUsername(index + 1)
+      }
+      const signingActorId = getFederationSigningActorId(domain, username)
+
+      const currentTime = new Date()
+      const keyPair = await generateKeyPair(getConfig().secretPhase)
+      try {
+        await database<SQLActor>('actors').insert({
+          id: signingActorId,
+          type: FEDERATION_SIGNING_ACTOR_TYPE,
+          username,
+          domain,
+          name: 'Instance actor',
+          summary: 'Service actor used for ActivityPub federation signing.',
+          accountId: null,
+          settings: JSON.stringify(
+            getFederationSigningActorSettings(signingActorId, domain)
+          ),
+          publicKey: keyPair.publicKey,
+          privateKey: keyPair.privateKey,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })
+      } catch (error) {
+        const actor = await getExistingHeadlessActor()
+        if (actor) return actor
+        throw error
+      }
+
+      const sqlActor = await database<SQLActor>('actors')
+        .where('id', signingActorId)
+        .first()
+      return getActorFromRow(sqlActor)
+    }
+
+    const creatingActor = createSigningActor()
+    federationSigningActorCreationLocks.set(domain, creatingActor)
+    try {
+      return await creatingActor
+    } finally {
+      if (federationSigningActorCreationLocks.get(domain) === creatingActor) {
+        federationSigningActorCreationLocks.delete(domain)
+      }
+    }
   },
 
   async getMastodonActorFromUsername({
@@ -400,6 +535,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       : null
     return Actor.parse({
       id: sqlActor.id,
+      type: ActorType.catch(ActorType.enum.Person).parse(sqlActor.type),
       username: sqlActor.username,
       domain: sqlActor.domain,
       ...(sqlActor.name ? { name: sqlActor.name } : null),
@@ -450,6 +586,10 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
     const settings = getCompatibleJSON(sqlActor.settings)
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
+    const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
+      sqlActor,
+      getConfiguredActorDomain()
+    )
     return Mastodon.Account.parse({
       id: urlToId(sqlActor.id),
       username: sqlActor.username,
@@ -467,10 +607,10 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       emojis: [],
 
       locked: settings.manuallyApprovesFollowers ?? true,
-      bot: false,
-      group: false,
-      discoverable: true,
-      noindex: false,
+      bot: isMastodonBotActorType(sqlActor.type),
+      group: sqlActor.type === 'Group',
+      discoverable: !isLocalHeadlessSigner,
+      noindex: isLocalHeadlessSigner,
 
       source: {
         note: '',
@@ -494,6 +634,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
   async updateActor({
     actorId,
+    type,
     name,
     summary,
     iconUrl,
@@ -536,6 +677,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     await database<SQLActor>('actors')
       .where('id', actorId)
       .update({
+        ...(type ? { type } : null),
         ...(name ? { name } : null),
         ...(summary ? { summary } : null),
 
@@ -610,7 +752,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .where('id', actorId)
       .first()
     if (!persistedActor) return false
-    return Boolean(persistedActor.accountId)
+    if (persistedActor.accountId) return true
+
+    return (
+      persistedActor.domain === getConfiguredActorDomain() &&
+      isFederationSigningActor(this.getActor(persistedActor, 0, 0, 0, 0))
+    )
   },
 
   async getActorSettings({ actorId }: GetActorSettingsParams) {

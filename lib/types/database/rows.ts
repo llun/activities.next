@@ -1,3 +1,5 @@
+import { type ActorType } from '@/lib/types/domain/actor'
+
 // SQL row types - Types returned directly from database queries
 
 export const POST_LINE_LIMIT_VALUES = [5, 10, 0] as const
@@ -35,11 +37,12 @@ export type ActorDeletionStatus = 'scheduled' | 'deleting' | null
 
 export interface SQLActor {
   id: string
+  type?: ActorType
   username: string
   domain: string
   name?: string
   summary?: string
-  accountId: string
+  accountId: string | null
 
   publicKey: string
   privateKey: string

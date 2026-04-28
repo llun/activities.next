@@ -1,3 +1,5 @@
+import { NextRequest } from 'next/server'
+
 /**
 
  * @deprecated Use POST /api/v1/accounts/:id/follow and /unfollow instead
@@ -6,6 +8,7 @@
 import { follow, unfollow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -28,6 +31,50 @@ const CORS_HEADERS = [
 ]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+const getJsonBody = async (req: NextRequest) => {
+  try {
+    return await req.json()
+  } catch {
+    return undefined
+  }
+}
+
+const invalidJsonBodyResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: { error: 'Invalid JSON body' },
+    responseStatusCode: HTTP_STATUS.BAD_REQUEST
+  })
+
+const invalidFollowRequestResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: { error: 'Invalid input' },
+    responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+  })
+
+type ParseFollowRequestBodyResult =
+  | { ok: true; data: FollowRequest }
+  | { ok: false; response: Response }
+
+const parseFollowRequestBody = async (
+  req: NextRequest
+): Promise<ParseFollowRequestBodyResult> => {
+  const body = await getJsonBody(req)
+  if (body === undefined) {
+    return { ok: false, response: invalidJsonBodyResponse(req) }
+  }
+
+  const parsed = FollowRequest.safeParse(body)
+  if (!parsed.success) {
+    return { ok: false, response: invalidFollowRequestResponse(req) }
+  }
+
+  return { ok: true, data: parsed.data }
+}
 
 export const GET = traceApiRoute(
   'getFollowFromUrl',
@@ -55,8 +102,10 @@ export const POST = traceApiRoute(
   'followAccountFromUrl',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
-    const { target } = FollowRequest.parse(body)
+    const parsed = await parseFollowRequestBody(req)
+    if (!parsed.ok) return parsed.response
+
+    const { target } = parsed.data
     if (!(await canFederateWithDomain(database, target))) {
       return apiResponse({
         req,
@@ -66,9 +115,10 @@ export const POST = traceApiRoute(
       })
     }
 
+    const signingActor = await getFederationSigningActor(database)
     const person = await getActorPerson({
       actorId: target,
-      signingActor: currentActor
+      signingActor
     })
     if (!person)
       return apiResponse({
@@ -84,7 +134,7 @@ export const POST = traceApiRoute(
       inbox: `${currentActor.id}/inbox`,
       sharedInbox: `https://${currentActor.domain}/inbox`
     })
-    await follow(followItem.id, currentActor, target)
+    await follow(followItem.id, currentActor, target, signingActor)
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -98,8 +148,10 @@ export const DELETE = traceApiRoute(
   'unfollowAccountFromUrl',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
-    const { target } = FollowRequest.parse(body)
+    const parsed = await parseFollowRequestBody(req)
+    if (!parsed.ok) return parsed.response
+
+    const { target } = parsed.data
     const follow = await database.getAcceptedOrRequestedFollow({
       actorId: currentActor.id,
       targetActorId: target
@@ -112,8 +164,11 @@ export const DELETE = traceApiRoute(
         responseStatusCode: 404
       })
     const canFederate = await canFederateWithDomain(database, target)
+    const signingActor = canFederate
+      ? await getFederationSigningActor(database)
+      : undefined
     await Promise.all([
-      canFederate ? unfollow(currentActor, follow) : undefined,
+      canFederate ? unfollow(currentActor, follow, signingActor) : undefined,
       database.updateFollowStatus({
         followId: follow.id,
         status: FollowStatus.enum.Undo
