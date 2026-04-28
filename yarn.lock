@@ -5756,7 +5756,7 @@ __metadata:
     jest-fetch-mock: "npm:^3.0.3"
     knex: "npm:^3.2.9"
     lodash: "npm:^4.18.1"
-    lucide-react: "npm:^1.11.0"
+    lucide-react: "npm:^1.12.0"
     marked: "npm:^18.0.2"
     mime-types: "npm:^3.0.2"
     next: "npm:^16.2.4"
@@ -10436,12 +10436,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^1.11.0":
-  version: 1.11.0
-  resolution: "lucide-react@npm:1.11.0"
+"lucide-react@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "lucide-react@npm:1.12.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/2a2b6416eb89aea2bd59fa0a513d59a46090cd37c55633414ffadb86e4c7bba9dbd7991c9681fc1e879f565c885aaf5938921ab093d7f7c5d9d8c6bbe655ef30
+  checksum: 10c0/c4fc7b88c467eb35d56503509e8beb2fa26256a71815a0bd8f19c38853cdbb3ccaf8d4b88f51f22b5f2f8d85d0af7077aae23c391a03cbcc723d55f72a13ee52
   languageName: node
   linkType: hard
 

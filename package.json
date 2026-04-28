@@ -55,7 +55,7 @@
     "html-react-parser": "^6.0.1",
     "knex": "^3.2.9",
     "lodash": "^4.18.1",
-    "lucide-react": "^1.11.0",
+    "lucide-react": "^1.12.0",
     "marked": "^18.0.2",
     "mime-types": "^3.0.2",
     "next": "^16.2.4",
