@@ -48,7 +48,10 @@ export const POST = traceApiRoute(
     }
 
     // Check if target actor exists
-    const person = await getActorPerson({ actorId: targetActorId })
+    const person = await getActorPerson({
+      actorId: targetActorId,
+      signingActor: currentActor
+    })
     if (!person)
       return apiResponse({
         req,

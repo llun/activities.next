@@ -126,14 +126,9 @@ export const ActivityPubVerifySenderGuard =
 
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)
+    const requestTarget = `${request.method.toLowerCase()} ${requestUrl.pathname}${requestUrl.search}`
     const publicKey = await getSenderPublicKey(database, signatureParts.keyId)
-    if (
-      !(await verify(
-        `${request.method.toLowerCase()} ${requestUrl.pathname}`,
-        request.headers,
-        publicKey
-      ))
-    ) {
+    if (!(await verify(requestTarget, request.headers, publicKey))) {
       return guardErrorResponse(request, 400, allowedMethods)
     }
 

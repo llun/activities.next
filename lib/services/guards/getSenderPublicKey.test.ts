@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getSenderPublicKey } from '@/lib/services/guards/getSenderPublicKey'
 import { mockRequests } from '@/lib/stub/activities'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -14,6 +15,12 @@ describe('getSenderPublicKey', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    await database.createAccount({
+      ...seedActor1,
+      email: `signed-key-signer@${TEST_DOMAIN}`,
+      username: 'signed-key-signer',
+      domain: TEST_DOMAIN
+    })
   })
 
   afterAll(async () => {
@@ -38,11 +45,25 @@ describe('getSenderPublicKey', () => {
   })
 
   it('returns public key from remote actor', async () => {
-    // Test with a non-existent local actor (will try to fetch remotely)
-    const actorId = 'https://llun.test/users/test1'
+    const actorId = 'https://remote.test/users/test1'
     const publicKey = await getSenderPublicKey(database, actorId)
-    // The mock returns a public key
+
     expect(publicKey).toBeTruthy()
+  })
+
+  it('signs remote public key fetches with a local actor', async () => {
+    const actorId = 'https://remote.test/users/signed-key'
+    const publicKey = await getSenderPublicKey(database, actorId)
+
+    expect(publicKey).toBeTruthy()
+
+    const call = fetchMock.mock.calls.find(([url]) => url === actorId)
+    expect(call).toBeDefined()
+    const request = call?.[1]
+    expect(request?.headers).toMatchObject({
+      host: 'remote.test',
+      signature: expect.stringContaining('headers="(request-target) host date"')
+    })
   })
 
   it('returns empty string when remote actor not found', async () => {

@@ -9,6 +9,7 @@ import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Announce } from '@/lib/types/activitypub'
@@ -32,13 +33,14 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     }
 
     await assertActorCanFederate({ actorId: status.actor, database })
+    const signingActor = await getFederationSigningActor(database)
 
     const existingStatus = await database.getStatus({
       statusId: object,
       withReplies: false
     })
     if (!existingStatus) {
-      const boostedStatus = await getNote({ statusId: object })
+      const boostedStatus = await getNote({ statusId: object, signingActor })
       if (!boostedStatus) {
         return
       }
@@ -56,7 +58,7 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       return
     }
     const [, announce] = await Promise.all([
-      recordActorIfNeeded({ actorId: status.actor, database }),
+      recordActorIfNeeded({ actorId: status.actor, database, signingActor }),
       database.createAnnounce({
         id: status.id,
         actorId: status.actor,

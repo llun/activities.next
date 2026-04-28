@@ -1,11 +1,14 @@
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/domain/actor'
+import { logger } from '@/lib/utils/logger'
 
 interface RecordActorIfNeededParams {
   actorId: string
   database: Database
+  signingActor?: Actor
 }
 
 export class BlockedFederationDomainError extends Error {
@@ -26,7 +29,8 @@ export const assertActorCanFederate = async ({
 
 export const recordActorIfNeeded = async ({
   actorId,
-  database
+  database,
+  signingActor
 }: RecordActorIfNeededParams): Promise<Actor | undefined> => {
   await assertActorCanFederate({ actorId, database })
 
@@ -37,8 +41,26 @@ export const recordActorIfNeeded = async ({
   if (existingActor?.privateKey) {
     return existingActor
   }
+
+  const getResolvedSigningActor = async () => {
+    const resolvedSigningActor = await getFederationSigningActor(
+      database,
+      signingActor
+    )
+    if (!resolvedSigningActor) {
+      logger.warn({
+        message: 'Fetching remote actor without a federation signing actor',
+        actorId
+      })
+    }
+    return resolvedSigningActor
+  }
+
   if (!existingActor) {
-    const person = await getActorPerson({ actorId })
+    const person = await getActorPerson({
+      actorId,
+      signingActor: await getResolvedSigningActor()
+    })
     if (!person) return
     const actor = await database.createActor({
       actorId,
@@ -57,7 +79,10 @@ export const recordActorIfNeeded = async ({
   const currentTime = Date.now()
   // Update actor if it's older than 3 day
   if (currentTime - existingActor.updatedAt > 3 * 86_400_000) {
-    const person = await getActorPerson({ actorId })
+    const person = await getActorPerson({
+      actorId,
+      signingActor: await getResolvedSigningActor()
+    })
     if (!person) return undefined
     const actor = await database.updateActor({
       actorId,

@@ -2,11 +2,14 @@ import crypto from 'crypto'
 
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestSQLDatabase
 } from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
+  TEST_DOMAIN_2,
   TEST_EMAIL,
   TEST_PASSWORD_HASH,
   TEST_USERNAME3
@@ -14,6 +17,40 @@ import {
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
+
+const withFreshDatabase = async (
+  test: (database: Database) => Promise<void>
+) => {
+  const database = getTestSQLDatabase()
+  await database.migrate()
+  try {
+    await test(database)
+  } finally {
+    await database.destroy()
+  }
+}
+
+const createSigningAccount = async (
+  database: Database,
+  username: string,
+  {
+    domain = TEST_DOMAIN,
+    privateKey = `privateKey-${username}`,
+    publicKey = `publicKey-${username}`
+  }: {
+    domain?: string
+    privateKey?: string
+    publicKey?: string
+  } = {}
+) =>
+  database.createAccount({
+    email: `${username}@${domain}`,
+    username,
+    passwordHash: TEST_PASSWORD_HASH,
+    domain,
+    privateKey,
+    publicKey
+  })
 
 describe('ActorDatabase', () => {
   const table = getTestDatabaseTable()
@@ -106,6 +143,70 @@ describe('ActorDatabase', () => {
           followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}/followers`,
           publicKey: expect.toBeString(),
           privateKey: expect.toBeString()
+        })
+      })
+    })
+
+    describe('#getFederationSigningActor', () => {
+      it('returns a local actor with a private key', async () => {
+        const actor = await database.getFederationSigningActor()
+
+        expect(actor).toMatchObject({
+          domain: TEST_DOMAIN,
+          privateKey: expect.toBeString(),
+          publicKey: expect.toBeString()
+        })
+        expect(actor?.account).toBeDefined()
+      })
+
+      it('returns null when no local actor has a private key', async () => {
+        await withFreshDatabase(async (database) => {
+          await database.createActor({
+            actorId: EXTERNAL_ACTORS[0].id,
+            username: EXTERNAL_ACTORS[0].username,
+            domain: EXTERNAL_ACTORS[0].domain,
+            followersUrl: EXTERNAL_ACTORS[0].followers_url,
+            inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+            sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+            publicKey: 'publicKey',
+            createdAt: Date.now()
+          })
+
+          await createSigningAccount(database, 'empty-key-signer', {
+            privateKey: ''
+          })
+          await createSigningAccount(database, 'wrong-domain-signer', {
+            domain: TEST_DOMAIN_2
+          })
+
+          await expect(database.getFederationSigningActor()).resolves.toBeNull()
+        })
+      })
+
+      it('skips actors scheduled for deletion', async () => {
+        await withFreshDatabase(async (database) => {
+          const username = 'deleting-signer'
+          await createSigningAccount(database, username)
+          await database.scheduleActorDeletion({
+            actorId: `https://${TEST_DOMAIN}/users/${username}`,
+            scheduledAt: null
+          })
+
+          await expect(database.getFederationSigningActor()).resolves.toBeNull()
+        })
+      })
+
+      it('deterministically returns the oldest eligible actor', async () => {
+        await withFreshDatabase(async (database) => {
+          await createSigningAccount(database, 'older-signer')
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          await createSigningAccount(database, 'newer-signer')
+
+          const first = await database.getFederationSigningActor()
+          const second = await database.getFederationSigningActor()
+
+          expect(first?.id).toBe(`https://${TEST_DOMAIN}/users/older-signer`)
+          expect(second?.id).toBe(first?.id)
         })
       })
     })
