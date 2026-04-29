@@ -22,7 +22,18 @@ describe('#activityPubRequestHeaders', () => {
     })
 
     expect(headers).toEqual({
-      Accept: 'application/activity+json, application/ld+json'
+      accept: 'application/activity+json, application/ld+json'
+    })
+  })
+
+  it('uses a custom ActivityPub Accept header when provided', () => {
+    const headers = activityPubRequestHeaders({
+      url: 'https://remote.test/users/alice',
+      accept: 'application/activity+json'
+    })
+
+    expect(headers).toEqual({
+      accept: 'application/activity+json'
     })
   })
 
@@ -33,7 +44,7 @@ describe('#activityPubRequestHeaders', () => {
     })
 
     expect(headers).toMatchObject({
-      Accept: 'application/activity+json, application/ld+json',
+      accept: 'application/activity+json, application/ld+json',
       host: 'remote.test',
       signature: expect.stringContaining('headers="(request-target) host date"')
     })
@@ -56,7 +67,7 @@ describe('#activityPubRequestHeaders', () => {
     })
 
     expect(headers).toMatchObject({
-      Accept: 'application/activity+json, application/ld+json',
+      accept: 'application/activity+json, application/ld+json',
       'content-type': 'application/activity+json',
       digest: expect.stringMatching(/^SHA-256=/),
       signature: expect.stringContaining(

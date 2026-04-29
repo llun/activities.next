@@ -12,7 +12,7 @@ interface StringMap {
   [key: string]: string
 }
 
-type SignedHttpMethod = 'GET' | 'POST'
+export type SignedHttpMethod = 'GET' | 'POST'
 
 export async function parse(signature: string): Promise<StringMap> {
   try {
