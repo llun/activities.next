@@ -7,6 +7,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { type Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -273,6 +274,60 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
 
     expect(uris).toEqual([publicStatusId])
     expect(uris).not.toContain(unreadableAnnounceId)
+  })
+
+  it('caps scanning when batches contain no readable statuses', async () => {
+    const now = Date.now() + 20_000
+    const privateOriginal = {
+      id: `${ACTOR2_ID}/statuses/account-private-original-scan-cap`,
+      url: `${ACTOR2_ID}/statuses/account-private-original-scan-cap`,
+      actorId: ACTOR2_ID,
+      actor: null,
+      type: StatusType.enum.Note,
+      to: [`${ACTOR2_ID}/followers`],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: now,
+      updatedAt: now,
+      text: 'Private original for scan cap',
+      summary: '',
+      reply: '',
+      replies: [],
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      totalLikes: 0,
+      attachments: [],
+      tags: []
+    } as Status
+    const unreadableAnnounce = {
+      id: `${ACTOR1_ID}/statuses/account-unreadable-announce-scan-cap`,
+      actorId: ACTOR1_ID,
+      actor: null,
+      type: StatusType.enum.Announce,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: now + 1,
+      updatedAt: now + 1,
+      originalStatus: privateOriginal
+    } as Status
+    const getActorStatuses = jest
+      .spyOn(database, 'getActorStatuses')
+      .mockResolvedValue([unreadableAnnounce])
+
+    try {
+      const response = await GET(createRequest('?limit=1'), {
+        params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      })
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual([])
+      expect(getActorStatuses).toHaveBeenCalledTimes(10)
+    } finally {
+      getActorStatuses.mockRestore()
+    }
   })
 
   it('returns bad request for invalid query params', async () => {

@@ -9,17 +9,14 @@ const isPublicOrUnlisted = (status: Status): boolean => {
   return visibility === 'public' || visibility === 'unlisted'
 }
 
-const getFollowersAudienceCandidates = (status: Status): Set<string> =>
-  new Set(
-    [status.actor?.followersUrl, `${status.actorId}/followers`].filter(
-      (audience): audience is string => Boolean(audience)
-    )
-  )
-
 const hasFollowersAudience = (status: Status): boolean => {
-  const followersAudiences = getFollowersAudienceCandidates(status)
-  return [...status.to, ...status.cc].some((recipient) =>
-    followersAudiences.has(recipient)
+  const followersUrl = status.actor?.followersUrl
+  const fallbackFollowersUrl = `${status.actorId}/followers`
+  const isFollowersAudience = (recipient: string) =>
+    recipient === followersUrl || recipient === fallbackFollowersUrl
+
+  return (
+    status.to.some(isFollowersAudience) || status.cc.some(isFollowersAudience)
   )
 }
 

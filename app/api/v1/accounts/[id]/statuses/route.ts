@@ -19,6 +19,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+const MAX_STATUS_SCAN_BATCHES = 10
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -116,8 +117,14 @@ export const GET = traceApiRoute(
 
     const readableStatuses: Status[] = []
     let nextMaxId = maxId
+    let scannedBatches = 0
 
-    while (readableStatuses.length < limit) {
+    while (
+      readableStatuses.length < limit &&
+      scannedBatches < MAX_STATUS_SCAN_BATCHES
+    ) {
+      scannedBatches += 1
+
       const statuses = await database.getActorStatuses({
         actorId: id,
         maxStatusId: nextMaxId,
