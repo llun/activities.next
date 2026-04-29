@@ -152,6 +152,53 @@ describe('status access helpers', () => {
     expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
   })
 
+  it('allows direct recipients to read followers-only statuses', async () => {
+    const database = {
+      getAcceptedOrRequestedFollow: jest.fn()
+    }
+    const status = note({
+      id: `${ACTOR_ID}/statuses/private-direct-recipient`,
+      to: [FOLLOWERS_URL],
+      cc: [FOLLOWER_ID]
+    })
+
+    await expect(
+      canActorReadStatus({
+        database: database as never,
+        status,
+        currentActor: actor
+      })
+    ).resolves.toBe(true)
+    expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
+
+  it('recognizes the fallback actor followers audience', async () => {
+    const database = {
+      getAcceptedOrRequestedFollow: jest.fn().mockResolvedValue({
+        status: FollowStatus.enum.Accepted
+      })
+    }
+    const status = {
+      ...note({
+        id: `${ACTOR_ID}/statuses/private-fallback-followers`,
+        to: [FOLLOWERS_URL],
+        cc: []
+      }),
+      actor: {
+        id: ACTOR_ID,
+        followersUrl: `${ACTOR_ID}/followers-updated`
+      }
+    } as Status
+
+    await expect(
+      canActorReadStatus({
+        database: database as never,
+        status,
+        currentActor: actor
+      })
+    ).resolves.toBe(true)
+  })
+
   it('uses pre-fetched follower state when provided', async () => {
     const database = {
       getAcceptedOrRequestedFollow: jest.fn()

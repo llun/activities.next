@@ -753,7 +753,11 @@ export const StatusSQLDatabaseMixin = (
     if (recipientActorIds) {
       if (!publicOnly) {
         if (includeFollowersOnly) {
-          recipientActorIds.push(followersAudience ?? `${actorId}/followers`)
+          recipientActorIds.push(
+            ...[followersAudience, `${actorId}/followers`].filter(
+              (audience): audience is string => Boolean(audience)
+            )
+          )
         }
         if (visibleToActorId) {
           recipientActorIds.push(visibleToActorId)
@@ -764,7 +768,7 @@ export const StatusSQLDatabaseMixin = (
         'statuses.id',
         database('recipients')
           .select('statusId')
-          .whereIn('recipients.actorId', recipientActorIds)
+          .whereIn('recipients.actorId', [...new Set(recipientActorIds)])
       )
     }
 

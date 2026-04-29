@@ -229,6 +229,52 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     expect(uris).not.toContain(privateStatusId)
   })
 
+  it('continues scanning when a public announce wraps a non-public original', async () => {
+    const now = Date.now() + 10_000
+    const publicStatusId = `${ACTOR1_ID}/statuses/account-public-after-unreadable-announce`
+    const privateOriginalStatusId = `${ACTOR2_ID}/statuses/account-private-original-for-announce`
+    const unreadableAnnounceId = `${ACTOR1_ID}/statuses/account-unreadable-announce`
+
+    await database.createNote({
+      id: publicStatusId,
+      url: publicStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account public after unreadable announce',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now
+    })
+    await database.createNote({
+      id: privateOriginalStatusId,
+      url: privateOriginalStatusId,
+      actorId: ACTOR2_ID,
+      text: 'Private original for unreadable announce',
+      to: [`${ACTOR2_ID}/followers`],
+      cc: [],
+      createdAt: now + 1
+    })
+    await database.createAnnounce({
+      id: unreadableAnnounceId,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      originalStatusId: privateOriginalStatusId,
+      createdAt: now + 2
+    })
+
+    const response = await GET(createRequest('?limit=1'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+
+    const data = (await response.json()) as Array<{ uri: string }>
+    const uris = data.map((status) => status.uri)
+
+    expect(uris).toEqual([publicStatusId])
+    expect(uris).not.toContain(unreadableAnnounceId)
+  })
+
   it('returns bad request for invalid query params', async () => {
     const response = await GET(createRequest('?limit=0'), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })

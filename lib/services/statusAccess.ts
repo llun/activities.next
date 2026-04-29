@@ -9,10 +9,19 @@ const isPublicOrUnlisted = (status: Status): boolean => {
   return visibility === 'public' || visibility === 'unlisted'
 }
 
-const hasFollowersAudience = (status: Status): boolean =>
-  [...status.to, ...status.cc].includes(
-    status.actor?.followersUrl ?? `${status.actorId}/followers`
+const getFollowersAudienceCandidates = (status: Status): Set<string> =>
+  new Set(
+    [status.actor?.followersUrl, `${status.actorId}/followers`].filter(
+      (audience): audience is string => Boolean(audience)
+    )
   )
+
+const hasFollowersAudience = (status: Status): boolean => {
+  const followersAudiences = getFollowersAudienceCandidates(status)
+  return [...status.to, ...status.cc].some((recipient) =>
+    followersAudiences.has(recipient)
+  )
+}
 
 const isDirectRecipient = (status: Status, actor: Actor): boolean =>
   status.to.includes(actor.id) || status.cc.includes(actor.id)
@@ -42,6 +51,7 @@ const canActorReadSingleStatus = async ({
 }): Promise<boolean> => {
   if (isPublicOrUnlisted(status)) return true
   if (currentActor.id === status.actorId) return true
+  if (isDirectRecipient(status, currentActor)) return true
 
   if (hasFollowersAudience(status)) {
     const prefetchedIsFollower =
@@ -55,7 +65,7 @@ const canActorReadSingleStatus = async ({
     return follow?.status === FollowStatus.enum.Accepted
   }
 
-  return isDirectRecipient(status, currentActor)
+  return false
 }
 
 export const canActorReadStatus = async ({
