@@ -1,4 +1,4 @@
-import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
+import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import {
   OrderedCollection,
   OrderedCollectionPage,
@@ -8,7 +8,6 @@ import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { signedHeaders } from '@/lib/utils/signature'
 import { getTracer } from '@/lib/utils/trace'
 
 interface Params {
@@ -22,14 +21,6 @@ export const getActorCollections = async ({
   field,
   signingActor
 }: Params) => {
-  const createHeaders = (
-    actor: DomainActor | undefined,
-    url: string
-  ): Record<string, string> => ({
-    Accept: DEFAULT_ACCEPT,
-    ...(actor ? signedHeaders(actor, 'GET', url) : {})
-  })
-
   return getTracer().startActiveSpan(
     `activities.${field}`,
     {
@@ -44,7 +35,10 @@ export const getActorCollections = async ({
 
       const fieldResponse = await request({
         url: person[field],
-        headers: createHeaders(signingActor, person[field])
+        headers: activityPubRequestHeaders({
+          url: person[field],
+          signingActor
+        })
       })
       if (fieldResponse.statusCode !== 200) {
         span.setAttributes({
@@ -75,7 +69,10 @@ export const getActorCollections = async ({
       try {
         const response = await request({
           url: pageUrl,
-          headers: createHeaders(signingActor, pageUrl)
+          headers: activityPubRequestHeaders({
+            url: pageUrl,
+            signingActor
+          })
         })
         if (response.statusCode !== 200) {
           span.setAttributes({
