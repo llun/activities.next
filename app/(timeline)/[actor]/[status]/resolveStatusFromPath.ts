@@ -25,17 +25,27 @@ const decodeParam = (param: string) => {
   }
 }
 
-const getStatusOwnerActorId = (status: Status) =>
-  status.type === StatusType.enum.Announce
-    ? status.originalStatus.actorId
-    : status.actorId
+const getStatusForPathActor = (status: Status, actorId: string) => {
+  if (status.actorId === actorId) return status
 
+  if (
+    status.type === StatusType.enum.Announce &&
+    status.originalStatus.actorId === actorId
+  ) {
+    return status.originalStatus
+  }
+
+  return null
+}
+
+// Returns null only when the actor route cannot be parsed. Lookup misses are
+// returned as { status: null } so callers can still queue remote fetches.
 export const resolveStatusFromPath = async ({
   database,
   actorParam,
   statusParam
 }: ResolveStatusFromPathParams): Promise<ResolveStatusFromPathResult | null> => {
-  const decodedActor = decodeURIComponent(actorParam)
+  const decodedActor = decodeParam(actorParam)
   const decodedStatusParam = decodeParam(statusParam)
 
   const parts = decodedActor.split('@').slice(1)
@@ -53,12 +63,13 @@ export const resolveStatusFromPath = async ({
 
   const protocol = domain.startsWith('localhost') ? 'http' : 'https'
   const isFullStatusUrl = /^https?:\/\//.test(decodedStatusParam)
-  const fullStatusId = isFullStatusUrl
-    ? decodedStatusParam
-    : `${protocol}://${domain}/users/${username}/statuses/${decodedStatusParam}`
+  const fullStatusId = isStatusHash
+    ? ''
+    : isFullStatusUrl
+      ? decodedStatusParam
+      : `${protocol}://${domain}/users/${username}/statuses/${decodedStatusParam}`
 
   let status: Status | null = null
-  let statusId = ''
 
   if (isStatusHash) {
     status = await database.getStatusFromUrlHash({
@@ -71,36 +82,29 @@ export const resolveStatusFromPath = async ({
         urlHash: decodedStatusParam
       })
 
-      if (
-        unscopedStatus &&
-        getStatusOwnerActorId(unscopedStatus) === actorIdFromPath
-      ) {
-        status = unscopedStatus
+      if (unscopedStatus) {
+        status = getStatusForPathActor(unscopedStatus, actorIdFromPath)
       }
     }
-
-    statusId = status?.id ?? ''
   }
 
-  if (!status) {
+  if (!status && !isStatusHash) {
     status = await database.getStatus({
       statusId: fullStatusId,
       withReplies: false
     })
-    statusId = status?.id ?? ''
   }
 
-  if (!status && !isFullStatusUrl) {
+  if (!status && !isStatusHash && !isFullStatusUrl) {
     status = await database.getStatus({
       statusId: decodedStatusParam,
       withReplies: false
     })
-    statusId = status?.id ?? ''
   }
 
   return {
     status,
-    statusId,
+    statusId: status?.id ?? '',
     fullStatusId,
     isStatusHash
   }
