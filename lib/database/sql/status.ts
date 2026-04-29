@@ -52,7 +52,10 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -649,8 +652,13 @@ export const StatusSQLDatabaseMixin = (
     return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
   }
 
-  async function getStatusReplies({ statusId, url }: GetStatusRepliesParams) {
-    const statuses = await database('statuses')
+  async function getStatusReplies({
+    statusId,
+    url,
+    limit,
+    publicOnly = false
+  }: GetStatusRepliesParams) {
+    let query = database('statuses')
       .where((builder) => {
         builder.where('reply', statusId)
         if (url) {
@@ -658,6 +666,24 @@ export const StatusSQLDatabaseMixin = (
         }
       })
       .orderBy('createdAt', 'desc')
+
+    if (publicOnly) {
+      query = query.whereIn(
+        'statuses.id',
+        database('recipients')
+          .select('statusId')
+          .whereIn('recipients.actorId', [
+            ACTIVITY_STREAM_PUBLIC,
+            ACTIVITY_STREAM_PUBLIC_COMPACT
+          ])
+      )
+    }
+
+    if (limit) {
+      query = query.limit(limit)
+    }
+
+    const statuses = await query
     const statusesWithAttachments = (
       await Promise.all(
         statuses.map((item) => getStatusWithAttachmentsFromData(item))
@@ -708,12 +734,43 @@ export const StatusSQLDatabaseMixin = (
     actorId,
     minStatusId,
     maxStatusId,
-    limit = PER_PAGE_LIMIT
+    limit = PER_PAGE_LIMIT,
+    publicOnly = false,
+    visibleToActorId,
+    includeFollowersOnly = false,
+    followersAudience
   }: GetActorStatusesParams) {
     let query = database('statuses')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(limit)
+
+    const recipientActorIds =
+      publicOnly || visibleToActorId || includeFollowersOnly
+        ? [ACTIVITY_STREAM_PUBLIC, ACTIVITY_STREAM_PUBLIC_COMPACT]
+        : null
+
+    if (recipientActorIds) {
+      if (!publicOnly) {
+        if (includeFollowersOnly) {
+          recipientActorIds.push(
+            ...[followersAudience, `${actorId}/followers`].filter(
+              (audience): audience is string => Boolean(audience)
+            )
+          )
+        }
+        if (visibleToActorId) {
+          recipientActorIds.push(visibleToActorId)
+        }
+      }
+
+      query = query.whereIn(
+        'statuses.id',
+        database('recipients')
+          .select('statusId')
+          .whereIn('recipients.actorId', [...new Set(recipientActorIds)])
+      )
+    }
 
     if (minStatusId) {
       const minStatus = await database('statuses')

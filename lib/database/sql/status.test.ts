@@ -324,6 +324,29 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('getActorStatuses followers audience fallback', () => {
+      it('includes fallback actor followers audience for followers-only reads', async () => {
+        const statusId = `${primaryActorId}/statuses/fallback-followers-${Date.now()}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [`${primaryActorId}/followers`],
+          cc: [],
+          text: 'Fallback followers audience'
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: primaryActorId,
+          includeFollowersOnly: true,
+          followersAudience: `${primaryActorId}/followers-updated`,
+          limit: 50
+        })
+
+        expect(statuses.map((status) => status.id)).toContain(statusId)
+      })
+    })
+
     describe('getStatusReplies', () => {
       it('returns replies for specific status', async () => {
         const replies = await database.getStatusReplies({

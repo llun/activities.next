@@ -3,7 +3,13 @@ import {
   OnlyLocalUserGuardHandle
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { AppRouterParams } from '@/lib/services/guards/types'
-import { toActivityPubObject } from '@/lib/types/domain/status'
+import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
+import {
+  StatusNote,
+  StatusPoll,
+  StatusType,
+  toActivityPubObject
+} from '@/lib/types/domain/status'
 import {
   activityPubRedirectResponse,
   activityPubResponse,
@@ -17,16 +23,41 @@ type StatusParams = OnlyLocalUserGuardHandle & {
   statusId: string
 }
 
+const ACTIVITYPUB_REPLIES_LIMIT = 100
+
 export const GET = traceApiRoute(
   'getActorStatus',
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusParams>).params
     const id = `${actor.id}/statuses/${statusId}`
-    const status = await database.getStatus({ statusId: id, withReplies: true })
+    const status = await database.getStatus({
+      statusId: id,
+      withReplies: false
+    })
     if (!status) return apiErrorResponse(404)
+    if (!isStatusPubliclyReadable(status)) return apiErrorResponse(404)
 
-    const note = toActivityPubObject(status)
-    if (!note) return apiErrorResponse(404)
+    const statusWithPublicReplies =
+      status.type === StatusType.enum.Announce
+        ? status
+        : {
+            ...status,
+            replies: (
+              await database.getStatusReplies({
+                statusId: status.id,
+                url: status.url,
+                publicOnly: true,
+                limit: ACTIVITYPUB_REPLIES_LIMIT
+              })
+            ).filter(
+              (reply): reply is StatusNote | StatusPoll =>
+                reply.type !== StatusType.enum.Announce &&
+                isStatusPubliclyReadable(reply)
+            )
+          }
+
+    const activityPubObject = toActivityPubObject(statusWithPublicReplies)
+    if (!activityPubObject) return apiErrorResponse(404)
 
     const contentType = negotiateActivityPubContentType(
       req.headers.get('accept')
@@ -34,7 +65,7 @@ export const GET = traceApiRoute(
     if (contentType) {
       return activityPubResponse({
         req,
-        data: { '@context': ACTIVITY_STREAM_URL, ...note },
+        data: { '@context': ACTIVITY_STREAM_URL, ...activityPubObject },
         contentType
       })
     }

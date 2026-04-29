@@ -1,10 +1,13 @@
 import { z } from 'zod'
 
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { type Status, StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -16,6 +19,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+const MAX_STATUS_SCAN_BATCHES = 10
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -49,7 +53,7 @@ const StatusQueryParams = z.object({
 
 export const GET = traceApiRoute(
   'getAccountStatuses',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
     if (!encodedAccountId) {
@@ -62,7 +66,7 @@ export const GET = traceApiRoute(
     }
     const id = idToUrl(encodedAccountId)
 
-    const actor = await database.getMastodonActorFromId({ id })
+    const actor = await database.getActorFromId({ id })
     if (!actor) {
       return apiResponse({
         req,
@@ -74,7 +78,16 @@ export const GET = traceApiRoute(
 
     const url = new URL(req.url)
     const queryParams = Object.fromEntries(url.searchParams.entries())
-    const parsedParams = StatusQueryParams.parse(queryParams)
+    const parsed = StatusQueryParams.safeParse(queryParams)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+    const parsedParams = parsed.data
 
     const {
       limit = 20,
@@ -83,18 +96,108 @@ export const GET = traceApiRoute(
       since_id: sinceId
     } = parsedParams
 
-    const statuses = await database.getActorStatuses({
-      actorId: id,
-      maxStatusId: maxId,
-      minStatusId: minId || sinceId,
-      limit
-    })
+    const follow =
+      currentActor && currentActor.id !== id
+        ? await database.getAcceptedOrRequestedFollow({
+            actorId: currentActor.id,
+            targetActorId: id
+          })
+        : null
+    const isFollower =
+      currentActor && currentActor.id !== id
+        ? follow?.status === FollowStatus.enum.Accepted
+        : false
+    const isOwner = currentActor?.id === id
+    const followerStateByActorId = currentActor
+      ? new Map<string, boolean>()
+      : undefined
+    if (currentActor && !isOwner) {
+      followerStateByActorId?.set(id, isFollower)
+    }
+
+    const readableStatuses: Status[] = []
+    let nextMaxId = maxId
+    let scannedBatches = 0
+
+    while (
+      readableStatuses.length < limit &&
+      scannedBatches < MAX_STATUS_SCAN_BATCHES
+    ) {
+      scannedBatches += 1
+
+      const statuses = await database.getActorStatuses({
+        actorId: id,
+        maxStatusId: nextMaxId,
+        minStatusId: minId || sinceId,
+        limit,
+        publicOnly: currentActor === null,
+        visibleToActorId: currentActor && !isOwner ? currentActor.id : null,
+        includeFollowersOnly: isFollower,
+        followersAudience: actor.followersUrl
+      })
+
+      if (statuses.length === 0) break
+
+      const originalAuthorIds: string[] = []
+      if (currentActor) {
+        const seen = new Set<string>()
+        for (const status of statuses) {
+          if (status.type !== StatusType.enum.Announce) continue
+
+          const { actorId } = status.originalStatus
+          if (
+            actorId !== currentActor.id &&
+            !followerStateByActorId?.has(actorId) &&
+            !seen.has(actorId)
+          ) {
+            seen.add(actorId)
+            originalAuthorIds.push(actorId)
+          }
+        }
+      }
+
+      await Promise.all(
+        originalAuthorIds.map(async (targetActorId) => {
+          if (!currentActor) return
+          const originalFollow = await database.getAcceptedOrRequestedFollow({
+            actorId: currentActor.id,
+            targetActorId
+          })
+          const originalIsFollower =
+            originalFollow?.status === FollowStatus.enum.Accepted
+          followerStateByActorId?.set(targetActorId, originalIsFollower)
+        })
+      )
+
+      const readableBatch = (
+        await Promise.all(
+          statuses.map(async (status) =>
+            (await canActorReadStatus({
+              database,
+              status,
+              currentActor,
+              isFollower,
+              followerStateByActorId
+            }))
+              ? status
+              : null
+          )
+        )
+      ).filter((status): status is Status => status !== null)
+
+      readableStatuses.push(...readableBatch)
+
+      if (statuses.length < limit) break
+      nextMaxId = statuses[statuses.length - 1].id
+    }
 
     const mastodonStatuses = (
       await Promise.all(
-        statuses.map((status) =>
-          getMastodonStatus(database, status, currentActor.id)
-        )
+        readableStatuses
+          .slice(0, limit)
+          .map((status) =>
+            getMastodonStatus(database, status, currentActor?.id)
+          )
       )
     ).filter((status): status is Mastodon.Status => status !== null)
 
