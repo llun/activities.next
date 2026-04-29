@@ -7,11 +7,12 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
-import { PUT } from './route'
+import { GET, PUT } from './route'
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -77,6 +78,163 @@ describe('GET /api/v1/statuses/[id]', () => {
   })
 
   describe('status retrieval and format', () => {
+    it('allows anonymous reads for public statuses', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/post-1`
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data).toMatchObject({
+        id: urlToId(statusId),
+        uri: statusId,
+        visibility: 'public'
+      })
+    })
+
+    it('returns not found for anonymous reads of followers-only statuses', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-private-anonymous-read`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Private anonymous read target',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(404)
+    })
+
+    it('allows the status owner to read followers-only statuses', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-private-owner-read`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Private owner read target',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.visibility).toBe('private')
+    })
+
+    it('allows accepted followers to read followers-only statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      await database.createFollow({
+        actorId: ACTOR2_ID,
+        targetActorId: ACTOR1_ID,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: `https://${TEST_DOMAIN}/inbox`,
+        status: FollowStatus.enum.Accepted
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-private-follower-read`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Private follower read target',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.visibility).toBe('private')
+    })
+
+    it('returns not found for authenticated non-recipients of direct statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-direct-non-recipient-read`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Direct non-recipient read target',
+        to: ['https://llun.test/users/third-user'],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(404)
+    })
+
+    it('allows direct recipients to read direct statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-direct-recipient-read`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Direct recipient read target',
+        to: [ACTOR2_ID],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.visibility).toBe('direct')
+    })
+
     it('returns status with correct Mastodon format', async () => {
       const statusId = `${ACTOR1_ID}/statuses/post-1`
       const status = (await database.getStatus({ statusId })) as Status

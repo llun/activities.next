@@ -15,6 +15,16 @@ export type AuthenticatedApiHandle<P> = (
   }
 ) => Promise<Response> | Response
 
+export type OptionalAuthenticatedApiHandle<P> = (
+  request: NextRequest,
+  context: {
+    database: Database
+    currentActor: Actor | null
+    params: Promise<P>
+    grantedScopes?: string[]
+  }
+) => Promise<Response> | Response
+
 export type ActivityPubVerifiedSenderHandle<P> = (
   request: NextRequest,
   context: { database: Database; params: Promise<P> }

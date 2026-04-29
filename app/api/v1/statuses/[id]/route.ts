@@ -3,8 +3,12 @@ import { z } from 'zod'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuard,
+  OptionalOAuthGuard
+} from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -35,7 +39,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute(
   'getStatus',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId)
@@ -47,8 +51,24 @@ export const GET = traceApiRoute(
       })
     const statusId = idToUrl(encodedStatusId)
 
-    const status = await database.getStatus({ statusId })
+    const status = await database.getStatus({
+      statusId,
+      currentActorId: currentActor?.id
+    })
     if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
+
+    const hasAccess = await canActorReadStatus({
+      database,
+      status,
+      currentActor
+    })
+    if (!hasAccess)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -59,7 +79,7 @@ export const GET = traceApiRoute(
     const mastodonStatus = await getMastodonStatus(
       database,
       status,
-      currentActor.id
+      currentActor?.id
     )
     if (!mastodonStatus)
       return apiResponse({
