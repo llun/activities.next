@@ -20,6 +20,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { StatusBox } from './StatusBox'
+import { resolveStatusFromPath } from './resolveStatusFromPath'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -48,60 +49,14 @@ const Page: FC<Props> = async ({ params }) => {
 
   const { actor, status: statusParam } = await params
   const currentTime = Date.now()
-  const decodedActor = decodeURIComponent(actor)
-  const decodedStatusParam = (() => {
-    try {
-      return decodeURIComponent(statusParam)
-    } catch {
-      return statusParam
-    }
-  })()
-
-  const parts = decodedActor.split('@').slice(1)
-  if (parts.length !== 2) {
-    return notFound()
-  }
-
-  const actorFromPath = await database.getActorFromUsername({
-    username: parts[0],
-    domain: parts[1]
+  const resolvedStatus = await resolveStatusFromPath({
+    database,
+    actorParam: actor,
+    statusParam
   })
-  const actorIdFromPath = actorFromPath?.id
-  const isStatusHash = /^[a-f0-9]{64}$/i.test(decodedStatusParam)
+  if (!resolvedStatus) return notFound()
 
-  const protocol = parts[1].startsWith('localhost') ? 'http' : 'https'
-  const isFullStatusUrl = /^https?:\/\//.test(decodedStatusParam)
-  const fullStatusId = isFullStatusUrl
-    ? decodedStatusParam
-    : `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${decodedStatusParam}`
-
-  let status: Status | null = null
-  let statusId = ''
-
-  if (isStatusHash) {
-    status = await database.getStatusFromUrlHash({
-      urlHash: decodedStatusParam,
-      actorId: actorIdFromPath
-    })
-    statusId = status?.id ?? ''
-  }
-
-  // Try full URL format first (ActivityPub standard), then fallback to raw id (for legacy/mock data)
-  if (!status) {
-    status = await database.getStatus({
-      statusId: fullStatusId,
-      withReplies: false
-    })
-    statusId = fullStatusId
-  }
-
-  if (!status && !isFullStatusUrl) {
-    status = await database.getStatus({
-      statusId: decodedStatusParam,
-      withReplies: false
-    })
-    statusId = decodedStatusParam
-  }
+  const { fullStatusId, isStatusHash, status, statusId } = resolvedStatus
 
   // Try to fetch remote status if not found and user is logged in
   if (!status && session && !isStatusHash) {
