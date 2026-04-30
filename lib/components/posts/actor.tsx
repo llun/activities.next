@@ -15,6 +15,12 @@ interface Props {
   statusUrl?: string | null
 }
 
+type ActorIdParts = {
+  handle: string
+  domain: string
+  href?: string
+}
+
 const getInitials = (value: string) =>
   value
     .replace(/^@/, '')
@@ -30,6 +36,43 @@ const getDisplayUsername = (username: string) =>
 const getActorMention = (actor: ActorProfile) =>
   `@${getDisplayUsername(actor.username)}@${actor.domain}`
 
+const getProfileHandleFromParts = (parts: string[]) => {
+  const profileIndex = parts.indexOf('profile')
+  const profileHandle = parts[profileIndex + 1]
+  if (
+    profileIndex >= 0 &&
+    profileHandle &&
+    !isOpaqueActorUsernameValue(profileHandle)
+  ) {
+    return `@${getDisplayUsername(profileHandle)}`
+  }
+  return null
+}
+
+const getBlueskyProfileHandle = (url: URL) => {
+  if (url.hostname === 'bsky.app') {
+    return getProfileHandleFromParts(
+      url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    )
+  }
+
+  if (url.hostname !== 'bsky.brid.gy' || !url.pathname.startsWith('/r/')) {
+    return null
+  }
+
+  try {
+    const embeddedUrl = new URL(
+      decodeURIComponent(url.pathname.slice('/r/'.length))
+    )
+    if (embeddedUrl.hostname !== 'bsky.app') return null
+    return getProfileHandleFromParts(
+      embeddedUrl.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    )
+  } catch {
+    return null
+  }
+}
+
 const getStatusUrlHandle = (statusUrl?: string | null) => {
   if (!statusUrl) return null
   try {
@@ -42,22 +85,7 @@ const getStatusUrlHandle = (statusUrl?: string | null) => {
     const handle = parts.find((part) => part.startsWith('@') && part.length > 1)
     if (handle) return `@${getDisplayUsername(handle)}`
 
-    const profileIndex = parts.indexOf('profile')
-    const profileHandle = parts[profileIndex + 1]
-    const isBlueskyProfileUrl =
-      url.hostname === 'bsky.app' ||
-      url.hostname === 'bsky.brid.gy' ||
-      parts.includes('bsky.app')
-    if (
-      isBlueskyProfileUrl &&
-      profileIndex >= 0 &&
-      profileHandle &&
-      !isOpaqueActorUsernameValue(profileHandle)
-    ) {
-      return `@${getDisplayUsername(profileHandle)}`
-    }
-
-    return null
+    return getBlueskyProfileHandle(url)
   } catch {
     return null
   }
@@ -71,7 +99,10 @@ const getActorIdDomain = (actorId: string) => {
   }
 }
 
-const getActorIdParts = (actorId: string, statusUrl?: string | null) => {
+const getActorIdParts = (
+  actorId: string,
+  statusUrl?: string | null
+): ActorIdParts => {
   const statusHandle = getStatusUrlHandle(statusUrl)
   if (statusHandle) {
     const domain = getActorIdDomain(actorId)
@@ -87,8 +118,7 @@ const getActorIdParts = (actorId: string, statusUrl?: string | null) => {
     const domain = getActorIdDomain(actorId)
     return {
       handle: domain || `@${username}`,
-      domain: '',
-      href: actorId
+      domain: ''
     }
   }
 
@@ -122,12 +152,20 @@ export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
     ? getInitials(actor.name || getDisplayUsername(actor.username) || '')
     : getInitials(getActorIdHandle(actorId || '', statusUrl))
 
+  const avatar = (
+    <Avatar className="h-10 w-10">
+      <AvatarImage src={actor?.iconUrl} />
+      <AvatarFallback>{initials}</AvatarFallback>
+    </Avatar>
+  )
+
+  if (!href) {
+    return <div onClick={(e) => e.stopPropagation()}>{avatar}</div>
+  }
+
   return (
     <Link href={href} onClick={(e) => e.stopPropagation()}>
-      <Avatar className="h-10 w-10">
-        <AvatarImage src={actor?.iconUrl} />
-        <AvatarFallback>{initials}</AvatarFallback>
-      </Avatar>
+      {avatar}
     </Link>
   )
 }
@@ -142,9 +180,13 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
         className="flex items-center gap-1 min-w-0"
         onClick={(e) => e.stopPropagation()}
       >
-        <Link href={href} className="font-semibold hover:underline truncate">
-          {handle}
-        </Link>
+        {href ? (
+          <Link href={href} className="font-semibold hover:underline truncate">
+            {handle}
+          </Link>
+        ) : (
+          <span className="font-semibold truncate">{handle}</span>
+        )}
         <span className="text-muted-foreground truncate">{domain}</span>
       </div>
     )

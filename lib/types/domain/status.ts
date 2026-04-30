@@ -211,7 +211,7 @@ export const fromNote = (note: Note): StatusNote => {
   })
 }
 
-export const fromAnnoucne = (
+export const fromAnnounce = (
   announce: AnnounceStatus | ActivityPubAnnounce,
   originalStatus: StatusNote
 ): StatusAnnounce => {
@@ -240,6 +240,8 @@ export const fromAnnoucne = (
     updatedAt: currentTime
   })
 }
+
+export const fromAnnoucne = fromAnnounce
 
 export const toActivityPubObject = (status: Status): Note | Question => {
   if (status.type === StatusType.enum.Poll) {

@@ -8,7 +8,7 @@ import {
 } from '@/lib/types/activitypub/activities'
 import { Note } from '@/lib/types/activitypub/objects'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
-import { Status, fromAnnoucne, fromNote } from '@/lib/types/domain/status'
+import { Status, fromAnnounce, fromNote } from '@/lib/types/domain/status'
 import {
   normalizeActivityPubAnnounce,
   normalizeActivityPubContent
@@ -17,6 +17,7 @@ import {
   getActorProfileFromPerson,
   isOpaqueActorUsername
 } from '@/lib/utils/activitypubActor'
+import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
 import { getActorCollections } from './getActorCollections'
@@ -31,10 +32,14 @@ type GetActorPostsFunction = (params: {
   statuses: Status[]
 }>
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error)
+
 const getStatusFromNote = (note: Note) => {
   try {
     return fromNote(note)
-  } catch {
+  } catch (error) {
+    logger.error(`[getActorPosts] ${getErrorMessage(error)}`)
     return null
   }
 }
@@ -121,7 +126,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
             if (!originalStatus) return null
 
             originalStatus.actor = await getActorProfile(originalStatus.actorId)
-            const announceStatus = fromAnnoucne(announce, originalStatus)
+            const announceStatus = fromAnnounce(announce, originalStatus)
             if (actor) announceStatus.actor = actor
             return announceStatus
           }

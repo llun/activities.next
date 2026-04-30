@@ -1,6 +1,7 @@
 import {
   getActorIdUsername,
-  isOpaqueActorUsername
+  isOpaqueActorUsername,
+  isOpaqueActorUsernameValue
 } from '@/lib/utils/activitypubActor'
 
 describe('activitypubActor utils', () => {
@@ -27,6 +28,18 @@ describe('activitypubActor utils', () => {
     const actorId = 'https://bsky.brid.gy/ap/did:plc:alice'
 
     expect(isOpaqueActorUsername(actorId, 'did:plc:alice')).toBe(true)
+    expect(isOpaqueActorUsername(actorId, 'alice')).toBe(false)
     expect(isOpaqueActorUsername(actorId, 'alice.example')).toBe(false)
+  })
+
+  it('detects standalone opaque username values', () => {
+    expect(isOpaqueActorUsernameValue('did:plc:alice')).toBe(true)
+    expect(
+      isOpaqueActorUsernameValue('019382d3-63d7-7cf7-86e8-91e2551c306c')
+    ).toBe(true)
+    expect(
+      isOpaqueActorUsernameValue('aaaaaaaa-000000000000000000000000000')
+    ).toBe(false)
+    expect(isOpaqueActorUsernameValue('alice')).toBe(false)
   })
 })

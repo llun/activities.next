@@ -275,10 +275,10 @@ describe('Post', () => {
       />
     )
 
-    expect(screen.getByRole('link', { name: '@hackers.pub' })).toHaveAttribute(
-      'href',
-      actorId
-    )
+    expect(screen.getByText('@hackers.pub')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: '@hackers.pub' })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByText('@019382d3-63d7-7cf7-86e8-91e2551c306c')
     ).not.toBeInTheDocument()
@@ -309,6 +309,32 @@ describe('Post', () => {
     expect(screen.getByText('@bsky.brid.gy')).toBeInTheDocument()
     expect(
       screen.queryByText('@did:plc:2gkh62xvzokhlf6li4ol3b3d')
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not infer bsky profile handles from unrelated status url paths', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...boostedStatus,
+          originalStatus: {
+            ...boostedStatus.originalStatus,
+            actorId:
+              'https://hackers.pub/ap/actors/019382d3-63d7-7cf7-86e8-91e2551c306c',
+            actor: null,
+            url: 'https://example.com/posts/bsky.app/profile/notalice'
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByText('@hackers.pub')).toBeInTheDocument()
+    expect(screen.queryByText('@notalice')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: '@hackers.pub' })
     ).not.toBeInTheDocument()
   })
 })
