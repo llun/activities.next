@@ -202,6 +202,25 @@ describe('getProfileData', () => {
       })
     })
 
+    it('passes the requested remote status page cursor to the outbox loader', async () => {
+      await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        undefined,
+        {
+          statusPageUrl:
+            'https://remote.com/users/remoteuser/outbox?page=true&max_id=1'
+        }
+      )
+
+      expect(getActorPosts).toHaveBeenCalledWith({
+        database: mockDatabase,
+        person: mockPerson,
+        pageUrl: 'https://remote.com/users/remoteuser/outbox?page=true&max_id=1'
+      })
+    })
+
     it('should return hasFitnessData as false for remote actors', async () => {
       const result = await getProfileData(
         mockDatabase,

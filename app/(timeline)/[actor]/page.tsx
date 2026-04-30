@@ -18,7 +18,18 @@ import { getProfileData } from './getProfileData'
 
 interface Props {
   params: Promise<{ actor: string }>
+  searchParams: Promise<{
+    status_page?: string | string[]
+  }>
 }
+
+const getSearchParam = (value?: string | string[]) =>
+  Array.isArray(value) ? value[0] : value
+
+const getStatusPageHref = (profilePath: string, pageUrl: string | null) =>
+  pageUrl
+    ? `${profilePath}?status_page=${encodeURIComponent(pageUrl)}`
+    : profilePath
 
 export const generateMetadata = async ({
   params
@@ -29,7 +40,7 @@ export const generateMetadata = async ({
   }
 }
 
-const Page: FC<Props> = async ({ params }) => {
+const Page: FC<Props> = async ({ params, searchParams }) => {
   const { host } = getConfig()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
@@ -50,11 +61,16 @@ const Page: FC<Props> = async ({ params }) => {
     ? await database.getActorSettings({ actorId: currentActor.id })
     : undefined
 
+  const statusPageUrl = getSearchParam((await searchParams).status_page)
+
   const actorProfile = await getProfileData(
     database,
     decodedActorHandle,
     isLoggedIn,
-    currentActor ?? undefined
+    currentActor ?? undefined,
+    {
+      statusPageUrl
+    }
   )
   if (!actorProfile) {
     return notFound()
@@ -65,6 +81,7 @@ const Page: FC<Props> = async ({ params }) => {
     statuses,
     attachments,
     statusesCount,
+    statusPagination,
     followingCount,
     followersCount
   } = actorProfile
@@ -103,6 +120,9 @@ const Page: FC<Props> = async ({ params }) => {
   const headerImageUrl = headerImage?.url ?? null
   const headerImageMediaType = headerImage?.mediaType ?? null
   const iconImageUrl = getIconImage()
+  const profilePath = `/@${person.preferredUsername}@${actorDomain}`
+  const showStatusPagination =
+    Boolean(statusPageUrl) || Boolean(statusPagination.nextPageUrl)
 
   return (
     <div className="space-y-6">
@@ -168,6 +188,36 @@ const Page: FC<Props> = async ({ params }) => {
           attachments={attachments}
           postLineLimit={actorSettings?.postLineLimit}
         />
+        {showStatusPagination && (
+          <div className="flex items-center justify-between gap-3 border-t p-4">
+            <div>
+              {statusPageUrl && (
+                <Button variant="outline" asChild>
+                  <Link
+                    href={getStatusPageHref(
+                      profilePath,
+                      statusPagination.prevPageUrl
+                    )}
+                  >
+                    Newer posts
+                  </Link>
+                </Button>
+              )}
+            </div>
+            {statusPagination.nextPageUrl && (
+              <Button variant="outline" asChild>
+                <Link
+                  href={getStatusPageHref(
+                    profilePath,
+                    statusPagination.nextPageUrl
+                  )}
+                >
+                  Older posts
+                </Link>
+              </Button>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )

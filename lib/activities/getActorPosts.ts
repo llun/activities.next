@@ -8,7 +8,12 @@ import {
 } from '@/lib/types/activitypub/activities'
 import { Note } from '@/lib/types/activitypub/objects'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
-import { Status, fromAnnounce, fromNote } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  fromAnnounce,
+  fromNote
+} from '@/lib/types/domain/status'
 import {
   normalizeActivityPubAnnounce,
   normalizeActivityPubContent
@@ -27,9 +32,12 @@ type GetActorPostsFunction = (params: {
   database: Database
   person: Actor
   signingActor?: DomainActor
+  pageUrl?: string
 }) => Promise<{
   statusesCount: number
   statuses: Status[]
+  nextPageUrl: string | null
+  prevPageUrl: string | null
 }>
 
 const getErrorMessage = (error: unknown) =>
@@ -47,7 +55,8 @@ const getStatusFromNote = (note: Note) => {
 export const getActorPosts: GetActorPostsFunction = async ({
   database,
   person,
-  signingActor
+  signingActor,
+  pageUrl
 }) =>
   getTracer().startActiveSpan(
     'activities.getActorPosts',
@@ -89,11 +98,17 @@ export const getActorPosts: GetActorPostsFunction = async ({
       const value = await getActorCollections({
         person,
         field: 'outbox',
-        signingActor
+        signingActor,
+        pageUrl
       })
       if (!value) {
         span.end()
-        return { statusesCount: 0, statuses: [] }
+        return {
+          statusesCount: 0,
+          statuses: [],
+          nextPageUrl: null,
+          prevPageUrl: null
+        }
       }
 
       const items = value.page?.orderedItems ?? []
@@ -111,19 +126,27 @@ export const getActorPosts: GetActorPostsFunction = async ({
             const localStatus = await database.getStatus({
               statusId: announce.object
             })
-            if (localStatus) return localStatus
 
-            const note = await getNote({
-              statusId: announce.object,
-              signingActor
-            })
-            if (!note) return null
+            let originalStatus =
+              localStatus?.type !== StatusType.enum.Announce
+                ? localStatus
+                : null
 
-            const noteResult = Note.safeParse(normalizeActivityPubContent(note))
-            if (!noteResult.success) return null
+            if (!originalStatus) {
+              const note = await getNote({
+                statusId: announce.object,
+                signingActor
+              })
+              if (!note) return null
 
-            const originalStatus = getStatusFromNote(noteResult.data)
-            if (!originalStatus) return null
+              const noteResult = Note.safeParse(
+                normalizeActivityPubContent(note)
+              )
+              if (!noteResult.success) return null
+
+              originalStatus = getStatusFromNote(noteResult.data)
+              if (!originalStatus) return null
+            }
 
             originalStatus.actor = await getActorProfile(originalStatus.actorId)
             const announceStatus = fromAnnounce(announce, originalStatus)
@@ -151,7 +174,9 @@ export const getActorPosts: GetActorPostsFunction = async ({
 
       return {
         statusesCount: value.totalItems ?? 0,
-        statuses: statuses.filter((item) => item !== null)
+        statuses: statuses.filter((item) => item !== null),
+        nextPageUrl: value.page?.next ?? null,
+        prevPageUrl: value.page?.prev ?? null
       }
     }
   )
