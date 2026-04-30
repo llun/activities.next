@@ -7,6 +7,10 @@ export const getStatusDetailPathClient = async (status: Status) => {
   const actualStatus = getActualStatus(status)
   if (!actualStatus.actor) return null
 
+  if (actualStatus.isLocalActor === false) {
+    return `/${getMention(actualStatus.actor, true)}/${encodeURIComponent(actualStatus.id)}`
+  }
+
   const urlHash = await getHashFromStringClient(actualStatus.url)
   return `/${getMention(actualStatus.actor, true)}/${urlHash}`
 }

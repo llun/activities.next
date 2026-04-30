@@ -21,7 +21,7 @@ import {
 
 import { BrandedDeviceLink } from './BrandedDeviceLink'
 import { Actions } from './actions/actions'
-import { ActorAvatar, ActorInfo } from './actor'
+import { ActorAvatar, ActorInfo, getActorIdMention } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
@@ -49,10 +49,15 @@ interface BoostStatusProps {
 
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
+  const actorName =
+    status.actor?.name ||
+    status.actor?.username ||
+    getActorIdMention(status.actorId)
+
   return (
     <div className="flex items-center gap-2 mb-1 text-sm text-muted-foreground ml-12">
       <Repeat2 className="size-4" />
-      <span>Boosted by {status.actor?.name || status.actor?.username}</span>
+      <span>Boosted by {actorName}</span>
     </div>
   )
 }
@@ -214,6 +219,7 @@ export const Post: FC<PostProps> = (props) => {
           <ActorAvatar
             actor={actualStatus.actor}
             actorId={actualStatus.actorId}
+            statusUrl={actualStatus.url}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -221,6 +227,7 @@ export const Post: FC<PostProps> = (props) => {
             <ActorInfo
               actor={actualStatus.actor}
               actorId={actualStatus.actorId}
+              statusUrl={actualStatus.url}
             />
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground text-xs whitespace-nowrap">
