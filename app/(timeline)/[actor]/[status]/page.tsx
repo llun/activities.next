@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -56,7 +57,16 @@ const Page: FC<Props> = async ({ params }) => {
   })
   if (!resolvedStatus) return notFound()
 
-  const { fullStatusId, isStatusHash, status, statusId } = resolvedStatus
+  const { fullStatusId, isStatusHash } = resolvedStatus
+  let { status, statusId } = resolvedStatus
+
+  if (!status && !isStatusHash && fullStatusId) {
+    status = await getRemoteStatus({
+      statusId: fullStatusId,
+      signingActor: currentActor ?? undefined
+    })
+    statusId = status?.id ?? ''
+  }
 
   // Try to fetch remote status if not found and user is logged in
   if (!status && session && !isStatusHash) {
