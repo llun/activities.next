@@ -3,6 +3,7 @@ import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/domain/actor'
+import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { logger } from '@/lib/utils/logger'
 
 interface RecordActorIfNeededParams {
@@ -62,6 +63,7 @@ export const recordActorIfNeeded = async ({
       signingActor: await getResolvedSigningActor()
     })
     if (!person) return
+    const iconUrl = getActorImageUrl(person.icon)
     const actor = await database.createActor({
       actorId,
       username: person.preferredUsername,
@@ -69,7 +71,7 @@ export const recordActorIfNeeded = async ({
       followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-      ...(person.icon ? { iconUrl: person.icon.url } : {}),
+      ...(iconUrl ? { iconUrl } : {}),
       publicKey: person.publicKey.publicKeyPem || '',
       createdAt: new Date(person.published ?? Date.now()).getTime()
     })
@@ -84,12 +86,13 @@ export const recordActorIfNeeded = async ({
       signingActor: await getResolvedSigningActor()
     })
     if (!person) return undefined
+    const iconUrl = getActorImageUrl(person.icon)
     const actor = await database.updateActor({
       actorId,
       followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-      ...(person.icon ? { iconUrl: person.icon.url } : {}),
+      ...(iconUrl ? { iconUrl } : {}),
       publicKey: person.publicKey.publicKeyPem || ''
     })
     return actor ?? undefined

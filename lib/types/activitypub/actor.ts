@@ -3,6 +3,12 @@ import { z } from 'zod'
 
 import { Emoji, HashTag, Image, PropertyValue } from './objects'
 
+const ActorImage = z.union([Image, Image.array()])
+const ActorCollectionReference = z.union([z.string().url(), z.looseObject({})])
+const ActorUrl = z.union([z.string(), z.looseObject({})])
+const ActorTag = z.union([Emoji, HashTag, z.looseObject({})])
+const ActorAttachment = z.union([PropertyValue, z.looseObject({})])
+
 // APActor - ActivityPub Actor (Person, Service, etc.)
 // Prefixed with "AP" to distinguish from domain Actor type
 export const APActor = z.object({
@@ -18,12 +24,12 @@ export const APActor = z.object({
   followers: z.string().url().optional(),
   inbox: z.string().url(),
   outbox: z.string().url(),
-  featured: z.string().url().optional(),
-  featuredTags: z.string().url().optional(),
+  featured: ActorCollectionReference.optional(),
+  featuredTags: ActorCollectionReference.optional(),
   preferredUsername: z.string(),
   name: z.string().optional(),
   summary: z.string().nullish(),
-  url: z.string().optional(),
+  url: z.union([ActorUrl, ActorUrl.array()]).optional(),
   published: z.string().nullish(),
   manuallyApprovesFollowers: z.boolean().optional(),
   discoverable: z.boolean().optional(),
@@ -43,10 +49,10 @@ export const APActor = z.object({
       sharedInbox: z.string().url().optional()
     })
     .optional(),
-  icon: Image.nullish(),
-  image: Image.nullish(),
-  attachment: z.array(PropertyValue).optional(),
-  tag: z.array(z.union([HashTag, Emoji])).optional(),
+  icon: ActorImage.nullish(),
+  image: ActorImage.nullish(),
+  attachment: z.union([ActorAttachment, ActorAttachment.array()]).optional(),
+  tag: z.union([ActorTag, ActorTag.array()]).optional(),
   generator: z
     .object({
       id: z.string().optional(),

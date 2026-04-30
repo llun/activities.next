@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -20,6 +21,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { StatusBox } from './StatusBox'
+import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -30,7 +32,7 @@ export const generateMetadata = async ({
 }: Props): Promise<Metadata> => {
   const { actor } = await params
   return {
-    title: `Activities.next: ${decodeURIComponent(actor)} status`
+    title: `Activities.next: ${decodePathParam(actor)} status`
   }
 }
 
@@ -48,59 +50,22 @@ const Page: FC<Props> = async ({ params }) => {
 
   const { actor, status: statusParam } = await params
   const currentTime = Date.now()
-  const decodedActor = decodeURIComponent(actor)
-  const decodedStatusParam = (() => {
-    try {
-      return decodeURIComponent(statusParam)
-    } catch {
-      return statusParam
-    }
-  })()
-
-  const parts = decodedActor.split('@').slice(1)
-  if (parts.length !== 2) {
-    return notFound()
-  }
-
-  const actorFromPath = await database.getActorFromUsername({
-    username: parts[0],
-    domain: parts[1]
+  const resolvedStatus = await resolveStatusFromPath({
+    database,
+    actorParam: actor,
+    statusParam
   })
-  const actorIdFromPath = actorFromPath?.id
-  const isStatusHash = /^[a-f0-9]{64}$/i.test(decodedStatusParam)
+  if (!resolvedStatus) return notFound()
 
-  const protocol = parts[1].startsWith('localhost') ? 'http' : 'https'
-  const isFullStatusUrl = /^https?:\/\//.test(decodedStatusParam)
-  const fullStatusId = isFullStatusUrl
-    ? decodedStatusParam
-    : `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${decodedStatusParam}`
+  const { fullStatusId, isStatusHash } = resolvedStatus
+  let { status, statusId } = resolvedStatus
 
-  let status: Status | null = null
-  let statusId = ''
-
-  if (isStatusHash) {
-    status = await database.getStatusFromUrlHash({
-      urlHash: decodedStatusParam,
-      actorId: actorIdFromPath
+  if (!status && !isStatusHash && fullStatusId) {
+    status = await getRemoteStatus({
+      statusId: fullStatusId,
+      signingActor: currentActor ?? undefined
     })
     statusId = status?.id ?? ''
-  }
-
-  // Try full URL format first (ActivityPub standard), then fallback to raw id (for legacy/mock data)
-  if (!status) {
-    status = await database.getStatus({
-      statusId: fullStatusId,
-      withReplies: false
-    })
-    statusId = fullStatusId
-  }
-
-  if (!status && !isFullStatusUrl) {
-    status = await database.getStatus({
-      statusId: decodedStatusParam,
-      withReplies: false
-    })
-    statusId = decodedStatusParam
   }
 
   // Try to fetch remote status if not found and user is logged in

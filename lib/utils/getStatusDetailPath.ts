@@ -7,5 +7,9 @@ export const getStatusDetailPath = (status: Status) => {
   const actualStatus = getActualStatus(status)
   if (!actualStatus.actor) return null
 
+  if (actualStatus.isLocalActor === false) {
+    return `/${getMention(actualStatus.actor, true)}/${encodeURIComponent(actualStatus.id)}`
+  }
+
   return `/${getMention(actualStatus.actor, true)}/${getHashFromString(actualStatus.url)}`
 }

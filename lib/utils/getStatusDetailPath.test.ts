@@ -19,8 +19,9 @@ describe('#getStatusDetailPath', () => {
     )
   })
 
-  it('returns a hash-based path for announce status using original status', () => {
+  it('returns an id-based path for remote announce status using original status', () => {
     const url = 'https://remote.example/users/bob/statuses/456'
+    const id = 'https://remote.example/ap/statuses/456'
     const status = {
       type: StatusType.enum.Announce,
       originalStatus: {
@@ -28,12 +29,14 @@ describe('#getStatusDetailPath', () => {
           username: 'bob',
           domain: 'remote.example'
         },
+        id,
+        isLocalActor: false,
         url
       }
     } as Status
 
     expect(getStatusDetailPath(status)).toBe(
-      `/@bob@remote.example/${getHashFromString(url)}`
+      `/@bob@remote.example/${encodeURIComponent(id)}`
     )
   })
 
