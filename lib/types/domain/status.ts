@@ -241,8 +241,6 @@ export const fromAnnounce = (
   })
 }
 
-export const fromAnnoucne = fromAnnounce
-
 export const toActivityPubObject = (status: Status): Note | Question => {
   if (status.type === StatusType.enum.Poll) {
     return Question.parse({

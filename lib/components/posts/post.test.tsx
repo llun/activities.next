@@ -312,6 +312,31 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('ignores malformed bridgy embedded status urls', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...boostedStatus,
+          originalStatus: {
+            ...boostedStatus.originalStatus,
+            actorId: 'https://bsky.brid.gy/ap/did:plc:2gkh62xvzokhlf6li4ol3b3d',
+            actor: null,
+            url: 'https://bsky.brid.gy/r/%E0%A4%A'
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByText('@bsky.brid.gy')).toBeInTheDocument()
+    expect(screen.queryByText('@patak.cat')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: '@bsky.brid.gy' })
+    ).not.toBeInTheDocument()
+  })
+
   it('does not infer bsky profile handles from unrelated status url paths', () => {
     render(
       <Post

@@ -1,5 +1,6 @@
 import {
   getActorIdUsername,
+  getActorProfileFromPerson,
   isOpaqueActorUsername,
   isOpaqueActorUsernameValue
 } from '@/lib/utils/activitypubActor'
@@ -41,5 +42,24 @@ describe('activitypubActor utils', () => {
       isOpaqueActorUsernameValue('aaaaaaaa-000000000000000000000000000')
     ).toBe(false)
     expect(isOpaqueActorUsernameValue('alice')).toBe(false)
+  })
+
+  it('falls back to epoch time for invalid actor published dates', () => {
+    expect(
+      getActorProfileFromPerson({
+        id: 'https://example.com/users/alice',
+        type: 'Person',
+        preferredUsername: 'alice',
+        name: 'Alice',
+        inbox: 'https://example.com/users/alice/inbox',
+        outbox: 'https://example.com/users/alice/outbox',
+        published: 'not-a-date',
+        publicKey: {
+          id: 'https://example.com/users/alice#main-key',
+          owner: 'https://example.com/users/alice',
+          publicKeyPem: 'public-key'
+        }
+      }).createdAt
+    ).toBe(0)
   })
 })

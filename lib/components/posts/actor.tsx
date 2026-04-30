@@ -49,38 +49,53 @@ const getProfileHandleFromParts = (parts: string[]) => {
   return null
 }
 
+const getDecodedPathParts = (pathname: string) => {
+  try {
+    return pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    return null
+  }
+}
+
+const decodePathParam = (value: string) => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return null
+  }
+}
+
 const getBlueskyProfileHandle = (url: URL) => {
   if (url.hostname === 'bsky.app') {
-    return getProfileHandleFromParts(
-      url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
-    )
+    const parts = getDecodedPathParts(url.pathname)
+    return parts ? getProfileHandleFromParts(parts) : null
   }
 
   if (url.hostname !== 'bsky.brid.gy' || !url.pathname.startsWith('/r/')) {
     return null
   }
 
+  const embeddedUrlString = decodePathParam(url.pathname.slice('/r/'.length))
+  if (!embeddedUrlString) return null
+
+  let embeddedUrl: URL
   try {
-    const embeddedUrl = new URL(
-      decodeURIComponent(url.pathname.slice('/r/'.length))
-    )
-    if (embeddedUrl.hostname !== 'bsky.app') return null
-    return getProfileHandleFromParts(
-      embeddedUrl.pathname.split('/').filter(Boolean).map(decodeURIComponent)
-    )
+    embeddedUrl = new URL(embeddedUrlString)
   } catch {
     return null
   }
+  if (embeddedUrl.hostname !== 'bsky.app') return null
+
+  const parts = getDecodedPathParts(embeddedUrl.pathname)
+  return parts ? getProfileHandleFromParts(parts) : null
 }
 
 const getStatusUrlHandle = (statusUrl?: string | null) => {
   if (!statusUrl) return null
   try {
     const url = new URL(statusUrl)
-    const parts = url.pathname
-      .split('/')
-      .filter(Boolean)
-      .map(decodeURIComponent)
+    const parts = getDecodedPathParts(url.pathname)
+    if (!parts) return null
 
     const handle = parts.find((part) => part.startsWith('@') && part.length > 1)
     if (handle) return `@${getDisplayUsername(handle)}`

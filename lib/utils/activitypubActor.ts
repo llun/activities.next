@@ -31,6 +31,12 @@ export const getActorImageUrl = (image: ActivityPubActor['icon']) => {
   return image.url
 }
 
+const getActorCreatedAt = (published: string | null | undefined) => {
+  if (!published) return 0
+  const createdAt = Date.parse(published)
+  return Number.isFinite(createdAt) ? createdAt : 0
+}
+
 export const getActorProfileFromPerson = (
   person: ActivityPubActor
 ): ActorProfile =>
@@ -50,5 +56,5 @@ export const getActorProfileFromPerson = (
     followersCount: 0,
     statusCount: 0,
     lastStatusAt: null,
-    createdAt: person.published ? new Date(person.published).getTime() : 0
+    createdAt: getActorCreatedAt(person.published)
   })
