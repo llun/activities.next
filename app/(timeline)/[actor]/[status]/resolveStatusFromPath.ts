@@ -17,7 +17,7 @@ interface ResolveStatusFromPathResult {
   isStatusHash: boolean
 }
 
-const decodeParam = (param: string) => {
+export const decodePathParam = (param: string) => {
   try {
     return decodeURIComponent(param)
   } catch {
@@ -45,8 +45,8 @@ export const resolveStatusFromPath = async ({
   actorParam,
   statusParam
 }: ResolveStatusFromPathParams): Promise<ResolveStatusFromPathResult | null> => {
-  const decodedActor = decodeParam(actorParam)
-  const decodedStatusParam = decodeParam(statusParam)
+  const decodedActor = decodePathParam(actorParam)
+  const decodedStatusParam = decodePathParam(statusParam)
 
   const parts = decodedActor.split('@').slice(1)
   if (parts.length !== 2) {

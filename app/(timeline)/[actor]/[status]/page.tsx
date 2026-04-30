@@ -20,7 +20,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { StatusBox } from './StatusBox'
-import { resolveStatusFromPath } from './resolveStatusFromPath'
+import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -31,7 +31,7 @@ export const generateMetadata = async ({
 }: Props): Promise<Metadata> => {
   const { actor } = await params
   return {
-    title: `Activities.next: ${decodeURIComponent(actor)} status`
+    title: `Activities.next: ${decodePathParam(actor)} status`
   }
 }
 
