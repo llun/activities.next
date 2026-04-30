@@ -4,9 +4,7 @@ import { FC } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   ActorProfile,
-  getMention,
-  getMentionDomainFromActorID,
-  getMentionFromActorID
+  getMentionDomainFromActorID
 } from '@/lib/types/domain/actor'
 
 interface Props {
@@ -23,15 +21,35 @@ const getInitials = (value: string) =>
     .toUpperCase()
     .slice(0, 2)
 
+const getDisplayUsername = (username: string) =>
+  username.replace(/^@+/, '').split('@')[0]
+
+const getActorMention = (actor: ActorProfile) =>
+  `@${getDisplayUsername(actor.username)}@${actor.domain}`
+
+const getActorIdHandle = (actorId: string) =>
+  `@${getDisplayUsername(actorId.split('/').filter(Boolean).pop() || actorId)}`
+
+const getActorIdDomain = (actorId: string) => {
+  try {
+    return getMentionDomainFromActorID(actorId)
+  } catch {
+    return ''
+  }
+}
+
+export const getActorIdMention = (actorId: string) =>
+  `${getActorIdHandle(actorId)}${getActorIdDomain(actorId)}`
+
 export const ActorAvatar: FC<Props> = ({ actor, actorId }) => {
   if (!actor && !actorId) return null
 
   const href = actor
-    ? `/${getMention(actor, true)}`
-    : `/${getMentionFromActorID(actorId || '', true)}`
+    ? `/${getActorMention(actor)}`
+    : `/${getActorIdMention(actorId || '')}`
   const initials = actor
-    ? getInitials(actor.name || actor.username || '')
-    : getInitials(getMentionFromActorID(actorId || '', false))
+    ? getInitials(actor.name || getDisplayUsername(actor.username) || '')
+    : getInitials(getActorIdHandle(actorId || ''))
 
   return (
     <Link href={href} onClick={(e) => e.stopPropagation()}>
@@ -47,9 +65,9 @@ export const ActorInfo: FC<Props> = ({ actor, actorId }) => {
   if (!actor && !actorId) return null
 
   if (!actor) {
-    const handle = getMentionFromActorID(actorId || '', false)
-    const domain = getMentionDomainFromActorID(actorId || '')
-    const href = `/${getMentionFromActorID(actorId || '', true)}`
+    const handle = getActorIdHandle(actorId || '')
+    const domain = getActorIdDomain(actorId || '')
+    const href = `/${getActorIdMention(actorId || '')}`
     return (
       <div
         className="flex items-center gap-1 min-w-0"
@@ -69,13 +87,13 @@ export const ActorInfo: FC<Props> = ({ actor, actorId }) => {
       onClick={(e) => e.stopPropagation()}
     >
       <Link
-        href={`/${getMention(actor, true)}`}
+        href={`/${getActorMention(actor)}`}
         className="font-semibold hover:underline truncate"
       >
-        {actor.name || actor.username}
+        {actor.name || getDisplayUsername(actor.username)}
       </Link>
       <span className="text-muted-foreground truncate">
-        {getMention(actor, true)}
+        {getActorMention(actor)}
       </span>
     </div>
   )

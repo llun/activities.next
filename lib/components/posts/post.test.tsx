@@ -154,7 +154,11 @@ describe('Post', () => {
       <Post
         host="activities.local"
         currentTime={currentTime}
-        status={{ ...boostedStatus, actor: null }}
+        status={{
+          ...boostedStatus,
+          actor: null,
+          actorId: 'https://remote.example/@booster'
+        }}
         onShowAttachment={jest.fn()}
       />
     )
@@ -162,5 +166,62 @@ describe('Post', () => {
     expect(
       screen.getByText('Boosted by @booster@remote.example')
     ).toBeInTheDocument()
+  })
+
+  it('normalizes prefixed remote actor usernames in post handles', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...boostedStatus,
+          originalStatus: {
+            ...boostedStatus.originalStatus,
+            actor: {
+              ...boostedStatus.originalStatus.actor!,
+              username: '@original',
+              name: undefined
+            }
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'original' })).toHaveAttribute(
+      'href',
+      '/@original@origin.example'
+    )
+    expect(screen.getByText('@original@origin.example')).toBeInTheDocument()
+    expect(
+      screen.queryByText('@@original@origin.example')
+    ).not.toBeInTheDocument()
+  })
+
+  it('normalizes actor id handles when the actor profile is absent', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...boostedStatus,
+          originalStatus: {
+            ...boostedStatus.originalStatus,
+            actorId: 'https://origin.example/@original',
+            actor: null
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: '@original' })).toHaveAttribute(
+      'href',
+      '/@original@origin.example'
+    )
+    expect(screen.getByText('@origin.example')).toBeInTheDocument()
+    expect(
+      screen.queryByText('@@original@origin.example')
+    ).not.toBeInTheDocument()
   })
 })

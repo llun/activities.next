@@ -4,7 +4,7 @@ import { Activity, ExternalLink, LoaderCircle, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { PostLineLimit } from '@/lib/types/database/rows'
-import { ActorProfile, getMentionFromActorID } from '@/lib/types/domain/actor'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import {
   formatFitnessDistance,
@@ -21,7 +21,7 @@ import {
 
 import { BrandedDeviceLink } from './BrandedDeviceLink'
 import { Actions } from './actions/actions'
-import { ActorAvatar, ActorInfo } from './actor'
+import { ActorAvatar, ActorInfo, getActorIdMention } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
@@ -52,7 +52,7 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   const actorName =
     status.actor?.name ||
     status.actor?.username ||
-    getMentionFromActorID(status.actorId, true)
+    getActorIdMention(status.actorId)
 
   return (
     <div className="flex items-center gap-2 mb-1 text-sm text-muted-foreground ml-12">
