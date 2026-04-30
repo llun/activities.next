@@ -219,6 +219,7 @@ export const Post: FC<PostProps> = (props) => {
           <ActorAvatar
             actor={actualStatus.actor}
             actorId={actualStatus.actorId}
+            statusUrl={actualStatus.url}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -226,6 +227,7 @@ export const Post: FC<PostProps> = (props) => {
             <ActorInfo
               actor={actualStatus.actor}
               actorId={actualStatus.actorId}
+              statusUrl={actualStatus.url}
             />
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground text-xs whitespace-nowrap">

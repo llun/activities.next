@@ -224,4 +224,33 @@ describe('Post', () => {
       screen.queryByText('@@original@origin.example')
     ).not.toBeInTheDocument()
   })
+
+  it('uses the status url handle when actor ids are opaque', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...boostedStatus,
+          originalStatus: {
+            ...boostedStatus.originalStatus,
+            actorId:
+              'https://hackers.pub/ap/actors/019382d3-63d7-7cf7-86e8-91e2551c306c',
+            actor: null,
+            url: 'https://hackers.pub/@hongminhee/019dc9aa-ebc9-7059-8de2-f5850dbeea4e'
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: '@hongminhee' })).toHaveAttribute(
+      'href',
+      '/@hongminhee@hackers.pub'
+    )
+    expect(screen.getByText('@hackers.pub')).toBeInTheDocument()
+    expect(
+      screen.queryByText('@019382d3-63d7-7cf7-86e8-91e2551c306c')
+    ).not.toBeInTheDocument()
+  })
 })
