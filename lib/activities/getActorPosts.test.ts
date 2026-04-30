@@ -167,4 +167,176 @@ describe('#getActorPosts', () => {
     expect(announceStatus.originalStatus.actor?.id).not.toBe(boosterActorId)
     expect(announceStatus.originalStatus.text).toBe('Original status text')
   })
+
+  it('loads boosted original actor profiles for opaque actor ids', async () => {
+    const boosterActorId = 'https://boost-bsky.example/users/booster'
+    const originalActorId =
+      'https://bsky.brid.gy/ap/did:plc:2gkh62xvzokhlf6li4ol3b3d'
+    const originalStatusId =
+      'https://bsky.brid.gy/convert/ap/at://did:plc:2gkh62xvzokhlf6li4ol3b3d/app.bsky.feed.post/3mknrszqses2y'
+    const announceStatusId = `${boosterActorId}/statuses/announce-bridgy/activity`
+    const published = Date.now()
+
+    const boosterActor = await database.createActor({
+      actorId: boosterActorId,
+      username: 'booster',
+      domain: 'boost-bsky.example',
+      followersUrl: `${boosterActorId}/followers`,
+      inboxUrl: `${boosterActorId}/inbox`,
+      sharedInboxUrl: 'https://boost-bsky.example/inbox',
+      publicKey: 'public key',
+      createdAt: published
+    })
+    if (!boosterActor) throw new Error('Failed to create booster actor')
+
+    await database.createActor({
+      actorId: originalActorId,
+      username: 'did:plc:2gkh62xvzokhlf6li4ol3b3d',
+      domain: 'bsky.brid.gy',
+      followersUrl: `${originalActorId}/followers`,
+      inboxUrl: `${originalActorId}/inbox`,
+      sharedInboxUrl: 'https://bsky.brid.gy/inbox',
+      publicKey: 'stale public key',
+      createdAt: published
+    })
+
+    const person = MockActivityPubPerson({
+      id: boosterActorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${boosterActorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${boosterActorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: `${boosterActorId}/outbox?page=true`
+          })
+        }
+      }
+
+      if (req.url === `${boosterActorId}/outbox?page=true`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${boosterActorId}/outbox?page=true`,
+            type: 'OrderedCollectionPage',
+            partOf: `${boosterActorId}/outbox`,
+            orderedItems: [
+              {
+                id: announceStatusId,
+                type: AnnounceAction,
+                actor: boosterActorId,
+                published: new Date(published).toISOString(),
+                to: [ACTIVITY_STREAM_PUBLIC],
+                cc: [`${boosterActorId}/followers`],
+                object: originalStatusId
+              }
+            ]
+          })
+        }
+      }
+
+      if (req.url === originalStatusId) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: originalStatusId,
+            type: 'Note',
+            url: [
+              'https://bsky.brid.gy/r/https://bsky.app/profile/did:plc:2gkh62xvzokhlf6li4ol3b3d/post/3mknrszqses2y',
+              {
+                href: 'at://did:plc:2gkh62xvzokhlf6li4ol3b3d/app.bsky.feed.post/3mknrszqses2y',
+                rel: 'canonical',
+                type: 'Link'
+              }
+            ],
+            attributedTo: originalActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [`${originalActorId}/followers`],
+            content: 'Original Bridgy status text',
+            published: new Date(published).toISOString()
+          })
+        }
+      }
+
+      if (req.url === originalActorId) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: originalActorId,
+            type: 'Person',
+            following: `${originalActorId}/following`,
+            followers: `${originalActorId}/followers`,
+            inbox: `${originalActorId}/inbox`,
+            outbox: `${originalActorId}/outbox`,
+            featured: {
+              id: `${originalActorId}/collections/featured`,
+              type: 'OrderedCollection'
+            },
+            preferredUsername: 'patak.cat',
+            name: 'patak',
+            summary: '',
+            url: [
+              'https://bsky.brid.gy/r/https://bsky.app/profile/patak.cat',
+              {
+                href: 'https://patak.cat/',
+                rel: 'canonical',
+                type: 'Link'
+              },
+              'https://patak.cat/'
+            ],
+            image: [
+              {
+                type: 'Image',
+                url: 'https://cdn.example/header.jpg'
+              }
+            ],
+            tag: {
+              type: 'Hashtag',
+              href: 'https://bsky.brid.gy/tags/fedidev',
+              name: '#fedidev'
+            },
+            attachment: [
+              {
+                type: 'Link',
+                href: 'https://patak.cat/'
+              }
+            ],
+            published: new Date(published).toISOString(),
+            publicKey: {
+              id: `${originalActorId}#main-key`,
+              owner: originalActorId,
+              publicKeyPem: 'public key'
+            },
+            endpoints: {
+              sharedInbox: 'https://bsky.brid.gy/inbox'
+            }
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+    const announceStatus = response.statuses[0]
+
+    expect(announceStatus.type).toBe(StatusType.enum.Announce)
+    if (announceStatus.type !== StatusType.enum.Announce) {
+      throw new Error('Expected Announce status')
+    }
+
+    expect(announceStatus.originalStatus.actorId).toBe(originalActorId)
+    expect(announceStatus.originalStatus.actor).toMatchObject({
+      id: originalActorId,
+      username: 'patak.cat',
+      domain: 'bsky.brid.gy',
+      name: 'patak'
+    })
+  })
 })

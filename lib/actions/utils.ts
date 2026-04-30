@@ -2,6 +2,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
@@ -16,6 +17,12 @@ export class BlockedFederationDomainError extends Error {
     super(`Federation with actor domain is blocked: ${actorId}`)
     this.name = 'BlockedFederationDomainError'
   }
+}
+
+const getImageUrl = (image: ActivityPubActor['icon']) => {
+  if (!image) return undefined
+  if (Array.isArray(image)) return image.find((item) => item.url)?.url
+  return image.url
 }
 
 export const assertActorCanFederate = async ({
@@ -62,6 +69,7 @@ export const recordActorIfNeeded = async ({
       signingActor: await getResolvedSigningActor()
     })
     if (!person) return
+    const iconUrl = getImageUrl(person.icon)
     const actor = await database.createActor({
       actorId,
       username: person.preferredUsername,
@@ -69,7 +77,7 @@ export const recordActorIfNeeded = async ({
       followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-      ...(person.icon ? { iconUrl: person.icon.url } : {}),
+      ...(iconUrl ? { iconUrl } : {}),
       publicKey: person.publicKey.publicKeyPem || '',
       createdAt: new Date(person.published ?? Date.now()).getTime()
     })
@@ -84,12 +92,13 @@ export const recordActorIfNeeded = async ({
       signingActor: await getResolvedSigningActor()
     })
     if (!person) return undefined
+    const iconUrl = getImageUrl(person.icon)
     const actor = await database.updateActor({
       actorId,
       followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-      ...(person.icon ? { iconUrl: person.icon.url } : {}),
+      ...(iconUrl ? { iconUrl } : {}),
       publicKey: person.publicKey.publicKeyPem || ''
     })
     return actor ?? undefined

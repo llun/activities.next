@@ -21,6 +21,12 @@ type ProfileData = {
   hasFitnessData: boolean
 }
 
+const getImageUrl = (image: Actor['icon']) => {
+  if (!image) return ''
+  if (Array.isArray(image)) return image.find((item) => item.url)?.url || ''
+  return image.url
+}
+
 export const getProfileData = async (
   database: Database,
   actorHandle: string,
@@ -78,8 +84,8 @@ export const getProfileData = async (
       actorId: person.id,
       name: person.name,
       summary: person.summary || '',
-      iconUrl: person.icon?.url || '',
-      headerImageUrl: person.image?.url || '',
+      iconUrl: getImageUrl(person.icon),
+      headerImageUrl: getImageUrl(person.image),
       publicKey: person.publicKey.publicKeyPem,
       followersUrl: person.followers,
       inboxUrl: person.inbox,
