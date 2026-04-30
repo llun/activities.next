@@ -5,7 +5,11 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ReactNode } from 'react'
 
-import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import {
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
 
 import { Post } from './post'
 
@@ -61,6 +65,55 @@ const status: StatusNote = {
   tags: []
 }
 
+const boostedStatus: StatusAnnounce = {
+  id: 'https://remote.example/users/booster/statuses/boost-1/activity',
+  actorId: 'https://remote.example/users/booster',
+  actor: {
+    id: 'https://remote.example/users/booster',
+    username: 'booster',
+    domain: 'remote.example',
+    name: 'Booster',
+    followersUrl: 'https://remote.example/users/booster/followers',
+    inboxUrl: 'https://remote.example/users/booster/inbox',
+    sharedInboxUrl: 'https://remote.example/inbox',
+    followingCount: 0,
+    followersCount: 0,
+    statusCount: 0,
+    lastStatusAt: null,
+    createdAt: currentTime
+  },
+  to: [],
+  cc: [],
+  edits: [],
+  isLocalActor: false,
+  createdAt: currentTime,
+  updatedAt: currentTime,
+  type: StatusType.enum.Announce,
+  originalStatus: {
+    ...status,
+    id: 'https://origin.example/users/original/statuses/post-1',
+    actorId: 'https://origin.example/users/original',
+    actor: {
+      id: 'https://origin.example/users/original',
+      username: 'original',
+      domain: 'origin.example',
+      name: 'Original',
+      followersUrl: 'https://origin.example/users/original/followers',
+      inboxUrl: 'https://origin.example/users/original/inbox',
+      sharedInboxUrl: 'https://origin.example/inbox',
+      followingCount: 0,
+      followersCount: 0,
+      statusCount: 0,
+      lastStatusAt: null,
+      createdAt: currentTime
+    },
+    isLocalActor: false,
+    url: 'https://origin.example/@original/post-1',
+    text: 'Original post',
+    summary: null
+  }
+}
+
 describe('Post', () => {
   it('does not nest long-post collapse inside expanded content warnings', () => {
     render(
@@ -77,5 +130,37 @@ describe('Post', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show content' }))
 
     expect(screen.queryByTestId('collapsible-content')).not.toBeInTheDocument()
+  })
+
+  it('renders boosts with the booster label and original post actor', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={boostedStatus}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByText('Boosted by Booster')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Original' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Booster' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('falls back to the boost actor id when the actor profile is absent', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{ ...boostedStatus, actor: null }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText('Boosted by @booster@remote.example')
+    ).toBeInTheDocument()
   })
 })

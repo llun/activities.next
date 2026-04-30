@@ -62,11 +62,12 @@ export const getActorPosts: GetActorPostsFunction = async ({
             })
             if (!note) return null
             const originalStatus = fromNote(note)
-            if (actor) originalStatus.actor = actor
-            return fromAnnoucne(
+            const announceStatus = fromAnnoucne(
               item as unknown as AnnounceStatus,
               originalStatus
             )
+            if (actor) announceStatus.actor = actor
+            return announceStatus
           }
 
           // Unsupported activity

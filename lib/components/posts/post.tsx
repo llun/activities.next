@@ -4,7 +4,7 @@ import { Activity, ExternalLink, LoaderCircle, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { PostLineLimit } from '@/lib/types/database/rows'
-import { ActorProfile } from '@/lib/types/domain/actor'
+import { ActorProfile, getMentionFromActorID } from '@/lib/types/domain/actor'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import {
   formatFitnessDistance,
@@ -49,10 +49,15 @@ interface BoostStatusProps {
 
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
+  const actorName =
+    status.actor?.name ||
+    status.actor?.username ||
+    getMentionFromActorID(status.actorId, true)
+
   return (
     <div className="flex items-center gap-2 mb-1 text-sm text-muted-foreground ml-12">
       <Repeat2 className="size-4" />
-      <span>Boosted by {status.actor?.name || status.actor?.username}</span>
+      <span>Boosted by {actorName}</span>
     </div>
   )
 }
