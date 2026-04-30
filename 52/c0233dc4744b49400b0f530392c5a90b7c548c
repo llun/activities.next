@@ -1,0 +1,36 @@
+lib/activities/getActorPosts.test.ts
+  f23a96401558c064 170-341
+app/(timeline)/[actor]/getProfileData.ts
+  f23a96401558c064 24-29,87-88
+lib/activities/getActorPosts.ts
+  f23a96401558c064 10,15,26-73,86-115,144
+lib/actions/utils.ts
+  f23a96401558c064 5,22-27,72,80,95,101
+lib/types/activitypub/actor.ts
+  f23a96401558c064 6-11,27-28,32,52-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "52c0233dc4744b49400b0f530392c5a90b7c548c",
+  "prompts": {
+    "f23a96401558c064": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dda5d-df1f-7683-875d-0597a2e808a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 456,
+      "total_deletions": 12,
+      "accepted_lines": 2407,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_e5599db4cf9bba": {
+      "author": "Maythee Anegboonlap"
+    }
+  }
+}
