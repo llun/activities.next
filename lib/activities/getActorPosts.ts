@@ -1,14 +1,22 @@
 import { getNote } from '@/lib/activities'
-import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/activitypub'
 import {
+  Announce,
   AnnounceAction,
   CreateAction
 } from '@/lib/types/activitypub/activities'
 import { Note } from '@/lib/types/activitypub/objects'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Status, fromAnnoucne, fromNote } from '@/lib/types/domain/status'
+import {
+  normalizeActivityPubAnnounce,
+  normalizeActivityPubContent
+} from '@/lib/utils/activitypub'
+import {
+  getActorProfileFromPerson,
+  isOpaqueActorUsername
+} from '@/lib/utils/activitypubActor'
 import { getTracer } from '@/lib/utils/trace'
 
 import { getActorCollections } from './getActorCollections'
@@ -23,53 +31,13 @@ type GetActorPostsFunction = (params: {
   statuses: Status[]
 }>
 
-const getActorDomain = (actorId: string) => {
+const getStatusFromNote = (note: Note) => {
   try {
-    return new URL(actorId).host
+    return fromNote(note)
   } catch {
-    return actorId
+    return null
   }
 }
-
-const getActorIdUsername = (actorId: string) =>
-  decodeURIComponent(actorId.split('/').filter(Boolean).pop() || actorId)
-    .replace(/^@+/, '')
-    .trim()
-
-const isOpaqueActorUsername = (actorId: string, username: string) => {
-  const actorIdUsername = getActorIdUsername(actorId)
-  return (
-    username === actorIdUsername &&
-    (username.startsWith('did:') ||
-      /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(username))
-  )
-}
-
-const getImageUrl = (image: Actor['icon']) => {
-  if (!image) return undefined
-  if (Array.isArray(image)) return image.find((item) => item.url)?.url
-  return image.url
-}
-
-const getActorProfileFromPerson = (person: Actor): ActorProfile =>
-  ActorProfile.parse({
-    id: person.id,
-    username: person.preferredUsername,
-    domain: getActorDomain(person.id),
-    name: person.name,
-    summary: person.summary || undefined,
-    iconUrl: getImageUrl(person.icon),
-    headerImageUrl: getImageUrl(person.image),
-    manuallyApprovesFollowers: person.manuallyApprovesFollowers,
-    followersUrl: person.followers || `${person.id}/followers`,
-    inboxUrl: person.inbox,
-    sharedInboxUrl: person.endpoints?.sharedInbox || '',
-    followingCount: 0,
-    followersCount: 0,
-    statusCount: 0,
-    lastStatusAt: null,
-    createdAt: person.published ? new Date(person.published).getTime() : 0
-  })
 
 export const getActorPosts: GetActorPostsFunction = async ({
   database,
@@ -129,23 +97,31 @@ export const getActorPosts: GetActorPostsFunction = async ({
           // This should be impossible for status api
           if (typeof item === 'string') return null
           if (item.type === AnnounceAction) {
-            if (!item.object || typeof item.object !== 'string') return null
+            const announceResult = Announce.safeParse(
+              normalizeActivityPubAnnounce(item)
+            )
+            if (!announceResult.success) return null
+
+            const announce = announceResult.data
             const localStatus = await database.getStatus({
-              statusId: item.object
+              statusId: announce.object
             })
             if (localStatus) return localStatus
 
             const note = await getNote({
-              statusId: item.object,
+              statusId: announce.object,
               signingActor
             })
             if (!note) return null
-            const originalStatus = fromNote(note)
+
+            const noteResult = Note.safeParse(normalizeActivityPubContent(note))
+            if (!noteResult.success) return null
+
+            const originalStatus = getStatusFromNote(noteResult.data)
+            if (!originalStatus) return null
+
             originalStatus.actor = await getActorProfile(originalStatus.actorId)
-            const announceStatus = fromAnnoucne(
-              item as unknown as AnnounceStatus,
-              originalStatus
-            )
+            const announceStatus = fromAnnoucne(announce, originalStatus)
             if (actor) announceStatus.actor = actor
             return announceStatus
           }
@@ -157,7 +133,12 @@ export const getActorPosts: GetActorPostsFunction = async ({
           const obj = item.object as { type?: string; [key: string]: unknown }
           if (obj.type !== 'Note') return null
 
-          const status = fromNote(obj as unknown as Note)
+          const noteResult = Note.safeParse(normalizeActivityPubContent(obj))
+          if (!noteResult.success) return null
+
+          const status = getStatusFromNote(noteResult.data)
+          if (!status) return null
+
           if (actor) status.actor = actor
           return status
         })

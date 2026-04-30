@@ -2,8 +2,8 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
-import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
+import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { logger } from '@/lib/utils/logger'
 
 interface RecordActorIfNeededParams {
@@ -17,12 +17,6 @@ export class BlockedFederationDomainError extends Error {
     super(`Federation with actor domain is blocked: ${actorId}`)
     this.name = 'BlockedFederationDomainError'
   }
-}
-
-const getImageUrl = (image: ActivityPubActor['icon']) => {
-  if (!image) return undefined
-  if (Array.isArray(image)) return image.find((item) => item.url)?.url
-  return image.url
 }
 
 export const assertActorCanFederate = async ({
@@ -69,7 +63,7 @@ export const recordActorIfNeeded = async ({
       signingActor: await getResolvedSigningActor()
     })
     if (!person) return
-    const iconUrl = getImageUrl(person.icon)
+    const iconUrl = getActorImageUrl(person.icon)
     const actor = await database.createActor({
       actorId,
       username: person.preferredUsername,
@@ -92,7 +86,7 @@ export const recordActorIfNeeded = async ({
       signingActor: await getResolvedSigningActor()
     })
     if (!person) return undefined
-    const iconUrl = getImageUrl(person.icon)
+    const iconUrl = getActorImageUrl(person.icon)
     const actor = await database.updateActor({
       actorId,
       followersUrl: person.followers ?? '',

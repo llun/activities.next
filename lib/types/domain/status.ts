@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { getContent, getReply, getSummary } from '@/lib/activities/note'
+import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
 import { Document } from '@/lib/types/activitypub/objects'
 import {
   ENTITY_TYPE_QUESTION,
@@ -211,7 +212,7 @@ export const fromNote = (note: Note): StatusNote => {
 }
 
 export const fromAnnoucne = (
-  announce: AnnounceStatus,
+  announce: AnnounceStatus | ActivityPubAnnounce,
   originalStatus: StatusNote
 ): StatusAnnounce => {
   const currentTime = Date.now()

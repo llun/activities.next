@@ -71,6 +71,74 @@ describe('#getRemoteStatus', () => {
     })
   })
 
+  it('fetches public remote statuses with object-shaped audience entries', async () => {
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === STATUS_ID) {
+        return JSON.stringify({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: ACTOR_ID,
+          content: 'Hello with object audience',
+          to: [
+            {
+              id: PUBLIC_STREAM,
+              type: 'Collection'
+            }
+          ],
+          cc: [],
+          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+        })
+      }
+
+      if (req.url === ACTOR_ID) {
+        return { status: 503, body: 'Unavailable' }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    await expect(
+      getRemoteStatus({ statusId: STATUS_ID })
+    ).resolves.toMatchObject({
+      id: STATUS_ID,
+      actorId: ACTOR_ID,
+      actor: null,
+      text: 'Hello with object audience'
+    })
+  })
+
+  it('does not return non-Note remote objects', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: STATUS_ID,
+        type: 'Announce',
+        actor: ACTOR_ID,
+        object: `${ACTOR_ID}/statuses/2`,
+        to: [PUBLIC_STREAM],
+        cc: [],
+        published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+      })
+    )
+
+    await expect(getRemoteStatus({ statusId: STATUS_ID })).resolves.toBeNull()
+  })
+
+  it('does not return malformed remote notes', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: STATUS_ID,
+        type: 'Note',
+        attributedTo: ACTOR_ID,
+        content: [],
+        to: [PUBLIC_STREAM],
+        cc: [],
+        published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+      })
+    )
+
+    await expect(getRemoteStatus({ statusId: STATUS_ID })).resolves.toBeNull()
+  })
+
   it('does not return non-public remote statuses', async () => {
     fetchMock.mockResponseOnce(
       JSON.stringify({

@@ -8,6 +8,7 @@ import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
+import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 type ProfileData = {
@@ -19,12 +20,6 @@ type ProfileData = {
   followersCount: number
   isInternalAccount: boolean
   hasFitnessData: boolean
-}
-
-const getImageUrl = (image: Actor['icon']) => {
-  if (!image) return ''
-  if (Array.isArray(image)) return image.find((item) => item.url)?.url || ''
-  return image.url
 }
 
 export const getProfileData = async (
@@ -84,8 +79,8 @@ export const getProfileData = async (
       actorId: person.id,
       name: person.name,
       summary: person.summary || '',
-      iconUrl: getImageUrl(person.icon),
-      headerImageUrl: getImageUrl(person.image),
+      iconUrl: getActorImageUrl(person.icon),
+      headerImageUrl: getActorImageUrl(person.image),
       publicKey: person.publicKey.publicKeyPem,
       followersUrl: person.followers,
       inboxUrl: person.inbox,

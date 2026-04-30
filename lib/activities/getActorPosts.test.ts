@@ -339,4 +339,73 @@ describe('#getActorPosts', () => {
       name: 'patak'
     })
   })
+
+  it('skips malformed remote outbox activities', async () => {
+    const actorId = 'https://malformed.example/users/actor'
+    const published = Date.now()
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 2,
+            first: `${actorId}/outbox?page=true`
+          })
+        }
+      }
+
+      if (req.url === `${actorId}/outbox?page=true`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${actorId}/outbox?page=true`,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: [
+              {
+                id: `${actorId}/statuses/bad-announce/activity`,
+                type: AnnounceAction,
+                actor: actorId,
+                published: new Date(published).toISOString(),
+                to: [ACTIVITY_STREAM_PUBLIC],
+                cc: []
+              },
+              {
+                id: `${actorId}/statuses/bad-create/activity`,
+                type: 'Create',
+                actor: actorId,
+                published: new Date(published).toISOString(),
+                object: {
+                  id: `${actorId}/statuses/bad-create`,
+                  type: 'Note',
+                  attributedTo: actorId,
+                  to: [ACTIVITY_STREAM_PUBLIC],
+                  cc: [],
+                  content: [],
+                  published: new Date(published).toISOString()
+                }
+              }
+            ]
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response).toMatchObject({
+      statusesCount: 2,
+      statuses: []
+    })
+  })
 })

@@ -253,4 +253,62 @@ describe('Post', () => {
       screen.queryByText('@019382d3-63d7-7cf7-86e8-91e2551c306c')
     ).not.toBeInTheDocument()
   })
+
+  it('falls back to the actor domain when opaque actor ids have no usable status handle', () => {
+    const actorId =
+      'https://hackers.pub/ap/actors/019382d3-63d7-7cf7-86e8-91e2551c306c'
+
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...boostedStatus,
+          originalStatus: {
+            ...boostedStatus.originalStatus,
+            actorId,
+            actor: null,
+            url: 'https://hackers.pub/ap/notes/019dc9aa-ebc9-7059-8de2-f5850dbeea4e'
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: '@hackers.pub' })).toHaveAttribute(
+      'href',
+      actorId
+    )
+    expect(
+      screen.queryByText('@019382d3-63d7-7cf7-86e8-91e2551c306c')
+    ).not.toBeInTheDocument()
+  })
+
+  it('uses bsky profile handles from bridgy status urls', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...boostedStatus,
+          originalStatus: {
+            ...boostedStatus.originalStatus,
+            actorId: 'https://bsky.brid.gy/ap/did:plc:2gkh62xvzokhlf6li4ol3b3d',
+            actor: null,
+            url: 'https://bsky.brid.gy/r/https://bsky.app/profile/patak.cat/post/3mknrszqses2y'
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: '@patak.cat' })).toHaveAttribute(
+      'href',
+      '/@patak.cat@bsky.brid.gy'
+    )
+    expect(screen.getByText('@bsky.brid.gy')).toBeInTheDocument()
+    expect(
+      screen.queryByText('@did:plc:2gkh62xvzokhlf6li4ol3b3d')
+    ).not.toBeInTheDocument()
+  })
 })
