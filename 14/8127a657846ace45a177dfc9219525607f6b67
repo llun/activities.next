@@ -1,0 +1,30 @@
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  9280586e83aef0d9 210-236
+app/(timeline)/[actor]/ActorTimelines.tsx
+  9280586e83aef0d9 33,78,93,127,132-136,226-230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "148127a657846ace45a177dfc9219525607f6b67",
+  "prompts": {
+    "9280586e83aef0d9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddff7-93bb-7761-81fe-00363f0d4e95",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 2,
+      "accepted_lines": 176,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_e5599db4cf9bba": {
+      "author": "Maythee Anegboonlap"
+    }
+  }
+}
