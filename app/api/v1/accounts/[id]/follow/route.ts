@@ -2,6 +2,7 @@ import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -48,9 +49,10 @@ export const POST = traceApiRoute(
     }
 
     // Check if target actor exists
+    const signingActor = await getFederationSigningActor(database)
     const person = await getActorPerson({
       actorId: targetActorId,
-      signingActor: currentActor
+      signingActor
     })
     if (!person)
       return apiResponse({
@@ -74,7 +76,7 @@ export const POST = traceApiRoute(
         inbox: `${currentActor.id}/inbox`,
         sharedInbox: `https://${currentActor.domain}/inbox`
       })
-      await follow(followItem.id, currentActor, targetActorId)
+      await follow(followItem.id, currentActor, targetActorId, signingActor)
     }
 
     const relationship = await getRelationship({

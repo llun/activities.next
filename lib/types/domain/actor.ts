@@ -3,8 +3,20 @@ import { z } from 'zod'
 import { Account } from '@/lib/types/domain/account'
 import { logger } from '@/lib/utils/logger'
 
+export const ACTOR_TYPES = [
+  'Person',
+  'Service',
+  'Application',
+  'Group',
+  'Organization'
+] as const
+
+export const ActorType = z.enum(ACTOR_TYPES)
+export type ActorType = z.infer<typeof ActorType>
+
 export const ActorProfile = z.object({
   id: z.string(),
+  type: ActorType.optional(),
   username: z.string(),
   domain: z.string(),
   name: z.string().optional(),

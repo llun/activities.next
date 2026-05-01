@@ -27,14 +27,22 @@ const mockActor: Actor = {
 
 jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
   OnlyLocalUserGuard:
-    (handle: (...params: unknown[]) => Promise<Response> | Response) =>
-    (req: NextRequest, query: unknown) =>
-      handle(mockDatabase, mockActor, req, query)
+    (
+      handle: (...params: unknown[]) => Promise<Response> | Response,
+      options?: { allowFederationSigningActor?: boolean }
+    ) =>
+    (req: NextRequest, query: unknown) => {
+      if (!options?.allowFederationSigningActor) {
+        return new Response(null, { status: 404 })
+      }
+
+      return handle(mockDatabase, mockActor, req, query)
+    }
 }))
 
 describe('GET /api/users/[username]/following', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    mockDatabase.getActorFollowingCount.mockClear()
     mockDatabase.getActorFollowingCount.mockResolvedValue(4)
   })
 

@@ -52,6 +52,7 @@ CREATE TABLE
 CREATE TABLE
     public.actors (
         id character varying(255),
+        type character varying(255) DEFAULT 'Person'::character varying NOT NULL,
         username character varying(255),
         "accountId" character varying(255),
         name character varying(255),

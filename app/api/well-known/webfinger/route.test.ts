@@ -49,6 +49,35 @@ describe('GET /api/well-known/webfinger', () => {
     })
   })
 
+  it('returns WebFinger JRD for the headless instance actor without a profile page link', async () => {
+    database.getActorFromUsername.mockResolvedValue({
+      id: 'https://example.com/users/__instance__',
+      type: 'Service',
+      username: '__instance__',
+      domain: 'example.com',
+      privateKey: 'key'
+    } as never)
+
+    const response = await GET(
+      new NextRequest(
+        'https://example.com/.well-known/webfinger?resource=acct:__instance__@example.com'
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toMatchObject({
+      subject: 'acct:__instance__@example.com',
+      aliases: ['https://example.com/users/__instance__']
+    })
+    expect(data.links).not.toContainEqual(
+      expect.objectContaining({
+        rel: 'http://webfinger.net/rel/profile-page'
+      })
+    )
+  })
+
   it('returns 404 when the resource is missing', async () => {
     const response = await GET(
       new NextRequest('https://example.com/.well-known/webfinger'),

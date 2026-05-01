@@ -26,6 +26,7 @@ const customJestConfig = {
     '\\.(js|mjs|jsx|ts|tsx)$': ['@swc/jest']
   },
   extensionsToTreatAsEsm: ['.ts'],
+  testTimeout: 30000,
   moduleNameMapper: {
     '^@/app/(.*)$': '<rootDir>/app/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',

@@ -59,17 +59,26 @@ export const getWebFingerResponse = async ({
   // This is not local actors
   if (!actor?.privateKey) return null
 
-  const profilePageUrl = `https://${actor.domain}/@${actor.username}`
+  const profilePageUrl =
+    actor.type === 'Service'
+      ? actor.id
+      : `https://${actor.domain}/@${actor.username}`
+  const profilePageLink =
+    actor.type === 'Service'
+      ? []
+      : [
+          {
+            rel: 'http://webfinger.net/rel/profile-page',
+            type: 'text/html',
+            href: profilePageUrl
+          }
+        ]
 
   return {
     subject: `acct:${actor.username}@${actor.domain}`,
-    aliases: [profilePageUrl, actor.id],
+    aliases: actor.type === 'Service' ? [actor.id] : [profilePageUrl, actor.id],
     links: [
-      {
-        rel: 'http://webfinger.net/rel/profile-page',
-        type: 'text/html',
-        href: profilePageUrl
-      },
+      ...profilePageLink,
       {
         rel: 'self',
         type: 'application/activity+json',

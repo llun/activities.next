@@ -2,21 +2,30 @@ import { NextRequest } from 'next/server'
 
 import { FollowStatus } from '@/lib/types/domain/follow'
 
-import { DELETE } from './route'
+import { DELETE, POST } from './route'
 
+const mockFollow = jest.fn()
 const mockUnfollow = jest.fn()
 const mockCanFederateWithDomain = jest.fn()
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun',
   domain: 'llun.test'
 }
+const mockSigningActor = {
+  id: 'https://llun.test/users/__instance__',
+  type: 'Service',
+  username: '__instance__',
+  domain: 'llun.test',
+  privateKey: 'instance-key'
+}
 const mockDatabase = {
   getAcceptedOrRequestedFollow: jest.fn(),
-  updateFollowStatus: jest.fn()
+  updateFollowStatus: jest.fn(),
+  getFederationSigningActor: jest.fn()
 }
 
 jest.mock('@/lib/activities', () => ({
-  follow: jest.fn(),
+  follow: (...params: unknown[]) => mockFollow(...params),
   unfollow: (...params: unknown[]) => mockUnfollow(...params)
 }))
 
@@ -58,6 +67,7 @@ describe('DELETE /api/v1/accounts/follow', () => {
       targetActorId: 'https://blocked.test/users/alice'
     })
     mockDatabase.updateFollowStatus.mockResolvedValue(undefined)
+    mockDatabase.getFederationSigningActor.mockResolvedValue(mockSigningActor)
   })
 
   const createRequest = () =>
@@ -66,6 +76,37 @@ describe('DELETE /api/v1/accounts/follow', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ target: 'https://blocked.test/users/alice' })
     })
+
+  const createInvalidJsonRequest = (method: 'POST' | 'DELETE') =>
+    new NextRequest('https://llun.test/api/v1/accounts/follow', {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: '{'
+    })
+
+  it('returns 400 for invalid JSON on follow', async () => {
+    const response = await POST(createInvalidJsonRequest('POST'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid JSON body'
+    })
+    expect(mockFollow).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 for invalid JSON on unfollow', async () => {
+    const response = await DELETE(createInvalidJsonRequest('DELETE'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid JSON body'
+    })
+    expect(mockUnfollow).not.toHaveBeenCalled()
+  })
 
   it('updates local state without sending Undo to blocked domains', async () => {
     mockCanFederateWithDomain.mockResolvedValue(false)
@@ -90,10 +131,14 @@ describe('DELETE /api/v1/accounts/follow', () => {
     })
 
     expect(response.status).toBe(202)
-    expect(mockUnfollow).toHaveBeenCalledWith(mockCurrentActor, {
-      id: 'follow-1',
-      actorId: mockCurrentActor.id,
-      targetActorId: 'https://blocked.test/users/alice'
-    })
+    expect(mockUnfollow).toHaveBeenCalledWith(
+      mockCurrentActor,
+      {
+        id: 'follow-1',
+        actorId: mockCurrentActor.id,
+        targetActorId: 'https://blocked.test/users/alice'
+      },
+      mockSigningActor
+    )
   })
 })
