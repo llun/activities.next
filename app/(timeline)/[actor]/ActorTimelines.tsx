@@ -30,6 +30,7 @@ interface Props {
 }
 
 const LOAD_MORE_PAGE_LIMIT = 5
+const LOAD_MORE_ERROR_MESSAGE = 'Failed to load more posts. Please try again.'
 
 const isReply = (status: Status) => {
   switch (status.type) {
@@ -74,6 +75,7 @@ export const ActorTimelines: FC<Props> = ({
   })
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
 
@@ -88,6 +90,7 @@ export const ActorTimelines: FC<Props> = ({
 
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
+    setLoadMoreError(null)
     try {
       let pageUrl: string | null = nextPageUrl
       let prevPageUrl: string | null = currentStatusPagination.prevPageUrl
@@ -121,12 +124,16 @@ export const ActorTimelines: FC<Props> = ({
         )
       }
     } catch (_error) {
-      // Error loading more - user can retry by clicking the button
+      setLoadMoreError(LOAD_MORE_ERROR_MESSAGE)
     } finally {
       isLoadingRef.current = false
       setLoadingMoreStatuses(false)
     }
-  }, [actorId, currentStatusPagination.nextPageUrl])
+  }, [
+    actorId,
+    currentStatusPagination.nextPageUrl,
+    currentStatusPagination.prevPageUrl
+  ])
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
@@ -216,6 +223,11 @@ export const ActorTimelines: FC<Props> = ({
       </TabsContent>
       {currentStatusPagination.nextPageUrl && (
         <div ref={loadMoreRef} className="border-t p-4 text-center">
+          {loadMoreError && (
+            <p className="mb-3 text-sm text-destructive" role="alert">
+              {loadMoreError}
+            </p>
+          )}
           <Button
             variant="outline"
             disabled={isLoadingMoreStatuses}

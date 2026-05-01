@@ -207,4 +207,31 @@ describe('ActorTimelines', () => {
       screen.getAllByText('https://remote.example/statuses/first-post')
     ).toHaveLength(2)
   })
+
+  it('shows a retryable error when loading older statuses fails', async () => {
+    getActorStatusesMock.mockRejectedValueOnce(new Error('Network error'))
+
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/newer')]}
+        attachments={[]}
+        statusPagination={{
+          nextPageUrl:
+            'https://remote.example/users/actor/outbox?page=true&max_id=1',
+          prevPageUrl: null
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to load more posts. Please try again.'
+      )
+    })
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+  })
 })
