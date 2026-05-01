@@ -261,7 +261,7 @@ describe('#getActorPosts', () => {
   it('fetches a requested remote outbox page and returns pagination cursors', async () => {
     const actorId = 'https://paged.example/users/actor'
     const olderStatusId = `${actorId}/statuses/older`
-    const nextPageUrl = `${actorId}/outbox?page=true&max_id=older`
+    const nextPageUrl = `${actorId}/outbox/page/older`
     const prevPageUrl = `${actorId}/outbox?page=true&min_id=first`
     const published = Date.now()
     const person = MockActivityPubPerson({

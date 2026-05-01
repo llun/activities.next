@@ -21,12 +21,14 @@ const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
   try {
     const page = new URL(pageUrl)
     const collection = new URL(collectionUrl)
+    const pagePath = page.pathname.replace(/\/$/, '') || '/'
+    const collectionPath = collection.pathname.replace(/\/$/, '') || '/'
+    const collectionPrefix = collectionPath === '/' ? '/' : `${collectionPath}/`
 
     return (
       page.protocol === collection.protocol &&
       page.host === collection.host &&
-      page.pathname.replace(/\/$/, '') ===
-        collection.pathname.replace(/\/$/, '')
+      (pagePath === collectionPath || pagePath.startsWith(collectionPrefix))
     )
   } catch {
     return false
