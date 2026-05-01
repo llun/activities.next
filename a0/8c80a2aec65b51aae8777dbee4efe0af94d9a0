@@ -1,0 +1,41 @@
+app/api/v1/actors/route.test.ts
+  a49f82315b1c1f8c 136-150
+app/api/users/[username]/route.test.ts
+  a49f82315b1c1f8c 123-186
+lib/services/federation/getFederationSigningActor.ts
+  a49f82315b1c1f8c 5-11,14,16
+lib/database/sql/actor.ts
+  a49f82315b1c1f8c 21-22,45,48,106-138,142,170,186,214,319-348,350-356,358-426,544
+app/api/users/[username]/route.ts
+  a49f82315b1c1f8c 1,13-24,26
+app/api/users/[username]/inbox/route.ts
+  a49f82315b1c1f8c 12,39-42,50-52,56-57,60-62,66-67,70-74,78-79,81-90,94-95,97-109,113-114,116-176,179-185,187-193,195-197
+lib/database/sql/actor.test.ts
+  a49f82315b1c1f8c 3,10-15,96-124,187,191-193,198,201-211
+lib/services/federation/instanceActor.ts
+  a49f82315b1c1f8c 10-21
+app/api/v1/accounts/types.test.ts
+  a49f82315b1c1f8c 16-26
+app/api/users/[username]/inbox/route.test.ts
+  a49f82315b1c1f8c 9-19,57,60-61,63-72,95-96,103,110-114,122-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a08c80a2aec65b51aae8777dbee4efe0af94d9a0",
+  "prompts": {
+    "a49f82315b1c1f8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd26f-8398-7d43-97e7-51e48287bd7d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 3870,
+      "total_deletions": 183,
+      "accepted_lines": 5666,
+      "overriden_lines": 0
+    }
+  }
+}
