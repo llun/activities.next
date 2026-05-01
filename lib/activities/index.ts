@@ -379,7 +379,8 @@ export const undoAnnounce = async ({
 export const follow = async (
   id: string,
   currentActor: Actor,
-  targetActorId: string
+  targetActorId: string,
+  signingActor?: Actor
 ) =>
   getTracer().startActiveSpan(
     'activities.follow',
@@ -400,7 +401,7 @@ export const follow = async (
       }
       const person = await getActorPerson({
         actorId: targetActorId,
-        signingActor: currentActor
+        signingActor
       })
       const targetInbox = person?.inbox
       if (!targetInbox) {
@@ -433,7 +434,11 @@ export const follow = async (
     }
   )
 
-export const unfollow = async (currentActor: Actor, follow: Follow) =>
+export const unfollow = async (
+  currentActor: Actor,
+  follow: Follow,
+  signingActor?: Actor
+) =>
   getTracer().startActiveSpan(
     'activities.unfollow',
     {
@@ -458,7 +463,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) =>
 
       const person = await getActorPerson({
         actorId: follow.targetActorId,
-        signingActor: currentActor
+        signingActor
       })
       const targetInbox = person?.inbox ?? `${follow.targetActorId}/inbox`
 

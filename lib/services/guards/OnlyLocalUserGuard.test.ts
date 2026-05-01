@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { FEDERATION_SIGNING_ACTOR_USERNAME } from '@/lib/services/federation/instanceActor'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -48,6 +50,38 @@ describe('OnlyLocalUserGuard', () => {
       const req = createRequest()
       const response = await guard(req, {
         params: Promise.resolve({ username: seedActor1.username })
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    it('returns 404 for the headless instance actor by default', async () => {
+      await database.getFederationSigningActor()
+
+      const guard = OnlyLocalUserGuard(mockHandler)
+      const req = createRequest(TEST_DOMAIN)
+      const response = await guard(req, {
+        params: Promise.resolve({
+          username: FEDERATION_SIGNING_ACTOR_USERNAME
+        })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    it('calls handler for the headless instance actor when explicitly allowed', async () => {
+      await database.getFederationSigningActor()
+
+      const guard = OnlyLocalUserGuard(mockHandler, {
+        allowFederationSigningActor: true
+      })
+      const req = createRequest(TEST_DOMAIN)
+      const response = await guard(req, {
+        params: Promise.resolve({
+          username: FEDERATION_SIGNING_ACTOR_USERNAME
+        })
       })
 
       expect(response.status).toBe(200)

@@ -1,3 +1,4 @@
+import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import {
   activityPubRedirectResponse,
@@ -9,20 +10,30 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const GET = traceApiRoute(
   'getActor',
-  OnlyLocalUserGuard(async (_, actor, req) => {
-    const contentType = negotiateActivityPubContentType(
-      req.headers.get('accept')
-    )
-    if (contentType) {
-      return activityPubResponse({
-        req,
-        data: getPersonFromActor(actor),
-        contentType
-      })
-    }
+  OnlyLocalUserGuard(
+    async (_, actor, req) => {
+      const contentType = negotiateActivityPubContentType(
+        req.headers.get('accept')
+      )
+      if (contentType) {
+        return activityPubResponse({
+          req,
+          data: getPersonFromActor(actor),
+          contentType
+        })
+      }
 
-    return activityPubRedirectResponse(
-      `https://${actor.domain}/@${actor.username}`
-    )
-  })
+      if (isFederationSigningActor(actor)) {
+        return activityPubResponse({
+          req,
+          data: getPersonFromActor(actor)
+        })
+      }
+
+      return activityPubRedirectResponse(
+        `https://${actor.domain}/@${actor.username}`
+      )
+    },
+    { allowFederationSigningActor: true }
+  )
 )

@@ -48,6 +48,7 @@ describe('StatusDatabase', () => {
             id: primaryActorId,
             username: actors.primary.username,
             domain: actors.primary.domain,
+            type: 'Person',
             followersUrl: `${primaryActorId}/followers`,
             inboxUrl: `${primaryActorId}/inbox`,
             sharedInboxUrl: `https://${actors.primary.domain}/inbox`,

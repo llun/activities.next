@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
-import { Actor } from '@/lib/types/domain/actor'
+import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
@@ -29,6 +29,7 @@ export interface BaseDatabase {
 
 export type CreateActorParams = {
   actorId: string
+  type?: ActorType
 
   username: string
   domain: string
@@ -55,6 +56,7 @@ export type IsCurrentActorFollowingParams = {
 }
 export type UpdateActorParams = {
   actorId: string
+  type?: ActorType
 
   name?: string
   summary?: string

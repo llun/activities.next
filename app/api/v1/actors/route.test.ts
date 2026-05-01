@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { FEDERATION_SIGNING_ACTOR_USERNAME } from '@/lib/services/federation/instanceActor'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -116,5 +117,35 @@ describe('POST /api/v1/actors', () => {
     const data = await response.json()
     expect(response.status).toBe(400)
     expect(data.error).toBe('Domain is not allowed')
+  })
+
+  it('rejects the reserved federation signing actor username', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      allowActorDomains: ['llun.test']
+    })
+
+    const response = await POST(
+      createRequest({ username: FEDERATION_SIGNING_ACTOR_USERNAME }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects usernames in the federation signing actor namespace', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      allowActorDomains: ['llun.test']
+    })
+
+    const response = await POST(
+      createRequest({ username: `${FEDERATION_SIGNING_ACTOR_USERNAME}abc` }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
   })
 })

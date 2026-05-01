@@ -97,6 +97,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       })
       await trx('actors').insert({
         id: actorId,
+        type: 'Person',
         accountId,
         username,
         domain,
@@ -377,6 +378,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
     await database('actors').insert({
       id: actorId,
+      type: 'Person',
       accountId,
       username,
       domain,
@@ -429,6 +431,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
       const actor = Actor.parse({
         id: sqlActor.id,
+        type: sqlActor.type ?? 'Person',
         username: sqlActor.username,
         domain: sqlActor.domain,
         ...(sqlActor.name ? { name: sqlActor.name } : null),

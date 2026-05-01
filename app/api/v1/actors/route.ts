@@ -3,6 +3,7 @@ import { promisify } from 'util'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
+import { isFederationSigningActorUsername } from '@/lib/services/federation/instanceActor'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
@@ -15,7 +16,13 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const generateKeyPair = promisify(crypto.generateKeyPair)
 
 const CreateActorRequest = z.object({
-  username: z.string().min(1).max(50),
+  username: z
+    .string()
+    .min(1)
+    .max(50)
+    .refine((username) => !isFederationSigningActorUsername(username), {
+      message: 'Username is reserved'
+    }),
   domain: z.string().min(1).optional()
 })
 
