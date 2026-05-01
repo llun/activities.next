@@ -493,6 +493,46 @@ export const getHashtagTimeline = async ({
   return data.statuses as Status[]
 }
 
+interface GetActorStatusesParams {
+  actorId: string
+  pageUrl?: string | null
+}
+
+export interface GetActorStatusesResult {
+  statuses: Status[]
+  statusesCount: number
+  nextPageUrl: string | null
+  prevPageUrl: string | null
+}
+
+export const getActorStatuses = async ({
+  actorId,
+  pageUrl
+}: GetActorStatusesParams): Promise<GetActorStatusesResult> => {
+  const path = `/api/v1/accounts/${urlToId(actorId)}/remote-statuses`
+  const url = new URL(`${window.origin}${path}`)
+  if (pageUrl) {
+    url.searchParams.append('page_url', pageUrl)
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return {
+      statuses: [],
+      statusesCount: 0,
+      nextPageUrl: null,
+      prevPageUrl: null
+    }
+  }
+
+  return (await response.json()) as GetActorStatusesResult
+}
+
 interface DeleteSessionParams {
   token: string
 }

@@ -18,18 +18,17 @@ import { getProfileData } from './getProfileData'
 
 interface Props {
   params: Promise<{ actor: string }>
-  searchParams: Promise<{
-    status_page?: string | string[]
-  }>
 }
 
-const getSearchParam = (value?: string | string[]) =>
-  Array.isArray(value) ? value[0] : value
-
-const getStatusPageHref = (profilePath: string, pageUrl: string | null) =>
-  pageUrl
-    ? `${profilePath}?status_page=${encodeURIComponent(pageUrl)}`
-    : profilePath
+const getInitials = (name: string, fallback: string) =>
+  (name || fallback)
+    .trim()
+    .split(/\s+/)
+    .map((part) => Array.from(part)[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 
 export const generateMetadata = async ({
   params
@@ -40,7 +39,7 @@ export const generateMetadata = async ({
   }
 }
 
-const Page: FC<Props> = async ({ params, searchParams }) => {
+const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
@@ -61,16 +60,11 @@ const Page: FC<Props> = async ({ params, searchParams }) => {
     ? await database.getActorSettings({ actorId: currentActor.id })
     : undefined
 
-  const statusPageUrl = getSearchParam((await searchParams).status_page)
-
   const actorProfile = await getProfileData(
     database,
     decodedActorHandle,
     isLoggedIn,
-    currentActor ?? undefined,
-    {
-      statusPageUrl
-    }
+    currentActor ?? undefined
   )
   if (!actorProfile) {
     return notFound()
@@ -88,11 +82,7 @@ const Page: FC<Props> = async ({ params, searchParams }) => {
 
   const isCurrentUser = currentActor?.id === person.id
 
-  const initials = (person.name || '')
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
+  const initials = getInitials(person.name || '', person.preferredUsername)
 
   const getHeaderImage = () => {
     if (!person.image) return null
@@ -120,9 +110,6 @@ const Page: FC<Props> = async ({ params, searchParams }) => {
   const headerImageUrl = headerImage?.url ?? null
   const headerImageMediaType = headerImage?.mediaType ?? null
   const iconImageUrl = getIconImage()
-  const profilePath = `/@${person.preferredUsername}@${actorDomain}`
-  const showStatusPagination =
-    Boolean(statusPageUrl) || Boolean(statusPagination.nextPageUrl)
 
   return (
     <div className="space-y-6">
@@ -186,38 +173,9 @@ const Page: FC<Props> = async ({ params, searchParams }) => {
           actorId={person.id}
           statuses={statuses}
           attachments={attachments}
+          statusPagination={statusPagination}
           postLineLimit={actorSettings?.postLineLimit}
         />
-        {showStatusPagination && (
-          <div className="flex items-center justify-between gap-3 border-t p-4">
-            <div>
-              {statusPageUrl && (
-                <Button variant="outline" asChild>
-                  <Link
-                    href={getStatusPageHref(
-                      profilePath,
-                      statusPagination.prevPageUrl
-                    )}
-                  >
-                    Newer posts
-                  </Link>
-                </Button>
-              )}
-            </div>
-            {statusPagination.nextPageUrl && (
-              <Button variant="outline" asChild>
-                <Link
-                  href={getStatusPageHref(
-                    profilePath,
-                    statusPagination.nextPageUrl
-                  )}
-                >
-                  Older posts
-                </Link>
-              </Button>
-            )}
-          </div>
-        )}
       </section>
     </div>
   )
