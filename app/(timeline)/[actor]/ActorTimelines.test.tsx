@@ -234,4 +234,38 @@ describe('ActorTimelines', () => {
     })
     expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
   })
+
+  it('stops loading when an empty outbox page repeats the same cursor', async () => {
+    const repeatedPageUrl =
+      'https://remote.example/users/actor/outbox?page=true&max_id=1'
+
+    getActorStatusesMock.mockResolvedValueOnce({
+      statuses: [],
+      statusesCount: 3,
+      nextPageUrl: repeatedPageUrl,
+      prevPageUrl: 'https://remote.example/users/actor/outbox?page=true'
+    })
+
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/newer')]}
+        attachments={[]}
+        statusPagination={{
+          nextPageUrl: repeatedPageUrl,
+          prevPageUrl: null
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() => {
+      expect(getActorStatusesMock).toHaveBeenCalledTimes(1)
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Load more' })
+    ).not.toBeInTheDocument()
+  })
 })

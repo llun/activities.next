@@ -154,10 +154,14 @@ export const getActorPosts: GetActorPostsFunction = async ({
                 if (!originalStatus) return null
               }
 
-              originalStatus.actor = await getActorProfile(
-                originalStatus.actorId
+              const originalStatusWithActor = {
+                ...originalStatus,
+                actor: await getActorProfile(originalStatus.actorId)
+              }
+              const announceStatus = fromAnnounce(
+                announce,
+                originalStatusWithActor
               )
-              const announceStatus = fromAnnounce(announce, originalStatus)
               if (actor) announceStatus.actor = actor
               return announceStatus
             }

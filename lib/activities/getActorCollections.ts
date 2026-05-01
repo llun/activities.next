@@ -17,7 +17,7 @@ interface Params {
   pageUrl?: string
 }
 
-const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
+export const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
   try {
     const page = new URL(pageUrl)
     const collection = new URL(collectionUrl)

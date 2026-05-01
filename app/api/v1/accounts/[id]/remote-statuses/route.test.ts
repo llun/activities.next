@@ -108,4 +108,20 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
 
     expect(response.status).toBe(400)
   })
+
+  it('returns bad request for page urls outside the actor outbox', async () => {
+    const response = await GET(
+      createRequest(
+        `?page_url=${encodeURIComponent(
+          'https://attacker.example/users/actor/outbox?page=true'
+        )}`
+      ),
+      {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      }
+    )
+
+    expect(response.status).toBe(400)
+    expect(getActorPosts).not.toHaveBeenCalled()
+  })
 })

@@ -522,12 +522,7 @@ export const getActorStatuses = async ({
     }
   })
   if (response.status !== 200) {
-    return {
-      statuses: [],
-      statusesCount: 0,
-      nextPageUrl: null,
-      prevPageUrl: null
-    }
+    throw new Error(`Failed to load actor statuses: ${response.status}`)
   }
 
   return (await response.json()) as GetActorStatusesResult

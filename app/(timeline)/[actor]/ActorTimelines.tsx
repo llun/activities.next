@@ -95,18 +95,27 @@ export const ActorTimelines: FC<Props> = ({
       let pageUrl: string | null = nextPageUrl
       let prevPageUrl: string | null = currentStatusPagination.prevPageUrl
       let nextStatuses: Status[] = []
+      const visitedPageUrls = new Set<string>()
 
       for (
         let loadedPages = 0;
         pageUrl && loadedPages < LOAD_MORE_PAGE_LIMIT;
         loadedPages += 1
       ) {
+        if (visitedPageUrls.has(pageUrl)) {
+          pageUrl = null
+          break
+        }
+        visitedPageUrls.add(pageUrl)
         const result = await getActorStatuses({
           actorId,
           pageUrl
         })
 
-        pageUrl = result.nextPageUrl
+        pageUrl =
+          result.nextPageUrl && !visitedPageUrls.has(result.nextPageUrl)
+            ? result.nextPageUrl
+            : null
         prevPageUrl = result.prevPageUrl
         if (result.statuses.length > 0) {
           nextStatuses = result.statuses

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { isCollectionPageUrl } from '@/lib/activities/getActorCollections'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
@@ -65,6 +66,19 @@ export const GET = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_404,
         responseStatusCode: 404
+      })
+    }
+
+    if (
+      parsed.data.page_url &&
+      (!person.outbox ||
+        !isCollectionPageUrl(parsed.data.page_url, person.outbox))
+    ) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
       })
     }
 
