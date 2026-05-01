@@ -169,6 +169,7 @@ const Page: FC<Props> = async ({ params }) => {
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <ActorTimelines
+          key={person.id}
           host={host}
           actorId={person.id}
           statuses={statuses}

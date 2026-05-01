@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getActorStatuses } from '@/lib/client'
 import { Posts } from '@/lib/components/posts/posts'
@@ -77,7 +77,10 @@ export const ActorTimelines: FC<Props> = ({
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
 
-  const postStatuses = currentStatuses.filter((status) => !isReply(status))
+  const postStatuses = useMemo(
+    () => currentStatuses.filter((status) => !isReply(status)),
+    [currentStatuses]
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     const nextPageUrl = currentStatusPagination.nextPageUrl
@@ -211,7 +214,7 @@ export const ActorTimelines: FC<Props> = ({
           </p>
         )}
       </TabsContent>
-      {currentStatusPagination.nextPageUrl && currentStatuses.length > 0 && (
+      {currentStatusPagination.nextPageUrl && (
         <div ref={loadMoreRef} className="border-t p-4 text-center">
           <Button
             variant="outline"

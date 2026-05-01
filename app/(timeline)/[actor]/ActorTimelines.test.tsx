@@ -172,4 +172,39 @@ describe('ActorTimelines', () => {
       screen.getAllByText('https://remote.example/statuses/oldest')
     ).toHaveLength(2)
   })
+
+  it('shows load more when the initial actor page has no renderable statuses', async () => {
+    getActorStatusesMock.mockResolvedValue({
+      statuses: [createStatus('https://remote.example/statuses/first-post')],
+      statusesCount: 3,
+      nextPageUrl: null,
+      prevPageUrl: 'https://remote.example/users/actor/outbox?page=true'
+    })
+
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[]}
+        attachments={[]}
+        statusPagination={{
+          nextPageUrl:
+            'https://remote.example/users/actor/outbox?page=true&max_id=1',
+          prevPageUrl: null
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() => {
+      expect(getActorStatusesMock).toHaveBeenCalledWith({
+        actorId: 'https://remote.example/users/actor',
+        pageUrl: 'https://remote.example/users/actor/outbox?page=true&max_id=1'
+      })
+    })
+    expect(
+      screen.getAllByText('https://remote.example/statuses/first-post')
+    ).toHaveLength(2)
+  })
 })
