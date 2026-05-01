@@ -1,0 +1,32 @@
+lib/activities/getActorPosts.test.ts
+  9280586e83aef0d9 264
+lib/activities/getActorCollections.ts
+  9280586e83aef0d9 24-26,31
+lib/activities/getActorPosts.ts
+  9280586e83aef0d9 67-100,102,105-117,120-133,136-158,160-162,165-170,172-173,175-176,178-181,183-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "22fb735601505b746f257eb4e874abdc5b4e3745",
+  "prompts": {
+    "9280586e83aef0d9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddff7-93bb-7761-81fe-00363f0d4e95",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 252,
+      "total_deletions": 104,
+      "accepted_lines": 252,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_e5599db4cf9bba": {
+      "author": "Maythee Anegboonlap"
+    }
+  }
+}
