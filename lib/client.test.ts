@@ -1,6 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { updateNote } from './client'
+import { getActorStatuses, updateNote } from './client'
 
 enableFetchMocks()
 
@@ -33,5 +33,32 @@ describe('client updateNote', () => {
         })
       })
     )
+  })
+})
+
+describe('client getActorStatuses', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        origin: 'https://local.example'
+      }
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'window')
+  })
+
+  it('throws when the remote statuses request fails', async () => {
+    fetchMock.mockResponseOnce('', { status: 500 })
+
+    await expect(
+      getActorStatuses({
+        actorId: 'https://remote.example/users/actor',
+        pageUrl: 'https://remote.example/users/actor/outbox?page=true'
+      })
+    ).rejects.toThrow('Failed to load actor statuses: 500')
   })
 })

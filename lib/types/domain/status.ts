@@ -213,7 +213,7 @@ export const fromNote = (note: Note): StatusNote => {
 
 export const fromAnnounce = (
   announce: AnnounceStatus | ActivityPubAnnounce,
-  originalStatus: StatusNote
+  originalStatus: StatusNote | StatusPoll
 ): StatusAnnounce => {
   const currentTime = Date.now()
   return StatusAnnounce.parse({
