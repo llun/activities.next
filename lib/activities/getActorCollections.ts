@@ -14,12 +14,32 @@ interface Params {
   person: Actor
   field: 'following' | 'followers' | 'outbox'
   signingActor?: DomainActor
+  pageUrl?: string
+}
+
+export const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
+  try {
+    const page = new URL(pageUrl)
+    const collection = new URL(collectionUrl)
+    const pagePath = page.pathname.replace(/\/$/, '') || '/'
+    const collectionPath = collection.pathname.replace(/\/$/, '') || '/'
+    const collectionPrefix = collectionPath === '/' ? '/' : `${collectionPath}/`
+
+    return (
+      page.protocol === collection.protocol &&
+      page.host === collection.host &&
+      (pagePath === collectionPath || pagePath.startsWith(collectionPrefix))
+    )
+  } catch {
+    return false
+  }
 }
 
 export const getActorCollections = async ({
   person,
   field,
-  signingActor
+  signingActor,
+  pageUrl
 }: Params) => {
   return getTracer().startActiveSpan(
     `activities.${field}`,
@@ -53,12 +73,16 @@ export const getActorCollections = async ({
       }
 
       const collection = JSON.parse(fieldResponse.body) as OrderedCollection
-      const pageUrl = getOrderCollectionFirstPage(collection)
+      const firstPageUrl = getOrderCollectionFirstPage(collection)
+      const collectionPageUrl =
+        pageUrl && isCollectionPageUrl(pageUrl, person[field])
+          ? pageUrl
+          : firstPageUrl
 
       // Return totalItems even if page URL is not available
       // This is common for remote actors where Mastodon only provides totalItems
       // without exposing the actual list of followers/following
-      if (!pageUrl) {
+      if (!collectionPageUrl) {
         span.end()
         return {
           page: null,
@@ -68,15 +92,15 @@ export const getActorCollections = async ({
 
       try {
         const response = await request({
-          url: pageUrl,
+          url: collectionPageUrl,
           headers: activityPubRequestHeaders({
-            url: pageUrl,
+            url: collectionPageUrl,
             signingActor
           })
         })
         if (response.statusCode !== 200) {
           span.setAttributes({
-            url: pageUrl,
+            url: collectionPageUrl,
             status: response.statusCode
           })
           span.recordException(

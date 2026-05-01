@@ -15,6 +15,10 @@ type ProfileData = {
   person: Actor
   statuses: Status[]
   statusesCount: number
+  statusPagination: {
+    nextPageUrl: string | null
+    prevPageUrl: string | null
+  }
   attachments: Attachment[]
   followingCount: number
   followersCount: number
@@ -22,11 +26,16 @@ type ProfileData = {
   hasFitnessData: boolean
 }
 
+type ProfileDataOptions = {
+  statusPageUrl?: string
+}
+
 export const getProfileData = async (
   database: Database,
   actorHandle: string,
   isLoggedIn: boolean = true,
-  signingActor?: DomainActor
+  signingActor?: DomainActor,
+  options: ProfileDataOptions = {}
 ): Promise<ProfileData | null> => {
   const [username, domain] = actorHandle.split('@').slice(1)
   const persistedActor = await database.getActorFromUsername({
@@ -54,6 +63,10 @@ export const getProfileData = async (
       person: getPersonFromActor(persistedActor),
       statuses,
       statusesCount,
+      statusPagination: {
+        nextPageUrl: null,
+        prevPageUrl: null
+      },
       attachments,
       followingCount,
       followersCount,
@@ -94,7 +107,12 @@ export const getProfileData = async (
     actorFollowingResponse,
     actorFollowersResponse
   ] = await Promise.all([
-    getActorPosts({ database, person, ...signingParams }),
+    getActorPosts({
+      database,
+      person,
+      pageUrl: options.statusPageUrl,
+      ...signingParams
+    }),
     database.getAttachmentsForActor({ actorId: person.id }),
     getActorFollowing({ person, ...signingParams }),
     getActorFollowers({ person, ...signingParams })
@@ -103,6 +121,10 @@ export const getProfileData = async (
   return {
     ...actorPostsResponse,
     person,
+    statusPagination: {
+      nextPageUrl: actorPostsResponse.nextPageUrl ?? null,
+      prevPageUrl: actorPostsResponse.prevPageUrl ?? null
+    },
     attachments,
     followingCount: actorFollowingResponse.followingCount,
     followersCount: actorFollowersResponse.followerCount,

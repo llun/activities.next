@@ -20,6 +20,16 @@ interface Props {
   params: Promise<{ actor: string }>
 }
 
+const getInitials = (name: string, fallback: string) =>
+  (name || fallback)
+    .trim()
+    .split(/\s+/)
+    .map((part) => Array.from(part)[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
 export const generateMetadata = async ({
   params
 }: Props): Promise<Metadata> => {
@@ -65,17 +75,14 @@ const Page: FC<Props> = async ({ params }) => {
     statuses,
     attachments,
     statusesCount,
+    statusPagination,
     followingCount,
     followersCount
   } = actorProfile
 
   const isCurrentUser = currentActor?.id === person.id
 
-  const initials = (person.name || '')
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
+  const initials = getInitials(person.name || '', person.preferredUsername)
 
   const getHeaderImage = () => {
     if (!person.image) return null
@@ -162,10 +169,12 @@ const Page: FC<Props> = async ({ params }) => {
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <ActorTimelines
+          key={person.id}
           host={host}
           actorId={person.id}
           statuses={statuses}
           attachments={attachments}
+          statusPagination={statusPagination}
           postLineLimit={actorSettings?.postLineLimit}
         />
       </section>
