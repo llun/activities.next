@@ -55,8 +55,8 @@ export const NotificationsList = ({
         })
         // Refresh the layout to update the notification badge count
         router.refresh()
-      } catch (error) {
-        console.error('Failed to mark notifications as read:', error)
+      } catch {
+        // Keep unread state; the next refresh or retry can mark them later.
       }
     },
     [router]

@@ -5,6 +5,7 @@ import {
 import { ENTITY_TYPE_NOTE, Note } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_VOTE_JOB_NAME } from './names'
@@ -87,7 +88,7 @@ export const createPollVoteJob = createJobHandle(
         choiceIndex
       })
     } catch (error) {
-      console.error('Vote creation failed:', error)
+      logger.error({ error }, 'Vote creation failed')
     }
   }
 )

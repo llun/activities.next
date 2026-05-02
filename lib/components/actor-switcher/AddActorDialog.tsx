@@ -58,9 +58,8 @@ export function AddActorDialog({
           }
           setDomainsLoaded(true)
         }
-      } catch (error) {
+      } catch {
         // If fetch fails, keep the default domain
-        console.error('Failed to fetch available domains:', error)
         setDomainsLoaded(true)
       }
     }

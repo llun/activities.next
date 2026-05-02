@@ -68,8 +68,8 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
       await votePoll({ statusId: status.id, choices: selectedChoices })
       setVotedChoices(selectedChoices)
       setSelectedChoices([])
-    } catch (error) {
-      console.error('Failed to vote:', error)
+    } catch {
+      setSelectedChoices([])
     } finally {
       setIsVoting(false)
     }

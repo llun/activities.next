@@ -28,8 +28,8 @@ export const FollowRequestCard: FC<Props> = ({
     try {
       await onAccept(account.url)
       setStatus('accepted')
-    } catch (error) {
-      console.error('Failed to accept follow request:', error)
+    } catch {
+      setStatus('pending')
     } finally {
       setIsLoading(false)
     }
@@ -40,8 +40,8 @@ export const FollowRequestCard: FC<Props> = ({
     try {
       await onReject(account.url)
       setStatus('rejected')
-    } catch (error) {
-      console.error('Failed to reject follow request:', error)
+    } catch {
+      setStatus('pending')
     } finally {
       setIsLoading(false)
     }
