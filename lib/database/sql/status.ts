@@ -1383,13 +1383,13 @@ export const StatusSQLDatabaseMixin = (
           }))
         )
 
-        await Promise.all(
-          newSelectedChoices.map((choice) =>
-            trx('poll_choices')
-              .where({ statusId, choiceId: choice.choiceId })
-              .increment('totalVotes', 1)
+        await trx('poll_choices')
+          .where({ statusId })
+          .whereIn(
+            'choiceId',
+            newSelectedChoices.map((choice) => choice.choiceId)
           )
-        )
+          .increment('totalVotes', 1)
 
         return true
       })
