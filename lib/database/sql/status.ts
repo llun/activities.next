@@ -1322,7 +1322,8 @@ export const StatusSQLDatabaseMixin = (
   async function recordPollVotes({
     statusId,
     actorId,
-    choices
+    choices,
+    allowAdditionalChoices = false
   }: RecordPollVotesParams): Promise<boolean> {
     const uniqueChoices = [...new Set(choices)]
     if (uniqueChoices.length === 0) return false
@@ -1334,32 +1335,56 @@ export const StatusSQLDatabaseMixin = (
           .where({ statusId })
           .orderBy('choiceId', 'asc')
           .select<{ choiceId: number }[]>('choiceId')
-        const selectedChoices: { choiceId: number }[] = []
+        const selectedChoices: { choiceIndex: number; choiceId: number }[] = []
         for (const choiceIndex of uniqueChoices) {
           const choice = pollChoices[choiceIndex]
           if (!choice) return false
-          selectedChoices.push(choice)
+          selectedChoices.push({
+            choiceIndex,
+            choiceId: choice.choiceId
+          })
         }
 
-        await trx('poll_voters').insert({
-          statusId,
-          actorId,
-          createdAt: currentTime,
-          updatedAt: currentTime
-        })
+        const existingVote = await trx('poll_voters')
+          .where({ statusId, actorId })
+          .first()
+        if (existingVote && !allowAdditionalChoices) return false
 
-        await trx('poll_answers').insert(
-          uniqueChoices.map((choice) => ({
+        const existingAnswers = allowAdditionalChoices
+          ? await trx('poll_answers')
+              .where({ statusId, actorId })
+              .whereIn('choice', uniqueChoices)
+              .select<{ choice: number }[]>('choice')
+          : []
+        const existingChoices = new Set(
+          existingAnswers.map((answer) => answer.choice)
+        )
+        const newSelectedChoices = selectedChoices.filter(
+          (choice) => !existingChoices.has(choice.choiceIndex)
+        )
+        if (newSelectedChoices.length === 0) return false
+
+        if (!existingVote) {
+          await trx('poll_voters').insert({
             statusId,
             actorId,
-            choice,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+        }
+
+        await trx('poll_answers').insert(
+          newSelectedChoices.map((choice) => ({
+            statusId,
+            actorId,
+            choice: choice.choiceIndex,
             createdAt: currentTime,
             updatedAt: currentTime
           }))
         )
 
         await Promise.all(
-          selectedChoices.map((choice) =>
+          newSelectedChoices.map((choice) =>
             trx('poll_choices')
               .where({ statusId, choiceId: choice.choiceId })
               .increment('totalVotes', 1)

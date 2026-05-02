@@ -16,17 +16,31 @@ exports.up = async (knex) => {
 
   const batchSize = 500
   const now = new Date()
-  let offset = 0
+  let lastStatusId = null
+  let lastActorId = null
 
   while (true) {
-    const existingVotes = await knex('poll_answers')
+    let query = knex('poll_answers')
       .distinct('statusId', 'actorId')
       .whereNotNull('statusId')
       .whereNotNull('actorId')
       .orderBy('statusId')
       .orderBy('actorId')
       .limit(batchSize)
-      .offset(offset)
+
+    if (lastStatusId !== null && lastActorId !== null) {
+      query = query.andWhere(function () {
+        this.where('statusId', '>', lastStatusId).orWhere(function () {
+          this.where('statusId', lastStatusId).andWhere(
+            'actorId',
+            '>',
+            lastActorId
+          )
+        })
+      })
+    }
+
+    const existingVotes = await query
 
     if (existingVotes.length === 0) return
 
@@ -39,7 +53,9 @@ exports.up = async (knex) => {
       }))
     )
 
-    offset += existingVotes.length
+    const lastVote = existingVotes[existingVotes.length - 1]
+    lastStatusId = lastVote.statusId
+    lastActorId = lastVote.actorId
   }
 }
 

@@ -291,7 +291,7 @@ describe('createPollVoteJob', () => {
     expect(updatedPoll.choices[1].totalVotes).toEqual(0)
   })
 
-  it('prevents duplicate voters in anyOf poll', async () => {
+  it('records distinct anyOf selections from repeated federated activities', async () => {
     // Create an anyOf poll
     const anyOfPoll = await database.createPoll({
       id: `${actor1?.id}/polls/anyof-${Date.now()}`,
@@ -332,12 +332,23 @@ describe('createPollVoteJob', () => {
       data: secondVote
     })
 
+    // Duplicate activity for an already-recorded choice should not inflate totals.
+    const duplicateVote = createVoteNote({
+      from: VOTER_ACTOR_ID,
+      inReplyTo: anyOfPoll.id,
+      name: 'Choice 1'
+    })
+    await createPollVoteJob(database, {
+      id: 'id',
+      name: CREATE_POLL_VOTE_JOB_NAME,
+      data: duplicateVote
+    })
+
     const updatedPoll = (await database.getStatus({
       statusId: anyOfPoll.id
     })) as StatusPoll
-    // Only the first vote should be counted for a voter.
     expect(updatedPoll.choices[0].totalVotes).toEqual(1)
-    expect(updatedPoll.choices[1].totalVotes).toEqual(0)
+    expect(updatedPoll.choices[1].totalVotes).toEqual(1)
   })
 
   it('fetches and stores remote voter actor', async () => {

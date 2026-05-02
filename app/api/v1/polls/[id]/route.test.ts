@@ -135,6 +135,7 @@ describe('Mastodon poll routes', () => {
           method: 'POST',
           headers: { 'content-type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams([
+            ['choices', '9'],
             ['choices[]', '0'],
             ['choices[]', '1']
           ])
@@ -149,6 +150,25 @@ describe('Mastodon poll routes', () => {
       actorId: mockCurrentActor.id,
       choices: [0, 1]
     })
+  })
+
+  it('rejects oversized poll vote choice arrays', async () => {
+    const response = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            choices: Array.from({ length: 21 }, (_, index) => index)
+          })
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
   })
 
   it('returns not found when the poll status does not exist', async () => {

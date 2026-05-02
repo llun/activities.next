@@ -71,7 +71,8 @@ export const createPollVoteJob = createJobHandle(
       const votesRecorded = await database.recordPollVotes({
         statusId: pollStatus.id,
         actorId: note.attributedTo,
-        choices: [choiceIndex]
+        choices: [choiceIndex],
+        allowAdditionalChoices: pollStatus.pollType === 'anyOf'
       })
       if (!votesRecorded) return
     } catch (error) {

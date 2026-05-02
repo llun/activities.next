@@ -23,6 +23,8 @@ export const POST = traceApiRoute(
     const { database, currentActor } = context
     let body: unknown
     try {
+      // This UI-only endpoint is JSON-only; Mastodon clients use
+      // /api/v1/polls/:id/votes for form-encoded compatibility.
       body = await req.json()
     } catch {
       return apiResponse({

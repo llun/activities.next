@@ -19,18 +19,24 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+const MAX_POLL_CHOICES_PER_VOTE = 20
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const VotePollRequest = z.object({
-  choices: z.number().int().nonnegative().array().min(1)
+  choices: z
+    .number()
+    .int()
+    .nonnegative()
+    .array()
+    .min(1)
+    .max(MAX_POLL_CHOICES_PER_VOTE)
 })
 
 const parseFormChoices = (formData: Pick<FormData, 'getAll'>) => {
-  const choices = [
-    ...formData.getAll('choices[]'),
-    ...formData.getAll('choices')
-  ]
+  const bracketChoices = formData.getAll('choices[]')
+  const choices =
+    bracketChoices.length > 0 ? bracketChoices : formData.getAll('choices')
   return {
     choices: choices.map((choice) =>
       typeof choice === 'string' && choice.trim() ? Number(choice) : Number.NaN

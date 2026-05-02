@@ -524,6 +524,7 @@ export type RecordPollVotesParams = {
   statusId: string
   actorId: string
   choices: number[]
+  allowAdditionalChoices?: boolean
 }
 
 export interface StatusDatabase {
