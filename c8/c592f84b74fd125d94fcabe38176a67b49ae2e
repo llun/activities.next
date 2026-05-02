@@ -1,0 +1,25 @@
+lib/components/posts/collapsible-content.tsx
+  09ef717097badba0 69
+lib/components/posts/collapsible-content.test.tsx
+  09ef717097badba0 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "c8c592f84b74fd125d94fcabe38176a67b49ae2e",
+  "prompts": {
+    "09ef717097badba0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de932-a92b-7e02-98e6-7abb5e8629d3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 1,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}
