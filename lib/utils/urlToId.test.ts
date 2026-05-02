@@ -38,6 +38,12 @@ describe('#urlToId', () => {
   it('handles URLs without protocol', () => {
     expect(urlToId('llun.test/users/test1')).toEqual('llun.test:users:test1')
   })
+
+  it('round trips opaque ActivityPub IDs with colons in path segments', () => {
+    const actorId = 'https://bsky.brid.gy/ap/did:plc:abc123/statuses/post-1'
+
+    expect(idToUrl(urlToId(actorId))).toEqual(actorId)
+  })
 })
 
 describe('#idToUrl', () => {

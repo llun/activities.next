@@ -1,5 +1,33 @@
+const OPAQUE_URL_ID_PREFIX = 'apurl_'
+
+const encodeBase64Url = (value: string) => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf8').toString('base64url')
+  }
+
+  return btoa(unescape(encodeURIComponent(value)))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
+}
+
+const decodeBase64Url = (value: string) => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'base64url').toString('utf8')
+  }
+
+  const paddedValue = value.padEnd(
+    value.length + ((4 - (value.length % 4)) % 4),
+    '='
+  )
+  return decodeURIComponent(
+    escape(atob(paddedValue.replaceAll('-', '+').replaceAll('_', '/')))
+  )
+}
+
 export const urlToId = (idInURLFormat: string) => {
   if (!idInURLFormat) return ''
+  if (idInURLFormat.startsWith(OPAQUE_URL_ID_PREFIX)) return idInURLFormat
 
   try {
     // Handle URLs without protocol by adding a temporary one
@@ -8,6 +36,11 @@ export const urlToId = (idInURLFormat: string) => {
       : `https://${idInURLFormat}`
 
     const url = new URL(urlString)
+
+    if (url.pathname.includes(':')) {
+      return `${OPAQUE_URL_ID_PREFIX}${encodeBase64Url(url.toString())}`
+    }
+
     // Remove leading slash and replace all slashes with colons
     return (
       `${url.host}:${url.pathname.slice(1).replaceAll('/', ':')}` +
@@ -22,6 +55,14 @@ export const urlToId = (idInURLFormat: string) => {
 
 export const idToUrl = (id: string) => {
   if (!id) return ''
+
+  if (id.startsWith(OPAQUE_URL_ID_PREFIX)) {
+    try {
+      return decodeBase64Url(id.slice(OPAQUE_URL_ID_PREFIX.length))
+    } catch {
+      return id
+    }
+  }
 
   // Handle query parameters and fragments
   const [baseId, ...rest] = id.split(/([?#].*)/)
