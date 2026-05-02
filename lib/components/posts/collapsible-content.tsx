@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 interface CollapsibleContentProps {
   children: ReactNode
   className?: string
+  contentClassName?: string
   maxLines?: number
 }
 
@@ -24,9 +25,10 @@ const LINE_HEIGHT_REM = 1.4375 // ~line height for text-sm leading-relaxed
 export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   children,
   className,
+  contentClassName,
   maxLines = 5
 }) => {
-  const contentRef = useRef<HTMLDivElement>(null)
+  const measuredContentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
@@ -34,7 +36,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   const maxHeightRem = maxLines * LINE_HEIGHT_REM
 
   const checkOverflow = useCallback(() => {
-    const el = contentRef.current
+    const el = measuredContentRef.current
     if (!el) return
 
     const maxHeightPx =
@@ -48,7 +50,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   }, [children, checkOverflow])
 
   useEffect(() => {
-    const el = contentRef.current
+    const el = measuredContentRef.current
     if (!el) return
 
     const observer = new ResizeObserver(() => {
@@ -64,11 +66,12 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
     <div className="relative">
       <div
         id={contentId}
-        ref={contentRef}
         className={cn(className, needsCollapse && 'overflow-hidden')}
-        style={needsCollapse ? { maxHeight: `${maxHeightRem}rem` } : undefined}
+        style={needsCollapse ? { height: `${maxHeightRem}rem` } : undefined}
       >
-        {children}
+        <div ref={measuredContentRef} className={contentClassName}>
+          {children}
+        </div>
       </div>
       {needsCollapse && (
         <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center bg-gradient-to-t from-background to-transparent pt-8 pb-0">
