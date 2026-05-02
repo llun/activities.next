@@ -1,0 +1,45 @@
+app/api/users/[username]/statuses/[statusId]/replies/route.test.ts
+  470df6e6a8098e99 1-112
+app/api/users/[username]/statuses/[statusId]/replies/route.ts
+  470df6e6a8098e99 1-62
+lib/types/domain/status.test.ts
+  470df6e6a8098e99 170-179
+lib/utils/getPersonFromActor.ts
+  470df6e6a8098e99 39-40
+lib/types/domain/status.ts
+  470df6e6a8098e99 281-290,333-341
+lib/types/activitypub/objects.ts
+  470df6e6a8098e99 117-118
+lib/utils/getPersonFromActor.test.ts
+  470df6e6a8098e99 18-19
+app/api/users/[username]/collections/featured/route.test.ts
+  470df6e6a8098e99 1-65
+app/api/users/[username]/collections/featured/route.ts
+  470df6e6a8098e99 1-24
+app/api/users/[username]/statuses/[statusId]/shares/route.ts
+  470df6e6a8098e99 1-42
+app/api/users/[username]/collections/tags/route.ts
+  470df6e6a8098e99 1-24
+app/api/users/[username]/statuses/[statusId]/likes/route.ts
+  470df6e6a8098e99 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "bc749845f4cdd1974f809d67500275fe81d1ca5f",
+  "prompts": {
+    "470df6e6a8098e99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de525-ee07-7b60-8309-2cd0207e24ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 573,
+      "total_deletions": 0,
+      "accepted_lines": 573,
+      "overriden_lines": 0
+    }
+  }
+}
