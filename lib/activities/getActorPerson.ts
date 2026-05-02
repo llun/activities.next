@@ -34,7 +34,7 @@ export const getActorPerson: GetActorPersonFunction = ({
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
       span.recordException(nodeError)
-      logger.error(`[getActorProfile] ${nodeError.message}`)
+      logger.debug(`[getActorProfile] ${nodeError.message}`)
       return null
     } finally {
       span.end()

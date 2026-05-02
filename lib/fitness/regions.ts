@@ -1010,3 +1010,19 @@ export const getRegionBounds = (regionIds: string[]): RegionBounds[] =>
     .map((id) => REGION_MAP.get(id))
     .filter((r): r is MapRegion => r !== undefined)
     .map((r) => r.bounds)
+
+/**
+ * Returns true when the coordinate falls inside at least one of the provided
+ * bounding boxes (OR logic).
+ */
+export const isPointInAnyBounds = (
+  point: { lat: number; lng: number },
+  bounds: RegionBounds[]
+): boolean =>
+  bounds.some(
+    (b) =>
+      point.lat >= b.minLat &&
+      point.lat <= b.maxLat &&
+      point.lng >= b.minLng &&
+      point.lng <= b.maxLng
+  )

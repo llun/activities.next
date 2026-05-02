@@ -1,13 +1,12 @@
 import { z } from 'zod'
 
-import { Database } from '@/lib/database/types'
 import {
   type RegionBounds,
   deserializeRegions,
   getRegionBounds
 } from '@/lib/fitness/regions'
 import { GENERATE_FITNESS_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateHeatmapImage } from '@/lib/services/fitness-files/generateHeatmapImage'
 import {
   isParseableFitnessFileType,
@@ -78,29 +77,6 @@ const getPeriodRange = (
       }
     }
   }
-}
-
-const getFitnessFileBuffer = async (
-  database: Database,
-  fitnessFileId: string
-): Promise<Buffer> => {
-  const data = await getFitnessFile(database, fitnessFileId)
-  if (!data) {
-    throw new Error('Fitness file not found in storage')
-  }
-
-  if (data.type === 'buffer') {
-    return data.buffer
-  }
-
-  const response = await fetch(data.redirectUrl)
-  if (!response.ok) {
-    throw new Error(
-      `Failed to download fitness file from redirect URL (${response.status})`
-    )
-  }
-
-  return Buffer.from(await response.arrayBuffer())
 }
 
 export const generateFitnessHeatmapJob = createJobHandle(

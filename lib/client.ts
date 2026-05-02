@@ -1227,6 +1227,39 @@ export const getFitnessHeatmap = async ({
   return response.json()
 }
 
+export const getFitnessHeatmapGeoJSON = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey,
+  region
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+}): Promise<any | null> => {
+  const encodedId = urlToId(actorId)
+  const url = new URL(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmap/geojson`
+  )
+  url.searchParams.append('period_type', periodType)
+  url.searchParams.append('period_key', periodKey)
+  if (activityType) {
+    url.searchParams.append('activity_type', activityType)
+  }
+  if (region) {
+    url.searchParams.append('region', region)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) return null
+  return response.json()
+}
+
 export const triggerFitnessHeatmap = async ({
   actorId,
   activityType,

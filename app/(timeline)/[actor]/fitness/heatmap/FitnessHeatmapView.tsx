@@ -1,6 +1,6 @@
 'use client'
 
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Map as MapIcon, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -10,20 +10,23 @@ import {
   getFitnessCalendarData,
   getFitnessHeatmap,
   getFitnessHeatmaps,
+  getFitnessHeatmapGeoJSON,
   triggerFitnessHeatmap
 } from '@/lib/client'
 import {
   CalendarMetric,
   FitnessCalendarHeatmap
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
-import { FitnessHeatmapList } from '@/lib/components/fitness/FitnessHeatmapList'
 import { RegionSelector } from '@/lib/components/fitness/RegionSelector'
+import { InteractiveHeatmapMap } from '@/lib/components/fitness/InteractiveHeatmapMap'
 import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/lib/components/ui/card'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
 interface Props {
   actorId: string
+  mapboxAccessToken?: string
 }
 
 const METRIC_LABELS: Record<CalendarMetric, string> = {
@@ -84,7 +87,7 @@ const generateMonthOptions = (year: number): string[] => {
   return months
 }
 
-export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
+export const FitnessHeatmapView: FC<Props> = ({ actorId, mapboxAccessToken }) => {
   const [activityTypes, setActivityTypes] = useState<string[]>([])
   const [selectedType, setSelectedType] = useState<string>('')
   const [periodType, setPeriodType] = useState<PeriodType>('all_time')
@@ -96,22 +99,15 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   const [heatmapData, setHeatmapData] = useState<FitnessHeatmapData | null>(
     null
   )
+  const [geojson, setGeojson] = useState<any | null>(null)
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [isLoadingGeoJSON, setIsLoadingGeoJSON] = useState(false)
   const [generationPending, setGenerationPending] = useState(false)
   // Tracks the combination of params for which generation was triggered so we
   // don't fire duplicate POST requests on every fetchData re-run.
   const generationKeyRef = useRef<string | null>(null)
 
   const [heatmaps, setHeatmaps] = useState<FitnessHeatmapData[]>([])
-  const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
-  const [isDetailRetrying, setIsDetailRetrying] = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setCurrentTime(Date.now()), 60_000)
-    return () => clearInterval(id)
-  }, [])
 
   useEffect(() => {
     getDistinctFitnessActivityTypes({ actorId })
@@ -134,10 +130,26 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     [selectedRegionIds]
   )
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+  const fetchGeoJSON = useCallback(async () => {
+    setIsLoadingGeoJSON(true)
+    try {
+      const activityType = selectedType || undefined
+      const data = await getFitnessHeatmapGeoJSON({
+        actorId,
+        activityType,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: serializedRegion
+      })
+      setGeojson(data)
+    } catch {
+      // Non-fatal
+    } finally {
+      setIsLoadingGeoJSON(false)
+    }
+  }, [actorId, selectedType, periodType, effectivePeriodKey, serializedRegion])
 
+  const fetchData = useCallback(async () => {
     try {
       const activityType = selectedType || undefined
       const { startDate, endDate } = getCalendarDateRange(
@@ -166,6 +178,12 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
       setCalendarDays(calendar)
       setHeatmaps(allHeatmaps)
 
+      if (heatmap?.status === 'completed') {
+        fetchGeoJSON()
+      } else {
+        setGeojson(null)
+      }
+
       // If no heatmap exists yet and a region filter is active, trigger
       // on-demand generation (only once per unique param combination).
       if (heatmap === null && serializedRegion) {
@@ -185,27 +203,22 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
         }
       }
     } catch {
-      setError('Failed to load heatmap data. Please try again.')
-    } finally {
-      setIsLoading(false)
+      // Non-fatal
     }
-  }, [actorId, selectedType, periodType, effectivePeriodKey, serializedRegion])
+  }, [actorId, selectedType, periodType, effectivePeriodKey, serializedRegion, fetchGeoJSON])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
   // Stable boolean: true when any list entry is still in-flight.
-  // Using a derived primitive prevents the polling effect from tearing down
-  // its interval on every setHeatmaps call.
   const hasAnyListInFlight = useMemo(
     () =>
       heatmaps.some((h) => h.status === 'generating' || h.status === 'pending'),
     [heatmaps]
   )
 
-  // Poll every 5 s while a generation job is in flight (either we triggered it
-  // ourselves, or the server already has it in "generating"/"pending" status).
+  // Poll every 5 s while a generation job is in flight
   useEffect(() => {
     const hasInFlight =
       generationPending ||
@@ -226,6 +239,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
           setHeatmapData(heatmap)
           if (heatmap !== null && heatmap.status !== 'generating') {
             setGenerationPending(false)
+            if (heatmap.status === 'completed') fetchGeoJSON()
           }
         })
         .catch(() => {
@@ -245,7 +259,8 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     selectedType,
     periodType,
     effectivePeriodKey,
-    serializedRegion
+    serializedRegion,
+    fetchGeoJSON
   ])
 
   const yearOptions = useMemo(() => generateYearOptions(), [])
@@ -316,226 +331,221 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   )
 
   return (
-    <div className="space-y-6 p-2 sm:p-4">
+    <div className="space-y-6 p-4">
       {/* Selectors */}
-      <div className="flex flex-wrap items-start gap-4">
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Activity
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="rounded border bg-background px-2 py-1 text-sm"
-          >
-            <option value="">All</option>
-            {activityTypes.map((type) => (
-              <option key={type} value={type}>
-                {type
-                  .replace(/_/g, ' ')
-                  .replace(/\b\w/g, (c) => c.toUpperCase())}
-              </option>
-            ))}
-          </select>
-        </label>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Activity</label>
+              <select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="block w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">All Activities</option>
+                {activityTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Period
-          <select
-            value={periodType}
-            onChange={(e) =>
-              handlePeriodTypeChange(e.target.value as PeriodType)
-            }
-            className="rounded border bg-background px-2 py-1 text-sm"
-          >
-            <option value="all_time">All Time</option>
-            <option value="yearly">Yearly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Period Type</label>
+              <select
+                value={periodType}
+                onChange={(e) => handlePeriodTypeChange(e.target.value as PeriodType)}
+                className="block w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all_time">All Time</option>
+                <option value="yearly">Yearly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
 
-        {periodType !== 'all_time' && (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Year
-            <select
-              value={selectedYear}
-              onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
-              className="rounded border bg-background px-2 py-1 text-sm"
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {periodType === 'monthly' && (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Month
-            <select
-              value={periodKey}
-              onChange={(e) => setPeriodKey(e.target.value)}
-              className="rounded border bg-background px-2 py-1 text-sm"
-            >
-              {monthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {/* Region filter */}
-        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-          <span className="mt-1.5 shrink-0">Region</span>
-          <div className="w-64">
-            <RegionSelector
-              selectedIds={selectedRegionIds}
-              onChange={setSelectedRegionIds}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Heatmap list */}
-      <div className="space-y-2">
-        <h2 className="text-lg font-medium">Heatmaps</h2>
-        <FitnessHeatmapList
-          heatmaps={heatmaps}
-          onSelect={handleSelectHeatmap}
-          onRetry={handleRetry}
-          currentTime={currentTime}
-        />
-      </div>
-
-      {isLoading && (
-        <p className="text-center text-muted-foreground">Loading...</p>
-      )}
-
-      {error && (
-        <p className="text-center text-sm text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
-
-      {!isLoading && (
-        <>
-          {/* Geographic Heatmap */}
-          <div className="space-y-2">
-            <h2 className="text-lg font-medium">Route Heatmap</h2>
-            {!heatmapData && generationPending && (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Generating heatmap for the selected region...
-              </p>
-            )}
-            {!heatmapData && !generationPending && (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No heatmap generated yet for this{' '}
-                {selectedRegionIds.length > 0 ? 'region selection' : 'period'}.
-                {selectedRegionIds.length === 0
-                  ? ' Wait for new activities to be processed.'
-                  : ''}
-              </p>
-            )}
-            {heatmapData && heatmapData.status === 'generating' && (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Heatmap is being generated...
-              </p>
-            )}
-            {heatmapData && heatmapData.status === 'failed' && (
-              <div className="py-4 text-center text-sm">
-                <p className="text-red-600 dark:text-red-400">
-                  Heatmap generation failed.
-                </p>
-                {heatmapData.error && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {heatmapData.error}
-                  </p>
-                )}
-                <button
-                  disabled={isDetailRetrying}
-                  onClick={async () => {
-                    setIsDetailRetrying(true)
-                    try {
-                      await handleRetry(heatmapData)
-                    } catch (err) {
-                      setError(
-                        err instanceof Error ? err.message : 'Retry failed.'
-                      )
-                    } finally {
-                      setIsDetailRetrying(false)
-                    }
-                  }}
-                  className="mt-2 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+            {periodType !== 'all_time' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Year</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
+                  className="block w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <RefreshCw
-                    className={`size-3${isDetailRetrying ? ' animate-spin' : ''}`}
-                  />
-                  Retry
-                </button>
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
               </div>
             )}
-            {heatmapData &&
-              heatmapData.status === 'completed' &&
-              heatmapData.imagePath && (
-                <div className="overflow-hidden rounded-lg border">
-                  <img
-                    src={`/api/v1/fitness-files/heatmap-image/${heatmapData.id}`}
-                    alt={`Route heatmap for ${selectedType || 'all activities'}${selectedRegionIds.length > 0 ? ` in selected region` : ''}`}
-                    className="h-auto w-full"
-                  />
-                  <div className="border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                    {heatmapData.activityCount}{' '}
-                    {heatmapData.activityCount === 1
-                      ? 'activity'
-                      : 'activities'}{' '}
-                    included
+
+            {periodType === 'monthly' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Month</label>
+                <select
+                  value={periodKey}
+                  onChange={(e) => setPeriodKey(e.target.value)}
+                  className="block w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="space-y-1.5 min-w-[200px]">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Region Filter</label>
+              <RegionSelector
+                selectedIds={selectedRegionIds}
+                onChange={setSelectedRegionIds}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Sidebar: Heatmap Gallery */}
+        <div className="lg:col-span-1 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">My Heatmaps</h2>
+            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80">
+              {heatmaps.length}
+            </span>
+          </div>
+          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+            {heatmaps.map((h) => {
+              const isActive = h.activityType === (selectedType || null) &&
+                             h.periodType === periodType &&
+                             h.periodKey === effectivePeriodKey &&
+                             h.region === (serializedRegion || '')
+              return (
+                <button
+                  key={h.id}
+                  onClick={() => handleSelectHeatmap(h)}
+                  className={`w-full text-left p-3 rounded-xl border transition-all ${
+                    isActive ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-background hover:bg-muted/50 border-border'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-bold text-sm">
+                      {h.activityType ? h.activityType.charAt(0).toUpperCase() + h.activityType.slice(1) : 'All Activities'}
+                    </span>
+                    {h.status === 'completed' ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> :
+                     h.status === 'generating' ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> :
+                     <AlertCircle className="h-3.5 w-3.5 text-destructive" />}
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-2 capitalize">
+                    {h.periodType.replace('_', ' ')}: {h.periodKey}
+                    {h.region && ` • ${h.region}`}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase">
+                    <MapIcon className="h-3 w-3" />
+                    {h.activityCount} Activities
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Main: Interactive Map */}
+        <div className="lg:col-span-3 space-y-4">
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between py-4 border-b bg-muted/30">
+              <div className="space-y-0.5">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MapIcon className="h-4 w-4 text-primary" />
+                  Interactive Heatmap
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {selectedType || 'All activities'} for {periodType.replace('_', ' ')} ({effectivePeriodKey})
+                </CardDescription>
+              </div>
+              {isLoadingGeoJSON && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            </CardHeader>
+            <CardContent className="p-0 relative">
+              <InteractiveHeatmapMap
+                mapboxAccessToken={mapboxAccessToken}
+                geojson={geojson}
+              />
+
+              {!heatmapData && !generationPending && (
+                <div className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
+                  <div className="max-w-xs space-y-3">
+                    <MapIcon className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+                    <p className="text-sm font-medium text-muted-foreground">
+                      No heatmap generated yet for this selection.
+                    </p>
+                    {selectedRegionIds.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Wait for the generation to complete or select another region.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
-            {heatmapData &&
-              heatmapData.status === 'completed' &&
-              !heatmapData.imagePath && (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No route data available for this period
-                  {selectedRegionIds.length > 0 ? ' and region selection' : ''}.
-                </p>
-              )}
-          </div>
 
-          {/* Calendar Heatmap */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium">Activity Calendar</h2>
+              {heatmapData && heatmapData.status === 'generating' && (
+                <div className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
+                  <div className="space-y-3">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
+                    <p className="text-sm font-medium">Generating heatmap...</p>
+                    <p className="text-xs text-muted-foreground">This may take a few moments depending on the number of activities.</p>
+                  </div>
+                </div>
+              )}
+
+              {heatmapData && heatmapData.status === 'failed' && (
+                <div className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
+                  <div className="space-y-3">
+                    <AlertCircle className="h-10 w-10 text-destructive mx-auto" />
+                    <p className="text-sm font-medium">Generation Failed</p>
+                    <p className="text-xs text-muted-foreground mb-3">{heatmapData.error}</p>
+                    <button
+                      onClick={() => handleRetry(heatmapData)}
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Activity Calendar (preserved) */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between py-4 border-b">
+              <CardTitle className="text-base">Activity Calendar</CardTitle>
               <div className="flex gap-1 rounded-md border p-0.5">
-                {(
-                  Object.entries(METRIC_LABELS) as [CalendarMetric, string][]
-                ).map(([key, label]) => (
+                {(Object.entries(METRIC_LABELS) as [CalendarMetric, string][]).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setCalendarMetric(key)}
-                    className={`rounded-sm px-2 py-1 text-xs transition-colors ${
-                      calendarMetric === key
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                      calendarMetric === key ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-            </div>
-
-            <FitnessCalendarHeatmap
-              days={calendarDays}
-              metric={calendarMetric}
-              periodType={periodType}
-              periodKey={effectivePeriodKey}
-            />
-          </div>
-        </>
-      )}
+            </CardHeader>
+            <CardContent className="pt-6">
+              <FitnessCalendarHeatmap
+                days={calendarDays}
+                metric={calendarMetric}
+                periodType={periodType}
+                periodKey={effectivePeriodKey}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

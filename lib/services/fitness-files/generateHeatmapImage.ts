@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 
-import type { RegionBounds } from '@/lib/fitness/regions'
+import { RegionBounds, isPointInAnyBounds } from '@/lib/fitness/regions'
 import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 
@@ -31,22 +31,6 @@ export interface GenerateHeatmapImageParams {
 
 const DEFAULT_WIDTH = 1200
 const DEFAULT_HEIGHT = 900
-
-/**
- * Returns true when the coordinate falls inside at least one of the provided
- * bounding boxes (OR logic — addresses PR #556 multi-region envelope issue).
- */
-const isPointInAnyBounds = (
-  point: FitnessCoordinate,
-  bounds: RegionBounds[]
-): boolean =>
-  bounds.some(
-    (b) =>
-      point.lat >= b.minLat &&
-      point.lat <= b.maxLat &&
-      point.lng >= b.minLng &&
-      point.lng <= b.maxLng
-  )
 
 /**
  * Filter a single route segment to only the portions that lie within the given

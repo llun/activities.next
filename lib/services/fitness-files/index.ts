@@ -169,3 +169,48 @@ export const getPresignedFitnessFileUrl = async (
 
   return null
 }
+
+export const getFitnessFileBuffer = async (
+  database: Database,
+  fitnessFileId: string
+): Promise<Buffer> => {
+  const data = await getFitnessFile(database, fitnessFileId)
+  if (!data) {
+    throw new Error('Fitness file not found in storage')
+  }
+
+  if (data.type === 'buffer') {
+    return data.buffer
+  }
+
+  const response = await fetch(data.redirectUrl)
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download fitness file from redirect URL (${response.status})`
+    )
+  }
+
+  return Buffer.from(await arrayBuffer(response))
+}
+
+const arrayBuffer = async (response: Response) => {
+  if (typeof response.arrayBuffer === 'function') {
+    return response.arrayBuffer()
+  }
+  // Fallback for older environments or specific polyfills if needed
+  const chunks = []
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('Response body is null')
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+  }
+  const result = new Uint8Array(chunks.reduce((acc, c) => acc + c.length, 0))
+  let offset = 0
+  for (const chunk of chunks) {
+    result.set(chunk, offset)
+    offset += chunk.length
+  }
+  return result.buffer
+}

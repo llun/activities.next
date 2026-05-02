@@ -181,6 +181,9 @@ export const getAuth = memoize(() => {
           }
         }
       }
+    },
+    advanced: {
+      disableOriginCheck: process.env.NODE_ENV === 'development'
     }
   })
 })
