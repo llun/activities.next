@@ -167,6 +167,16 @@ describe('Status', () => {
                 })) as Status
               )
             ]
+          },
+          likes: {
+            id: `${status.id}/likes`,
+            type: 'Collection',
+            totalItems: status.totalLikes
+          },
+          shares: {
+            id: `${status.id}/shares`,
+            type: 'Collection',
+            totalItems: 0
           }
         })
       })

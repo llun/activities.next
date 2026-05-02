@@ -278,6 +278,16 @@ export const toActivityPubObject = (status: Status): Note | Question => {
           toActivityPubObject(Status.parse(reply))
         )
       },
+      likes: {
+        id: `${status.id}/likes`,
+        type: 'Collection',
+        totalItems: status.totalLikes
+      },
+      shares: {
+        id: `${status.id}/shares`,
+        type: 'Collection',
+        totalItems: 0
+      },
 
       published: getISOTimeUTC(status.createdAt),
       endTime: getISOTimeUTC(status.endAt),
@@ -319,6 +329,16 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       items: originalStatus.replies.map((reply) =>
         toActivityPubObject(Status.parse(reply))
       )
+    },
+    likes: {
+      id: `${originalStatus.id}/likes`,
+      type: 'Collection',
+      totalItems: originalStatus.totalLikes
+    },
+    shares: {
+      id: `${originalStatus.id}/shares`,
+      type: 'Collection',
+      totalItems: 0
     },
 
     published: getISOTimeUTC(originalStatus.createdAt),

@@ -36,6 +36,8 @@ export const getPersonFromActor = (
     followers: actor.followersUrl,
     inbox: actor.inboxUrl,
     outbox: `${actor.id}/outbox`,
+    featured: `${actor.id}/collections/featured`,
+    featuredTags: `${actor.id}/collections/tags`,
     preferredUsername: actor.username,
     name: actor.name || '',
     summary: actor.summary || '',

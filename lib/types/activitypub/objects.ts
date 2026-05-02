@@ -114,6 +114,8 @@ export const BaseContent = z.object({
     ])
     .nullish(),
   replies: Collection.nullish(),
+  likes: Collection.nullish(),
+  shares: Collection.nullish(),
 
   attachment: z.union([Attachment, Attachment.array()]).nullish(),
   tag: z.union([Tag, Tag.array()]).nullish(),
