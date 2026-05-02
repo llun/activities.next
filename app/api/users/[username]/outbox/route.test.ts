@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { type Actor } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET } from './route'
 
@@ -69,5 +71,59 @@ describe('GET /api/users/[username]/outbox', () => {
       totalItems: 3,
       first: 'https://example.com/users/test/outbox?page=true'
     })
+  })
+
+  it('serializes outbox Create objects as ActivityPub Note objects', async () => {
+    const createdAt = Date.UTC(2026, 0, 1)
+    const status = {
+      id: 'https://example.com/users/test/statuses/post-1',
+      actorId: mockActor.id,
+      actor: null,
+      type: StatusType.enum.Note,
+      url: 'https://example.com/@test/post-1',
+      text: '<p>Hello ActivityPub</p>',
+      summary: null,
+      reply: '',
+      replies: [],
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${mockActor.id}/followers`],
+      edits: [],
+      isLocalActor: true,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt,
+      updatedAt: createdAt
+    }
+    mockDatabase.getActorStatuses.mockResolvedValue([status])
+
+    const response = await GET(
+      new NextRequest('https://example.com/api/users/test/outbox?page=true', {
+        headers: {
+          accept:
+            'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+        }
+      }),
+      { params: Promise.resolve({ username: 'test' }) }
+    )
+
+    const data = await response.json()
+
+    expect(data.orderedItems[0]).toMatchObject({
+      id: `${status.id}/activity`,
+      type: 'Create',
+      actor: mockActor.id,
+      object: {
+        id: status.id,
+        type: 'Note',
+        attributedTo: mockActor.id,
+        content: '<p>Hello ActivityPub</p>'
+      }
+    })
+    expect(data.orderedItems[0].object).not.toHaveProperty('actorId')
+    expect(data.orderedItems[0].object).not.toHaveProperty('text')
   })
 })

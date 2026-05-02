@@ -3,6 +3,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
+  ERROR_400,
   ERROR_404,
   ERROR_422,
   apiResponse,
@@ -20,8 +21,32 @@ export const POST = traceApiRoute(
   'voteToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
-    const { statusId, choices } = VotePollRequest.parse(body)
+    let body: unknown
+    try {
+      // This UI-only endpoint is JSON-only; Mastodon clients use
+      // /api/v1/polls/:id/votes for form-encoded compatibility.
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
+    const parsed = VotePollRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const { statusId } = parsed.data
+    const choices = [...new Set(parsed.data.choices)]
 
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status || status.type !== StatusType.enum.Poll) {
@@ -42,12 +67,27 @@ export const POST = traceApiRoute(
       })
     }
 
-    const hasVoted = await database.hasActorVoted({
+    const hasValidChoices = choices.every(
+      (choice) => choice < status.choices.length
+    )
+    if (
+      !hasValidChoices ||
+      (status.pollType === 'oneOf' && choices.length > 1)
+    ) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const votesRecorded = await database.recordPollVotes({
       statusId,
-      actorId: currentActor.id
+      actorId: currentActor.id,
+      choices
     })
-
-    if (status.pollType === 'oneOf' && hasVoted) {
+    if (!votesRecorded) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -55,31 +95,6 @@ export const POST = traceApiRoute(
         responseStatusCode: 422
       })
     }
-
-    if (status.pollType === 'oneOf' && choices.length > 1) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: 422
-      })
-    }
-
-    await Promise.all(
-      choices.map((choiceIndex) =>
-        database.createPollAnswer({
-          statusId,
-          actorId: currentActor.id,
-          choice: choiceIndex
-        })
-      )
-    )
-
-    await Promise.all(
-      choices.map((choiceIndex) =>
-        database.incrementPollChoiceVotes({ statusId, choiceIndex })
-      )
-    )
 
     await sendPollVotes({ currentActor, status, choices })
 

@@ -37,6 +37,7 @@ import {
   HasActorAnnouncedStatusParams,
   HasActorVotedParams,
   IncrementPollChoiceVotesParams,
+  RecordPollVotesParams,
   StatusDatabase,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
@@ -60,6 +61,22 @@ import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
+
+const isUniqueConstraintError = (error: unknown) => {
+  const { code, errno, message } = error as {
+    code?: string
+    errno?: number
+    message?: string
+  }
+  return (
+    code === '23505' ||
+    code === 'ER_DUP_ENTRY' ||
+    code === 'SQLITE_CONSTRAINT' ||
+    code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+    errno === 1062 ||
+    Boolean(message?.includes('UNIQUE constraint failed'))
+  )
+}
 
 export const StatusSQLDatabaseMixin = (
   database: Knex,
@@ -1116,6 +1133,7 @@ export const StatusSQLDatabaseMixin = (
       replies,
       actor,
       totalLikes,
+      totalShares,
       isActorLikedStatusResult,
       actorAnnounceStatus,
       edits,
@@ -1131,6 +1149,7 @@ export const StatusSQLDatabaseMixin = (
         : Promise.resolve([]),
       actorDatabase.getActorFromId({ id: data.actorId }),
       getCounterValue(database, CounterKey.totalLike(data.id)),
+      getCounterValue(database, CounterKey.totalReblog(data.id)),
       currentActorId
         ? likeDatabase.isActorLikedStatus({
             statusId: data.id,
@@ -1181,6 +1200,7 @@ export const StatusSQLDatabaseMixin = (
       reply: data.reply,
       replies: repliesNote,
       totalLikes,
+      totalShares,
       isActorLiked: isActorLikedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
@@ -1264,9 +1284,119 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getStatusRepliesCount({
-    statusId
+    statusId,
+    url,
+    publicOnly = false
   }: GetStatusRepliesCountParams): Promise<number> {
-    return getCounterValue(database, CounterKey.totalReply(statusId))
+    if (!url && !publicOnly) {
+      return getCounterValue(database, CounterKey.totalReply(statusId))
+    }
+
+    let query = database('statuses').where((builder) => {
+      builder.where('reply', statusId)
+      if (url) {
+        builder.orWhere('reply', url)
+      }
+    })
+
+    if (publicOnly) {
+      query = query.whereIn(
+        'statuses.id',
+        database('recipients')
+          .select('statusId')
+          .whereIn('recipients.actorId', [
+            ACTIVITY_STREAM_PUBLIC,
+            ACTIVITY_STREAM_PUBLIC_COMPACT
+          ])
+      )
+    }
+
+    const result = await query
+      .whereNot('type', StatusType.enum.Announce)
+      .count<{ count: string }>('* as count')
+      .first()
+
+    return parseInt(String(result?.count ?? '0'), 10)
+  }
+
+  async function recordPollVotes({
+    statusId,
+    actorId,
+    choices,
+    allowAdditionalChoices = false
+  }: RecordPollVotesParams): Promise<boolean> {
+    const uniqueChoices = [...new Set(choices)]
+    if (uniqueChoices.length === 0) return false
+
+    const currentTime = new Date()
+    try {
+      return await database.transaction(async (trx) => {
+        const pollChoices = await trx('poll_choices')
+          .where({ statusId })
+          .orderBy('choiceId', 'asc')
+          .select<{ choiceId: number }[]>('choiceId')
+        const selectedChoices: { choiceIndex: number; choiceId: number }[] = []
+        for (const choiceIndex of uniqueChoices) {
+          const choice = pollChoices[choiceIndex]
+          if (!choice) return false
+          selectedChoices.push({
+            choiceIndex,
+            choiceId: choice.choiceId
+          })
+        }
+
+        const existingVote = await trx('poll_voters')
+          .where({ statusId, actorId })
+          .first()
+        if (existingVote && !allowAdditionalChoices) return false
+
+        const existingAnswers = allowAdditionalChoices
+          ? await trx('poll_answers')
+              .where({ statusId, actorId })
+              .whereIn('choice', uniqueChoices)
+              .select<{ choice: number }[]>('choice')
+          : []
+        const existingChoices = new Set(
+          existingAnswers.map((answer) => answer.choice)
+        )
+        const newSelectedChoices = selectedChoices.filter(
+          (choice) => !existingChoices.has(choice.choiceIndex)
+        )
+        if (newSelectedChoices.length === 0) return false
+
+        if (!existingVote) {
+          await trx('poll_voters').insert({
+            statusId,
+            actorId,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+        }
+
+        await trx('poll_answers').insert(
+          newSelectedChoices.map((choice) => ({
+            statusId,
+            actorId,
+            choice: choice.choiceIndex,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          }))
+        )
+
+        await trx('poll_choices')
+          .where({ statusId })
+          .whereIn(
+            'choiceId',
+            newSelectedChoices.map((choice) => choice.choiceId)
+          )
+          .increment('totalVotes', 1)
+
+        return true
+      })
+    } catch (error) {
+      if (isUniqueConstraintError(error)) return false
+      throw error
+    }
   }
 
   async function createPollAnswer({
@@ -1475,6 +1605,7 @@ export const StatusSQLDatabaseMixin = (
     createPollAnswer,
     hasActorVoted,
     getActorPollVotes,
-    incrementPollChoiceVotes
+    incrementPollChoiceVotes,
+    recordPollVotes
   }
 }

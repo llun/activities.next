@@ -34,6 +34,7 @@ export const NotificationsList = ({
   const observerRef = useRef<IntersectionObserver | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingReadsRef = useRef<Set<string>>(new Set())
+  const [markReadError, setMarkReadError] = useState(false)
   // Store the callback in a ref so we can update it without recreating the observer
   const callbackRef = useRef<(entries: IntersectionObserverEntry[]) => void>(
     () => {}
@@ -41,7 +42,7 @@ export const NotificationsList = ({
 
   const markAsRead = useCallback(
     async (notificationIds: string[]) => {
-      if (notificationIds.length === 0) return
+      if (notificationIds.length === 0) return true
 
       try {
         await fetch('/api/v1/notifications/read', {
@@ -53,10 +54,13 @@ export const NotificationsList = ({
             notification_ids: notificationIds
           })
         })
+        setMarkReadError(false)
         // Refresh the layout to update the notification badge count
         router.refresh()
-      } catch (error) {
-        console.error('Failed to mark notifications as read:', error)
+        return true
+      } catch {
+        setMarkReadError(true)
+        return false
       }
     },
     [router]
@@ -70,8 +74,10 @@ export const NotificationsList = ({
     timeoutRef.current = setTimeout(() => {
       const idsToMark = Array.from(pendingReadsRef.current)
       if (idsToMark.length > 0) {
-        markAsRead(idsToMark)
-        pendingReadsRef.current.clear()
+        void markAsRead(idsToMark).then((didMark) => {
+          if (!didMark) return
+          idsToMark.forEach((id) => pendingReadsRef.current.delete(id))
+        })
       }
     }, 1000)
   }, [markAsRead])
@@ -140,6 +146,11 @@ export const NotificationsList = ({
 
   return (
     <div className="space-y-4">
+      {markReadError ? (
+        <p className="text-sm text-destructive" role="alert">
+          Notifications could not be marked as read.
+        </p>
+      ) : null}
       {notifications.map((notification) => (
         <NotificationItem
           key={notification.id}

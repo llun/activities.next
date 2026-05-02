@@ -1,5 +1,15 @@
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const GET = traceApiRoute('getInstanceActivity', async () => {
-  return Response.json([])
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+export const GET = traceApiRoute('getInstanceActivity', async (req) => {
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: []
+  })
 })

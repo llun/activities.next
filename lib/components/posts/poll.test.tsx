@@ -2,8 +2,9 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import { votePoll } from '@/lib/client'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
 import { Poll } from './poll'
@@ -11,6 +12,8 @@ import { Poll } from './poll'
 jest.mock('@/lib/client', () => ({
   votePoll: jest.fn()
 }))
+
+const mockVotePoll = jest.mocked(votePoll)
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
 
@@ -33,6 +36,7 @@ const pollStatus: StatusPoll = {
   actorAnnounceStatusId: null,
   isActorLiked: false,
   totalLikes: 0,
+  totalShares: 0,
   attachments: [],
   tags: [],
   choices: [
@@ -63,6 +67,30 @@ describe('Poll', () => {
 
   afterEach(() => {
     jest.useRealTimers()
+  })
+
+  it('shows an error and keeps the selection when voting fails', async () => {
+    mockVotePoll.mockRejectedValueOnce(new Error('vote failed'))
+
+    render(
+      <Poll
+        status={pollStatus}
+        currentTime={currentTime}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    const firstChoice = screen.getByLabelText('First')
+    fireEvent.click(firstChoice)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Vote' }))
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Failed to submit vote. Please try again.'
+    )
+    expect(firstChoice).toBeChecked()
   })
 
   it('updates poll availability when the poll reaches its end time', () => {

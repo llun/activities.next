@@ -1,8 +1,13 @@
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { apiErrorResponse } from '@/lib/utils/response'
+import { ERROR_401, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute(
   'getMediasForAccount',
@@ -12,7 +17,12 @@ export const GET = traceApiRoute(
     const account = currentActor.account
     if (!account) {
       logger.warn('Get medias failed: No account found')
-      return apiErrorResponse(401)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
     }
 
     // Parse pagination parameters from URL with defaults and validation
@@ -40,22 +50,26 @@ export const GET = traceApiRoute(
       page
     })
 
-    return Response.json({
-      used,
-      limit: quotaLimit,
-      total: result.total,
-      page,
-      itemsPerPage: limit,
-      medias: result.items.map((media) => ({
-        id: media.id,
-        actorId: media.actorId,
-        bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
-        mimeType: media.original.mimeType,
-        width: media.original.metaData.width,
-        height: media.original.metaData.height,
-        description: media.description,
-        statusId: media.statusId
-      }))
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: {
+        used,
+        limit: quotaLimit,
+        total: result.total,
+        page,
+        itemsPerPage: limit,
+        medias: result.items.map((media) => ({
+          id: media.id,
+          actorId: media.actorId,
+          bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
+          mimeType: media.original.mimeType,
+          width: media.original.metaData.width,
+          height: media.original.metaData.height,
+          description: media.description,
+          statusId: media.statusId
+        }))
+      }
     })
   }),
   {

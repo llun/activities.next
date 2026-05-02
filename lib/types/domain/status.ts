@@ -79,6 +79,7 @@ export const StatusNote = StatusBase.extend({
   actorAnnounceStatusId: z.string().nullable(),
   isActorLiked: z.boolean(),
   totalLikes: z.number(),
+  totalShares: z.number().default(0),
 
   attachments: Attachment.array(),
   tags: Tag.array(),
@@ -243,6 +244,15 @@ export const fromAnnounce = (
 
 export const toActivityPubObject = (status: Status): Note | Question => {
   if (status.type === StatusType.enum.Poll) {
+    const pollOptions = status.choices.map((choice) => ({
+      type: 'Note' as const,
+      name: choice.title,
+      replies: {
+        type: 'Collection' as const,
+        totalItems: choice.totalVotes
+      }
+    }))
+
     return Question.parse({
       id: status.id,
       type: ENTITY_TYPE_QUESTION,
@@ -258,7 +268,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
         .map((tag) => getMentionFromTag(tag))
         .filter((tag) => tag !== null),
 
-      oneOf: [],
+      ...(status.pollType === 'anyOf'
+        ? { anyOf: pollOptions }
+        : { oneOf: pollOptions }),
       replies: {
         id: `${status.id}/replies`,
         type: 'Collection',
@@ -267,12 +279,31 @@ export const toActivityPubObject = (status: Status): Note | Question => {
           toActivityPubObject(Status.parse(reply))
         )
       },
+      likes: {
+        id: `${status.id}/likes`,
+        type: 'Collection',
+        totalItems: status.totalLikes
+      },
+      shares: {
+        id: `${status.id}/shares`,
+        type: 'Collection',
+        totalItems: status.totalShares
+      },
 
       published: getISOTimeUTC(status.createdAt),
       endTime: getISOTimeUTC(status.endAt),
-      ...(status.updatedAt
-        ? { updated: getISOTimeUTC(status.updatedAt) }
-        : null)
+      ...(status.pollType === 'oneOf'
+        ? {
+            votersCount: status.choices.reduce(
+              (totalVotes, choice) => totalVotes + choice.totalVotes,
+              0
+            )
+          }
+        : {}),
+      ...(status.endAt <= Date.now()
+        ? { closed: getISOTimeUTC(status.endAt) }
+        : {}),
+      ...(status.updatedAt ? { updated: getISOTimeUTC(status.updatedAt) } : {})
     })
   }
 
@@ -301,6 +332,16 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       items: originalStatus.replies.map((reply) =>
         toActivityPubObject(Status.parse(reply))
       )
+    },
+    likes: {
+      id: `${originalStatus.id}/likes`,
+      type: 'Collection',
+      totalItems: originalStatus.totalLikes
+    },
+    shares: {
+      id: `${originalStatus.id}/shares`,
+      type: 'Collection',
+      totalItems: originalStatus.totalShares
     },
 
     published: getISOTimeUTC(originalStatus.createdAt),

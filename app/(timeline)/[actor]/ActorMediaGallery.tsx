@@ -36,9 +36,8 @@ export const ActorMediaGallery: FC<Props> = ({
       })
       setAttachments([...attachments, ...newAttachments])
       setHasMore(newAttachments.length >= 25)
-    } catch (err) {
+    } catch {
       setError('Failed to load more media. Please try again.')
-      console.error('Failed to load more media:', err)
     } finally {
       setIsLoadingMore(false)
     }

@@ -1,4 +1,5 @@
 import { type Actor } from '@/lib/types/domain/actor'
+import { getLocalActorId } from '@/lib/utils/activitypubId'
 
 export const FEDERATION_SIGNING_ACTOR_USERNAME = '__instance__'
 export const FEDERATION_SIGNING_ACTOR_TYPE = 'Service'
@@ -12,7 +13,7 @@ export const isFederationSigningActorUsername = (username: string) =>
 export const getFederationSigningActorId = (
   domain: string,
   username = FEDERATION_SIGNING_ACTOR_USERNAME
-) => `https://${domain}/users/${username}`
+) => getLocalActorId({ domain, username })
 
 export const isFederationSigningActor = (actor?: Actor | null) =>
   Boolean(

@@ -1,8 +1,20 @@
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { deleteMediaFile } from '@/lib/services/medias'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { apiErrorResponse } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_401,
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
   mediaId: string
@@ -10,19 +22,29 @@ interface Params {
 
 export const DELETE = traceApiRoute(
   'deleteMedia',
-  AuthenticatedGuard<Params>(async (_req, context) => {
+  AuthenticatedGuard<Params>(async (req, context) => {
     const { database, currentActor, params } = context
     const { mediaId } = (await params) ?? { mediaId: undefined }
 
     const account = currentActor.account
     if (!account) {
       logger.warn({ message: 'Unauthorized delete media request - no account' })
-      return apiErrorResponse(401)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
     }
 
     if (!mediaId) {
       logger.warn({ message: 'Bad request - missing mediaId' })
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     // Verify the media belongs to an actor in this account
@@ -37,7 +59,12 @@ export const DELETE = traceApiRoute(
         mediaId,
         accountId: account.id
       })
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     // Delete the storage files (original and thumbnail if present)
@@ -71,7 +98,12 @@ export const DELETE = traceApiRoute(
         mediaId,
         accountId: account.id
       })
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     logger.info({
@@ -80,7 +112,11 @@ export const DELETE = traceApiRoute(
       accountId: account.id
     })
 
-    return Response.json({ success: true })
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { success: true }
+    })
   }),
   {
     addAttributes: async (_req, context) => {

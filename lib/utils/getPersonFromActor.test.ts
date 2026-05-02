@@ -15,6 +15,8 @@ describe('#getPersonFromActor', () => {
       followers: `https://chat.llun.dev/users/me/followers`,
       inbox: `https://chat.llun.dev/users/me/inbox`,
       outbox: `https://chat.llun.dev/users/me/outbox`,
+      featured: `https://chat.llun.dev/users/me/collections/featured`,
+      featuredTags: `https://chat.llun.dev/users/me/collections/tags`,
       preferredUsername: 'me',
       name: '',
       summary: '',
