@@ -243,6 +243,15 @@ export const fromAnnounce = (
 
 export const toActivityPubObject = (status: Status): Note | Question => {
   if (status.type === StatusType.enum.Poll) {
+    const pollOptions = status.choices.map((choice) => ({
+      type: 'Note' as const,
+      name: choice.title,
+      replies: {
+        type: 'Collection' as const,
+        totalItems: choice.totalVotes
+      }
+    }))
+
     return Question.parse({
       id: status.id,
       type: ENTITY_TYPE_QUESTION,
@@ -258,7 +267,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
         .map((tag) => getMentionFromTag(tag))
         .filter((tag) => tag !== null),
 
-      oneOf: [],
+      ...(status.pollType === 'anyOf'
+        ? { anyOf: pollOptions }
+        : { oneOf: pollOptions }),
       replies: {
         id: `${status.id}/replies`,
         type: 'Collection',
@@ -270,6 +281,13 @@ export const toActivityPubObject = (status: Status): Note | Question => {
 
       published: getISOTimeUTC(status.createdAt),
       endTime: getISOTimeUTC(status.endAt),
+      votersCount: status.choices.reduce(
+        (totalVotes, choice) => totalVotes + choice.totalVotes,
+        0
+      ),
+      ...(status.endAt <= Date.now()
+        ? { closed: getISOTimeUTC(status.endAt) }
+        : null),
       ...(status.updatedAt
         ? { updated: getISOTimeUTC(status.updatedAt) }
         : null)
