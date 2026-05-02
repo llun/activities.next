@@ -20,6 +20,8 @@ interface CollapsibleContentProps {
 }
 
 const LINE_HEIGHT_REM = 1.4375 // ~line height for text-sm leading-relaxed
+const hasClassToken = (className: string | undefined, token: string) =>
+  className?.split(/\s+/).includes(token) ?? false
 
 export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   children,
@@ -59,6 +61,9 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   }, [checkOverflow])
 
   const needsCollapse = isOverflowing && !isExpanded
+  const measuredContentClassName = hasClassToken(className, 'markdown-content')
+    ? 'markdown-content'
+    : undefined
 
   return (
     <div className="relative">
@@ -67,7 +72,9 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
         className={cn(className, needsCollapse && 'overflow-hidden')}
         style={needsCollapse ? { height: `${maxHeightRem}rem` } : undefined}
       >
-        <div ref={measuredContentRef}>{children}</div>
+        <div ref={measuredContentRef} className={measuredContentClassName}>
+          {children}
+        </div>
       </div>
       {needsCollapse && (
         <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center bg-gradient-to-t from-background to-transparent pt-8 pb-0">

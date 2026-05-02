@@ -127,4 +127,35 @@ describe('CollapsibleContent', () => {
       )
     ).toBe(true)
   })
+
+  it('preserves markdown content selectors on the measured wrapper', async () => {
+    render(
+      <CollapsibleContent
+        className="mt-1 text-sm leading-relaxed break-words markdown-content"
+        maxLines={5}
+      >
+        <p>Long status content that exceeds the timeline line limit.</p>
+      </CollapsibleContent>
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Show more content' })
+      ).toBeInTheDocument()
+    })
+
+    const observedElements = resizeObserverInstances.flatMap(
+      (instance) => instance.observedElements
+    )
+    const measuredMarkdownContent = observedElements.find((element) =>
+      element.classList.contains('markdown-content')
+    )
+
+    expect(measuredMarkdownContent).toBeDefined()
+    expect(
+      measuredMarkdownContent?.querySelector(':scope > p')
+    ).toHaveTextContent(
+      'Long status content that exceeds the timeline line limit.'
+    )
+  })
 })
