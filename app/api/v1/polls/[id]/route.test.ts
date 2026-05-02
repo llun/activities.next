@@ -11,7 +11,6 @@ const mockSendPollVotes = jest.fn()
 const mockCanActorReadStatus = jest.fn()
 const mockDatabase = {
   getStatus: jest.fn(),
-  hasActorVoted: jest.fn(),
   createPollAnswer: jest.fn(),
   incrementPollChoiceVotes: jest.fn(),
   recordPollVotes: jest.fn()
@@ -98,7 +97,6 @@ describe('Mastodon poll routes', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue(pollStatus)
-    mockDatabase.hasActorVoted.mockResolvedValue(false)
     mockDatabase.recordPollVotes.mockResolvedValue(true)
     mockGetMastodonStatus.mockResolvedValue({ poll: mastodonPoll })
     mockCanActorReadStatus.mockResolvedValue(true)
@@ -122,6 +120,35 @@ describe('Mastodon poll routes', () => {
       currentActor: mockCurrentActor
     })
     expect(await response.json()).toEqual(mastodonPoll)
+  })
+
+  it('accepts form-encoded Mastodon poll votes', async () => {
+    mockDatabase.getStatus.mockResolvedValue({
+      ...pollStatus,
+      pollType: 'anyOf'
+    })
+
+    const response = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams([
+            ['choices[]', '0'],
+            ['choices[]', '1']
+          ])
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.recordPollVotes).toHaveBeenCalledWith({
+      statusId: pollStatusId,
+      actorId: mockCurrentActor.id,
+      choices: [0, 1]
+    })
   })
 
   it('returns not found when the poll status does not exist', async () => {
@@ -282,7 +309,7 @@ describe('Mastodon poll routes', () => {
   })
 
   it('rejects repeat votes for every poll type', async () => {
-    mockDatabase.hasActorVoted.mockResolvedValue(true)
+    mockDatabase.recordPollVotes.mockResolvedValue(false)
     mockDatabase.getStatus.mockResolvedValue({
       ...pollStatus,
       pollType: 'anyOf'
@@ -301,7 +328,11 @@ describe('Mastodon poll routes', () => {
     )
 
     expect(response.status).toBe(422)
-    expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
+    expect(mockDatabase.recordPollVotes).toHaveBeenCalledWith({
+      statusId: pollStatusId,
+      actorId: mockCurrentActor.id,
+      choices: [0, 1]
+    })
   })
 
   it('does not expose polls from unreadable statuses', async () => {

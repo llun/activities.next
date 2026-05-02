@@ -74,6 +74,7 @@ describe('StatusDatabase', () => {
           isActorLiked: false,
           isLocalActor: true,
           totalLikes: 0,
+          totalShares: 0,
           attachments: [],
           tags: []
         })
@@ -807,7 +808,7 @@ describe('StatusDatabase', () => {
           database.recordPollVotes({
             statusId: pollId,
             actorId: voterId,
-            choices: [0, 1]
+            choices: [0, 0, 1]
           })
         ).resolves.toBeTrue()
         await expect(

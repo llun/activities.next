@@ -26,6 +26,30 @@ const VotePollRequest = z.object({
   choices: z.number().int().nonnegative().array().min(1)
 })
 
+const parseFormChoices = (formData: Pick<FormData, 'getAll'>) => {
+  const choices = [
+    ...formData.getAll('choices[]'),
+    ...formData.getAll('choices')
+  ]
+  return {
+    choices: choices.map((choice) =>
+      typeof choice === 'string' && choice.trim() ? Number(choice) : Number.NaN
+    )
+  }
+}
+
+const parseVotePollRequestBody = async (req: Request): Promise<unknown> => {
+  const contentType = req.headers.get('content-type')?.toLowerCase() ?? ''
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    return parseFormChoices(new URLSearchParams(await req.text()))
+  }
+  if (contentType.includes('multipart/form-data')) {
+    return parseFormChoices(await req.formData())
+  }
+
+  return req.json()
+}
+
 interface Params {
   id: string
 }
@@ -36,7 +60,7 @@ export const POST = traceApiRoute(
     const { database, currentActor, params } = context
     let body: unknown
     try {
-      body = await req.json()
+      body = await parseVotePollRequestBody(req)
     } catch {
       return apiResponse({
         req,
@@ -96,16 +120,11 @@ export const POST = traceApiRoute(
     }
 
     const choices = [...new Set(parsed.data.choices)]
-    const hasVoted = await database.hasActorVoted({
-      statusId,
-      actorId: currentActor.id
-    })
     const hasValidChoices = choices.every(
       (choice) => choice < status.choices.length
     )
 
     if (
-      hasVoted ||
       !hasValidChoices ||
       (status.pollType === 'oneOf' && choices.length > 1)
     ) {

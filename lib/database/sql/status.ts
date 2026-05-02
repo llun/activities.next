@@ -1200,7 +1200,7 @@ export const StatusSQLDatabaseMixin = (
       reply: data.reply,
       replies: repliesNote,
       totalLikes,
-      ...(totalShares > 0 ? { totalShares } : null),
+      totalShares,
       isActorLiked: isActorLikedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
@@ -1324,22 +1324,18 @@ export const StatusSQLDatabaseMixin = (
     actorId,
     choices
   }: RecordPollVotesParams): Promise<boolean> {
-    if (choices.length === 0) return false
+    const uniqueChoices = [...new Set(choices)]
+    if (uniqueChoices.length === 0) return false
 
     const currentTime = new Date()
     try {
       return await database.transaction(async (trx) => {
-        const existingVote = await trx('poll_answers')
-          .where({ statusId, actorId })
-          .first()
-        if (existingVote) return false
-
         const pollChoices = await trx('poll_choices')
           .where({ statusId })
           .orderBy('choiceId', 'asc')
           .select<{ choiceId: number }[]>('choiceId')
         const selectedChoices: { choiceId: number }[] = []
-        for (const choiceIndex of choices) {
+        for (const choiceIndex of uniqueChoices) {
           const choice = pollChoices[choiceIndex]
           if (!choice) return false
           selectedChoices.push(choice)
@@ -1353,7 +1349,7 @@ export const StatusSQLDatabaseMixin = (
         })
 
         await trx('poll_answers').insert(
-          choices.map((choice) => ({
+          uniqueChoices.map((choice) => ({
             statusId,
             actorId,
             choice,

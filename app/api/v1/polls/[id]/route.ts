@@ -42,6 +42,7 @@ export const GET = traceApiRoute(
       })
     }
 
+    // getStatus loads by id; canActorReadStatus is the visibility authority.
     const hasAccess = await canActorReadStatus({
       database,
       status,

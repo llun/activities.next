@@ -50,6 +50,8 @@ export const GET = traceApiRoute(
       })
     ])
 
+    // Keep this object-level visibility check as a backstop for stale or
+    // malformed recipient rows after the database publicOnly filter.
     const publicReplies = replies.filter(
       (reply): reply is StatusNote | StatusPoll =>
         reply.type !== StatusType.enum.Announce &&

@@ -14,21 +14,33 @@ exports.up = async (knex) => {
     table.index(['statusId'])
   })
 
-  const existingVotes = await knex('poll_answers')
-    .distinct('statusId', 'actorId')
-    .whereNotNull('statusId')
-
-  if (existingVotes.length === 0) return
-
+  const batchSize = 500
   const now = new Date()
-  await knex('poll_voters').insert(
-    existingVotes.map((vote) => ({
-      statusId: vote.statusId,
-      actorId: vote.actorId,
-      createdAt: now,
-      updatedAt: now
-    }))
-  )
+  let offset = 0
+
+  while (true) {
+    const existingVotes = await knex('poll_answers')
+      .distinct('statusId', 'actorId')
+      .whereNotNull('statusId')
+      .whereNotNull('actorId')
+      .orderBy('statusId')
+      .orderBy('actorId')
+      .limit(batchSize)
+      .offset(offset)
+
+    if (existingVotes.length === 0) return
+
+    await knex('poll_voters').insert(
+      existingVotes.map((vote) => ({
+        statusId: vote.statusId,
+        actorId: vote.actorId,
+        createdAt: now,
+        updatedAt: now
+      }))
+    )
+
+    offset += existingVotes.length
+  }
 }
 
 /**

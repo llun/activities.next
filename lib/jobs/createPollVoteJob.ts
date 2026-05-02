@@ -67,26 +67,13 @@ export const createPollVoteJob = createJobHandle(
       database
     })
 
-    const hasVoted = await database.hasActorVoted({
-      statusId: pollStatus.id,
-      actorId: note.attributedTo
-    })
-
-    if (pollStatus.pollType === 'oneOf' && hasVoted) {
-      return
-    }
-
     try {
-      await database.createPollAnswer({
+      const votesRecorded = await database.recordPollVotes({
         statusId: pollStatus.id,
         actorId: note.attributedTo,
-        choice: choiceIndex
+        choices: [choiceIndex]
       })
-
-      await database.incrementPollChoiceVotes({
-        statusId: pollStatus.id,
-        choiceIndex
-      })
+      if (!votesRecorded) return
     } catch (error) {
       logger.error({ error }, 'Vote creation failed')
       throw error

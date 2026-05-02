@@ -65,6 +65,7 @@ describe('GET /api/users/[username]/statuses/[statusId]/replies', () => {
         actorAnnounceStatusId: null,
         isActorLiked: false,
         totalLikes: 0,
+        totalShares: 0,
         attachments: [],
         tags: [],
         createdAt: Date.UTC(2026, 0, 1),

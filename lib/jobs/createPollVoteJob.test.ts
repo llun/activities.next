@@ -291,7 +291,7 @@ describe('createPollVoteJob', () => {
     expect(updatedPoll.choices[1].totalVotes).toEqual(0)
   })
 
-  it('allows multiple votes in anyOf poll', async () => {
+  it('prevents duplicate voters in anyOf poll', async () => {
     // Create an anyOf poll
     const anyOfPoll = await database.createPoll({
       id: `${actor1?.id}/polls/anyof-${Date.now()}`,
@@ -335,9 +335,9 @@ describe('createPollVoteJob', () => {
     const updatedPoll = (await database.getStatus({
       statusId: anyOfPoll.id
     })) as StatusPoll
-    // Both votes should be counted
+    // Only the first vote should be counted for a voter.
     expect(updatedPoll.choices[0].totalVotes).toEqual(1)
-    expect(updatedPoll.choices[1].totalVotes).toEqual(1)
+    expect(updatedPoll.choices[1].totalVotes).toEqual(0)
   })
 
   it('fetches and stores remote voter actor', async () => {
@@ -360,8 +360,8 @@ describe('createPollVoteJob', () => {
 
   it('rethrows vote persistence failures so the queue can retry', async () => {
     const error = new Error('database unavailable')
-    const createPollAnswerSpy = jest
-      .spyOn(database, 'createPollAnswer')
+    const recordPollVotesSpy = jest
+      .spyOn(database, 'recordPollVotes')
       .mockRejectedValueOnce(error)
     const voteNote = createVoteNote({
       from: VOTER_ACTOR_ID,
@@ -377,7 +377,7 @@ describe('createPollVoteJob', () => {
       })
     ).rejects.toThrow(error)
 
-    createPollAnswerSpy.mockRestore()
+    recordPollVotesSpy.mockRestore()
   })
 
   it('allows votes from different actors', async () => {
