@@ -124,6 +124,44 @@ describe('Mastodon poll routes', () => {
     expect(await response.json()).toEqual(mastodonPoll)
   })
 
+  it('returns not found when the poll status does not exist', async () => {
+    mockDatabase.getStatus.mockResolvedValue(null)
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/polls/${encodedPollId}`),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockCanActorReadStatus).not.toHaveBeenCalled()
+  })
+
+  it('returns not found when the status is not a poll', async () => {
+    mockDatabase.getStatus.mockResolvedValue({
+      ...pollStatus,
+      type: StatusType.enum.Note
+    })
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/polls/${encodedPollId}`),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockCanActorReadStatus).not.toHaveBeenCalled()
+  })
+
+  it('returns a server error when the Mastodon status has no poll payload', async () => {
+    mockGetMastodonStatus.mockResolvedValue({ poll: null })
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/polls/${encodedPollId}`),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(500)
+  })
+
   it('records poll votes and returns the updated Mastodon poll entity', async () => {
     const response = await POST(
       new NextRequest(
@@ -202,6 +240,45 @@ describe('Mastodon poll routes', () => {
 
     expect(invalidChoiceResponse.status).toBe(422)
     expect(mockDatabase.recordPollVotes).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects expired poll votes', async () => {
+    mockDatabase.getStatus.mockResolvedValue({
+      ...pollStatus,
+      endAt: Date.now() - 1_000
+    })
+
+    const response = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ choices: [0] })
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
+  })
+
+  it('rejects multiple choices for single-choice polls', async () => {
+    const response = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ choices: [0, 1] })
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
   })
 
   it('rejects repeat votes for every poll type', async () => {

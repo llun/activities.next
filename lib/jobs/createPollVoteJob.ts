@@ -89,6 +89,7 @@ export const createPollVoteJob = createJobHandle(
       })
     } catch (error) {
       logger.error({ error }, 'Vote creation failed')
+      throw error
     }
   }
 )

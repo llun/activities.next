@@ -15,8 +15,6 @@ type StatusLikesParams = OnlyLocalUserGuardHandle & {
   statusId: string
 }
 
-const ACTIVITYPUB_LIKES_LIMIT = 100
-
 export const GET = traceApiRoute(
   'getActorStatusLikes',
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
@@ -31,13 +29,7 @@ export const GET = traceApiRoute(
     if (!isStatusPubliclyReadable(status)) return apiErrorResponse(404)
     if (status.type === StatusType.enum.Announce) return apiErrorResponse(404)
 
-    const [likedBy, totalItems] = await Promise.all([
-      database.getFavouritedBy({
-        statusId: status.id,
-        limit: ACTIVITYPUB_LIKES_LIMIT
-      }),
-      database.getLikeCount({ statusId: status.id })
-    ])
+    const totalItems = await database.getLikeCount({ statusId: status.id })
 
     return activityPubResponse({
       req,
@@ -45,8 +37,7 @@ export const GET = traceApiRoute(
         '@context': ACTIVITY_STREAM_URL,
         id: `${status.id}/likes`,
         type: 'Collection',
-        totalItems,
-        items: likedBy.map((likedByActor) => likedByActor.id)
+        totalItems
       }
     })
   })

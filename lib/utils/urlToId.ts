@@ -5,7 +5,9 @@ const encodeBase64Url = (value: string) => {
     return Buffer.from(value, 'utf8').toString('base64url')
   }
 
-  return btoa(unescape(encodeURIComponent(value)))
+  const bytes = new TextEncoder().encode(value)
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')
+  return btoa(binary)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
     .replaceAll('=', '')
@@ -20,9 +22,9 @@ const decodeBase64Url = (value: string) => {
     value.length + ((4 - (value.length % 4)) % 4),
     '='
   )
-  return decodeURIComponent(
-    escape(atob(paddedValue.replaceAll('-', '+').replaceAll('_', '/')))
-  )
+  const binary = atob(paddedValue.replaceAll('-', '+').replaceAll('_', '/'))
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
 }
 
 export const urlToId = (idInURLFormat: string) => {
@@ -58,9 +60,12 @@ export const idToUrl = (id: string) => {
 
   if (id.startsWith(OPAQUE_URL_ID_PREFIX)) {
     try {
-      return decodeBase64Url(id.slice(OPAQUE_URL_ID_PREFIX.length))
+      const decoded = decodeBase64Url(id.slice(OPAQUE_URL_ID_PREFIX.length))
+      const decodedUrl = new URL(decoded)
+      if (!['http:', 'https:'].includes(decodedUrl.protocol)) return ''
+      return decoded
     } catch {
-      return id
+      return ''
     }
   }
 

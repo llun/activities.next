@@ -23,6 +23,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
       ? status.ownVotes
       : []
   )
+  const [voteError, setVoteError] = useState<string | null>(null)
 
   useEffect(() => {
     setNow(currentTime)
@@ -64,12 +65,13 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
     if (selectedChoices.length === 0) return
 
     setIsVoting(true)
+    setVoteError(null)
     try {
       await votePoll({ statusId: status.id, choices: selectedChoices })
       setVotedChoices(selectedChoices)
       setSelectedChoices([])
     } catch {
-      setSelectedChoices([])
+      setVoteError('Failed to submit vote. Please try again.')
     } finally {
       setIsVoting(false)
     }
@@ -142,6 +144,11 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
           {isVoting ? 'Voting...' : 'Vote'}
         </button>
       )}
+      {voteError ? (
+        <p className="mt-2 text-sm text-destructive" role="alert">
+          {voteError}
+        </p>
+      ) : null}
 
       {isPollClosed ? <div className="text-sm">Poll closed</div> : null}
       {!isPollClosed ? (

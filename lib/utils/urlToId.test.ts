@@ -89,4 +89,8 @@ describe('#idToUrl', () => {
       'https://llun.test/users//test1'
     )
   })
+
+  it('returns an empty string for invalid opaque ActivityPub IDs', () => {
+    expect(idToUrl('apurl_not-a-url')).toEqual('')
+  })
 })

@@ -22,14 +22,17 @@ export const FollowRequestCard: FC<Props> = ({
   const [status, setStatus] = useState<'pending' | 'accepted' | 'rejected'>(
     'pending'
   )
+  const [error, setError] = useState<string | null>(null)
 
   const handleAccept = async () => {
     setIsLoading(true)
+    setError(null)
     try {
       await onAccept(account.url)
       setStatus('accepted')
     } catch {
       setStatus('pending')
+      setError('Failed to accept follow request. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -37,11 +40,13 @@ export const FollowRequestCard: FC<Props> = ({
 
   const handleReject = async () => {
     setIsLoading(true)
+    setError(null)
     try {
       await onReject(account.url)
       setStatus('rejected')
     } catch {
       setStatus('pending')
+      setError('Failed to reject follow request. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -104,6 +109,11 @@ export const FollowRequestCard: FC<Props> = ({
             })}
           </p>
         )}
+        {error ? (
+          <p className="mt-2 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
       <div className="flex gap-2 shrink-0">
         <Button size="sm" onClick={handleAccept} disabled={isLoading}>

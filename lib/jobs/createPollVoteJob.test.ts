@@ -358,6 +358,28 @@ describe('createPollVoteJob', () => {
     expect(actor?.id).toEqual(VOTER_ACTOR_ID)
   })
 
+  it('rethrows vote persistence failures so the queue can retry', async () => {
+    const error = new Error('database unavailable')
+    const createPollAnswerSpy = jest
+      .spyOn(database, 'createPollAnswer')
+      .mockRejectedValueOnce(error)
+    const voteNote = createVoteNote({
+      from: VOTER_ACTOR_ID,
+      inReplyTo: pollStatus.id,
+      name: 'Option A'
+    })
+
+    await expect(
+      createPollVoteJob(database, {
+        id: 'id',
+        name: CREATE_POLL_VOTE_JOB_NAME,
+        data: voteNote
+      })
+    ).rejects.toThrow(error)
+
+    createPollAnswerSpy.mockRestore()
+  })
+
   it('allows votes from different actors', async () => {
     // Vote from first actor
     const vote1 = createVoteNote({

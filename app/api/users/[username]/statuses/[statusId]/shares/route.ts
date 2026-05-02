@@ -29,13 +29,17 @@ export const GET = traceApiRoute(
     if (!isStatusPubliclyReadable(status)) return apiErrorResponse(404)
     if (status.type === StatusType.enum.Announce) return apiErrorResponse(404)
 
+    const totalItems = await database.getStatusReblogsCount({
+      statusId: status.id
+    })
+
     return activityPubResponse({
       req,
       data: {
         '@context': ACTIVITY_STREAM_URL,
         id: `${status.id}/shares`,
         type: 'Collection',
-        totalItems: 0,
+        totalItems,
         items: []
       }
     })

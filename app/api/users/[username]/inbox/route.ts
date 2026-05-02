@@ -16,6 +16,7 @@ import {
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import {
   DEFAULT_202,
   ERROR_400,
@@ -58,6 +59,22 @@ const Activity = z.union([
   ReferenceUndo,
   GracefullyAcceptedActivity
 ])
+
+const logAcceptedWithoutSideEffects = ({
+  activity,
+  reason
+}: {
+  activity: { id?: string; type: string; actor?: string }
+  reason: string
+}) => {
+  logger.info({
+    message: 'Accepted ActivityPub inbox activity without local side effects',
+    activityId: activity.id,
+    activityType: activity.type,
+    actorId: activity.actor,
+    reason
+  })
+}
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -161,6 +178,10 @@ export const POST = traceApiRoute(
               case 'Undo': {
                 const undoObject = activity.object
                 if (typeof undoObject === 'string') {
+                  logAcceptedWithoutSideEffects({
+                    activity,
+                    reason: 'reference-only Undo object'
+                  })
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
@@ -211,6 +232,10 @@ export const POST = traceApiRoute(
                   })
                 }
 
+                logAcceptedWithoutSideEffects({
+                  activity,
+                  reason: `unsupported Undo object type ${undoObject.type}`
+                })
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
@@ -219,6 +244,10 @@ export const POST = traceApiRoute(
                 })
               }
               default:
+                logAcceptedWithoutSideEffects({
+                  activity,
+                  reason: 'unsupported but accepted ActivityPub activity type'
+                })
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
