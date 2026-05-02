@@ -62,6 +62,22 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
+const isUniqueConstraintError = (error: unknown) => {
+  const { code, errno, message } = error as {
+    code?: string
+    errno?: number
+    message?: string
+  }
+  return (
+    code === '23505' ||
+    code === 'ER_DUP_ENTRY' ||
+    code === 'SQLITE_CONSTRAINT' ||
+    code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+    errno === 1062 ||
+    Boolean(message?.includes('UNIQUE constraint failed'))
+  )
+}
+
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
@@ -1308,43 +1324,55 @@ export const StatusSQLDatabaseMixin = (
     if (choices.length === 0) return false
 
     const currentTime = new Date()
-    return database.transaction(async (trx) => {
-      const existingVote = await trx('poll_answers')
-        .where({ statusId, actorId })
-        .first()
-      if (existingVote) return false
+    try {
+      return await database.transaction(async (trx) => {
+        const existingVote = await trx('poll_answers')
+          .where({ statusId, actorId })
+          .first()
+        if (existingVote) return false
 
-      const pollChoices = await trx('poll_choices')
-        .where({ statusId })
-        .orderBy('choiceId', 'asc')
-        .select<{ choiceId: number }[]>('choiceId')
-      const selectedChoices: { choiceId: number }[] = []
-      for (const choiceIndex of choices) {
-        const choice = pollChoices[choiceIndex]
-        if (!choice) return false
-        selectedChoices.push(choice)
-      }
+        const pollChoices = await trx('poll_choices')
+          .where({ statusId })
+          .orderBy('choiceId', 'asc')
+          .select<{ choiceId: number }[]>('choiceId')
+        const selectedChoices: { choiceId: number }[] = []
+        for (const choiceIndex of choices) {
+          const choice = pollChoices[choiceIndex]
+          if (!choice) return false
+          selectedChoices.push(choice)
+        }
 
-      await trx('poll_answers').insert(
-        choices.map((choice) => ({
+        await trx('poll_voters').insert({
           statusId,
           actorId,
-          choice,
           createdAt: currentTime,
           updatedAt: currentTime
-        }))
-      )
+        })
 
-      await Promise.all(
-        selectedChoices.map((choice) =>
-          trx('poll_choices')
-            .where({ statusId, choiceId: choice.choiceId })
-            .increment('totalVotes', 1)
+        await trx('poll_answers').insert(
+          choices.map((choice) => ({
+            statusId,
+            actorId,
+            choice,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          }))
         )
-      )
 
-      return true
-    })
+        await Promise.all(
+          selectedChoices.map((choice) =>
+            trx('poll_choices')
+              .where({ statusId, choiceId: choice.choiceId })
+              .increment('totalVotes', 1)
+          )
+        )
+
+        return true
+      })
+    } catch (error) {
+      if (isUniqueConstraintError(error)) return false
+      throw error
+    }
   }
 
   async function createPollAnswer({
