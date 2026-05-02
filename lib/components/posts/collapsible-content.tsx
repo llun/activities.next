@@ -16,16 +16,16 @@ import { cn } from '@/lib/utils'
 interface CollapsibleContentProps {
   children: ReactNode
   className?: string
+  contentClassName?: string
   maxLines?: number
 }
 
 const LINE_HEIGHT_REM = 1.4375 // ~line height for text-sm leading-relaxed
-const hasClassToken = (className: string | undefined, token: string) =>
-  className?.split(/\s+/).includes(token) ?? false
 
 export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   children,
   className,
+  contentClassName,
   maxLines = 5
 }) => {
   const measuredContentRef = useRef<HTMLDivElement>(null)
@@ -61,9 +61,6 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   }, [checkOverflow])
 
   const needsCollapse = isOverflowing && !isExpanded
-  const measuredContentClassName = hasClassToken(className, 'markdown-content')
-    ? 'markdown-content'
-    : undefined
 
   return (
     <div className="relative">
@@ -72,7 +69,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
         className={cn(className, needsCollapse && 'overflow-hidden')}
         style={needsCollapse ? { height: `${maxHeightRem}rem` } : undefined}
       >
-        <div ref={measuredContentRef} className={measuredContentClassName}>
+        <div ref={measuredContentRef} className={contentClassName}>
           {children}
         </div>
       </div>

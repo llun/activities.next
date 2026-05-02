@@ -128,10 +128,11 @@ describe('CollapsibleContent', () => {
     ).toBe(true)
   })
 
-  it('preserves markdown content selectors on the measured wrapper', async () => {
+  it('applies caller-provided content classes to the measured wrapper', async () => {
     render(
       <CollapsibleContent
-        className="mt-1 text-sm leading-relaxed break-words markdown-content"
+        className="mt-1 text-sm leading-relaxed break-words"
+        contentClassName="markdown-content"
         maxLines={5}
       >
         <p>Long status content that exceeds the timeline line limit.</p>
@@ -147,10 +148,15 @@ describe('CollapsibleContent', () => {
     const observedElements = resizeObserverInstances.flatMap(
       (instance) => instance.observedElements
     )
+    const button = screen.getByRole('button', { name: 'Show more content' })
+    const collapsedContainer = document.getElementById(
+      button.getAttribute('aria-controls')!
+    )
     const measuredMarkdownContent = observedElements.find((element) =>
       element.classList.contains('markdown-content')
     )
 
+    expect(collapsedContainer).not.toHaveClass('markdown-content')
     expect(measuredMarkdownContent).toBeDefined()
     expect(
       measuredMarkdownContent?.querySelector(':scope > p')
