@@ -103,7 +103,8 @@ export const Post: FC<PostProps> = (props) => {
     <>
       {collapsible && postLineLimit !== 0 && !summary ? (
         <CollapsibleContent
-          className="mt-1 text-sm leading-relaxed break-words markdown-content"
+          className="mt-1 text-sm leading-relaxed break-words"
+          contentClassName="markdown-content"
           maxLines={postLineLimit}
         >
           {processedAndCleanedText}
