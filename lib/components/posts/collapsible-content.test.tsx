@@ -8,13 +8,38 @@ import { CollapsibleContent } from './collapsible-content'
 
 const COLLAPSED_HEIGHT_REM = `${5 * 1.4375}rem`
 
+let resizeObserverInstances: ResizeObserverMock[] = []
+let originalResizeObserver: unknown
+let originalScrollHeightDescriptor: PropertyDescriptor | undefined
+
 class ResizeObserverMock {
-  observe = jest.fn()
+  observedElements: Element[] = []
+
+  constructor(
+    private readonly callback: (entries: never[], observer: unknown) => void
+  ) {
+    resizeObserverInstances.push(this)
+  }
+
+  observe = jest.fn((element: Element) => {
+    this.observedElements.push(element)
+  })
+
   disconnect = jest.fn()
+
+  trigger() {
+    this.callback([], this)
+  }
 }
 
 describe('CollapsibleContent', () => {
   beforeEach(() => {
+    resizeObserverInstances = []
+    originalResizeObserver = global.ResizeObserver
+    originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollHeight'
+    )
     document.documentElement.style.fontSize = '16px'
 
     Object.defineProperty(global, 'ResizeObserver', {
@@ -26,6 +51,27 @@ describe('CollapsibleContent', () => {
       configurable: true,
       get: () => 300
     })
+  })
+
+  afterEach(() => {
+    if (originalResizeObserver) {
+      Object.defineProperty(global, 'ResizeObserver', {
+        configurable: true,
+        value: originalResizeObserver
+      })
+    } else {
+      Reflect.deleteProperty(global, 'ResizeObserver')
+    }
+
+    if (originalScrollHeightDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'scrollHeight',
+        originalScrollHeightDescriptor
+      )
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight')
+    }
   })
 
   it('uses a fixed collapsed layout height for overflowing content', async () => {
@@ -41,11 +87,44 @@ describe('CollapsibleContent', () => {
       ).toBeInTheDocument()
     })
 
-    const content = screen.getByText(
-      'Long status content that exceeds the timeline line limit.'
+    const button = screen.getByRole('button', { name: 'Show more content' })
+    const content = document.getElementById(
+      button.getAttribute('aria-controls')!
     )
+
     expect(content).toHaveClass('overflow-hidden')
-    expect(content.style.height).toBe(COLLAPSED_HEIGHT_REM)
-    expect(content.style.maxHeight).toBe('')
+    expect(content?.style.height).toBe(COLLAPSED_HEIGHT_REM)
+    expect(content?.style.maxHeight).toBe('')
+  })
+
+  it('observes natural content size while the collapsed container has fixed height', async () => {
+    render(
+      <CollapsibleContent maxLines={5}>
+        Long status content that exceeds the timeline line limit.
+      </CollapsibleContent>
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Show more content' })
+      ).toBeInTheDocument()
+    })
+
+    const button = screen.getByRole('button', { name: 'Show more content' })
+    const collapsedContainer = document.getElementById(
+      button.getAttribute('aria-controls')!
+    )
+    const observedElements = resizeObserverInstances.flatMap(
+      (instance) => instance.observedElements
+    )
+
+    expect(observedElements).not.toContain(collapsedContainer)
+    expect(
+      observedElements.some((element) =>
+        element.textContent?.includes(
+          'Long status content that exceeds the timeline line limit.'
+        )
+      )
+    ).toBe(true)
   })
 })

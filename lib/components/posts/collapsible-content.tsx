@@ -26,7 +26,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   className,
   maxLines = 5
 }) => {
-  const contentRef = useRef<HTMLDivElement>(null)
+  const measuredContentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
@@ -34,7 +34,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   const maxHeightRem = maxLines * LINE_HEIGHT_REM
 
   const checkOverflow = useCallback(() => {
-    const el = contentRef.current
+    const el = measuredContentRef.current
     if (!el) return
 
     const maxHeightPx =
@@ -48,7 +48,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   }, [children, checkOverflow])
 
   useEffect(() => {
-    const el = contentRef.current
+    const el = measuredContentRef.current
     if (!el) return
 
     const observer = new ResizeObserver(() => {
@@ -64,11 +64,10 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
     <div className="relative">
       <div
         id={contentId}
-        ref={contentRef}
         className={cn(className, needsCollapse && 'overflow-hidden')}
         style={needsCollapse ? { height: `${maxHeightRem}rem` } : undefined}
       >
-        {children}
+        <div ref={measuredContentRef}>{children}</div>
       </div>
       {needsCollapse && (
         <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center bg-gradient-to-t from-background to-transparent pt-8 pb-0">
