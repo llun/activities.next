@@ -28,7 +28,37 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
-const Activity = z.union([Accept, Reject, Follow, Like, Undo])
+const GracefullyAcceptedActivity = z
+  .object({
+    id: z.string(),
+    type: z.enum(['Block', 'Flag', 'Move', 'Add', 'Remove', 'QuoteRequest']),
+    actor: z.string()
+  })
+  .passthrough()
+const ReferenceUndo = z
+  .object({
+    id: z.string(),
+    actor: z.string(),
+    type: z.literal('Undo'),
+    object: z.union([
+      z.string(),
+      z
+        .object({
+          type: z.string()
+        })
+        .passthrough()
+    ])
+  })
+  .passthrough()
+const Activity = z.union([
+  Accept,
+  Reject,
+  Follow,
+  Like,
+  Undo,
+  ReferenceUndo,
+  GracefullyAcceptedActivity
+])
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -131,7 +161,17 @@ export const POST = traceApiRoute(
               }
               case 'Undo': {
                 const undoRequest = activity as UndoFollow | UndoLike
-                switch (undoRequest.object.type) {
+                const undoObject = undoRequest.object
+                if (typeof undoObject === 'string') {
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+
+                switch (undoObject.type) {
                   case 'Follow': {
                     const result = await undoFollowRequest({
                       database,
@@ -147,17 +187,17 @@ export const POST = traceApiRoute(
                     return apiResponse({
                       req,
                       allowedMethods: CORS_HEADERS,
-                      data: { target: undoRequest.object.object },
+                      data: { target: undoObject.object },
                       responseStatusCode: 202
                     })
                   }
                   case 'Like': {
                     await database.deleteLike({
-                      actorId: undoRequest.object.actor,
+                      actorId: undoObject.actor,
                       statusId:
-                        typeof undoRequest.object.object === 'string'
-                          ? undoRequest.object.object
-                          : undoRequest.object.object.id
+                        typeof undoObject.object === 'string'
+                          ? undoObject.object
+                          : undoObject.object.id
                     })
                     return apiResponse({
                       req,

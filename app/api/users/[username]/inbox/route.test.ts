@@ -104,6 +104,18 @@ const createFollowRequest = (username = 'llun') =>
     })
   })
 
+const createActorInboxActivityRequest = (type: string) =>
+  new NextRequest('https://activities.local/api/users/llun/inbox', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      id: `https://remote.test/users/alice/activities/${type.toLowerCase()}`,
+      type,
+      actor: 'https://remote.test/users/alice',
+      object: 'https://activities.local/users/llun'
+    })
+  })
+
 describe('POST /api/users/[username]/inbox', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -167,5 +179,37 @@ describe('POST /api/users/[username]/inbox', () => {
         type: 'Follow'
       })
     })
+  })
+
+  it.each(['Block', 'Flag', 'Move', 'Add', 'Remove', 'QuoteRequest'])(
+    'accepts verified %s activities without treating them as malformed',
+    async (activityType) => {
+      const response = await POST(
+        createActorInboxActivityRequest(activityType),
+        {
+          params: Promise.resolve({ username: 'llun' })
+        }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+        mockDatabase,
+        'https://remote.test/users/alice'
+      )
+      expect(mockCreateFollower).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts reference-only Undo activities without treating them as malformed', async () => {
+    const response = await POST(createActorInboxActivityRequest('Undo'), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+      mockDatabase,
+      'https://remote.test/users/alice'
+    )
+    expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 })
