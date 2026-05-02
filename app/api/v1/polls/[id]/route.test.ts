@@ -8,11 +8,13 @@ import { POST } from './votes/route'
 
 const mockGetMastodonStatus = jest.fn()
 const mockSendPollVotes = jest.fn()
+const mockCanActorReadStatus = jest.fn()
 const mockDatabase = {
   getStatus: jest.fn(),
   hasActorVoted: jest.fn(),
   createPollAnswer: jest.fn(),
-  incrementPollChoiceVotes: jest.fn()
+  incrementPollChoiceVotes: jest.fn(),
+  recordPollVotes: jest.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
@@ -36,11 +38,34 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
         database: mockDatabase,
         currentActor: mockCurrentActor,
         params: context.params
+      }),
+  OptionalOAuthGuard:
+    (
+      _scopes: unknown,
+      handle: (
+        req: NextRequest,
+        context: {
+          database: typeof mockDatabase
+          currentActor: typeof mockCurrentActor | null
+          params: Promise<{ id: string }>
+        }
+      ) => Promise<Response> | Response
+    ) =>
+    (req: NextRequest, context: { params: Promise<{ id: string }> }) =>
+      handle(req, {
+        database: mockDatabase,
+        currentActor: mockCurrentActor,
+        params: context.params
       })
 }))
 
 jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   getMastodonStatus: (...params: unknown[]) => mockGetMastodonStatus(...params)
+}))
+
+jest.mock('@/lib/services/statusAccess', () => ({
+  canActorReadStatus: (...params: unknown[]) =>
+    mockCanActorReadStatus(...params)
 }))
 
 jest.mock('@/lib/activities', () => ({
@@ -53,7 +78,8 @@ const pollStatus = {
   id: pollStatusId,
   type: StatusType.enum.Poll,
   endAt: Date.now() + 60_000,
-  pollType: 'oneOf'
+  pollType: 'oneOf',
+  choices: [{ title: 'Red' }, { title: 'Blue' }]
 }
 const mastodonPoll = {
   id: encodedPollId,
@@ -73,7 +99,9 @@ describe('Mastodon poll routes', () => {
     jest.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue(pollStatus)
     mockDatabase.hasActorVoted.mockResolvedValue(false)
+    mockDatabase.recordPollVotes.mockResolvedValue(true)
     mockGetMastodonStatus.mockResolvedValue({ poll: mastodonPoll })
+    mockCanActorReadStatus.mockResolvedValue(true)
   })
 
   it('returns a Mastodon poll entity', async () => {
@@ -85,7 +113,13 @@ describe('Mastodon poll routes', () => {
     expect(response.status).toBe(200)
     expect(mockDatabase.getStatus).toHaveBeenCalledWith({
       statusId: pollStatusId,
+      currentActorId: mockCurrentActor.id,
       withReplies: false
+    })
+    expect(mockCanActorReadStatus).toHaveBeenCalledWith({
+      database: mockDatabase,
+      status: pollStatus,
+      currentActor: mockCurrentActor
     })
     expect(await response.json()).toEqual(mastodonPoll)
   })
@@ -104,14 +138,10 @@ describe('Mastodon poll routes', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockDatabase.createPollAnswer).toHaveBeenCalledWith({
+    expect(mockDatabase.recordPollVotes).toHaveBeenCalledWith({
       statusId: pollStatusId,
       actorId: mockCurrentActor.id,
-      choice: 0
-    })
-    expect(mockDatabase.incrementPollChoiceVotes).toHaveBeenCalledWith({
-      statusId: pollStatusId,
-      choiceIndex: 0
+      choices: [0]
     })
     expect(mockSendPollVotes).toHaveBeenCalledWith({
       currentActor: mockCurrentActor,
@@ -119,5 +149,93 @@ describe('Mastodon poll routes', () => {
       choices: [0]
     })
     expect(await response.json()).toEqual(mastodonPoll)
+  })
+
+  it('rejects malformed poll vote JSON without throwing', async () => {
+    const response = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{'
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
+  })
+
+  it('deduplicates and bounds-checks submitted poll choices before recording', async () => {
+    const response = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ choices: [0, 0] })
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.recordPollVotes).toHaveBeenCalledWith({
+      statusId: pollStatusId,
+      actorId: mockCurrentActor.id,
+      choices: [0]
+    })
+
+    const invalidChoiceResponse = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ choices: [2] })
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(invalidChoiceResponse.status).toBe(422)
+    expect(mockDatabase.recordPollVotes).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects repeat votes for every poll type', async () => {
+    mockDatabase.hasActorVoted.mockResolvedValue(true)
+    mockDatabase.getStatus.mockResolvedValue({
+      ...pollStatus,
+      pollType: 'anyOf'
+    })
+
+    const response = await POST(
+      new NextRequest(
+        `https://local.test/api/v1/polls/${encodedPollId}/votes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ choices: [0, 1] })
+        }
+      ),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
+  })
+
+  it('does not expose polls from unreadable statuses', async () => {
+    mockCanActorReadStatus.mockResolvedValue(false)
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/polls/${encodedPollId}`),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockGetMastodonStatus).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,6 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -22,12 +23,13 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getMastodonPoll',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedPollId = (await params).id
     const statusId = idToUrl(encodedPollId)
     const status = await database.getStatus({
       statusId,
+      currentActorId: currentActor?.id,
       withReplies: false
     })
 
@@ -40,10 +42,24 @@ export const GET = traceApiRoute(
       })
     }
 
+    const hasAccess = await canActorReadStatus({
+      database,
+      status,
+      currentActor
+    })
+    if (!hasAccess) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
+    }
+
     const mastodonStatus = await getMastodonStatus(
       database,
       status,
-      currentActor.id
+      currentActor?.id
     )
     if (!mastodonStatus?.poll) {
       return apiResponse({

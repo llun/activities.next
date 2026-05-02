@@ -36,14 +36,21 @@ export const GET = traceApiRoute(
     if (!isStatusPubliclyReadable(status)) return apiErrorResponse(404)
     if (status.type === StatusType.enum.Announce) return apiErrorResponse(404)
 
-    const replies = (
-      await database.getStatusReplies({
+    const [replies, totalReplies] = await Promise.all([
+      database.getStatusReplies({
         statusId: status.id,
         url: status.url,
         publicOnly: true,
         limit: ACTIVITYPUB_REPLIES_LIMIT
+      }),
+      database.getStatusRepliesCount({
+        statusId: status.id,
+        url: status.url,
+        publicOnly: true
       })
-    ).filter(
+    ])
+
+    const publicReplies = replies.filter(
       (reply): reply is StatusNote | StatusPoll =>
         reply.type !== StatusType.enum.Announce &&
         isStatusPubliclyReadable(reply)
@@ -55,8 +62,8 @@ export const GET = traceApiRoute(
         '@context': ACTIVITY_STREAM_URL,
         id: `${status.id}/replies`,
         type: 'Collection',
-        totalItems: replies.length,
-        items: replies.map((reply) => toActivityPubObject(reply))
+        totalItems: totalReplies,
+        items: publicReplies.map((reply) => toActivityPubObject(reply))
       }
     })
   })

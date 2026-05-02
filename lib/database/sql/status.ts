@@ -37,6 +37,7 @@ import {
   HasActorAnnouncedStatusParams,
   HasActorVotedParams,
   IncrementPollChoiceVotesParams,
+  RecordPollVotesParams,
   StatusDatabase,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
@@ -1264,9 +1265,86 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getStatusRepliesCount({
-    statusId
+    statusId,
+    url,
+    publicOnly = false
   }: GetStatusRepliesCountParams): Promise<number> {
-    return getCounterValue(database, CounterKey.totalReply(statusId))
+    if (!url && !publicOnly) {
+      return getCounterValue(database, CounterKey.totalReply(statusId))
+    }
+
+    let query = database('statuses').where((builder) => {
+      builder.where('reply', statusId)
+      if (url) {
+        builder.orWhere('reply', url)
+      }
+    })
+
+    if (publicOnly) {
+      query = query.whereIn(
+        'statuses.id',
+        database('recipients')
+          .select('statusId')
+          .whereIn('recipients.actorId', [
+            ACTIVITY_STREAM_PUBLIC,
+            ACTIVITY_STREAM_PUBLIC_COMPACT
+          ])
+      )
+    }
+
+    const result = await query
+      .whereNot('type', StatusType.enum.Announce)
+      .count<{ count: string }>('* as count')
+      .first()
+
+    return parseInt(String(result?.count ?? '0'), 10)
+  }
+
+  async function recordPollVotes({
+    statusId,
+    actorId,
+    choices
+  }: RecordPollVotesParams): Promise<boolean> {
+    if (choices.length === 0) return false
+
+    const currentTime = new Date()
+    return database.transaction(async (trx) => {
+      const existingVote = await trx('poll_answers')
+        .where({ statusId, actorId })
+        .first()
+      if (existingVote) return false
+
+      const pollChoices = await trx('poll_choices')
+        .where({ statusId })
+        .orderBy('choiceId', 'asc')
+        .select<{ choiceId: number }[]>('choiceId')
+      const selectedChoices: { choiceId: number }[] = []
+      for (const choiceIndex of choices) {
+        const choice = pollChoices[choiceIndex]
+        if (!choice) return false
+        selectedChoices.push(choice)
+      }
+
+      await trx('poll_answers').insert(
+        choices.map((choice) => ({
+          statusId,
+          actorId,
+          choice,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        }))
+      )
+
+      await Promise.all(
+        selectedChoices.map((choice) =>
+          trx('poll_choices')
+            .where({ statusId, choiceId: choice.choiceId })
+            .increment('totalVotes', 1)
+        )
+      )
+
+      return true
+    })
   }
 
   async function createPollAnswer({
@@ -1475,6 +1553,7 @@ export const StatusSQLDatabaseMixin = (
     createPollAnswer,
     hasActorVoted,
     getActorPollVotes,
-    incrementPollChoiceVotes
+    incrementPollChoiceVotes,
+    recordPollVotes
   }
 }

@@ -8,7 +8,8 @@ import { GET } from './route'
 
 const mockDatabase = {
   getStatus: jest.fn(),
-  getStatusReplies: jest.fn()
+  getStatusReplies: jest.fn(),
+  getStatusRepliesCount: jest.fn()
 }
 const mockActor: Actor = {
   id: 'https://example.com/users/test',
@@ -70,6 +71,7 @@ describe('GET /api/users/[username]/statuses/[statusId]/replies', () => {
         updatedAt: Date.UTC(2026, 0, 1)
       }
     ])
+    mockDatabase.getStatusRepliesCount.mockResolvedValue(3)
   })
 
   it('returns public replies as an ActivityPub Collection', async () => {
@@ -93,13 +95,18 @@ describe('GET /api/users/[username]/statuses/[statusId]/replies', () => {
       publicOnly: true,
       limit: 100
     })
+    expect(mockDatabase.getStatusRepliesCount).toHaveBeenCalledWith({
+      statusId: 'https://example.com/users/test/statuses/123',
+      url: 'https://example.com/users/test/statuses/123',
+      publicOnly: true
+    })
 
     const data = await response.json()
     expect(data).toMatchObject({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: 'https://example.com/users/test/statuses/123/replies',
       type: 'Collection',
-      totalItems: 1,
+      totalItems: 3,
       items: [
         {
           id: 'https://example.com/users/other/statuses/reply-1',

@@ -330,6 +330,71 @@ describe('Status', () => {
         })
         expect('anyOf' in question).toBe(false)
       })
+
+      it('omits votersCount for multiple-choice polls when unique voter count is unavailable', () => {
+        const createdAt = Date.UTC(2026, 0, 1)
+        const status = Status.parse({
+          id: `${ACTOR1_ID}/statuses/poll-2`,
+          actorId: ACTOR1_ID,
+          actor: null,
+          type: StatusType.enum.Poll,
+          url: `${ACTOR1_ID}/statuses/poll-2`,
+          text: '<p>Pick any</p>',
+          summary: null,
+          reply: '',
+          replies: [],
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${ACTOR1_ID}/followers`],
+          edits: [],
+          isLocalActor: true,
+          actorAnnounceStatusId: null,
+          isActorLiked: false,
+          totalLikes: 0,
+          attachments: [],
+          tags: [],
+          choices: [
+            {
+              statusId: `${ACTOR1_ID}/statuses/poll-2`,
+              title: 'Red',
+              totalVotes: 3,
+              createdAt,
+              updatedAt: createdAt
+            },
+            {
+              statusId: `${ACTOR1_ID}/statuses/poll-2`,
+              title: 'Blue',
+              totalVotes: 5,
+              createdAt,
+              updatedAt: createdAt
+            }
+          ],
+          endAt: createdAt + 60_000,
+          pollType: 'anyOf',
+          createdAt,
+          updatedAt: createdAt
+        })
+
+        const question = toActivityPubObject(status)
+
+        expect(question).toMatchObject({
+          id: `${ACTOR1_ID}/statuses/poll-2`,
+          type: 'Question',
+          anyOf: [
+            {
+              type: 'Note',
+              name: 'Red',
+              replies: { type: 'Collection', totalItems: 3 }
+            },
+            {
+              type: 'Note',
+              name: 'Blue',
+              replies: { type: 'Collection', totalItems: 5 }
+            }
+          ]
+        })
+        expect('oneOf' in question).toBe(false)
+        expect('votersCount' in question).toBe(false)
+      })
     })
   })
 })
