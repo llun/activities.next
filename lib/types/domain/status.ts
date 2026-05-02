@@ -79,6 +79,7 @@ export const StatusNote = StatusBase.extend({
   actorAnnounceStatusId: z.string().nullable(),
   isActorLiked: z.boolean(),
   totalLikes: z.number(),
+  totalShares: z.number().optional(),
 
   attachments: Attachment.array(),
   tags: Tag.array(),
@@ -286,7 +287,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       shares: {
         id: `${status.id}/shares`,
         type: 'Collection',
-        totalItems: 0
+        totalItems: status.totalShares ?? 0
       },
 
       published: getISOTimeUTC(status.createdAt),
@@ -340,7 +341,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     shares: {
       id: `${originalStatus.id}/shares`,
       type: 'Collection',
-      totalItems: 0
+      totalItems: originalStatus.totalShares ?? 0
     },
 
     published: getISOTimeUTC(originalStatus.createdAt),

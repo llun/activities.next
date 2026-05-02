@@ -1133,6 +1133,7 @@ export const StatusSQLDatabaseMixin = (
       replies,
       actor,
       totalLikes,
+      totalShares,
       isActorLikedStatusResult,
       actorAnnounceStatus,
       edits,
@@ -1148,6 +1149,7 @@ export const StatusSQLDatabaseMixin = (
         : Promise.resolve([]),
       actorDatabase.getActorFromId({ id: data.actorId }),
       getCounterValue(database, CounterKey.totalLike(data.id)),
+      getCounterValue(database, CounterKey.totalReblog(data.id)),
       currentActorId
         ? likeDatabase.isActorLikedStatus({
             statusId: data.id,
@@ -1198,6 +1200,7 @@ export const StatusSQLDatabaseMixin = (
       reply: data.reply,
       replies: repliesNote,
       totalLikes,
+      ...(totalShares > 0 ? { totalShares } : null),
       isActorLiked: isActorLikedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),

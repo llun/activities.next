@@ -181,6 +181,24 @@ describe('Status', () => {
         })
       })
 
+      it('includes database-backed share totals in Note objects', async () => {
+        const statusId = `${actor1?.id}/statuses/post-1`
+        const status = (await database.getStatus({
+          statusId
+        })) as StatusNote
+
+        const note = toActivityPubObject({
+          ...status,
+          totalShares: 2
+        })
+
+        expect(note.shares).toEqual({
+          id: `${status.id}/shares`,
+          type: 'Collection',
+          totalItems: 2
+        })
+      })
+
       it('add mentions into Note object', async () => {
         const statusId = `${actor2?.id}/statuses/post-2`
         const status = (await database.getStatus({
