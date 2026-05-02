@@ -13,6 +13,7 @@ import {
   CreateAttachmentParams,
   CreateMediaParams,
   DeleteAttachmentsByIdsParams,
+  DeleteMediaByPathParams,
   DeleteMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
@@ -28,6 +29,47 @@ import { Attachment } from '@/lib/types/domain/attachment'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
+
+const deleteMediaById = async (
+  database: Knex,
+  mediaId: string
+): Promise<boolean> => {
+  return database.transaction(async (trx) => {
+    const media = await trx('medias')
+      .where('id', mediaId)
+      .select('actorId', 'originalBytes', 'thumbnailBytes')
+      .first<{
+        actorId: string
+        originalBytes: number | string | bigint | null
+        thumbnailBytes: number | string | bigint | null
+      }>()
+    if (!media) return false
+
+    const actor = await trx('actors')
+      .where('id', media.actorId)
+      .select<{ accountId: string | null }>('accountId')
+      .first()
+
+    const deleted = await trx('medias').where('id', mediaId).del()
+    if (!deleted) return false
+
+    const usageDelta =
+      parseCounterValue(media.originalBytes) +
+      parseCounterValue(media.thumbnailBytes)
+
+    if (actor?.accountId) {
+      if (usageDelta > 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(actor.accountId),
+          usageDelta
+        )
+      }
+      await decreaseCounterValue(trx, CounterKey.totalMedia(actor.accountId), 1)
+    }
+    return true
+  })
+}
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
@@ -367,44 +409,16 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   },
 
   async deleteMedia({ mediaId }: DeleteMediaParams): Promise<boolean> {
-    return database.transaction(async (trx) => {
-      const media = await trx('medias')
-        .where('id', mediaId)
-        .select('actorId', 'originalBytes', 'thumbnailBytes')
-        .first<{
-          actorId: string
-          originalBytes: number | string | bigint | null
-          thumbnailBytes: number | string | bigint | null
-        }>()
-      if (!media) return false
+    return deleteMediaById(database, mediaId)
+  },
 
-      const actor = await trx('actors')
-        .where('id', media.actorId)
-        .select<{ accountId: string | null }>('accountId')
-        .first()
+  async deleteMediaByPath({ path }: DeleteMediaByPathParams): Promise<boolean> {
+    const media = await database('medias')
+      .where('original', path)
+      .select('id')
+      .first<{ id: string | number }>()
 
-      const deleted = await trx('medias').where('id', mediaId).del()
-      if (!deleted) return false
-
-      const usageDelta =
-        parseCounterValue(media.originalBytes) +
-        parseCounterValue(media.thumbnailBytes)
-
-      if (actor?.accountId) {
-        if (usageDelta > 0) {
-          await decreaseCounterValue(
-            trx,
-            CounterKey.mediaUsage(actor.accountId),
-            usageDelta
-          )
-        }
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalMedia(actor.accountId),
-          1
-        )
-      }
-      return true
-    })
+    if (!media) return false
+    return deleteMediaById(database, String(media.id))
   }
 })

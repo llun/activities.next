@@ -83,7 +83,7 @@ const Page: FC<Props> = async ({ params }) => {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <div className="overflow-hidden border bg-background">
         <ActorFitnessDashboard actorId={currentActor.id} />
       </div>
     </div>

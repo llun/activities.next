@@ -11,14 +11,14 @@ import {
 } from 'lucide-react'
 import { FC, useState } from 'react'
 
-import { FitnessHeatmapData } from '@/lib/client'
+import { FitnessRouteHeatmapData } from '@/lib/client'
 import { REGION_MAP } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 
 interface FitnessHeatmapListProps {
-  heatmaps: FitnessHeatmapData[]
-  onSelect: (heatmap: FitnessHeatmapData) => void
-  onRetry: (heatmap: FitnessHeatmapData) => Promise<void>
+  heatmaps: FitnessRouteHeatmapData[]
+  onSelect: (heatmap: FitnessRouteHeatmapData) => void
+  onRetry: (heatmap: FitnessRouteHeatmapData) => Promise<void>
   currentTime: number
 }
 
@@ -40,8 +40,8 @@ const formatRelativeTime = (diffMs: number): string => {
 }
 
 interface RetryButtonProps {
-  heatmap: FitnessHeatmapData
-  onRetry: (heatmap: FitnessHeatmapData) => Promise<void>
+  heatmap: FitnessRouteHeatmapData
+  onRetry: (heatmap: FitnessRouteHeatmapData) => Promise<void>
 }
 
 const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
@@ -80,9 +80,9 @@ const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
 }
 
 interface HeatmapRowProps {
-  heatmap: FitnessHeatmapData
-  onSelect: (heatmap: FitnessHeatmapData) => void
-  onRetry: (heatmap: FitnessHeatmapData) => Promise<void>
+  heatmap: FitnessRouteHeatmapData
+  onSelect: (heatmap: FitnessRouteHeatmapData) => void
+  onRetry: (heatmap: FitnessRouteHeatmapData) => Promise<void>
   currentTime: number
 }
 

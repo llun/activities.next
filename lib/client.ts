@@ -1169,17 +1169,36 @@ export const updatePushNotifications = async (
   return response.ok
 }
 
-// Fitness Heatmap
+// Fitness Route Heatmap
 
-export interface FitnessHeatmapData {
+export interface FitnessRouteHeatmapPoint {
+  lat: number
+  lng: number
+}
+
+export interface FitnessRouteHeatmapSegment {
+  isHiddenByPrivacy?: boolean
+  points: FitnessRouteHeatmapPoint[]
+}
+
+export interface FitnessRouteHeatmapBounds {
+  minLat: number
+  maxLat: number
+  minLng: number
+  maxLng: number
+}
+
+export interface FitnessRouteHeatmapData {
   id: string
   activityType?: string
   periodType: string
   periodKey: string
   region?: string | null
   status: string
-  imagePath?: string
+  bounds?: FitnessRouteHeatmapBounds | null
+  segments: FitnessRouteHeatmapSegment[]
   activityCount: number
+  pointCount: number
   error?: string | null
   createdAt: number
   updatedAt: number
@@ -1192,7 +1211,7 @@ export interface FitnessCalendarDay {
   totalDurationSeconds: number
 }
 
-export const getFitnessHeatmap = async ({
+export const getFitnessRouteHeatmap = async ({
   actorId,
   activityType,
   periodType,
@@ -1205,10 +1224,10 @@ export const getFitnessHeatmap = async ({
   periodKey: string
   /** Serialized sorted region IDs, e.g. "netherlands,singapore". Omit for world-wide. */
   region?: string | null
-}): Promise<FitnessHeatmapData | null> => {
+}): Promise<FitnessRouteHeatmapData | null> => {
   const encodedId = urlToId(actorId)
   const url = new URL(
-    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmap`
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`
   )
   url.searchParams.append('period_type', periodType)
   url.searchParams.append('period_key', periodKey)
@@ -1227,7 +1246,7 @@ export const getFitnessHeatmap = async ({
   return response.json()
 }
 
-export const triggerFitnessHeatmap = async ({
+export const triggerFitnessRouteHeatmap = async ({
   actorId,
   activityType,
   periodType,
@@ -1242,7 +1261,7 @@ export const triggerFitnessHeatmap = async ({
 }): Promise<boolean> => {
   const encodedId = urlToId(actorId)
   const response = await fetch(
-    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmap`,
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1257,14 +1276,14 @@ export const triggerFitnessHeatmap = async ({
   return response.ok
 }
 
-export const getFitnessHeatmaps = async ({
+export const getFitnessRouteHeatmaps = async ({
   actorId
 }: {
   actorId: string
-}): Promise<FitnessHeatmapData[]> => {
+}): Promise<FitnessRouteHeatmapData[]> => {
   const encodedId = urlToId(actorId)
   const response = await fetch(
-    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmaps`,
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmaps`,
     {
       method: 'GET',
       headers: { Accept: 'application/json' }
@@ -1272,7 +1291,7 @@ export const getFitnessHeatmaps = async ({
   )
   if (!response.ok) return []
   const json = await response.json()
-  return json.heatmaps as FitnessHeatmapData[]
+  return json.heatmaps as FitnessRouteHeatmapData[]
 }
 
 export const getFitnessCalendarData = async ({

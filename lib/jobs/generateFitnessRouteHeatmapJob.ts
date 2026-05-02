@@ -6,49 +6,32 @@ import {
   deserializeRegions,
   getRegionBounds
 } from '@/lib/fitness/regions'
-import { GENERATE_FITNESS_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
+import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
-import { generateHeatmapImage } from '@/lib/services/fitness-files/generateHeatmapImage'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
-import type { FitnessCoordinate } from '@/lib/services/fitness-files/parseFitnessFile'
-import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
-import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
+import {
+  annotatePointsWithPrivacy,
+  buildPrivacySegments,
+  getFitnessPrivacyLocations
+} from '@/lib/services/fitness-files/privacy'
+import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
+import {
+  buildRouteHeatmapPayload,
+  splitSegmentByBounds
+} from '@/lib/services/fitness-files/routeHeatmap'
+import type { RouteHeatmapPoint } from '@/lib/services/fitness-files/routeHeatmap'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
-
-/**
- * Count how many route segments have at least one coordinate within any of the
- * given region bounding boxes. When no bounds are provided (world-wide) all
- * segments are counted.
- */
-const countSegmentsInRegion = (
-  segments: FitnessCoordinate[][],
-  bounds: RegionBounds[]
-): number => {
-  if (bounds.length === 0) return segments.length
-  return segments.filter((segment) =>
-    segment.some((coord) =>
-      bounds.some(
-        (b) =>
-          coord.lat >= b.minLat &&
-          coord.lat <= b.maxLat &&
-          coord.lng >= b.minLng &&
-          coord.lng <= b.maxLng
-      )
-    )
-  ).length
-}
 
 const JobData = z.object({
   actorId: z.string(),
   activityType: z.string().nullable(),
   periodType: z.enum(['all_time', 'yearly', 'monthly']),
   periodKey: z.string(),
-  /** Serialized sorted region IDs, e.g. "netherlands,singapore". Null = world-wide. */
   region: z.string().nullable().optional()
 })
 
@@ -103,24 +86,33 @@ const getFitnessFileBuffer = async (
   return Buffer.from(await response.arrayBuffer())
 }
 
-export const generateFitnessHeatmapJob = createJobHandle(
-  GENERATE_FITNESS_HEATMAP_JOB_NAME,
+const applyRegionFilter = (
+  privacySegments: Array<PrivacySegment<RouteHeatmapPoint>>,
+  regionBounds: RegionBounds[]
+) => {
+  if (regionBounds.length === 0) {
+    return privacySegments.filter((segment) => segment.points.length >= 2)
+  }
+
+  return privacySegments
+    .flatMap((segment) => splitSegmentByBounds(segment, regionBounds))
+    .filter((segment) => segment.points.length >= 2)
+}
+
+export const generateFitnessRouteHeatmapJob = createJobHandle(
+  GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
   async (database, message) => {
     const { actorId, activityType, periodType, periodKey, region } =
       JobData.parse(message.data)
 
-    // '' = world-wide; non-empty = serialized region IDs.
-    // Trim + falsy-coerce to prevent empty-string bleed through.
     const normalizedRegion = region?.trim() || ''
     const regionBounds =
       normalizedRegion !== ''
         ? getRegionBounds(deserializeRegions(normalizedRegion))
         : []
-
     const { periodStart, periodEnd } = getPeriodRange(periodType, periodKey)
 
     let heatmapId: string | undefined
-    let previousImagePath: string | undefined
 
     try {
       const actor = await database.getActorFromId({ id: actorId })
@@ -128,7 +120,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         throw new Error('Actor not found')
       }
 
-      const existing = await database.getFitnessHeatmapByKey({
+      const existing = await database.getFitnessRouteHeatmapByKey({
         actorId,
         activityType,
         periodType,
@@ -139,14 +131,14 @@ export const generateFitnessHeatmapJob = createJobHandle(
 
       if (existing) {
         heatmapId = existing.id
-        previousImagePath = existing.imagePath
-        await database.updateFitnessHeatmapStatus({
+        await database.updateFitnessRouteHeatmapStatus({
           id: existing.id,
           status: 'generating',
+          error: null,
           clearDeleted: true
         })
       } else {
-        const created = await database.createFitnessHeatmap({
+        const created = await database.createFitnessRouteHeatmap({
           actorId,
           activityType,
           periodType,
@@ -156,11 +148,18 @@ export const generateFitnessHeatmapJob = createJobHandle(
           periodEnd
         })
         heatmapId = created.id
-        await database.updateFitnessHeatmapStatus({
+        await database.updateFitnessRouteHeatmapStatus({
           id: created.id,
-          status: 'generating'
+          status: 'generating',
+          error: null
         })
       }
+
+      const privacySettings = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+      const privacyLocations = getFitnessPrivacyLocations(privacySettings)
 
       const PAGE_SIZE = 10_000
       const MAX_PAGES = 100
@@ -190,7 +189,8 @@ export const generateFitnessHeatmapJob = createJobHandle(
         offset += PAGE_SIZE
       }
 
-      const allRouteSegments: FitnessCoordinate[][] = []
+      const allSegments: Array<PrivacySegment<RouteHeatmapPoint>> = []
+      let activityCount = 0
 
       for (const file of matchingFiles) {
         try {
@@ -202,13 +202,28 @@ export const generateFitnessHeatmapJob = createJobHandle(
             buffer
           })
 
-          if (activityData.coordinates.length >= 2) {
-            allRouteSegments.push(activityData.coordinates)
+          if (activityData.coordinates.length < 2) {
+            continue
+          }
+
+          const privacyAwarePoints = annotatePointsWithPrivacy(
+            activityData.coordinates,
+            privacyLocations
+          )
+          const privacySegments = buildPrivacySegments(privacyAwarePoints)
+          const filteredSegments = applyRegionFilter(
+            privacySegments,
+            regionBounds
+          )
+
+          if (filteredSegments.length > 0) {
+            activityCount += 1
+            allSegments.push(...filteredSegments)
           }
         } catch (error) {
           const nodeError = error as Error
           logger.warn({
-            message: 'Failed to parse fitness file for heatmap; skipping',
+            message: 'Failed to parse fitness file for route heatmap; skipping',
             actorId,
             fitnessFileId: file.id,
             error: nodeError.message
@@ -216,105 +231,32 @@ export const generateFitnessHeatmapJob = createJobHandle(
         }
       }
 
-      if (allRouteSegments.length === 0) {
-        await database.updateFitnessHeatmapStatus({
-          id: heatmapId,
-          status: 'completed',
-          activityCount: 0,
-          imagePath: null
-        })
-
-        if (previousImagePath) {
-          await deleteMediaFile(database, previousImagePath).catch((err) => {
-            logger.warn({
-              message: 'Failed to delete previous heatmap image',
-              previousImagePath,
-              error: (err as Error).message
-            })
-          })
-        }
-
-        logger.info({
-          message: 'No route data found for heatmap; marked completed',
-          actorId,
-          periodType,
-          periodKey
-        })
-        return
-      }
-
-      const imageBuffer = await generateHeatmapImage({
-        routeSegments: allRouteSegments,
-        regionBounds: regionBounds.length > 0 ? regionBounds : undefined
+      const payload = buildRouteHeatmapPayload({
+        privacySegments: allSegments
       })
 
-      if (!imageBuffer) {
-        await database.updateFitnessHeatmapStatus({
-          id: heatmapId,
-          status: 'completed',
-          activityCount: countSegmentsInRegion(allRouteSegments, regionBounds),
-          imagePath: null
-        })
-
-        if (previousImagePath) {
-          await deleteMediaFile(database, previousImagePath).catch((err) => {
-            logger.warn({
-              message: 'Failed to delete previous heatmap image',
-              previousImagePath,
-              error: (err as Error).message
-            })
-          })
-        }
-        return
-      }
-
-      const imageBytes = new Uint8Array(imageBuffer)
-      // Use the heatmap ID in the filename to avoid exceeding filesystem path
-      // limits when multiple regions are selected (PR #556).
-      const safeHeatmapId = heatmapId ?? 'unknown'
-      const fileName = `heatmap-${safeHeatmapId}.png`
-
-      const activityLabel = activityType ?? 'all'
-      const storedMedia = await saveMedia(database, actor, {
-        file: new File([imageBytes], fileName, { type: 'image/png' }),
-        description: `Fitness heatmap: ${activityLabel} ${periodType} ${periodKey}`
-      })
-
-      if (!storedMedia) {
-        throw new Error('Failed to save heatmap image to media storage')
-      }
-
-      const imagePath = getAttachmentMediaPath(storedMedia.url)
-
-      await database.updateFitnessHeatmapStatus({
+      await database.updateFitnessRouteHeatmapStatus({
         id: heatmapId,
         status: 'completed',
-        imagePath,
-        activityCount: countSegmentsInRegion(allRouteSegments, regionBounds)
+        bounds: payload.bounds,
+        segments: payload.segments,
+        activityCount,
+        pointCount: payload.pointCount,
+        error: null
       })
 
-      // Clean up previous heatmap image to avoid orphaned files
-      if (previousImagePath && previousImagePath !== imagePath) {
-        await deleteMediaFile(database, previousImagePath).catch((err) => {
-          logger.warn({
-            message: 'Failed to delete previous heatmap image',
-            previousImagePath,
-            error: (err as Error).message
-          })
-        })
-      }
-
       logger.info({
-        message: 'Fitness heatmap generated successfully',
+        message: 'Fitness route heatmap cache generated successfully',
         actorId,
         periodType,
         periodKey,
-        activityCount: countSegmentsInRegion(allRouteSegments, regionBounds)
+        activityCount,
+        pointCount: payload.pointCount
       })
     } catch (error) {
       const nodeError = error as Error
       logger.error({
-        message: 'Failed to generate fitness heatmap',
+        message: 'Failed to generate fitness route heatmap cache',
         actorId,
         periodType,
         periodKey,
@@ -322,7 +264,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
       })
 
       if (heatmapId) {
-        await database.updateFitnessHeatmapStatus({
+        await database.updateFitnessRouteHeatmapStatus({
           id: heatmapId,
           status: 'failed',
           error: nodeError.message

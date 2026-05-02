@@ -1,0 +1,138 @@
+import type { RegionBounds } from '@/lib/fitness/regions'
+import {
+  PrivacySegment,
+  downsamplePrivacySegments
+} from '@/lib/services/fitness-files/privacy'
+import {
+  FitnessRouteHeatmapBounds,
+  FitnessRouteHeatmapSegment
+} from '@/lib/types/database/fitnessRouteHeatmap'
+import {
+  calculateCoordinateBounds,
+  isFiniteBounds
+} from '@/lib/utils/webMercator'
+
+import type { FitnessCoordinate } from './parseFitnessFile'
+
+export interface RouteHeatmapPoint extends FitnessCoordinate {
+  isHiddenByPrivacy: boolean
+}
+
+export interface BuildRouteHeatmapPayloadParams {
+  privacySegments: Array<PrivacySegment<RouteHeatmapPoint>>
+  regionBounds?: RegionBounds[]
+  maxPoints?: number
+}
+
+export interface RouteHeatmapPayload {
+  bounds: FitnessRouteHeatmapBounds | null
+  segments: FitnessRouteHeatmapSegment[]
+  pointCount: number
+}
+
+const DEFAULT_MAX_POINTS = 80_000
+
+export const isPointInAnyBounds = (
+  point: FitnessCoordinate,
+  bounds: RegionBounds[]
+): boolean =>
+  bounds.some(
+    (b) =>
+      point.lat >= b.minLat &&
+      point.lat <= b.maxLat &&
+      point.lng >= b.minLng &&
+      point.lng <= b.maxLng
+  )
+
+export const splitSegmentByBounds = <T extends FitnessCoordinate>(
+  segment: PrivacySegment<T>,
+  bounds: RegionBounds[]
+): Array<PrivacySegment<T>> => {
+  if (bounds.length === 0) {
+    return [segment]
+  }
+
+  const segments: Array<PrivacySegment<T>> = []
+  let current: T[] = []
+
+  for (const point of segment.points) {
+    if (isPointInAnyBounds(point, bounds)) {
+      current.push(point)
+      continue
+    }
+
+    if (current.length >= 2) {
+      segments.push({
+        isHiddenByPrivacy: segment.isHiddenByPrivacy,
+        points: current
+      })
+    }
+    current = []
+  }
+
+  if (current.length >= 2) {
+    segments.push({
+      isHiddenByPrivacy: segment.isHiddenByPrivacy,
+      points: current
+    })
+  }
+
+  return segments
+}
+
+const normalizeCoordinate = (point: FitnessCoordinate) => ({
+  lat: Number(point.lat.toFixed(6)),
+  lng: Number(point.lng.toFixed(6))
+})
+
+const toRouteSegment = (
+  segment: PrivacySegment<RouteHeatmapPoint>
+): FitnessRouteHeatmapSegment => ({
+  ...(segment.isHiddenByPrivacy ? { isHiddenByPrivacy: true } : {}),
+  points: segment.points.map(normalizeCoordinate)
+})
+
+export const buildRouteHeatmapPayload = ({
+  privacySegments,
+  regionBounds = [],
+  maxPoints = DEFAULT_MAX_POINTS
+}: BuildRouteHeatmapPayloadParams): RouteHeatmapPayload => {
+  const filteredSegments = privacySegments
+    .flatMap((segment) => splitSegmentByBounds(segment, regionBounds))
+    .filter((segment) => segment.points.length >= 2)
+
+  const sampledSegments = downsamplePrivacySegments(
+    filteredSegments,
+    maxPoints,
+    {
+      minimumPointsPerSegment: 2
+    }
+  ).filter((segment) => segment.points.length >= 2)
+
+  const routeSegments = sampledSegments.map(toRouteSegment)
+  const points = routeSegments.flatMap((segment) => segment.points)
+  const pointCount = points.length
+
+  if (pointCount < 2) {
+    return {
+      bounds: null,
+      segments: [],
+      pointCount: 0
+    }
+  }
+
+  const bounds = calculateCoordinateBounds(points)
+  if (!isFiniteBounds(bounds)) {
+    return {
+      bounds: null,
+      segments: [],
+      pointCount: 0
+    }
+  }
+
+  return {
+    bounds,
+    segments: routeSegments,
+    pointCount
+  }
+}

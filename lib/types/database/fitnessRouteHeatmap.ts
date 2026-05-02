@@ -1,51 +1,67 @@
-export type FitnessHeatmapPeriodType = 'all_time' | 'yearly' | 'monthly'
-export type FitnessHeatmapStatus =
+export type FitnessRouteHeatmapPeriodType = 'all_time' | 'yearly' | 'monthly'
+export type FitnessRouteHeatmapStatus =
   | 'pending'
   | 'generating'
   | 'completed'
   | 'failed'
 
-export interface SQLFitnessHeatmap {
+export interface FitnessRouteHeatmapPoint {
+  lat: number
+  lng: number
+}
+
+export interface FitnessRouteHeatmapSegment {
+  isHiddenByPrivacy?: boolean
+  points: FitnessRouteHeatmapPoint[]
+}
+
+export interface FitnessRouteHeatmapBounds {
+  minLat: number
+  maxLat: number
+  minLng: number
+  maxLng: number
+}
+
+export interface SQLFitnessRouteHeatmap {
   id: string
   actorId: string
   activityType: string | null
+  activityTypeKey: string
   periodType: string
   periodKey: string
   /**
    * Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore".
    * Empty string '' means world-wide (no region filter).
-   * We use '' instead of NULL so the column participates in the UNIQUE constraint
-   * correctly on both PostgreSQL (NULL != NULL) and SQLite.
    */
   region: string
   periodStart: Date | string | number | null
   periodEnd: Date | string | number | null
-  imagePath: string | null
+  bounds: string | null
+  segments: string | null
   status: string
   error: string | null
   activityCount: number
+  pointCount: number
   createdAt: Date | string | number
   updatedAt: Date | string | number
   deletedAt: Date | string | number | null
 }
 
-export interface FitnessHeatmap {
+export interface FitnessRouteHeatmap {
   id: string
   actorId: string
   activityType?: string
-  periodType: FitnessHeatmapPeriodType
+  periodType: FitnessRouteHeatmapPeriodType
   periodKey: string
-  /**
-   * Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore".
-   * Empty string '' or undefined means world-wide (no region filter).
-   */
   region: string
   periodStart?: number
   periodEnd?: number
-  imagePath?: string
-  status: FitnessHeatmapStatus
+  bounds?: FitnessRouteHeatmapBounds
+  segments: FitnessRouteHeatmapSegment[]
+  status: FitnessRouteHeatmapStatus
   error?: string
   activityCount: number
+  pointCount: number
   createdAt: number
   updatedAt: number
   deletedAt?: number

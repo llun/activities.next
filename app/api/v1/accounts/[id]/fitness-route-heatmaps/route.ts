@@ -1,6 +1,7 @@
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AppRouterParams } from '@/lib/services/guards/types'
+import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -21,8 +22,24 @@ interface Params {
   id: string
 }
 
+const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
+  id: heatmap.id,
+  activityType: heatmap.activityType,
+  periodType: heatmap.periodType,
+  periodKey: heatmap.periodKey,
+  region: heatmap.region,
+  status: heatmap.status,
+  bounds: heatmap.bounds ?? null,
+  segments: heatmap.segments,
+  activityCount: heatmap.activityCount,
+  pointCount: heatmap.pointCount,
+  error: heatmap.error ?? null,
+  createdAt: heatmap.createdAt,
+  updatedAt: heatmap.updatedAt
+})
+
 export const GET = traceApiRoute(
-  'getAccountFitnessHeatmaps',
+  'getAccountFitnessRouteHeatmaps',
   async (req, params: AppRouterParams<Params>) => {
     const session = await getServerAuthSession()
     if (!session?.user?.email) {
@@ -66,7 +83,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    const heatmaps = await database.getFitnessHeatmapsForActor({
+    const heatmaps = await database.getFitnessRouteHeatmapsForActor({
       actorId: id
     })
 
@@ -74,19 +91,7 @@ export const GET = traceApiRoute(
       req,
       allowedMethods: CORS_HEADERS,
       data: {
-        heatmaps: heatmaps.map((h) => ({
-          id: h.id,
-          activityType: h.activityType,
-          periodType: h.periodType,
-          periodKey: h.periodKey,
-          region: h.region,
-          status: h.status,
-          imagePath: h.imagePath,
-          activityCount: h.activityCount,
-          error: h.error ?? null,
-          createdAt: h.createdAt,
-          updatedAt: h.updatedAt
-        }))
+        heatmaps: heatmaps.map(serializeRouteHeatmap)
       }
     })
   },

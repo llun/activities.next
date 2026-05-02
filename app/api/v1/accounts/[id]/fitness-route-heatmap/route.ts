@@ -3,10 +3,11 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
-import { GENERATE_FITNESS_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
+import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getQueue } from '@/lib/services/queue'
+import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -34,16 +35,41 @@ interface Params {
   id: string
 }
 
-const FitnessHeatmapQueryParams = z.object({
+const FitnessRouteHeatmapQueryParams = z.object({
   activity_type: z.string().optional(),
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
-  /** Comma-separated region IDs, e.g. "netherlands,singapore". Omit for world-wide. */
   region: z.string().optional()
 })
 
+const FitnessRouteHeatmapTriggerBody = z.object({
+  activity_type: z.string().optional(),
+  period_type: z.enum(['all_time', 'yearly', 'monthly']),
+  period_key: z.string(),
+  region: z.string().optional()
+})
+
+const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
+  id: heatmap.id,
+  activityType: heatmap.activityType,
+  periodType: heatmap.periodType,
+  periodKey: heatmap.periodKey,
+  region: heatmap.region,
+  status: heatmap.status,
+  bounds: heatmap.bounds ?? null,
+  segments: heatmap.segments,
+  activityCount: heatmap.activityCount,
+  pointCount: heatmap.pointCount,
+  error: heatmap.error ?? null,
+  createdAt: heatmap.createdAt,
+  updatedAt: heatmap.updatedAt
+})
+
+const normalizeRegion = (rawRegion?: string) =>
+  rawRegion ? serializeRegions(deserializeRegions(rawRegion)) : ''
+
 export const GET = traceApiRoute(
-  'getAccountFitnessHeatmap',
+  'getAccountFitnessRouteHeatmap',
   async (req: NextRequest, params: AppRouterParams<Params>) => {
     const database = getDatabase()
     if (!database) {
@@ -96,8 +122,9 @@ export const GET = traceApiRoute(
     }
 
     const url = new URL(req.url)
-    const queryParams = Object.fromEntries(url.searchParams.entries())
-    const parsed = FitnessHeatmapQueryParams.safeParse(queryParams)
+    const parsed = FitnessRouteHeatmapQueryParams.safeParse(
+      Object.fromEntries(url.searchParams.entries())
+    )
     if (!parsed.success) {
       return apiResponse({
         req,
@@ -114,19 +141,12 @@ export const GET = traceApiRoute(
       region: rawRegion
     } = parsed.data
 
-    // Normalize: parse IDs through deserializeRegions to drop unknown/empty
-    // entries, then re-serialize so the DB key is always canonical
-    // (sorted, deduped, lowercase). Unknown IDs silently map to world-wide ('').
-    const region = rawRegion
-      ? serializeRegions(deserializeRegions(rawRegion))
-      : ''
-
-    const heatmap = await database.getFitnessHeatmapByKey({
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
       actorId: id,
       activityType: activityType ?? null,
       periodType,
       periodKey,
-      region
+      region: normalizeRegion(rawRegion)
     })
 
     if (!heatmap) {
@@ -141,19 +161,7 @@ export const GET = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: {
-        id: heatmap.id,
-        activityType: heatmap.activityType,
-        periodType: heatmap.periodType,
-        periodKey: heatmap.periodKey,
-        region: heatmap.region,
-        status: heatmap.status,
-        imagePath: heatmap.imagePath,
-        activityCount: heatmap.activityCount,
-        error: heatmap.error ?? null,
-        createdAt: heatmap.createdAt,
-        updatedAt: heatmap.updatedAt
-      }
+      data: serializeRouteHeatmap(heatmap)
     })
   },
   {
@@ -164,15 +172,8 @@ export const GET = traceApiRoute(
   }
 )
 
-const FitnessHeatmapTriggerBody = z.object({
-  activity_type: z.string().optional(),
-  period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: z.string(),
-  region: z.string().optional()
-})
-
 export const POST = traceApiRoute(
-  'triggerFitnessHeatmap',
+  'triggerFitnessRouteHeatmap',
   async (req: NextRequest, params: AppRouterParams<Params>) => {
     const database = getDatabase()
     if (!database) {
@@ -236,7 +237,7 @@ export const POST = traceApiRoute(
       })
     }
 
-    const parsed = FitnessHeatmapTriggerBody.safeParse(body)
+    const parsed = FitnessRouteHeatmapTriggerBody.safeParse(body)
     if (!parsed.success) {
       return apiResponse({
         req,
@@ -252,14 +253,10 @@ export const POST = traceApiRoute(
       period_key: periodKey,
       region: rawRegion
     } = parsed.data
-
-    const region = rawRegion
-      ? serializeRegions(deserializeRegions(rawRegion))
-      : ''
-
+    const region = normalizeRegion(rawRegion)
     const jobId = getHashFromString(
       id +
-        ':heatmap:' +
+        ':route-heatmap:' +
         (activityType ?? 'all') +
         ':' +
         periodType +
@@ -272,7 +269,7 @@ export const POST = traceApiRoute(
     try {
       await getQueue().publish({
         id: jobId,
-        name: GENERATE_FITNESS_HEATMAP_JOB_NAME,
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
         data: {
           actorId: id,
           activityType: activityType ?? null,
