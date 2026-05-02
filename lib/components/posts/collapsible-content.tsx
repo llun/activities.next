@@ -66,7 +66,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
         id={contentId}
         ref={contentRef}
         className={cn(className, needsCollapse && 'overflow-hidden')}
-        style={needsCollapse ? { maxHeight: `${maxHeightRem}rem` } : undefined}
+        style={needsCollapse ? { height: `${maxHeightRem}rem` } : undefined}
       >
         {children}
       </div>
