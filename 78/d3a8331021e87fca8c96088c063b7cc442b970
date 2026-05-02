@@ -1,0 +1,23 @@
+app/api/v1/polls/[id]/votes/route.ts
+  470df6e6a8098e99 29-52,63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "78d3a8331021e87fca8c96088c063b7cc442b970",
+  "prompts": {
+    "470df6e6a8098e99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de525-ee07-7b60-8309-2cd0207e24ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 22,
+      "accepted_lines": 286,
+      "overriden_lines": 0
+    }
+  }
+}
