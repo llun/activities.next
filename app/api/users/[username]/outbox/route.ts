@@ -5,6 +5,7 @@ import {
 } from '@/lib/types/activitypub/activities'
 import { StatusType, toActivityPubObject } from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
+import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -16,7 +17,7 @@ export const GET = traceApiRoute(
       const url = new URL(req.url)
       const pageParam = url.searchParams.get('page')
       if (!pageParam) {
-        const outboxId = `${actor.id}/outbox`
+        const outboxId = getLocalActorOutboxId(actor.id)
         return activityPubResponse({
           req,
           data: {
@@ -59,9 +60,9 @@ export const GET = traceApiRoute(
         req,
         data: {
           '@context': ACTIVITY_STREAM_URL,
-          id: `${actor.id}/outbox?page=true`,
+          id: `${getLocalActorOutboxId(actor.id)}?page=true`,
           type: 'OrderedCollectionPage',
-          partOf: `${actor.id}/outbox`,
+          partOf: getLocalActorOutboxId(actor.id),
           orderedItems: items
         }
       })

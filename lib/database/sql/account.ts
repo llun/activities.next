@@ -44,6 +44,12 @@ import { ActorSettings, SQLAccount } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
 import { Session } from '@/lib/types/domain/session'
+import {
+  getLocalActorFollowersId,
+  getLocalActorId,
+  getLocalActorInboxId,
+  getLocalActorSharedInboxId
+} from '@/lib/utils/activitypubId'
 
 export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
@@ -74,13 +80,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     publicKey
   }: CreateAccountParams) {
     const accountId = crypto.randomUUID()
-    const actorId = `https://${domain}/users/${username}`
+    const actorId = getLocalActorId({ domain, username })
     const currentTime = new Date()
 
     const actorSettings: ActorSettings = {
-      followersUrl: `${actorId}/followers`,
-      inboxUrl: `${actorId}/inbox`,
-      sharedInboxUrl: `https://${domain}/inbox`
+      followersUrl: getLocalActorFollowersId(actorId),
+      inboxUrl: getLocalActorInboxId(actorId),
+      sharedInboxUrl: getLocalActorSharedInboxId(domain)
     }
 
     await database.transaction(async (trx) => {
@@ -367,13 +373,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     privateKey,
     publicKey
   }: CreateActorForAccountParams): Promise<string> {
-    const actorId = `https://${domain}/users/${username}`
+    const actorId = getLocalActorId({ domain, username })
     const currentTime = new Date()
 
     const actorSettings: ActorSettings = {
-      followersUrl: `${actorId}/followers`,
-      inboxUrl: `${actorId}/inbox`,
-      sharedInboxUrl: `https://${domain}/inbox`
+      followersUrl: getLocalActorFollowersId(actorId),
+      inboxUrl: getLocalActorInboxId(actorId),
+      sharedInboxUrl: getLocalActorSharedInboxId(domain)
     }
 
     await database('actors').insert({

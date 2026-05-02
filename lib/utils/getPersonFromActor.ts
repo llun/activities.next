@@ -1,5 +1,10 @@
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
+import {
+  getLocalActorFeaturedCollectionId,
+  getLocalActorFeaturedTagsCollectionId,
+  getLocalActorOutboxId
+} from '@/lib/utils/activitypubId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getPersonFromActor = (
@@ -35,9 +40,9 @@ export const getPersonFromActor = (
     following: `${actor.id}/following`,
     followers: actor.followersUrl,
     inbox: actor.inboxUrl,
-    outbox: `${actor.id}/outbox`,
-    featured: `${actor.id}/collections/featured`,
-    featuredTags: `${actor.id}/collections/tags`,
+    outbox: getLocalActorOutboxId(actor.id),
+    featured: getLocalActorFeaturedCollectionId(actor.id),
+    featuredTags: getLocalActorFeaturedTagsCollectionId(actor.id),
     preferredUsername: actor.username,
     name: actor.name || '',
     summary: actor.summary || '',
