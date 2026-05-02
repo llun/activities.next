@@ -3,10 +3,9 @@ import {
   AnnounceAction,
   CreateAction
 } from '@/lib/types/activitypub/activities'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusType, toActivityPubObject } from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
-import { cleanJson } from '@/lib/utils/cleanJson'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -52,7 +51,7 @@ export const GET = traceApiRoute(
           published: getISOTimeUTC(status.createdAt),
           ...(status.to ? { to: status.to } : null),
           ...(status.cc ? { cc: status.cc } : null),
-          object: cleanJson(status)
+          object: toActivityPubObject(status)
         }
       })
 
