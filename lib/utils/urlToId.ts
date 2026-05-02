@@ -1,5 +1,35 @@
+const OPAQUE_URL_ID_PREFIX = 'apurl_'
+
+const encodeBase64Url = (value: string) => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf8').toString('base64url')
+  }
+
+  const bytes = new TextEncoder().encode(value)
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')
+  return btoa(binary)
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
+}
+
+const decodeBase64Url = (value: string) => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'base64url').toString('utf8')
+  }
+
+  const paddedValue = value.padEnd(
+    value.length + ((4 - (value.length % 4)) % 4),
+    '='
+  )
+  const binary = atob(paddedValue.replaceAll('-', '+').replaceAll('_', '/'))
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
 export const urlToId = (idInURLFormat: string) => {
   if (!idInURLFormat) return ''
+  if (idInURLFormat.startsWith(OPAQUE_URL_ID_PREFIX)) return idInURLFormat
 
   try {
     // Handle URLs without protocol by adding a temporary one
@@ -8,6 +38,11 @@ export const urlToId = (idInURLFormat: string) => {
       : `https://${idInURLFormat}`
 
     const url = new URL(urlString)
+
+    if (url.pathname.includes(':')) {
+      return `${OPAQUE_URL_ID_PREFIX}${encodeBase64Url(url.toString())}`
+    }
+
     // Remove leading slash and replace all slashes with colons
     return (
       `${url.host}:${url.pathname.slice(1).replaceAll('/', ':')}` +
@@ -22,6 +57,17 @@ export const urlToId = (idInURLFormat: string) => {
 
 export const idToUrl = (id: string) => {
   if (!id) return ''
+
+  if (id.startsWith(OPAQUE_URL_ID_PREFIX)) {
+    try {
+      const decoded = decodeBase64Url(id.slice(OPAQUE_URL_ID_PREFIX.length))
+      const decodedUrl = new URL(decoded)
+      if (!['http:', 'https:'].includes(decodedUrl.protocol)) return ''
+      return decoded
+    } catch {
+      return ''
+    }
+  }
 
   // Handle query parameters and fragments
   const [baseId, ...rest] = id.split(/([?#].*)/)

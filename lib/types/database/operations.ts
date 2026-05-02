@@ -499,6 +499,8 @@ export type GetStatusReblogsCountParams = {
 }
 export type GetStatusRepliesCountParams = {
   statusId: string
+  url?: string
+  publicOnly?: boolean
 }
 
 export type CreatePollAnswerParams = {
@@ -517,6 +519,12 @@ export type GetActorPollVotesParams = {
 export type IncrementPollChoiceVotesParams = {
   statusId: string
   choiceIndex: number
+}
+export type RecordPollVotesParams = {
+  statusId: string
+  actorId: string
+  choices: number[]
+  allowAdditionalChoices?: boolean
 }
 
 export interface StatusDatabase {
@@ -570,6 +578,7 @@ export interface StatusDatabase {
   incrementPollChoiceVotes(
     params: IncrementPollChoiceVotesParams
   ): Promise<void>
+  recordPollVotes(params: RecordPollVotesParams): Promise<boolean>
 }
 
 // ============================================================================

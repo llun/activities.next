@@ -74,6 +74,7 @@ describe('StatusDatabase', () => {
           isActorLiked: false,
           isLocalActor: true,
           totalLikes: 0,
+          totalShares: 0,
           attachments: [],
           tags: []
         })
@@ -786,6 +787,104 @@ describe('StatusDatabase', () => {
           voted: true,
           ownVotes: [0]
         })
+      })
+
+      it('records a Mastodon poll vote atomically and rejects duplicate voters', async () => {
+        const pollId = `${emptyActorId}/statuses/record-poll-votes`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Vote poll',
+          choices: ['Yes', 'No'],
+          pollType: 'anyOf',
+          endAt: Date.now() + 1000
+        })
+
+        const voterId = `${replyAuthorId}/record-poll-votes`
+        await expect(
+          database.recordPollVotes({
+            statusId: pollId,
+            actorId: voterId,
+            choices: [0, 0, 1]
+          })
+        ).resolves.toBeTrue()
+        await expect(
+          database.recordPollVotes({
+            statusId: pollId,
+            actorId: voterId,
+            choices: [1]
+          })
+        ).resolves.toBeFalse()
+
+        expect(
+          await database.getActorPollVotes({
+            statusId: pollId,
+            actorId: voterId
+          })
+        ).toEqual([0, 1])
+
+        const poll = (await database.getStatus({
+          statusId: pollId,
+          currentActorId: voterId
+        })) as StatusPoll
+        expect(poll.choices).toMatchObject([
+          { totalVotes: 1 },
+          { totalVotes: 1 }
+        ])
+      })
+
+      it('appends distinct federated anyOf choices without recounting duplicate choices', async () => {
+        const pollId = `${emptyActorId}/statuses/record-poll-vote-append`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Vote poll',
+          choices: ['Yes', 'No'],
+          pollType: 'anyOf',
+          endAt: Date.now() + 1000
+        })
+
+        const voterId = `${replyAuthorId}/record-poll-vote-append`
+        await expect(
+          database.recordPollVotes({
+            statusId: pollId,
+            actorId: voterId,
+            choices: [0],
+            allowAdditionalChoices: true
+          })
+        ).resolves.toBeTrue()
+        await expect(
+          database.recordPollVotes({
+            statusId: pollId,
+            actorId: voterId,
+            choices: [1],
+            allowAdditionalChoices: true
+          })
+        ).resolves.toBeTrue()
+        await expect(
+          database.recordPollVotes({
+            statusId: pollId,
+            actorId: voterId,
+            choices: [0],
+            allowAdditionalChoices: true
+          })
+        ).resolves.toBeFalse()
+
+        const poll = (await database.getStatus({
+          statusId: pollId,
+          currentActorId: voterId
+        })) as StatusPoll
+        expect(poll.choices).toMatchObject([
+          { totalVotes: 1 },
+          { totalVotes: 1 }
+        ])
+        expect(poll.ownVotes).toEqual([0, 1])
       })
     })
 

@@ -5,6 +5,7 @@ import {
 import { ENTITY_TYPE_NOTE, Note } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_VOTE_JOB_NAME } from './names'
@@ -66,28 +67,17 @@ export const createPollVoteJob = createJobHandle(
       database
     })
 
-    const hasVoted = await database.hasActorVoted({
-      statusId: pollStatus.id,
-      actorId: note.attributedTo
-    })
-
-    if (pollStatus.pollType === 'oneOf' && hasVoted) {
-      return
-    }
-
     try {
-      await database.createPollAnswer({
+      const votesRecorded = await database.recordPollVotes({
         statusId: pollStatus.id,
         actorId: note.attributedTo,
-        choice: choiceIndex
+        choices: [choiceIndex],
+        allowAdditionalChoices: pollStatus.pollType === 'anyOf'
       })
-
-      await database.incrementPollChoiceVotes({
-        statusId: pollStatus.id,
-        choiceIndex
-      })
+      if (!votesRecorded) return
     } catch (error) {
-      console.error('Vote creation failed:', error)
+      logger.error({ error }, 'Vote creation failed')
+      throw error
     }
   }
 )

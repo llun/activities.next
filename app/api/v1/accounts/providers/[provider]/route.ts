@@ -3,8 +3,19 @@ import { NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { apiErrorResponse } from '@/lib/utils/response'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import {
+  ERROR_401,
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const DELETE = traceApiRoute(
   'unlinkProvider',
@@ -14,18 +25,33 @@ export const DELETE = traceApiRoute(
   ) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     const session = await getServerAuthSession()
     const actor = await getActorFromSession(database, session)
     if (!actor || !actor.account) {
-      return apiErrorResponse(401)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
     }
 
     const { provider } = await props.params
     if (!provider) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     await database.unlinkAccountFromProvider({
@@ -33,7 +59,11 @@ export const DELETE = traceApiRoute(
       provider
     })
 
-    return Response.json({ success: true })
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { success: true }
+    })
   },
   {
     addAttributes: async (_req, context) => {

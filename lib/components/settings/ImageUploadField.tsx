@@ -85,8 +85,7 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
 
       // Update image URL with uploaded URL
       setImageUrl(result.url)
-    } catch (error) {
-      console.error('Upload error:', error)
+    } catch {
       setUploadError('Failed to upload image. Please try again.')
     } finally {
       setIsUploading(false)

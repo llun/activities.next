@@ -7,7 +7,6 @@ import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { UndoFollow } from '@/lib/activities/undoFollow'
-import { UndoLike } from '@/lib/activities/undoLike'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
@@ -17,6 +16,7 @@ import {
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import {
   DEFAULT_202,
   ERROR_400,
@@ -28,7 +28,53 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
-const Activity = z.union([Accept, Reject, Follow, Like, Undo])
+const GracefullyAcceptedActivity = z
+  .object({
+    id: z.string(),
+    type: z.enum(['Block', 'Flag', 'Move', 'Add', 'Remove', 'QuoteRequest']),
+    actor: z.string()
+  })
+  .passthrough()
+const ReferenceUndo = z
+  .object({
+    id: z.string(),
+    actor: z.string(),
+    type: z.literal('Undo'),
+    object: z.union([
+      z.string(),
+      z
+        .object({
+          type: z.string()
+        })
+        .passthrough()
+    ])
+  })
+  .passthrough()
+const Activity = z.union([
+  Accept,
+  Reject,
+  Follow,
+  Like,
+  Undo,
+  ReferenceUndo,
+  GracefullyAcceptedActivity
+])
+
+const logAcceptedWithoutSideEffects = ({
+  activity,
+  reason
+}: {
+  activity: { id?: string; type: string; actor?: string }
+  reason: string
+}) => {
+  logger.info({
+    message: 'Accepted ActivityPub inbox activity without local side effects',
+    activityId: activity.id,
+    activityType: activity.type,
+    actorId: activity.actor,
+    reason
+  })
+}
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -130,53 +176,78 @@ export const POST = traceApiRoute(
                 })
               }
               case 'Undo': {
-                const undoRequest = activity as UndoFollow | UndoLike
-                switch (undoRequest.object.type) {
-                  case 'Follow': {
-                    const result = await undoFollowRequest({
-                      database,
-                      request: undoRequest as UndoFollow
-                    })
-                    if (!result)
-                      return apiResponse({
-                        req,
-                        allowedMethods: CORS_HEADERS,
-                        data: ERROR_404,
-                        responseStatusCode: 404
-                      })
-                    return apiResponse({
-                      req,
-                      allowedMethods: CORS_HEADERS,
-                      data: { target: undoRequest.object.object },
-                      responseStatusCode: 202
-                    })
-                  }
-                  case 'Like': {
-                    await database.deleteLike({
-                      actorId: undoRequest.object.actor,
-                      statusId:
-                        typeof undoRequest.object.object === 'string'
-                          ? undoRequest.object.object
-                          : undoRequest.object.object.id
-                    })
-                    return apiResponse({
-                      req,
-                      allowedMethods: CORS_HEADERS,
-                      data: DEFAULT_202,
-                      responseStatusCode: 202
-                    })
-                  }
-                  default: {
-                    return apiResponse({
-                      req,
-                      allowedMethods: CORS_HEADERS,
-                      data: DEFAULT_202,
-                      responseStatusCode: 202
-                    })
-                  }
+                const undoObject = activity.object
+                if (typeof undoObject === 'string') {
+                  logAcceptedWithoutSideEffects({
+                    activity,
+                    reason: 'reference-only Undo object'
+                  })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
                 }
+
+                const undoFollow = Follow.safeParse(undoObject)
+                if (undoFollow.success) {
+                  const result = await undoFollowRequest({
+                    database,
+                    request: {
+                      ...activity,
+                      object: undoFollow.data
+                    } as UndoFollow
+                  })
+                  if (!result)
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: ERROR_404,
+                      responseStatusCode: 404
+                    })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: { target: undoFollow.data.object },
+                    responseStatusCode: 202
+                  })
+                }
+
+                const undoLike = Like.safeParse(undoObject)
+                if (undoLike.success) {
+                  const likedObject = undoLike.data.object
+                  await database.deleteLike({
+                    actorId: activity.actor,
+                    statusId:
+                      typeof likedObject === 'string'
+                        ? likedObject
+                        : likedObject.id
+                  })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+
+                logAcceptedWithoutSideEffects({
+                  activity,
+                  reason: `unsupported Undo object type ${undoObject.type}`
+                })
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: DEFAULT_202,
+                  responseStatusCode: 202
+                })
               }
               default:
+                logAcceptedWithoutSideEffects({
+                  activity,
+                  reason: 'unsupported but accepted ActivityPub activity type'
+                })
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,

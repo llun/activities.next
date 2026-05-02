@@ -15,6 +15,7 @@ import {
   activityPubResponse,
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -29,7 +30,7 @@ export const GET = traceApiRoute(
   'getActorStatus',
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusParams>).params
-    const id = `${actor.id}/statuses/${statusId}`
+    const id = getLocalStatusId({ actorId: actor.id, statusId })
     const status = await database.getStatus({
       statusId: id,
       withReplies: false

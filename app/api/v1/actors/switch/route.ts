@@ -1,12 +1,19 @@
 import { cookies } from 'next/headers'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const ALLOWED_METHODS = [HttpMethod.enum.POST]
 
 const SwitchActorRequest = z.object({
   actorId: z.string().min(1)
@@ -39,21 +46,25 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
   const actors = await database.getActorsForAccount({ accountId: account.id })
   const validActor = actors.find((actor) => actor.id === actorId)
   if (!validActor) {
-    return NextResponse.json(
-      { error: 'Actor not found or not owned by account' },
-      { status: HTTP_STATUS.NOT_FOUND }
-    )
+    return apiResponse({
+      req,
+      allowedMethods: ALLOWED_METHODS,
+      data: { error: 'Actor not found or not owned by account' },
+      responseStatusCode: HTTP_STATUS.NOT_FOUND
+    })
   }
 
   // Check if actor is pending deletion or being deleted
   if (validActor.deletionStatus) {
-    return NextResponse.json(
-      {
+    return apiResponse({
+      req,
+      allowedMethods: ALLOWED_METHODS,
+      data: {
         error:
           'Cannot switch to an actor that is pending deletion or being deleted'
       },
-      { status: HTTP_STATUS.BAD_REQUEST }
-    )
+      responseStatusCode: HTTP_STATUS.BAD_REQUEST
+    })
   }
 
   // Update the better-auth session's actorId so OAuth consentReferenceId
@@ -81,11 +92,15 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
     maxAge: 60 * 60 * 24 * 30 // 30 days
   })
 
-  return NextResponse.json({
-    id: validActor.id,
-    username: validActor.username,
-    domain: validActor.domain,
-    name: validActor.name,
-    iconUrl: validActor.iconUrl
+  return apiResponse({
+    req,
+    allowedMethods: ALLOWED_METHODS,
+    data: {
+      id: validActor.id,
+      username: validActor.username,
+      domain: validActor.domain,
+      name: validActor.name,
+      iconUrl: validActor.iconUrl
+    }
   })
 })

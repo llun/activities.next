@@ -4,8 +4,11 @@ import { POST } from './route'
 
 const mockCanFederateWithDomain = jest.fn()
 const mockCreateFollower = jest.fn()
+const mockDeleteLike = jest.fn()
 const mockVerifyAllows = jest.fn()
-const mockDatabase = {}
+const mockDatabase = {
+  deleteLike: (...params: unknown[]) => mockDeleteLike(...params)
+}
 type MockActor = {
   id: string
   username: string
@@ -104,6 +107,18 @@ const createFollowRequest = (username = 'llun') =>
     })
   })
 
+const createActorInboxActivityRequest = (type: string) =>
+  new NextRequest('https://activities.local/api/users/llun/inbox', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      id: `https://remote.test/users/alice/activities/${type.toLowerCase()}`,
+      type,
+      actor: 'https://remote.test/users/alice',
+      object: 'https://activities.local/users/llun'
+    })
+  })
+
 describe('POST /api/users/[username]/inbox', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -117,6 +132,7 @@ describe('POST /api/users/[username]/inbox', () => {
     mockCreateFollower.mockResolvedValue({
       object: 'https://activities.local/users/llun'
     })
+    mockDeleteLike.mockResolvedValue(undefined)
   })
 
   it('accepts verified deliveries to the headless signer inbox without creating state', async () => {
@@ -166,6 +182,87 @@ describe('POST /api/users/[username]/inbox', () => {
         actor: 'https://remote.test/users/alice',
         type: 'Follow'
       })
+    })
+  })
+
+  it.each(['Block', 'Flag', 'Move', 'Add', 'Remove', 'QuoteRequest'])(
+    'accepts verified %s activities without treating them as malformed',
+    async (activityType) => {
+      const response = await POST(
+        createActorInboxActivityRequest(activityType),
+        {
+          params: Promise.resolve({ username: 'llun' })
+        }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+        mockDatabase,
+        'https://remote.test/users/alice'
+      )
+      expect(mockCreateFollower).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts reference-only Undo activities without treating them as malformed', async () => {
+    const response = await POST(createActorInboxActivityRequest('Undo'), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+      mockDatabase,
+      'https://remote.test/users/alice'
+    )
+    expect(mockCreateFollower).not.toHaveBeenCalled()
+  })
+
+  it('treats partial Undo Like objects as accepted no-ops', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-like',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/alice/likes/1',
+            type: 'Like'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockDeleteLike).not.toHaveBeenCalled()
+  })
+
+  it('uses the verified Undo actor when deleting likes', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-like',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/alice/likes/1',
+            type: 'Like',
+            actor: 'https://remote.test/users/bob',
+            object: 'https://activities.local/users/llun/statuses/1'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockDeleteLike).toHaveBeenCalledWith({
+      actorId: 'https://remote.test/users/alice',
+      statusId: 'https://activities.local/users/llun/statuses/1'
     })
   })
 })
