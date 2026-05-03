@@ -25,19 +25,27 @@ import {
   splitSegmentByBounds
 } from '@/lib/services/fitness-files/routeHeatmap'
 import type { RouteHeatmapPoint } from '@/lib/services/fitness-files/routeHeatmap'
+import { getQueue } from '@/lib/services/queue'
+import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 
-const ACCUMULATION_DOWNSAMPLE_POINT_LIMIT =
-  DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 10
+const ROUTE_HEATMAP_JOB_TIME_BUDGET_MS = 20_000
+const ROUTE_HEATMAP_MEMORY_BUDGET_BYTES = 512 * 1024 * 1024
+const ROUTE_HEATMAP_PAGE_SIZE = 100
+const ROUTE_HEATMAP_MAX_FILES = 1_000_000
+const ACCUMULATION_DOWNSAMPLE_POINT_LIMIT = DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 2
 
 const JobData = z.object({
   actorId: z.string(),
   activityType: z.string().nullable(),
   periodType: z.enum(['all_time', 'yearly', 'monthly']),
   periodKey: z.string(),
-  region: z.string().nullable().optional()
+  region: z.string().nullable().optional(),
+  resume: z.boolean().optional(),
+  cursorOffset: z.number().int().nonnegative().optional()
 })
 
 const getPeriodRange = (
@@ -111,12 +119,51 @@ const countSegmentPoints = (
     return sum + segment.points.length
   }, 0)
 
+const toPrivacySegments = (
+  segments: FitnessRouteHeatmapSegment[]
+): Array<PrivacySegment<RouteHeatmapPoint>> =>
+  segments
+    .map((segment) => {
+      const isHiddenByPrivacy = Boolean(segment.isHiddenByPrivacy)
+      return {
+        isHiddenByPrivacy,
+        points: segment.points.map((point) => ({
+          ...point,
+          isHiddenByPrivacy
+        }))
+      }
+    })
+    .filter((segment) => segment.points.length >= 2)
+
+const downsampleSegmentsForCache = (
+  segments: Array<PrivacySegment<RouteHeatmapPoint>>,
+  maxPoints = DEFAULT_ROUTE_HEATMAP_MAX_POINTS
+) =>
+  downsamplePrivacySegments(segments, maxPoints, {
+    minimumPointsPerSegment: 2
+  }).filter((segment) => segment.points.length >= 2)
+
+const shouldReduceAccumulation = (pointCount: number) =>
+  pointCount > ACCUMULATION_DOWNSAMPLE_POINT_LIMIT ||
+  process.memoryUsage().heapUsed > ROUTE_HEATMAP_MEMORY_BUDGET_BYTES
+
+const shouldCheckpoint = (startedAt: number) =>
+  Date.now() - startedAt >= ROUTE_HEATMAP_JOB_TIME_BUDGET_MS
+
 export const generateFitnessRouteHeatmapJob = createJobHandle(
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
   async (database, message) => {
-    const { actorId, activityType, periodType, periodKey, region } =
-      JobData.parse(message.data)
+    const {
+      actorId,
+      activityType,
+      periodType,
+      periodKey,
+      region,
+      resume,
+      cursorOffset: requestedCursorOffset
+    } = JobData.parse(message.data)
 
+    const startedAt = Date.now()
     const normalizedRegion = region?.trim() || ''
     const regionBounds =
       normalizedRegion !== ''
@@ -141,13 +188,49 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         includeDeleted: true
       })
 
+      const isResume = resume === true
+      if (
+        isResume &&
+        (!existing || existing.status !== 'generating' || existing.deletedAt)
+      ) {
+        logger.info({
+          message: 'Skipping stale route heatmap continuation',
+          actorId,
+          periodType,
+          periodKey,
+          requestedCursorOffset,
+          status: existing?.status ?? 'missing'
+        })
+        return
+      }
+
+      let cursorOffset = 0
+      let allSegments: Array<PrivacySegment<RouteHeatmapPoint>> = []
+      let allSegmentPointCount = 0
+      let activityCount = 0
+
       if (existing) {
         heatmapId = existing.id
+        if (isResume) {
+          cursorOffset = existing.cursorOffset
+          allSegments = toPrivacySegments(existing.segments)
+          allSegmentPointCount = countSegmentPoints(allSegments)
+          activityCount = existing.activityCount
+        }
         await database.updateFitnessRouteHeatmapStatus({
           id: existing.id,
           status: 'generating',
           error: null,
-          clearDeleted: true
+          clearDeleted: true,
+          ...(isResume
+            ? {}
+            : {
+                bounds: null,
+                segments: null,
+                activityCount: 0,
+                pointCount: 0,
+                cursorOffset: 0
+              })
         })
       } else {
         const created = await database.createFitnessRouteHeatmap({
@@ -163,9 +246,15 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         await database.updateFitnessRouteHeatmapStatus({
           id: created.id,
           status: 'generating',
-          error: null
+          error: null,
+          cursorOffset: 0
         })
       }
+
+      if (!heatmapId) {
+        throw new Error('Route heatmap cache row not available')
+      }
+      const routeHeatmapId = heatmapId
 
       const privacySettings = await database.getFitnessSettings({
         actorId,
@@ -173,9 +262,6 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       })
       const privacyLocations = getFitnessPrivacyLocations(privacySettings)
 
-      const PAGE_SIZE = 1_000
-      const MAX_PAGES = 1_000
-      let offset = 0
       let reachedPageLimit = false
 
       const queryFilters = {
@@ -188,59 +274,104 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           : {})
       }
 
-      let allSegments: Array<PrivacySegment<RouteHeatmapPoint>> = []
-      let allSegmentPointCount = 0
-      let activityCount = 0
-
-      for (let pageNum = 0; pageNum < MAX_PAGES; pageNum++) {
-        const page = await database.getFitnessFilesByActor({
-          ...queryFilters,
-          limit: PAGE_SIZE,
-          offset
+      const checkpointAndContinue = async (nextCursorOffset: number) => {
+        const payload = buildRouteHeatmapPayload({
+          privacySegments: allSegments
         })
 
-        for (const file of page) {
+        await database.updateFitnessRouteHeatmapStatus({
+          id: routeHeatmapId,
+          status: 'generating',
+          bounds: payload.bounds,
+          segments: payload.segments,
+          activityCount,
+          pointCount: payload.pointCount,
+          cursorOffset: nextCursorOffset,
+          error: null
+        })
+
+        const continuationId = getHashFromString(
+          `${message.id}:route-heatmap-continuation:${routeHeatmapId}:${nextCursorOffset}:${Date.now()}`
+        )
+
+        await getQueue().publish({
+          id: continuationId,
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId,
+            activityType,
+            periodType,
+            periodKey,
+            ...(normalizedRegion ? { region: normalizedRegion } : {}),
+            resume: true,
+            cursorOffset: nextCursorOffset
+          }
+        })
+
+        logger.info({
+          message: 'Fitness route heatmap cache checkpointed for continuation',
+          actorId,
+          periodType,
+          periodKey,
+          cursorOffset: nextCursorOffset,
+          activityCount,
+          pointCount: payload.pointCount
+        })
+      }
+
+      while (cursorOffset < ROUTE_HEATMAP_MAX_FILES) {
+        const page = await database.getFitnessFilesByActor({
+          ...queryFilters,
+          limit: ROUTE_HEATMAP_PAGE_SIZE,
+          offset: cursorOffset
+        })
+
+        if (page.length === 0) {
+          break
+        }
+
+        for (let pageIndex = 0; pageIndex < page.length; pageIndex += 1) {
+          const file = page[pageIndex]
+          const nextCursorOffset = cursorOffset + pageIndex + 1
+
           try {
-            if (!isParseableFitnessFileType(file.fileType)) continue
+            if (isParseableFitnessFileType(file.fileType)) {
+              const buffer = await getFitnessFileBuffer(database, file.id)
+              const activityData = await parseFitnessFile({
+                fileType: file.fileType,
+                buffer
+              })
 
-            const buffer = await getFitnessFileBuffer(database, file.id)
-            const activityData = await parseFitnessFile({
-              fileType: file.fileType,
-              buffer
-            })
+              if (activityData.coordinates.length >= 2) {
+                const privacyAwarePoints = annotatePointsWithPrivacy(
+                  activityData.coordinates,
+                  privacyLocations
+                )
+                const privacySegments = buildPrivacySegments(privacyAwarePoints)
+                const filteredSegments = applyRegionFilter(
+                  privacySegments,
+                  regionBounds
+                )
+                const filteredPointCount = countSegmentPoints(filteredSegments)
+                const boundedSegments =
+                  filteredPointCount > ACCUMULATION_DOWNSAMPLE_POINT_LIMIT
+                    ? downsampleSegmentsForCache(filteredSegments)
+                    : filteredSegments
 
-            if (activityData.coordinates.length < 2) {
-              continue
-            }
-
-            const privacyAwarePoints = annotatePointsWithPrivacy(
-              activityData.coordinates,
-              privacyLocations
-            )
-            const privacySegments = buildPrivacySegments(privacyAwarePoints)
-            const filteredSegments = applyRegionFilter(
-              privacySegments,
-              regionBounds
-            )
-
-            if (filteredSegments.length > 0) {
-              activityCount += 1
-              allSegments.push(...filteredSegments)
-              allSegmentPointCount += countSegmentPoints(filteredSegments)
-            }
-
-            if (allSegmentPointCount > ACCUMULATION_DOWNSAMPLE_POINT_LIMIT) {
-              // This is a memory guard, not a statistically uniform sampler.
-              // It prefers bounded worker memory over perfect corpus-wide sampling;
-              // the final payload is downsampled again to DEFAULT_ROUTE_HEATMAP_MAX_POINTS.
-              allSegments = downsamplePrivacySegments(
-                allSegments,
-                DEFAULT_ROUTE_HEATMAP_MAX_POINTS,
-                {
-                  minimumPointsPerSegment: 2
+                if (boundedSegments.length > 0) {
+                  activityCount += 1
+                  allSegments.push(...boundedSegments)
+                  allSegmentPointCount += countSegmentPoints(boundedSegments)
                 }
-              ).filter((segment) => segment.points.length >= 2)
-              allSegmentPointCount = countSegmentPoints(allSegments)
+
+                if (shouldReduceAccumulation(allSegmentPointCount)) {
+                  // This is a memory guard, not a statistically uniform sampler.
+                  // It keeps the QStash worker well below a 1 GB container budget;
+                  // the final/checkpoint payload remains capped for browser rendering.
+                  allSegments = downsampleSegmentsForCache(allSegments)
+                  allSegmentPointCount = countSegmentPoints(allSegments)
+                }
+              }
             }
           } catch (error) {
             const nodeError = error as Error
@@ -252,18 +383,28 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               error: nodeError.message
             })
           }
+
+          const isLastKnownFile =
+            page.length < ROUTE_HEATMAP_PAGE_SIZE &&
+            pageIndex === page.length - 1
+          const canContinue = nextCursorOffset < ROUTE_HEATMAP_MAX_FILES
+
+          if (canContinue && !isLastKnownFile && shouldCheckpoint(startedAt)) {
+            await checkpointAndContinue(nextCursorOffset)
+            return
+          }
         }
 
-        if (page.length < PAGE_SIZE) {
+        cursorOffset += page.length
+
+        if (page.length < ROUTE_HEATMAP_PAGE_SIZE) {
           break
         }
 
-        if (pageNum === MAX_PAGES - 1) {
+        if (cursorOffset >= ROUTE_HEATMAP_MAX_FILES) {
           reachedPageLimit = true
           break
         }
-
-        offset += PAGE_SIZE
       }
 
       if (reachedPageLimit) {
@@ -273,8 +414,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           actorId,
           periodType,
           periodKey,
-          pageSize: PAGE_SIZE,
-          maxPages: MAX_PAGES
+          pageSize: ROUTE_HEATMAP_PAGE_SIZE,
+          maxFiles: ROUTE_HEATMAP_MAX_FILES
         })
       }
 
@@ -283,12 +424,13 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       })
 
       await database.updateFitnessRouteHeatmapStatus({
-        id: heatmapId,
+        id: routeHeatmapId,
         status: 'completed',
         bounds: payload.bounds,
         segments: payload.segments,
         activityCount,
         pointCount: payload.pointCount,
+        cursorOffset: 0,
         error: null
       })
 

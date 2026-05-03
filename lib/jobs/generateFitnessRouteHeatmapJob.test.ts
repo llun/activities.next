@@ -27,6 +27,11 @@ jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
   isParseableFitnessFileType: jest.fn().mockReturnValue(true)
 }))
 
+const mockPublish = jest.fn()
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({ publish: mockPublish })
+}))
+
 const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
   typeof getFitnessFile
 >
@@ -53,6 +58,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockPublish.mockResolvedValue(undefined)
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',
       buffer: Buffer.from('fitness-file-bytes'),
@@ -433,6 +439,127 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(heatmap?.pointCount).toBeLessThanOrEqual(
       DEFAULT_ROUTE_HEATMAP_MAX_POINTS
     )
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: firstId })
+    await database.deleteFitnessFile({ id: secondId })
+  })
+
+  it('checkpoints route generation and queues a continuation before the QStash timeout', async () => {
+    const firstId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-07-15T07:00:00.000Z')
+    )
+    const secondId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-07-16T07:00:00.000Z')
+    )
+    const nowSpy = jest.spyOn(Date, 'now')
+    nowSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-checkpoint',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-07'
+        }
+      })
+    } finally {
+      nowSpy.mockRestore()
+    }
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-07'
+    })
+
+    expect(heatmap?.status).toBe('generating')
+    expect(heatmap?.activityCount).toBe(1)
+    expect(heatmap?.cursorOffset).toBe(1)
+    expect(heatmap?.pointCount).toBeGreaterThanOrEqual(2)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: expect.objectContaining({
+          actorId: actor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-07',
+          resume: true,
+          cursorOffset: 1
+        })
+      })
+    )
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: firstId })
+    await database.deleteFitnessFile({ id: secondId })
+  })
+
+  it('resumes from a checkpointed cursor and completes remaining route files', async () => {
+    const firstId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-08-15T07:00:00.000Z')
+    )
+    const secondId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-08-16T07:00:00.000Z')
+    )
+    const timeoutSpy = jest.spyOn(Date, 'now')
+    timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-resume',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-08'
+        }
+      })
+    } finally {
+      timeoutSpy.mockRestore()
+    }
+
+    mockPublish.mockClear()
+    const resumeSpy = jest.spyOn(Date, 'now').mockReturnValue(0)
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-resume-continuation',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-08',
+          resume: true,
+          cursorOffset: 1
+        }
+      })
+    } finally {
+      resumeSpy.mockRestore()
+    }
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-08'
+    })
+
+    expect(heatmap?.status).toBe('completed')
+    expect(heatmap?.activityCount).toBe(2)
+    expect(heatmap?.cursorOffset).toBe(0)
+    expect(mockPublish).not.toHaveBeenCalled()
 
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
     await database.deleteFitnessFile({ id: firstId })

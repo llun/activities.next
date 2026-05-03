@@ -79,6 +79,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       ],
       activityCount: 1,
       pointCount: 2,
+      cursorOffset: 0,
       createdAt: createdTime,
       updatedAt: updatedTime
     })
@@ -157,7 +158,9 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     })
   })
 
-  it('rejects an empty activity type query value', async () => {
+  it('normalizes an empty activity type query value to all activities', async () => {
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
+
     const request = new NextRequest(
       `${baseUrl}?period_type=yearly&period_key=2026&activity_type=`
     )
@@ -165,8 +168,14 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       params: Promise.resolve({ id: encodedId })
     })
 
-    expect(response.status).toBe(400)
-    expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockDb.getFitnessRouteHeatmapByKey).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      activityType: null,
+      periodType: 'yearly',
+      periodKey: '2026',
+      region: ''
+    })
   })
 
   it('returns 403 for another actor', async () => {
@@ -214,7 +223,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     )
   })
 
-  it('rejects an empty activity type trigger value', async () => {
+  it('normalizes an empty activity type trigger value to all activities', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'POST',
       body: JSON.stringify({
@@ -227,7 +236,18 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       params: Promise.resolve({ id: encodedId })
     })
 
-    expect(response.status).toBe(400)
-    expect(mockPublish).not.toHaveBeenCalled()
+    expect(response.status).toBe(202)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: ACTOR1_ID,
+          activityType: null,
+          periodType: 'monthly',
+          periodKey: '2026-04',
+          region: ''
+        }
+      })
+    )
   })
 })

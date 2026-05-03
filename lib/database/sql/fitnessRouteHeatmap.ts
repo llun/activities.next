@@ -50,6 +50,7 @@ export interface UpdateFitnessRouteHeatmapStatusParams {
   error?: string | null
   activityCount?: number
   pointCount?: number
+  cursorOffset?: number
   clearDeleted?: boolean
 }
 
@@ -135,6 +136,7 @@ const parseSQLFitnessRouteHeatmap = (
   error: row.error ?? undefined,
   activityCount: row.activityCount,
   pointCount: row.pointCount,
+  cursorOffset: Number(row.cursorOffset ?? 0),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -155,6 +157,7 @@ const parseSQLFitnessRouteHeatmapSummary = (
   error: row.error ?? undefined,
   activityCount: row.activityCount,
   pointCount: row.pointCount,
+  cursorOffset: Number(row.cursorOffset ?? 0),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -211,6 +214,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       error: null,
       activityCount: 0,
       pointCount: 0,
+      cursorOffset: 0,
       createdAt: currentTime,
       updatedAt: currentTime,
       deletedAt: null
@@ -295,6 +299,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
           'error',
           'activityCount',
           'pointCount',
+          'cursorOffset',
           'createdAt',
           'updatedAt',
           'deletedAt'
@@ -314,6 +319,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     error,
     activityCount,
     pointCount,
+    cursorOffset,
     clearDeleted
   }: UpdateFitnessRouteHeatmapStatusParams) {
     const updateData: Record<string, unknown> = {
@@ -335,6 +341,9 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     }
     if (pointCount !== undefined) {
       updateData.pointCount = pointCount
+    }
+    if (cursorOffset !== undefined) {
+      updateData.cursorOffset = cursorOffset
     }
     if (clearDeleted) {
       updateData.deletedAt = null

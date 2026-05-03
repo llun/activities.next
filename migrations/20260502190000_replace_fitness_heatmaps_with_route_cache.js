@@ -68,6 +68,7 @@ exports.up = async function (knex) {
         table.text('error')
         table.integer('activityCount').notNullable().defaultTo(0)
         table.integer('pointCount').notNullable().defaultTo(0)
+        table.integer('cursorOffset').notNullable().defaultTo(0)
         table.timestamp('createdAt', { useTz: true }).notNullable()
         table.timestamp('updatedAt', { useTz: true }).notNullable()
         table.timestamp('deletedAt', { useTz: true })

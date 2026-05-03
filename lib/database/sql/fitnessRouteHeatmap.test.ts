@@ -43,6 +43,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
           status: 'pending',
           activityCount: 0,
           pointCount: 0,
+          cursorOffset: 0,
           segments: []
         })
 
@@ -109,6 +110,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
           ],
           activityCount: 2,
           pointCount: 4,
+          cursorOffset: 25,
           error: null
         })
 
@@ -127,6 +129,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(fetched?.segments).toHaveLength(2)
         expect(fetched?.activityCount).toBe(2)
         expect(fetched?.pointCount).toBe(4)
+        expect(fetched?.cursorOffset).toBe(25)
       })
 
       it('returns false for non-existent ids', async () => {

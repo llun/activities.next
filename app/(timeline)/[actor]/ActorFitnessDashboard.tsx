@@ -171,6 +171,11 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
               {item.label}
             </button>
           ))}
+          {preset === 'custom' && (
+            <span className="rounded bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
+              Custom
+            </span>
+          )}
         </div>
 
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -298,7 +303,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
               periodType="all_time"
               periodKey="all"
               startDate={startMs}
-              endDate={endMs}
+              endDate={endMsExclusive - 1}
             />
           </section>
 

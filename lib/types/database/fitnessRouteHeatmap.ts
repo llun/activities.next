@@ -42,6 +42,7 @@ export interface SQLFitnessRouteHeatmap {
   error: string | null
   activityCount: number
   pointCount: number
+  cursorOffset: number
   createdAt: Date | string | number
   updatedAt: Date | string | number
   deletedAt: Date | string | number | null
@@ -62,6 +63,7 @@ export interface FitnessRouteHeatmap {
   error?: string
   activityCount: number
   pointCount: number
+  cursorOffset: number
   createdAt: number
   updatedAt: number
   deletedAt?: number
