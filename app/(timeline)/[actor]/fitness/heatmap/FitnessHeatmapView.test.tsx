@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   getDistinctFitnessActivityTypes,
@@ -175,6 +175,27 @@ describe('FitnessHeatmapView', () => {
 
     expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
     expect(screen.getByText('Routes')).toBeInTheDocument()
+  })
+
+  it('keeps completed refreshes on the normal deduplicated enqueue path', async () => {
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Routes')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Refresh/i }))
+
+    await waitFor(() => {
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'https://llun.test/users/llun',
+          periodType: 'yearly',
+          periodKey: '2026',
+          retry: false
+        })
+      )
+    })
   })
 })
 

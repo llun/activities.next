@@ -50,7 +50,8 @@ const FitnessRouteHeatmapTriggerBody = z.object({
   activity_type: OptionalActivityType,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
-  region: z.string().optional()
+  region: z.string().optional(),
+  retry: z.boolean().optional()
 })
 
 const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
@@ -256,7 +257,8 @@ export const POST = traceApiRoute(
       activity_type: activityType,
       period_type: periodType,
       period_key: periodKey,
-      region: rawRegion
+      region: rawRegion,
+      retry
     } = parsed.data
     const region = normalizeRegion(rawRegion)
     const existing = await database.getFitnessRouteHeatmapByKey({
@@ -271,7 +273,11 @@ export const POST = traceApiRoute(
       existing.cursorOffset > 0 &&
       (existing.status === 'failed' ||
         (existing.status === 'completed' && existing.isPartial))
-    const shouldUseRetryId = existing !== null && !shouldResume
+    const shouldUseRetryId =
+      retry === true &&
+      existing !== null &&
+      !shouldResume &&
+      (existing.status === 'failed' || existing.status === 'generating')
     const baseJobId =
       id +
       ':route-heatmap:' +

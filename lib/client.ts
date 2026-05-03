@@ -1300,13 +1300,15 @@ export const triggerFitnessRouteHeatmap = async ({
   activityType,
   periodType,
   periodKey,
-  region
+  region,
+  retry
 }: {
   actorId: string
   activityType?: string
   periodType: string
   periodKey: string
   region?: string | null
+  retry?: boolean
 }): Promise<boolean> => {
   const encodedId = urlToId(actorId)
   const response = await fetch(
@@ -1318,7 +1320,8 @@ export const triggerFitnessRouteHeatmap = async ({
         period_type: periodType,
         period_key: periodKey,
         ...(activityType ? { activity_type: activityType } : {}),
-        ...(region ? { region } : {})
+        ...(region ? { region } : {}),
+        ...(retry ? { retry } : {})
       })
     }
   )

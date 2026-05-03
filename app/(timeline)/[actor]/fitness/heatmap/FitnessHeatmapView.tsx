@@ -745,13 +745,17 @@ export const FitnessHeatmapView: FC<Props> = ({
   )
 
   const handleRetry = useCallback(
-    async (heatmap: FitnessRouteHeatmapSummaryData) => {
+    async (
+      heatmap: FitnessRouteHeatmapSummaryData,
+      options: { retry?: boolean } = { retry: true }
+    ) => {
       const success = await triggerFitnessRouteHeatmap({
         actorId,
         activityType: heatmap.activityType,
         periodType: heatmap.periodType as PeriodType,
         periodKey: heatmap.periodKey,
-        region: heatmap.region || undefined
+        region: heatmap.region || undefined,
+        retry: options.retry
       })
       if (!success) {
         throw new Error('Failed to enqueue route heatmap refresh.')
@@ -771,7 +775,11 @@ export const FitnessHeatmapView: FC<Props> = ({
     setError(null)
     try {
       if (heatmapData) {
-        await handleRetry(heatmapData)
+        await handleRetry(heatmapData, {
+          retry:
+            heatmapData.status === 'failed' ||
+            heatmapData.status === 'generating'
+        })
       } else {
         await queueCurrentRouteHeatmap()
       }
