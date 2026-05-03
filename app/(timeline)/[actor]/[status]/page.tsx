@@ -17,6 +17,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
@@ -38,7 +39,9 @@ export const generateMetadata = async ({
 
 const Page: FC<Props> = async ({ params }) => {
   const { host, fitnessStorage, mediaStorage } = getConfig()
-  const mapboxAccessToken = fitnessStorage?.mapboxAccessToken?.trim()
+  const mapboxAccessToken = getPublicMapboxAccessToken(
+    fitnessStorage?.mapboxAccessToken
+  )
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 

@@ -125,20 +125,20 @@ Required for media uploads (images in posts).
 
 For fitness activity file uploads (.fit, .gpx, .tcx). Falls back to media storage configuration if not set.
 
-| Variable                                                    | Description                                                                                      |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `ACTIVITIES_FITNESS_STORAGE_TYPE`                           | Storage backend: `fs`, `s3`, or `object`.                                                        |
-| `ACTIVITIES_FITNESS_STORAGE_PATH`                           | Local filesystem path (default: `uploads/fitness`).                                              |
-| `ACTIVITIES_FITNESS_STORAGE_BUCKET`                         | S3 bucket name.                                                                                  |
-| `ACTIVITIES_FITNESS_STORAGE_REGION`                         | S3 region.                                                                                       |
-| `ACTIVITIES_FITNESS_STORAGE_HOSTNAME`                       | Custom S3 endpoint hostname.                                                                     |
-| `ACTIVITIES_FITNESS_STORAGE_PREFIX`                         | S3 key prefix (default: `fitness/`).                                                             |
-| `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE`                  | Maximum file size in bytes (default: 50 MB).                                                     |
-| `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT`              | Per-account quota in bytes.                                                                      |
-| `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN`                    | Mapbox API token for interactive route maps.                                                     |
-| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_MEMORY_BUDGET_BYTES`      | Worker heap budget before route-cache accumulation is downsampled (default: 512 MB).             |
-| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT` | Maximum in-memory route points before accumulation is downsampled (default: 160,000).            |
-| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_FILE_POINT_LIMIT`         | Maximum points retained from one parsed fitness file before privacy filtering (default: 80,000). |
+| Variable                                                    | Description                                                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_FITNESS_STORAGE_TYPE`                           | Storage backend: `fs`, `s3`, or `object`.                                                                                 |
+| `ACTIVITIES_FITNESS_STORAGE_PATH`                           | Local filesystem path (default: `uploads/fitness`).                                                                       |
+| `ACTIVITIES_FITNESS_STORAGE_BUCKET`                         | S3 bucket name.                                                                                                           |
+| `ACTIVITIES_FITNESS_STORAGE_REGION`                         | S3 region.                                                                                                                |
+| `ACTIVITIES_FITNESS_STORAGE_HOSTNAME`                       | Custom S3 endpoint hostname.                                                                                              |
+| `ACTIVITIES_FITNESS_STORAGE_PREFIX`                         | S3 key prefix (default: `fitness/`).                                                                                      |
+| `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE`                  | Maximum file size in bytes (default: 50 MB).                                                                              |
+| `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT`              | Per-account quota in bytes.                                                                                               |
+| `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN`                    | Mapbox API token for map rendering. Only public `pk.*` tokens are passed to browser maps; secret tokens stay server-side. |
+| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_MEMORY_BUDGET_BYTES`      | Worker heap budget before route-cache accumulation is downsampled (default: 512 MB).                                      |
+| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT` | Maximum in-memory route points before accumulation is downsampled (default: 160,000).                                     |
+| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_FILE_POINT_LIMIT`         | Maximum points retained from one parsed fitness file before privacy filtering (default: 80,000).                          |
 
 ## Queue (Background Jobs)
 
