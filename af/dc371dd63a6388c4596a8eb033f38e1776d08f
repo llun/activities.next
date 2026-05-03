@@ -1,0 +1,23 @@
+docs/environment-variables.md
+  af5d762e2d5af66c 128-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "afdc371dd63a6388c4596a8eb033f38e1776d08f",
+  "prompts": {
+    "af5d762e2d5af66c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de978-d97d-7c02-975e-38369bd28f83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 14,
+      "accepted_lines": 3534,
+      "overriden_lines": 0
+    }
+  }
+}
