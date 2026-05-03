@@ -193,4 +193,54 @@ describe('route heatmap migration', () => {
       await database.destroy()
     }
   })
+
+  it('keeps a baseline cursor column when rolling back the cursor backfill', async () => {
+    const database = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+
+    try {
+      await database.schema.createTable('actors', (table) => {
+        table.string('id').primary()
+      })
+      await migration.up(database)
+
+      await cursorMigration.down(database)
+
+      await expect(
+        database.schema.hasColumn('fitness_route_heatmaps', 'cursorOffset')
+      ).resolves.toBe(true)
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('keeps a baseline partial flag column when rolling back the partial flag backfill', async () => {
+    const database = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+
+    try {
+      await database.schema.createTable('actors', (table) => {
+        table.string('id').primary()
+      })
+      await migration.up(database)
+
+      await partialFlagMigration.down(database)
+
+      await expect(
+        database.schema.hasColumn('fitness_route_heatmaps', 'isPartial')
+      ).resolves.toBe(true)
+    } finally {
+      await database.destroy()
+    }
+  })
 })
