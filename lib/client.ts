@@ -11,6 +11,7 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
 import { urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
@@ -1229,6 +1230,21 @@ export interface FitnessCalendarDay {
   totalDurationSeconds: number
 }
 
+const getRouteHeatmapResponseErrorMessage = async (
+  response: Response,
+  label: string
+) => {
+  const data = await parseFetchResponseData(response)
+  const detail =
+    typeof data.message === 'string'
+      ? data.message
+      : typeof data.error === 'string'
+        ? data.error
+        : response.statusText
+
+  return `Failed to load ${label} (${response.status})${detail ? `: ${detail}` : '.'}`
+}
+
 /**
  * Loads the focused route-heatmap cache. Non-OK responses are thrown instead of
  * coerced to null so the UI can distinguish a failed read from a cache miss.
@@ -1264,7 +1280,9 @@ export const getFitnessRouteHeatmap = async ({
     headers: { Accept: 'application/json' }
   })
   if (!response.ok) {
-    throw new Error(`Failed to load route heatmap (${response.status}).`)
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'route heatmap')
+    )
   }
   try {
     const json = await response.json()
@@ -1320,7 +1338,11 @@ export const getFitnessRouteHeatmaps = async ({
       headers: { Accept: 'application/json' }
     }
   )
-  if (!response.ok) return []
+  if (!response.ok) {
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'route heatmaps')
+    )
+  }
   const json = await response.json()
   return json.heatmaps as FitnessRouteHeatmapSummaryData[]
 }
