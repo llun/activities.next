@@ -70,6 +70,47 @@ const METRIC_LABELS: Record<CalendarMetric, string> = {
   distance: 'Distance',
   duration: 'Duration'
 }
+const METRIC_OPTIONS = Object.entries(METRIC_LABELS) as [
+  CalendarMetric,
+  string
+][]
+
+const ROUTE_LINE_STYLES = {
+  visible: {
+    color: '#ef4444',
+    width: 3.2,
+    opacity: 0.2
+  },
+  hidden: {
+    color: '#2563eb',
+    width: 2.4,
+    opacity: 0.14
+  }
+} as const
+const MAPBOX_ROUTE_LINE_PAINT = {
+  'line-color': [
+    'case',
+    ['boolean', ['get', 'isHiddenByPrivacy'], false],
+    ROUTE_LINE_STYLES.hidden.color,
+    ROUTE_LINE_STYLES.visible.color
+  ],
+  'line-width': [
+    'case',
+    ['boolean', ['get', 'isHiddenByPrivacy'], false],
+    ROUTE_LINE_STYLES.hidden.width,
+    ROUTE_LINE_STYLES.visible.width
+  ],
+  'line-opacity': [
+    'case',
+    ['boolean', ['get', 'isHiddenByPrivacy'], false],
+    ROUTE_LINE_STYLES.hidden.opacity,
+    ROUTE_LINE_STYLES.visible.opacity
+  ],
+  'line-blur': 0.8
+} as const
+
+const getRouteLineStyle = (isHiddenByPrivacy: boolean) =>
+  isHiddenByPrivacy ? ROUTE_LINE_STYLES.hidden : ROUTE_LINE_STYLES.visible
 
 const formatActivityType = (type?: string): string =>
   type
@@ -170,18 +211,21 @@ const buildSvgMap = (heatmap: FitnessRouteHeatmapData) => {
 
   const lines = heatmap.segments
     .filter((segment) => segment.points.length >= 2)
-    .map((segment, index) => ({
-      key: `${heatmap.id}-${index}`,
-      isHiddenByPrivacy: Boolean(segment.isHiddenByPrivacy),
-      points: segment.points
-        .map((point) => {
-          const projected = projectWebMercator(point, zoom)
-          return `${(projected.x - topLeftX).toFixed(1)},${(
-            projected.y - topLeftY
-          ).toFixed(1)}`
-        })
-        .join(' ')
-    }))
+    .map((segment, index) => {
+      const isHiddenByPrivacy = Boolean(segment.isHiddenByPrivacy)
+      return {
+        key: `${heatmap.id}-${index}`,
+        style: getRouteLineStyle(isHiddenByPrivacy),
+        points: segment.points
+          .map((point) => {
+            const projected = projectWebMercator(point, zoom)
+            return `${(projected.x - topLeftX).toFixed(1)},${(
+              projected.y - topLeftY
+            ).toFixed(1)}`
+          })
+          .join(' ')
+      }
+    })
 
   return { lines }
 }
@@ -261,12 +305,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
               'line-cap': 'round',
               'line-join': 'round'
             },
-            paint: {
-              'line-color': '#ef4444',
-              'line-width': 3,
-              'line-opacity': 0.2,
-              'line-blur': 0.8
-            }
+            paint: MAPBOX_ROUTE_LINE_PAINT
           })
           map.fitBounds(mapBounds, { padding: 56, duration: 0 })
           setIsMapLoaded(true)
@@ -346,9 +385,9 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
               key={line.key}
               points={line.points}
               fill="none"
-              stroke={line.isHiddenByPrivacy ? '#2563eb' : '#ef4444'}
-              strokeWidth={line.isHiddenByPrivacy ? 2.4 : 3.2}
-              strokeOpacity={line.isHiddenByPrivacy ? 0.14 : 0.2}
+              stroke={line.style.color}
+              strokeWidth={line.style.width}
+              strokeOpacity={line.style.opacity}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -629,11 +668,8 @@ export const FitnessHeatmapView: FC<Props> = ({
     if (periodType === 'monthly') {
       const currentMonth = periodKey.split('-')[1] ?? '01'
       const newKey = `${year}-${currentMonth}`
-      setPeriodKey(
-        generateMonthOptions(year).includes(newKey)
-          ? newKey
-          : generateMonthOptions(year)[0]
-      )
+      const options = generateMonthOptions(year)
+      setPeriodKey(options.includes(newKey) ? newKey : options[0])
     }
   }
 
@@ -863,9 +899,7 @@ export const FitnessHeatmapView: FC<Props> = ({
                 Activity Calendar
               </h2>
               <div className="flex gap-1 rounded border p-0.5">
-                {(
-                  Object.entries(METRIC_LABELS) as [CalendarMetric, string][]
-                ).map(([key, label]) => (
+                {METRIC_OPTIONS.map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setCalendarMetric(key)}

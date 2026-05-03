@@ -35,6 +35,12 @@ const PRESETS: Array<{ key: PresetKey; label: string; days: number }> = [
   { key: '10y', label: '10Y', days: 3650 }
 ]
 
+const CALENDAR_METRICS: Array<[CalendarMetric, string]> = [
+  ['count', 'Count'],
+  ['distance', 'Distance'],
+  ['duration', 'Duration']
+]
+
 const MIN_DATE_RANGE_MS = 7 * 24 * 60 * 60 * 1000
 
 const formatDateInput = (date: Date): string => {
@@ -274,13 +280,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
                 Training Calendar
               </h2>
               <div className="flex gap-1 rounded border p-0.5">
-                {(
-                  [
-                    ['count', 'Count'],
-                    ['distance', 'Distance'],
-                    ['duration', 'Duration']
-                  ] as [CalendarMetric, string][]
-                ).map(([key, label]) => (
+                {CALENDAR_METRICS.map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setCalendarMetric(key)}
