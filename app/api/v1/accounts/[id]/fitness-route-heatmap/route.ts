@@ -271,6 +271,7 @@ export const POST = traceApiRoute(
       existing.cursorOffset > 0 &&
       (existing.status === 'failed' ||
         (existing.status === 'completed' && existing.isPartial))
+    const shouldUseRetryId = existing !== null && !shouldResume
     const baseJobId =
       id +
       ':route-heatmap:' +
@@ -284,7 +285,9 @@ export const POST = traceApiRoute(
     const jobId = getHashFromString(
       shouldResume
         ? `${baseJobId}:resume:${existing.id}:${existing.cursorOffset}`
-        : baseJobId
+        : shouldUseRetryId
+          ? `${baseJobId}:retry:${existing.id}:${crypto.randomUUID()}`
+          : baseJobId
     )
 
     try {

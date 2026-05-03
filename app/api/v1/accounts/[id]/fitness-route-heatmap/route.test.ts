@@ -228,6 +228,65 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     )
   })
 
+  it('uses a unique retry job id for existing non-resumable caches', async () => {
+    const retryNonce = '00000000-0000-4000-8000-000000000000'
+    const randomUUIDSpy = jest
+      .spyOn(crypto, 'randomUUID')
+      .mockReturnValue(retryNonce)
+    const updatedTime = Date.now()
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-failed-zero',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: 'netherlands',
+      status: 'failed',
+      segments: [],
+      activityCount: 0,
+      pointCount: 0,
+      cursorOffset: 0,
+      isPartial: false,
+      error: 'failed before checkpoint',
+      createdAt: updatedTime - 1000,
+      updatedAt: updatedTime
+    })
+
+    try {
+      const request = new NextRequest(baseUrl, {
+        method: 'POST',
+        body: JSON.stringify({
+          activity_type: 'running',
+          period_type: 'monthly',
+          period_key: '2026-04',
+          region: 'netherlands'
+        })
+      })
+      const response = await POST(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: getHashFromString(
+            `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:retry:route-heatmap-failed-zero:${retryNonce}`
+          ),
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: ACTOR1_ID,
+            activityType: 'running',
+            periodType: 'monthly',
+            periodKey: '2026-04',
+            region: 'netherlands'
+          }
+        })
+      )
+    } finally {
+      randomUUIDSpy.mockRestore()
+    }
+  })
+
   it('resumes failed route heatmap generation from a persisted cursor', async () => {
     const updatedTime = Date.now()
     mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
