@@ -429,7 +429,6 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   useEffect(() => {
     setPollingStalled(false)
-    pollingProgressRef.current = null
   }, [selectionKey])
 
   const queueCurrentRouteHeatmap = useCallback(async () => {
@@ -556,24 +555,19 @@ export const FitnessHeatmapView: FC<Props> = ({
             setGenerationPending(false)
           }
 
-          const fingerprint = [
-            heatmap
-              ? `${heatmap.id}:${heatmap.status}:${heatmap.updatedAt}`
-              : 'missing',
-            ...allHeatmaps.map(
-              (item) => `${item.id}:${item.status}:${item.updatedAt}`
-            )
-          ].join('|')
+          const focusedFingerprint = heatmap
+            ? `${heatmap.id}:${heatmap.status}:${heatmap.updatedAt}`
+            : 'missing'
           const previous = pollingProgressRef.current
 
           if (
             !previous ||
             previous.key !== selectionKey ||
-            previous.fingerprint !== fingerprint
+            previous.fingerprint !== focusedFingerprint
           ) {
             pollingProgressRef.current = {
               key: selectionKey,
-              fingerprint,
+              fingerprint: focusedFingerprint,
               stalledCycles: 0
             }
             return

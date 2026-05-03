@@ -11,6 +11,8 @@ interface Props {
   metric: CalendarMetric
   periodType: 'all_time' | 'yearly' | 'monthly'
   periodKey: string
+  startDate?: number
+  endDate?: number
 }
 
 const DAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', '']
@@ -164,7 +166,9 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
   days,
   metric,
   periodType,
-  periodKey
+  periodKey,
+  startDate,
+  endDate
 }) => {
   const dayMap = useMemo(() => {
     const map = new Map<string, FitnessCalendarDay>()
@@ -183,10 +187,13 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
     return max
   }, [days, metric])
 
-  const { start, end } = useMemo(
-    () => getDateRange(periodType, periodKey),
-    [periodType, periodKey]
-  )
+  const { start, end } = useMemo(() => {
+    if (startDate !== undefined && endDate !== undefined) {
+      return { start: new Date(startDate), end: new Date(endDate) }
+    }
+
+    return getDateRange(periodType, periodKey)
+  }, [periodType, periodKey, startDate, endDate])
 
   const grid = useMemo(
     () => buildGrid(start, end, dayMap),

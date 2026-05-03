@@ -29,6 +29,9 @@ import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 
+const ACCUMULATION_DOWNSAMPLE_POINT_LIMIT =
+  DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 10
+
 const JobData = z.object({
   actorId: z.string(),
   activityType: z.string().nullable(),
@@ -226,7 +229,10 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               allSegmentPointCount += countSegmentPoints(filteredSegments)
             }
 
-            if (allSegmentPointCount > DEFAULT_ROUTE_HEATMAP_MAX_POINTS) {
+            if (allSegmentPointCount > ACCUMULATION_DOWNSAMPLE_POINT_LIMIT) {
+              // This is a memory guard, not a statistically uniform sampler.
+              // It prefers bounded worker memory over perfect corpus-wide sampling;
+              // the final payload is downsampled again to DEFAULT_ROUTE_HEATMAP_MAX_POINTS.
               allSegments = downsamplePrivacySegments(
                 allSegments,
                 DEFAULT_ROUTE_HEATMAP_MAX_POINTS,

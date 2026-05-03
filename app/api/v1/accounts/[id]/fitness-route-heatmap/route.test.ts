@@ -157,6 +157,18 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     })
   })
 
+  it('rejects an empty activity type query value', async () => {
+    const request = new NextRequest(
+      `${baseUrl}?period_type=yearly&period_key=2026&activity_type=`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(400)
+    expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+  })
+
   it('returns 403 for another actor', async () => {
     mockGetActorFromSession.mockResolvedValue({
       ...seedActor1,
@@ -200,5 +212,22 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         }
       })
     )
+  })
+
+  it('rejects an empty activity type trigger value', async () => {
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        activity_type: '',
+        period_type: 'monthly',
+        period_key: '2026-04'
+      })
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(400)
+    expect(mockPublish).not.toHaveBeenCalled()
   })
 })

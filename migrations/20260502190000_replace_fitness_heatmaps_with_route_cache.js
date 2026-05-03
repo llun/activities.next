@@ -30,23 +30,21 @@ exports.up = async function (knex) {
         .whereNotNull('imagePath')
         .distinct('actorId', 'imagePath')
 
-      for (const row of oldPaths.filter(
-        (item) => item.actorId && item.imagePath
-      )) {
-        const existing = await trx('legacy_fitness_heatmap_media_cleanup')
-          .where('actorId', row.actorId)
-          .where('imagePath', row.imagePath)
-          .first()
+      const cleanupRows = oldPaths
+        .filter((row) => row.actorId && row.imagePath)
+        .map((row) => ({
+          actorId: row.actorId,
+          imagePath: row.imagePath,
+          createdAt: now,
+          deletedAt: null,
+          error: null
+        }))
 
-        if (!existing) {
-          await trx('legacy_fitness_heatmap_media_cleanup').insert({
-            actorId: row.actorId,
-            imagePath: row.imagePath,
-            createdAt: now,
-            deletedAt: null,
-            error: null
-          })
-        }
+      if (cleanupRows.length > 0) {
+        await trx('legacy_fitness_heatmap_media_cleanup')
+          .insert(cleanupRows)
+          .onConflict(['actorId', 'imagePath'])
+          .ignore()
       }
 
       await trx.schema.dropTable('fitness_heatmaps')

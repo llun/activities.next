@@ -26,13 +26,13 @@ interface Props {
   actorId: string
 }
 
-type PresetKey = '30d' | '90d' | 'year' | 'all'
+type PresetKey = '30d' | '90d' | 'year' | '10y' | 'custom'
 
 const PRESETS: Array<{ key: PresetKey; label: string; days: number }> = [
   { key: '30d', label: '30D', days: 30 },
   { key: '90d', label: '90D', days: 90 },
   { key: 'year', label: '1Y', days: 365 },
-  { key: 'all', label: 'All', days: 3650 }
+  { key: '10y', label: '10Y', days: 3650 }
 ]
 
 const MIN_DATE_RANGE_MS = 7 * 24 * 60 * 60 * 1000
@@ -179,7 +179,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
             type="date"
             value={startDate}
             onChange={(event) => {
-              setPreset('all')
+              setPreset('custom')
               setStartDate(event.target.value)
             }}
             className="rounded border bg-background px-2 py-1 text-sm"
@@ -191,7 +191,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
             type="date"
             value={endDate}
             onChange={(event) => {
-              setPreset('all')
+              setPreset('custom')
               setEndDate(event.target.value)
             }}
             className="rounded border bg-background px-2 py-1 text-sm"
@@ -292,10 +292,13 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
               </div>
             </div>
             <FitnessCalendarHeatmap
+              key={actorId}
               days={calendarDays}
               metric={calendarMetric}
               periodType="all_time"
               periodKey="all"
+              startDate={startMs}
+              endDate={endMs}
             />
           </section>
 

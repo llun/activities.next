@@ -35,14 +35,14 @@ interface Params {
 }
 
 const FitnessRouteHeatmapQueryParams = z.object({
-  activity_type: z.string().optional(),
+  activity_type: z.string().trim().min(1).optional(),
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
   region: z.string().optional()
 })
 
 const FitnessRouteHeatmapTriggerBody = z.object({
-  activity_type: z.string().optional(),
+  activity_type: z.string().trim().min(1).optional(),
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
   region: z.string().optional()
