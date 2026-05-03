@@ -1,10 +1,12 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import {
   GENERATE_FITNESS_HEATMAP_JOB_NAME,
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
 } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import { DEFAULT_ROUTE_HEATMAP_MAX_POINTS } from '@/lib/services/fitness-files/routeHeatmap'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
@@ -369,5 +371,108 @@ describe('generateFitnessRouteHeatmapJob', () => {
 
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
     await database.deleteFitnessFile({ id: fitnessFileId })
+  })
+
+  it('bounds accumulated route points while processing large route sets', async () => {
+    const firstId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-06-15T07:00:00.000Z')
+    )
+    const secondId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-06-16T07:00:00.000Z')
+    )
+    const buildCoordinates = (lngOffset: number) =>
+      Array.from({ length: 45_000 }, (_value, index) => ({
+        lat: 52 + index / 1_000_000,
+        lng: 4 + lngOffset + index / 1_000_000
+      }))
+    const firstCoordinates = buildCoordinates(0)
+    const secondCoordinates = buildCoordinates(1)
+
+    mockParseFitnessFile
+      .mockResolvedValueOnce({
+        coordinates: firstCoordinates,
+        trackPoints: firstCoordinates,
+        totalDistanceMeters: 1_250,
+        totalDurationSeconds: 420,
+        elevationGainMeters: 42,
+        activityType: 'running',
+        startTime: new Date('2026-06-15T07:00:00.000Z')
+      })
+      .mockResolvedValueOnce({
+        coordinates: secondCoordinates,
+        trackPoints: secondCoordinates,
+        totalDistanceMeters: 1_250,
+        totalDurationSeconds: 420,
+        elevationGainMeters: 42,
+        activityType: 'running',
+        startTime: new Date('2026-06-16T07:00:00.000Z')
+      })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-large-route-set',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-06'
+      }
+    })
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-06'
+    })
+
+    expect(heatmap?.status).toBe('completed')
+    expect(heatmap?.activityCount).toBe(2)
+    expect(heatmap?.pointCount).toBeLessThanOrEqual(
+      DEFAULT_ROUTE_HEATMAP_MAX_POINTS
+    )
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: firstId })
+    await database.deleteFitnessFile({ id: secondId })
+  })
+
+  it('preserves the original failure when marking the cache as failed also fails', async () => {
+    const updateFitnessRouteHeatmapStatus = jest
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new Error('status update failed'))
+    const mockDatabase = {
+      getActorFromId: jest.fn().mockResolvedValue(actor),
+      getFitnessRouteHeatmapByKey: jest.fn().mockResolvedValue(null),
+      createFitnessRouteHeatmap: jest
+        .fn()
+        .mockResolvedValue({ id: 'heatmap-failed' }),
+      updateFitnessRouteHeatmapStatus,
+      getFitnessSettings: jest
+        .fn()
+        .mockRejectedValue(new Error('privacy settings failed'))
+    } as unknown as Database
+
+    await expect(
+      generateFitnessRouteHeatmapJob(mockDatabase, {
+        id: 'job-route-heatmap-preserve-error',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        }
+      })
+    ).rejects.toThrow('privacy settings failed')
+
+    expect(updateFitnessRouteHeatmapStatus).toHaveBeenLastCalledWith({
+      id: 'heatmap-failed',
+      status: 'failed',
+      error: 'privacy settings failed'
+    })
   })
 })

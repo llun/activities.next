@@ -65,4 +65,76 @@ describe('route heatmap migration', () => {
       await database.destroy()
     }
   })
+
+  it('can resume when legacy cleanup capture already exists', async () => {
+    const database = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+
+    try {
+      await database.schema.createTable('actors', (table) => {
+        table.string('id').primary()
+      })
+      await database.schema.createTable('fitness_heatmaps', (table) => {
+        table.string('id').primary()
+        table.string('actorId').notNullable()
+        table.string('activityType')
+        table.string('periodType').notNullable()
+        table.string('periodKey').notNullable()
+        table.string('region').notNullable().defaultTo('')
+        table.string('imagePath')
+      })
+      await database.schema.createTable(
+        'legacy_fitness_heatmap_media_cleanup',
+        (table) => {
+          table.string('actorId').notNullable()
+          table.string('imagePath').notNullable()
+          table.timestamp('createdAt', { useTz: true }).notNullable()
+          table.timestamp('deletedAt', { useTz: true })
+          table.text('error')
+
+          table.primary(['actorId', 'imagePath'])
+        }
+      )
+      await database('actors').insert({ id: 'actor-1' })
+      await database('fitness_heatmaps').insert({
+        id: 'heatmap-1',
+        actorId: 'actor-1',
+        periodType: 'yearly',
+        periodKey: '2026',
+        region: '',
+        imagePath: 'medias/heatmap-1.png'
+      })
+      await database('legacy_fitness_heatmap_media_cleanup').insert({
+        actorId: 'actor-1',
+        imagePath: 'medias/heatmap-1.png',
+        createdAt: new Date(),
+        deletedAt: null,
+        error: null
+      })
+
+      await migration.up(database)
+
+      await expect(database.schema.hasTable('fitness_heatmaps')).resolves.toBe(
+        false
+      )
+      await expect(
+        database.schema.hasTable('fitness_route_heatmaps')
+      ).resolves.toBe(true)
+      await expect(
+        database('legacy_fitness_heatmap_media_cleanup').select(
+          'actorId',
+          'imagePath'
+        )
+      ).resolves.toEqual([
+        { actorId: 'actor-1', imagePath: 'medias/heatmap-1.png' }
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
 })

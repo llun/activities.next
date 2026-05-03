@@ -1255,9 +1255,12 @@ export const getFitnessRouteHeatmap = async ({
     method: 'GET',
     headers: { Accept: 'application/json' }
   })
-  if (response.status === 404) return null
   if (!response.ok) return null
-  return response.json()
+  const json = await response.json()
+  if (json && typeof json === 'object' && 'heatmap' in json) {
+    return json.heatmap as FitnessRouteHeatmapData | null
+  }
+  return json as FitnessRouteHeatmapData | null
 }
 
 export const triggerFitnessRouteHeatmap = async ({
@@ -1305,7 +1308,7 @@ export const getFitnessRouteHeatmaps = async ({
   )
   if (!response.ok) return []
   const json = await response.json()
-  return json.heatmaps as FitnessRouteHeatmapData[]
+  return json.heatmaps as FitnessRouteHeatmapSummaryData[]
 }
 
 export const getFitnessCalendarData = async ({

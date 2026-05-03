@@ -92,6 +92,9 @@ export const enqueueFitnessRouteHeatmapJobs = async ({
       actorId
     }
   )
+  // This refresh path intentionally covers the changed file's all-time/year/month
+  // buckets plus matching cached region mirrors. A broader stale-cache sweeper
+  // should handle historical region/period combinations outside this activity date.
   const regionVariants = distinctRegions.flatMap((region) =>
     baseVariants.map((variant) => ({ ...variant, region }))
   )

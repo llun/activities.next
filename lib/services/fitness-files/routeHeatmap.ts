@@ -30,7 +30,7 @@ export interface RouteHeatmapPayload {
   pointCount: number
 }
 
-const DEFAULT_MAX_POINTS = 80_000
+export const DEFAULT_ROUTE_HEATMAP_MAX_POINTS = 80_000
 
 export const isPointInAnyBounds = (
   point: FitnessCoordinate,
@@ -80,9 +80,11 @@ export const splitSegmentByBounds = <T extends FitnessCoordinate>(
   return segments
 }
 
+const round6 = (value: number) => Math.round(value * 1_000_000) / 1_000_000
+
 const normalizeCoordinate = (point: FitnessCoordinate) => ({
-  lat: Number(point.lat.toFixed(6)),
-  lng: Number(point.lng.toFixed(6))
+  lat: round6(point.lat),
+  lng: round6(point.lng)
 })
 
 const toRouteSegment = (
@@ -95,7 +97,7 @@ const toRouteSegment = (
 export const buildRouteHeatmapPayload = ({
   privacySegments,
   regionBounds = [],
-  maxPoints = DEFAULT_MAX_POINTS
+  maxPoints = DEFAULT_ROUTE_HEATMAP_MAX_POINTS
 }: BuildRouteHeatmapPayloadParams): RouteHeatmapPayload => {
   const filteredSegments = privacySegments
     .flatMap((segment) => splitSegmentByBounds(segment, regionBounds))

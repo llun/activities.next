@@ -95,5 +95,11 @@ describe('RouteHeatmapMap', () => {
 
     expect(screen.getByText('Mapbox')).toBeInTheDocument()
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
+    expect(mapConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'mapbox-token',
+        attributionControl: true
+      })
+    )
   })
 })

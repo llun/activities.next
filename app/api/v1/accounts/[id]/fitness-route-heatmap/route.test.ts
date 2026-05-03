@@ -92,31 +92,49 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
-      id: 'route-heatmap-1',
-      activityType: 'running',
-      periodType: 'yearly',
-      periodKey: '2026',
-      region: '',
-      status: 'completed',
-      bounds: {
-        minLat: 52,
-        maxLat: 53,
-        minLng: 4,
-        maxLng: 5
-      },
-      segments: [
-        {
-          points: [
-            { lat: 52.1, lng: 4.2 },
-            { lat: 52.2, lng: 4.3 }
-          ]
-        }
-      ],
-      activityCount: 1,
-      pointCount: 2,
-      error: null,
-      createdAt: createdTime,
-      updatedAt: updatedTime
+      heatmap: {
+        id: 'route-heatmap-1',
+        activityType: 'running',
+        periodType: 'yearly',
+        periodKey: '2026',
+        region: '',
+        status: 'completed',
+        bounds: {
+          minLat: 52,
+          maxLat: 53,
+          minLng: 4,
+          maxLng: 5
+        },
+        segments: [
+          {
+            points: [
+              { lat: 52.1, lng: 4.2 },
+              { lat: 52.2, lng: 4.3 }
+            ]
+          }
+        ],
+        activityCount: 1,
+        pointCount: 2,
+        error: null,
+        createdAt: createdTime,
+        updatedAt: updatedTime
+      }
+    })
+  })
+
+  it('returns a normal empty payload when the cache is missing', async () => {
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
+
+    const request = new NextRequest(
+      `${baseUrl}?period_type=yearly&period_key=2026`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      heatmap: null
     })
   })
 
@@ -153,19 +171,6 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     })
 
     expect(response.status).toBe(403)
-  })
-
-  it('returns 404 when the cache is missing', async () => {
-    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2026`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-
-    expect(response.status).toBe(404)
   })
 
   it('queues route heatmap generation', async () => {

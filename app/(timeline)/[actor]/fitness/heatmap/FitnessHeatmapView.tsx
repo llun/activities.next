@@ -63,6 +63,7 @@ const MAP_WIDTH = 960
 const MAP_HEIGHT = 560
 const MAP_PADDING = 52
 const currentYear = new Date().getUTCFullYear()
+const STALLED_POLLING_LIMIT = 30
 
 const METRIC_LABELS: Record<CalendarMetric, string> = {
   count: 'Count',
@@ -211,7 +212,10 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     () => buildRouteGeoJson(hasRoutes && heatmap ? heatmap.segments : []),
     [hasRoutes, heatmap?.id, heatmap?.updatedAt]
   )
-  routeGeoJsonRef.current = routeGeoJson
+
+  useEffect(() => {
+    routeGeoJsonRef.current = routeGeoJson
+  }, [routeGeoJson])
 
   useEffect(() => {
     setMapboxFailed(false)
@@ -237,7 +241,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
           container: containerRef.current,
           style: 'mapbox://styles/mapbox/outdoors-v12',
           accessToken: mapboxAccessToken,
-          attributionControl: false,
+          attributionControl: true,
           bounds: mapBounds,
           fitBoundsOptions: { padding: 56 }
         })
@@ -379,7 +383,13 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
+  const [pollingStalled, setPollingStalled] = useState(false)
   const generationKeyRef = useRef<string | null>(null)
+  const pollingProgressRef = useRef<{
+    key: string
+    fingerprint: string
+    stalledCycles: number
+  } | null>(null)
 
   useEffect(() => {
     const id = setInterval(() => setCurrentTime(Date.now()), 60_000)
@@ -405,6 +415,45 @@ export const FitnessHeatmapView: FC<Props> = ({
   )
 
   const selectedActivityType = selectedType || undefined
+  const selectionKey = useMemo(
+    () =>
+      `${actorId}:${selectedActivityType ?? ''}:${periodType}:${effectivePeriodKey}:${serializedRegion ?? ''}`,
+    [
+      actorId,
+      selectedActivityType,
+      periodType,
+      effectivePeriodKey,
+      serializedRegion
+    ]
+  )
+
+  useEffect(() => {
+    setPollingStalled(false)
+    pollingProgressRef.current = null
+  }, [selectionKey])
+
+  const queueCurrentRouteHeatmap = useCallback(async () => {
+    const success = await triggerFitnessRouteHeatmap({
+      actorId,
+      activityType: selectedActivityType,
+      periodType,
+      periodKey: effectivePeriodKey,
+      region: serializedRegion
+    })
+    if (!success) {
+      throw new Error('Failed to enqueue route heatmap refresh.')
+    }
+
+    setGenerationPending(true)
+    setPollingStalled(false)
+    pollingProgressRef.current = null
+  }, [
+    actorId,
+    selectedActivityType,
+    periodType,
+    effectivePeriodKey,
+    serializedRegion
+  ])
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
@@ -437,21 +486,22 @@ export const FitnessHeatmapView: FC<Props> = ({
       setHeatmaps(allHeatmaps)
 
       if (heatmap === null) {
-        const generationKey = `${actorId}:${selectedActivityType ?? ''}:${periodType}:${effectivePeriodKey}:${serializedRegion ?? ''}`
-        if (generationKeyRef.current !== generationKey) {
-          generationKeyRef.current = generationKey
-          setGenerationPending(true)
-          triggerFitnessRouteHeatmap({
-            actorId,
-            activityType: selectedActivityType,
-            periodType,
-            periodKey: effectivePeriodKey,
-            region: serializedRegion
-          }).catch(() => {})
+        if (generationKeyRef.current !== selectionKey) {
+          generationKeyRef.current = selectionKey
+          try {
+            await queueCurrentRouteHeatmap()
+          } catch (err) {
+            generationKeyRef.current = null
+            throw err
+          }
         }
       }
-    } catch {
-      setError('Failed to load route heatmap data.')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to load route heatmap data.'
+      )
     } finally {
       setIsLoading(false)
     }
@@ -460,7 +510,9 @@ export const FitnessHeatmapView: FC<Props> = ({
     selectedActivityType,
     periodType,
     effectivePeriodKey,
-    serializedRegion
+    serializedRegion,
+    selectionKey,
+    queueCurrentRouteHeatmap
   ])
 
   useEffect(() => {
@@ -479,18 +531,23 @@ export const FitnessHeatmapView: FC<Props> = ({
       heatmapData?.status === 'generating' ||
       heatmapData?.status === 'pending' ||
       hasAnyListInFlight
-    if (!hasInFlight) return
+    if (!hasInFlight || pollingStalled) return
 
     const id = setInterval(() => {
-      getFitnessRouteHeatmap({
-        actorId,
-        activityType: selectedActivityType,
-        periodType,
-        periodKey: effectivePeriodKey,
-        region: serializedRegion
-      })
-        .then((heatmap) => {
+      Promise.all([
+        getFitnessRouteHeatmap({
+          actorId,
+          activityType: selectedActivityType,
+          periodType,
+          periodKey: effectivePeriodKey,
+          region: serializedRegion
+        }),
+        getFitnessRouteHeatmaps({ actorId })
+      ])
+        .then(([heatmap, allHeatmaps]) => {
           setHeatmapData(heatmap)
+          setHeatmaps(allHeatmaps)
+
           if (
             heatmap &&
             heatmap.status !== 'generating' &&
@@ -498,11 +555,41 @@ export const FitnessHeatmapView: FC<Props> = ({
           ) {
             setGenerationPending(false)
           }
-        })
-        .catch(() => {})
 
-      getFitnessRouteHeatmaps({ actorId })
-        .then(setHeatmaps)
+          const fingerprint = [
+            heatmap
+              ? `${heatmap.id}:${heatmap.status}:${heatmap.updatedAt}`
+              : 'missing',
+            ...allHeatmaps.map(
+              (item) => `${item.id}:${item.status}:${item.updatedAt}`
+            )
+          ].join('|')
+          const previous = pollingProgressRef.current
+
+          if (
+            !previous ||
+            previous.key !== selectionKey ||
+            previous.fingerprint !== fingerprint
+          ) {
+            pollingProgressRef.current = {
+              key: selectionKey,
+              fingerprint,
+              stalledCycles: 0
+            }
+            return
+          }
+
+          const stalledCycles = previous.stalledCycles + 1
+          pollingProgressRef.current = {
+            ...previous,
+            stalledCycles
+          }
+
+          if (stalledCycles >= STALLED_POLLING_LIMIT) {
+            setGenerationPending(false)
+            setPollingStalled(true)
+          }
+        })
         .catch(() => {})
     }, 5000)
 
@@ -511,11 +598,13 @@ export const FitnessHeatmapView: FC<Props> = ({
     generationPending,
     heatmapData?.status,
     hasAnyListInFlight,
+    pollingStalled,
     actorId,
     selectedActivityType,
     periodType,
     effectivePeriodKey,
-    serializedRegion
+    serializedRegion,
+    selectionKey
   ])
 
   const yearOptions = useMemo(() => generateYearOptions(), [])
@@ -585,6 +674,8 @@ export const FitnessHeatmapView: FC<Props> = ({
         throw new Error('Failed to enqueue route heatmap refresh.')
       }
       setGenerationPending(true)
+      setPollingStalled(false)
+      pollingProgressRef.current = null
       getFitnessRouteHeatmaps({ actorId })
         .then(setHeatmaps)
         .catch(() => {})
@@ -593,11 +684,14 @@ export const FitnessHeatmapView: FC<Props> = ({
   )
 
   const retryCurrent = async () => {
-    if (!heatmapData) return
     setIsRetrying(true)
     setError(null)
     try {
-      await handleRetry(heatmapData)
+      if (heatmapData) {
+        await handleRetry(heatmapData)
+      } else {
+        await queueCurrentRouteHeatmap()
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -728,6 +822,24 @@ export const FitnessHeatmapView: FC<Props> = ({
             {!isLoading && generationPending && !hasCompletedRoutes && (
               <div className="absolute inset-x-3 bottom-3 rounded border bg-background/95 px-3 py-2 text-sm text-muted-foreground shadow-sm">
                 Route cache queued
+              </div>
+            )}
+            {pollingStalled && !hasCompletedRoutes && (
+              <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded border bg-background/95 px-3 py-2 text-sm shadow-sm">
+                <span className="inline-flex items-center gap-2 text-muted-foreground">
+                  <AlertCircle className="size-4" />
+                  Route cache is taking longer than expected
+                </span>
+                <button
+                  onClick={retryCurrent}
+                  disabled={isRetrying}
+                  className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={cn('size-3', isRetrying && 'animate-spin')}
+                  />
+                  Retry
+                </button>
               </div>
             )}
             {heatmapData?.status === 'failed' && (

@@ -15,7 +15,6 @@ import {
   ERROR_400,
   ERROR_401,
   ERROR_403,
-  ERROR_404,
   ERROR_500,
   apiResponse,
   defaultOptions
@@ -153,15 +152,14 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: { heatmap: null }
       })
     }
 
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: serializeRouteHeatmap(heatmap)
+      data: { heatmap: serializeRouteHeatmap(heatmap) }
     })
   },
   {

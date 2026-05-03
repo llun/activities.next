@@ -15,10 +15,12 @@ import {
 import {
   annotatePointsWithPrivacy,
   buildPrivacySegments,
+  downsamplePrivacySegments,
   getFitnessPrivacyLocations
 } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 import {
+  DEFAULT_ROUTE_HEATMAP_MAX_POINTS,
   buildRouteHeatmapPayload,
   splitSegmentByBounds
 } from '@/lib/services/fitness-files/routeHeatmap'
@@ -99,6 +101,13 @@ const applyRegionFilter = (
     .filter((segment) => segment.points.length >= 2)
 }
 
+const countSegmentPoints = (
+  segments: Array<PrivacySegment<RouteHeatmapPoint>>
+) =>
+  segments.reduce((sum, segment) => {
+    return sum + segment.points.length
+  }, 0)
+
 export const generateFitnessRouteHeatmapJob = createJobHandle(
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
   async (database, message) => {
@@ -161,12 +170,10 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       })
       const privacyLocations = getFitnessPrivacyLocations(privacySettings)
 
-      const PAGE_SIZE = 10_000
-      const MAX_PAGES = 100
-      const matchingFiles: Awaited<
-        ReturnType<typeof database.getFitnessFilesByActor>
-      > = []
+      const PAGE_SIZE = 1_000
+      const MAX_PAGES = 1_000
       let offset = 0
+      let reachedPageLimit = false
 
       const queryFilters = {
         actorId,
@@ -178,57 +185,91 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           : {})
       }
 
+      let allSegments: Array<PrivacySegment<RouteHeatmapPoint>> = []
+      let allSegmentPointCount = 0
+      let activityCount = 0
+
       for (let pageNum = 0; pageNum < MAX_PAGES; pageNum++) {
         const page = await database.getFitnessFilesByActor({
           ...queryFilters,
           limit: PAGE_SIZE,
           offset
         })
-        matchingFiles.push(...page)
-        if (page.length < PAGE_SIZE) break
+
+        for (const file of page) {
+          try {
+            if (!isParseableFitnessFileType(file.fileType)) continue
+
+            const buffer = await getFitnessFileBuffer(database, file.id)
+            const activityData = await parseFitnessFile({
+              fileType: file.fileType,
+              buffer
+            })
+
+            if (activityData.coordinates.length < 2) {
+              continue
+            }
+
+            const privacyAwarePoints = annotatePointsWithPrivacy(
+              activityData.coordinates,
+              privacyLocations
+            )
+            const privacySegments = buildPrivacySegments(privacyAwarePoints)
+            const filteredSegments = applyRegionFilter(
+              privacySegments,
+              regionBounds
+            )
+
+            if (filteredSegments.length > 0) {
+              activityCount += 1
+              allSegments.push(...filteredSegments)
+              allSegmentPointCount += countSegmentPoints(filteredSegments)
+            }
+
+            if (allSegmentPointCount > DEFAULT_ROUTE_HEATMAP_MAX_POINTS) {
+              allSegments = downsamplePrivacySegments(
+                allSegments,
+                DEFAULT_ROUTE_HEATMAP_MAX_POINTS,
+                {
+                  minimumPointsPerSegment: 2
+                }
+              ).filter((segment) => segment.points.length >= 2)
+              allSegmentPointCount = countSegmentPoints(allSegments)
+            }
+          } catch (error) {
+            const nodeError = error as Error
+            logger.warn({
+              message:
+                'Failed to parse fitness file for route heatmap; skipping',
+              actorId,
+              fitnessFileId: file.id,
+              error: nodeError.message
+            })
+          }
+        }
+
+        if (page.length < PAGE_SIZE) {
+          break
+        }
+
+        if (pageNum === MAX_PAGES - 1) {
+          reachedPageLimit = true
+          break
+        }
+
         offset += PAGE_SIZE
       }
 
-      const allSegments: Array<PrivacySegment<RouteHeatmapPoint>> = []
-      let activityCount = 0
-
-      for (const file of matchingFiles) {
-        try {
-          if (!isParseableFitnessFileType(file.fileType)) continue
-
-          const buffer = await getFitnessFileBuffer(database, file.id)
-          const activityData = await parseFitnessFile({
-            fileType: file.fileType,
-            buffer
-          })
-
-          if (activityData.coordinates.length < 2) {
-            continue
-          }
-
-          const privacyAwarePoints = annotatePointsWithPrivacy(
-            activityData.coordinates,
-            privacyLocations
-          )
-          const privacySegments = buildPrivacySegments(privacyAwarePoints)
-          const filteredSegments = applyRegionFilter(
-            privacySegments,
-            regionBounds
-          )
-
-          if (filteredSegments.length > 0) {
-            activityCount += 1
-            allSegments.push(...filteredSegments)
-          }
-        } catch (error) {
-          const nodeError = error as Error
-          logger.warn({
-            message: 'Failed to parse fitness file for route heatmap; skipping',
-            actorId,
-            fitnessFileId: file.id,
-            error: nodeError.message
-          })
-        }
+      if (reachedPageLimit) {
+        logger.warn({
+          message:
+            'Route heatmap generation reached the fitness file page limit',
+          actorId,
+          periodType,
+          periodKey,
+          pageSize: PAGE_SIZE,
+          maxPages: MAX_PAGES
+        })
       }
 
       const payload = buildRouteHeatmapPayload({
@@ -264,12 +305,24 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       })
 
       if (heatmapId) {
-        await database.updateFitnessRouteHeatmapStatus({
-          id: heatmapId,
-          status: 'failed',
-          error: nodeError.message
-        })
+        try {
+          await database.updateFitnessRouteHeatmapStatus({
+            id: heatmapId,
+            status: 'failed',
+            error: nodeError.message
+          })
+        } catch (statusError) {
+          logger.error({
+            message: 'Failed to mark route heatmap cache as failed',
+            actorId,
+            periodType,
+            periodKey,
+            error: (statusError as Error).message
+          })
+        }
       }
+
+      throw nodeError
     }
   }
 )
