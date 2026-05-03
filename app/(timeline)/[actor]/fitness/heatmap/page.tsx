@@ -5,9 +5,11 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { FitnessHeatmapView } from './FitnessHeatmapView'
 
@@ -60,6 +62,10 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
+  const mapboxAccessToken = getPublicMapboxAccessToken(
+    getConfig().fitnessStorage?.mapboxAccessToken
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3">
@@ -73,8 +79,11 @@ const Page: FC<Props> = async ({ params }) => {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <FitnessHeatmapView actorId={currentActor.id} />
+      <div className="overflow-hidden border bg-background">
+        <FitnessHeatmapView
+          actorId={currentActor.id}
+          mapboxAccessToken={mapboxAccessToken}
+        />
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,8 +26,9 @@ const Page = async () => {
     return redirect('/auth/signin')
   }
 
-  const mapboxAccessToken =
-    getConfig().fitnessStorage?.mapboxAccessToken?.trim()
+  const mapboxAccessToken = getPublicMapboxAccessToken(
+    getConfig().fitnessStorage?.mapboxAccessToken
+  )
 
   return (
     <div className="space-y-6">

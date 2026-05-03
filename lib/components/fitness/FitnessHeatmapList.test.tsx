@@ -4,19 +4,22 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
-import { FitnessHeatmapData } from '@/lib/client'
+import { FitnessRouteHeatmapSummaryData } from '@/lib/client'
 
 import { FitnessHeatmapList } from './FitnessHeatmapList'
 
 const makeMockHeatmap = (
-  overrides: Partial<FitnessHeatmapData> = {}
-): FitnessHeatmapData => ({
+  overrides: Partial<FitnessRouteHeatmapSummaryData> = {}
+): FitnessRouteHeatmapSummaryData => ({
   id: 'heatmap-1',
   periodType: 'yearly',
   periodKey: '2025',
   region: '',
   status: 'completed',
   activityCount: 10,
+  pointCount: 0,
+  cursorOffset: 0,
+  isPartial: false,
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_000,
   ...overrides
@@ -53,7 +56,9 @@ describe('FitnessHeatmapList', () => {
       />
     )
 
-    expect(screen.getByText('In Progress & Failed')).toBeInTheDocument()
+    expect(
+      screen.getByText('In Progress & Needs Attention')
+    ).toBeInTheDocument()
     expect(screen.getByText('Generating…')).toBeInTheDocument()
     expect(screen.getByText('Failed')).toBeInTheDocument()
   })
@@ -161,5 +166,36 @@ describe('FitnessHeatmapList', () => {
     )
 
     expect(screen.getByText('Generating…')).toBeInTheDocument()
+  })
+
+  it('labels capped completed heatmaps as partial with a resume action', async () => {
+    const onSelect = jest.fn()
+    const onRetry = jest.fn().mockResolvedValue(undefined)
+    const heatmap = makeMockHeatmap({
+      id: 'heatmap-partial',
+      status: 'completed',
+      isPartial: true
+    })
+
+    render(
+      <FitnessHeatmapList
+        heatmaps={[heatmap]}
+        onSelect={onSelect}
+        onRetry={onRetry}
+        currentTime={CURRENT_TIME}
+      />
+    )
+
+    expect(
+      screen.getByText('In Progress & Needs Attention')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Partial')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Resume/i }))
+    })
+
+    expect(onRetry).toHaveBeenCalledWith(heatmap)
+    expect(onSelect).not.toHaveBeenCalled()
   })
 })

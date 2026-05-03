@@ -16,4 +16,6 @@ export const IMPORT_STRAVA_ARCHIVE_JOB_NAME = 'ImportStravaArchiveJob'
 export const SEND_UPDATE_NOTE_JOB_NAME = 'SendUpdateNoteJob'
 export const SEND_UNDO_ANNOUNCE_JOB_NAME = 'SendUndoAnnounceJob'
 export const GENERATE_FITNESS_HEATMAP_JOB_NAME = 'GenerateFitnessHeatmapJob'
+export const GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME =
+  'GenerateFitnessRouteHeatmapJob'
 export const FETCH_REMOTE_STATUS_JOB_NAME = 'FetchRemoteStatusJob'

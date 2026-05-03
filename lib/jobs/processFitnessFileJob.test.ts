@@ -1,6 +1,6 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
-  GENERATE_FITNESS_HEATMAP_JOB_NAME,
+  GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
@@ -222,7 +222,7 @@ describe('processFitnessFileJob', () => {
     const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const heatmapCalls = publishCalls.filter(
       ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(6)
 
@@ -436,7 +436,7 @@ describe('processFitnessFileJob', () => {
 
     const heatmapCalls = publishCalls.filter(
       ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(6)
   })
@@ -463,7 +463,7 @@ describe('processFitnessFileJob', () => {
     const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const heatmapCalls = publishCalls.filter(
       ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(3)
 
@@ -512,7 +512,7 @@ describe('processFitnessFileJob', () => {
     const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const heatmapCalls = publishCalls.filter(
       ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(0)
   })

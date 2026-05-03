@@ -1,26 +1,16 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 
-import { getDatabase } from '@/lib/database'
-import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
-import { GENERATE_FITNESS_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { AppRouterParams } from '@/lib/services/guards/types'
-import { getQueue } from '@/lib/services/queue'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
+// Deprecated legacy v1 shim. Prefer /fitness-route-heatmap; keep this adapter
+// until the next major API cleanup so older clients retain the flat payload.
 import {
-  ERROR_400,
-  ERROR_401,
-  ERROR_403,
-  ERROR_404,
-  ERROR_500,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
-import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
+  OPTIONS,
+  POST,
+  GET as getRouteHeatmap
+} from '@/app/api/v1/accounts/[id]/fitness-route-heatmap/route'
+import { AppRouterParams } from '@/lib/services/guards/types'
+import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { ERROR_404, ERROR_500, apiResponse } from '@/lib/utils/response'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -28,279 +18,59 @@ const CORS_HEADERS = [
   HttpMethod.enum.POST
 ]
 
-export const OPTIONS = defaultOptions(CORS_HEADERS)
-
 interface Params {
   id: string
 }
 
-const FitnessHeatmapQueryParams = z.object({
-  activity_type: z.string().optional(),
-  period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: z.string(),
-  /** Comma-separated region IDs, e.g. "netherlands,singapore". Omit for world-wide. */
-  region: z.string().optional()
+const toLegacyHeatmap = (heatmap: FitnessRouteHeatmap) => ({
+  id: heatmap.id,
+  activityType: heatmap.activityType,
+  periodType: heatmap.periodType,
+  periodKey: heatmap.periodKey,
+  region: heatmap.region,
+  status: heatmap.status,
+  imagePath: null,
+  activityCount: heatmap.activityCount,
+  error: heatmap.error ?? null,
+  createdAt: heatmap.createdAt,
+  updatedAt: heatmap.updatedAt
 })
 
-export const GET = traceApiRoute(
-  'getAccountFitnessHeatmap',
-  async (req: NextRequest, params: AppRouterParams<Params>) => {
-    const database = getDatabase()
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
+export const GET = async (
+  req: NextRequest,
+  params: AppRouterParams<Params>
+) => {
+  const response = await getRouteHeatmap(req, params)
+  if (response.status !== 200) {
+    return response
+  }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
-
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
-
-    const { id: encodedAccountId } = await params.params
-    if (!encodedAccountId) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-    const id = idToUrl(encodedAccountId)
-
-    if (currentActor.id !== id) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_403,
-        responseStatusCode: 403
-      })
-    }
-
-    const url = new URL(req.url)
-    const queryParams = Object.fromEntries(url.searchParams.entries())
-    const parsed = FitnessHeatmapQueryParams.safeParse(queryParams)
-    if (!parsed.success) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-
-    const {
-      activity_type: activityType,
-      period_type: periodType,
-      period_key: periodKey,
-      region: rawRegion
-    } = parsed.data
-
-    // Normalize: parse IDs through deserializeRegions to drop unknown/empty
-    // entries, then re-serialize so the DB key is always canonical
-    // (sorted, deduped, lowercase). Unknown IDs silently map to world-wide ('').
-    const region = rawRegion
-      ? serializeRegions(deserializeRegions(rawRegion))
-      : ''
-
-    const heatmap = await database.getFitnessHeatmapByKey({
-      actorId: id,
-      activityType: activityType ?? null,
-      periodType,
-      periodKey,
-      region
-    })
-
-    if (!heatmap) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-    }
-
+  let payload: { heatmap?: FitnessRouteHeatmap | null }
+  try {
+    payload = await response.json()
+  } catch {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: {
-        id: heatmap.id,
-        activityType: heatmap.activityType,
-        periodType: heatmap.periodType,
-        periodKey: heatmap.periodKey,
-        region: heatmap.region,
-        status: heatmap.status,
-        imagePath: heatmap.imagePath,
-        activityCount: heatmap.activityCount,
-        error: heatmap.error ?? null,
-        createdAt: heatmap.createdAt,
-        updatedAt: heatmap.updatedAt
-      }
+      data: ERROR_500,
+      responseStatusCode: 500
     })
-  },
-  {
-    addAttributes: async (_req, context) => {
-      const params = await context.params
-      return { accountId: params?.id || 'unknown' }
-    }
   }
-)
 
-const FitnessHeatmapTriggerBody = z.object({
-  activity_type: z.string().optional(),
-  period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: z.string(),
-  region: z.string().optional()
-})
-
-export const POST = traceApiRoute(
-  'triggerFitnessHeatmap',
-  async (req: NextRequest, params: AppRouterParams<Params>) => {
-    const database = getDatabase()
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
-
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
-
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
-
-    const { id: encodedAccountId } = await params.params
-    if (!encodedAccountId) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-    const id = idToUrl(encodedAccountId)
-
-    if (currentActor.id !== id) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_403,
-        responseStatusCode: 403
-      })
-    }
-
-    let body: unknown
-    try {
-      body = await req.json()
-    } catch {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-
-    const parsed = FitnessHeatmapTriggerBody.safeParse(body)
-    if (!parsed.success) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-
-    const {
-      activity_type: activityType,
-      period_type: periodType,
-      period_key: periodKey,
-      region: rawRegion
-    } = parsed.data
-
-    const region = rawRegion
-      ? serializeRegions(deserializeRegions(rawRegion))
-      : ''
-
-    const jobId = getHashFromString(
-      id +
-        ':heatmap:' +
-        (activityType ?? 'all') +
-        ':' +
-        periodType +
-        ':' +
-        periodKey +
-        ':' +
-        region
-    )
-
-    try {
-      await getQueue().publish({
-        id: jobId,
-        name: GENERATE_FITNESS_HEATMAP_JOB_NAME,
-        data: {
-          actorId: id,
-          activityType: activityType ?? null,
-          periodType,
-          periodKey,
-          region
-        }
-      })
-    } catch {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
-
+  if (!payload.heatmap) {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { queued: true },
-      responseStatusCode: 202
+      data: ERROR_404,
+      responseStatusCode: 404
     })
-  },
-  {
-    addAttributes: async (_req, context) => {
-      const params = await context.params
-      return { accountId: params?.id || 'unknown' }
-    }
   }
-)
+
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: toLegacyHeatmap(payload.heatmap)
+  })
+}
+
+export { OPTIONS, POST }

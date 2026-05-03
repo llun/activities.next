@@ -11,14 +11,14 @@ import {
 } from 'lucide-react'
 import { FC, useState } from 'react'
 
-import { FitnessHeatmapData } from '@/lib/client'
+import { FitnessRouteHeatmapSummaryData } from '@/lib/client'
 import { REGION_MAP } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 
 interface FitnessHeatmapListProps {
-  heatmaps: FitnessHeatmapData[]
-  onSelect: (heatmap: FitnessHeatmapData) => void
-  onRetry: (heatmap: FitnessHeatmapData) => Promise<void>
+  heatmaps: FitnessRouteHeatmapSummaryData[]
+  onSelect: (heatmap: FitnessRouteHeatmapSummaryData) => void
+  onRetry: (heatmap: FitnessRouteHeatmapSummaryData) => Promise<void>
   currentTime: number
 }
 
@@ -40,11 +40,16 @@ const formatRelativeTime = (diffMs: number): string => {
 }
 
 interface RetryButtonProps {
-  heatmap: FitnessHeatmapData
-  onRetry: (heatmap: FitnessHeatmapData) => Promise<void>
+  heatmap: FitnessRouteHeatmapSummaryData
+  onRetry: (heatmap: FitnessRouteHeatmapSummaryData) => Promise<void>
+  label?: string
 }
 
-const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
+const RetryButton: FC<RetryButtonProps> = ({
+  heatmap,
+  onRetry,
+  label = 'Retry'
+}) => {
   const [isRetrying, setIsRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -72,7 +77,7 @@ const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
         }}
       >
         <RefreshCw className={cn('size-3', isRetrying && 'animate-spin')} />
-        Retry
+        {label}
       </button>
       {error && <span className="text-destructive text-xs">{error}</span>}
     </span>
@@ -80,9 +85,9 @@ const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
 }
 
 interface HeatmapRowProps {
-  heatmap: FitnessHeatmapData
-  onSelect: (heatmap: FitnessHeatmapData) => void
-  onRetry: (heatmap: FitnessHeatmapData) => Promise<void>
+  heatmap: FitnessRouteHeatmapSummaryData
+  onSelect: (heatmap: FitnessRouteHeatmapSummaryData) => void
+  onRetry: (heatmap: FitnessRouteHeatmapSummaryData) => Promise<void>
   currentTime: number
 }
 
@@ -107,6 +112,9 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
       case 'generating':
         return <Loader2 className="size-3 animate-spin" />
       case 'completed':
+        if (heatmap.isPartial) {
+          return <AlertCircle className="size-3 text-amber-600" />
+        }
         return <CheckCircle2 className="size-3" />
       case 'failed':
         return <AlertCircle className="size-3 text-destructive" />
@@ -124,6 +132,9 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
           <span className="text-blue-600 dark:text-blue-400">Generating…</span>
         )
       case 'completed':
+        if (heatmap.isPartial) {
+          return <span className="text-amber-600">Partial</span>
+        }
         return <span className="text-muted-foreground">Completed</span>
       case 'failed':
         return <span className="text-destructive">Failed</span>
@@ -160,8 +171,13 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
           </span>
         )}
       </button>
-      {heatmap.status === 'failed' && (
-        <RetryButton heatmap={heatmap} onRetry={onRetry} />
+      {(heatmap.status === 'failed' ||
+        (heatmap.status === 'completed' && heatmap.isPartial)) && (
+        <RetryButton
+          heatmap={heatmap}
+          onRetry={onRetry}
+          label={heatmap.isPartial ? 'Resume' : 'Retry'}
+        />
       )}
     </div>
   )
@@ -176,11 +192,15 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
   const [isCompletedOpen, setIsCompletedOpen] = useState(false)
 
   const active = heatmaps
-    .filter((h) => ['pending', 'generating', 'failed'].includes(h.status))
+    .filter(
+      (h) =>
+        ['pending', 'generating', 'failed'].includes(h.status) ||
+        (h.status === 'completed' && h.isPartial)
+    )
     .sort((a, b) => b.updatedAt - a.updatedAt)
 
   const completed = heatmaps
-    .filter((h) => h.status === 'completed')
+    .filter((h) => h.status === 'completed' && !h.isPartial)
     .sort((a, b) => b.updatedAt - a.updatedAt)
 
   if (active.length === 0 && completed.length === 0) {
@@ -192,7 +212,7 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
       {active.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
-            In Progress &amp; Failed
+            In Progress &amp; Needs Attention
           </p>
           {active.map((heatmap) => (
             <HeatmapRow
