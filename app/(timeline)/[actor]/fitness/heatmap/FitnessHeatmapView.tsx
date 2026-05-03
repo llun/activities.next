@@ -467,7 +467,10 @@ export const FitnessHeatmapView: FC<Props> = ({
   )
 
   useEffect(() => {
+    setHeatmapData(null)
+    setGenerationPending(false)
     setPollingStalled(false)
+    pollingProgressRef.current = null
   }, [selectionKey])
 
   const queueCurrentRouteHeatmap = useCallback(async () => {

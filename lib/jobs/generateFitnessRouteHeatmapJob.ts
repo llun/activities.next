@@ -361,7 +361,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         })
 
         const continuationId = getHashFromString(
-          `${message.id}:route-heatmap-continuation:${routeHeatmapId}:${nextCursorOffset}:${Date.now()}`
+          `${message.id}:route-heatmap-continuation:${routeHeatmapId}:${nextCursorOffset}`
         )
 
         await publishJobWithRetry({

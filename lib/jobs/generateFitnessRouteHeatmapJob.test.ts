@@ -10,6 +10,7 @@ import { DEFAULT_ROUTE_HEATMAP_MAX_POINTS } from '@/lib/services/fitness-files/r
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob'
 import { JOBS } from './index'
@@ -485,6 +486,9 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(heatmap?.pointCount).toBeGreaterThanOrEqual(2)
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: getHashFromString(
+          `job-route-heatmap-checkpoint:route-heatmap-continuation:${heatmap?.id}:1`
+        ),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
         data: expect.objectContaining({
           actorId: actor.id,

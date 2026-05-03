@@ -1259,7 +1259,9 @@ export const getFitnessRouteHeatmap = async ({
     method: 'GET',
     headers: { Accept: 'application/json' }
   })
-  if (!response.ok) return null
+  if (!response.ok) {
+    throw new Error(`Failed to load route heatmap (${response.status}).`)
+  }
   try {
     const json = await response.json()
     if (json && typeof json === 'object' && 'heatmap' in json) {

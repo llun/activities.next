@@ -280,7 +280,7 @@ export const POST = traceApiRoute(
       region
     const jobId = getHashFromString(
       shouldResume
-        ? `${baseJobId}:resume:${existing.id}:${existing.cursorOffset}:${Date.now()}`
+        ? `${baseJobId}:resume:${existing.id}:${existing.cursorOffset}`
         : baseJobId
     )
 

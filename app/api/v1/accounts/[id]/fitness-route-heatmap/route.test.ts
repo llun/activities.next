@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { Database } from '@/lib/database/types'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { GET, POST } from './route'
 
@@ -263,6 +264,9 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     expect(response.status).toBe(202)
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: getHashFromString(
+          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:resume:route-heatmap-failed:500`
+        ),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
         data: {
           actorId: ACTOR1_ID,
