@@ -1,3 +1,4 @@
+import { enqueueFitnessRouteHeatmapJobs } from '@/lib/jobs/enqueueFitnessRouteHeatmapJobs'
 import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/services/fitness-files'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -100,6 +101,13 @@ export const DELETE = traceApiRoute(
           responseStatusCode: 500
         })
       }
+
+      await enqueueFitnessRouteHeatmapJobs({
+        database,
+        actorId: fitnessFile.actorId,
+        activityType: fitnessFile.activityType ?? null,
+        activityStartTime: fitnessFile.activityStartTime ?? null
+      })
 
       logger.info({
         message: 'Fitness file deleted successfully',

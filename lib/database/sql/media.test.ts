@@ -542,6 +542,72 @@ describe('MediaDatabase', () => {
         const deleted = await database.deleteMedia({ mediaId: '999999' })
         expect(deleted).toBe(false)
       })
+
+      it('deletes media by actor and original path', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.empty.id
+        })
+        expect(actor?.account).toBeDefined()
+
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/delete-by-path.jpg',
+            bytes: 1600,
+            mimeType: 'image/jpeg',
+            metaData: { width: 300, height: 200 }
+          }
+        })
+        expect(media).toBeDefined()
+
+        const beforeDeleteUsage = await database.getStorageUsageForAccount({
+          accountId: actor!.account!.id
+        })
+
+        const deleted = await database.deleteMediaByPath({
+          actorId: actors.empty.id,
+          path: '/test/delete-by-path.jpg'
+        })
+        expect(deleted).toBe(true)
+
+        const afterDeleteUsage = await database.getStorageUsageForAccount({
+          accountId: actor!.account!.id
+        })
+        expect(afterDeleteUsage).toBe(beforeDeleteUsage - 1600)
+
+        const result = await database.getMediasWithStatusForAccount({
+          accountId: actor!.account!.id
+        })
+        expect(result.items.find((m) => m.id === media!.id)).toBeUndefined()
+      })
+
+      it('does not delete media by path for a different actor', async () => {
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/delete-by-path-wrong-actor.jpg',
+            bytes: 1600,
+            mimeType: 'image/jpeg',
+            metaData: { width: 300, height: 200 }
+          }
+        })
+        expect(media).toBeDefined()
+
+        const deleted = await database.deleteMediaByPath({
+          actorId: actors.primary.id,
+          path: '/test/delete-by-path-wrong-actor.jpg'
+        })
+        expect(deleted).toBe(false)
+
+        const actor = await database.getActorFromId({
+          id: actors.empty.id
+        })
+        const result = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId: actor!.account!.id
+        })
+        expect(result).toBeDefined()
+      })
     })
 
     describe('createMedia - fileName field', () => {

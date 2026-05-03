@@ -22,13 +22,13 @@ jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-describe('/api/v1/accounts/[id]/fitness-heatmaps legacy adapter', () => {
+describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessRouteHeatmapSummariesForActor: jest.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
-  const baseUrl = `http://llun.test/api/v1/accounts/${encodedId}/fitness-heatmaps`
+  const baseUrl = `http://llun.test/api/v1/accounts/${encodedId}/fitness-route-heatmaps`
 
   beforeAll(() => {
     mockDatabase = mockDb
@@ -46,9 +46,10 @@ describe('/api/v1/accounts/[id]/fitness-heatmaps legacy adapter', () => {
     mockDb.getFitnessRouteHeatmapSummariesForActor.mockResolvedValue([])
   })
 
-  it('adapts route cache summaries to legacy heatmap history payloads', async () => {
+  it('returns owner route heatmap history', async () => {
     const createdTime = Date.now()
     const updatedTime = createdTime + 1000
+
     mockDb.getFitnessRouteHeatmapSummariesForActor.mockResolvedValue([
       {
         id: 'route-heatmap-1',
@@ -64,10 +65,26 @@ describe('/api/v1/accounts/[id]/fitness-heatmaps legacy adapter', () => {
         isPartial: false,
         createdAt: createdTime,
         updatedAt: updatedTime
+      },
+      {
+        id: 'route-heatmap-2',
+        actorId: ACTOR1_ID,
+        periodType: 'monthly',
+        periodKey: '2026-04',
+        region: 'netherlands',
+        status: 'failed',
+        activityCount: 0,
+        pointCount: 0,
+        cursorOffset: 250,
+        isPartial: false,
+        error: 'parse failed',
+        createdAt: createdTime,
+        updatedAt: updatedTime
       }
     ])
 
-    const response = await GET(new NextRequest(baseUrl), {
+    const request = new NextRequest(baseUrl)
+    const response = await GET(request, {
       params: Promise.resolve({ id: encodedId })
     })
 
@@ -81,13 +98,43 @@ describe('/api/v1/accounts/[id]/fitness-heatmaps legacy adapter', () => {
           periodKey: '2026',
           region: '',
           status: 'completed',
-          imagePath: null,
           activityCount: 1,
+          pointCount: 2,
+          cursorOffset: 0,
+          isPartial: false,
           error: null,
+          createdAt: createdTime,
+          updatedAt: updatedTime
+        },
+        {
+          id: 'route-heatmap-2',
+          periodType: 'monthly',
+          periodKey: '2026-04',
+          region: 'netherlands',
+          status: 'failed',
+          activityCount: 0,
+          pointCount: 0,
+          cursorOffset: 250,
+          isPartial: false,
+          error: 'parse failed',
           createdAt: createdTime,
           updatedAt: updatedTime
         }
       ]
     })
+  })
+
+  it('returns 403 for another actor', async () => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: 'https://llun.test/users/other'
+    })
+
+    const request = new NextRequest(baseUrl)
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(403)
   })
 })

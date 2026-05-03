@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
-import { GET } from './route'
+import { GET, POST } from './route'
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -15,16 +15,21 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-type MockDatabase = Pick<Database, 'getFitnessHeatmapByKey'>
+const mockPublish = jest.fn()
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({ publish: mockPublish })
+}))
+
+type MockDatabase = Pick<Database, 'getFitnessRouteHeatmapByKey'>
 
 let mockDatabase: MockDatabase | null = null
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
+describe('/api/v1/accounts/[id]/fitness-heatmap legacy adapter', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessHeatmapByKey: jest.fn()
+    getFitnessRouteHeatmapByKey: jest.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -43,284 +48,79 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       ...seedActor1,
       id: ACTOR1_ID
     })
+    mockPublish.mockResolvedValue(undefined)
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
   })
 
-  it('returns 401 when not logged in', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
+  it('returns a legacy 404 when the route cache is missing', async () => {
     const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025`
+      `${baseUrl}?period_type=yearly&period_key=2026`
     )
     const response = await GET(request, {
       params: Promise.resolve({ id: encodedId })
     })
-    expect(response.status).toBe(401)
-  })
 
-  it('returns 401 when session has no actor', async () => {
-    mockGetActorFromSession.mockResolvedValue(null)
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-    expect(response.status).toBe(401)
-  })
-
-  it('returns 403 when requesting another actors data', async () => {
-    mockGetActorFromSession.mockResolvedValue({
-      ...seedActor1,
-      id: 'https://llun.test/users/other'
-    })
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-    expect(response.status).toBe(403)
-  })
-
-  it('returns 400 when period_type is missing', async () => {
-    const request = new NextRequest(`${baseUrl}?period_key=2025`)
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-    expect(response.status).toBe(400)
-  })
-
-  it('returns 400 when period_key is missing', async () => {
-    const request = new NextRequest(`${baseUrl}?period_type=yearly`)
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-    expect(response.status).toBe(400)
-  })
-
-  it('returns 400 when period_type is invalid', async () => {
-    const request = new NextRequest(
-      `${baseUrl}?period_type=weekly&period_key=2025`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-    expect(response.status).toBe(400)
-  })
-
-  it('returns 404 when heatmap is not found', async () => {
-    mockDb.getFitnessHeatmapByKey.mockResolvedValue(null)
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
     expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ status: 'Not Found' })
   })
 
-  it('returns 200 with heatmap data for valid request', async () => {
+  it('adapts route cache data to the legacy flat heatmap payload', async () => {
     const createdTime = Date.now()
-    const updatedTime = Date.now() + 1000
-    const heatmapData = {
-      id: 'heatmap-1',
+    const updatedTime = createdTime + 1000
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-1',
       actorId: ACTOR1_ID,
       activityType: 'running',
-      periodType: 'yearly' as const,
-      periodKey: '2025',
+      periodType: 'yearly',
+      periodKey: '2026',
       region: '',
-      status: 'completed' as const,
-      imagePath: 'heatmaps/actor1/yearly_2025.png',
-      activityCount: 42,
+      status: 'completed',
+      segments: [],
+      activityCount: 1,
+      pointCount: 2,
+      cursorOffset: 0,
+      isPartial: false,
       createdAt: createdTime,
       updatedAt: updatedTime
-    }
-
-    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
+    })
 
     const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025&activity_type=running`
+      `${baseUrl}?period_type=yearly&period_key=2026&activity_type=running`
     )
     const response = await GET(request, {
       params: Promise.resolve({ id: encodedId })
     })
 
     expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toEqual({
-      id: 'heatmap-1',
+    await expect(response.json()).resolves.toEqual({
+      id: 'route-heatmap-1',
       activityType: 'running',
       periodType: 'yearly',
-      periodKey: '2025',
+      periodKey: '2026',
       region: '',
       status: 'completed',
-      imagePath: 'heatmaps/actor1/yearly_2025.png',
-      activityCount: 42,
+      imagePath: null,
+      activityCount: 1,
       error: null,
       createdAt: createdTime,
       updatedAt: updatedTime
     })
-
-    expect(mockDb.getFitnessHeatmapByKey).toHaveBeenCalledWith({
-      actorId: ACTOR1_ID,
-      activityType: 'running',
-      periodType: 'yearly',
-      periodKey: '2025',
-      region: ''
-    })
   })
 
-  it('returns heatmap without activityType when not specified', async () => {
-    const heatmapData = {
-      id: 'heatmap-2',
-      actorId: ACTOR1_ID,
-      periodType: 'all_time' as const,
-      periodKey: 'all',
-      region: '',
-      status: 'completed' as const,
-      imagePath: 'heatmaps/actor1/all_time_all.png',
-      activityCount: 100,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-
-    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=all_time&period_key=all`
-    )
-    const response = await GET(request, {
+  it('keeps POST available for legacy refresh callers', async () => {
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        activity_type: 'running',
+        period_type: 'yearly',
+        period_key: '2026'
+      })
+    })
+    const response = await POST(request, {
       params: Promise.resolve({ id: encodedId })
     })
 
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data.activityType).toBeUndefined()
-
-    expect(mockDb.getFitnessHeatmapByKey).toHaveBeenCalledWith({
-      actorId: ACTOR1_ID,
-      activityType: null,
-      periodType: 'all_time',
-      periodKey: 'all',
-      region: ''
-    })
-  })
-
-  it('normalizes region param: sorts and deduplicates IDs', async () => {
-    const heatmapData = {
-      id: 'heatmap-3',
-      actorId: ACTOR1_ID,
-      activityType: null,
-      periodType: 'all_time' as const,
-      periodKey: 'all',
-      region: 'netherlands,singapore',
-      status: 'completed' as const,
-      imagePath: 'heatmaps/actor1/all_time_all_nl_sg.png',
-      activityCount: 10,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-
-    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
-
-    // Pass IDs in reverse order with a duplicate — the route must normalize them
-    const request = new NextRequest(
-      `${baseUrl}?period_type=all_time&period_key=all&region=singapore,netherlands,singapore`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-
-    expect(response.status).toBe(200)
-    // DB must be queried with the canonical (sorted, deduped) form
-    expect(mockDb.getFitnessHeatmapByKey).toHaveBeenCalledWith({
-      actorId: ACTOR1_ID,
-      activityType: null,
-      periodType: 'all_time',
-      periodKey: 'all',
-      region: 'netherlands,singapore'
-    })
-  })
-
-  it('falls back to world-wide (empty string) when all region IDs are unknown', async () => {
-    const heatmapData = {
-      id: 'heatmap-4',
-      actorId: ACTOR1_ID,
-      activityType: null,
-      periodType: 'yearly' as const,
-      periodKey: '2025',
-      region: '',
-      status: 'completed' as const,
-      imagePath: null,
-      activityCount: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-
-    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025&region=unknown-region-xyz`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-
-    expect(response.status).toBe(200)
-    // Unknown IDs must be silently dropped; result is world-wide ('')
-    expect(mockDb.getFitnessHeatmapByKey).toHaveBeenCalledWith({
-      actorId: ACTOR1_ID,
-      activityType: null,
-      periodType: 'yearly',
-      periodKey: '2025',
-      region: ''
-    })
-  })
-
-  it('returns 500 when database is not available', async () => {
-    mockDatabase = null
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-    expect(response.status).toBe(500)
-
-    mockDatabase = mockDb
-  })
-
-  it('returns error message from failed heatmap', async () => {
-    const heatmapData = {
-      id: 'heatmap-5',
-      actorId: ACTOR1_ID,
-      activityType: 'running',
-      periodType: 'yearly' as const,
-      periodKey: '2025',
-      region: '',
-      status: 'failed' as const,
-      imagePath: null,
-      activityCount: 0,
-      error: 'OOM while rendering',
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-
-    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
-
-    const request = new NextRequest(
-      `${baseUrl}?period_type=yearly&period_key=2025&activity_type=running`
-    )
-    const response = await GET(request, {
-      params: Promise.resolve({ id: encodedId })
-    })
-
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data.error).toBe('OOM while rendering')
+    expect(response.status).toBe(202)
+    expect(mockPublish).toHaveBeenCalled()
   })
 })

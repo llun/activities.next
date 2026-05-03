@@ -1,10 +1,8 @@
 import { z } from 'zod'
 
 import { Database } from '@/lib/database/types'
-import {
-  GENERATE_FITNESS_HEATMAP_JOB_NAME,
-  SEND_NOTE_JOB_NAME
-} from '@/lib/jobs/names'
+import { enqueueFitnessRouteHeatmapJobs } from '@/lib/jobs/enqueueFitnessRouteHeatmapJobs'
+import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -290,108 +288,12 @@ export const processFitnessFileJob = createJobHandle(
         })
       }
 
-      const activityDate = activityData.startTime ?? new Date()
-      const year = activityDate.getUTCFullYear().toString()
-      const month = `${year}-${String(activityDate.getUTCMonth() + 1).padStart(2, '0')}`
-      const actType = activityData.activityType ?? null
-
-      // Build variants: always include "all activities" (null) variants.
-      // Only add type-specific variants if activity has a type (to avoid duplicates).
-      const heatmapVariants: Array<{
-        activityType: string | null
-        periodType: string
-        periodKey: string
-        region?: string
-      }> = [
-        {
-          activityType: null,
-          periodType: 'all_time' as const,
-          periodKey: 'all'
-        },
-        {
-          activityType: null,
-          periodType: 'yearly' as const,
-          periodKey: year
-        },
-        {
-          activityType: null,
-          periodType: 'monthly' as const,
-          periodKey: month
-        }
-      ]
-
-      if (actType !== null) {
-        heatmapVariants.push(
-          {
-            activityType: actType,
-            periodType: 'all_time' as const,
-            periodKey: 'all'
-          },
-          {
-            activityType: actType,
-            periodType: 'yearly' as const,
-            periodKey: year
-          },
-          {
-            activityType: actType,
-            periodType: 'monthly' as const,
-            periodKey: month
-          }
-        )
-      }
-
-      // Also re-enqueue any existing region-specific heatmap variants so new
-      // activities automatically refresh region-filtered views. We query the
-      // distinct non-empty regions already stored for this actor and create
-      // matching period variants for each.
-      const existingHeatmaps = await database.getFitnessHeatmapsForActor({
-        actorId
+      await enqueueFitnessRouteHeatmapJobs({
+        database,
+        actorId,
+        activityType: activityData.activityType ?? null,
+        activityStartTime: activityData.startTime ?? new Date()
       })
-      const distinctRegions = [
-        ...new Set(
-          existingHeatmaps
-            .map((h) => h.region)
-            .filter((r): r is string => typeof r === 'string' && r !== '')
-        )
-      ]
-
-      const regionVariants = distinctRegions.flatMap((region) =>
-        heatmapVariants.map((v) => ({ ...v, region }))
-      )
-
-      const allVariants = [...heatmapVariants, ...regionVariants]
-
-      const queue = getQueue()
-      const results = await Promise.allSettled(
-        allVariants.map((variant) => {
-          const heatmapId = getHashFromString(
-            actorId +
-              ':heatmap:' +
-              (variant.activityType ?? 'all') +
-              ':' +
-              variant.periodType +
-              ':' +
-              variant.periodKey +
-              ':' +
-              (variant.region ?? '')
-          )
-          return queue.publish({
-            id: heatmapId,
-            name: GENERATE_FITNESS_HEATMAP_JOB_NAME,
-            data: { actorId, ...variant }
-          })
-        })
-      )
-
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          logger.warn({
-            message: 'Failed to publish heatmap generation job',
-            actorId,
-            error: (result.reason as Error).message
-          })
-        }
-      }
     } catch (error) {
       const nodeError = error as Error
       logger.error({
