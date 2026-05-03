@@ -51,6 +51,7 @@ export interface UpdateFitnessRouteHeatmapStatusParams {
   activityCount?: number
   pointCount?: number
   cursorOffset?: number
+  isPartial?: boolean
   clearDeleted?: boolean
 }
 
@@ -116,6 +117,9 @@ const parseJsonValue = <T>(
   }
 }
 
+const parseBooleanValue = (value: boolean | number | string | null) =>
+  value === true || value === 1 || value === '1'
+
 const parseSQLFitnessRouteHeatmap = (
   row: SQLFitnessRouteHeatmap
 ): FitnessRouteHeatmap => ({
@@ -137,6 +141,7 @@ const parseSQLFitnessRouteHeatmap = (
   activityCount: row.activityCount,
   pointCount: row.pointCount,
   cursorOffset: Number(row.cursorOffset ?? 0),
+  isPartial: parseBooleanValue(row.isPartial),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -158,6 +163,7 @@ const parseSQLFitnessRouteHeatmapSummary = (
   activityCount: row.activityCount,
   pointCount: row.pointCount,
   cursorOffset: Number(row.cursorOffset ?? 0),
+  isPartial: parseBooleanValue(row.isPartial),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -215,6 +221,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       activityCount: 0,
       pointCount: 0,
       cursorOffset: 0,
+      isPartial: false,
       createdAt: currentTime,
       updatedAt: currentTime,
       deletedAt: null
@@ -300,6 +307,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
           'activityCount',
           'pointCount',
           'cursorOffset',
+          'isPartial',
           'createdAt',
           'updatedAt',
           'deletedAt'
@@ -320,6 +328,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     activityCount,
     pointCount,
     cursorOffset,
+    isPartial,
     clearDeleted
   }: UpdateFitnessRouteHeatmapStatusParams) {
     const updateData: Record<string, unknown> = {
@@ -344,6 +353,9 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     }
     if (cursorOffset !== undefined) {
       updateData.cursorOffset = cursorOffset
+    }
+    if (isPartial !== undefined) {
+      updateData.isPartial = isPartial
     }
     if (clearDeleted) {
       updateData.deletedAt = null

@@ -26,6 +26,7 @@ import {
 } from '@/lib/services/fitness-files/routeHeatmap'
 import type { RouteHeatmapPoint } from '@/lib/services/fitness-files/routeHeatmap'
 import { getQueue } from '@/lib/services/queue'
+import type { JobMessage } from '@/lib/services/queue/type'
 import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -33,10 +34,37 @@ import { logger } from '@/lib/utils/logger'
 import { createJobHandle } from './createJobHandle'
 
 const ROUTE_HEATMAP_JOB_TIME_BUDGET_MS = 20_000
-const ROUTE_HEATMAP_MEMORY_BUDGET_BYTES = 512 * 1024 * 1024
 const ROUTE_HEATMAP_PAGE_SIZE = 100
 const ROUTE_HEATMAP_MAX_FILES = 1_000_000
-const ACCUMULATION_DOWNSAMPLE_POINT_LIMIT = DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 2
+const QUEUE_PUBLISH_MAX_ATTEMPTS = 3
+
+const parsePositiveIntegerEnv = (
+  value: string | undefined,
+  fallback: number
+) => {
+  if (!value) {
+    return fallback
+  }
+
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+const ROUTE_HEATMAP_MEMORY_BUDGET_BYTES = parsePositiveIntegerEnv(
+  process.env.ACTIVITIES_FITNESS_ROUTE_HEATMAP_MEMORY_BUDGET_BYTES,
+  512 * 1024 * 1024
+)
+const ACCUMULATION_DOWNSAMPLE_POINT_LIMIT = parsePositiveIntegerEnv(
+  process.env.ACTIVITIES_FITNESS_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT,
+  DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 2
+)
+const ROUTE_HEATMAP_FILE_POINT_LIMIT = Math.max(
+  2,
+  parsePositiveIntegerEnv(
+    process.env.ACTIVITIES_FITNESS_ROUTE_HEATMAP_FILE_POINT_LIMIT,
+    DEFAULT_ROUTE_HEATMAP_MAX_POINTS
+  )
+)
 
 const JobData = z.object({
   actorId: z.string(),
@@ -143,12 +171,47 @@ const downsampleSegmentsForCache = (
     minimumPointsPerSegment: 2
   }).filter((segment) => segment.points.length >= 2)
 
+const downsampleRoutePoints = <Point>(points: Point[], maxPoints: number) => {
+  if (points.length <= maxPoints) {
+    return points
+  }
+
+  const lastIndex = points.length - 1
+  const step = lastIndex / (maxPoints - 1)
+
+  return Array.from({ length: maxPoints }, (_value, index) => {
+    return points[Math.round(index * step)] as Point
+  })
+}
+
 const shouldReduceAccumulation = (pointCount: number) =>
-  pointCount > ACCUMULATION_DOWNSAMPLE_POINT_LIMIT ||
+  pointCount >= ACCUMULATION_DOWNSAMPLE_POINT_LIMIT ||
   process.memoryUsage().heapUsed > ROUTE_HEATMAP_MEMORY_BUDGET_BYTES
 
 const shouldCheckpoint = (startedAt: number) =>
   Date.now() - startedAt >= ROUTE_HEATMAP_JOB_TIME_BUDGET_MS
+
+const publishJobWithRetry = async (jobMessage: JobMessage) => {
+  let lastError: Error | undefined
+
+  for (let attempt = 1; attempt <= QUEUE_PUBLISH_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await getQueue().publish(jobMessage)
+      return
+    } catch (error) {
+      lastError = error as Error
+      if (attempt < QUEUE_PUBLISH_MAX_ATTEMPTS) {
+        logger.warn({
+          message: 'Retrying fitness route heatmap continuation publish',
+          attempt,
+          error: lastError.message
+        })
+      }
+    }
+  }
+
+  throw lastError ?? new Error('Failed to publish route heatmap continuation')
+}
 
 export const generateFitnessRouteHeatmapJob = createJobHandle(
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
@@ -191,7 +254,10 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       const isResume = resume === true
       if (
         isResume &&
-        (!existing || existing.status !== 'generating' || existing.deletedAt)
+        (!existing ||
+          !['generating', 'failed'].includes(existing.status) ||
+          existing.deletedAt ||
+          requestedCursorOffset !== existing.cursorOffset)
       ) {
         logger.info({
           message: 'Skipping stale route heatmap continuation',
@@ -199,6 +265,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           periodType,
           periodKey,
           requestedCursorOffset,
+          currentCursorOffset: existing?.cursorOffset,
           status: existing?.status ?? 'missing'
         })
         return
@@ -229,7 +296,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 segments: null,
                 activityCount: 0,
                 pointCount: 0,
-                cursorOffset: 0
+                cursorOffset: 0,
+                isPartial: false
               })
         })
       } else {
@@ -247,7 +315,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           id: created.id,
           status: 'generating',
           error: null,
-          cursorOffset: 0
+          cursorOffset: 0,
+          isPartial: false
         })
       }
 
@@ -287,6 +356,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           activityCount,
           pointCount: payload.pointCount,
           cursorOffset: nextCursorOffset,
+          isPartial: false,
           error: null
         })
 
@@ -294,7 +364,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           `${message.id}:route-heatmap-continuation:${routeHeatmapId}:${nextCursorOffset}:${Date.now()}`
         )
 
-        await getQueue().publish({
+        await publishJobWithRetry({
           id: continuationId,
           name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
           data: {
@@ -342,9 +412,14 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 buffer
               })
 
-              if (activityData.coordinates.length >= 2) {
+              const routeCoordinates = downsampleRoutePoints(
+                activityData.coordinates,
+                ROUTE_HEATMAP_FILE_POINT_LIMIT
+              )
+
+              if (routeCoordinates.length >= 2) {
                 const privacyAwarePoints = annotatePointsWithPrivacy(
-                  activityData.coordinates,
+                  routeCoordinates,
                   privacyLocations
                 )
                 const privacySegments = buildPrivacySegments(privacyAwarePoints)
@@ -430,7 +505,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         segments: payload.segments,
         activityCount,
         pointCount: payload.pointCount,
-        cursorOffset: 0,
+        cursorOffset: reachedPageLimit ? cursorOffset : 0,
+        isPartial: reachedPageLimit,
         error: null
       })
 

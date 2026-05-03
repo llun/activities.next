@@ -944,6 +944,11 @@ export const FitnessHeatmapView: FC<Props> = ({
                 </div>
               </div>
             </div>
+            {heatmapData?.isPartial && (
+              <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                Partial route cache capped at 1M files.
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">

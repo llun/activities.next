@@ -2,6 +2,7 @@ import knex from 'knex'
 
 import * as migration from '../../../migrations/20260502190000_replace_fitness_heatmaps_with_route_cache'
 import * as cursorMigration from '../../../migrations/20260503120000_add_fitness_route_heatmap_cursor'
+import * as partialFlagMigration from '../../../migrations/20260503140000_add_fitness_route_heatmap_partial_flag'
 
 describe('route heatmap migration', () => {
   it('captures legacy image paths and replaces the old heatmap table', async () => {
@@ -56,6 +57,9 @@ describe('route heatmap migration', () => {
       ).resolves.toBe(true)
       await expect(
         database.schema.hasColumn('fitness_route_heatmaps', 'cursorOffset')
+      ).resolves.toBe(true)
+      await expect(
+        database.schema.hasColumn('fitness_route_heatmaps', 'isPartial')
       ).resolves.toBe(true)
       await expect(
         database('legacy_fitness_heatmap_media_cleanup').select(
@@ -160,6 +164,30 @@ describe('route heatmap migration', () => {
 
       await expect(
         database.schema.hasColumn('fitness_route_heatmaps', 'cursorOffset')
+      ).resolves.toBe(true)
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('adds a partial flag column to existing route heatmap tables', async () => {
+    const database = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+
+    try {
+      await database.schema.createTable('fitness_route_heatmaps', (table) => {
+        table.string('id').primary()
+      })
+
+      await partialFlagMigration.up(database)
+
+      await expect(
+        database.schema.hasColumn('fitness_route_heatmaps', 'isPartial')
       ).resolves.toBe(true)
     } finally {
       await database.destroy()

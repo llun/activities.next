@@ -43,6 +43,7 @@ export interface SQLFitnessRouteHeatmap {
   activityCount: number
   pointCount: number
   cursorOffset: number
+  isPartial: boolean | number | string
   createdAt: Date | string | number
   updatedAt: Date | string | number
   deletedAt: Date | string | number | null
@@ -64,6 +65,7 @@ export interface FitnessRouteHeatmap {
   activityCount: number
   pointCount: number
   cursorOffset: number
+  isPartial: boolean
   createdAt: number
   updatedAt: number
   deletedAt?: number

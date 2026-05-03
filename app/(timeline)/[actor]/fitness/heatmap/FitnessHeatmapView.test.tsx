@@ -39,6 +39,8 @@ const completedHeatmap: FitnessRouteHeatmapData = {
   ],
   activityCount: 1,
   pointCount: 2,
+  cursorOffset: 0,
+  isPartial: false,
   createdAt: 1,
   updatedAt: 2
 }

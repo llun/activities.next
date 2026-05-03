@@ -1199,6 +1199,8 @@ export interface FitnessRouteHeatmapData {
   segments: FitnessRouteHeatmapSegment[]
   activityCount: number
   pointCount: number
+  cursorOffset: number
+  isPartial: boolean
   error?: string | null
   createdAt: number
   updatedAt: number
@@ -1213,6 +1215,8 @@ export interface FitnessRouteHeatmapSummaryData {
   status: string
   activityCount: number
   pointCount: number
+  cursorOffset: number
+  isPartial: boolean
   error?: string | null
   createdAt: number
   updatedAt: number
@@ -1256,11 +1260,15 @@ export const getFitnessRouteHeatmap = async ({
     headers: { Accept: 'application/json' }
   })
   if (!response.ok) return null
-  const json = await response.json()
-  if (json && typeof json === 'object' && 'heatmap' in json) {
-    return json.heatmap as FitnessRouteHeatmapData | null
+  try {
+    const json = await response.json()
+    if (json && typeof json === 'object' && 'heatmap' in json) {
+      return json.heatmap as FitnessRouteHeatmapData | null
+    }
+    return json as FitnessRouteHeatmapData | null
+  } catch {
+    return null
   }
-  return json as FitnessRouteHeatmapData | null
 }
 
 export const triggerFitnessRouteHeatmap = async ({

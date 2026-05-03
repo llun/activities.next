@@ -502,6 +502,53 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessFile({ id: secondId })
   })
 
+  it('retries continuation publish before failing a checkpointed job', async () => {
+    const firstId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-09-15T07:00:00.000Z')
+    )
+    const secondId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-09-16T07:00:00.000Z')
+    )
+    mockPublish
+      .mockRejectedValueOnce(new Error('temporary queue failure'))
+      .mockRejectedValueOnce(new Error('temporary queue failure'))
+      .mockResolvedValueOnce(undefined)
+    const nowSpy = jest.spyOn(Date, 'now')
+    nowSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-checkpoint-publish-retry',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-09'
+        }
+      })
+    } finally {
+      nowSpy.mockRestore()
+    }
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-09'
+    })
+
+    expect(mockPublish).toHaveBeenCalledTimes(3)
+    expect(heatmap?.status).toBe('generating')
+    expect(heatmap?.cursorOffset).toBe(1)
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: firstId })
+    await database.deleteFitnessFile({ id: secondId })
+  })
+
   it('resumes from a checkpointed cursor and completes remaining route files', async () => {
     const firstId = await createCompletedFitnessFile(
       'running',
@@ -564,6 +611,101 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
     await database.deleteFitnessFile({ id: firstId })
     await database.deleteFitnessFile({ id: secondId })
+  })
+
+  it('skips stale continuations when the requested cursor no longer matches', async () => {
+    const created = await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-10'
+    })
+    await database.updateFitnessRouteHeatmapStatus({
+      id: created.id,
+      status: 'generating',
+      cursorOffset: 0,
+      activityCount: 0,
+      pointCount: 0
+    })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-stale-continuation',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-10',
+        resume: true,
+        cursorOffset: 1
+      }
+    })
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-10'
+    })
+
+    expect(heatmap?.status).toBe('generating')
+    expect(heatmap?.cursorOffset).toBe(0)
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+  })
+
+  it('resumes failed rows that still have checkpointed progress', async () => {
+    const created = await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-11'
+    })
+    await database.updateFitnessRouteHeatmapStatus({
+      id: created.id,
+      status: 'failed',
+      segments: [
+        {
+          points: [
+            { lat: 52.1, lng: 4.1 },
+            { lat: 52.2, lng: 4.2 }
+          ]
+        }
+      ],
+      activityCount: 1,
+      pointCount: 2,
+      cursorOffset: 1,
+      error: 'temporary queue failure'
+    })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-failed-resume',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-11',
+        resume: true,
+        cursorOffset: 1
+      }
+    })
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-11'
+    })
+
+    expect(heatmap?.status).toBe('completed')
+    expect(heatmap?.activityCount).toBe(1)
+    expect(heatmap?.cursorOffset).toBe(0)
+    expect(heatmap?.error).toBeUndefined()
+    expect(heatmap?.segments).toHaveLength(1)
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
   })
 
   it('preserves the original failure when marking the cache as failed also fails', async () => {

@@ -31,6 +31,8 @@ const serializeRouteHeatmapSummary = (heatmap: FitnessRouteHeatmapSummary) => ({
   status: heatmap.status,
   activityCount: heatmap.activityCount,
   pointCount: heatmap.pointCount,
+  cursorOffset: heatmap.cursorOffset,
+  isPartial: heatmap.isPartial,
   error: heatmap.error ?? null,
   createdAt: heatmap.createdAt,
   updatedAt: heatmap.updatedAt

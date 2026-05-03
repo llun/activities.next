@@ -107,6 +107,9 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
       case 'generating':
         return <Loader2 className="size-3 animate-spin" />
       case 'completed':
+        if (heatmap.isPartial) {
+          return <AlertCircle className="size-3 text-amber-600" />
+        }
         return <CheckCircle2 className="size-3" />
       case 'failed':
         return <AlertCircle className="size-3 text-destructive" />
@@ -124,6 +127,9 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
           <span className="text-blue-600 dark:text-blue-400">Generating…</span>
         )
       case 'completed':
+        if (heatmap.isPartial) {
+          return <span className="text-amber-600">Partial</span>
+        }
         return <span className="text-muted-foreground">Completed</span>
       case 'failed':
         return <span className="text-destructive">Failed</span>

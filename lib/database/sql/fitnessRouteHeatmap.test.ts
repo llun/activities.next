@@ -44,6 +44,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
           activityCount: 0,
           pointCount: 0,
           cursorOffset: 0,
+          isPartial: false,
           segments: []
         })
 
@@ -111,6 +112,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
           activityCount: 2,
           pointCount: 4,
           cursorOffset: 25,
+          isPartial: true,
           error: null
         })
 
@@ -130,6 +132,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(fetched?.activityCount).toBe(2)
         expect(fetched?.pointCount).toBe(4)
         expect(fetched?.cursorOffset).toBe(25)
+        expect(fetched?.isPartial).toBe(true)
       })
 
       it('returns false for non-existent ids', async () => {
@@ -200,7 +203,8 @@ describe('FitnessRouteHeatmapDatabase', () => {
             }
           ],
           activityCount: 1,
-          pointCount: 2
+          pointCount: 2,
+          isPartial: true
         })
 
         const summaries =
@@ -213,7 +217,8 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(summaries[0]).toMatchObject({
           id: created.id,
           activityType: 'running',
-          pointCount: 2
+          pointCount: 2,
+          isPartial: true
         })
         expect('bounds' in summaries[0]).toBe(false)
         expect('segments' in summaries[0]).toBe(false)

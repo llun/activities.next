@@ -1,3 +1,17 @@
+const usesMysqlTextTypes = (knex) => {
+  const client = String(knex.client.config.client)
+  return client.includes('mysql') || client.includes('maria')
+}
+
+const addLargeTextColumn = (knex, table, columnName) => {
+  if (usesMysqlTextTypes(knex)) {
+    table.specificType(columnName, 'mediumtext')
+    return
+  }
+
+  table.text(columnName)
+}
+
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -62,13 +76,14 @@ exports.up = async function (knex) {
         table.string('region').notNullable().defaultTo('')
         table.timestamp('periodStart', { useTz: true })
         table.timestamp('periodEnd', { useTz: true })
-        table.text('bounds')
-        table.text('segments')
+        addLargeTextColumn(trx, table, 'bounds')
+        addLargeTextColumn(trx, table, 'segments')
         table.string('status').notNullable().defaultTo('pending')
         table.text('error')
         table.integer('activityCount').notNullable().defaultTo(0)
         table.integer('pointCount').notNullable().defaultTo(0)
         table.integer('cursorOffset').notNullable().defaultTo(0)
+        table.boolean('isPartial').notNullable().defaultTo(false)
         table.timestamp('createdAt', { useTz: true }).notNullable()
         table.timestamp('updatedAt', { useTz: true }).notNullable()
         table.timestamp('deletedAt', { useTz: true })

@@ -64,6 +64,8 @@ const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
   segments: heatmap.segments,
   activityCount: heatmap.activityCount,
   pointCount: heatmap.pointCount,
+  cursorOffset: heatmap.cursorOffset,
+  isPartial: heatmap.isPartial,
   error: heatmap.error ?? null,
   createdAt: heatmap.createdAt,
   updatedAt: heatmap.updatedAt
@@ -257,16 +259,29 @@ export const POST = traceApiRoute(
       region: rawRegion
     } = parsed.data
     const region = normalizeRegion(rawRegion)
-    const jobId = getHashFromString(
+    const existing = await database.getFitnessRouteHeatmapByKey({
+      actorId: id,
+      activityType: activityType ?? null,
+      periodType,
+      periodKey,
+      region
+    })
+    const shouldResume =
+      existing?.status === 'failed' && existing.cursorOffset > 0
+    const baseJobId =
       id +
-        ':route-heatmap:' +
-        (activityType ?? 'all') +
-        ':' +
-        periodType +
-        ':' +
-        periodKey +
-        ':' +
-        region
+      ':route-heatmap:' +
+      (activityType ?? 'all') +
+      ':' +
+      periodType +
+      ':' +
+      periodKey +
+      ':' +
+      region
+    const jobId = getHashFromString(
+      shouldResume
+        ? `${baseJobId}:resume:${existing.id}:${existing.cursorOffset}:${Date.now()}`
+        : baseJobId
     )
 
     try {
@@ -278,7 +293,10 @@ export const POST = traceApiRoute(
           activityType: activityType ?? null,
           periodType,
           periodKey,
-          region
+          region,
+          ...(shouldResume
+            ? { resume: true, cursorOffset: existing.cursorOffset }
+            : {})
         }
       })
     } catch {

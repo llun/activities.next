@@ -61,6 +61,8 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
         status: 'completed',
         activityCount: 1,
         pointCount: 2,
+        cursorOffset: 0,
+        isPartial: false,
         createdAt: createdTime,
         updatedAt: updatedTime
       },
@@ -73,6 +75,8 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
         status: 'failed',
         activityCount: 0,
         pointCount: 0,
+        cursorOffset: 250,
+        isPartial: false,
         error: 'parse failed',
         createdAt: createdTime,
         updatedAt: updatedTime
@@ -96,6 +100,8 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
           status: 'completed',
           activityCount: 1,
           pointCount: 2,
+          cursorOffset: 0,
+          isPartial: false,
           error: null,
           createdAt: createdTime,
           updatedAt: updatedTime
@@ -108,6 +114,8 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
           status: 'failed',
           activityCount: 0,
           pointCount: 0,
+          cursorOffset: 250,
+          isPartial: false,
           error: 'parse failed',
           createdAt: createdTime,
           updatedAt: updatedTime

@@ -50,6 +50,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       id: ACTOR1_ID
     })
     mockPublish.mockResolvedValue(undefined)
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
   })
 
   it('returns route payload for an owner request', async () => {
@@ -80,6 +81,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityCount: 1,
       pointCount: 2,
       cursorOffset: 0,
+      isPartial: false,
       createdAt: createdTime,
       updatedAt: updatedTime
     })
@@ -116,6 +118,8 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         ],
         activityCount: 1,
         pointCount: 2,
+        cursorOffset: 0,
+        isPartial: false,
         error: null,
         createdAt: createdTime,
         updatedAt: updatedTime
@@ -218,6 +222,56 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           periodType: 'monthly',
           periodKey: '2026-04',
           region: 'netherlands,singapore'
+        }
+      })
+    )
+  })
+
+  it('resumes failed route heatmap generation from a persisted cursor', async () => {
+    const updatedTime = Date.now()
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-failed',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: 'netherlands',
+      status: 'failed',
+      segments: [],
+      activityCount: 20,
+      pointCount: 100,
+      cursorOffset: 500,
+      isPartial: false,
+      error: 'temporary queue failure',
+      createdAt: updatedTime - 1000,
+      updatedAt: updatedTime
+    })
+
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        activity_type: 'running',
+        period_type: 'monthly',
+        period_key: '2026-04',
+        region: 'netherlands'
+      })
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: ACTOR1_ID,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-04',
+          region: 'netherlands',
+          resume: true,
+          cursorOffset: 500
         }
       })
     )

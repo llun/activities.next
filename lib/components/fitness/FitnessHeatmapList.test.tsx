@@ -18,6 +18,8 @@ const makeMockHeatmap = (
   status: 'completed',
   activityCount: 10,
   pointCount: 0,
+  cursorOffset: 0,
+  isPartial: false,
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_000,
   ...overrides
@@ -162,5 +164,26 @@ describe('FitnessHeatmapList', () => {
     )
 
     expect(screen.getByText('Generating…')).toBeInTheDocument()
+  })
+
+  it('labels capped completed heatmaps as partial', () => {
+    const heatmap = makeMockHeatmap({
+      id: 'heatmap-partial',
+      status: 'completed',
+      isPartial: true
+    })
+
+    render(
+      <FitnessHeatmapList
+        heatmaps={[heatmap]}
+        onSelect={jest.fn()}
+        onRetry={jest.fn()}
+        currentTime={CURRENT_TIME}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Completed/i }))
+
+    expect(screen.getByText('Partial')).toBeInTheDocument()
   })
 })
