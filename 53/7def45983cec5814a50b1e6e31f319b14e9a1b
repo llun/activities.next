@@ -1,0 +1,69 @@
+lib/database/sql/fitnessRouteHeatmap.ts
+  af5d762e2d5af66c 54,120-122,144,166,224,310,331,357-358
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.test.ts
+  af5d762e2d5af66c 64-65,78-79,103-104,117-118
+.env.example
+  af5d762e2d5af66c 114-117
+app/api/v1/accounts/[id]/fitness-heatmap/route.test.ts
+  af5d762e2d5af66c 1-31
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  af5d762e2d5af66c 947-951
+lib/database/sql/fitnessRouteHeatmap.test.ts
+  af5d762e2d5af66c 47,115,135,206-207,220-221
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  af5d762e2d5af66c 29,39-67,174-186,188,194-215,257-260,268,299-300,318-319,359,367,415-420,422,508-509
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  af5d762e2d5af66c 53,84,121-122,230-274
+lib/types/database/fitnessRouteHeatmap.ts
+  af5d762e2d5af66c 46,68
+migrations/20260503130000_expand_fitness_route_heatmap_payload_columns.js
+  af5d762e2d5af66c 1-45
+migrations/20260503140000_add_fitness_route_heatmap_partial_flag.js
+  af5d762e2d5af66c 1-43
+app/api/v1/accounts/[id]/fitness-heatmaps/route.test.ts
+  af5d762e2d5af66c 1-25
+app/api/v1/accounts/[id]/fitness-heatmap/route.ts
+  af5d762e2d5af66c 1-5
+lib/client.ts
+  af5d762e2d5af66c 1202-1203,1218-1219,1263-1270
+migrations/20260502190000_replace_fitness_heatmaps_with_route_cache.js
+  af5d762e2d5af66c 1-14,79-80,86
+lib/database/sql/fitnessRouteHeatmapMigration.test.ts
+  af5d762e2d5af66c 5,61-63,172-190
+lib/components/fitness/FitnessHeatmapList.tsx
+  af5d762e2d5af66c 110-112,130-132
+app/api/v1/accounts/[id]/fitness-heatmaps/route.ts
+  af5d762e2d5af66c 1-4
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  af5d762e2d5af66c 42-43
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  af5d762e2d5af66c 67-68,262-271,273-284,296-299
+docs/environment-variables.md
+  af5d762e2d5af66c 128-141
+lib/components/fitness/FitnessHeatmapList.test.tsx
+  af5d762e2d5af66c 21-22,168-187
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  af5d762e2d5af66c 505-551,616-708
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.ts
+  af5d762e2d5af66c 34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "537def45983cec5814a50b1e6e31f319b14e9a1b",
+  "prompts": {
+    "af5d762e2d5af66c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de978-d97d-7c02-975e-38369bd28f83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 605,
+      "total_deletions": 39,
+      "accepted_lines": 3811,
+      "overriden_lines": 13
+    }
+  }
+}
