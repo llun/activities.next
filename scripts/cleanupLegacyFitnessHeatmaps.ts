@@ -37,7 +37,14 @@ async function cleanupLegacyFitnessHeatmaps() {
           throw new Error('Storage backend did not confirm deletion')
         }
 
-        await database.deleteMediaByPath({ actorId, path: imagePath })
+        const databaseDeleted = await database.deleteMediaByPath({
+          actorId,
+          path: imagePath
+        })
+        if (!databaseDeleted) {
+          throw new Error('Media database row was not deleted')
+        }
+
         await database.markLegacyFitnessHeatmapMediaCleanupPath({
           actorId,
           imagePath

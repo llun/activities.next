@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+// Deprecated legacy v1 shim. Prefer /fitness-route-heatmap; keep this adapter
+// until the next major API cleanup so older clients retain the flat payload.
 import {
   OPTIONS,
   POST,

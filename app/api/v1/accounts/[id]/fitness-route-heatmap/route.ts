@@ -267,7 +267,10 @@ export const POST = traceApiRoute(
       region
     })
     const shouldResume =
-      existing?.status === 'failed' && existing.cursorOffset > 0
+      existing !== null &&
+      existing.cursorOffset > 0 &&
+      (existing.status === 'failed' ||
+        (existing.status === 'completed' && existing.isPartial))
     const baseJobId =
       id +
       ':route-heatmap:' +

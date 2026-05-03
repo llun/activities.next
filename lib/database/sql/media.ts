@@ -30,15 +30,16 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
-const deleteMediaById = async (
+const deleteMediaByConditions = async (
   database: Knex,
-  mediaId: string
+  conditions: Record<string, string>
 ): Promise<boolean> => {
   return database.transaction(async (trx) => {
     const media = await trx('medias')
-      .where('id', mediaId)
-      .select('actorId', 'originalBytes', 'thumbnailBytes')
+      .where(conditions)
+      .select('id', 'actorId', 'originalBytes', 'thumbnailBytes')
       .first<{
+        id: string | number
         actorId: string
         originalBytes: number | string | bigint | null
         thumbnailBytes: number | string | bigint | null
@@ -50,7 +51,9 @@ const deleteMediaById = async (
       .select<{ accountId: string | null }>('accountId')
       .first()
 
-    const deleted = await trx('medias').where('id', mediaId).del()
+    const deleted = await trx('medias')
+      .where({ ...conditions, id: media.id })
+      .del()
     if (!deleted) return false
 
     const usageDelta =
@@ -70,6 +73,11 @@ const deleteMediaById = async (
     return true
   })
 }
+
+const deleteMediaById = async (
+  database: Knex,
+  mediaId: string
+): Promise<boolean> => deleteMediaByConditions(database, { id: mediaId })
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
@@ -416,13 +424,6 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     actorId,
     path
   }: DeleteMediaByPathParams): Promise<boolean> {
-    const media = await database('medias')
-      .where('actorId', actorId)
-      .where('original', path)
-      .select('id')
-      .first<{ id: string | number }>()
-
-    if (!media) return false
-    return deleteMediaById(database, String(media.id))
+    return deleteMediaByConditions(database, { actorId, original: path })
   }
 })

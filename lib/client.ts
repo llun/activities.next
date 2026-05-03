@@ -1229,6 +1229,10 @@ export interface FitnessCalendarDay {
   totalDurationSeconds: number
 }
 
+/**
+ * Loads the focused route-heatmap cache. Non-OK responses are thrown instead of
+ * coerced to null so the UI can distinguish a failed read from a cache miss.
+ */
 export const getFitnessRouteHeatmap = async ({
   actorId,
   activityType,

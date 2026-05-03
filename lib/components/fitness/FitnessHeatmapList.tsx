@@ -42,9 +42,14 @@ const formatRelativeTime = (diffMs: number): string => {
 interface RetryButtonProps {
   heatmap: FitnessRouteHeatmapSummaryData
   onRetry: (heatmap: FitnessRouteHeatmapSummaryData) => Promise<void>
+  label?: string
 }
 
-const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
+const RetryButton: FC<RetryButtonProps> = ({
+  heatmap,
+  onRetry,
+  label = 'Retry'
+}) => {
   const [isRetrying, setIsRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -72,7 +77,7 @@ const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
         }}
       >
         <RefreshCw className={cn('size-3', isRetrying && 'animate-spin')} />
-        Retry
+        {label}
       </button>
       {error && <span className="text-destructive text-xs">{error}</span>}
     </span>
@@ -166,8 +171,13 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
           </span>
         )}
       </button>
-      {heatmap.status === 'failed' && (
-        <RetryButton heatmap={heatmap} onRetry={onRetry} />
+      {(heatmap.status === 'failed' ||
+        (heatmap.status === 'completed' && heatmap.isPartial)) && (
+        <RetryButton
+          heatmap={heatmap}
+          onRetry={onRetry}
+          label={heatmap.isPartial ? 'Resume' : 'Retry'}
+        />
       )}
     </div>
   )
@@ -182,11 +192,15 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
   const [isCompletedOpen, setIsCompletedOpen] = useState(false)
 
   const active = heatmaps
-    .filter((h) => ['pending', 'generating', 'failed'].includes(h.status))
+    .filter(
+      (h) =>
+        ['pending', 'generating', 'failed'].includes(h.status) ||
+        (h.status === 'completed' && h.isPartial)
+    )
     .sort((a, b) => b.updatedAt - a.updatedAt)
 
   const completed = heatmaps
-    .filter((h) => h.status === 'completed')
+    .filter((h) => h.status === 'completed' && !h.isPartial)
     .sort((a, b) => b.updatedAt - a.updatedAt)
 
   if (active.length === 0 && completed.length === 0) {
@@ -198,7 +212,7 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
       {active.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
-            In Progress &amp; Failed
+            In Progress &amp; Needs Attention
           </p>
           {active.map((heatmap) => (
             <HeatmapRow

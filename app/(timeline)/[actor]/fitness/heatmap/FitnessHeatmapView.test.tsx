@@ -49,6 +49,16 @@ const mockTriggerFitnessRouteHeatmap =
     typeof triggerFitnessRouteHeatmap
   >
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 const completedHeatmap: FitnessRouteHeatmapData = {
   id: 'route-heatmap-1',
   periodType: 'yearly',
@@ -140,6 +150,31 @@ describe('FitnessHeatmapView', () => {
     expect(
       screen.queryByText('Route cache is taking longer than expected')
     ).not.toBeInTheDocument()
+  })
+
+  it('ignores stale selection responses before mutating state or enqueueing', async () => {
+    const staleHeatmap = createDeferred<FitnessRouteHeatmapData | null>()
+    mockGetFitnessRouteHeatmap.mockReset()
+    mockGetFitnessRouteHeatmap
+      .mockReturnValueOnce(staleHeatmap.promise)
+      .mockResolvedValue(completedHeatmap)
+
+    const { rerender } = render(
+      <FitnessHeatmapView actorId="https://llun.test/users/first" />
+    )
+    rerender(<FitnessHeatmapView actorId="https://llun.test/users/second" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Routes')).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      staleHeatmap.resolve(null)
+      await Promise.resolve()
+    })
+
+    expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
+    expect(screen.getByText('Routes')).toBeInTheDocument()
   })
 })
 

@@ -432,6 +432,8 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
   const [pollingStalled, setPollingStalled] = useState(false)
   const generationKeyRef = useRef<string | null>(null)
+  const selectionKeyRef = useRef<string>('')
+  const fetchRequestIdRef = useRef(0)
   const pollingProgressRef = useRef<{
     key: string
     fingerprint: string
@@ -475,13 +477,20 @@ export const FitnessHeatmapView: FC<Props> = ({
   )
 
   useEffect(() => {
+    selectionKeyRef.current = selectionKey
+  }, [selectionKey])
+
+  useEffect(() => {
     setHeatmapData(null)
     setGenerationPending(false)
     setPollingStalled(false)
     pollingProgressRef.current = null
   }, [selectionKey])
 
-  const queueCurrentRouteHeatmap = useCallback(async () => {
+  const queueCurrentRouteHeatmap = useCallback(async (): Promise<boolean> => {
+    const expectedSelectionKey = selectionKey
+    if (selectionKeyRef.current !== expectedSelectionKey) return false
+
     const success = await triggerFitnessRouteHeatmap({
       actorId,
       activityType: selectedActivityType,
@@ -492,19 +501,28 @@ export const FitnessHeatmapView: FC<Props> = ({
     if (!success) {
       throw new Error('Failed to enqueue route heatmap refresh.')
     }
+    if (selectionKeyRef.current !== expectedSelectionKey) return false
 
     setGenerationPending(true)
     setPollingStalled(false)
     pollingProgressRef.current = null
+    return true
   }, [
     actorId,
     selectedActivityType,
     periodType,
     effectivePeriodKey,
-    serializedRegion
+    serializedRegion,
+    selectionKey
   ])
 
   const fetchData = useCallback(async () => {
+    const requestId = fetchRequestIdRef.current + 1
+    fetchRequestIdRef.current = requestId
+    const isCurrentRequest = () =>
+      fetchRequestIdRef.current === requestId &&
+      selectionKeyRef.current === selectionKey
+
     setIsLoading(true)
     setError(null)
 
@@ -530,29 +548,39 @@ export const FitnessHeatmapView: FC<Props> = ({
         getFitnessRouteHeatmaps({ actorId })
       ])
 
+      if (!isCurrentRequest()) return
+
       setHeatmapData(heatmap)
       setCalendarDays(calendar)
       setHeatmaps(allHeatmaps)
 
       if (heatmap === null) {
         if (generationKeyRef.current !== selectionKey) {
+          if (!isCurrentRequest()) return
           generationKeyRef.current = selectionKey
           try {
-            await queueCurrentRouteHeatmap()
+            const queued = await queueCurrentRouteHeatmap()
+            if (!queued && generationKeyRef.current === selectionKey) {
+              generationKeyRef.current = null
+            }
           } catch (err) {
+            if (!isCurrentRequest()) return
             generationKeyRef.current = null
             throw err
           }
         }
       }
     } catch (err) {
+      if (!isCurrentRequest()) return
       setError(
         err instanceof Error
           ? err.message
           : 'Failed to load route heatmap data.'
       )
     } finally {
-      setIsLoading(false)
+      if (isCurrentRequest()) {
+        setIsLoading(false)
+      }
     }
   }, [
     actorId,
@@ -603,6 +631,8 @@ export const FitnessHeatmapView: FC<Props> = ({
         getFitnessRouteHeatmaps({ actorId })
       ])
         .then(([heatmap, allHeatmaps]) => {
+          if (selectionKeyRef.current !== selectionKey) return
+
           setHeatmapData(heatmap)
           setHeatmaps(allHeatmaps)
 

@@ -73,7 +73,8 @@ const JobData = z.object({
   periodKey: z.string(),
   region: z.string().nullable().optional(),
   resume: z.boolean().optional(),
-  cursorOffset: z.number().int().nonnegative().optional()
+  cursorOffset: z.number().int().nonnegative().optional(),
+  maxCursorOffset: z.number().int().positive().optional()
 })
 
 const getPeriodRange = (
@@ -223,7 +224,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       periodKey,
       region,
       resume,
-      cursorOffset: requestedCursorOffset
+      cursorOffset: requestedCursorOffset,
+      maxCursorOffset: requestedMaxCursorOffset
     } = JobData.parse(message.data)
 
     const startedAt = Date.now()
@@ -252,10 +254,14 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       })
 
       const isResume = resume === true
+      const canResumeExisting =
+        existing &&
+        (['generating', 'failed'].includes(existing.status) ||
+          (existing.status === 'completed' && existing.isPartial))
       if (
         isResume &&
         (!existing ||
-          !['generating', 'failed'].includes(existing.status) ||
+          !canResumeExisting ||
           existing.deletedAt ||
           requestedCursorOffset !== existing.cursorOffset)
       ) {
@@ -275,6 +281,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       let allSegments: Array<PrivacySegment<RouteHeatmapPoint>> = []
       let allSegmentPointCount = 0
       let activityCount = 0
+      let maxCursorOffsetForRun =
+        requestedMaxCursorOffset ??
+        Math.max(
+          ROUTE_HEATMAP_MAX_FILES,
+          (requestedCursorOffset ?? 0) + ROUTE_HEATMAP_MAX_FILES
+        )
 
       if (existing) {
         heatmapId = existing.id
@@ -374,7 +386,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             periodKey,
             ...(normalizedRegion ? { region: normalizedRegion } : {}),
             resume: true,
-            cursorOffset: nextCursorOffset
+            cursorOffset: nextCursorOffset,
+            maxCursorOffset: maxCursorOffsetForRun
           }
         })
 
@@ -389,7 +402,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         })
       }
 
-      while (cursorOffset < ROUTE_HEATMAP_MAX_FILES) {
+      while (cursorOffset < maxCursorOffsetForRun) {
         const page = await database.getFitnessFilesByActor({
           ...queryFilters,
           limit: ROUTE_HEATMAP_PAGE_SIZE,
@@ -417,6 +430,10 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 ROUTE_HEATMAP_FILE_POINT_LIMIT
               )
 
+              // Downsample before privacy/region splitting to keep route-cache
+              // generation inside the worker's 30s/1GB budget. This heatmap is
+              // an approximate aggregate; exact route rendering still uses the
+              // original per-file route-data endpoint.
               if (routeCoordinates.length >= 2) {
                 const privacyAwarePoints = annotatePointsWithPrivacy(
                   routeCoordinates,
@@ -462,7 +479,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           const isLastKnownFile =
             page.length < ROUTE_HEATMAP_PAGE_SIZE &&
             pageIndex === page.length - 1
-          const canContinue = nextCursorOffset < ROUTE_HEATMAP_MAX_FILES
+          const canContinue = nextCursorOffset < maxCursorOffsetForRun
 
           if (canContinue && !isLastKnownFile && shouldCheckpoint(startedAt)) {
             await checkpointAndContinue(nextCursorOffset)
@@ -476,7 +493,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           break
         }
 
-        if (cursorOffset >= ROUTE_HEATMAP_MAX_FILES) {
+        if (cursorOffset >= maxCursorOffsetForRun) {
           reachedPageLimit = true
           break
         }

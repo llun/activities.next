@@ -712,6 +712,69 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
   })
 
+  it('resumes completed partial rows from their capped cursor', async () => {
+    const firstId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-12-15T07:00:00.000Z')
+    )
+    const secondId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-12-16T07:00:00.000Z')
+    )
+    const created = await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-12'
+    })
+    await database.updateFitnessRouteHeatmapStatus({
+      id: created.id,
+      status: 'completed',
+      segments: [
+        {
+          points: [
+            { lat: 52.1, lng: 4.1 },
+            { lat: 52.2, lng: 4.2 }
+          ]
+        }
+      ],
+      activityCount: 1,
+      pointCount: 2,
+      cursorOffset: 1,
+      isPartial: true
+    })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-partial-resume',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-12',
+        resume: true,
+        cursorOffset: 1
+      }
+    })
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-12'
+    })
+
+    expect(heatmap?.status).toBe('completed')
+    expect(heatmap?.activityCount).toBe(2)
+    expect(heatmap?.cursorOffset).toBe(0)
+    expect(heatmap?.isPartial).toBe(false)
+    expect(heatmap?.segments).toHaveLength(2)
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: firstId })
+    await database.deleteFitnessFile({ id: secondId })
+  })
+
   it('preserves the original failure when marking the cache as failed also fails', async () => {
     const updateFitnessRouteHeatmapStatus = jest
       .fn()

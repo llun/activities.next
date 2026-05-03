@@ -56,7 +56,9 @@ describe('FitnessHeatmapList', () => {
       />
     )
 
-    expect(screen.getByText('In Progress & Failed')).toBeInTheDocument()
+    expect(
+      screen.getByText('In Progress & Needs Attention')
+    ).toBeInTheDocument()
     expect(screen.getByText('Generating…')).toBeInTheDocument()
     expect(screen.getByText('Failed')).toBeInTheDocument()
   })
@@ -166,7 +168,9 @@ describe('FitnessHeatmapList', () => {
     expect(screen.getByText('Generating…')).toBeInTheDocument()
   })
 
-  it('labels capped completed heatmaps as partial', () => {
+  it('labels capped completed heatmaps as partial with a resume action', async () => {
+    const onSelect = jest.fn()
+    const onRetry = jest.fn().mockResolvedValue(undefined)
     const heatmap = makeMockHeatmap({
       id: 'heatmap-partial',
       status: 'completed',
@@ -176,14 +180,22 @@ describe('FitnessHeatmapList', () => {
     render(
       <FitnessHeatmapList
         heatmaps={[heatmap]}
-        onSelect={jest.fn()}
-        onRetry={jest.fn()}
+        onSelect={onSelect}
+        onRetry={onRetry}
         currentTime={CURRENT_TIME}
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Completed/i }))
-
+    expect(
+      screen.getByText('In Progress & Needs Attention')
+    ).toBeInTheDocument()
     expect(screen.getByText('Partial')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Resume/i }))
+    })
+
+    expect(onRetry).toHaveBeenCalledWith(heatmap)
+    expect(onSelect).not.toHaveBeenCalled()
   })
 })

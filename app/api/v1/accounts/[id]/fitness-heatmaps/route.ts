@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+// Deprecated legacy v1 shim. Prefer /fitness-route-heatmaps; keep this adapter
+// until the next major API cleanup so older clients retain the flat summaries.
 import {
   OPTIONS,
   GET as getRouteHeatmaps
