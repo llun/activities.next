@@ -66,3 +66,8 @@ export interface FitnessRouteHeatmap {
   updatedAt: number
   deletedAt?: number
 }
+
+export type FitnessRouteHeatmapSummary = Omit<
+  FitnessRouteHeatmap,
+  'bounds' | 'segments'
+>

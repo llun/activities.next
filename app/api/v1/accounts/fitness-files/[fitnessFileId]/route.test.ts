@@ -27,7 +27,7 @@ jest.mock('@/lib/services/fitness-files', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'getFitnessFile' | 'getActorFromId' | 'getFitnessRouteHeatmapsForActor'
+  'getFitnessFile' | 'getActorFromId' | 'getDistinctRouteHeatmapRegionsForActor'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -44,7 +44,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessFile: jest.fn(),
     getActorFromId: jest.fn(),
-    getFitnessRouteHeatmapsForActor: jest.fn()
+    getDistinctRouteHeatmapRegionsForActor: jest.fn()
   }
 
   beforeAll(() => {
@@ -78,7 +78,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
       id: 'actor-1',
       account: { id: 'account-1' }
     } as Awaited<ReturnType<Database['getActorFromId']>>)
-    mockDb.getFitnessRouteHeatmapsForActor.mockResolvedValue([])
+    mockDb.getDistinctRouteHeatmapRegionsForActor.mockResolvedValue([])
     mockDeleteFitnessFileFromStorage.mockResolvedValue(true)
     mockPublish.mockResolvedValue(undefined)
   })

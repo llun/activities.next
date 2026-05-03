@@ -87,16 +87,11 @@ export const enqueueFitnessRouteHeatmapJobs = async ({
   const activityDate = toActivityDate(activityStartTime)
   const baseVariants = buildBaseVariants(activityType, activityDate)
 
-  const existingHeatmaps = await database.getFitnessRouteHeatmapsForActor({
-    actorId
-  })
-  const distinctRegions = [
-    ...new Set(
-      existingHeatmaps
-        .map((heatmap) => heatmap.region)
-        .filter((region): region is string => region !== '')
-    )
-  ]
+  const distinctRegions = await database.getDistinctRouteHeatmapRegionsForActor(
+    {
+      actorId
+    }
+  )
   const regionVariants = distinctRegions.flatMap((region) =>
     baseVariants.map((variant) => ({ ...variant, region }))
   )

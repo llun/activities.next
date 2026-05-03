@@ -48,10 +48,10 @@ describe('RouteHeatmapMap', () => {
     jest.clearAllMocks()
   })
 
-  it('renders the OSM/SVG fallback when Mapbox is not configured', () => {
+  it('renders the SVG route fallback when Mapbox is not configured', () => {
     const { container } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
 
-    expect(screen.getByText('OpenStreetMap')).toBeInTheDocument()
+    expect(screen.getByText('Routes')).toBeInTheDocument()
     expect(container.querySelector('polyline')).toBeInTheDocument()
   })
 
@@ -79,10 +79,10 @@ describe('RouteHeatmapMap', () => {
       resize: jest.fn(),
       addSource: jest.fn(),
       addLayer: jest.fn(),
+      getSource: jest.fn(),
       fitBounds: jest.fn()
     }))
     mockLoadMapboxModule.mockResolvedValue({
-      accessToken: '',
       Map: mapConstructor
     })
 

@@ -14,6 +14,7 @@ import {
   FitnessCalendarDay,
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapSegment,
+  FitnessRouteHeatmapSummaryData,
   getDistinctFitnessActivityTypes,
   getFitnessCalendarData,
   getFitnessRouteHeatmap,
@@ -30,7 +31,6 @@ import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import {
-  TILE_SIZE,
   getZoomLevelForBounds,
   projectWebMercator
 } from '@/lib/utils/webMercator'
@@ -48,6 +48,7 @@ type MapboxMap = {
   resize: () => void
   addSource: (id: string, source: unknown) => void
   addLayer: (layer: unknown) => void
+  getSource: (id: string) => { setData: (data: unknown) => void } | undefined
   fitBounds: (
     bounds: [[number, number], [number, number]],
     options?: { padding?: number; duration?: number }
@@ -55,7 +56,6 @@ type MapboxMap = {
 }
 
 type MapboxGL = {
-  accessToken: string
   Map: new (options: Record<string, unknown>) => MapboxMap
 }
 
@@ -140,12 +140,6 @@ const buildRouteGeoJson = (segments: FitnessRouteHeatmapSegment[]) => ({
     }))
 })
 
-const getTileUrl = (zoom: number, tileX: number, tileY: number) => {
-  const worldSize = 2 ** zoom
-  const wrappedX = ((tileX % worldSize) + worldSize) % worldSize
-  return `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${tileY}.png`
-}
-
 const buildSvgMap = (heatmap: FitnessRouteHeatmapData) => {
   if (!heatmap.bounds || heatmap.segments.length === 0) {
     return null
@@ -172,29 +166,6 @@ const buildSvgMap = (heatmap: FitnessRouteHeatmapData) => {
   const centerY = (southWest.y + northEast.y) / 2
   const topLeftX = centerX - MAP_WIDTH / 2
   const topLeftY = centerY - MAP_HEIGHT / 2
-  const worldSize = 2 ** zoom
-  const startTileX = Math.floor(topLeftX / TILE_SIZE)
-  const endTileX = Math.floor((topLeftX + MAP_WIDTH) / TILE_SIZE)
-  const startTileY = Math.max(0, Math.floor(topLeftY / TILE_SIZE))
-  const endTileY = Math.min(
-    worldSize - 1,
-    Math.floor((topLeftY + MAP_HEIGHT) / TILE_SIZE)
-  )
-
-  const tiles = Array.from(
-    { length: endTileY - startTileY + 1 },
-    (_, yOffset) => startTileY + yOffset
-  ).flatMap((tileY) =>
-    Array.from(
-      { length: endTileX - startTileX + 1 },
-      (_, xOffset) => startTileX + xOffset
-    ).map((tileX) => ({
-      key: `${zoom}-${tileX}-${tileY}`,
-      href: getTileUrl(zoom, tileX, tileY),
-      x: Math.round(tileX * TILE_SIZE - topLeftX),
-      y: Math.round(tileY * TILE_SIZE - topLeftY)
-    }))
-  )
 
   const lines = heatmap.segments
     .filter((segment) => segment.points.length >= 2)
@@ -211,7 +182,7 @@ const buildSvgMap = (heatmap: FitnessRouteHeatmapData) => {
         .join(' ')
     }))
 
-  return { tiles, lines }
+  return { lines }
 }
 
 interface RouteHeatmapMapProps {
@@ -224,50 +195,59 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   mapboxAccessToken
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<MapboxMap | null>(null)
+  const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
   const [mapboxFailed, setMapboxFailed] = useState(false)
-  const [tilesFailed, setTilesFailed] = useState(false)
+  const [isMapLoaded, setIsMapLoaded] = useState(false)
 
   const hasRoutes =
     heatmap?.status === 'completed' &&
     heatmap.segments.some((segment) => segment.points.length >= 2)
+  const bounds = heatmap?.bounds
   const shouldUseMapbox = Boolean(
-    mapboxAccessToken && hasRoutes && !mapboxFailed
+    mapboxAccessToken && hasRoutes && bounds && !mapboxFailed
   )
+  const routeGeoJson = useMemo(
+    () => buildRouteGeoJson(hasRoutes && heatmap ? heatmap.segments : []),
+    [hasRoutes, heatmap?.id, heatmap?.updatedAt]
+  )
+  routeGeoJsonRef.current = routeGeoJson
 
   useEffect(() => {
-    setTilesFailed(false)
     setMapboxFailed(false)
   }, [heatmap?.id, mapboxAccessToken])
 
   useEffect(() => {
-    if (!shouldUseMapbox || !containerRef.current || !heatmap?.bounds) {
+    if (!shouldUseMapbox || !containerRef.current || !bounds) {
       return
     }
 
-    let map: MapboxMap | null = null
     let cancelled = false
+    const mapBounds: [[number, number], [number, number]] = [
+      [bounds.minLng, bounds.minLat],
+      [bounds.maxLng, bounds.maxLat]
+    ]
+    setIsMapLoaded(false)
 
     loadMapboxModule<MapboxGL>()
       .then((mapboxgl) => {
         if (cancelled || !containerRef.current) return
 
-        mapboxgl.accessToken = mapboxAccessToken as string
-        map = new mapboxgl.Map({
+        const map = new mapboxgl.Map({
           container: containerRef.current,
           style: 'mapbox://styles/mapbox/outdoors-v12',
+          accessToken: mapboxAccessToken,
           attributionControl: false,
-          bounds: [
-            [heatmap.bounds?.minLng, heatmap.bounds?.minLat],
-            [heatmap.bounds?.maxLng, heatmap.bounds?.maxLat]
-          ],
+          bounds: mapBounds,
           fitBoundsOptions: { padding: 56 }
         })
+        mapRef.current = map
 
         map.on('load', () => {
           if (!map || cancelled) return
           map.addSource('route-heatmap', {
             type: 'geojson',
-            data: buildRouteGeoJson(heatmap.segments)
+            data: routeGeoJsonRef.current
           })
           map.addLayer({
             id: 'route-heatmap-lines',
@@ -284,13 +264,8 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
               'line-blur': 0.8
             }
           })
-          map.fitBounds(
-            [
-              [heatmap.bounds!.minLng, heatmap.bounds!.minLat],
-              [heatmap.bounds!.maxLng, heatmap.bounds!.maxLat]
-            ],
-            { padding: 56, duration: 0 }
-          )
+          map.fitBounds(mapBounds, { padding: 56, duration: 0 })
+          setIsMapLoaded(true)
         })
       })
       .catch(() => {
@@ -301,13 +276,27 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
     return () => {
       cancelled = true
-      map?.remove()
+      mapRef.current?.remove()
+      mapRef.current = null
     }
-  }, [heatmap, mapboxAccessToken, shouldUseMapbox])
+  }, [
+    bounds?.maxLat,
+    bounds?.maxLng,
+    bounds?.minLat,
+    bounds?.minLng,
+    heatmap?.id,
+    mapboxAccessToken,
+    shouldUseMapbox
+  ])
+
+  useEffect(() => {
+    if (!shouldUseMapbox || !isMapLoaded) return
+    mapRef.current?.getSource('route-heatmap')?.setData(routeGeoJson)
+  }, [isMapLoaded, routeGeoJson, shouldUseMapbox])
 
   const svgMap = useMemo(
     () => (hasRoutes && heatmap ? buildSvgMap(heatmap) : null),
-    [hasRoutes, heatmap]
+    [hasRoutes, heatmap?.id, heatmap?.updatedAt]
   )
 
   if (!hasRoutes || !heatmap) {
@@ -346,24 +335,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
         aria-label="Fitness route heatmap"
         preserveAspectRatio="xMidYMid slice"
       >
-        {!tilesFailed && (
-          <g opacity="0.92">
-            {svgMap.tiles.map((tile) => (
-              <image
-                key={tile.key}
-                href={tile.href}
-                x={tile.x}
-                y={tile.y}
-                width={TILE_SIZE}
-                height={TILE_SIZE}
-                onError={() => setTilesFailed(true)}
-              />
-            ))}
-          </g>
-        )}
-        {tilesFailed && (
-          <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="#f8fafc" />
-        )}
+        <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="#f8fafc" />
         <g>
           {svgMap.lines.map((line) => (
             <polyline
@@ -380,7 +352,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
         </g>
       </svg>
       <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
-        {tilesFailed ? 'Routes only' : 'OpenStreetMap'}
+        Routes
       </div>
     </div>
   )
@@ -400,7 +372,7 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   const [heatmapData, setHeatmapData] =
     useState<FitnessRouteHeatmapData | null>(null)
-  const [heatmaps, setHeatmaps] = useState<FitnessRouteHeatmapData[]>([])
+  const [heatmaps, setHeatmaps] = useState<FitnessRouteHeatmapSummaryData[]>([])
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -583,7 +555,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   }
 
   const handleSelectHeatmap = useCallback(
-    (heatmap: FitnessRouteHeatmapData) => {
+    (heatmap: FitnessRouteHeatmapSummaryData) => {
       setSelectedType(heatmap.activityType ?? '')
       setPeriodType(heatmap.periodType as PeriodType)
       setPeriodKey(heatmap.periodKey)
@@ -601,7 +573,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   )
 
   const handleRetry = useCallback(
-    async (heatmap: FitnessRouteHeatmapData) => {
+    async (heatmap: FitnessRouteHeatmapSummaryData) => {
       const success = await triggerFitnessRouteHeatmap({
         actorId,
         activityType: heatmap.activityType,

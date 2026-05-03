@@ -321,4 +321,53 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
     await database.deleteFitnessFile({ id: fitnessFileId })
   })
+
+  it('revives a soft-deleted cache row for the same route cache key', async () => {
+    const fitnessFileId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-05-15T07:00:00.000Z')
+    )
+
+    const job = {
+      id: 'job-route-heatmap-revive',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-05'
+      }
+    }
+
+    await generateFitnessRouteHeatmapJob(database, job)
+
+    const first = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-05'
+    })
+    expect(first?.status).toBe('completed')
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      ...job,
+      id: 'job-route-heatmap-revive-again'
+    })
+
+    const revived = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-05'
+    })
+
+    expect(revived?.id).toBe(first?.id)
+    expect(revived?.status).toBe('completed')
+    expect(revived?.deletedAt).toBeUndefined()
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: fitnessFileId })
+  })
 })

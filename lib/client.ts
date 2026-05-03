@@ -1204,6 +1204,20 @@ export interface FitnessRouteHeatmapData {
   updatedAt: number
 }
 
+export interface FitnessRouteHeatmapSummaryData {
+  id: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+  status: string
+  activityCount: number
+  pointCount: number
+  error?: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 export interface FitnessCalendarDay {
   date: string
   count: number
@@ -1280,7 +1294,7 @@ export const getFitnessRouteHeatmaps = async ({
   actorId
 }: {
   actorId: string
-}): Promise<FitnessRouteHeatmapData[]> => {
+}): Promise<FitnessRouteHeatmapSummaryData[]> => {
   const encodedId = urlToId(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmaps`,

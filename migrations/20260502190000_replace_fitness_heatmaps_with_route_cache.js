@@ -8,10 +8,13 @@ exports.up = async function (knex) {
   await knex.schema.createTable(
     'legacy_fitness_heatmap_media_cleanup',
     function (table) {
-      table.string('imagePath').primary()
+      table.string('actorId').notNullable()
+      table.string('imagePath').notNullable()
       table.timestamp('createdAt', { useTz: true }).notNullable()
       table.timestamp('deletedAt', { useTz: true })
       table.text('error')
+
+      table.primary(['actorId', 'imagePath'])
     }
   )
 
@@ -19,15 +22,15 @@ exports.up = async function (knex) {
     const now = new Date()
     const oldPaths = await knex('fitness_heatmaps')
       .whereNotNull('imagePath')
-      .distinct('imagePath')
+      .distinct('actorId', 'imagePath')
 
     if (oldPaths.length > 0) {
       await knex('legacy_fitness_heatmap_media_cleanup').insert(
         oldPaths
-          .map((row) => row.imagePath)
-          .filter(Boolean)
-          .map((imagePath) => ({
-            imagePath,
+          .filter((row) => row.actorId && row.imagePath)
+          .map((row) => ({
+            actorId: row.actorId,
+            imagePath: row.imagePath,
             createdAt: now,
             deletedAt: null,
             error: null

@@ -15,7 +15,7 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-type MockDatabase = Pick<Database, 'getFitnessRouteHeatmapsForActor'>
+type MockDatabase = Pick<Database, 'getFitnessRouteHeatmapSummariesForActor'>
 
 let mockDatabase: MockDatabase | null = null
 jest.mock('@/lib/database', () => ({
@@ -24,7 +24,7 @@ jest.mock('@/lib/database', () => ({
 
 describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessRouteHeatmapsForActor: jest.fn()
+    getFitnessRouteHeatmapSummariesForActor: jest.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -43,14 +43,14 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
       ...seedActor1,
       id: ACTOR1_ID
     })
-    mockDb.getFitnessRouteHeatmapsForActor.mockResolvedValue([])
+    mockDb.getFitnessRouteHeatmapSummariesForActor.mockResolvedValue([])
   })
 
   it('returns owner route heatmap history', async () => {
     const createdTime = Date.now()
     const updatedTime = createdTime + 1000
 
-    mockDb.getFitnessRouteHeatmapsForActor.mockResolvedValue([
+    mockDb.getFitnessRouteHeatmapSummariesForActor.mockResolvedValue([
       {
         id: 'route-heatmap-1',
         actorId: ACTOR1_ID,
@@ -59,20 +59,6 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
         periodKey: '2026',
         region: '',
         status: 'completed',
-        bounds: {
-          minLat: 52,
-          maxLat: 53,
-          minLng: 4,
-          maxLng: 5
-        },
-        segments: [
-          {
-            points: [
-              { lat: 52.1, lng: 4.2 },
-              { lat: 52.2, lng: 4.3 }
-            ]
-          }
-        ],
         activityCount: 1,
         pointCount: 2,
         createdAt: createdTime,
@@ -85,7 +71,6 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
         periodKey: '2026-04',
         region: 'netherlands',
         status: 'failed',
-        segments: [],
         activityCount: 0,
         pointCount: 0,
         error: 'parse failed',
@@ -109,20 +94,6 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
           periodKey: '2026',
           region: '',
           status: 'completed',
-          bounds: {
-            minLat: 52,
-            maxLat: 53,
-            minLng: 4,
-            maxLng: 5
-          },
-          segments: [
-            {
-              points: [
-                { lat: 52.1, lng: 4.2 },
-                { lat: 52.2, lng: 4.3 }
-              ]
-            }
-          ],
           activityCount: 1,
           pointCount: 2,
           error: null,
@@ -135,8 +106,6 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
           periodKey: '2026-04',
           region: 'netherlands',
           status: 'failed',
-          bounds: null,
-          segments: [],
           activityCount: 0,
           pointCount: 0,
           error: 'parse failed',

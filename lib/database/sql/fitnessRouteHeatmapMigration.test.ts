@@ -54,8 +54,13 @@ describe('route heatmap migration', () => {
         database.schema.hasTable('fitness_route_heatmaps')
       ).resolves.toBe(true)
       await expect(
-        database('legacy_fitness_heatmap_media_cleanup').select('imagePath')
-      ).resolves.toEqual([{ imagePath: 'medias/heatmap-1.png' }])
+        database('legacy_fitness_heatmap_media_cleanup').select(
+          'actorId',
+          'imagePath'
+        )
+      ).resolves.toEqual([
+        { actorId: 'actor-1', imagePath: 'medias/heatmap-1.png' }
+      ])
     } finally {
       await database.destroy()
     }

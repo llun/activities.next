@@ -755,6 +755,7 @@ export type DeleteMediaParams = {
   mediaId: string
 }
 export type DeleteMediaByPathParams = {
+  actorId: string
   path: string
 }
 export type DeleteAttachmentsByIdsParams = {

@@ -20,49 +20,57 @@ async function cleanupLegacyFitnessHeatmaps() {
     return 1
   }
 
-  const paths = await database.getLegacyFitnessHeatmapMediaCleanupPaths()
-  if (paths.length === 0) {
-    console.log('No legacy fitness heatmap media paths to clean up.')
-    return 0
-  }
-
-  let deleted = 0
-  let failed = 0
-
-  for (const imagePath of paths) {
-    try {
-      const storageDeleted = await deleteMediaFile(database, imagePath)
-      if (!storageDeleted) {
-        throw new Error('Storage backend did not confirm deletion')
-      }
-
-      await database.deleteMediaByPath({ path: imagePath })
-      await database.markLegacyFitnessHeatmapMediaCleanupPath({ imagePath })
-      deleted += 1
-      console.log(`Deleted ${imagePath}`)
-    } catch (error) {
-      const nodeError = error as Error
-      failed += 1
-      await database.markLegacyFitnessHeatmapMediaCleanupPath({
-        imagePath,
-        error: nodeError.message
-      })
-      console.error(`Failed ${imagePath}: ${nodeError.message}`)
+  try {
+    const paths = await database.getLegacyFitnessHeatmapMediaCleanupPaths()
+    if (paths.length === 0) {
+      console.log('No legacy fitness heatmap media paths to clean up.')
+      return 0
     }
-  }
 
-  console.log(
-    `Legacy fitness heatmap cleanup complete: ${deleted} deleted, ${failed} failed.`
-  )
-  return failed > 0 ? 1 : 0
+    let deleted = 0
+    let failed = 0
+
+    for (const { actorId, imagePath } of paths) {
+      try {
+        const storageDeleted = await deleteMediaFile(database, imagePath)
+        if (!storageDeleted) {
+          throw new Error('Storage backend did not confirm deletion')
+        }
+
+        await database.deleteMediaByPath({ actorId, path: imagePath })
+        await database.markLegacyFitnessHeatmapMediaCleanupPath({
+          actorId,
+          imagePath
+        })
+        deleted += 1
+        console.log(`Deleted ${imagePath}`)
+      } catch (error) {
+        const nodeError = error as Error
+        failed += 1
+        await database.markLegacyFitnessHeatmapMediaCleanupPath({
+          actorId,
+          imagePath,
+          error: nodeError.message
+        })
+        console.error(`Failed ${imagePath}: ${nodeError.message}`)
+      }
+    }
+
+    console.log(
+      `Legacy fitness heatmap cleanup complete: ${deleted} deleted, ${failed} failed.`
+    )
+    return failed > 0 ? 1 : 0
+  } finally {
+    await database.destroy()
+  }
 }
 
 cleanupLegacyFitnessHeatmaps()
   .then((code) => {
-    process.exitCode = code
+    process.exit(code)
   })
   .catch((error) => {
     const nodeError = error as Error
     console.error(nodeError.message)
-    process.exitCode = 1
+    process.exit(1)
   })

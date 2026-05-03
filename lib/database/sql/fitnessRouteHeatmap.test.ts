@@ -170,6 +170,81 @@ describe('FitnessRouteHeatmapDatabase', () => {
           region: 'singapore'
         })
       })
+
+      it('returns summaries without route payload columns', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: 'running',
+          periodType: 'yearly',
+          periodKey: '2027',
+          region: 'summary-test'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed',
+          bounds: {
+            minLat: 52,
+            maxLat: 53,
+            minLng: 4,
+            maxLng: 5
+          },
+          segments: [
+            {
+              points: [
+                { lat: 52.1, lng: 4.2 },
+                { lat: 52.2, lng: 4.3 }
+              ]
+            }
+          ],
+          activityCount: 1,
+          pointCount: 2
+        })
+
+        const summaries =
+          await database.getFitnessRouteHeatmapSummariesForActor({
+            actorId: actors.replyAuthor.id,
+            region: 'summary-test'
+          })
+
+        expect(summaries).toHaveLength(1)
+        expect(summaries[0]).toMatchObject({
+          id: created.id,
+          activityType: 'running',
+          pointCount: 2
+        })
+        expect('bounds' in summaries[0]).toBe(false)
+        expect('segments' in summaries[0]).toBe(false)
+      })
+
+      it('returns distinct non-empty route heatmap regions for an actor', async () => {
+        await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: null,
+          periodType: 'monthly',
+          periodKey: '2027-01',
+          region: 'netherlands'
+        })
+        await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: null,
+          periodType: 'monthly',
+          periodKey: '2027-02',
+          region: 'netherlands'
+        })
+        await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: null,
+          periodType: 'monthly',
+          periodKey: '2027-03',
+          region: 'singapore'
+        })
+
+        await expect(
+          database.getDistinctRouteHeatmapRegionsForActor({
+            actorId: actors.replyAuthor.id
+          })
+        ).resolves.toEqual(expect.arrayContaining(['netherlands', 'singapore']))
+      })
     })
 
     describe('getDistinctActivityTypesForActor', () => {

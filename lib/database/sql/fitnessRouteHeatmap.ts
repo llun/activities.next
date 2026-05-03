@@ -8,6 +8,7 @@ import {
   FitnessRouteHeatmapPeriodType,
   FitnessRouteHeatmapSegment,
   FitnessRouteHeatmapStatus,
+  FitnessRouteHeatmapSummary,
   SQLFitnessRouteHeatmap
 } from '@/lib/types/database/fitnessRouteHeatmap'
 
@@ -56,6 +57,11 @@ export interface GetDistinctActivityTypesParams {
   actorId: string
 }
 
+export interface LegacyFitnessHeatmapMediaCleanupPath {
+  actorId: string
+  imagePath: string
+}
+
 export interface FitnessRouteHeatmapDatabase {
   createFitnessRouteHeatmap(
     params: CreateFitnessRouteHeatmapParams
@@ -69,17 +75,26 @@ export interface FitnessRouteHeatmapDatabase {
   getFitnessRouteHeatmapsForActor(
     params: GetFitnessRouteHeatmapsForActorParams
   ): Promise<FitnessRouteHeatmap[]>
+  getFitnessRouteHeatmapSummariesForActor(
+    params: GetFitnessRouteHeatmapsForActorParams
+  ): Promise<FitnessRouteHeatmapSummary[]>
   updateFitnessRouteHeatmapStatus(
     params: UpdateFitnessRouteHeatmapStatusParams
   ): Promise<boolean>
   getDistinctActivityTypesForActor(
     params: GetDistinctActivityTypesParams
   ): Promise<string[]>
+  getDistinctRouteHeatmapRegionsForActor(params: {
+    actorId: string
+  }): Promise<string[]>
   deleteFitnessRouteHeatmapsForActor(params: {
     actorId: string
   }): Promise<number>
-  getLegacyFitnessHeatmapMediaCleanupPaths(): Promise<string[]>
+  getLegacyFitnessHeatmapMediaCleanupPaths(): Promise<
+    LegacyFitnessHeatmapMediaCleanupPath[]
+  >
   markLegacyFitnessHeatmapMediaCleanupPath(params: {
+    actorId: string
     imagePath: string
     error?: string | null
   }): Promise<boolean>
@@ -125,7 +140,53 @@ const parseSQLFitnessRouteHeatmap = (
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
 })
 
+const parseSQLFitnessRouteHeatmapSummary = (
+  row: SQLFitnessRouteHeatmap
+): FitnessRouteHeatmapSummary => ({
+  id: row.id,
+  actorId: row.actorId,
+  activityType: row.activityType ?? undefined,
+  periodType: row.periodType as FitnessRouteHeatmapPeriodType,
+  periodKey: row.periodKey,
+  region: row.region,
+  periodStart: row.periodStart ? getCompatibleTime(row.periodStart) : undefined,
+  periodEnd: row.periodEnd ? getCompatibleTime(row.periodEnd) : undefined,
+  status: row.status as FitnessRouteHeatmapStatus,
+  error: row.error ?? undefined,
+  activityCount: row.activityCount,
+  pointCount: row.pointCount,
+  createdAt: getCompatibleTime(row.createdAt),
+  updatedAt: getCompatibleTime(row.updatedAt),
+  deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
+})
+
 const getActivityTypeKey = (activityType?: string | null) => activityType ?? ''
+
+const applyRouteHeatmapFilters = (
+  query: Knex.QueryBuilder<SQLFitnessRouteHeatmap, SQLFitnessRouteHeatmap[]>,
+  {
+    activityType,
+    periodType,
+    region
+  }: Pick<
+    GetFitnessRouteHeatmapsForActorParams,
+    'activityType' | 'periodType' | 'region'
+  >
+) => {
+  if (activityType !== undefined) {
+    query.where('activityTypeKey', getActivityTypeKey(activityType))
+  }
+
+  if (periodType) {
+    query.where('periodType', periodType)
+  }
+
+  if (region !== undefined) {
+    query.where('region', region)
+  }
+
+  return query
+}
 
 export const FitnessRouteHeatmapSQLDatabaseMixin = (
   database: Knex
@@ -199,24 +260,50 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     periodType,
     region
   }: GetFitnessRouteHeatmapsForActorParams) {
-    let query = database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
-      .where('actorId', actorId)
-      .whereNull('deletedAt')
-
-    if (activityType !== undefined) {
-      query = query.where('activityTypeKey', getActivityTypeKey(activityType))
-    }
-
-    if (periodType) {
-      query = query.where('periodType', periodType)
-    }
-
-    if (region !== undefined) {
-      query = query.where('region', region)
-    }
+    const query = applyRouteHeatmapFilters(
+      database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
+        .where('actorId', actorId)
+        .whereNull('deletedAt'),
+      { activityType, periodType, region }
+    )
 
     const rows = await query.orderBy('updatedAt', 'desc').orderBy('id', 'asc')
     return rows.map(parseSQLFitnessRouteHeatmap)
+  },
+
+  async getFitnessRouteHeatmapSummariesForActor({
+    actorId,
+    activityType,
+    periodType,
+    region
+  }: GetFitnessRouteHeatmapsForActorParams) {
+    const query = applyRouteHeatmapFilters(
+      database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
+        .where('actorId', actorId)
+        .whereNull('deletedAt')
+        .select(
+          'id',
+          'actorId',
+          'activityType',
+          'activityTypeKey',
+          'periodType',
+          'periodKey',
+          'region',
+          'periodStart',
+          'periodEnd',
+          'status',
+          'error',
+          'activityCount',
+          'pointCount',
+          'createdAt',
+          'updatedAt',
+          'deletedAt'
+        ),
+      { activityType, periodType, region }
+    )
+
+    const rows = await query.orderBy('updatedAt', 'desc').orderBy('id', 'asc')
+    return rows.map(parseSQLFitnessRouteHeatmapSummary)
   },
 
   async updateFitnessRouteHeatmapStatus({
@@ -277,6 +364,17 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     return rows.map((row: { activityType: string }) => row.activityType)
   },
 
+  async getDistinctRouteHeatmapRegionsForActor({ actorId }) {
+    const rows = await database('fitness_route_heatmaps')
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .whereNot('region', '')
+      .distinct('region')
+      .orderBy('region', 'asc')
+
+    return rows.map((row: { region: string }) => row.region)
+  },
+
   async deleteFitnessRouteHeatmapsForActor({ actorId }: { actorId: string }) {
     return database('fitness_route_heatmaps')
       .where('actorId', actorId)
@@ -290,19 +388,27 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
   async getLegacyFitnessHeatmapMediaCleanupPaths() {
     const rows = await database('legacy_fitness_heatmap_media_cleanup')
       .whereNull('deletedAt')
-      .select('imagePath')
+      .select('actorId', 'imagePath')
       .orderBy('createdAt', 'asc')
 
-    return rows.map((row: { imagePath: string }) => row.imagePath)
+    return rows.map((row: { actorId: string; imagePath: string }) => ({
+      actorId: row.actorId,
+      imagePath: row.imagePath
+    }))
   },
 
-  async markLegacyFitnessHeatmapMediaCleanupPath({ imagePath, error }) {
+  async markLegacyFitnessHeatmapMediaCleanupPath({
+    actorId,
+    imagePath,
+    error
+  }) {
     const updateData =
       error === undefined || error === null
         ? { deletedAt: new Date(), error: null }
         : { error, deletedAt: null }
 
     const result = await database('legacy_fitness_heatmap_media_cleanup')
+      .where('actorId', actorId)
       .where('imagePath', imagePath)
       .update(updateData)
 

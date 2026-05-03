@@ -4,19 +4,18 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
-import { FitnessRouteHeatmapData } from '@/lib/client'
+import { FitnessRouteHeatmapSummaryData } from '@/lib/client'
 
 import { FitnessHeatmapList } from './FitnessHeatmapList'
 
 const makeMockHeatmap = (
-  overrides: Partial<FitnessRouteHeatmapData> = {}
-): FitnessRouteHeatmapData => ({
+  overrides: Partial<FitnessRouteHeatmapSummaryData> = {}
+): FitnessRouteHeatmapSummaryData => ({
   id: 'heatmap-1',
   periodType: 'yearly',
   periodKey: '2025',
   region: '',
   status: 'completed',
-  segments: [],
   activityCount: 10,
   pointCount: 0,
   createdAt: 1_700_000_000_000,

@@ -412,8 +412,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     return deleteMediaById(database, mediaId)
   },
 
-  async deleteMediaByPath({ path }: DeleteMediaByPathParams): Promise<boolean> {
+  async deleteMediaByPath({
+    actorId,
+    path
+  }: DeleteMediaByPathParams): Promise<boolean> {
     const media = await database('medias')
+      .where('actorId', actorId)
       .where('original', path)
       .select('id')
       .first<{ id: string | number }>()

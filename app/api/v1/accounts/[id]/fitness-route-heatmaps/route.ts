@@ -1,7 +1,7 @@
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AppRouterParams } from '@/lib/services/guards/types'
-import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
+import { FitnessRouteHeatmapSummary } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -22,15 +22,13 @@ interface Params {
   id: string
 }
 
-const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
+const serializeRouteHeatmapSummary = (heatmap: FitnessRouteHeatmapSummary) => ({
   id: heatmap.id,
   activityType: heatmap.activityType,
   periodType: heatmap.periodType,
   periodKey: heatmap.periodKey,
   region: heatmap.region,
   status: heatmap.status,
-  bounds: heatmap.bounds ?? null,
-  segments: heatmap.segments,
   activityCount: heatmap.activityCount,
   pointCount: heatmap.pointCount,
   error: heatmap.error ?? null,
@@ -83,7 +81,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    const heatmaps = await database.getFitnessRouteHeatmapsForActor({
+    const heatmaps = await database.getFitnessRouteHeatmapSummariesForActor({
       actorId: id
     })
 
@@ -91,7 +89,7 @@ export const GET = traceApiRoute(
       req,
       allowedMethods: CORS_HEADERS,
       data: {
-        heatmaps: heatmaps.map(serializeRouteHeatmap)
+        heatmaps: heatmaps.map(serializeRouteHeatmapSummary)
       }
     })
   },

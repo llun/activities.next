@@ -66,14 +66,13 @@ const formatActivityType = (type: string): string =>
 
 const getTotals = (summary: FitnessActivitySummary[]) =>
   summary.reduce(
-    (acc, item) => ({
-      count: acc.count + item.count,
-      totalDistanceMeters: acc.totalDistanceMeters + item.totalDistanceMeters,
-      totalDurationSeconds:
-        acc.totalDurationSeconds + item.totalDurationSeconds,
-      totalElevationGainMeters:
-        acc.totalElevationGainMeters + item.totalElevationGainMeters
-    }),
+    (acc, item) => {
+      acc.count += item.count
+      acc.totalDistanceMeters += item.totalDistanceMeters
+      acc.totalDurationSeconds += item.totalDurationSeconds
+      acc.totalElevationGainMeters += item.totalElevationGainMeters
+      return acc
+    },
     {
       count: 0,
       totalDistanceMeters: 0,
