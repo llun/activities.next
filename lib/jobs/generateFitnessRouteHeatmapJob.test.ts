@@ -506,6 +506,98 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessFile({ id: secondId })
   })
 
+  it('keeps checkpointed route data at the accumulation cap instead of the final render cap', async () => {
+    const firstId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-01-15T07:00:00.000Z')
+    )
+    const secondId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-01-16T07:00:00.000Z')
+    )
+    const thirdId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-01-17T07:00:00.000Z')
+    )
+    const buildCoordinates = (lngOffset: number) =>
+      Array.from({ length: 60_000 }, (_value, index) => ({
+        lat: 52 + index / 1_000_000,
+        lng: 4 + lngOffset + index / 1_000_000
+      }))
+    const firstCoordinates = buildCoordinates(0)
+    const secondCoordinates = buildCoordinates(1)
+    const created = await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-01'
+    })
+    await database.updateFitnessRouteHeatmapStatus({
+      id: created.id,
+      status: 'generating',
+      segments: [
+        {
+          points: firstCoordinates
+        }
+      ],
+      activityCount: 1,
+      pointCount: firstCoordinates.length,
+      cursorOffset: 1
+    })
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: secondCoordinates,
+      trackPoints: secondCoordinates,
+      totalDistanceMeters: 1_250,
+      totalDurationSeconds: 420,
+      elevationGainMeters: 42,
+      activityType: 'running',
+      startTime: new Date('2026-01-16T07:00:00.000Z')
+    })
+
+    const nowSpy = jest.spyOn(Date, 'now')
+    nowSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-large-checkpoint',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-01',
+          resume: true,
+          cursorOffset: 1
+        }
+      })
+    } finally {
+      nowSpy.mockRestore()
+    }
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-01'
+    })
+
+    expect(heatmap?.status).toBe('generating')
+    expect(heatmap?.activityCount).toBe(2)
+    expect(heatmap?.cursorOffset).toBe(2)
+    expect(heatmap?.pointCount).toBeGreaterThan(
+      DEFAULT_ROUTE_HEATMAP_MAX_POINTS
+    )
+    expect(heatmap?.pointCount).toBeLessThanOrEqual(
+      DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 2
+    )
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: firstId })
+    await database.deleteFitnessFile({ id: secondId })
+    await database.deleteFitnessFile({ id: thirdId })
+  })
+
   it('retries continuation publish before failing a checkpointed job', async () => {
     const firstId = await createCompletedFitnessFile(
       'running',

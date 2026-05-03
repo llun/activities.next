@@ -357,7 +357,11 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
 
       const checkpointAndContinue = async (nextCursorOffset: number) => {
         const payload = buildRouteHeatmapPayload({
-          privacySegments: allSegments
+          privacySegments: allSegments,
+          // Checkpoints are resume state, not final render payloads. Preserve
+          // the larger accumulation cap here so later continuations do not
+          // repeatedly apply the final browser-render cap.
+          maxPoints: ACCUMULATION_DOWNSAMPLE_POINT_LIMIT
         })
 
         await database.updateFitnessRouteHeatmapStatus({
