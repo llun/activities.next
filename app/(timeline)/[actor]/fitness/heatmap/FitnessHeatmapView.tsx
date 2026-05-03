@@ -117,6 +117,14 @@ const formatActivityType = (type?: string): string =>
     ? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     : 'All'
 
+const isRouteHeatmapInFlight = (
+  heatmap:
+    | Pick<FitnessRouteHeatmapSummaryData, 'status'>
+    | Pick<FitnessRouteHeatmapData, 'status'>
+    | null
+    | undefined
+): boolean => heatmap?.status === 'generating' || heatmap?.status === 'pending'
+
 const getCalendarDateRange = (
   periodType: PeriodType,
   periodKey: string
@@ -561,20 +569,29 @@ export const FitnessHeatmapView: FC<Props> = ({
   }, [fetchData])
 
   const hasAnyListInFlight = useMemo(
-    () =>
-      heatmaps.some((h) => h.status === 'generating' || h.status === 'pending'),
+    () => heatmaps.some(isRouteHeatmapInFlight),
     [heatmaps]
   )
+  const isFocusedHeatmapInFlight =
+    generationPending || isRouteHeatmapInFlight(heatmapData)
+  const shouldPollFocusedHeatmap = isFocusedHeatmapInFlight && !pollingStalled
 
   useEffect(() => {
-    const hasInFlight =
-      generationPending ||
-      heatmapData?.status === 'generating' ||
-      heatmapData?.status === 'pending' ||
-      hasAnyListInFlight
-    if (!hasInFlight || pollingStalled) return
+    const hasInFlight = shouldPollFocusedHeatmap || hasAnyListInFlight
+    if (!hasInFlight) return
 
     const id = setInterval(() => {
+      if (!shouldPollFocusedHeatmap) {
+        getFitnessRouteHeatmaps({ actorId })
+          .then((allHeatmaps) => {
+            setHeatmaps(allHeatmaps)
+            pollingProgressRef.current = null
+            setPollingStalled(false)
+          })
+          .catch(() => {})
+        return
+      }
+
       Promise.all([
         getFitnessRouteHeatmap({
           actorId,
@@ -589,12 +606,17 @@ export const FitnessHeatmapView: FC<Props> = ({
           setHeatmapData(heatmap)
           setHeatmaps(allHeatmaps)
 
-          if (
-            heatmap &&
-            heatmap.status !== 'generating' &&
-            heatmap.status !== 'pending'
-          ) {
+          if (heatmap && !isRouteHeatmapInFlight(heatmap)) {
             setGenerationPending(false)
+          }
+
+          const nextFocusedInFlight =
+            isRouteHeatmapInFlight(heatmap) ||
+            (isFocusedHeatmapInFlight && heatmap === null)
+          if (!nextFocusedInFlight) {
+            pollingProgressRef.current = null
+            setPollingStalled(false)
+            return
           }
 
           const focusedFingerprint = heatmap
@@ -631,10 +653,8 @@ export const FitnessHeatmapView: FC<Props> = ({
 
     return () => clearInterval(id)
   }, [
-    generationPending,
-    heatmapData?.status,
+    shouldPollFocusedHeatmap,
     hasAnyListInFlight,
-    pollingStalled,
     actorId,
     selectedActivityType,
     periodType,

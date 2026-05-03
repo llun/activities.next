@@ -2,20 +2,52 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 
-import { FitnessRouteHeatmapData } from '@/lib/client'
+import {
+  getDistinctFitnessActivityTypes,
+  getFitnessCalendarData,
+  getFitnessRouteHeatmap,
+  getFitnessRouteHeatmaps,
+  triggerFitnessRouteHeatmap
+} from '@/lib/client'
+import type {
+  FitnessRouteHeatmapData,
+  FitnessRouteHeatmapSummaryData
+} from '@/lib/client'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 
-import { RouteHeatmapMap } from './FitnessHeatmapView'
+import { FitnessHeatmapView, RouteHeatmapMap } from './FitnessHeatmapView'
 
 jest.mock('@/lib/utils/mapbox', () => ({
   loadMapboxModule: jest.fn()
 }))
 
+jest.mock('@/lib/client', () => ({
+  getDistinctFitnessActivityTypes: jest.fn(),
+  getFitnessCalendarData: jest.fn(),
+  getFitnessRouteHeatmap: jest.fn(),
+  getFitnessRouteHeatmaps: jest.fn(),
+  triggerFitnessRouteHeatmap: jest.fn()
+}))
+
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
   typeof loadMapboxModule
 >
+const mockGetDistinctFitnessActivityTypes =
+  getDistinctFitnessActivityTypes as jest.MockedFunction<
+    typeof getDistinctFitnessActivityTypes
+  >
+const mockGetFitnessCalendarData =
+  getFitnessCalendarData as jest.MockedFunction<typeof getFitnessCalendarData>
+const mockGetFitnessRouteHeatmap =
+  getFitnessRouteHeatmap as jest.MockedFunction<typeof getFitnessRouteHeatmap>
+const mockGetFitnessRouteHeatmaps =
+  getFitnessRouteHeatmaps as jest.MockedFunction<typeof getFitnessRouteHeatmaps>
+const mockTriggerFitnessRouteHeatmap =
+  triggerFitnessRouteHeatmap as jest.MockedFunction<
+    typeof triggerFitnessRouteHeatmap
+  >
 
 const completedHeatmap: FitnessRouteHeatmapData = {
   id: 'route-heatmap-1',
@@ -44,6 +76,72 @@ const completedHeatmap: FitnessRouteHeatmapData = {
   createdAt: 1,
   updatedAt: 2
 }
+
+const pendingSummary: FitnessRouteHeatmapSummaryData = {
+  id: 'route-heatmap-background',
+  periodType: 'yearly',
+  periodKey: '2026',
+  region: '',
+  status: 'generating',
+  activityCount: 1,
+  pointCount: 2,
+  cursorOffset: 10,
+  isPartial: false,
+  createdAt: 1,
+  updatedAt: 2
+}
+
+describe('FitnessHeatmapView', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockGetDistinctFitnessActivityTypes.mockResolvedValue([])
+    mockGetFitnessCalendarData.mockResolvedValue([])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([pendingSummary])
+    mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('keeps polling history entries without stalling a completed selection', async () => {
+    jest.useFakeTimers()
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    await waitFor(() => {
+      expect(mockGetFitnessRouteHeatmap).toHaveBeenCalledTimes(1)
+      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
+    })
+
+    mockGetFitnessRouteHeatmap.mockClear()
+
+    const callsAfterInitialLoad = mockGetFitnessRouteHeatmaps.mock.calls.length
+
+    for (let i = 0; i < 35; i++) {
+      await act(async () => {
+        jest.advanceTimersByTime(5000)
+        await Promise.resolve()
+      })
+    }
+    const callsAfterStallWindow = mockGetFitnessRouteHeatmaps.mock.calls.length
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000)
+      await Promise.resolve()
+    })
+
+    expect(callsAfterStallWindow).toBeGreaterThan(callsAfterInitialLoad)
+    expect(mockGetFitnessRouteHeatmaps.mock.calls.length).toBeGreaterThan(
+      callsAfterStallWindow
+    )
+    expect(mockGetFitnessRouteHeatmap).not.toHaveBeenCalled()
+    expect(
+      screen.queryByText('Route cache is taking longer than expected')
+    ).not.toBeInTheDocument()
+  })
+})
 
 describe('RouteHeatmapMap', () => {
   beforeEach(() => {
