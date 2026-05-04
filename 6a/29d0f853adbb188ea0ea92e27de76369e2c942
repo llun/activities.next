@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "6a29d0f853adbb188ea0ea92e27de76369e2c942",
+  "prompts": {
+    "129eb44ccbe19d68": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dee20-ccc9-7d00-a0fd-5ed1fb92bda9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 596,
+      "total_deletions": 3,
+      "accepted_lines": 760,
+      "overriden_lines": 0
+    }
+  }
+}
