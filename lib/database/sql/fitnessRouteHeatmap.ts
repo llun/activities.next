@@ -88,6 +88,7 @@ export interface FitnessRouteHeatmapDatabase {
   ): Promise<string[]>
   getDistinctRouteHeatmapRegionsForActor(params: {
     actorId: string
+    includeDeleted?: boolean
   }): Promise<string[]>
   deleteFitnessRouteHeatmapsForActor(params: {
     actorId: string
@@ -385,13 +386,16 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     return rows.map((row: { activityType: string }) => row.activityType)
   },
 
-  async getDistinctRouteHeatmapRegionsForActor({ actorId }) {
-    const rows = await database('fitness_route_heatmaps')
+  async getDistinctRouteHeatmapRegionsForActor({ actorId, includeDeleted }) {
+    let query = database('fitness_route_heatmaps')
       .where('actorId', actorId)
-      .whereNull('deletedAt')
       .whereNot('region', '')
-      .distinct('region')
-      .orderBy('region', 'asc')
+
+    if (!includeDeleted) {
+      query = query.whereNull('deletedAt')
+    }
+
+    const rows = await query.distinct('region').orderBy('region', 'asc')
 
     return rows.map((row: { region: string }) => row.region)
   },

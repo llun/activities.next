@@ -58,6 +58,53 @@ describe('FitnessFileDatabase', () => {
         })
         expect(actorFiles.some((item) => item.id === created!.id)).toBe(true)
       })
+
+      it('uses a deterministic id tiebreaker when files share createdAt', async () => {
+        jest.useFakeTimers()
+        jest.setSystemTime(new Date('2030-01-01T00:00:00.000Z'))
+
+        try {
+          const first = await database.createFitnessFile({
+            actorId: actors.extra.id,
+            path: 'fitness/same-created-at-1.fit',
+            fileName: 'same-created-at-1.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+          const second = await database.createFitnessFile({
+            actorId: actors.extra.id,
+            path: 'fitness/same-created-at-2.fit',
+            fileName: 'same-created-at-2.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+          const third = await database.createFitnessFile({
+            actorId: actors.extra.id,
+            path: 'fitness/same-created-at-3.fit',
+            fileName: 'same-created-at-3.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+
+          expect(first).toBeDefined()
+          expect(second).toBeDefined()
+          expect(third).toBeDefined()
+
+          const actorFiles = await database.getFitnessFilesByActor({
+            actorId: actors.extra.id,
+            limit: 3
+          })
+
+          expect(actorFiles.map((item) => item.id)).toEqual(
+            [first!.id, second!.id, third!.id].sort().reverse()
+          )
+        } finally {
+          jest.useRealTimers()
+        }
+      })
     })
 
     describe('getFitnessFileByStatus/updateFitnessFileStatus', () => {
