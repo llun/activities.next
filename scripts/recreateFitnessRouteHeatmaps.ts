@@ -34,7 +34,7 @@ const CliArgs = z.object({
 
 const USAGE = `Usage: NODE_ENV=production scripts/recreateFitnessRouteHeatmaps.ts \\
   --actor-id https://yourdomain.com/users/username \\
-  [--dry-run]`
+  [--dry-run [true|false]]`
 
 const parseDryRunValue = (value?: string) => {
   if (value === undefined) {
@@ -52,7 +52,7 @@ const parseDryRunValue = (value?: string) => {
   throw new Error(`Invalid value for --dry-run: ${value}. Use true or false.`)
 }
 
-const parseArgs = (args: string[]) => {
+export const parseArgs = (args: string[]) => {
   const parsedArgs: Record<string, string | boolean> = {}
 
   for (let index = 0; index < args.length; index += 1) {
@@ -63,7 +63,19 @@ const parseArgs = (args: string[]) => {
 
     const [rawKey, inlineValue] = argument.slice(2).split('=', 2)
     if (rawKey === 'dry-run') {
-      parsedArgs[rawKey] = parseDryRunValue(inlineValue)
+      const nextValue = args[index + 1]
+      if (inlineValue !== undefined) {
+        parsedArgs[rawKey] = parseDryRunValue(inlineValue)
+        continue
+      }
+
+      if (nextValue && !nextValue.startsWith('--')) {
+        parsedArgs[rawKey] = parseDryRunValue(nextValue)
+        index += 1
+        continue
+      }
+
+      parsedArgs[rawKey] = parseDryRunValue()
       continue
     }
 
