@@ -252,6 +252,22 @@ describe('FitnessRouteHeatmapDatabase', () => {
             actorId: actors.replyAuthor.id
           })
         ).resolves.toEqual(expect.arrayContaining(['netherlands', 'singapore']))
+
+        await database.deleteFitnessRouteHeatmapsForActor({
+          actorId: actors.replyAuthor.id
+        })
+
+        await expect(
+          database.getDistinctRouteHeatmapRegionsForActor({
+            actorId: actors.replyAuthor.id
+          })
+        ).resolves.toEqual([])
+        await expect(
+          database.getDistinctRouteHeatmapRegionsForActor({
+            actorId: actors.replyAuthor.id,
+            includeDeleted: true
+          })
+        ).resolves.toEqual(expect.arrayContaining(['netherlands', 'singapore']))
       })
     })
 
