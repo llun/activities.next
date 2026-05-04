@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f8a23372832b01d54b0b726315d51a3b4f624502",
+  "prompts": {},
+  "humans": {
+    "h_e5599db4cf9bba": {
+      "author": "Maythee Anegboonlap"
+    }
+  }
+}
