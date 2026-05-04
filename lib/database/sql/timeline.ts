@@ -114,13 +114,17 @@ export const TimelineSQLDatabaseMixin = (
           ])
           .limit(limit)
 
-        const statuses = await Promise.all(
-          statusesId
-            .map((item) => item.statusId)
-            .map((statusId) =>
-              statusDatabase.getStatus({ statusId, currentActorId: actorId })
-            )
-        )
+        const statuses: Array<Status | null> = []
+        for (const { statusId } of statusesId) {
+          // Keep status hydration sequential; each status load fans out more DB
+          // work and parallelizing the outer loop can overflow RSC async tracing.
+          statuses.push(
+            await statusDatabase.getStatus({
+              statusId,
+              currentActorId: actorId
+            })
+          )
+        }
 
         return statuses.filter((status): status is Status => !!status)
       }
