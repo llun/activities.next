@@ -374,6 +374,7 @@ export const FitnessFileSQLDatabaseMixin = (
 
     const rows = await query
       .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
       .limit(limit)
       .offset(offset)
 
