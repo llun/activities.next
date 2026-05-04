@@ -1,10 +1,12 @@
-import crypto from 'crypto'
+import { randomUUID } from 'node:crypto'
 
+import type { Database } from '@/lib/database/types'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
-import { FitnessFile } from '@/lib/types/database/fitnessFile'
-import { FitnessRouteHeatmapPeriodType } from '@/lib/types/database/fitnessRouteHeatmap'
+import type { FitnessFile } from '@/lib/types/database/fitnessFile'
+import type { FitnessRouteHeatmapPeriodType } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 const FITNESS_FILE_PAGE_SIZE = 500
 
@@ -15,21 +17,12 @@ export interface RecreateFitnessRouteHeatmapVariant {
   region?: string
 }
 
-export interface RecreateFitnessRouteHeatmapJobsDatabase {
-  getDistinctRouteHeatmapRegionsForActor(params: {
-    actorId: string
-  }): Promise<string[]>
-  getFitnessFilesByActor(params: {
-    actorId: string
-    processingStatus: 'completed'
-    isPrimary: true
-    limit: number
-    offset: number
-  }): Promise<FitnessFile[]>
-  deleteFitnessRouteHeatmapsForActor(params: {
-    actorId: string
-  }): Promise<number>
-}
+export type RecreateFitnessRouteHeatmapJobsDatabase = Pick<
+  Database,
+  | 'getDistinctRouteHeatmapRegionsForActor'
+  | 'getFitnessFilesByActor'
+  | 'deleteFitnessRouteHeatmapsForActor'
+>
 
 export interface RecreateFitnessRouteHeatmapJobsParams {
   database: RecreateFitnessRouteHeatmapJobsDatabase
@@ -112,6 +105,8 @@ const addFileVariants = (
   }
 
   if (!activityDate) {
+    // Scoped route-heatmap generation filters by activityStartTime; files
+    // without one cannot contribute to yearly/monthly caches.
     return
   }
 
@@ -148,6 +143,25 @@ const normalizeRegions = (regions: string[]) =>
     new Set(regions.map((region) => region.trim()).filter(Boolean))
   ).sort()
 
+const buildVariantsFromBaseMap = ({
+  baseVariants,
+  regions
+}: {
+  baseVariants: Map<string, RecreateFitnessRouteHeatmapVariant>
+  regions: string[]
+}): RecreateFitnessRouteHeatmapVariant[] => {
+  const variants = new Map(baseVariants)
+  const baseVariantValues = Array.from(baseVariants.values())
+
+  for (const region of normalizeRegions(regions)) {
+    for (const variant of baseVariantValues) {
+      addVariant(variants, { ...variant, region })
+    }
+  }
+
+  return Array.from(variants.values()).sort(sortVariants)
+}
+
 export const buildRecreateFitnessRouteHeatmapVariants = ({
   fitnessFiles,
   regions
@@ -161,29 +175,14 @@ export const buildRecreateFitnessRouteHeatmapVariants = ({
     addFileVariants(baseVariants, file)
   }
 
-  const sortedBaseVariants = Array.from(baseVariants.values()).sort(
-    sortVariants
-  )
-  const variants = new Map<string, RecreateFitnessRouteHeatmapVariant>()
-
-  for (const variant of sortedBaseVariants) {
-    addVariant(variants, variant)
-  }
-
-  for (const region of normalizeRegions(regions)) {
-    for (const variant of sortedBaseVariants) {
-      addVariant(variants, { ...variant, region })
-    }
-  }
-
-  return Array.from(variants.values()).sort(sortVariants)
+  return buildVariantsFromBaseMap({ baseVariants, regions })
 }
 
-const getCompletedPrimaryFitnessFilesForActor = async (
+const getCompletedPrimaryFitnessFileVariantsForActor = async (
   database: RecreateFitnessRouteHeatmapJobsDatabase,
   actorId: string
 ) => {
-  const fitnessFiles: FitnessFile[] = []
+  const variants = new Map<string, RecreateFitnessRouteHeatmapVariant>()
   let offset = 0
 
   while (true) {
@@ -195,7 +194,9 @@ const getCompletedPrimaryFitnessFilesForActor = async (
       offset
     })
 
-    fitnessFiles.push(...page)
+    for (const file of page) {
+      addFileVariants(variants, file)
+    }
 
     if (page.length < FITNESS_FILE_PAGE_SIZE) {
       break
@@ -204,7 +205,7 @@ const getCompletedPrimaryFitnessFilesForActor = async (
     offset += page.length
   }
 
-  return fitnessFiles
+  return variants
 }
 
 const buildJobId = ({
@@ -232,16 +233,16 @@ export const recreateFitnessRouteHeatmapJobs = async ({
   database,
   actorId,
   dryRun = false,
-  runId = crypto.randomUUID()
+  runId = randomUUID()
 }: RecreateFitnessRouteHeatmapJobsParams): Promise<RecreateFitnessRouteHeatmapJobsResult> => {
-  const [regions, fitnessFiles] = await Promise.all([
-    database.getDistinctRouteHeatmapRegionsForActor({ actorId }),
-    getCompletedPrimaryFitnessFilesForActor(database, actorId)
+  const [regions, baseVariants] = await Promise.all([
+    database.getDistinctRouteHeatmapRegionsForActor({
+      actorId,
+      includeDeleted: true
+    }),
+    getCompletedPrimaryFitnessFileVariantsForActor(database, actorId)
   ])
-  const variants = buildRecreateFitnessRouteHeatmapVariants({
-    fitnessFiles,
-    regions
-  })
+  const variants = buildVariantsFromBaseMap({ baseVariants, regions })
 
   if (dryRun) {
     return {
@@ -260,9 +261,9 @@ export const recreateFitnessRouteHeatmapJobs = async ({
   const errors: RecreateFitnessRouteHeatmapJobError[] = []
   let queuedCount = 0
 
-  for (const variant of variants) {
-    try {
-      await queue.publish({
+  const publishResults = await Promise.allSettled(
+    variants.map((variant) =>
+      queue.publish({
         id: buildJobId({ runId, actorId, variant }),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
         data: {
@@ -273,14 +274,34 @@ export const recreateFitnessRouteHeatmapJobs = async ({
           ...(variant.region ? { region: variant.region } : {})
         }
       })
+    )
+  )
+
+  publishResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
       queuedCount += 1
-    } catch (error) {
+      return
+    }
+
+    const variant = variants[index]
+    const error =
+      result.reason instanceof Error
+        ? result.reason.message
+        : String(result.reason)
+
+    logger.warn({
+      message: 'Failed to publish route heatmap recreation job',
+      actorId,
+      error,
+      variant
+    })
+    if (variant) {
       errors.push({
         variant,
-        error: (error as Error).message
+        error
       })
     }
-  }
+  })
 
   return {
     variants,

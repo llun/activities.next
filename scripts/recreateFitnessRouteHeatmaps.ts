@@ -36,6 +36,22 @@ const USAGE = `Usage: NODE_ENV=production scripts/recreateFitnessRouteHeatmaps.t
   --actor-id https://yourdomain.com/users/username \\
   [--dry-run]`
 
+const parseDryRunValue = (value?: string) => {
+  if (value === undefined) {
+    return true
+  }
+
+  if (value === 'true') {
+    return true
+  }
+
+  if (value === 'false') {
+    return false
+  }
+
+  throw new Error(`Invalid value for --dry-run: ${value}. Use true or false.`)
+}
+
 const parseArgs = (args: string[]) => {
   const parsedArgs: Record<string, string | boolean> = {}
 
@@ -47,7 +63,7 @@ const parseArgs = (args: string[]) => {
 
     const [rawKey, inlineValue] = argument.slice(2).split('=', 2)
     if (rawKey === 'dry-run') {
-      parsedArgs[rawKey] = inlineValue === undefined ? true : inlineValue
+      parsedArgs[rawKey] = parseDryRunValue(inlineValue)
       continue
     }
 
@@ -103,47 +119,51 @@ async function recreateFitnessRouteHeatmaps(args = process.argv.slice(2)) {
     return 1
   }
 
-  const actor = await database.getActorFromId({ id: input.actorId })
-  if (!actor) {
-    console.error(`Error: Actor not found: ${input.actorId}`)
-    return 1
-  }
+  try {
+    const actor = await database.getActorFromId({ id: input.actorId })
+    if (!actor) {
+      console.error(`Error: Actor not found: ${input.actorId}`)
+      return 1
+    }
 
-  const result = await recreateFitnessRouteHeatmapJobs({
-    database,
-    actorId: actor.id,
-    dryRun: input.dryRun
-  })
+    const result = await recreateFitnessRouteHeatmapJobs({
+      database,
+      actorId: actor.id,
+      dryRun: input.dryRun
+    })
 
-  if (input.dryRun) {
+    if (input.dryRun) {
+      console.log(
+        `Dry run: found ${result.variants.length} route heatmap variant(s) for ${actor.id}.`
+      )
+
+      for (const variant of result.variants) {
+        console.log(`  - ${formatVariant(variant)}`)
+      }
+
+      return 0
+    }
+
     console.log(
-      `Dry run: found ${result.variants.length} route heatmap variant(s) for ${actor.id}.`
+      `Deleted ${result.deletedCount} existing route heatmap cache row(s) for ${actor.id}.`
+    )
+    console.log(
+      `Queued ${result.queuedCount} of ${result.variants.length} route heatmap generation job(s).`
     )
 
-    for (const variant of result.variants) {
-      console.log(`  - ${formatVariant(variant)}`)
+    if (result.failedCount > 0) {
+      console.error(
+        `Failed to queue ${result.failedCount} route heatmap generation job(s):`
+      )
+      for (const { variant, error } of result.errors) {
+        console.error(`  - ${formatVariant(variant)}: ${error}`)
+      }
     }
 
-    return 0
+    return result.failedCount > 0 ? 1 : 0
+  } finally {
+    await database.destroy()
   }
-
-  console.log(
-    `Deleted ${result.deletedCount} existing route heatmap cache row(s) for ${actor.id}.`
-  )
-  console.log(
-    `Queued ${result.queuedCount} of ${result.variants.length} route heatmap generation job(s).`
-  )
-
-  if (result.failedCount > 0) {
-    console.error(
-      `Failed to queue ${result.failedCount} route heatmap generation job(s):`
-    )
-    for (const { variant, error } of result.errors) {
-      console.error(`  - ${formatVariant(variant)}: ${error}`)
-    }
-  }
-
-  return result.failedCount > 0 ? 1 : 0
 }
 
 if (require.main === module) {

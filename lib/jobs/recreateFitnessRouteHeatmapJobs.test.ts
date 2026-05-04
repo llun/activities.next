@@ -1,13 +1,23 @@
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
-import { recreateFitnessRouteHeatmapJobs } from '@/lib/jobs/recreateFitnessRouteHeatmapJobs'
+import {
+  buildRecreateFitnessRouteHeatmapVariants,
+  recreateFitnessRouteHeatmapJobs
+} from '@/lib/jobs/recreateFitnessRouteHeatmapJobs'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
+import { logger } from '@/lib/utils/logger'
 
 const mockPublish = jest.fn()
+const mockWarn = logger.warn as jest.Mock
 
 jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn(() => ({
     publish: mockPublish
   }))
+}))
+jest.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: jest.fn()
+  }
 }))
 
 const makeFitnessFile = (
@@ -30,7 +40,9 @@ const makeFitnessFile = (
 
 describe('recreateFitnessRouteHeatmapJobs', () => {
   beforeEach(() => {
-    mockPublish.mockClear()
+    mockPublish.mockReset()
+    mockPublish.mockResolvedValue(undefined)
+    mockWarn.mockReset()
   })
 
   it('deletes existing heatmaps and queues every discoverable actor variant', async () => {
@@ -66,7 +78,8 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
     expect(
       database.getDistinctRouteHeatmapRegionsForActor
     ).toHaveBeenCalledWith({
-      actorId: 'actor-1'
+      actorId: 'actor-1',
+      includeDeleted: true
     })
     expect(getFitnessFilesByActor).toHaveBeenNthCalledWith(1, {
       actorId: 'actor-1',
@@ -163,5 +176,143 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
     expect(result.variants).toHaveLength(3)
     expect(database.deleteFitnessRouteHeatmapsForActor).not.toHaveBeenCalled()
     expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('normalizes regions and collapses blank activity types into the all-activity bucket', () => {
+    const variants = buildRecreateFitnessRouteHeatmapVariants({
+      fitnessFiles: [
+        makeFitnessFile({
+          activityType: '  ',
+          activityStartTime: undefined
+        })
+      ],
+      regions: ['  region-b  ', '', 'region-a', 'region-a']
+    })
+
+    expect(variants).toEqual([
+      {
+        activityType: null,
+        periodType: 'all_time',
+        periodKey: 'all'
+      },
+      {
+        activityType: null,
+        periodType: 'all_time',
+        periodKey: 'all',
+        region: 'region-a'
+      },
+      {
+        activityType: null,
+        periodType: 'all_time',
+        periodKey: 'all',
+        region: 'region-b'
+      }
+    ])
+  })
+
+  it('paginates completed primary fitness files while deriving variants', async () => {
+    const firstPage = Array.from({ length: 500 }, (_value, index) =>
+      makeFitnessFile({
+        id: `run-${index}`,
+        activityType: 'run',
+        activityStartTime: Date.UTC(2026, 0, 1)
+      })
+    )
+    const getFitnessFilesByActor = jest
+      .fn()
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([
+        makeFitnessFile({
+          id: 'ride-501',
+          activityType: 'ride',
+          activityStartTime: Date.UTC(2026, 1, 1)
+        })
+      ])
+    const database = {
+      getDistinctRouteHeatmapRegionsForActor: jest.fn().mockResolvedValue([]),
+      getFitnessFilesByActor,
+      deleteFitnessRouteHeatmapsForActor: jest.fn()
+    }
+
+    const result = await recreateFitnessRouteHeatmapJobs({
+      database,
+      actorId: 'actor-1',
+      dryRun: true
+    })
+
+    expect(getFitnessFilesByActor).toHaveBeenNthCalledWith(1, {
+      actorId: 'actor-1',
+      processingStatus: 'completed',
+      isPrimary: true,
+      limit: 500,
+      offset: 0
+    })
+    expect(getFitnessFilesByActor).toHaveBeenNthCalledWith(2, {
+      actorId: 'actor-1',
+      processingStatus: 'completed',
+      isPrimary: true,
+      limit: 500,
+      offset: 500
+    })
+    expect(result.variants).toEqual(
+      expect.arrayContaining([
+        {
+          activityType: 'run',
+          periodType: 'monthly',
+          periodKey: '2026-01'
+        },
+        {
+          activityType: 'ride',
+          periodType: 'monthly',
+          periodKey: '2026-02'
+        }
+      ])
+    )
+  })
+
+  it('records per-variant publish failures without blocking other variants', async () => {
+    mockPublish.mockImplementation((message) => {
+      return message.data.periodType === 'monthly'
+        ? Promise.reject(new Error('queue unavailable'))
+        : Promise.resolve()
+    })
+    const database = {
+      getDistinctRouteHeatmapRegionsForActor: jest.fn().mockResolvedValue([]),
+      getFitnessFilesByActor: jest
+        .fn()
+        .mockResolvedValueOnce([
+          makeFitnessFile({
+            activityStartTime: Date.UTC(2026, 4, 1)
+          })
+        ])
+        .mockResolvedValueOnce([]),
+      deleteFitnessRouteHeatmapsForActor: jest.fn().mockResolvedValue(1)
+    }
+
+    const result = await recreateFitnessRouteHeatmapJobs({
+      database,
+      actorId: 'actor-1',
+      runId: 'test-run'
+    })
+
+    expect(result.queuedCount).toBe(2)
+    expect(result.failedCount).toBe(1)
+    expect(result.errors).toEqual([
+      {
+        variant: {
+          activityType: null,
+          periodType: 'monthly',
+          periodKey: '2026-05'
+        },
+        error: 'queue unavailable'
+      }
+    ])
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to publish route heatmap recreation job',
+        actorId: 'actor-1',
+        error: 'queue unavailable'
+      })
+    )
   })
 })
