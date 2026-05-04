@@ -3,12 +3,14 @@ import { randomUUID } from 'node:crypto'
 import type { Database } from '@/lib/database/types'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import type { Queue } from '@/lib/services/queue/type'
 import type { FitnessFile } from '@/lib/types/database/fitnessFile'
 import type { FitnessRouteHeatmapPeriodType } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
 const FITNESS_FILE_PAGE_SIZE = 500
+const ROUTE_HEATMAP_RECREATE_PUBLISH_CONCURRENCY = 4
 
 export interface RecreateFitnessRouteHeatmapVariant {
   activityType: string | null
@@ -229,6 +231,73 @@ const buildJobId = ({
     ].join(':')
   )
 
+const publishRouteHeatmapVariant = ({
+  queue,
+  runId,
+  actorId,
+  variant
+}: {
+  queue: Queue
+  runId: string
+  actorId: string
+  variant: RecreateFitnessRouteHeatmapVariant
+}) =>
+  queue.publish({
+    id: buildJobId({ runId, actorId, variant }),
+    name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+    data: {
+      actorId,
+      activityType: variant.activityType,
+      periodType: variant.periodType,
+      periodKey: variant.periodKey,
+      ...(variant.region ? { region: variant.region } : {})
+    }
+  })
+
+const publishRouteHeatmapVariants = async ({
+  queue,
+  runId,
+  actorId,
+  variants
+}: {
+  queue: Queue
+  runId: string
+  actorId: string
+  variants: RecreateFitnessRouteHeatmapVariant[]
+}): Promise<PromiseSettledResult<void>[]> => {
+  const results: PromiseSettledResult<void>[] = []
+  let nextIndex = 0
+  const workerCount = Math.min(
+    ROUTE_HEATMAP_RECREATE_PUBLISH_CONCURRENCY,
+    variants.length
+  )
+
+  const publishNextVariant = async () => {
+    while (nextIndex < variants.length) {
+      const index = nextIndex
+      nextIndex += 1
+
+      try {
+        await publishRouteHeatmapVariant({
+          queue,
+          runId,
+          actorId,
+          variant: variants[index]
+        })
+        results[index] = { status: 'fulfilled', value: undefined }
+      } catch (error) {
+        results[index] = { status: 'rejected', reason: error }
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: workerCount }, () => publishNextVariant())
+  )
+
+  return results
+}
+
 export const recreateFitnessRouteHeatmapJobs = async ({
   database,
   actorId,
@@ -261,21 +330,12 @@ export const recreateFitnessRouteHeatmapJobs = async ({
   const errors: RecreateFitnessRouteHeatmapJobError[] = []
   let queuedCount = 0
 
-  const publishResults = await Promise.allSettled(
-    variants.map((variant) =>
-      queue.publish({
-        id: buildJobId({ runId, actorId, variant }),
-        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
-          actorId,
-          activityType: variant.activityType,
-          periodType: variant.periodType,
-          periodKey: variant.periodKey,
-          ...(variant.region ? { region: variant.region } : {})
-        }
-      })
-    )
-  )
+  const publishResults = await publishRouteHeatmapVariants({
+    queue,
+    runId,
+    actorId,
+    variants
+  })
 
   publishResults.forEach((result, index) => {
     if (result.status === 'fulfilled') {

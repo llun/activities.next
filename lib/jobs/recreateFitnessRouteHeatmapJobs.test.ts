@@ -315,4 +315,78 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
       })
     )
   })
+
+  it('limits concurrent route heatmap publishes', async () => {
+    const releasePublish: Array<() => void> = []
+    let activePublishCount = 0
+    let maxActivePublishCount = 0
+    const expectedPublishCount = 26
+    mockPublish.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          activePublishCount += 1
+          maxActivePublishCount = Math.max(
+            maxActivePublishCount,
+            activePublishCount
+          )
+          releasePublish.push(() => {
+            activePublishCount -= 1
+            resolve()
+          })
+        })
+    )
+    const database = {
+      getDistinctRouteHeatmapRegionsForActor: jest.fn().mockResolvedValue([]),
+      getFitnessFilesByActor: jest
+        .fn()
+        .mockResolvedValueOnce(
+          Array.from({ length: 6 }, (_value, index) =>
+            makeFitnessFile({
+              id: `fitness-file-${index}`,
+              activityType: `activity-${index}`,
+              activityStartTime: Date.UTC(2026, index, 1)
+            })
+          )
+        )
+        .mockResolvedValueOnce([]),
+      deleteFitnessRouteHeatmapsForActor: jest.fn().mockResolvedValue(1)
+    }
+
+    const resultPromise = recreateFitnessRouteHeatmapJobs({
+      database,
+      actorId: 'actor-1',
+      runId: 'test-run'
+    })
+
+    for (
+      let guard = 0;
+      guard < 10 && mockPublish.mock.calls.length < 4;
+      guard += 1
+    ) {
+      await Promise.resolve()
+    }
+
+    expect(mockPublish).toHaveBeenCalledTimes(4)
+    expect(maxActivePublishCount).toBe(4)
+
+    for (
+      let guard = 0;
+      guard < 100 &&
+      (mockPublish.mock.calls.length < expectedPublishCount ||
+        activePublishCount > 0);
+      guard += 1
+    ) {
+      const release = releasePublish.shift()
+      release?.()
+      await Promise.resolve()
+
+      expect(maxActivePublishCount).toBeLessThanOrEqual(4)
+    }
+
+    const result = await resultPromise
+
+    expect(mockPublish).toHaveBeenCalledTimes(expectedPublishCount)
+    expect(result.queuedCount).toBe(expectedPublishCount)
+    expect(result.failedCount).toBe(0)
+  })
 })
