@@ -112,7 +112,7 @@
     "@types/sanitize-html": "^2.16.1",
     "@types/web-push": "^3.6.4",
     "@types/yauzl": "^2.10.3",
-    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
     "@typescript-eslint/parser": "^8.59.1",
     "dotenv-flow": "^4.1.0",
     "eslint": "^10.2.1",
