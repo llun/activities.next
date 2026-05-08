@@ -14,28 +14,31 @@ export interface FilteredTimelinePage {
   prevMinStatusId: string | null
 }
 
-interface GetFilteredTimelinePageParams {
-  database: Database
-  timeline: Timeline
-  actorId: string
-  minStatusId?: string | null
-  maxStatusId?: string | null
-  limit?: number
-}
-
 export const normalizeTimelineLimit = (limit?: number | null) =>
   Number.isSafeInteger(limit) && limit && limit > 0
     ? Math.min(limit, MAX_TIMELINE_LIMIT)
     : PER_PAGE_LIMIT
 
-export const getFilteredTimelinePage = async ({
+interface FetchFilteredStatusBatchParams {
+  maxStatusId: string | null
+  limit: number
+}
+
+interface GetFilteredStatusPageParams {
+  database: Database
+  actorId?: string
+  maxStatusId?: string | null
+  limit?: number
+  fetchBatch: (params: FetchFilteredStatusBatchParams) => Promise<Status[]>
+}
+
+export const getFilteredStatusPage = async ({
   database,
-  timeline,
   actorId,
-  minStatusId = null,
   maxStatusId = null,
-  limit = PER_PAGE_LIMIT
-}: GetFilteredTimelinePageParams): Promise<FilteredTimelinePage> => {
+  limit = PER_PAGE_LIMIT,
+  fetchBatch
+}: GetFilteredStatusPageParams): Promise<FilteredTimelinePage> => {
   const pageLimit = normalizeTimelineLimit(limit)
   const statuses: Status[] = []
   let iterations = 0
@@ -45,10 +48,7 @@ export const getFilteredTimelinePage = async ({
 
   while (statuses.length < pageLimit && iterations < MAX_BACKFILL_ITERATIONS) {
     iterations++
-    const batch = await database.getTimeline({
-      timeline,
-      actorId,
-      minStatusId,
+    const batch = await fetchBatch({
       maxStatusId: cursor,
       limit: pageLimit
     })
@@ -73,12 +73,17 @@ export const getFilteredTimelinePage = async ({
     visibleStatuses.length > 0
       ? visibleStatuses[visibleStatuses.length - 1].id
       : null
-  const nextMaxStatusId =
-    visibleStatuses.length === pageLimit && !exhausted
-      ? lastVisibleStatusId
-      : !exhausted
-        ? lastScannedStatusId
-        : null
+  const hasBufferedVisibleStatuses = statuses.length > pageLimit
+  let nextMaxStatusId: string | null = null
+
+  if (
+    hasBufferedVisibleStatuses ||
+    (visibleStatuses.length === pageLimit && !exhausted)
+  ) {
+    nextMaxStatusId = lastVisibleStatusId
+  } else if (!exhausted) {
+    nextMaxStatusId = lastScannedStatusId
+  }
 
   return {
     statuses: visibleStatuses,
@@ -86,3 +91,35 @@ export const getFilteredTimelinePage = async ({
     prevMinStatusId: visibleStatuses.length > 0 ? visibleStatuses[0].id : null
   }
 }
+
+interface GetFilteredTimelinePageParams {
+  database: Database
+  timeline: Timeline
+  actorId: string
+  minStatusId?: string | null
+  maxStatusId?: string | null
+  limit?: number
+}
+
+export const getFilteredTimelinePage = async ({
+  database,
+  timeline,
+  actorId,
+  minStatusId = null,
+  maxStatusId = null,
+  limit = PER_PAGE_LIMIT
+}: GetFilteredTimelinePageParams): Promise<FilteredTimelinePage> =>
+  getFilteredStatusPage({
+    database,
+    actorId,
+    maxStatusId,
+    limit,
+    fetchBatch: ({ maxStatusId: cursor, limit: batchLimit }) =>
+      database.getTimeline({
+        timeline,
+        actorId,
+        minStatusId,
+        maxStatusId: cursor,
+        limit: batchLimit
+      })
+  })

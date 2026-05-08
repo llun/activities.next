@@ -6,7 +6,11 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
-import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
+import { TimelineFormat } from '@/lib/services/timelines/const'
+import {
+  getFilteredStatusPage,
+  normalizeTimelineLimit
+} from '@/lib/services/timelines/getFilteredTimelinePage'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -60,37 +64,39 @@ export const GET = traceApiRoute(
     const format = url.searchParams.get('format')
 
     const parsedLimit = limitParam ? parseInt(limitParam, 10) : PER_PAGE_LIMIT
-    const effectiveLimit =
-      Number.isSafeInteger(parsedLimit) && parsedLimit >= 1
-        ? Math.min(parsedLimit, PER_PAGE_LIMIT)
-        : PER_PAGE_LIMIT
+    const effectiveLimit = normalizeTimelineLimit(parsedLimit)
 
     const session = await getServerAuthSession()
     const currentActor = await getActorFromSession(database, session)
-    const statuses = await filterBlockedStatuses(
+    const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
       database,
-      currentActor?.id,
-      await database.getStatusesByHashtag({
-        hashtag: tag,
-        limit: effectiveLimit,
-        maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : undefined
-      })
-    )
+      actorId: currentActor?.id,
+      maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : null,
+      limit: effectiveLimit,
+      fetchBatch: ({ maxStatusId, limit }) =>
+        database.getStatusesByHashtag({
+          hashtag: tag,
+          limit,
+          maxStatusId: maxStatusId ?? undefined
+        })
+    })
 
-    if (format === 'activities_next') {
+    if (format === TimelineFormat.enum.activities_next) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { statuses: statuses.map((item) => cleanJson(item)) }
+        data: {
+          statuses: statuses.map((item) => cleanJson(item)),
+          nextMaxStatusId
+        }
       })
     }
 
     const host = headerHost(req.headers)
     const encodedTag = encodeURIComponent(tag)
-    const nextLink =
-      statuses.length > 0
-        ? `<https://${host}/api/v1/tags/${encodedTag}?limit=${effectiveLimit}&max_id=${urlToId(statuses[statuses.length - 1].id)}>; rel="next"`
-        : null
+    const nextLink = nextMaxStatusId
+      ? `<https://${host}/api/v1/tags/${encodedTag}?limit=${effectiveLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
+      : null
     const links = [nextLink].filter(Boolean).join(', ')
     const mastodonStatuses = await Promise.all(
       statuses.map((item) => getMastodonStatus(database, item))

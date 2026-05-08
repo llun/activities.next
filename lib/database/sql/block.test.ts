@@ -112,6 +112,11 @@ describe('BlockDatabase', () => {
       database.getBlocks({ actorId, limit: 2, maxId: targets[1].id }),
       database.getBlocks({ actorId, limit: 2, minId: targets[0].id })
     ])
+    const sincePage = await database.getBlocks({
+      actorId,
+      limit: 2,
+      sinceId: targets[0].id
+    })
 
     expect(firstPage.map((block) => block.id)).toEqual([
       targets[4].id,
@@ -121,6 +126,10 @@ describe('BlockDatabase', () => {
     expect(newerPage.map((block) => block.id)).toEqual([
       targets[2].id,
       targets[1].id
+    ])
+    expect(sincePage.map((block) => block.id)).toEqual([
+      targets[4].id,
+      targets[3].id
     ])
   })
 

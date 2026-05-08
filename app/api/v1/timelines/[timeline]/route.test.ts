@@ -478,12 +478,14 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       const actorId = await createIsolatedActor()
       mockCookieValue.value = actorId
 
+      const blockedStatusIds: string[] = []
       for (let index = 0; index < 6; index++) {
-        await createTimelineNote({
+        const status = await createTimelineNote({
           actorId: EXTERNAL_ACTOR1,
           timelineActorId: actorId,
           name: `blocked-${index}`
         })
+        blockedStatusIds.push(status.id)
       }
       await database.createBlock({
         actorId,
@@ -498,7 +500,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.statuses).toEqual([])
-      expect(data.nextMaxStatusId).toEqual(expect.any(String))
+      expect(data.nextMaxStatusId).toBe(blockedStatusIds[1])
     })
   })
 

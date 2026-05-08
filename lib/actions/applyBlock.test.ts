@@ -1,10 +1,19 @@
 import { applyBlock } from '@/lib/actions/applyBlock'
 import { applyUnblock } from '@/lib/actions/applyUnblock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
+}))
 
 describe('applyBlock', () => {
   const database = getTestSQLDatabase()
@@ -16,6 +25,10 @@ describe('applyBlock', () => {
 
   afterAll(async () => {
     await database.destroy()
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
   })
 
   it('creates a block and tears down accepted/requested follows in both directions', async () => {
@@ -53,6 +66,23 @@ describe('applyBlock', () => {
       database.getFollowFromId({ followId: reverse.id })
     ).resolves.toMatchObject({
       status: FollowStatus.enum.Undo
+    })
+    expect(getQueue().publish).toHaveBeenCalledTimes(2)
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: getHashFromString(`${forward!.id}/undo`),
+      name: SEND_UNDO_FOLLOW_JOB_NAME,
+      data: {
+        actorId: forward!.actorId,
+        follow: forward
+      }
+    })
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: getHashFromString(`${reverse.id}/undo`),
+      name: SEND_UNDO_FOLLOW_JOB_NAME,
+      data: {
+        actorId: reverse.actorId,
+        follow: reverse
+      }
     })
   })
 

@@ -693,6 +693,7 @@ export type GetBlocksParams = {
   limit: number
   maxId?: string | null
   minId?: string | null
+  sinceId?: string | null
 }
 export type GetBlockRelationsParams = {
   actorIds: string[]

@@ -205,14 +205,16 @@ export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
     return Boolean(block)
   },
 
-  async getBlocks({ actorId, limit, maxId, minId }: GetBlocksParams) {
+  async getBlocks({ actorId, limit, maxId, minId, sinceId }: GetBlocksParams) {
     const query = database<Block>('blocks')
       .where('actorId', actorId)
       .limit(limit)
 
-    if (maxId || minId) {
+    const cursorId = maxId || minId || sinceId
+
+    if (cursorId) {
       const cursor = await database<Block>('blocks')
-        .where({ actorId, id: maxId || minId })
+        .where({ actorId, id: cursorId })
         .first()
       if (cursor) applyCursor(query, cursor, maxId ? 'older' : 'newer')
     }

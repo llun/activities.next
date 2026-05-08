@@ -28,7 +28,8 @@ export const GET = traceApiRoute(
       actorId: currentActor.id,
       limit,
       maxId: url.searchParams.get('max_id'),
-      minId: url.searchParams.get('min_id') || url.searchParams.get('since_id')
+      minId: url.searchParams.get('min_id'),
+      sinceId: url.searchParams.get('since_id')
     })
 
     const accounts = await Promise.all(

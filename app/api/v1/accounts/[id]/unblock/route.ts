@@ -41,22 +41,24 @@ export const POST = traceApiRoute(
     const targetActorId = idToUrl(encodedAccountId)
 
     if (targetActorId !== currentActor.id) {
-      const targetActor = await recordActorIfNeeded({
-        actorId: targetActorId,
-        database
-      })
-      if (!targetActor)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-
       const existingBlock = await database.getBlock({
         actorId: currentActor.id,
         targetActorId
       })
+
+      if (!existingBlock) {
+        const targetActor = await recordActorIfNeeded({
+          actorId: targetActorId,
+          database
+        })
+        if (!targetActor)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: 404
+          })
+      }
 
       if (existingBlock) {
         await applyUnblock({

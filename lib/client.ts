@@ -548,7 +548,7 @@ interface GetTimelineResult {
   prevMinStatusId: string | null
 }
 
-const MAX_EMPTY_TIMELINE_CONTINUATIONS = 5
+const MAX_EMPTY_TIMELINE_CONTINUATIONS = 2
 
 const getTimelinePage = async ({
   timeline,
@@ -621,10 +621,16 @@ interface GetHashtagTimelineParams {
   tag: string
   maxStatusId?: string
 }
-export const getHashtagTimeline = async ({
+
+interface GetHashtagTimelineResult {
+  statuses: Status[]
+  nextMaxStatusId: string | null
+}
+
+const getHashtagTimelinePage = async ({
   tag,
   maxStatusId
-}: GetHashtagTimelineParams) => {
+}: GetHashtagTimelineParams): Promise<GetHashtagTimelineResult> => {
   const path = `/api/v1/tags/${encodeURIComponent(tag)}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
   if (maxStatusId) {
@@ -636,9 +642,38 @@ export const getHashtagTimeline = async ({
       Accept: 'application/json'
     }
   })
-  if (response.status !== 200) return []
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxStatusId: null }
+  }
   const data = await response.json()
-  return data.statuses as Status[]
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null
+  }
+}
+
+export const getHashtagTimeline = async ({
+  tag,
+  maxStatusId
+}: GetHashtagTimelineParams): Promise<GetHashtagTimelineResult> => {
+  let result = await getHashtagTimelinePage({ tag, maxStatusId })
+  let currentMaxStatusId = result.nextMaxStatusId
+  let continuations = 0
+
+  while (
+    result.statuses.length === 0 &&
+    currentMaxStatusId &&
+    continuations < MAX_EMPTY_TIMELINE_CONTINUATIONS
+  ) {
+    continuations++
+    result = await getHashtagTimelinePage({
+      tag,
+      maxStatusId: currentMaxStatusId
+    })
+    currentMaxStatusId = result.nextMaxStatusId
+  }
+
+  return result
 }
 
 interface GetActorStatusesParams {

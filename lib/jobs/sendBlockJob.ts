@@ -42,6 +42,7 @@ export const sendBlockJob: JobHandle = createJobHandle(
         actorId,
         targetActorId
       })
+      // Skip stale Block jobs after unblock or re-block; the latest persisted block owns federation.
       if (currentBlock?.uri !== uri) {
         span.end()
         return
