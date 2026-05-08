@@ -694,6 +694,11 @@ export type GetBlocksParams = {
   maxId?: string | null
   minId?: string | null
 }
+export type GetBlockRelationsParams = {
+  actorIds: string[]
+  targetActorIds: string[]
+}
+export type BlockRelation = Pick<Block, 'actorId' | 'targetActorId'>
 
 export interface BlockDatabase {
   createBlock(params: CreateBlockParams): Promise<Block>
@@ -704,6 +709,7 @@ export interface BlockDatabase {
   isBlocking(params: IsBlockingParams): Promise<boolean>
   isEitherBlocking(params: IsEitherBlockingParams): Promise<boolean>
   getBlocks(params: GetBlocksParams): Promise<Block[]>
+  getBlockRelations(params: GetBlockRelationsParams): Promise<BlockRelation[]>
 }
 
 // ============================================================================

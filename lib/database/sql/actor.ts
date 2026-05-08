@@ -1172,28 +1172,29 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             (blockedByAdjustments[block.targetActorId] || 0) + 1
         }
       }
-      for (const [blockingActorId, count] of Object.entries(
-        blockingAdjustments
-      )) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalBlocking(blockingActorId),
-          count,
-          currentTime
+      await Promise.all([
+        ...Object.entries(blockingAdjustments).map(([blockingActorId, count]) =>
+          decreaseCounterValue(
+            trx,
+            CounterKey.totalBlocking(blockingActorId),
+            count,
+            currentTime
+          )
+        ),
+        ...Object.entries(blockedByAdjustments).map(([blockedActorId, count]) =>
+          decreaseCounterValue(
+            trx,
+            CounterKey.totalBlockedBy(blockedActorId),
+            count,
+            currentTime
+          )
         )
-      }
-      for (const [blockedActorId, count] of Object.entries(
-        blockedByAdjustments
-      )) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalBlockedBy(blockedActorId),
-          count,
-          currentTime
-        )
-      }
-      await trx('blocks').where('actorId', actorId).delete()
-      await trx('blocks').where('targetActorId', actorId).delete()
+      ])
+      await trx('blocks')
+        .where((builder) => {
+          builder.where('actorId', actorId).orWhere('targetActorId', actorId)
+        })
+        .delete()
 
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()

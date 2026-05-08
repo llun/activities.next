@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -82,6 +83,14 @@ const Page: FC<Props> = async ({ params }) => {
   } = actorProfile
 
   const isCurrentUser = currentActor?.id === person.id
+  const relationship =
+    currentActor && !isCurrentUser
+      ? await getRelationship({
+          database,
+          currentActor,
+          targetActorId: person.id
+        })
+      : null
 
   const initials = getInitials(person.name || '', person.preferredUsername)
 
@@ -147,6 +156,7 @@ const Page: FC<Props> = async ({ params }) => {
                 <BlockAction
                   targetActorId={person.id}
                   isLoggedIn={isLoggedIn}
+                  initialRelationship={relationship}
                 />
               </div>
             )}

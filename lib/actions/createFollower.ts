@@ -1,5 +1,5 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { acceptFollow } from '@/lib/activities'
+import { acceptFollow, rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { Database } from '@/lib/database/types'
 import {
@@ -43,6 +43,7 @@ export const createFollower = async ({
       actorIdB: targetActor.id
     })
   ) {
+    await rejectFollow(targetActor, followerActor.inboxUrl, followRequest)
     return followRequest
   }
 

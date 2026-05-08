@@ -1,5 +1,6 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -34,11 +35,29 @@ export const GET = traceApiRoute(
         database.getMastodonActorFromId({ id: block.targetActorId })
       )
     )
+    const host = headerHost(req.headers)
+    const buildPaginationUrl = (cursorParam: string, cursorValue: string) => {
+      const params = new URLSearchParams()
+      params.set('limit', limit.toString())
+      params.set(cursorParam, cursorValue)
+
+      return `<https://${host}/api/v1/blocks?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
+    }
+    const nextLink =
+      blocks.length > 0
+        ? buildPaginationUrl('max_id', blocks[blocks.length - 1].id)
+        : null
+    const prevLink =
+      blocks.length > 0 ? buildPaginationUrl('min_id', blocks[0].id) : null
+    const links = [nextLink, prevLink].filter(Boolean).join(', ')
 
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: accounts.filter(Boolean)
+      data: accounts.filter(Boolean),
+      additionalHeaders: [
+        ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+      ]
     })
   })
 )

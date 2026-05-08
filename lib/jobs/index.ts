@@ -27,7 +27,9 @@ import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
+  SEND_BLOCK_JOB_NAME,
   SEND_NOTE_JOB_NAME,
+  SEND_UNBLOCK_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
@@ -36,7 +38,9 @@ import {
 import { processFitnessFileJob } from './processFitnessFileJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
+import { sendBlockJob } from './sendBlockJob'
 import { sendNoteJob } from './sendNoteJob'
+import { sendUnblockJob } from './sendUnblockJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
 import { sendUpdateNoteJob } from './sendUpdateNoteJob'
 import { updateNoteJob } from './updateNoteJob'
@@ -55,6 +59,7 @@ export const JOBS: Record<string, JobHandle> = {
   [DELETE_OBJECT_JOB_NAME]: deleteObjectJob,
   [DELETE_ACTOR_JOB_NAME]: deleteActorJob,
   [SEND_ANNOUNCE_JOB_NAME]: sendAnnounceJob,
+  [SEND_BLOCK_JOB_NAME]: sendBlockJob,
   [GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME]: generateFitnessRouteHeatmapJob,
   [GENERATE_FITNESS_HEATMAP_JOB_NAME]: generateFitnessRouteHeatmapJob,
   [PROCESS_FITNESS_FILE_JOB_NAME]: processFitnessFileJob,
@@ -65,5 +70,6 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
+  [SEND_UNBLOCK_JOB_NAME]: sendUnblockJob,
   [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob
 }

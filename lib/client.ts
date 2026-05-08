@@ -490,15 +490,32 @@ interface GetBlocksParams {
   minId?: string
 }
 
+interface GetBlocksResult {
+  accounts: MastodonAccount[]
+  nextMaxId: string | null
+  prevMinId: string | null
+}
+
+const getCursorFromLinkHeader = (linkHeader: string | null, rel: string) => {
+  if (!linkHeader) return null
+
+  const links = linkHeader.split(',').map((item) => item.trim())
+  const matchingLink = links.find((link) => link.endsWith(`rel="${rel}"`))
+  const url = matchingLink?.match(/<([^>]+)>/)?.[1]
+  if (!url) return null
+
+  return new URL(url).searchParams.get(rel === 'next' ? 'max_id' : 'min_id')
+}
+
 export const getBlocks = async ({
   limit,
   maxId,
   minId
-}: GetBlocksParams = {}): Promise<MastodonAccount[]> => {
+}: GetBlocksParams = {}): Promise<GetBlocksResult> => {
   const url = new URL(`${window.origin}/api/v1/blocks`)
   if (limit) url.searchParams.set('limit', `${limit}`)
-  if (maxId) url.searchParams.set('max_id', urlToId(maxId))
-  if (minId) url.searchParams.set('min_id', urlToId(minId))
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (minId) url.searchParams.set('min_id', minId)
 
   const response = await fetch(url.toString(), {
     method: 'GET',
@@ -506,8 +523,15 @@ export const getBlocks = async ({
       Accept: 'application/json'
     }
   })
-  if (response.status !== 200) return []
-  return (await response.json()) as MastodonAccount[]
+  if (response.status !== 200) {
+    return { accounts: [], nextMaxId: null, prevMinId: null }
+  }
+
+  return {
+    accounts: (await response.json()) as MastodonAccount[],
+    nextMaxId: getCursorFromLinkHeader(response.headers.get('Link'), 'next'),
+    prevMinId: getCursorFromLinkHeader(response.headers.get('Link'), 'prev')
+  }
 }
 
 interface GetTimelineParams {

@@ -1,6 +1,9 @@
 import { Database } from '@/lib/database/types'
 import { Block as BlockActivity } from '@/lib/types/activitypub'
 
+const getObjectId = (object: BlockActivity['object']) =>
+  typeof object === 'string' ? object : object.id
+
 interface ApplyRemoteUnblockParams {
   database: Database
   actorId: string
@@ -29,7 +32,8 @@ export const applyRemoteUnblock = async ({
     })
   }
 
-  if (object.actor !== actorId || object.object !== targetActorId) return null
+  if (object.actor !== actorId || getObjectId(object.object) !== targetActorId)
+    return null
 
   const block = await database.getBlockByUri({ uri: object.id })
   if (block) {

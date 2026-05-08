@@ -1,7 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
-const getRelevantStatusActorIds = (status: Status) => [
+export const getRelevantStatusActorIds = (status: Status) => [
   status.actorId,
   ...(status.type === StatusType.enum.Announce
     ? [status.originalStatus.actorId]
@@ -14,17 +14,11 @@ export const isStatusBlockedForActor = async (
   status: Status
 ) => {
   const actorIds = [...new Set(getRelevantStatusActorIds(status))]
-  for (const statusActorId of actorIds) {
-    if (
-      await database.isEitherBlocking({
-        actorIdA: actorId,
-        actorIdB: statusActorId
-      })
-    ) {
-      return true
-    }
-  }
-  return false
+  const relations = await database.getBlockRelations({
+    actorIds: [actorId],
+    targetActorIds: actorIds
+  })
+  return relations.length > 0
 }
 
 export const filterBlockedStatuses = async (
@@ -34,14 +28,63 @@ export const filterBlockedStatuses = async (
 ) => {
   if (!actorId) return statuses
 
-  const visibility = await Promise.all(
-    statuses.map(async (status) => ({
-      status,
-      blocked: await isStatusBlockedForActor(database, actorId, status)
-    }))
+  const statusActorIdsByStatus = new Map(
+    statuses.map((status) => [
+      status.id,
+      [...new Set(getRelevantStatusActorIds(status))]
+    ])
+  )
+  const statusActorIds = [
+    ...new Set([...statusActorIdsByStatus.values()].flat())
+  ]
+  const relations = await database.getBlockRelations({
+    actorIds: [actorId],
+    targetActorIds: statusActorIds
+  })
+  const blockedStatusActorIds = new Set(
+    relations.map((relation) =>
+      relation.actorId === actorId ? relation.targetActorId : relation.actorId
+    )
   )
 
-  return visibility
-    .filter(({ blocked }) => !blocked)
-    .map(({ status }) => status)
+  return statuses.filter((status) => {
+    const actorIds = statusActorIdsByStatus.get(status.id) ?? []
+    return !actorIds.some((statusActorId) =>
+      blockedStatusActorIds.has(statusActorId)
+    )
+  })
+}
+
+export const getBlockedRecipientActorIdsForStatus = async (
+  database: Database,
+  recipientActorIds: string[],
+  status: Status
+) => {
+  const actorIds = [...new Set(recipientActorIds)]
+  const statusActorIds = [...new Set(getRelevantStatusActorIds(status))]
+  const actorIdSet = new Set(actorIds)
+  const statusActorIdSet = new Set(statusActorIds)
+
+  const relations = await database.getBlockRelations({
+    actorIds,
+    targetActorIds: statusActorIds
+  })
+
+  return new Set(
+    relations.flatMap((relation) => {
+      if (
+        actorIdSet.has(relation.actorId) &&
+        statusActorIdSet.has(relation.targetActorId)
+      ) {
+        return [relation.actorId]
+      }
+      if (
+        actorIdSet.has(relation.targetActorId) &&
+        statusActorIdSet.has(relation.actorId)
+      ) {
+        return [relation.targetActorId]
+      }
+      return []
+    })
+  )
 }

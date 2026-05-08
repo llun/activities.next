@@ -1,12 +1,21 @@
+import { randomUUID } from 'node:crypto'
+
 import { applyBlock } from '@/lib/actions/applyBlock'
-import { block as federateBlock } from '@/lib/activities'
+import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { SEND_BLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { getRelationship } from '@/lib/services/accounts/relationship'
-import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
+import {
+  ERROR_400,
+  ERROR_404,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -34,7 +43,19 @@ export const POST = traceApiRoute(
     const targetActorId = idToUrl(encodedAccountId)
 
     if (targetActorId !== currentActor.id) {
-      const blockId = crypto.randomUUID()
+      const targetActor = await recordActorIfNeeded({
+        actorId: targetActorId,
+        database
+      })
+      if (!targetActor)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const blockId = randomUUID()
       const uri = `${currentActor.id}#blocks/${blockId}`
       const block = await applyBlock({
         database,
@@ -43,15 +64,24 @@ export const POST = traceApiRoute(
         uri
       })
 
-      if (await canFederateWithDomain(database, targetActorId)) {
-        const signingActor = await getFederationSigningActor(database)
-        await federateBlock({
-          uri: block.uri,
-          currentActor,
-          targetActorId,
-          signingActor
+      getQueue()
+        .publish({
+          id: getHashFromString(block.uri),
+          name: SEND_BLOCK_JOB_NAME,
+          data: {
+            actorId: currentActor.id,
+            targetActorId,
+            uri: block.uri
+          }
         })
-      }
+        .catch((error) => {
+          logger.warn({
+            message: 'Failed to queue block federation',
+            actorId: currentActor.id,
+            targetActorId,
+            error
+          })
+        })
     }
 
     const relationship = await getRelationship({

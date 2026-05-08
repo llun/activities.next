@@ -1,3 +1,4 @@
+import { unfollow } from '@/lib/activities'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { Database } from '@/lib/database/types'
 import {
@@ -28,6 +29,16 @@ export const acceptFollowRequest = async ({
       actorIdB: follow.targetActorId
     })
   ) {
+    await database.updateFollowStatus({
+      followId,
+      status: FollowStatus.enum.Undo
+    })
+
+    const actor = await database.getActorFromId({ id: follow.actorId })
+    if (actor) {
+      await unfollow(actor, follow)
+    }
+
     return follow
   }
 

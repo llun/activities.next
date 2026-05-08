@@ -41,11 +41,17 @@ export type Follow = z.infer<typeof Follow>
 // ============================================================================
 
 export const ENTITY_TYPE_BLOCK = 'Block'
+export const ActivityPubObjectRef = z.union([
+  z.string(),
+  z.object({ id: z.string() }).passthrough()
+])
+export type ActivityPubObjectRef = z.infer<typeof ActivityPubObjectRef>
+
 export const Block = z.object({
   id: z.string(),
   type: z.literal(ENTITY_TYPE_BLOCK),
   actor: z.string(),
-  object: z.string()
+  object: ActivityPubObjectRef
 })
 
 export type Block = z.infer<typeof Block>

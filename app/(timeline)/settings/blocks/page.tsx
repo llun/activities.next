@@ -9,6 +9,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { BlocksList } from './BlocksList'
 
 export const dynamic = 'force-dynamic'
+const BLOCKS_PAGE_LIMIT = 80
 
 export const metadata: Metadata = {
   title: 'Activities.next: Blocked Accounts'
@@ -32,7 +33,7 @@ const Page = async () => {
 
   const blocks = await database.getBlocks({
     actorId: actor.id,
-    limit: 80
+    limit: BLOCKS_PAGE_LIMIT
   })
   const accounts = await Promise.all(
     blocks.map((block) =>
@@ -50,7 +51,14 @@ const Page = async () => {
       </div>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <BlocksList accounts={accounts.filter(isMastodonAccount)} />
+        <BlocksList
+          accounts={accounts.filter(isMastodonAccount)}
+          nextMaxId={
+            blocks.length === BLOCKS_PAGE_LIMIT
+              ? (blocks[blocks.length - 1]?.id ?? null)
+              : null
+          }
+        />
       </section>
     </div>
   )

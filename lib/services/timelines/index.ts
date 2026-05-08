@@ -3,7 +3,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
-import { isStatusBlockedForActor } from './blockFilter'
+import { getBlockedRecipientActorIdsForStatus } from './blockFilter'
 import { mainTimelineRule } from './main'
 import { mentionTimelineRule } from './mention'
 import { noannounceTimelineRule } from './noaanounce'
@@ -45,9 +45,16 @@ export const addStatusToTimelines = async (
           {} as { [key in string]: Actor }
         )
       )
+      const blockedRecipientActorIds =
+        await getBlockedRecipientActorIdsForStatus(
+          database,
+          actors.map((actor) => actor.id),
+          status
+        )
+
       await Promise.all(
         actors.map(async (actor) => {
-          if (await isStatusBlockedForActor(database, actor.id, status)) return
+          if (blockedRecipientActorIds.has(actor.id)) return
 
           await Promise.all(
             [mainTimelineRule, noannounceTimelineRule, mentionTimelineRule].map(

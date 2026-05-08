@@ -2,49 +2,48 @@
 
 import { Ban, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useEffect, useState } from 'react'
+import { FC, useState } from 'react'
 
-import {
-  block as blockAccount,
-  getRelationship,
-  unblock as unblockAccount
-} from '@/lib/client'
+import { block as blockAccount, unblock as unblockAccount } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/lib/components/ui/dialog'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
 interface BlockActionProps {
   targetActorId: string
   isLoggedIn: boolean
+  initialRelationship: MastodonRelationship | null
 }
 
 export const BlockAction: FC<BlockActionProps> = ({
   targetActorId,
-  isLoggedIn
+  isLoggedIn,
+  initialRelationship
 }) => {
   const router = useRouter()
-  const [relationship, setRelationship] =
-    useState<MastodonRelationship | null>()
+  const [relationship, setRelationship] = useState<MastodonRelationship | null>(
+    initialRelationship
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false)
 
-  useEffect(() => {
-    if (!isLoggedIn) return
-    getRelationship({ targetActorId }).then(setRelationship)
-  }, [isLoggedIn, targetActorId])
-
-  if (!isLoggedIn || relationship === undefined) return null
+  if (!isLoggedIn || relationship === null) return null
 
   const onBlock = async () => {
-    const confirmed = window.confirm(
-      'Block this actor? This removes follow relationships in both directions.'
-    )
-    if (!confirmed) return
-
     setIsSubmitting(true)
     const nextRelationship = await blockAccount({ targetActorId })
     setIsSubmitting(false)
     if (!nextRelationship) return
 
     setRelationship(nextRelationship)
+    setIsBlockDialogOpen(false)
     router.refresh()
   }
 
@@ -58,15 +57,58 @@ export const BlockAction: FC<BlockActionProps> = ({
     router.refresh()
   }
 
+  if (relationship.blocking) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onUnblock}
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? <Loader2 className="animate-spin" /> : <Ban />}
+        Unblock
+      </Button>
+    )
+  }
+
   return (
-    <Button
-      type="button"
-      variant={relationship?.blocking ? 'outline' : 'destructive'}
-      onClick={relationship?.blocking ? onUnblock : onBlock}
-      disabled={isSubmitting}
-    >
-      {isSubmitting ? <Loader2 className="animate-spin" /> : <Ban />}
-      {relationship?.blocking ? 'Unblock' : 'Block'}
-    </Button>
+    <Dialog open={isBlockDialogOpen} onOpenChange={setIsBlockDialogOpen}>
+      <Button
+        type="button"
+        variant="destructive"
+        onClick={() => setIsBlockDialogOpen(true)}
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? <Loader2 className="animate-spin" /> : <Ban />}
+        Block
+      </Button>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Block account</DialogTitle>
+          <DialogDescription>
+            This removes follow relationships in both directions and hides this
+            actor from your timelines.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsBlockDialogOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={onBlock}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <Loader2 className="animate-spin" /> : null}
+            Block
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

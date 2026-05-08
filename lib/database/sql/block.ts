@@ -1,4 +1,5 @@
 import { Knex } from 'knex'
+import { randomUUID } from 'node:crypto'
 
 import {
   CounterKey,
@@ -8,11 +9,13 @@ import {
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   BlockDatabase,
+  BlockRelation,
   CreateBlockParams,
   DeleteBlockByUriParams,
   DeleteBlockParams,
   GetBlockByUriParams,
   GetBlockParams,
+  GetBlockRelationsParams,
   GetBlocksParams,
   IsBlockingParams,
   IsEitherBlockingParams
@@ -26,19 +29,45 @@ const fixBlockDataDate = (data: Block): Block => ({
 })
 
 const isUniqueConstraintError = (error: unknown) => {
-  const { code, errno, message } = error as {
-    code?: string
-    errno?: number
-    message?: string
-  }
+  if (typeof error !== 'object' || error === null) return false
+
+  const { code, errno, message } = error as Record<string, unknown>
+  const errorCode = typeof code === 'string' ? code : undefined
+  const errorNumber = typeof errno === 'number' ? errno : undefined
+  const errorMessage = typeof message === 'string' ? message : undefined
+
   return (
-    code === '23505' ||
-    code === 'ER_DUP_ENTRY' ||
-    code === 'SQLITE_CONSTRAINT' ||
-    code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-    errno === 1062 ||
-    Boolean(message?.includes('UNIQUE constraint failed'))
+    errorCode === '23505' ||
+    errorCode === 'ER_DUP_ENTRY' ||
+    errorCode === 'SQLITE_CONSTRAINT_UNIQUE' ||
+    errorNumber === 1062 ||
+    (errorCode === 'SQLITE_CONSTRAINT' &&
+      Boolean(errorMessage?.includes('UNIQUE constraint failed')))
   )
+}
+
+const applyCursor = (
+  query: Knex.QueryBuilder,
+  cursor: Block | undefined,
+  direction: 'newer' | 'older'
+) => {
+  if (!cursor) {
+    query.where('id', '')
+    return
+  }
+
+  const createdAtOperator = direction === 'older' ? '<' : '>'
+  const idOperator = direction === 'older' ? '<' : '>'
+
+  query.andWhere((builder) => {
+    builder
+      .where('createdAt', createdAtOperator, cursor.createdAt)
+      .orWhere((tieBreaker) => {
+        tieBreaker
+          .where('createdAt', cursor.createdAt)
+          .andWhere('id', idOperator, cursor.id)
+      })
+  })
 }
 
 export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
@@ -48,7 +77,7 @@ export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
 
     const currentTime = new Date()
     const block: Block = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       actorId,
       actorHost: new URL(actorId).host,
       targetActorId,
@@ -184,13 +213,41 @@ export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
   async getBlocks({ actorId, limit, maxId, minId }: GetBlocksParams) {
     const query = database<Block>('blocks')
       .where('actorId', actorId)
+      .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
       .limit(limit)
 
-    if (maxId) query.where('id', '<', maxId)
-    if (minId) query.where('id', '>', minId)
+    if (maxId || minId) {
+      const cursor = await database<Block>('blocks')
+        .where({ actorId, id: maxId || minId })
+        .first()
+      applyCursor(query, cursor, maxId ? 'older' : 'newer')
+    }
 
     const blocks = await query
-    return (minId ? [...blocks].reverse() : blocks).map(fixBlockDataDate)
+    return blocks.map(fixBlockDataDate)
+  },
+
+  async getBlockRelations({
+    actorIds,
+    targetActorIds
+  }: GetBlockRelationsParams) {
+    if (actorIds.length === 0 || targetActorIds.length === 0) return []
+
+    return database<BlockRelation>('blocks')
+      .select('actorId', 'targetActorId')
+      .where((builder) => {
+        builder
+          .where((forward) => {
+            forward
+              .whereIn('actorId', actorIds)
+              .whereIn('targetActorId', targetActorIds)
+          })
+          .orWhere((reverse) => {
+            reverse
+              .whereIn('actorId', targetActorIds)
+              .whereIn('targetActorId', actorIds)
+          })
+      })
   }
 })
