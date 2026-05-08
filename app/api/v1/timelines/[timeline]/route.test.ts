@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server'
+import { randomUUID } from 'node:crypto'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Timeline } from '@/lib/services/timelines/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -59,6 +61,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
   let actor1TimelinePost2Id: string
   let subActorTimelinePost1Id: string
   let subActorTimelinePost2Id: string
+  let accountId: string
 
   beforeAll(async () => {
     await database.migrate()
@@ -69,6 +72,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       email: seedActor1.email
     })
     if (!account) throw new Error('Account not found')
+    accountId = account.id
 
     // Create a sub-actor for the same account (simulates actor navigation switch)
     subActorId = await database.createActorForAccount({
@@ -163,6 +167,41 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       url.searchParams.set(key, value)
     }
     return new NextRequest(url.toString())
+  }
+
+  const createIsolatedActor = async () =>
+    database.createActorForAccount({
+      accountId,
+      username: `timeline-${randomUUID()}`,
+      domain: 'llun.test',
+      publicKey: 'timeline-public-key',
+      privateKey: 'timeline-private-key'
+    })
+
+  const createTimelineNote = async ({
+    actorId,
+    timelineActorId,
+    name
+  }: {
+    actorId: string
+    timelineActorId: string
+    name: string
+  }) => {
+    const statusId = `${actorId}/statuses/${name}-${randomUUID()}`
+    const status = await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: name
+    })
+    await database.createTimelineStatus({
+      actorId: timelineActorId,
+      status,
+      timeline: Timeline.MAIN
+    })
+    return status
   }
 
   describe('actor selection via cookie', () => {
@@ -290,6 +329,176 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       )
       expect(nextPageStatusIds).not.toContain(subActorTimelinePost1Id)
       expect(nextPageStatusIds).not.toContain(subActorTimelinePost2Id)
+    })
+  })
+
+  describe('timeline pagination with blocked statuses', () => {
+    test('fills an older page after filtering blocked statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      const visibleStatus = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'visible-older'
+      })
+      await createTimelineNote({
+        actorId: EXTERNAL_ACTOR1,
+        timelineActorId: actorId,
+        name: 'blocked-newer'
+      })
+      await database.createBlock({
+        actorId,
+        targetActorId: EXTERNAL_ACTOR1,
+        uri: `${actorId}#blocks/${randomUUID()}`
+      })
+
+      const response = await GET(createRequest({ limit: '1' }), {
+        params: Promise.resolve({ timeline: 'main' })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses.map((status: { id: string }) => status.id)).toEqual([
+        visibleStatus.id
+      ])
+    })
+
+    test('fills a newer page after filtering blocked statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      const cursorStatus = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'cursor'
+      })
+      const visibleStatus = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'visible-newer'
+      })
+      await createTimelineNote({
+        actorId: EXTERNAL_ACTOR1,
+        timelineActorId: actorId,
+        name: 'blocked-newest'
+      })
+      await database.createBlock({
+        actorId,
+        targetActorId: EXTERNAL_ACTOR1,
+        uri: `${actorId}#blocks/${randomUUID()}`
+      })
+
+      const response = await GET(
+        createRequest({ limit: '1', min_id: urlToId(cursorStatus.id) }),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses.map((status: { id: string }) => status.id)).toEqual([
+        visibleStatus.id
+      ])
+    })
+
+    test('caps mastodon timeline limits and omits next when exhausted', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'only-status'
+      })
+
+      const url = new URL('https://llun.test/api/v1/timelines/main')
+      url.searchParams.set('limit', '500')
+      const response = await GET(new NextRequest(url.toString()), {
+        params: Promise.resolve({ timeline: 'main' })
+      })
+
+      expect(response.status).toBe(200)
+      const link = response.headers.get('Link') || ''
+      expect(link).not.toContain('rel="next"')
+      expect(link).toContain('limit=80')
+    })
+
+    test('omits next when a final short batch exactly fills the visible page', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'older-visible'
+      })
+      await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'newer-visible'
+      })
+      await createTimelineNote({
+        actorId: EXTERNAL_ACTOR1,
+        timelineActorId: actorId,
+        name: 'newest-blocked'
+      })
+      await database.createBlock({
+        actorId,
+        targetActorId: EXTERNAL_ACTOR1,
+        uri: `${actorId}#blocks/${randomUUID()}`
+      })
+
+      const url = new URL('https://llun.test/api/v1/timelines/main')
+      url.searchParams.set('limit', '2')
+      const response = await GET(new NextRequest(url.toString()), {
+        params: Promise.resolve({ timeline: 'main' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toHaveLength(2)
+      expect(response.headers.get('Link') || '').not.toContain('rel="next"')
+    })
+
+    test('returns an activities_next continuation cursor when capped scans find no visible statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      for (let index = 0; index < 6; index++) {
+        await createTimelineNote({
+          actorId: EXTERNAL_ACTOR1,
+          timelineActorId: actorId,
+          name: `blocked-${index}`
+        })
+      }
+      await database.createBlock({
+        actorId,
+        targetActorId: EXTERNAL_ACTOR1,
+        uri: `${actorId}#blocks/${randomUUID()}`
+      })
+
+      const response = await GET(createRequest({ limit: '1' }), {
+        params: Promise.resolve({ timeline: 'main' })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses).toEqual([])
+      expect(data.nextMaxStatusId).toEqual(expect.any(String))
     })
   })
 

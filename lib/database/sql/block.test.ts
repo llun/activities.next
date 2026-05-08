@@ -90,7 +90,7 @@ describe('BlockDatabase', () => {
   it('paginates blocks by creation time with stable UUID cursors', async () => {
     const actorId = `https://remote.test/users/blocker-${crypto.randomUUID()}`
     const targets = await Promise.all(
-      [0, 1, 2].map(async () => {
+      [0, 1, 2, 3, 4].map(async () => {
         const target = targetActorId()
         return database.createBlock({
           actorId,
@@ -110,15 +110,18 @@ describe('BlockDatabase', () => {
     const [firstPage, secondPage, newerPage] = await Promise.all([
       database.getBlocks({ actorId, limit: 2 }),
       database.getBlocks({ actorId, limit: 2, maxId: targets[1].id }),
-      database.getBlocks({ actorId, limit: 2, minId: targets[1].id })
+      database.getBlocks({ actorId, limit: 2, minId: targets[0].id })
     ])
 
     expect(firstPage.map((block) => block.id)).toEqual([
+      targets[4].id,
+      targets[3].id
+    ])
+    expect(secondPage.map((block) => block.id)).toEqual([targets[0].id])
+    expect(newerPage.map((block) => block.id)).toEqual([
       targets[2].id,
       targets[1].id
     ])
-    expect(secondPage.map((block) => block.id)).toEqual([targets[0].id])
-    expect(newerPage.map((block) => block.id)).toEqual([targets[2].id])
   })
 
   it('uses the UUID tie-breaker when block creation timestamps match', async () => {

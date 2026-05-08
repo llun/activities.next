@@ -37,6 +37,15 @@ export const sendUnblockJob: JobHandle = createJobHandle(
         return
       }
 
+      const currentBlock = await database.getBlock({
+        actorId,
+        targetActorId: block.targetActorId
+      })
+      if (currentBlock && currentBlock.uri !== block.uri) {
+        span.end()
+        return
+      }
+
       const ok = await unblock(currentActor, block, signingActor)
       if (!ok) {
         const error = new Error('Failed to send Undo Block')

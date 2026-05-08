@@ -2,8 +2,8 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { getDatabase } from '@/lib/database'
+import { getFallbackBlockedAccount } from '@/lib/services/accounts/getFallbackBlockedAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { BlocksList } from './BlocksList'
@@ -14,10 +14,6 @@ const BLOCKS_PAGE_LIMIT = 80
 export const metadata: Metadata = {
   title: 'Activities.next: Blocked Accounts'
 }
-
-const isMastodonAccount = (
-  account: MastodonAccount | null
-): account is MastodonAccount => account !== null
 
 const Page = async () => {
   const database = getDatabase()
@@ -36,9 +32,12 @@ const Page = async () => {
     limit: BLOCKS_PAGE_LIMIT
   })
   const accounts = await Promise.all(
-    blocks.map((block) =>
-      database.getMastodonActorFromId({ id: block.targetActorId })
-    )
+    blocks.map(async (block) => {
+      const account = await database.getMastodonActorFromId({
+        id: block.targetActorId
+      })
+      return account ?? getFallbackBlockedAccount(block)
+    })
   )
 
   return (
@@ -52,7 +51,7 @@ const Page = async () => {
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <BlocksList
-          accounts={accounts.filter(isMastodonAccount)}
+          accounts={accounts}
           nextMaxId={
             blocks.length === BLOCKS_PAGE_LIMIT
               ? (blocks[blocks.length - 1]?.id ?? null)

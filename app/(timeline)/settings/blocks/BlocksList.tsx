@@ -63,7 +63,7 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
     setNextCursor(result.nextMaxId)
   }
 
-  if (blockedAccounts.length === 0) {
+  if (blockedAccounts.length === 0 && !nextCursor) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
         No blocked accounts.
@@ -73,45 +73,51 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
 
   return (
     <>
-      <div className="divide-y rounded-lg border">
-        {blockedAccounts.map((account) => (
-          <div
-            key={account.id}
-            className="flex items-center justify-between gap-4 p-4"
-          >
-            <Link
-              href={account.url}
-              className="flex min-w-0 items-center gap-3 hover:underline"
+      {blockedAccounts.length > 0 ? (
+        <div className="divide-y rounded-lg border">
+          {blockedAccounts.map((account) => (
+            <div
+              key={account.id}
+              className="flex items-center justify-between gap-4 p-4"
             >
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={account.avatar || undefined} />
-                <AvatarFallback>{getInitials(account)}</AvatarFallback>
-              </Avatar>
-              <span className="min-w-0">
-                <span className="block truncate font-medium">
-                  {account.display_name || account.username}
+              <Link
+                href={account.url}
+                className="flex min-w-0 items-center gap-3 hover:underline"
+              >
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={account.avatar || undefined} />
+                  <AvatarFallback>{getInitials(account)}</AvatarFallback>
+                </Avatar>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">
+                    {account.display_name || account.username}
+                  </span>
+                  <span className="block truncate text-sm text-muted-foreground">
+                    @{account.acct}
+                  </span>
                 </span>
-                <span className="block truncate text-sm text-muted-foreground">
-                  @{account.acct}
-                </span>
-              </span>
-            </Link>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmAccount(account)}
-              disabled={unblockingId === account.id}
-            >
-              {unblockingId === account.id ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <Ban />
-              )}
-              Unblock
-            </Button>
-          </div>
-        ))}
-      </div>
+              </Link>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setConfirmAccount(account)}
+                disabled={unblockingId === account.id}
+              >
+                {unblockingId === account.id ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Ban />
+                )}
+                Unblock
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+          No blocked accounts on this page.
+        </div>
+      )}
 
       {nextCursor ? (
         <div className="flex justify-center">

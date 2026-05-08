@@ -541,12 +541,21 @@ interface GetTimelineParams {
   maxStatusId?: string
   limit?: number
 }
-export const getTimeline = async ({
+
+interface GetTimelineResult {
+  statuses: Status[]
+  nextMaxStatusId: string | null
+  prevMinStatusId: string | null
+}
+
+const MAX_EMPTY_TIMELINE_CONTINUATIONS = 5
+
+const getTimelinePage = async ({
   timeline,
   minStatusId,
   maxStatusId,
   limit
-}: GetTimelineParams) => {
+}: GetTimelineParams): Promise<GetTimelineResult> => {
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
   if (minStatusId) {
@@ -564,9 +573,48 @@ export const getTimeline = async ({
       Accept: 'application/json'
     }
   })
-  if (response.status !== 200) return []
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
+  }
   const data = await response.json()
-  return data.statuses as Status[]
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null,
+    prevMinStatusId: data.prevMinStatusId ?? null
+  }
+}
+
+export const getTimeline = async ({
+  timeline,
+  minStatusId,
+  maxStatusId,
+  limit
+}: GetTimelineParams): Promise<GetTimelineResult> => {
+  let result = await getTimelinePage({
+    timeline,
+    minStatusId,
+    maxStatusId,
+    limit
+  })
+  let currentMaxStatusId = result.nextMaxStatusId
+  let continuations = 0
+
+  while (
+    result.statuses.length === 0 &&
+    currentMaxStatusId &&
+    continuations < MAX_EMPTY_TIMELINE_CONTINUATIONS
+  ) {
+    continuations++
+    result = await getTimelinePage({
+      timeline,
+      minStatusId,
+      maxStatusId: currentMaxStatusId,
+      limit
+    })
+    currentMaxStatusId = result.nextMaxStatusId
+  }
+
+  return result
 }
 
 interface GetHashtagTimelineParams {
