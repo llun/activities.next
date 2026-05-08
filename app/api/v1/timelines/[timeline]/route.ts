@@ -6,6 +6,7 @@ import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
+import { Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -69,18 +70,54 @@ export const GET = traceApiRoute(
 
     const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
     const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
+    const parsedLimit = limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
+    const pageLimit =
+      Number.isSafeInteger(parsedLimit) && parsedLimit > 0
+        ? parsedLimit
+        : PER_PAGE_LIMIT
 
-    const statuses = await filterBlockedStatuses(
-      database,
-      currentActor.id,
-      await database.getTimeline({
-        timeline,
-        actorId: currentActor.id,
-        minStatusId,
-        maxStatusId,
-        limit: limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
-      })
-    )
+    const getFilteredTimelinePage = async () => {
+      if (minStatusId) {
+        return filterBlockedStatuses(
+          database,
+          currentActor.id,
+          await database.getTimeline({
+            timeline,
+            actorId: currentActor.id,
+            minStatusId,
+            maxStatusId,
+            limit: pageLimit
+          })
+        )
+      }
+
+      const statuses: Status[] = []
+      let cursor = maxStatusId
+
+      while (statuses.length < pageLimit) {
+        const batch = await database.getTimeline({
+          timeline,
+          actorId: currentActor.id,
+          maxStatusId: cursor,
+          limit: pageLimit
+        })
+        if (batch.length === 0) break
+
+        const filteredBatch = await filterBlockedStatuses(
+          database,
+          currentActor.id,
+          batch
+        )
+        statuses.push(...filteredBatch)
+        cursor = batch[batch.length - 1].id
+
+        if (batch.length < pageLimit) break
+      }
+
+      return statuses.slice(0, pageLimit)
+    }
+
+    const statuses = await getFilteredTimelinePage()
     if (format === TimelineFormat.enum.activities_next) {
       return apiResponse({
         req,
@@ -92,11 +129,11 @@ export const GET = traceApiRoute(
     const host = headerHost(req.headers)
     const nextLink =
       statuses.length > 0
-        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&max_id=${urlToId(statuses[statuses.length - 1].id)}>; rel="next"`
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&max_id=${urlToId(statuses[statuses.length - 1].id)}>; rel="next"`
         : null
     const prevLink =
       statuses.length > 0
-        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${urlToId(statuses[0].id)}>; rel="prev"`
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&min_id=${urlToId(statuses[0].id)}>; rel="prev"`
         : null
     const links = [nextLink, prevLink].filter(Boolean).join(', ')
     const mastodonStatuses = await Promise.all(

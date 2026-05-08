@@ -527,10 +527,11 @@ export const getBlocks = async ({
     return { accounts: [], nextMaxId: null, prevMinId: null }
   }
 
+  const linkHeader = response.headers.get('Link')
   return {
     accounts: (await response.json()) as MastodonAccount[],
-    nextMaxId: getCursorFromLinkHeader(response.headers.get('Link'), 'next'),
-    prevMinId: getCursorFromLinkHeader(response.headers.get('Link'), 'prev')
+    nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
+    prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
   }
 }
 

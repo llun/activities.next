@@ -121,6 +121,59 @@ describe('BlockDatabase', () => {
     expect(newerPage.map((block) => block.id)).toEqual([targets[2].id])
   })
 
+  it('uses the UUID tie-breaker when block creation timestamps match', async () => {
+    const actorId = `https://remote.test/users/tie-${crypto.randomUUID()}`
+    const blocks = await Promise.all(
+      [0, 1, 2].map(async () => {
+        const target = targetActorId()
+        return database.createBlock({
+          actorId,
+          targetActorId: target,
+          uri: `${actorId}#blocks/${crypto.randomUUID()}`
+        })
+      })
+    )
+    const tiedCreatedAt = new Date(2026, 0, 2, 0, 0, 0)
+    await Promise.all(
+      blocks.map((block) =>
+        knexDatabase('blocks')
+          .where({ id: block.id })
+          .update({ createdAt: tiedCreatedAt })
+      )
+    )
+
+    const expectedIds = blocks
+      .map((block) => block.id)
+      .sort()
+      .reverse()
+    const firstPage = await database.getBlocks({ actorId, limit: 2 })
+    const secondPage = await database.getBlocks({
+      actorId,
+      limit: 2,
+      maxId: firstPage[1].id
+    })
+
+    expect(firstPage.map((block) => block.id)).toEqual(expectedIds.slice(0, 2))
+    expect(secondPage.map((block) => block.id)).toEqual(expectedIds.slice(2))
+  })
+
+  it('ignores unknown block cursors', async () => {
+    const actorId = `https://remote.test/users/cursor-${crypto.randomUUID()}`
+    const block = await database.createBlock({
+      actorId,
+      targetActorId: targetActorId(),
+      uri: `${actorId}#blocks/${crypto.randomUUID()}`
+    })
+
+    await expect(
+      database.getBlocks({
+        actorId,
+        limit: 2,
+        maxId: crypto.randomUUID()
+      })
+    ).resolves.toEqual([block])
+  })
+
   it('returns block relations for bulk filtering in either direction', async () => {
     const actorId = `https://remote.test/users/reader-${crypto.randomUUID()}`
     const blockedTarget = targetActorId()

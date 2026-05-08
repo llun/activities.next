@@ -37,7 +37,13 @@ export const sendUnblockJob: JobHandle = createJobHandle(
         return
       }
 
-      await unblock(currentActor, block, signingActor)
+      const ok = await unblock(currentActor, block, signingActor)
+      if (!ok) {
+        const error = new Error('Failed to send Undo Block')
+        span.recordException(error)
+        span.end()
+        throw error
+      }
       span.end()
     })
   }

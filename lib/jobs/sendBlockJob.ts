@@ -38,12 +38,27 @@ export const sendBlockJob: JobHandle = createJobHandle(
         return
       }
 
-      await block({
+      const currentBlock = await database.getBlock({
+        actorId,
+        targetActorId
+      })
+      if (currentBlock?.uri !== uri) {
+        span.end()
+        return
+      }
+
+      const result = await block({
         uri,
         currentActor,
         targetActorId,
         signingActor
       })
+      if (!result.ok) {
+        const error = new Error('Failed to send Block')
+        span.recordException(error)
+        span.end()
+        throw error
+      }
       span.end()
     })
   }

@@ -1,14 +1,17 @@
-import { unfollow } from '@/lib/activities'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { Database } from '@/lib/database/types'
+import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/follow'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
+import { getQueue } from '@/lib/services/queue'
 import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 interface AcceptFollowRequestParams {
   activity: AcceptFollow
@@ -34,10 +37,24 @@ export const acceptFollowRequest = async ({
       status: FollowStatus.enum.Undo
     })
 
-    const actor = await database.getActorFromId({ id: follow.actorId })
-    if (actor) {
-      await unfollow(actor, follow)
-    }
+    getQueue()
+      .publish({
+        id: getHashFromString(`${follow.id}/undo`),
+        name: SEND_UNDO_FOLLOW_JOB_NAME,
+        data: {
+          actorId: follow.actorId,
+          follow
+        }
+      })
+      .catch((error) => {
+        logger.warn({
+          message: 'Failed to queue Undo Follow federation',
+          actorId: follow.actorId,
+          targetActorId: follow.targetActorId,
+          followId,
+          error
+        })
+      })
 
     return follow
   }

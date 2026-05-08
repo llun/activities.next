@@ -31,6 +31,7 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_UNBLOCK_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
+  SEND_UNDO_FOLLOW_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
@@ -42,6 +43,7 @@ import { sendBlockJob } from './sendBlockJob'
 import { sendNoteJob } from './sendNoteJob'
 import { sendUnblockJob } from './sendUnblockJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
+import { sendUndoFollowJob } from './sendUndoFollowJob'
 import { sendUpdateNoteJob } from './sendUpdateNoteJob'
 import { updateNoteJob } from './updateNoteJob'
 import { updatePollJob } from './updatePollJob'
@@ -70,6 +72,7 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
+  [SEND_UNDO_FOLLOW_JOB_NAME]: sendUndoFollowJob,
   [SEND_UNBLOCK_JOB_NAME]: sendUnblockJob,
   [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob
 }

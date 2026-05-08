@@ -48,14 +48,9 @@ const isUniqueConstraintError = (error: unknown) => {
 
 const applyCursor = (
   query: Knex.QueryBuilder,
-  cursor: Block | undefined,
+  cursor: Block,
   direction: 'newer' | 'older'
 ) => {
-  if (!cursor) {
-    query.where('id', '')
-    return
-  }
-
   const createdAtOperator = direction === 'older' ? '<' : '>'
   const idOperator = direction === 'older' ? '<' : '>'
 
@@ -221,7 +216,7 @@ export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
       const cursor = await database<Block>('blocks')
         .where({ actorId, id: maxId || minId })
         .first()
-      applyCursor(query, cursor, maxId ? 'older' : 'newer')
+      if (cursor) applyCursor(query, cursor, maxId ? 'older' : 'newer')
     }
 
     const blocks = await query
