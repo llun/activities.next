@@ -1,0 +1,25 @@
+app/(timeline)/[actor]/page.tsx
+  s_1f10c44d97cf0b::t_fe9999f4307f69 17
+  s_1f10c44d97cf0b::t_8899a86e3d4e06 150-154
+app/(timeline)/[actor]/ProfileRelationshipActions.test.tsx
+  s_1f10c44d97cf0b::t_fe9999f4307f69 82
+  s_1f10c44d97cf0b::t_8899a86e3d4e06 1-81,83-85
+app/(timeline)/[actor]/ProfileRelationshipActions.tsx
+  s_1f10c44d97cf0b::t_8899a86e3d4e06 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "e4478c330993dfb6aa4589072235b69956832326",
+  "prompts": {},
+  "sessions": {
+    "s_1f10c44d97cf0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e06ca-749a-7ec0-912a-16e0f0292ef9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
