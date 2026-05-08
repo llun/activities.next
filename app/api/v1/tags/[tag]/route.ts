@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { getDatabase } from '@/lib/database'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
@@ -11,13 +10,14 @@ import {
   getFilteredStatusPage,
   normalizeTimelineLimit
 } from '@/lib/services/timelines/getFilteredTimelinePage'
+import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
-  ERROR_500,
+  StatusCode,
   apiResponse,
+  codeMap,
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -35,82 +35,84 @@ interface RouteParams {
   tag: string
 }
 
+const corsErrorResponse = (req: NextRequest, responseStatusCode: StatusCode) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: codeMap[responseStatusCode],
+    responseStatusCode
+  })
+
 export const GET = traceApiRoute(
   'getHashtagTimeline',
-  async (req: NextRequest, context: { params: Promise<RouteParams> }) => {
-    const database = getDatabase()
-    if (!database)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-
-    const params = await context.params
-    const parseResult = Params.safeParse(params)
-    if (!parseResult.success)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-
-    const { tag } = parseResult.data
-    const url = new URL(req.url)
-    const maxStatusIdParam = url.searchParams.get('max_id')
-    const limitParam = url.searchParams.get('limit')
-    const format = url.searchParams.get('format')
-
-    const parsedLimit = limitParam ? parseInt(limitParam, 10) : PER_PAGE_LIMIT
-    const effectiveLimit = normalizeTimelineLimit(parsedLimit)
-
-    const session = await getServerAuthSession()
-    const currentActor = await getActorFromSession(database, session)
-    const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
-      database,
-      actorId: currentActor?.id,
-      maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : null,
-      limit: effectiveLimit,
-      fetchBatch: ({ maxStatusId, limit }) =>
-        database.getStatusesByHashtag({
-          hashtag: tag,
-          limit,
-          maxStatusId: maxStatusId ?? undefined
+  OptionalOAuthGuard<RouteParams>(
+    [Scope.enum.read],
+    async (req, context) => {
+      const { database, currentActor, params: routeParams } = context
+      const params = await routeParams
+      const parseResult = Params.safeParse(params)
+      if (!parseResult.success)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
         })
-    })
 
-    if (format === TimelineFormat.enum.activities_next) {
+      const { tag } = parseResult.data
+      const url = new URL(req.url)
+      const maxStatusIdParam = url.searchParams.get('max_id')
+      const limitParam = url.searchParams.get('limit')
+      const format = url.searchParams.get('format')
+
+      const parsedLimit = limitParam ? parseInt(limitParam, 10) : PER_PAGE_LIMIT
+      const effectiveLimit = normalizeTimelineLimit(parsedLimit)
+
+      const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
+        database,
+        actorId: currentActor?.id,
+        maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : null,
+        limit: effectiveLimit,
+        fetchBatch: ({ maxStatusId, limit }) =>
+          database.getStatusesByHashtag({
+            hashtag: tag,
+            limit,
+            maxStatusId: maxStatusId ?? undefined
+          })
+      })
+
+      if (format === TimelineFormat.enum.activities_next) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            statuses: statuses.map((item) => cleanJson(item)),
+            nextMaxStatusId
+          }
+        })
+      }
+
+      const host = headerHost(req.headers)
+      const encodedTag = encodeURIComponent(tag)
+      const nextLink = nextMaxStatusId
+        ? `<https://${host}/api/v1/tags/${encodedTag}?limit=${effectiveLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
+        : null
+      const links = [nextLink].filter(Boolean).join(', ')
+      const mastodonStatuses = await Promise.all(
+        statuses.map((item) => getMastodonStatus(database, item))
+      )
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          statuses: statuses.map((item) => cleanJson(item)),
-          nextMaxStatusId
-        }
+        data: mastodonStatuses.filter(Boolean),
+        additionalHeaders: [
+          ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+        ]
       })
-    }
-
-    const host = headerHost(req.headers)
-    const encodedTag = encodeURIComponent(tag)
-    const nextLink = nextMaxStatusId
-      ? `<https://${host}/api/v1/tags/${encodedTag}?limit=${effectiveLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
-      : null
-    const links = [nextLink].filter(Boolean).join(', ')
-    const mastodonStatuses = await Promise.all(
-      statuses.map((item) => getMastodonStatus(database, item))
-    )
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatuses.filter(Boolean),
-      additionalHeaders: [
-        ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
-      ]
-    })
-  },
+    },
+    { errorResponse: corsErrorResponse }
+  ),
   {
     addAttributes: async (_req, context) => {
       const { tag } = await context.params

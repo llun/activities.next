@@ -27,7 +27,7 @@ describe('getFilteredStatusPage', () => {
     ])
     const getBlockRelations = jest.fn(
       async ({ targetActorIds }: GetBlockRelationsParams) =>
-        targetActorIds.includes(blockedActorId)
+        targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
@@ -47,5 +47,108 @@ describe('getFilteredStatusPage', () => {
       visible3.id
     ])
     expect(page.nextMaxStatusId).toBe(visible3.id)
+  })
+
+  it('omits the next cursor when an exhausted batch exactly fills the visible page', async () => {
+    const blocked = createStatus('blocked', blockedActorId)
+    const visible1 = createStatus('visible-1')
+    const visible2 = createStatus('visible-2')
+    const visible3 = createStatus('visible-3')
+    const batches = new Map<string | null, Status[]>([
+      [null, [blocked, visible1, visible2]],
+      [visible2.id, [visible3]]
+    ])
+    const getBlockRelations = jest.fn(
+      async ({ targetActorIds }: GetBlockRelationsParams) =>
+        targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
+          ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
+          : []
+    )
+    const database = { getBlockRelations } as unknown as Database
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 3,
+      fetchBatch: ({ maxStatusId }) =>
+        Promise.resolve(batches.get(maxStatusId) ?? [])
+    })
+
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      visible1.id,
+      visible2.id,
+      visible3.id
+    ])
+    expect(page.nextMaxStatusId).toBeNull()
+  })
+
+  it('uses the last scanned cursor when capped scans find fewer visible statuses than the limit', async () => {
+    const visible1 = createStatus('visible-1')
+    const visible2 = createStatus('visible-2')
+    const batches = new Map<string | null, Status[]>([
+      [
+        null,
+        [
+          createStatus('blocked-1', blockedActorId),
+          createStatus('blocked-2', blockedActorId),
+          visible1
+        ]
+      ],
+      [
+        visible1.id,
+        [
+          createStatus('blocked-3', blockedActorId),
+          createStatus('blocked-4', blockedActorId),
+          createStatus('blocked-5', blockedActorId)
+        ]
+      ],
+      [
+        'https://llun.test/users/reader/statuses/blocked-5',
+        [
+          createStatus('blocked-6', blockedActorId),
+          createStatus('blocked-7', blockedActorId),
+          visible2
+        ]
+      ],
+      [
+        visible2.id,
+        [
+          createStatus('blocked-8', blockedActorId),
+          createStatus('blocked-9', blockedActorId),
+          createStatus('blocked-10', blockedActorId)
+        ]
+      ],
+      [
+        'https://llun.test/users/reader/statuses/blocked-10',
+        [
+          createStatus('blocked-11', blockedActorId),
+          createStatus('blocked-12', blockedActorId),
+          createStatus('blocked-13', blockedActorId)
+        ]
+      ]
+    ])
+    const getBlockRelations = jest.fn(
+      async ({ targetActorIds }: GetBlockRelationsParams) =>
+        targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
+          ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
+          : []
+    )
+    const database = { getBlockRelations } as unknown as Database
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 3,
+      fetchBatch: ({ maxStatusId }) =>
+        Promise.resolve(batches.get(maxStatusId) ?? [])
+    })
+
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      visible1.id,
+      visible2.id
+    ])
+    expect(page.nextMaxStatusId).toBe(
+      'https://llun.test/users/reader/statuses/blocked-13'
+    )
   })
 })

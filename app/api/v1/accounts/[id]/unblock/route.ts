@@ -1,5 +1,4 @@
 import { applyUnblock } from '@/lib/actions/applyUnblock'
-import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
@@ -47,10 +46,7 @@ export const POST = traceApiRoute(
       })
 
       if (!existingBlock) {
-        const targetActor = await recordActorIfNeeded({
-          actorId: targetActorId,
-          database
-        })
+        const targetActor = await database.getActorFromId({ id: targetActorId })
         if (!targetActor)
           return apiResponse({
             req,
