@@ -4,8 +4,6 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { Bio } from '@/lib/components/bio/Bio'
-import { BlockAction } from '@/lib/components/block-action/block-action'
-import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
@@ -16,6 +14,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorTimelines } from './ActorTimelines'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
+import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
 
 interface Props {
@@ -148,17 +147,11 @@ const Page: FC<Props> = async ({ params }) => {
                 <Link href="/settings">Edit Profile</Link>
               </Button>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                <FollowAction
-                  targetActorId={person.id}
-                  isLoggedIn={isLoggedIn}
-                />
-                <BlockAction
-                  targetActorId={person.id}
-                  isLoggedIn={isLoggedIn}
-                  initialRelationship={relationship}
-                />
-              </div>
+              <ProfileRelationshipActions
+                targetActorId={person.id}
+                isLoggedIn={isLoggedIn}
+                relationship={relationship}
+              />
             )}
           </div>
 
