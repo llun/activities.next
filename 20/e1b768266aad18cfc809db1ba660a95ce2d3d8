@@ -1,0 +1,30 @@
+lib/components/block-action/block-action.tsx
+  s_1f10c44d97cf0b::t_f3c11e512a9ef5 41-43,45-52,57-59,61-67
+lib/database/sql/timeline.test.ts
+  s_1f10c44d97cf0b::t_c2b5de13049d19 365-403
+lib/database/sql/timeline.ts
+  s_1f10c44d97cf0b::t_c2b5de13049d19 48,61-77,94-96,100-101,107-109,113-114
+app/(timeline)/settings/blocks/BlocksList.tsx
+  s_1f10c44d97cf0b::t_f3c11e512a9ef5 87-95
+lib/components/block-action/block-action.test.tsx
+  s_1f10c44d97cf0b::t_f3c11e512a9ef5 1-4,13-79,82,84-135
+  s_1f10c44d97cf0b::t_c2b5de13049d19 5-12,80-81,83
+app/(timeline)/settings/blocks/BlocksList.test.tsx
+  s_1f10c44d97cf0b::t_f3c11e512a9ef5 14,62,68,144-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "20e1b768266aad18cfc809db1ba660a95ce2d3d8",
+  "prompts": {},
+  "sessions": {
+    "s_1f10c44d97cf0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e06ca-749a-7ec0-912a-16e0f0292ef9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
