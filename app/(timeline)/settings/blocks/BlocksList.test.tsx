@@ -2,7 +2,14 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import { unblock } from '@/lib/client'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
@@ -94,6 +101,11 @@ describe('BlocksList', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Failed to unblock account. Please try again.'
     )
+    const dialog = screen.getByRole('dialog', { name: 'Unblock account' })
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled()
+    expect(
+      within(dialog).getByRole('button', { name: 'Unblock' })
+    ).toBeEnabled()
     expect(screen.getByText('Alpha')).toBeInTheDocument()
     expect(
       screen.getAllByRole('button', { name: 'Unblock', hidden: true })[0]
@@ -122,6 +134,9 @@ describe('BlocksList', () => {
     await waitFor(() => {
       expect(screen.queryByText('Beta')).not.toBeInTheDocument()
     })
+    expect(
+      screen.queryByRole('dialog', { name: 'Unblock account' })
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Alpha')).toBeInTheDocument()
   })
 })
