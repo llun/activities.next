@@ -45,7 +45,7 @@ export const TimelineSQLDatabaseMixin = (
             : []
         const publicCursorByStatusId = new Map<
           string,
-          { id: string; createdAt: Date }
+          { id: string | null; createdAt: Date }
         >(
           publicCursorRows.map(
             (row: { statusId: string; id: string; createdAt: Date }) => [
@@ -58,12 +58,23 @@ export const TimelineSQLDatabaseMixin = (
           )
         )
 
-        const maxRow = maxStatusId
-          ? (publicCursorByStatusId.get(maxStatusId) ?? null)
-          : null
-        const minRow = minStatusId
-          ? (publicCursorByStatusId.get(minStatusId) ?? null)
-          : null
+        const lookupPublicCursor = async (
+          statusId: string
+        ): Promise<{ id: string | null; createdAt: Date } | null> => {
+          const publicCursor = publicCursorByStatusId.get(statusId)
+          if (publicCursor) return publicCursor
+
+          const statusRow = await database('statuses')
+            .where('id', statusId)
+            .select('createdAt')
+            .first<{ createdAt: Date }>()
+          return statusRow ? { id: null, createdAt: statusRow.createdAt } : null
+        }
+
+        const [maxRow, minRow] = await Promise.all([
+          maxStatusId ? lookupPublicCursor(maxStatusId) : null,
+          minStatusId ? lookupPublicCursor(minStatusId) : null
+        ])
 
         if (maxStatusId && !maxRow) return []
         if (minStatusId && !minRow) return []
@@ -80,25 +91,27 @@ export const TimelineSQLDatabaseMixin = (
 
         if (maxRow) {
           query = query.where((wb) => {
-            wb.where('recipients.createdAt', '<', maxRow.createdAt).orWhere(
-              (wb2) => {
+            wb.where('recipients.createdAt', '<', maxRow.createdAt)
+            if (maxRow.id !== null) {
+              wb.orWhere((wb2) => {
                 wb2
                   .where('recipients.createdAt', '=', maxRow.createdAt)
                   .where('recipients.id', '<', maxRow.id)
-              }
-            )
+              })
+            }
           })
         }
 
         if (minRow) {
           query = query.where((wb) => {
-            wb.where('recipients.createdAt', '>', minRow.createdAt).orWhere(
-              (wb2) => {
+            wb.where('recipients.createdAt', '>', minRow.createdAt)
+            if (minRow.id !== null) {
+              wb.orWhere((wb2) => {
                 wb2
                   .where('recipients.createdAt', '=', minRow.createdAt)
                   .where('recipients.id', '>', minRow.id)
-              }
-            )
+              })
+            }
           })
         }
 

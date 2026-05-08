@@ -38,23 +38,33 @@ export const BlockAction: FC<BlockActionProps> = ({
 
   const onBlock = async () => {
     setIsSubmitting(true)
-    const nextRelationship = await blockAccount({ targetActorId })
-    setIsSubmitting(false)
-    if (!nextRelationship) return
+    try {
+      const nextRelationship = await blockAccount({ targetActorId })
+      if (!nextRelationship) return
 
-    setRelationship(nextRelationship)
-    setIsBlockDialogOpen(false)
-    router.refresh()
+      setRelationship(nextRelationship)
+      setIsBlockDialogOpen(false)
+      router.refresh()
+    } catch (_err) {
+      return
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const onUnblock = async () => {
     setIsSubmitting(true)
-    const nextRelationship = await unblockAccount({ targetActorId })
-    setIsSubmitting(false)
-    if (!nextRelationship) return
+    try {
+      const nextRelationship = await unblockAccount({ targetActorId })
+      if (!nextRelationship) return
 
-    setRelationship(nextRelationship)
-    router.refresh()
+      setRelationship(nextRelationship)
+      router.refresh()
+    } catch (_err) {
+      return
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (relationship.blocking) {

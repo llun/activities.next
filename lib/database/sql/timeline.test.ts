@@ -362,6 +362,45 @@ describe('TimelineDatabase', () => {
             expect(status.actorId).toContain(TEST_DOMAIN)
           }
         }, 10000)
+
+        it('continues paginating when a public cursor recipient row is gone', async () => {
+          const olderStatusId = `${TEST_ID_PUBLIC}/statuses/public-cursor-older`
+          const cursorStatusId = `${TEST_ID_PUBLIC}/statuses/public-cursor`
+
+          await database.createNote({
+            actorId: TEST_ID_PUBLIC,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: olderStatusId,
+            text: 'Older public cursor fallback status',
+            url: olderStatusId,
+            reply: ''
+          })
+          await waitFor(2)
+          await database.createNote({
+            actorId: TEST_ID_PUBLIC,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: cursorStatusId,
+            text: 'Cursor status that leaves the public timeline',
+            url: cursorStatusId,
+            reply: ''
+          })
+
+          await database.updateNoteVisibility({
+            statusId: cursorStatusId,
+            to: [`${TEST_ID_PUBLIC}/followers`],
+            cc: []
+          })
+
+          const statuses = await database.getTimeline({
+            timeline: Timeline.LOCAL_PUBLIC,
+            maxStatusId: cursorStatusId,
+            limit: 10
+          })
+
+          expect(statuses.map((status) => status.id)).toContain(olderStatusId)
+        }, 10000)
       })
     })
   })

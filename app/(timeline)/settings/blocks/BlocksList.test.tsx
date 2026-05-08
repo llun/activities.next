@@ -11,7 +11,7 @@ import {
   within
 } from '@testing-library/react'
 
-import { unblock } from '@/lib/client'
+import { getBlocks, unblock } from '@/lib/client'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { BlocksList } from './BlocksList'
@@ -59,11 +59,13 @@ const createAccount = (
 
 describe('BlocksList', () => {
   const unblockMock = unblock as jest.Mock
+  const getBlocksMock = getBlocks as jest.Mock
   const firstAccount = createAccount('actor-1', 'alpha', 'Alpha')
   const secondAccount = createAccount('actor-2', 'beta', 'Beta')
 
   beforeEach(() => {
     unblockMock.mockReset()
+    getBlocksMock.mockReset()
   })
 
   it('tracks pending unblock requests per account and clears loading on failure', async () => {
@@ -137,6 +139,33 @@ describe('BlocksList', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Unblock account' })
     ).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+  })
+
+  it('clears load-more loading state when fetching more blocks fails', async () => {
+    let rejectGetBlocks: (error: Error) => void = () => undefined
+    getBlocksMock.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectGetBlocks = reject
+      })
+    )
+
+    render(<BlocksList accounts={[firstAccount]} nextMaxId="next-cursor" />)
+
+    const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+    fireEvent.click(loadMoreButton)
+
+    await waitFor(() => {
+      expect(loadMoreButton).toBeDisabled()
+    })
+
+    await act(async () => {
+      rejectGetBlocks(new Error('network failed'))
+    })
+
+    await waitFor(() => {
+      expect(loadMoreButton).toBeEnabled()
+    })
     expect(screen.getByText('Alpha')).toBeInTheDocument()
   })
 })

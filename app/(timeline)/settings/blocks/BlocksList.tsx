@@ -84,10 +84,15 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
     if (!nextCursor) return
 
     setIsLoadingMore(true)
-    const result = await getBlocks({ limit: 80, maxId: nextCursor })
-    setIsLoadingMore(false)
-    setBlockedAccounts((current) => [...current, ...result.accounts])
-    setNextCursor(result.nextMaxId)
+    try {
+      const result = await getBlocks({ limit: 80, maxId: nextCursor })
+      setBlockedAccounts((current) => [...current, ...result.accounts])
+      setNextCursor(result.nextMaxId)
+    } catch (_err) {
+      return
+    } finally {
+      setIsLoadingMore(false)
+    }
   }
 
   const isConfirmAccountUnblocking = confirmAccount
