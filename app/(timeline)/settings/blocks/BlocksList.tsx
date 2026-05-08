@@ -34,22 +34,49 @@ const getInitials = (account: MastodonAccount) =>
 
 export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
   const [blockedAccounts, setBlockedAccounts] = useState(accounts)
-  const [unblockingId, setUnblockingId] = useState<string | null>(null)
+  const [unblockingIds, setUnblockingIds] = useState<Set<string>>(
+    () => new Set()
+  )
   const [confirmAccount, setConfirmAccount] = useState<MastodonAccount | null>(
     null
   )
   const [nextCursor, setNextCursor] = useState(nextMaxId)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [error, setError] = useState('')
 
   const onUnblock = async (account: MastodonAccount) => {
-    setUnblockingId(account.id)
-    const relationship = await unblock({ targetActorId: account.url })
-    setUnblockingId(null)
-    if (!relationship || relationship.blocking) return
+    setError('')
+    setUnblockingIds((current) => new Set(current).add(account.id))
 
-    setBlockedAccounts((current) =>
-      current.filter((item) => item.id !== account.id)
-    )
+    try {
+      const relationship = await unblock({ targetActorId: account.url })
+      if (!relationship || relationship.blocking) {
+        setError('Failed to unblock account. Please try again.')
+        return
+      }
+
+      setBlockedAccounts((current) =>
+        current.filter((item) => item.id !== account.id)
+      )
+      setConfirmAccount(null)
+    } catch (_err) {
+      setError('Failed to unblock account. Please try again.')
+    } finally {
+      setUnblockingIds((current) => {
+        const next = new Set(current)
+        next.delete(account.id)
+        return next
+      })
+    }
+  }
+
+  const onOpenConfirm = (account: MastodonAccount) => {
+    setError('')
+    setConfirmAccount(account)
+  }
+
+  const onCloseConfirm = () => {
+    setError('')
     setConfirmAccount(null)
   }
 
@@ -62,6 +89,10 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
     setBlockedAccounts((current) => [...current, ...result.accounts])
     setNextCursor(result.nextMaxId)
   }
+
+  const isConfirmAccountUnblocking = confirmAccount
+    ? unblockingIds.has(confirmAccount.id)
+    : false
 
   if (blockedAccounts.length === 0 && !nextCursor) {
     return (
@@ -100,10 +131,10 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setConfirmAccount(account)}
-                disabled={unblockingId === account.id}
+                onClick={() => onOpenConfirm(account)}
+                disabled={unblockingIds.has(account.id)}
               >
-                {unblockingId === account.id ? (
+                {unblockingIds.has(account.id) ? (
                   <Loader2 className="animate-spin" />
                 ) : (
                   <Ban />
@@ -136,7 +167,8 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
       <Dialog
         open={confirmAccount !== null}
         onOpenChange={(open) => {
-          if (!open) setConfirmAccount(null)
+          if (isConfirmAccountUnblocking) return
+          if (!open) onCloseConfirm()
         }}
       >
         <DialogContent>
@@ -147,20 +179,26 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => {
               again.
             </DialogDescription>
           </DialogHeader>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setConfirmAccount(null)}
+              onClick={onCloseConfirm}
+              disabled={isConfirmAccountUnblocking}
             >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={() => confirmAccount && onUnblock(confirmAccount)}
-              disabled={!confirmAccount || unblockingId === confirmAccount.id}
+              disabled={!confirmAccount || isConfirmAccountUnblocking}
             >
-              {confirmAccount && unblockingId === confirmAccount.id ? (
+              {isConfirmAccountUnblocking ? (
                 <Loader2 className="animate-spin" />
               ) : null}
               Unblock
