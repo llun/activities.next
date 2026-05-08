@@ -1,6 +1,7 @@
-import { NextRequest } from 'next/server'
-
-import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import {
+  OptionalOAuthGuard,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import {
@@ -10,12 +11,7 @@ import {
 import { Timeline } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  StatusCode,
-  apiResponse,
-  codeMap,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -26,14 +22,6 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 type Params = Record<string, never>
-
-const corsErrorResponse = (req: NextRequest, responseStatusCode: StatusCode) =>
-  apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: codeMap[responseStatusCode],
-    responseStatusCode
-  })
 
 export const GET = traceApiRoute(
   'getPublicTimeline',
@@ -77,6 +65,6 @@ export const GET = traceApiRoute(
         ]
       })
     },
-    { errorResponse: corsErrorResponse }
+    { errorResponse: corsErrorResponse(CORS_HEADERS) }
   )
 )

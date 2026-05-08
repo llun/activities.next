@@ -24,32 +24,56 @@ export const TimelineSQLDatabaseMixin = (
   }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LOCAL_PUBLIC: {
-        const lookupPublicCursor = async (
-          statusId: string
-        ): Promise<{ id: number; createdAt: Date } | null> => {
-          const recipientRow = await database('recipients')
-            .where('recipients.type', 'to')
-            .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
-            .where('recipients.statusId', statusId)
-            .select('id', 'createdAt')
-            .first<{ id: number; createdAt: Date }>()
-          return recipientRow ?? null
-        }
+        const cursorStatusIds = Array.from(
+          new Set(
+            [maxStatusId, minStatusId].filter(
+              (statusId): statusId is string => !!statusId
+            )
+          )
+        )
+        const publicCursorRows =
+          cursorStatusIds.length > 0
+            ? await database('recipients')
+                .where('recipients.type', 'to')
+                .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+                .whereIn('recipients.statusId', cursorStatusIds)
+                .select(
+                  'recipients.statusId',
+                  'recipients.id',
+                  'recipients.createdAt'
+                )
+            : []
+        const publicCursorByStatusId = new Map<
+          string,
+          { id: string; createdAt: Date }
+        >(
+          publicCursorRows.map(
+            (row: { statusId: string; id: string; createdAt: Date }) => [
+              row.statusId,
+              {
+                id: row.id,
+                createdAt: row.createdAt
+              }
+            ]
+          )
+        )
 
-        const [maxRow, minRow] = await Promise.all([
-          maxStatusId ? lookupPublicCursor(maxStatusId) : null,
-          minStatusId ? lookupPublicCursor(minStatusId) : null
-        ])
+        const maxRow = maxStatusId
+          ? (publicCursorByStatusId.get(maxStatusId) ?? null)
+          : null
+        const minRow = minStatusId
+          ? (publicCursorByStatusId.get(minStatusId) ?? null)
+          : null
 
         if (maxStatusId && !maxRow) return []
         if (minStatusId && !minRow) return []
 
         let query = database('recipients')
+          .where('recipients.type', 'to')
+          .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
           .select('recipients.statusId')
           .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
           .innerJoin('actors', 'statuses.actorId', 'actors.id')
-          .where('recipients.type', 'to')
-          .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
           .whereNotNull('actors.privateKey')
           .where('statuses.reply', '')
           .limit(limit)

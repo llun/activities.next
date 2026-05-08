@@ -15,6 +15,39 @@ const createStatus = (name: string, actorId = readerActorId) =>
   }) as Status
 
 describe('getFilteredStatusPage', () => {
+  it('emits the last visible cursor mid-timeline when the page is full and more remain', async () => {
+    const visible1 = createStatus('visible-1')
+    const visible2 = createStatus('visible-2')
+    const visible3 = createStatus('visible-3')
+    const visible4 = createStatus('visible-4')
+    const visible5 = createStatus('visible-5')
+    const visible6 = createStatus('visible-6')
+    const batches = new Map<string | null, Status[]>([
+      [null, [visible1, visible2, visible3]],
+      [visible3.id, [visible4, visible5, visible6]]
+    ])
+    const getBlockRelations = jest.fn(async () => [])
+    const database = { getBlockRelations } as unknown as Database
+    const fetchBatch = jest.fn(({ maxStatusId }) =>
+      Promise.resolve(batches.get(maxStatusId) ?? [])
+    )
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 3,
+      fetchBatch
+    })
+
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      visible1.id,
+      visible2.id,
+      visible3.id
+    ])
+    expect(page.nextMaxStatusId).toBe(visible3.id)
+    expect(fetchBatch).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps a next cursor when a final exhausted batch buffers visible statuses', async () => {
     const blocked = createStatus('blocked', blockedActorId)
     const visible1 = createStatus('visible-1')
