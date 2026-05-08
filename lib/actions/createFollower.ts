@@ -37,6 +37,15 @@ export const createFollower = async ({
     return null
   }
 
+  if (
+    await database.isEitherBlocking({
+      actorIdA: followerActor.id,
+      actorIdB: targetActor.id
+    })
+  ) {
+    return followRequest
+  }
+
   // Check if target actor requires manual approval for followers
   const settings = await database.getActorSettings({
     actorId: targetActor.id

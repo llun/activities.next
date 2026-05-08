@@ -2,6 +2,7 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
@@ -69,13 +70,17 @@ export const GET = traceApiRoute(
     const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
     const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
 
-    const statuses = await database.getTimeline({
-      timeline,
-      actorId: currentActor.id,
-      minStatusId,
-      maxStatusId,
-      limit: limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
-    })
+    const statuses = await filterBlockedStatuses(
+      database,
+      currentActor.id,
+      await database.getTimeline({
+        timeline,
+        actorId: currentActor.id,
+        minStatusId,
+        maxStatusId,
+        limit: limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
+      })
+    )
     if (format === TimelineFormat.enum.activities_next) {
       return apiResponse({
         req,

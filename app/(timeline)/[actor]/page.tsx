@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { Bio } from '@/lib/components/bio/Bio'
+import { BlockAction } from '@/lib/components/block-action/block-action'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -138,7 +139,16 @@ const Page: FC<Props> = async ({ params }) => {
                 <Link href="/settings">Edit Profile</Link>
               </Button>
             ) : (
-              <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
+              <div className="flex flex-wrap gap-2">
+                <FollowAction
+                  targetActorId={person.id}
+                  isLoggedIn={isLoggedIn}
+                />
+                <BlockAction
+                  targetActorId={person.id}
+                  isLoggedIn={isLoggedIn}
+                />
+              </div>
             )}
           </div>
 

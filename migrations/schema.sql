@@ -133,6 +133,21 @@ CREATE TABLE
             time zone DEFAULT CURRENT_TIMESTAMP
     );
 CREATE TABLE
+    public.blocks (
+        id character varying(255) NOT NULL,
+        "actorId" character varying(255) NOT NULL,
+        "actorHost" character varying(255) NOT NULL,
+        "targetActorId" character varying(255) NOT NULL,
+        "targetActorHost" character varying(255) NOT NULL,
+        uri character varying(255) NOT NULL,
+        "createdAt" timestamp
+        with
+            time zone DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" timestamp
+        with
+            time zone DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE
     public.follows (
         id character varying(255) NOT NULL,
         "actorId" character varying(255),
@@ -360,6 +375,12 @@ ALTER TABLE ONLY public.attachments
 ADD CONSTRAINT attachments_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.auth_codes
 ADD CONSTRAINT auth_codes_pkey PRIMARY KEY (code);
+ALTER TABLE ONLY public.blocks
+ADD CONSTRAINT blocks_actor_target_unique UNIQUE ("actorId", "targetActorId");
+ALTER TABLE ONLY public.blocks
+ADD CONSTRAINT blocks_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.blocks
+ADD CONSTRAINT blocks_uri_unique UNIQUE (uri);
 ALTER TABLE ONLY public.counters
 ADD CONSTRAINT counters_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.follows
@@ -397,6 +418,8 @@ CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt",
 CREATE INDEX "actorsIndex" ON public.actors USING btree (username, "createdAt", "updatedAt");
 CREATE INDEX "attachmentsIndex" ON public.attachments USING btree ("statusId", "createdAt", "updatedAt");
 CREATE INDEX "attachments_actorId_idx" ON public.attachments USING btree ("actorId");
+CREATE INDEX blocks_actor_created ON public.blocks USING btree ("actorId", "createdAt");
+CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
 CREATE INDEX "countersIndex" ON public.counters USING btree (id, "createdAt", "updatedAt");
 CREATE INDEX "followsIndex" ON public.follows USING btree ("actorId", "actorHost", "targetActorId", "targetActorHost", status, "createdAt", "updatedAt");
 CREATE INDEX "medias_accountId_originalMimeType_idx" ON public.medias USING btree ("accountId", "originalMimeType");

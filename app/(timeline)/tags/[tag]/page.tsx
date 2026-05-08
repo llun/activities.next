@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -41,9 +42,13 @@ const Page = async ({ params }: PageProps) => {
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
 
-  const statuses = await database.getStatusesByHashtag({
-    hashtag: tag
-  })
+  const statuses = await filterBlockedStatuses(
+    database,
+    actor?.id,
+    await database.getStatusesByHashtag({
+      hashtag: tag
+    })
+  )
 
   const postCount = await database.getHashtagCounter({ hashtag: tag })
 

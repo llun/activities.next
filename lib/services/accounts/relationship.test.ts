@@ -8,7 +8,8 @@ describe('#getRelationship', () => {
   const mockDatabase = {
     getActorFromId: jest.fn(),
     isCurrentActorFollowing: jest.fn(),
-    getAcceptedOrRequestedFollow: jest.fn()
+    getAcceptedOrRequestedFollow: jest.fn(),
+    isBlocking: jest.fn()
   }
 
   const mockCurrentActor = {
@@ -23,6 +24,7 @@ describe('#getRelationship', () => {
       id: 'https://example.com/users/target',
       summary: 'Target user bio'
     })
+    mockDatabase.isBlocking.mockResolvedValue(false)
   })
 
   it('returns relationship with following=true when following', async () => {
@@ -107,6 +109,31 @@ describe('#getRelationship', () => {
       domain_blocking: false,
       endorsed: false,
       languages: expect.toBeArray()
+    })
+  })
+
+  it('sets blocking fields from block relationships in both directions', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.isBlocking
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+
+    expect(relationship.blocking).toBe(true)
+    expect(relationship.blocked_by).toBe(true)
+    expect(mockDatabase.isBlocking).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      targetActorId: 'https://example.com/users/target'
+    })
+    expect(mockDatabase.isBlocking).toHaveBeenCalledWith({
+      actorId: 'https://example.com/users/target',
+      targetActorId: mockCurrentActor.id
     })
   })
 

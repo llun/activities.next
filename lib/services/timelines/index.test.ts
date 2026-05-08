@@ -6,6 +6,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_FOLLOWER_URL, ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_FOLLOWERS
@@ -110,5 +111,58 @@ describe('#addStatusToTimeline', () => {
       actorId: ACTOR3_ID
     })
     expect(mentionTimeline.some((s) => s.id === status.id)).toBe(true)
+  })
+
+  test('it skips timelines when recipient blocks the status actor', async () => {
+    await database.createBlock({
+      actorId: ACTOR3_ID,
+      targetActorId: ACTOR2_ID,
+      uri: `${ACTOR3_ID}#blocks/${randomBytes(8).toString('hex')}`
+    })
+    const id = randomBytes(16).toString('hex')
+    const status = await database.createNote({
+      id: `${ACTOR2_ID}/statuses/${id}`,
+      url: `${ACTOR2_ID}/statuses/${id}`,
+      actorId: ACTOR2_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR2_FOLLOWER_URL],
+      text: 'blocked message'
+    })
+
+    await addStatusToTimelines(database, status)
+
+    const mainTimeline = await database.getTimeline({
+      timeline: Timeline.MAIN,
+      actorId: ACTOR3_ID
+    })
+    expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
+  })
+
+  test('it skips timelines when a followed actor announces a blocked author', async () => {
+    const id = randomBytes(16).toString('hex')
+    const originalStatus = await database.createNote({
+      id: `${ACTOR2_ID}/statuses/original-${id}`,
+      url: `${ACTOR2_ID}/statuses/original-${id}`,
+      actorId: ACTOR2_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR2_FOLLOWER_URL],
+      text: 'blocked original'
+    })
+    const announce = await database.createAnnounce({
+      id: `${ACTOR4_ID}/statuses/announce-${id}`,
+      actorId: ACTOR4_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${ACTOR4_ID}/followers`],
+      originalStatusId: originalStatus.id
+    })
+    if (!announce) fail('Announce must be defined')
+
+    await addStatusToTimelines(database, announce)
+
+    const mainTimeline = await database.getTimeline({
+      timeline: Timeline.MAIN,
+      actorId: ACTOR3_ID
+    })
+    expect(mainTimeline.some((s) => s.id === announce.id)).toBe(false)
   })
 })

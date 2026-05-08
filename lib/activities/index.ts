@@ -3,12 +3,14 @@ import crypto from 'crypto'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
+import { BlockRequest } from '@/lib/activities/blockAction'
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { DeleteStatus } from '@/lib/activities/deleteStatus'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { RejectFollow } from '@/lib/activities/rejectFollow'
+import { UndoBlock } from '@/lib/activities/undoBlock'
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { UndoLike } from '@/lib/activities/undoLike'
 import { UndoStatus } from '@/lib/activities/undoStatus'
@@ -22,6 +24,7 @@ import {
   UpdateAction
 } from '@/lib/types/activitypub/activities'
 import { Actor } from '@/lib/types/domain/actor'
+import { Block as DomainBlock } from '@/lib/types/domain/block'
 import { Follow } from '@/lib/types/domain/follow'
 import {
   Status,
@@ -485,6 +488,126 @@ export const unfollow = async (
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
         logger.error(`[unfollow] ${nodeError.message}`)
+        return false
+      } finally {
+        span.end()
+      }
+    }
+  )
+
+interface BlockParams {
+  uri: string
+  currentActor: Actor
+  targetActorId: string
+  signingActor?: Actor
+}
+
+export const block = async ({
+  uri,
+  currentActor,
+  targetActorId,
+  signingActor
+}: BlockParams) =>
+  getTracer().startActiveSpan(
+    'activities.block',
+    {
+      attributes: {
+        actorId: currentActor.id,
+        targetActorId,
+        uri
+      }
+    },
+    async (span) => {
+      const activity: BlockRequest = {
+        '@context': ACTIVITY_STREAM_URL,
+        id: uri,
+        type: 'Block',
+        actor: currentActor.id,
+        object: targetActorId
+      }
+
+      const person = await getActorPerson({
+        actorId: targetActorId,
+        signingActor
+      })
+      const targetInbox = person?.inbox ?? `${targetActorId}/inbox`
+
+      const method = 'POST'
+      try {
+        const { statusCode } = await request({
+          url: targetInbox,
+          method,
+          headers: activityPubRequestHeaders({
+            url: targetInbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
+          body: JSON.stringify(activity)
+        })
+        return { ok: statusCode === 202, uri }
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException
+        span.recordException(nodeError)
+        logger.error(`[block] ${nodeError.message}`)
+        return { ok: false, uri }
+      } finally {
+        span.end()
+      }
+    }
+  )
+
+export const unblock = async (
+  currentActor: Actor,
+  block: DomainBlock,
+  signingActor?: Actor
+) =>
+  getTracer().startActiveSpan(
+    'activities.unblock',
+    {
+      attributes: {
+        actorId: currentActor.id,
+        block: block.id
+      }
+    },
+    async (span) => {
+      const activity: UndoBlock = {
+        '@context': ACTIVITY_STREAM_URL,
+        id: `${block.uri}/undo`,
+        type: 'Undo',
+        actor: currentActor.id,
+        object: {
+          id: block.uri,
+          type: 'Block',
+          actor: block.actorId,
+          object: block.targetActorId
+        }
+      }
+
+      const person = await getActorPerson({
+        actorId: block.targetActorId,
+        signingActor
+      })
+      const targetInbox = person?.inbox ?? `${block.targetActorId}/inbox`
+
+      const method = 'POST'
+      try {
+        const { statusCode } = await request({
+          url: targetInbox,
+          method,
+          headers: activityPubRequestHeaders({
+            url: targetInbox,
+            method,
+            signingActor: currentActor,
+            content: activity
+          }),
+          body: JSON.stringify(activity)
+        })
+        return statusCode === 202
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException
+        span.recordException(nodeError)
+        logger.error(`[unblock] ${nodeError.message}`)
         return false
       } finally {
         span.end()

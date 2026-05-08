@@ -9,6 +9,7 @@ import {
 } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
+import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
@@ -434,6 +435,79 @@ export const unfollow = async ({ targetActorId }: FollowParams) => {
   })
   if (response.status !== 200) return false
   return true
+}
+
+export const getRelationship = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(
+    `/api/v1/accounts/relationships?id[]=${encodedId}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+  if (response.status !== 200) return null
+
+  const relationships = (await response.json()) as MastodonRelationship[]
+  return relationships[0] ?? null
+}
+
+export const block = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/block`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+export const unblock = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/unblock`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+interface GetBlocksParams {
+  limit?: number
+  maxId?: string
+  minId?: string
+}
+
+export const getBlocks = async ({
+  limit,
+  maxId,
+  minId
+}: GetBlocksParams = {}): Promise<MastodonAccount[]> => {
+  const url = new URL(`${window.origin}/api/v1/blocks`)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', urlToId(maxId))
+  if (minId) url.searchParams.set('min_id', urlToId(minId))
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) return []
+  return (await response.json()) as MastodonAccount[]
 }
 
 interface GetTimelineParams {

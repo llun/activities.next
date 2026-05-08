@@ -26,6 +26,7 @@ const Layout: FC<Props> = ({ children }) => {
     { name: 'Account', url: '/settings/account' },
     { name: 'Media', url: '/settings/media' },
     { name: 'Notifications', url: '/settings/notifications' },
+    { name: 'Blocked Accounts', url: '/settings/blocks' },
     { name: 'Fitness', url: '/settings/fitness' },
     { name: 'Sessions', url: '/settings/sessions' }
   ]

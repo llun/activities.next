@@ -3,9 +3,12 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
 import { cleanJson } from '@/lib/utils/cleanJson'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -62,11 +65,17 @@ export const GET = traceApiRoute(
         ? Math.min(parsedLimit, PER_PAGE_LIMIT)
         : PER_PAGE_LIMIT
 
-    const statuses = await database.getStatusesByHashtag({
-      hashtag: tag,
-      limit: effectiveLimit,
-      maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : undefined
-    })
+    const session = await getServerAuthSession()
+    const currentActor = await getActorFromSession(database, session)
+    const statuses = await filterBlockedStatuses(
+      database,
+      currentActor?.id,
+      await database.getStatusesByHashtag({
+        hashtag: tag,
+        limit: effectiveLimit,
+        maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : undefined
+      })
+    )
 
     if (format === 'activities_next') {
       return apiResponse({

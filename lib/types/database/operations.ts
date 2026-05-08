@@ -7,6 +7,7 @@ import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
+import { Block } from '@/lib/types/domain/block'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
 import { Status } from '@/lib/types/domain/status'
@@ -653,6 +654,56 @@ export interface FollowDatabase {
   // Follow requests methods
   getFollowRequests(params: GetFollowRequestsParams): Promise<Follow[]>
   getFollowRequestsCount(params: GetFollowRequestsCountParams): Promise<number>
+}
+
+// ============================================================================
+// Block Database
+// ============================================================================
+
+export type CreateBlockParams = {
+  actorId: string
+  targetActorId: string
+  uri: string
+}
+export type DeleteBlockParams = {
+  actorId: string
+  targetActorId: string
+}
+export type DeleteBlockByUriParams = {
+  actorId: string
+  uri: string
+}
+export type GetBlockParams = {
+  actorId: string
+  targetActorId: string
+}
+export type GetBlockByUriParams = {
+  uri: string
+}
+export type IsBlockingParams = {
+  actorId: string
+  targetActorId: string
+}
+export type IsEitherBlockingParams = {
+  actorIdA: string
+  actorIdB: string
+}
+export type GetBlocksParams = {
+  actorId: string
+  limit: number
+  maxId?: string | null
+  minId?: string | null
+}
+
+export interface BlockDatabase {
+  createBlock(params: CreateBlockParams): Promise<Block>
+  deleteBlock(params: DeleteBlockParams): Promise<Block | null>
+  deleteBlockByUri(params: DeleteBlockByUriParams): Promise<Block | null>
+  getBlock(params: GetBlockParams): Promise<Block | null>
+  getBlockByUri(params: GetBlockByUriParams): Promise<Block | null>
+  isBlocking(params: IsBlockingParams): Promise<boolean>
+  isEitherBlocking(params: IsEitherBlockingParams): Promise<boolean>
+  getBlocks(params: GetBlocksParams): Promise<Block[]>
 }
 
 // ============================================================================

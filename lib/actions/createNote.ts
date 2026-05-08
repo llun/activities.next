@@ -16,6 +16,7 @@ import {
   getTextContent as getReplyTextContent
 } from '@/lib/services/email/templates/reply'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
+import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -276,7 +277,14 @@ export const createNoteFromUserInput = async ({
   const notificationPromises = []
 
   // Create reply notification if this is a reply
-  if (replyStatus && replyStatus.actorId !== currentActor.id) {
+  if (
+    replyStatus &&
+    (await shouldCreateNotification(
+      database,
+      replyStatus.actorId,
+      currentActor.id
+    ))
+  ) {
     notificationPromises.push(
       database.createNotification({
         actorId: replyStatus.actorId,
@@ -292,7 +300,13 @@ export const createNoteFromUserInput = async ({
   for (const mention of mentions) {
     const mentionedActorId = mention.href
     // Don't create notification for self-mentions
-    if (mentionedActorId !== currentActor.id) {
+    if (
+      await shouldCreateNotification(
+        database,
+        mentionedActorId,
+        currentActor.id
+      )
+    ) {
       notificationPromises.push(
         database.createNotification({
           actorId: mentionedActorId,
@@ -322,7 +336,14 @@ export const createNoteFromUserInput = async ({
   // Uses the fetched status (with actor info) to build email content.
   const seenActorIds = new Set<string>()
 
-  if (replyStatus && replyStatus.actorId !== currentActor.id) {
+  if (
+    replyStatus &&
+    (await shouldCreateNotification(
+      database,
+      replyStatus.actorId,
+      currentActor.id
+    ))
+  ) {
     seenActorIds.add(replyStatus.actorId)
     database
       .getActorFromId({ id: replyStatus.actorId })
@@ -354,8 +375,12 @@ export const createNoteFromUserInput = async ({
   for (const mention of mentions) {
     const mentionedActorId = mention.href
     if (
-      mentionedActorId !== currentActor.id &&
-      !seenActorIds.has(mentionedActorId)
+      !seenActorIds.has(mentionedActorId) &&
+      (await shouldCreateNotification(
+        database,
+        mentionedActorId,
+        currentActor.id
+      ))
     ) {
       seenActorIds.add(mentionedActorId)
       database

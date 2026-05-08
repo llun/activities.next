@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 import { AccountSQLDatabaseMixin } from './account'
 import { ActorSQLDatabaseMixin } from './actor'
+import { BlockSQLDatabaseMixin } from './block'
 import { FitnessSettingsSQLDatabaseMixin } from './fitnessSettings'
 import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
@@ -18,6 +19,10 @@ jest.mock('@/lib/database/sql/account', () => ({
 
 jest.mock('@/lib/database/sql/actor', () => ({
   ActorSQLDatabaseMixin: jest.fn()
+}))
+
+jest.mock('@/lib/database/sql/block', () => ({
+  BlockSQLDatabaseMixin: jest.fn()
 }))
 
 jest.mock('@/lib/database/sql/fitnessSettings', () => ({
@@ -55,6 +60,7 @@ jest.mock('@/lib/database/sql/timeline', () => ({
 describe('getSQLDatabase', () => {
   const accountMixinMock = AccountSQLDatabaseMixin as unknown as jest.Mock
   const actorMixinMock = ActorSQLDatabaseMixin as unknown as jest.Mock
+  const blockMixinMock = BlockSQLDatabaseMixin as unknown as jest.Mock
   const fitnessSettingsMixinMock =
     FitnessSettingsSQLDatabaseMixin as unknown as jest.Mock
   const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
@@ -91,6 +97,9 @@ describe('getSQLDatabase', () => {
     const fitnessSettingsDatabase = {
       createFitnessSettings: jest.fn()
     }
+    const blockDatabase = {
+      createBlock: jest.fn()
+    }
     const followerDatabase = {
       getFollowers: jest.fn()
     }
@@ -117,6 +126,7 @@ describe('getSQLDatabase', () => {
     _knexMock = knexDatabase
     accountMixinMock.mockReturnValue(accountDatabase)
     actorMixinMock.mockReturnValue(actorDatabase)
+    blockMixinMock.mockReturnValue(blockDatabase)
     fitnessSettingsMixinMock.mockReturnValue(fitnessSettingsDatabase)
     followerMixinMock.mockReturnValue(followerDatabase)
     likeMixinMock.mockReturnValue(likeDatabase)
@@ -131,6 +141,7 @@ describe('getSQLDatabase', () => {
     return {
       accountDatabase,
       actorDatabase,
+      blockDatabase,
       database,
       followerDatabase,
       fitnessSettingsDatabase,
@@ -155,6 +166,7 @@ describe('getSQLDatabase', () => {
 
     expect(accountMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(actorMixinMock).toHaveBeenCalledWith(knexDatabase)
+    expect(blockMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(fitnessSettingsMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
     expect(likeMixinMock).toHaveBeenCalledWith(knexDatabase)
@@ -174,6 +186,7 @@ describe('getSQLDatabase', () => {
     const {
       accountDatabase,
       actorDatabase,
+      blockDatabase,
       database,
       followerDatabase,
       fitnessSettingsDatabase,
@@ -187,6 +200,7 @@ describe('getSQLDatabase', () => {
 
     expect(database.isAccountExists).toBe(accountDatabase.isAccountExists)
     expect(database.getActorFromId).toBe(actorDatabase.getActorFromId)
+    expect(database.createBlock).toBe(blockDatabase.createBlock)
     expect(database.createFitnessSettings).toBe(
       fitnessSettingsDatabase.createFitnessSettings
     )

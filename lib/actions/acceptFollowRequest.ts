@@ -22,6 +22,15 @@ export const acceptFollowRequest = async ({
   const followId = followRequestId.pathname.slice(1)
   const follow = await database.getFollowFromId({ followId })
   if (!follow) return null
+  if (
+    await database.isEitherBlocking({
+      actorIdA: follow.actorId,
+      actorIdB: follow.targetActorId
+    })
+  ) {
+    return follow
+  }
+
   await database.updateFollowStatus({
     followId,
     status: FollowStatus.enum.Accepted

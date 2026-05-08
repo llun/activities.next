@@ -1,6 +1,9 @@
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
 import { Timeline } from '@/lib/services/timelines/types'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -22,9 +25,15 @@ export const GET = traceApiRoute('getPublicTimeline', async (req) => {
     })
   }
 
-  const statuses = await database.getTimeline({
-    timeline: Timeline.LOCAL_PUBLIC
-  })
+  const session = await getServerAuthSession()
+  const currentActor = await getActorFromSession(database, session)
+  const statuses = await filterBlockedStatuses(
+    database,
+    currentActor?.id,
+    await database.getTimeline({
+      timeline: Timeline.LOCAL_PUBLIC
+    })
+  )
   const mastodonStatuses = await Promise.all(
     statuses.map((status) => getMastodonStatus(database, status))
   )

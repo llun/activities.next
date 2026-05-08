@@ -1,4 +1,8 @@
+import { applyBlock } from '@/lib/actions/applyBlock'
+import { block as federateBlock } from '@/lib/activities'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -29,8 +33,26 @@ export const POST = traceApiRoute(
 
     const targetActorId = idToUrl(encodedAccountId)
 
-    // Blocking not yet implemented - return relationship with blocking: false
-    // TODO: Implement blocking functionality
+    if (targetActorId !== currentActor.id) {
+      const blockId = crypto.randomUUID()
+      const uri = `${currentActor.id}#blocks/${blockId}`
+      const block = await applyBlock({
+        database,
+        actorId: currentActor.id,
+        targetActorId,
+        uri
+      })
+
+      if (await canFederateWithDomain(database, targetActorId)) {
+        const signingActor = await getFederationSigningActor(database)
+        await federateBlock({
+          uri: block.uri,
+          currentActor,
+          targetActorId,
+          signingActor
+        })
+      }
+    }
 
     const relationship = await getRelationship({
       database,
