@@ -1,0 +1,21 @@
+app/api/v1/tags/[tag]/route.test.ts
+  s_fd8902a0ea3872::t_a05ad22355c712 1-69
+app/api/v1/tags/[tag]/route.ts
+  s_fd8902a0ea3872::t_046bc85e217ee8 90-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "17f72216272b4fa2846a2814b9e9be2eff83c56b",
+  "prompts": {},
+  "sessions": {
+    "s_fd8902a0ea3872": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0bb0-1427-7711-a3b0-b58ba4ceca2c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
