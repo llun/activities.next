@@ -7,7 +7,7 @@
 - `migrations/` holds Knex migration files used for SQL backends.
 - `public/` serves static assets; `uploads/` and `data/` are used for local storage in some deployments.
 - `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities.
-- Configuration files live at the repo root (for example `config.json` and `config.*.json`).
+- Configuration files live at the repo root (for example `config.json`, `.env.example`, `knexfile.js`, and framework/tooling configs).
 
 ## Build, Test, and Development Commands
 
@@ -200,16 +200,16 @@ chore: update dependencies                            ← patch
 
 ## Database Backends & Local Setup
 
-- Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`).
+- Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`). MySQL-compatible Knex configuration paths also exist and should not be broken casually.
 - Local SQLite is the simplest for development; run `yarn migrate` after updating schema or migrations.
 - Tests use isolated SQLite in-memory databases for fast, parallel execution.
 - Docker users should mount a persistent volume to `/opt/activities.next` (see `docs/setup.md`).
 
 ## Database Compatibility Guidelines
 
-- **All database operations must work with both SQLite and PostgreSQL** (and potentially other SQL backends like MySQL).
+- **All database operations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible.**
 - Use Knex query builder for all database operations—avoid raw SQL unless absolutely necessary.
 - When writing raw SQL, ensure syntax is compatible across all supported databases.
-- Avoid database-specific features unless wrapped with conditional logic for each backend.
+- Avoid database-specific features unless wrapped with conditional logic or fallback behavior for each backend.
 - Test migrations and queries against SQLite (used in tests) to catch compatibility issues early.
 - Use standard SQL types and avoid vendor-specific extensions (e.g., use `text` instead of PostgreSQL's `varchar[]`).

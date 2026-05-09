@@ -4,7 +4,7 @@ This guide covers maintenance and administrative scripts available in Activity.n
 
 ## Media Storage Cleanup
 
-The `cleanupMediaStorage` script helps you clean up orphaned media files that are no longer referenced in the database. This is useful for reclaiming storage space after content deletion or database recovery.
+The `cleanupMediaStorage.ts` script helps you clean up orphaned media files that are no longer referenced in the database. This is useful for reclaiming storage space after content deletion or database recovery.
 
 ### What it does
 
@@ -19,16 +19,16 @@ The script:
 
 ```bash
 # Preview what would be deleted (recommended first step)
-./scripts/cleanupMediaStorage --dry-run
+./scripts/cleanupMediaStorage.ts --dry-run
 
 # Clean up with interactive confirmation
-./scripts/cleanupMediaStorage
+./scripts/cleanupMediaStorage.ts
 
 # Clean up without confirmation (use with caution!)
-./scripts/cleanupMediaStorage --yes
+./scripts/cleanupMediaStorage.ts --yes
 
 # Show help
-./scripts/cleanupMediaStorage --help
+./scripts/cleanupMediaStorage.ts --help
 ```
 
 ### Options
@@ -67,10 +67,10 @@ export ACTIVITIES_MEDIA_STORAGE_TYPE=fs
 export ACTIVITIES_MEDIA_STORAGE_PATH=/data/media
 
 # Preview cleanup
-./scripts/cleanupMediaStorage --dry-run
+./scripts/cleanupMediaStorage.ts --dry-run
 
 # Perform cleanup with confirmation
-./scripts/cleanupMediaStorage
+./scripts/cleanupMediaStorage.ts
 ```
 
 #### S3 Storage
@@ -87,10 +87,10 @@ export ACTIVITIES_MEDIA_STORAGE_BUCKET=my-media-bucket
 export ACTIVITIES_MEDIA_STORAGE_REGION=us-east-1
 
 # Preview cleanup
-./scripts/cleanupMediaStorage --dry-run
+./scripts/cleanupMediaStorage.ts --dry-run
 
 # Perform cleanup without confirmation
-./scripts/cleanupMediaStorage --yes
+./scripts/cleanupMediaStorage.ts --yes
 ```
 
 ### When to Use
@@ -120,10 +120,39 @@ The script includes several safety features:
 Creates a test user for development/testing:
 
 ```bash
-./scripts/createMockUser [username] [email] [password]
+./scripts/createMockUser.ts [username] [email] [password]
 ```
 
 > **Note:** This script is for development and testing purposes only. In production, users should register through the web interface at `/auth/signup`.
+
+### Admin Role Management
+
+Adds or removes the admin role for an account by email:
+
+```bash
+NODE_ENV=production ./scripts/manageAdminRole.ts add admin@example.com
+NODE_ENV=production ./scripts/manageAdminRole.ts remove admin@example.com
+```
+
+### Fitness and Strava Maintenance
+
+Useful scripts for interrupted imports, route heatmap rebuilds, and Strava maintenance:
+
+```bash
+NODE_ENV=production ./scripts/fixStuckFitnessProcessing.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/cleanupLegacyFitnessHeatmaps.ts
+NODE_ENV=production ./scripts/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/listStravaWebhooks.ts @username@your-domain.tld
+```
+
+For local archive or one-off activity imports, see the `--help` output from:
+
+```bash
+./scripts/importStravaArchive.ts --help
+./scripts/resumeStravaProcessing.ts --help
+./scripts/runImportStravaActivity.ts --help
+```
 
 ## Related Documentation
 

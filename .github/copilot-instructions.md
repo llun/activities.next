@@ -23,12 +23,14 @@ Always refer to and follow the guidelines in [AGENTS.md](../AGENTS.md) for all c
 
 1. Run `yarn run prettier --write .` to format code.
 2. Run `yarn lint` and ensure it passes with no errors.
+3. Run `yarn build` and ensure it passes with no errors.
+4. Run `yarn test` and ensure it passes with no errors.
 
 ### Database Operations
 
-- All database operations must work with both SQLite and PostgreSQL.
+- All database operations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible.
 - Use Knex query builder; avoid raw SQL unless necessary.
-- Avoid database-specific features.
+- Avoid database-specific features unless they include backend-specific fallback logic.
 
 ### Code Style
 

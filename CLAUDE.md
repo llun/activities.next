@@ -1,7 +1,6 @@
 # Claude Code – activities.next
 
-Follow `AGENTS.md` and `AGENTS.override.md` for all project rules.
-`AGENTS.override.md` takes precedence over `AGENTS.md` where they conflict.
+Follow `AGENTS.md` for all project rules. If an `AGENTS.override.md` file is present in a checkout, it takes precedence where it conflicts.
 
 ## Key reminders for this machine
 
@@ -13,7 +12,7 @@ Follow `AGENTS.md` and `AGENTS.override.md` for all project rules.
   2. `yarn lint`
   3. `yarn build`
   4. `yarn test`
-- Start the local dev server via the script in `AGENTS.override.md`.
+- Start the local dev server with `yarn dev` unless a checkout-specific override says otherwise.
 - Use the browser to verify any UI changes.
 - Login: username `llun` / email `llun@activities.local` / password `1password;` at https://activities.local
 - ActivityPub peer account: `null@llun.dev` at https://mastodon.local
