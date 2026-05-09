@@ -1,8 +1,18 @@
+import { applyUnblock } from '@/lib/actions/applyUnblock'
+import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
+import {
+  ERROR_400,
+  ERROR_404,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -29,8 +39,49 @@ export const POST = traceApiRoute(
 
     const targetActorId = idToUrl(encodedAccountId)
 
-    // Unblocking not yet implemented - return relationship with blocking: false
-    // TODO: Implement blocking functionality
+    if (targetActorId !== currentActor.id) {
+      const existingBlock = await database.getBlock({
+        actorId: currentActor.id,
+        targetActorId
+      })
+
+      if (!existingBlock) {
+        const targetActor = await database.getActorFromId({ id: targetActorId })
+        if (!targetActor)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: 404
+          })
+      }
+
+      if (existingBlock) {
+        await applyUnblock({
+          database,
+          actorId: currentActor.id,
+          targetActorId
+        })
+
+        getQueue()
+          .publish({
+            id: getHashFromString(`${existingBlock.uri}/undo`),
+            name: SEND_UNBLOCK_JOB_NAME,
+            data: {
+              actorId: currentActor.id,
+              block: existingBlock
+            }
+          })
+          .catch((error) => {
+            logger.warn({
+              message: 'Failed to queue unblock federation',
+              actorId: currentActor.id,
+              targetActorId,
+              error
+            })
+          })
+      }
+    }
 
     const relationship = await getRelationship({
       database,

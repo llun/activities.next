@@ -1,5 +1,6 @@
 import { acceptFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
+import { getRelationship } from '@/lib/services/accounts/relationship'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -78,24 +79,11 @@ export const POST = traceApiRoute(
       // follow action already creates a notification for the target actor.
       // Creating another one here would target the wrong actor (the remote follower).
 
-      // Return relationship
-      const relationship = {
-        id: accountId,
-        following: false,
-        showing_reblogs: true,
-        notifying: false,
-        languages: [],
-        followed_by: true,
-        blocking: false,
-        blocked_by: false,
-        muting: false,
-        muting_notifications: false,
-        requested: false,
-        requested_by: false,
-        domain_blocking: false,
-        endorsed: false,
-        note: ''
-      }
+      const relationship = await getRelationship({
+        database,
+        currentActor,
+        targetActorId: accountId
+      })
 
       return apiResponse({
         req,

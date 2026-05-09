@@ -5,6 +5,8 @@ import { POST } from './route'
 const mockCanFederateWithDomain = jest.fn()
 const mockCreateFollower = jest.fn()
 const mockDeleteLike = jest.fn()
+const mockApplyRemoteBlock = jest.fn()
+const mockApplyRemoteUnblock = jest.fn()
 const mockVerifyAllows = jest.fn()
 const mockDatabase = {
   deleteLike: (...params: unknown[]) => mockDeleteLike(...params)
@@ -83,6 +85,15 @@ jest.mock('@/lib/actions/createFollower', () => ({
   createFollower: (...params: unknown[]) => mockCreateFollower(...params)
 }))
 
+jest.mock('@/lib/actions/applyRemoteBlock', () => ({
+  applyRemoteBlock: (...params: unknown[]) => mockApplyRemoteBlock(...params)
+}))
+
+jest.mock('@/lib/actions/applyRemoteUnblock', () => ({
+  applyRemoteUnblock: (...params: unknown[]) =>
+    mockApplyRemoteUnblock(...params)
+}))
+
 jest.mock('@/lib/actions/like', () => ({
   likeRequest: jest.fn()
 }))
@@ -133,6 +144,14 @@ describe('POST /api/users/[username]/inbox', () => {
       object: 'https://activities.local/users/llun'
     })
     mockDeleteLike.mockResolvedValue(undefined)
+    mockApplyRemoteBlock.mockResolvedValue({
+      actorId: 'https://remote.test/users/alice',
+      targetActorId: 'https://activities.local/users/llun'
+    })
+    mockApplyRemoteUnblock.mockResolvedValue({
+      actorId: 'https://remote.test/users/alice',
+      targetActorId: 'https://activities.local/users/llun'
+    })
   })
 
   it('accepts verified deliveries to the headless signer inbox without creating state', async () => {
@@ -185,7 +204,24 @@ describe('POST /api/users/[username]/inbox', () => {
     })
   })
 
-  it.each(['Block', 'Flag', 'Move', 'Add', 'Remove', 'QuoteRequest'])(
+  it('dispatches verified Block activities to applyRemoteBlock', async () => {
+    const response = await POST(createActorInboxActivityRequest('Block'), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockApplyRemoteBlock).toHaveBeenCalledWith({
+      database: mockDatabase,
+      activity: expect.objectContaining({
+        actor: 'https://remote.test/users/alice',
+        object: 'https://activities.local/users/llun',
+        type: 'Block'
+      }),
+      targetActorId: 'https://activities.local/users/llun'
+    })
+  })
+
+  it.each(['Flag', 'Move', 'Add', 'Remove', 'QuoteRequest'])(
     'accepts verified %s activities without treating them as malformed',
     async (activityType) => {
       const response = await POST(
@@ -215,6 +251,35 @@ describe('POST /api/users/[username]/inbox', () => {
       'https://remote.test/users/alice'
     )
     expect(mockCreateFollower).not.toHaveBeenCalled()
+  })
+
+  it('dispatches full Undo Block activities to applyRemoteUnblock', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-block',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/alice#blocks/1',
+            type: 'Block',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://activities.local/users/llun'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockApplyRemoteUnblock).toHaveBeenCalledWith({
+      database: mockDatabase,
+      actorId: 'https://remote.test/users/alice',
+      object: expect.objectContaining({ type: 'Block' }),
+      targetActorId: 'https://activities.local/users/llun'
+    })
   })
 
   it('treats partial Undo Like objects as accepted no-ops', async () => {

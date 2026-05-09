@@ -8,6 +8,7 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/reblog'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
+import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { NotificationType } from '@/lib/types/database/operations'
@@ -56,7 +57,13 @@ export const userAnnounce = async ({
     await addStatusToTimelines(database, status)
 
     // Create reblog notification if reblogging someone else's status
-    if (originalStatus.actorId !== currentActor.id) {
+    if (
+      await shouldCreateNotification(
+        database,
+        originalStatus.actorId,
+        currentActor.id
+      )
+    ) {
       await database.createNotification({
         actorId: originalStatus.actorId,
         type: NotificationType.enum.reblog,

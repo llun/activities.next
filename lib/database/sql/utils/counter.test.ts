@@ -67,6 +67,8 @@ describe('counter utils', () => {
       expect(CounterKey.totalStatus('actor')).toBe('total-status:actor')
       expect(CounterKey.totalFollowers('actor')).toBe('total-followers:actor')
       expect(CounterKey.totalFollowing('actor')).toBe('total-following:actor')
+      expect(CounterKey.totalBlocking('actor')).toBe('total-blocking:actor')
+      expect(CounterKey.totalBlockedBy('actor')).toBe('total-blocked-by:actor')
       expect(CounterKey.totalLike('status')).toBe('total-like:status')
       expect(CounterKey.totalReblog('status')).toBe('total-reblog:status')
       expect(CounterKey.totalReply('status')).toBe('total-reply:status')

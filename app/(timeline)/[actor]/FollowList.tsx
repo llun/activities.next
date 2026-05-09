@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { FC } from 'react'
+import { FC, useMemo } from 'react'
 
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -10,9 +10,19 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 interface Props {
   users: ActorProfile[]
   isLoggedIn: boolean
+  blockedActorIds?: string[]
 }
 
-export const FollowList: FC<Props> = ({ users, isLoggedIn }) => {
+export const FollowList: FC<Props> = ({
+  users,
+  isLoggedIn,
+  blockedActorIds = []
+}) => {
+  const blockedActorIdSet = useMemo(
+    () => new Set(blockedActorIds),
+    [blockedActorIds]
+  )
+
   return (
     <div className="divide-y">
       {users.map((user) => {
@@ -46,7 +56,9 @@ export const FollowList: FC<Props> = ({ users, isLoggedIn }) => {
               </div>
             </div>
 
-            <FollowAction targetActorId={user.id} isLoggedIn={isLoggedIn} />
+            {!blockedActorIdSet.has(user.id) ? (
+              <FollowAction targetActorId={user.id} isLoggedIn={isLoggedIn} />
+            ) : null}
           </div>
         )
       })}

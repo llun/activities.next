@@ -180,6 +180,52 @@ describe('#mentionTimelineRule', () => {
     expect(mentionNotif?.sourceActorId).toBe(EXTERNAL_ACTOR1)
   })
 
+  it('returns null and does not notify when a remote mention is blocked', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const status = await createNote(
+      database,
+      EXTERNAL_ACTOR1,
+      `Hey ${getActorURL(actor)} blocked remote mention`,
+      EXTERNAL_ACTOR1_FOLLOWERS
+    )
+    await createMentionTag(
+      database,
+      status.id,
+      getActorURL(actor),
+      actor.username
+    )
+    await database.createBlock({
+      actorId: actor.id,
+      targetActorId: EXTERNAL_ACTOR1,
+      uri: `${actor.id}#blocks/remote-mention-${randomBytes(8).toString('hex')}`
+    })
+
+    try {
+      const result = await mentionTimelineRule({
+        database,
+        currentActor: actor,
+        status
+      })
+      expect(result).toBeNull()
+
+      const notifications = await database.getNotifications({
+        actorId: actor.id,
+        limit: 100
+      })
+      expect(
+        notifications.filter(
+          (notification) => notification.statusId === status.id
+        )
+      ).toHaveLength(0)
+      expect(mockSendAlerts).not.toHaveBeenCalled()
+    } finally {
+      await database.deleteBlock({
+        actorId: actor.id,
+        targetActorId: EXTERNAL_ACTOR1
+      })
+    }
+  })
+
   it('returns MENTION timeline and creates notification when tag value matches actor id', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
@@ -319,6 +365,53 @@ describe('#mentionTimelineRule', () => {
     )
     expect(replyNotif).toBeDefined()
     expect(replyNotif?.sourceActorId).toBe(EXTERNAL_ACTOR1)
+  })
+
+  it('returns null and does not notify when a remote reply actor is blocked', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const originalPost = await createNote(
+      database,
+      ACTOR3_ID,
+      'Blocked reply original post',
+      `${ACTOR3_ID}/followers`
+    )
+    const replyStatus = await createNote(
+      database,
+      EXTERNAL_ACTOR1,
+      'Blocked reply',
+      EXTERNAL_ACTOR1_FOLLOWERS,
+      originalPost.id
+    )
+    await database.createBlock({
+      actorId: actor.id,
+      targetActorId: EXTERNAL_ACTOR1,
+      uri: `${actor.id}#blocks/remote-reply-${randomBytes(8).toString('hex')}`
+    })
+
+    try {
+      const result = await mentionTimelineRule({
+        database,
+        currentActor: actor,
+        status: replyStatus
+      })
+      expect(result).toBeNull()
+
+      const notifications = await database.getNotifications({
+        actorId: actor.id,
+        limit: 100
+      })
+      expect(
+        notifications.filter(
+          (notification) => notification.statusId === replyStatus.id
+        )
+      ).toHaveLength(0)
+      expect(mockSendAlerts).not.toHaveBeenCalled()
+    } finally {
+      await database.deleteBlock({
+        actorId: actor.id,
+        targetActorId: EXTERNAL_ACTOR1
+      })
+    }
   })
 
   it('sends notification alerts for remote reply', async () => {

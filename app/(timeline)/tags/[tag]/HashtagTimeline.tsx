@@ -15,6 +15,7 @@ interface HashtagTimelineProps {
   tag: string
   host: string
   statuses: Status[]
+  nextMaxStatusId?: string | null
   postCount: number
   currentTime: number
   currentActor?: ActorProfile
@@ -25,6 +26,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   tag,
   host,
   statuses,
+  nextMaxStatusId,
   postCount,
   currentTime,
   currentActor,
@@ -32,7 +34,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
-    statuses.length > 0
+    statuses.length > 0 || Boolean(nextMaxStatusId)
   )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
@@ -40,7 +42,8 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
   const lastStatusIdRef = useRef<string | null>(
-    statuses.length > 0 ? statuses[statuses.length - 1].id : null
+    nextMaxStatusId ||
+      (statuses.length > 0 ? statuses[statuses.length - 1].id : null)
   )
 
   const onPostDeleted = (status: Status) => {
@@ -64,16 +67,21 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
     try {
-      const statuses = await getHashtagTimeline({
+      const result = await getHashtagTimeline({
         tag,
         maxStatusId: lastStatusId
       })
-      if (statuses.length === 0) {
+      if (result.statuses.length === 0) {
+        if (result.nextMaxStatusId) {
+          lastStatusIdRef.current = result.nextMaxStatusId
+          return
+        }
         setHasMoreStatuses(false)
         return
       }
-      lastStatusIdRef.current = statuses[statuses.length - 1].id
-      setCurrentStatuses((prev) => [...prev, ...statuses])
+      lastStatusIdRef.current =
+        result.nextMaxStatusId || result.statuses[result.statuses.length - 1].id
+      setCurrentStatuses((prev) => [...prev, ...result.statuses])
     } catch (_error) {
       // Error loading more - user can retry
     } finally {
@@ -141,7 +149,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           </div>
         )}
 
-        {hasMoreStatuses && currentStatuses.length > 0 && (
+        {hasMoreStatuses && lastStatusIdRef.current && (
           <div ref={loadMoreRef} className="p-4 text-center border-t">
             <Button
               variant="outline"

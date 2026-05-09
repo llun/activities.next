@@ -42,6 +42,15 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         span.end()
         return Timeline.MENTION
       }
+      if (
+        await database.isEitherBlocking({
+          actorIdA: currentActor.id,
+          actorIdB: status.actorId
+        })
+      ) {
+        span.end()
+        return null
+      }
 
       let addToTimeline = false
       const alertEvents: NotificationEvent[] = []

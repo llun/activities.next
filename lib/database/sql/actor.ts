@@ -1156,6 +1156,46 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await trx('follows').where('actorId', actorId).delete()
       await trx('follows').where('targetActorId', actorId).delete()
 
+      const blocks = await trx('blocks')
+        .where('actorId', actorId)
+        .orWhere('targetActorId', actorId)
+        .select('actorId', 'targetActorId')
+      const blockingAdjustments: Record<string, number> = {}
+      const blockedByAdjustments: Record<string, number> = {}
+      for (const block of blocks) {
+        if (block.actorId !== actorId) {
+          blockingAdjustments[block.actorId] =
+            (blockingAdjustments[block.actorId] || 0) + 1
+        }
+        if (block.targetActorId !== actorId) {
+          blockedByAdjustments[block.targetActorId] =
+            (blockedByAdjustments[block.targetActorId] || 0) + 1
+        }
+      }
+      await Promise.all([
+        ...Object.entries(blockingAdjustments).map(([blockingActorId, count]) =>
+          decreaseCounterValue(
+            trx,
+            CounterKey.totalBlocking(blockingActorId),
+            count,
+            currentTime
+          )
+        ),
+        ...Object.entries(blockedByAdjustments).map(([blockedActorId, count]) =>
+          decreaseCounterValue(
+            trx,
+            CounterKey.totalBlockedBy(blockedActorId),
+            count,
+            currentTime
+          )
+        )
+      ])
+      await trx('blocks')
+        .where((builder) => {
+          builder.where('actorId', actorId).orWhere('targetActorId', actorId)
+        })
+        .delete()
+
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()
 
@@ -1168,6 +1208,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await deleteCounterValue(trx, CounterKey.totalStatus(actorId))
       await deleteCounterValue(trx, CounterKey.totalFollowers(actorId))
       await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
+      await deleteCounterValue(trx, CounterKey.totalBlocking(actorId))
+      await deleteCounterValue(trx, CounterKey.totalBlockedBy(actorId))
 
       if (persistedActor?.accountId) {
         await decreaseCounterValue(

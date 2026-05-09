@@ -4,16 +4,17 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { Bio } from '@/lib/components/bio/Bio'
-import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorTimelines } from './ActorTimelines'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
+import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
 
 interface Props {
@@ -81,6 +82,14 @@ const Page: FC<Props> = async ({ params }) => {
   } = actorProfile
 
   const isCurrentUser = currentActor?.id === person.id
+  const relationship =
+    currentActor && !isCurrentUser
+      ? await getRelationship({
+          database,
+          currentActor,
+          targetActorId: person.id
+        })
+      : null
 
   const initials = getInitials(person.name || '', person.preferredUsername)
 
@@ -138,7 +147,11 @@ const Page: FC<Props> = async ({ params }) => {
                 <Link href="/settings">Edit Profile</Link>
               </Button>
             ) : (
-              <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
+              <ProfileRelationshipActions
+                targetActorId={person.id}
+                isLoggedIn={isLoggedIn}
+                relationship={relationship}
+              />
             )}
           </div>
 
