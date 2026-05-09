@@ -2,10 +2,12 @@ import crypto from 'crypto'
 import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
 import { CounterKey, getCounterValue } from '@/lib/database/sql/utils/counter'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { BlockRelation } from '@/lib/types/database/operations'
 
 describe('BlockDatabase', () => {
   let knexDatabase: Knex
@@ -277,5 +279,74 @@ describe('BlockDatabase', () => {
         ]
       })
     ).resolves.toIncludeSameMembers(expectedRelations)
+  })
+
+  it('runs chunked block relation lookups concurrently', async () => {
+    const actorIds = Array.from(
+      { length: 1001 },
+      (_, index) => `https://remote.test/users/concurrent-actor-${index}`
+    )
+    const targetActorIds = Array.from(
+      { length: 1001 },
+      (_, index) => `https://remote.test/users/concurrent-target-${index}`
+    )
+    let startedQueries = 0
+    let releaseQueries = false
+    const resolvers: Array<() => void> = []
+
+    const releaseAllQueries = () => {
+      releaseQueries = true
+      while (resolvers.length > 0) {
+        resolvers.pop()?.()
+      }
+    }
+
+    const builder = {
+      orWhere: jest.fn((callback?: (value: typeof builder) => void) => {
+        callback?.(builder)
+        return builder
+      }),
+      where: jest.fn((callback?: (value: typeof builder) => void) => {
+        callback?.(builder)
+        return builder
+      }),
+      whereIn: jest.fn(() => builder)
+    }
+    const databaseStub = jest.fn(() => {
+      const promise = new Promise<BlockRelation[]>((resolve) => {
+        const resolver = () => resolve([])
+        if (releaseQueries) {
+          resolver()
+        } else {
+          resolvers.push(resolver)
+        }
+      })
+      const query = {
+        select: jest.fn(() => query),
+        then: promise.then.bind(promise),
+        where: jest.fn((callback?: (value: typeof builder) => void) => {
+          startedQueries += 1
+          callback?.(builder)
+          return query
+        })
+      }
+
+      return query
+    }) as unknown as Knex
+    const blockDatabase = BlockSQLDatabaseMixin(databaseStub)
+
+    const relationsPromise = blockDatabase.getBlockRelations({
+      actorIds,
+      targetActorIds
+    })
+
+    await Promise.resolve()
+
+    try {
+      expect(startedQueries).toBe(4)
+    } finally {
+      releaseAllQueries()
+    }
+    await expect(relationsPromise).resolves.toEqual([])
   })
 })

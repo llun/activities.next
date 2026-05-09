@@ -263,30 +263,34 @@ export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
       BLOCK_RELATION_LOOKUP_CHUNK_SIZE
     )
 
-    for (const actorIdChunk of actorIdChunks) {
-      for (const targetActorIdChunk of targetActorIdChunks) {
-        const relations = await database<BlockRelation>('blocks')
-          .select('actorId', 'targetActorId')
-          .where((builder) => {
-            builder
-              .where((forward) => {
-                forward
-                  .whereIn('actorId', actorIdChunk)
-                  .whereIn('targetActorId', targetActorIdChunk)
-              })
-              .orWhere((reverse) => {
-                reverse
-                  .whereIn('actorId', targetActorIdChunk)
-                  .whereIn('targetActorId', actorIdChunk)
-              })
-          })
+    const relationGroups = await Promise.all(
+      actorIdChunks.flatMap((actorIdChunk) =>
+        targetActorIdChunks.map((targetActorIdChunk) =>
+          database<BlockRelation>('blocks')
+            .select('actorId', 'targetActorId')
+            .where((builder) => {
+              builder
+                .where((forward) => {
+                  forward
+                    .whereIn('actorId', actorIdChunk)
+                    .whereIn('targetActorId', targetActorIdChunk)
+                })
+                .orWhere((reverse) => {
+                  reverse
+                    .whereIn('actorId', targetActorIdChunk)
+                    .whereIn('targetActorId', actorIdChunk)
+                })
+            })
+        )
+      )
+    )
 
-        for (const relation of relations) {
-          relationsByKey.set(
-            JSON.stringify([relation.actorId, relation.targetActorId]),
-            relation
-          )
-        }
+    for (const relations of relationGroups) {
+      for (const relation of relations) {
+        relationsByKey.set(
+          JSON.stringify([relation.actorId, relation.targetActorId]),
+          relation
+        )
       }
     }
 
