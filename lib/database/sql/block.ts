@@ -216,7 +216,8 @@ export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
       const cursor = await database<Block>('blocks')
         .where({ actorId, id: cursorId })
         .first()
-      if (cursor) applyCursor(query, cursor, maxId ? 'older' : 'newer')
+      if (!cursor) return []
+      applyCursor(query, cursor, maxId ? 'older' : 'newer')
     }
 
     if (minId) {

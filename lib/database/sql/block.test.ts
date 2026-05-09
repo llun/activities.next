@@ -169,9 +169,9 @@ describe('BlockDatabase', () => {
     expect(secondPage.map((block) => block.id)).toEqual(expectedIds.slice(2))
   })
 
-  it('ignores unknown block cursors', async () => {
+  it('returns empty pages for unknown block cursors', async () => {
     const actorId = `https://remote.test/users/cursor-${crypto.randomUUID()}`
-    const block = await database.createBlock({
+    await database.createBlock({
       actorId,
       targetActorId: targetActorId(),
       uri: `${actorId}#blocks/${crypto.randomUUID()}`
@@ -183,7 +183,21 @@ describe('BlockDatabase', () => {
         limit: 2,
         maxId: crypto.randomUUID()
       })
-    ).resolves.toEqual([block])
+    ).resolves.toEqual([])
+    await expect(
+      database.getBlocks({
+        actorId,
+        limit: 2,
+        minId: crypto.randomUUID()
+      })
+    ).resolves.toEqual([])
+    await expect(
+      database.getBlocks({
+        actorId,
+        limit: 2,
+        sinceId: crypto.randomUUID()
+      })
+    ).resolves.toEqual([])
   })
 
   it('returns block relations for bulk filtering in either direction', async () => {
