@@ -10,18 +10,24 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 
 import {
   PUBLIC_STORAGE_FETCH_TIMEOUT_MS,
+  assertArchiveTableFilesReadable,
   assertMatchingMigrations,
   assertSafeDirectoryToReplace,
   buildStoragePlan,
   createPublicStorageFetchInit,
   createS3Client,
+  fetchPublicStorageResponse,
+  getDatabaseTableNames,
   getReferencedStoragePaths,
+  getRestoreInsertBatchSize,
+  getStorageEndpoint,
   isLocalDatabaseConfig,
   isLocalDatabaseConnection,
   isSafeArchiveEntryPath,
   isSafeTarArchiveVerboseEntry,
   normalizeStorageHostname,
   parseDownloadArgs,
+  parseEnvFile,
   parseRestoreArgs,
   sortTablesForRestore,
   truncateTables,
@@ -269,6 +275,84 @@ describe('production archive scripts', () => {
       })
     })
 
+    it('does not deduplicate S3 fitness files from a different hostname', () => {
+      const plan = buildStoragePlan({
+        fitnessFilePaths: ['2026-01-01/activity.fit'],
+        mediaFilePaths: ['medias/image.webp', 'fitness/legacy.fit'],
+        scope: 'referenced',
+        mediaStorage: {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'media-storage.example.com',
+          region: 'auto'
+        },
+        fitnessStorage: {
+          type: FitnessStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'fitness-storage.example.com',
+          prefix: 'fitness/',
+          region: 'auto'
+        }
+      })
+
+      expect(plan[0]).toMatchObject({
+        destination: 'media',
+        files: ['fitness/legacy.fit', 'medias/image.webp']
+      })
+    })
+
+    it('does not deduplicate S3 fitness files from a different endpoint scheme', () => {
+      const plan = buildStoragePlan({
+        fitnessFilePaths: ['2026-01-01/activity.fit'],
+        mediaFilePaths: ['medias/image.webp', 'fitness/legacy.fit'],
+        scope: 'referenced',
+        mediaStorage: {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'http://storage.example.com',
+          region: 'auto'
+        },
+        fitnessStorage: {
+          type: FitnessStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'https://storage.example.com',
+          prefix: 'fitness/',
+          region: 'auto'
+        }
+      })
+
+      expect(plan[0]).toMatchObject({
+        destination: 'media',
+        files: ['fitness/legacy.fit', 'medias/image.webp']
+      })
+    })
+
+    it('deduplicates S3 fitness files when hostnames normalize to the same endpoint', () => {
+      const plan = buildStoragePlan({
+        fitnessFilePaths: ['2026-01-01/activity.fit'],
+        mediaFilePaths: ['medias/image.webp', 'fitness/legacy.fit'],
+        scope: 'referenced',
+        mediaStorage: {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'https://storage.example.com/',
+          region: 'auto'
+        },
+        fitnessStorage: {
+          type: FitnessStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'storage.example.com',
+          prefix: 'fitness/',
+          region: 'auto'
+        }
+      })
+
+      expect(plan[0]).toMatchObject({
+        destination: 'media',
+        files: ['medias/image.webp']
+      })
+    })
+
     it('filters referenced media files inside a shared local fitness directory', () => {
       const plan = buildStoragePlan({
         fitnessFilePaths: ['2026-01-01/activity.fit'],
@@ -390,10 +474,13 @@ describe('production archive scripts', () => {
       expect(normalizeStorageHostname('https://storage.example.com/')).toBe(
         'storage.example.com'
       )
+      expect(getStorageEndpoint('http://localhost:9000/')).toBe(
+        'http://localhost:9000'
+      )
 
       const client = createS3Client({
         bucket: 'bucket',
-        hostname: 'https://storage.example.com/',
+        hostname: 'http://storage.example.com/',
         kind: 's3',
         region: 'auto'
       })
@@ -401,19 +488,84 @@ describe('production archive scripts', () => {
       try {
         const endpoint = await client.config.endpoint!()
         expect(endpoint.hostname).toBe('storage.example.com')
-        expect(endpoint.protocol).toBe('https:')
+        expect(endpoint.protocol).toBe('http:')
       } finally {
         client.destroy()
       }
     })
   })
 
+  describe('parseEnvFile', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'production-archive-env-test-')
+      )
+    })
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { force: true, recursive: true })
+    })
+
+    it('parses multiline and quoted dotenv values', async () => {
+      const envPath = path.join(tempDir, '.env.production')
+      await fs.writeFile(
+        envPath,
+        [
+          'export SIMPLE=value # comment',
+          'MULTILINE="line one',
+          'line two"',
+          'ESCAPED_NEWLINE="line one\\nline two"',
+          "SINGLE='literal # hash'"
+        ].join('\n')
+      )
+
+      expect(parseEnvFile(envPath)).toEqual({
+        ESCAPED_NEWLINE: 'line one\nline two',
+        MULTILINE: 'line one\nline two',
+        SIMPLE: 'value',
+        SINGLE: 'literal # hash'
+      })
+    })
+  })
+
   describe('createPublicStorageFetchInit', () => {
     it('sets a timeout signal for public storage downloads', () => {
-      const init = createPublicStorageFetchInit()
+      const controller = new AbortController()
+      const init = createPublicStorageFetchInit(controller.signal)
 
-      expect(PUBLIC_STORAGE_FETCH_TIMEOUT_MS).toBe(30_000)
-      expect(init.signal).toBeInstanceOf(AbortSignal)
+      expect(PUBLIC_STORAGE_FETCH_TIMEOUT_MS).toBe(60_000)
+      expect(init.signal).toBe(controller.signal)
+    })
+  })
+
+  describe('fetchPublicStorageResponse', () => {
+    const originalFetch = global.fetch
+
+    afterEach(() => {
+      global.fetch = originalFetch
+      jest.useRealTimers()
+    })
+
+    it('clears the response timeout after the public storage request starts', async () => {
+      jest.useFakeTimers()
+      global.fetch = jest.fn(async () => {
+        return new Response('ok')
+      }) as typeof fetch
+
+      const response = await fetchPublicStorageResponse(
+        'https://storage.example.com/file.txt'
+      )
+
+      expect(response.ok).toBe(true)
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://storage.example.com/file.txt',
+        expect.objectContaining({
+          signal: expect.any(AbortSignal)
+        })
+      )
+      expect(jest.getTimerCount()).toBe(0)
     })
   })
 
@@ -571,6 +723,94 @@ describe('production archive scripts', () => {
           '-rw-r--r--  0 llun staff 7 May  9 21:02 ./file.txt'
         )
       ).toBe(true)
+      expect(
+        isSafeTarArchiveVerboseEntry(
+          '  -rw-r--r--  0 llun staff 7 May  9 21:02 ./file.txt'
+        )
+      ).toBe(true)
+      expect(
+        isSafeTarArchiveVerboseEntry(
+          '  lrwxr-xr-x  0 llun staff 0 May  9 21:02 ./link -> /etc/passwd'
+        )
+      ).toBe(false)
+    })
+  })
+
+  describe('getDatabaseTableNames', () => {
+    it('excludes SQLite internal and Knex lock tables', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+
+      try {
+        await database.schema.createTable('app_data', (table) => {
+          table.integer('id').primary()
+        })
+        await database.schema.createTable('knex_migrations_lock', (table) => {
+          table.integer('index').primary()
+          table.integer('is_locked')
+        })
+
+        await database('app_data').insert({ id: 1 })
+
+        await expect(getDatabaseTableNames(database)).resolves.toEqual([
+          'app_data'
+        ])
+      } finally {
+        await database.destroy()
+      }
+    })
+  })
+
+  describe('getRestoreInsertBatchSize', () => {
+    it('uses a conservative SQLite batch size based on column count', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+
+      try {
+        expect(
+          getRestoreInsertBatchSize(database, {
+            a: 1,
+            b: 2,
+            c: 3,
+            d: 4,
+            e: 5
+          })
+        ).toBe(199)
+      } finally {
+        await database.destroy()
+      }
+    })
+  })
+
+  describe('assertArchiveTableFilesReadable', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'production-archive-db-test-')
+      )
+      await fs.mkdir(path.join(tempDir, 'database'))
+    })
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { force: true, recursive: true })
+    })
+
+    it('fails before restore when an archived table payload is missing', async () => {
+      await fs.writeFile(path.join(tempDir, 'database', 'users.jsonl'), '{}\n')
+
+      await expect(
+        assertArchiveTableFilesReadable(tempDir, [
+          { name: 'users', rowCount: 1 },
+          { name: 'statuses', rowCount: 1 }
+        ])
+      ).rejects.toThrow('missing database payload for statuses')
     })
   })
 

@@ -4,6 +4,7 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { execFile, spawn } from 'child_process'
+import dotenvFlow from 'dotenv-flow'
 import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import knex, { Knex } from 'knex'
@@ -38,8 +39,10 @@ const MIGRATIONS_DIR = 'migrations'
 const STORAGE_DIR = 'storage'
 const MANIFEST_FILE = 'manifest.json'
 const DATABASE_PAGE_SIZE = 1000
-export const PUBLIC_STORAGE_FETCH_TIMEOUT_MS = 30_000
+export const PUBLIC_STORAGE_FETCH_TIMEOUT_MS = 60_000
 const INSERT_BATCH_SIZE = 250
+const SQLITE_INSERT_PARAMETER_LIMIT = 999
+const KNEX_MIGRATIONS_LOCK_TABLE = 'knex_migrations_lock'
 
 export type StorageScope = 'referenced' | 'all'
 export type StorageDestination = 'media' | 'fitness'
@@ -534,6 +537,12 @@ const getSharedS3FitnessPrefix = (
 
   if (mediaStorage.bucket !== fitnessStorage.bucket) return null
   if (mediaStorage.region !== fitnessStorage.region) return null
+  if (
+    getStorageEndpointIdentity(mediaStorage.hostname) !==
+    getStorageEndpointIdentity(fitnessStorage.hostname)
+  ) {
+    return null
+  }
   return fitnessStorage.prefix || null
 }
 
@@ -575,50 +584,11 @@ const isS3FitnessStorage = (
   storage.type === FitnessStorageType.ObjectStorage ||
   storage.type === FitnessStorageType.S3Storage
 
-const parseEnvFile = (content: string) => {
-  const values: Record<string, string> = {}
-
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line || line.startsWith('#')) continue
-
-    const normalizedLine = line.startsWith('export ')
-      ? line.slice('export '.length).trim()
-      : line
-    const separatorIndex = normalizedLine.indexOf('=')
-    if (separatorIndex < 1) continue
-
-    const key = normalizedLine.slice(0, separatorIndex).trim()
-    const rawValue = normalizedLine.slice(separatorIndex + 1).trim()
-
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue
-    values[key] = parseEnvValue(rawValue)
-  }
-
-  return values
-}
-
-const parseEnvValue = (rawValue: string) => {
-  if (
-    (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
-    (rawValue.startsWith("'") && rawValue.endsWith("'"))
-  ) {
-    const quote = rawValue[0]
-    const unquoted = rawValue.slice(1, -1)
-    if (quote === "'") return unquoted
-    return unquoted
-      .replaceAll('\\n', '\n')
-      .replaceAll('\\"', '"')
-      .replaceAll('\\\\', '\\')
-  }
-
-  return rawValue.replace(/\s+#.*$/, '')
-}
+export const parseEnvFile = (envPath: string) => dotenvFlow.parse(envPath)
 
 const loadEnvFile = async (envFile: string) => {
   const envPath = path.resolve(process.cwd(), envFile)
-  const content = await fs.readFile(envPath, 'utf-8')
-  const values = parseEnvFile(content)
+  const values = parseEnvFile(envPath)
 
   for (const [key, value] of Object.entries(values)) {
     process.env[key] = value
@@ -658,17 +628,21 @@ const getQueryRows = <T>(result: unknown): T[] => {
   return result as T[]
 }
 
-const getDatabaseTableNames = async (database: Knex) => {
+export const getDatabaseTableNames = async (database: Knex) => {
   const client = getKnexClientName(database)
 
   if (client === 'pg' || client === 'pg-native') {
-    const result = await database.raw(`
+    const result = await database.raw(
+      `
       select table_name as name
       from information_schema.tables
       where table_schema = 'public'
         and table_type = 'BASE TABLE'
+        and table_name <> ?
       order by table_name asc
-    `)
+    `,
+      [KNEX_MIGRATIONS_LOCK_TABLE]
+    )
     return getQueryRows<{ name: string }>(result).map((row) => row.name)
   }
 
@@ -677,6 +651,7 @@ const getDatabaseTableNames = async (database: Knex) => {
       .select('name')
       .where('type', 'table')
       .whereNot('name', 'sqlite_sequence')
+      .whereNot('name', KNEX_MIGRATIONS_LOCK_TABLE)
       .orderBy('name', 'asc')
     return rows.map((row: { name: string }) => row.name)
   }
@@ -996,6 +971,17 @@ export const getReferencedStoragePaths = async (
 export const normalizeStorageHostname = (hostname: string) =>
   hostname.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
 
+export const getStorageEndpoint = (hostname: string) => {
+  const trimmedHostname = hostname.trim().replace(/\/+$/, '')
+  if (/^https?:\/\//i.test(trimmedHostname)) return trimmedHostname
+  return `https://${trimmedHostname}`
+}
+
+const getStorageEndpointIdentity = (hostname: string | undefined) => {
+  if (!hostname?.trim()) return ''
+  return getStorageEndpoint(hostname)
+}
+
 export const createS3Client = (
   source: Extract<StorageSource, { kind: 's3' }>
 ) =>
@@ -1003,7 +989,7 @@ export const createS3Client = (
     region: source.region,
     ...(source.hostname
       ? {
-          endpoint: `https://${normalizeStorageHostname(source.hostname)}`,
+          endpoint: getStorageEndpoint(source.hostname),
           forcePathStyle: true
         }
       : null)
@@ -1185,11 +1171,9 @@ const downloadPublicStorageFile = async ({
   hostname: string
   key: string
 }) => {
-  const normalizedHostname = normalizeStorageHostname(hostname)
   const encodedKey = key.split('/').map(encodeURIComponent).join('/')
-  const response = await fetch(
-    `https://${normalizedHostname}/${encodedKey}`,
-    createPublicStorageFetchInit()
+  const response = await fetchPublicStorageResponse(
+    `${getStorageEndpoint(hostname)}/${encodedKey}`
   )
 
   if (!response.ok) {
@@ -1217,9 +1201,24 @@ const downloadPublicStorageFile = async ({
   return (await fs.stat(archiveFilePath)).size
 }
 
-export const createPublicStorageFetchInit = (): RequestInit => ({
-  signal: AbortSignal.timeout(PUBLIC_STORAGE_FETCH_TIMEOUT_MS)
+export const createPublicStorageFetchInit = (
+  signal: AbortSignal
+): RequestInit => ({
+  signal
 })
+
+export const fetchPublicStorageResponse = async (url: string) => {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    controller.abort()
+  }, PUBLIC_STORAGE_FETCH_TIMEOUT_MS)
+
+  try {
+    return await fetch(url, createPublicStorageFetchInit(controller.signal))
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 const archiveStorage = async (
   plan: StoragePlanEntry[],
@@ -1334,8 +1333,9 @@ export const isSafeArchiveEntryPath = (entry: string) => {
 }
 
 export const isSafeTarArchiveVerboseEntry = (entry: string) => {
-  if (!entry) return true
-  return entry[0] === '-' || entry[0] === 'd'
+  const trimmedEntry = entry.trimStart()
+  if (!trimmedEntry) return true
+  return trimmedEntry[0] === '-' || trimmedEntry[0] === 'd'
 }
 
 const readTarArchiveLines = async (
@@ -1622,6 +1622,57 @@ const ensureArchiveSchemaMatchesLocal = async (
   assertMatchingMigrations(archiveMigrations, await getMigrationNames(database))
 }
 
+export const getRestoreInsertBatchSize = (
+  database: Knex,
+  row: Record<string, unknown>
+) => {
+  const client = getKnexClientName(database)
+  if (client !== 'better-sqlite3' && client !== 'sqlite3') {
+    return INSERT_BATCH_SIZE
+  }
+
+  const columnCount = Math.max(Object.keys(row).length, 1)
+  return Math.max(
+    1,
+    Math.min(
+      INSERT_BATCH_SIZE,
+      Math.floor(SQLITE_INSERT_PARAMETER_LIMIT / columnCount)
+    )
+  )
+}
+
+export const assertArchiveTableFilesReadable = async (
+  archiveDir: string,
+  tables: ArchiveTableManifest[]
+) => {
+  for (const table of tables) {
+    const tableFilePath = path.join(
+      archiveDir,
+      DATABASE_DIR,
+      tableFileName(table.name)
+    )
+
+    const stat = await fs.stat(tableFilePath).catch((error) => {
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code !== 'ENOENT') throw error
+      throw new Error(
+        `Archive is missing database payload for ${table.name}: ` +
+          tableFilePath
+      )
+    })
+
+    if (!stat.isFile()) {
+      throw new Error(
+        `Archive database payload is not a file for ${table.name}: ` +
+          tableFilePath
+      )
+    }
+
+    const file = await fs.open(tableFilePath, 'r')
+    await file.close()
+  }
+}
+
 const restoreTableFromJsonLines = async (
   database: Knex,
   tableName: string,
@@ -1633,21 +1684,30 @@ const restoreTableFromJsonLines = async (
     input
   })
   let batch: Record<string, unknown>[] = []
+  let batchSize = INSERT_BATCH_SIZE
   let rowCount = 0
 
   const flushBatch = async () => {
     if (batch.length === 0) return
-    await database.batchInsert(tableName, batch, INSERT_BATCH_SIZE)
+    await database.batchInsert(tableName, batch, batchSize)
     rowCount += batch.length
     batch = []
+    batchSize = INSERT_BATCH_SIZE
   }
 
   try {
     for await (const line of lines) {
       if (!line.trim()) continue
 
-      batch.push(JSON.parse(line) as Record<string, unknown>)
-      if (batch.length >= INSERT_BATCH_SIZE) {
+      const row = JSON.parse(line) as Record<string, unknown>
+      const rowBatchSize = getRestoreInsertBatchSize(database, row)
+      if (batch.length > 0 && batch.length >= rowBatchSize) {
+        await flushBatch()
+      }
+
+      batchSize = Math.min(batchSize, rowBatchSize)
+      batch.push(row)
+      if (batch.length >= batchSize) {
         await flushBatch()
       }
     }
@@ -1731,6 +1791,8 @@ const restoreDatabase = async (
       `Local database is missing archived table(s): ${missingTables.join(', ')}`
     )
   }
+
+  await assertArchiveTableFilesReadable(archiveDir, manifest.database.tables)
 
   const foreignKeys = await getForeignKeyReferences(database, tableNames)
   const orderedTables = sortTablesForRestore(tableNames, foreignKeys)
