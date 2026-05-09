@@ -24,4 +24,33 @@ describe('getHashFromStringClient', () => {
     expect(hash).toHaveLength(64)
     expect(hash).toMatch(/^[a-f0-9]{64}$/)
   })
+
+  it('falls back when Web Crypto subtle digest is unavailable', async () => {
+    const originalSubtleDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis.crypto,
+      'subtle'
+    )
+
+    Object.defineProperty(globalThis.crypto, 'subtle', {
+      configurable: true,
+      value: undefined
+    })
+
+    try {
+      // SHA-256('test string')
+      await expect(getHashFromStringClient('test string')).resolves.toBe(
+        'd5579c46dfcc7f18207013e65b44e4cb4e2c2298f4ac457ba8f82743f31e930b'
+      )
+    } finally {
+      if (originalSubtleDescriptor) {
+        Object.defineProperty(
+          globalThis.crypto,
+          'subtle',
+          originalSubtleDescriptor
+        )
+      } else {
+        Reflect.deleteProperty(globalThis.crypto, 'subtle')
+      }
+    }
+  })
 })
