@@ -21,7 +21,7 @@ This project follows the standard open source code of conduct. Be respectful, in
 ### Prerequisites
 
 - **Node.js 24** or higher
-- **Yarn** 4.12.0 (via Corepack)
+- **Yarn** 4.13.0 (via Corepack)
 - **Git**
 - A code editor (VS Code recommended)
 
@@ -329,7 +329,7 @@ Also:
 - [ ] No `console.log` statements (use logger for server-side code)
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
-- [ ] `yarn lint` and `yarn build` pass
+- [ ] `yarn run prettier --write .`, `yarn lint`, `yarn build`, and `yarn test` pass
 
 ## Project Structure
 
@@ -402,7 +402,7 @@ Edit the generated file in `migrations/`, then run:
 yarn migrate
 ```
 
-> **Important:** All migrations must work with both SQLite and PostgreSQL. Use Knex query builder and avoid database-specific SQL.
+> **Important:** All migrations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible. Use Knex query builder and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic.
 
 ## Resources
 

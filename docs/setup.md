@@ -5,7 +5,7 @@ This guide provides an overview of how to set up Activity.next for development o
 ## Prerequisites
 
 - **Node.js 24** or higher
-- **Yarn** package manager (v4.12.0 via Corepack)
+- **Yarn** package manager (v4.13.0 via Corepack)
 - **Git** (to clone the repository)
 - A **domain name** (required for federation with other servers)
 
@@ -15,6 +15,7 @@ Activity.next supports multiple SQL database backends. Choose the one that best 
 
 - [SQLite Setup Guide](sqlite-setup.md) — Best for development or small instances
 - [PostgreSQL Setup Guide](postgresql-setup.md) — Recommended for production deployments
+- MySQL-compatible Knex configuration paths — Listed in the [Environment Variables Guide](environment-variables.md) for deployments that provide the needed driver/runtime support
 
 ## General Configuration
 
@@ -135,8 +136,8 @@ ACTIVITIES_MEDIA_STORAGE_HOSTNAME=s3.example.com
 Optional storage limits:
 
 ```bash
-ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE=10485760      # 10 MB in bytes
-ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT=104857600  # 100 MB in bytes
+ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE=209715200       # 200 MiB in bytes
+ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT=1073741824  # 1 GiB in bytes
 ```
 
 ### Email Configuration (Optional)
@@ -183,6 +184,16 @@ ACTIVITIES_QUEUE_URL=https://your-domain.tld
 ACTIVITIES_QUEUE_TOKEN=your-qstash-token
 ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY=your-signing-key
 ACTIVITIES_QUEUE_NEXT_SIGNING_KEY=your-next-signing-key
+```
+
+### Push Notifications (Optional)
+
+Web push notifications require a VAPID key pair:
+
+```bash
+ACTIVITIES_PUSH_VAPID_PUBLIC_KEY=your-public-key
+ACTIVITIES_PUSH_VAPID_PRIVATE_KEY=your-private-key
+ACTIVITIES_PUSH_VAPID_EMAIL=mailto:admin@your-domain.tld
 ```
 
 ## Starting the Application
@@ -233,6 +244,8 @@ Basic Docker run command (uses SQLite by default):
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
   -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
+  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/uploads \
   -v /path/to/local/storage:/opt/activities.next \
   ghcr.io/llun/activities.next:latest
 ```

@@ -4,7 +4,7 @@ This guide will help you set up Activity.next using SQLite as your database back
 
 ## Prerequisites
 
-- Node.js 24 and Yarn (v4.12.0 via Corepack)
+- Node.js 24 and Yarn (v4.13.0 via Corepack)
 - Git (to clone the repository)
 
 ## Database Configuration
@@ -116,8 +116,10 @@ docker run -p 3000:3000 \
   -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
   -e ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
   -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data.sqlite \
+  -e ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
+  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/uploads \
   -v /path/to/local/storage:/opt/activities.next \
   ghcr.io/llun/activities.next:latest
 ```
 
-The `-v` option mounts a local directory to the container's `/opt/activities.next` directory, which allows the SQLite database to persist between container restarts. Make sure to create this directory with appropriate permissions beforehand.
+The `-v` option mounts a local directory to the container's `/opt/activities.next` directory, which allows the SQLite database and configured local uploads directory to persist between container restarts. Make sure to create this directory with appropriate permissions beforehand.
