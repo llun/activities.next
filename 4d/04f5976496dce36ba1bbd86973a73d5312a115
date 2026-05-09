@@ -1,0 +1,29 @@
+scripts/productionArchive.ts
+  s_f344b7f0398e3d::t_7543b689c3d906 41,275,458-461
+  s_f344b7f0398e3d::t_6b8528ee057124 1561,1565-1574
+  s_f344b7f0398e3d::t_962b004cf3c603 1188,1190-1193,1220-1222
+  s_f344b7f0398e3d::t_c2514f7fc391b3 895-946,953-963,967-969,973-980,985-987,996-1010
+scripts/productionArchive.test.ts
+  s_f344b7f0398e3d::t_6b253acad603af 12-13,16-18,23
+  s_f344b7f0398e3d::t_6d3d0a4d3c4876 110,159-162
+  s_f344b7f0398e3d::t_68bac553182559 359,367,461-464,470-473
+  s_f344b7f0398e3d::t_7c017e3a326feb 333-358,360-366,368-419
+  s_f344b7f0398e3d::t_dc14b54e40c14e 244-271
+  s_f344b7f0398e3d::t_f0ad0b4f541c15 458-460,465-469,474-477
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "4d04f5976496dce36ba1bbd86973a73d5312a115",
+  "prompts": {},
+  "sessions": {
+    "s_f344b7f0398e3d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0dc9-3c0c-73e0-bb22-d03c3bae0fc2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
