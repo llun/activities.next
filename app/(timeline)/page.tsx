@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getFilteredTimelinePage } from '@/lib/services/timelines/getFilteredTimelinePage'
 import { Timeline } from '@/lib/services/timelines/types'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
@@ -30,7 +31,8 @@ const Page = async () => {
   }
 
   const settings = await database.getActorSettings({ actorId: actor.id })
-  const statuses = await database.getTimeline({
+  const { statuses, nextMaxStatusId } = await getFilteredTimelinePage({
+    database,
     timeline: Timeline.MAIN,
     actorId: actor.id
   })
@@ -38,6 +40,7 @@ const Page = async () => {
     <MainPageTimeline
       host={host}
       statuses={statuses.map((item) => cleanJson(item))}
+      initialNextMaxStatusId={nextMaxStatusId}
       profile={getActorProfile(actor)}
       isMediaUploadEnabled={Boolean(mediaStorage)}
       postLineLimit={settings?.postLineLimit}

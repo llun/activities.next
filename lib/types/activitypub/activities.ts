@@ -37,6 +37,26 @@ export const Follow = z.object({
 export type Follow = z.infer<typeof Follow>
 
 // ============================================================================
+// Block Activity
+// ============================================================================
+
+export const ENTITY_TYPE_BLOCK = 'Block'
+export const ActivityPubObjectRef = z.union([
+  z.string(),
+  z.object({ id: z.string() }).passthrough()
+])
+export type ActivityPubObjectRef = z.infer<typeof ActivityPubObjectRef>
+
+export const Block = z.object({
+  id: z.string(),
+  type: z.literal(ENTITY_TYPE_BLOCK),
+  actor: z.string(),
+  object: ActivityPubObjectRef
+})
+
+export type Block = z.infer<typeof Block>
+
+// ============================================================================
 // Accept Activity
 // ============================================================================
 
@@ -100,7 +120,7 @@ export const Undo = z.object({
   id: z.string(),
   actor: z.string(),
   type: z.literal('Undo'),
-  object: z.union([Like, Follow])
+  object: z.union([Like, Follow, Block])
 })
 
 export type Undo = z.infer<typeof Undo>

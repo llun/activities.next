@@ -3,6 +3,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
+import { getBlockedRecipientActorIdsForStatus } from './blockFilter'
 import { mainTimelineRule } from './main'
 import { mentionTimelineRule } from './mention'
 import { noannounceTimelineRule } from './noaanounce'
@@ -44,28 +45,35 @@ export const addStatusToTimelines = async (
           {} as { [key in string]: Actor }
         )
       )
+      const blockedRecipientActorIds =
+        await getBlockedRecipientActorIdsForStatus(
+          database,
+          actors.map((actor) => actor.id),
+          status
+        )
+
       await Promise.all(
-        actors
-          .map((actor) => {
-            return [
-              mainTimelineRule,
-              noannounceTimelineRule,
-              mentionTimelineRule
-            ].map(async (timelineFunction) => {
-              const timeline = await timelineFunction({
-                currentActor: actor,
-                status,
-                database
-              })
-              if (!timeline) return
-              return database.createTimelineStatus({
-                actorId: actor.id,
-                status,
-                timeline
-              })
-            })
-          })
-          .flat()
+        actors.map(async (actor) => {
+          if (blockedRecipientActorIds.has(actor.id)) return
+
+          await Promise.all(
+            [mainTimelineRule, noannounceTimelineRule, mentionTimelineRule].map(
+              async (timelineFunction) => {
+                const timeline = await timelineFunction({
+                  currentActor: actor,
+                  status,
+                  database
+                })
+                if (!timeline) return
+                return database.createTimelineStatus({
+                  actorId: actor.id,
+                  status,
+                  timeline
+                })
+              }
+            )
+          )
+        })
       )
       span.end()
     }

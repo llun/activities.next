@@ -38,6 +38,7 @@ interface MainPageTimelineProps {
   profile: ActorProfile
   isMediaUploadEnabled: boolean
   statuses: Status[]
+  initialNextMaxStatusId?: string | null
   postLineLimit?: PostLineLimit
 }
 
@@ -46,6 +47,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   profile,
   isMediaUploadEnabled,
   statuses,
+  initialNextMaxStatusId = null,
   postLineLimit
 }) => {
   const [currentTab, setCurrentTab] = useState<Tab>(TIMELINES_TABS[0])
@@ -55,7 +57,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   )
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
-    statuses.length > 0
+    statuses.length > 0 || Boolean(initialNextMaxStatusId)
   )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
@@ -64,7 +66,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
   const lastStatusIdRef = useRef<string | null>(
-    statuses.length > 0 ? statuses[statuses.length - 1].id : null
+    initialNextMaxStatusId ||
+      (statuses.length > 0 ? statuses[statuses.length - 1].id : null)
   )
 
   const onEdit = (status: EditableStatus) => {
@@ -94,16 +97,21 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
     try {
-      const statuses = await getTimeline({
+      const result = await getTimeline({
         timeline: currentTab.timeline,
         maxStatusId: lastStatusId
       })
-      if (statuses.length === 0) {
+      if (result.statuses.length === 0) {
+        if (result.nextMaxStatusId) {
+          lastStatusIdRef.current = result.nextMaxStatusId
+          return
+        }
         setHasMoreStatuses(false)
         return
       }
-      lastStatusIdRef.current = statuses[statuses.length - 1].id
-      setCurrentStatuses((prev) => [...prev, ...statuses])
+      lastStatusIdRef.current =
+        result.nextMaxStatusId || result.statuses[result.statuses.length - 1].id
+      setCurrentStatuses((prev) => [...prev, ...result.statuses])
     } catch (_error) {
       // Error loading more - user can retry by clicking the button
     } finally {
@@ -153,12 +161,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     setLoadingMoreStatuses(true)
 
     try {
-      const statuses = await getTimeline({ timeline: currentTab.timeline })
+      const result = await getTimeline({ timeline: currentTab.timeline })
       if (requestId !== tabRequestId.current) return
-      setCurrentStatuses(statuses)
-      setHasMoreStatuses(statuses.length > 0)
+      setCurrentStatuses(result.statuses)
+      setHasMoreStatuses(
+        result.statuses.length > 0 || Boolean(result.nextMaxStatusId)
+      )
       lastStatusIdRef.current =
-        statuses.length > 0 ? statuses[statuses.length - 1].id : null
+        result.nextMaxStatusId ||
+        (result.statuses.length > 0
+          ? result.statuses[result.statuses.length - 1].id
+          : null)
     } catch (_error) {
       // Error refreshing - existing posts remain visible, user can retry
     } finally {
@@ -184,14 +197,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     lastStatusIdRef.current = null
 
     try {
-      const statuses = await getTimeline({
+      const result = await getTimeline({
         timeline: tab.timeline
       })
       if (requestId !== tabRequestId.current) return
-      setCurrentStatuses(statuses)
-      setHasMoreStatuses(statuses.length > 0)
+      setCurrentStatuses(result.statuses)
+      setHasMoreStatuses(
+        result.statuses.length > 0 || Boolean(result.nextMaxStatusId)
+      )
       lastStatusIdRef.current =
-        statuses.length > 0 ? statuses[statuses.length - 1].id : null
+        result.nextMaxStatusId ||
+        (result.statuses.length > 0
+          ? result.statuses[result.statuses.length - 1].id
+          : null)
     } finally {
       if (requestId === tabRequestId.current) {
         setLoadingMoreStatuses(false)
@@ -299,7 +317,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           </TabsContent>
         </Tabs>
 
-        {hasMoreStatuses && currentStatuses.length > 0 && (
+        {hasMoreStatuses && (
           <div ref={loadMoreRef} className="p-4 text-center border-t">
             <Button
               variant="outline"

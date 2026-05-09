@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getFilteredStatusPage } from '@/lib/services/timelines/getFilteredTimelinePage'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -41,8 +42,15 @@ const Page = async ({ params }: PageProps) => {
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
 
-  const statuses = await database.getStatusesByHashtag({
-    hashtag: tag
+  const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
+    database,
+    actorId: actor?.id,
+    fetchBatch: ({ maxStatusId, limit }) =>
+      database.getStatusesByHashtag({
+        hashtag: tag,
+        limit,
+        maxStatusId: maxStatusId ?? undefined
+      })
   })
 
   const postCount = await database.getHashtagCounter({ hashtag: tag })
@@ -56,6 +64,7 @@ const Page = async ({ params }: PageProps) => {
       tag={tag}
       host={host}
       statuses={statuses.map((item) => cleanJson(item))}
+      nextMaxStatusId={nextMaxStatusId}
       postCount={postCount}
       currentTime={Date.now()}
       currentActor={actor ? getActorProfile(actor) : undefined}

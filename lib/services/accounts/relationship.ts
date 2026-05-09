@@ -17,20 +17,29 @@ export const getRelationship = async ({
 }: GetRelationshipParams): Promise<Mastodon.Relationship> => {
   const actor = await database.getActorFromId({ id: targetActorId })
 
-  const [isFollowing, isFollowedBy, follow] = await Promise.all([
-    database.isCurrentActorFollowing({
-      currentActorId: currentActor.id,
-      followingActorId: targetActorId
-    }),
-    database.isCurrentActorFollowing({
-      currentActorId: targetActorId,
-      followingActorId: currentActor.id
-    }),
-    database.getAcceptedOrRequestedFollow({
-      actorId: currentActor.id,
-      targetActorId
-    })
-  ])
+  const [isFollowing, isFollowedBy, follow, isBlocking, isBlockedBy] =
+    await Promise.all([
+      database.isCurrentActorFollowing({
+        currentActorId: currentActor.id,
+        followingActorId: targetActorId
+      }),
+      database.isCurrentActorFollowing({
+        currentActorId: targetActorId,
+        followingActorId: currentActor.id
+      }),
+      database.getAcceptedOrRequestedFollow({
+        actorId: currentActor.id,
+        targetActorId
+      }),
+      database.isBlocking({
+        actorId: currentActor.id,
+        targetActorId
+      }),
+      database.isBlocking({
+        actorId: targetActorId,
+        targetActorId: currentActor.id
+      })
+    ])
 
   const isRequested = Boolean(
     follow && follow.status === FollowStatus.enum.Requested
@@ -42,8 +51,8 @@ export const getRelationship = async ({
     showing_reblogs: isFollowing,
     notifying: false,
     followed_by: isFollowedBy,
-    blocking: false,
-    blocked_by: false,
+    blocking: isBlocking,
+    blocked_by: isBlockedBy,
     muting: false,
     muting_notifications: false,
     requested: isRequested,

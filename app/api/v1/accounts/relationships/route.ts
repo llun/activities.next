@@ -1,12 +1,11 @@
+import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
-import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -40,42 +39,10 @@ export const GET = traceApiRoute(
             return null
           }
 
-          const [isFollowing, isFollowedBy, follow] = await Promise.all([
-            database.isCurrentActorFollowing({
-              currentActorId: currentActor.id,
-              followingActorId: id
-            }),
-            database.isCurrentActorFollowing({
-              currentActorId: id,
-              followingActorId: currentActor.id
-            }),
-            database.getAcceptedOrRequestedFollow({
-              actorId: currentActor.id,
-              targetActorId: id
-            })
-          ])
-
-          const isRequested =
-            follow && follow.status === FollowStatus.enum.Requested
-
-          // For now, we'll set default values for capabilities not yet implemented
-          // In a full implementation, you would check for blocks, mutes, etc.
-          return Mastodon.Relationship.parse({
-            id: urlToId(id),
-            following: isFollowing,
-            showing_reblogs: isFollowing,
-            notifying: false,
-            followed_by: isFollowedBy,
-            blocking: false,
-            blocked_by: false,
-            muting: false,
-            muting_notifications: false,
-            requested: isRequested,
-            requested_by: false,
-            domain_blocking: false,
-            endorsed: false,
-            languages: ['en'],
-            note: actor.summary ?? ''
+          return getRelationship({
+            database,
+            currentActor,
+            targetActorId: actor.id
           })
         } catch (error) {
           logger.error(

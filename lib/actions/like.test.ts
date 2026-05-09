@@ -71,5 +71,44 @@ describe('Accept follow action', () => {
       })) as StatusNote
       expect(afterLikeStatus.totalLikes).toEqual(1)
     })
+
+    it('does not create a notification when either actor blocks the other', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/blocked-like-${Date.now()}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        to: [],
+        cc: [],
+        text: 'Like notification should be suppressed'
+      })
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID,
+        uri: `${ACTOR1_ID}#blocks/like-${Date.now()}`
+      })
+
+      await likeRequest({
+        activity: {
+          actor: ACTOR2_ID,
+          id: `${ACTOR2_ID}/like-blocked-post`,
+          type: 'Like',
+          object: statusId
+        },
+        database
+      })
+
+      const notifications = await database.getNotifications({
+        actorId: ACTOR1_ID,
+        limit: 20
+      })
+      expect(
+        notifications.some(
+          (notification) =>
+            notification.statusId === statusId &&
+            notification.sourceActorId === ACTOR2_ID
+        )
+      ).toBe(false)
+    })
   })
 })

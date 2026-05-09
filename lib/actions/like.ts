@@ -6,6 +6,7 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/like'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
+import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { NotificationType } from '@/lib/types/database/operations'
 
 interface LikeRequestParams {
@@ -28,7 +29,10 @@ export const likeRequest = async ({
 
   // Create like notification
   const status = await database.getStatus({ statusId })
-  if (status && status.actorId !== request.actor) {
+  if (
+    status &&
+    (await shouldCreateNotification(database, status.actorId, request.actor))
+  ) {
     await database.createNotification({
       actorId: status.actorId,
       type: NotificationType.enum.like,

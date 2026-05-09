@@ -5,12 +5,14 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
+import { getFollowListBlockedActorIds } from '@/app/(timeline)/[actor]/getFollowListBlockedActorIds'
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { Button } from '@/lib/components/ui/button'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor, ActorProfile } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 interface Props {
   params: Promise<{ actor: string }>
@@ -31,6 +33,7 @@ const Page: FC<Props> = async ({ params }) => {
 
   const session = await getServerAuthSession()
   const isLoggedIn = Boolean(session?.user?.email)
+  const currentActor = await getActorFromSession(database, session)
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)
@@ -62,6 +65,11 @@ const Page: FC<Props> = async ({ params }) => {
   )
     .filter((item): item is Actor => !!item)
     .map((actor) => ActorProfile.parse(actor))
+  const blockedActorIds = await getFollowListBlockedActorIds(
+    database,
+    currentActor?.id,
+    followers
+  )
 
   return (
     <div className="space-y-6">
@@ -82,7 +90,11 @@ const Page: FC<Props> = async ({ params }) => {
       </div>
 
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <FollowList users={followers} isLoggedIn={isLoggedIn} />
+        <FollowList
+          users={followers}
+          isLoggedIn={isLoggedIn}
+          blockedActorIds={blockedActorIds}
+        />
       </div>
     </div>
   )

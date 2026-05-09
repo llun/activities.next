@@ -1,5 +1,5 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { acceptFollow } from '@/lib/activities'
+import { acceptFollow, rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { Database } from '@/lib/database/types'
 import {
@@ -35,6 +35,16 @@ export const createFollower = async ({
   })
   if (!followerActor) {
     return null
+  }
+
+  if (
+    await database.isEitherBlocking({
+      actorIdA: followerActor.id,
+      actorIdB: targetActor.id
+    })
+  ) {
+    await rejectFollow(targetActor, followerActor.inboxUrl, followRequest)
+    return followRequest
   }
 
   // Check if target actor requires manual approval for followers

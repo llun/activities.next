@@ -9,6 +9,7 @@ import {
 } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
+import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
@@ -436,18 +437,125 @@ export const unfollow = async ({ targetActorId }: FollowParams) => {
   return true
 }
 
+export const getRelationship = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(
+    `/api/v1/accounts/relationships?id[]=${encodedId}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+  if (response.status !== 200) return null
+
+  const relationships = (await response.json()) as MastodonRelationship[]
+  return relationships[0] ?? null
+}
+
+export const block = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/block`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+export const unblock = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/unblock`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+interface GetBlocksParams {
+  limit?: number
+  maxId?: string
+  minId?: string
+}
+
+interface GetBlocksResult {
+  accounts: MastodonAccount[]
+  nextMaxId: string | null
+  prevMinId: string | null
+}
+
+const getCursorFromLinkHeader = (linkHeader: string | null, rel: string) => {
+  if (!linkHeader) return null
+
+  const links = linkHeader.split(',').map((item) => item.trim())
+  const matchingLink = links.find((link) => link.endsWith(`rel="${rel}"`))
+  const url = matchingLink?.match(/<([^>]+)>/)?.[1]
+  if (!url) return null
+
+  return new URL(url).searchParams.get(rel === 'next' ? 'max_id' : 'min_id')
+}
+
+export const getBlocks = async ({
+  limit,
+  maxId,
+  minId
+}: GetBlocksParams = {}): Promise<GetBlocksResult> => {
+  const url = new URL(`${window.origin}/api/v1/blocks`)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (minId) url.searchParams.set('min_id', minId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return { accounts: [], nextMaxId: null, prevMinId: null }
+  }
+
+  const linkHeader = response.headers.get('Link')
+  return {
+    accounts: (await response.json()) as MastodonAccount[],
+    nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
+    prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
+  }
+}
+
 interface GetTimelineParams {
   timeline: Timeline
   minStatusId?: string
   maxStatusId?: string
   limit?: number
 }
-export const getTimeline = async ({
+
+interface GetTimelineResult {
+  statuses: Status[]
+  nextMaxStatusId: string | null
+  prevMinStatusId: string | null
+}
+
+const MAX_EMPTY_TIMELINE_CONTINUATIONS = 2
+
+const getTimelinePage = async ({
   timeline,
   minStatusId,
   maxStatusId,
   limit
-}: GetTimelineParams) => {
+}: GetTimelineParams): Promise<GetTimelineResult> => {
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
   if (minStatusId) {
@@ -465,19 +573,64 @@ export const getTimeline = async ({
       Accept: 'application/json'
     }
   })
-  if (response.status !== 200) return []
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
+  }
   const data = await response.json()
-  return data.statuses as Status[]
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null,
+    prevMinStatusId: data.prevMinStatusId ?? null
+  }
+}
+
+export const getTimeline = async ({
+  timeline,
+  minStatusId,
+  maxStatusId,
+  limit
+}: GetTimelineParams): Promise<GetTimelineResult> => {
+  let result = await getTimelinePage({
+    timeline,
+    minStatusId,
+    maxStatusId,
+    limit
+  })
+  let currentMaxStatusId = result.nextMaxStatusId
+  let continuations = 0
+
+  while (
+    result.statuses.length === 0 &&
+    currentMaxStatusId &&
+    continuations < MAX_EMPTY_TIMELINE_CONTINUATIONS
+  ) {
+    continuations++
+    result = await getTimelinePage({
+      timeline,
+      minStatusId,
+      maxStatusId: currentMaxStatusId,
+      limit
+    })
+    currentMaxStatusId = result.nextMaxStatusId
+  }
+
+  return result
 }
 
 interface GetHashtagTimelineParams {
   tag: string
   maxStatusId?: string
 }
-export const getHashtagTimeline = async ({
+
+interface GetHashtagTimelineResult {
+  statuses: Status[]
+  nextMaxStatusId: string | null
+}
+
+const getHashtagTimelinePage = async ({
   tag,
   maxStatusId
-}: GetHashtagTimelineParams) => {
+}: GetHashtagTimelineParams): Promise<GetHashtagTimelineResult> => {
   const path = `/api/v1/tags/${encodeURIComponent(tag)}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
   if (maxStatusId) {
@@ -489,9 +642,38 @@ export const getHashtagTimeline = async ({
       Accept: 'application/json'
     }
   })
-  if (response.status !== 200) return []
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxStatusId: null }
+  }
   const data = await response.json()
-  return data.statuses as Status[]
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null
+  }
+}
+
+export const getHashtagTimeline = async ({
+  tag,
+  maxStatusId
+}: GetHashtagTimelineParams): Promise<GetHashtagTimelineResult> => {
+  let result = await getHashtagTimelinePage({ tag, maxStatusId })
+  let currentMaxStatusId = result.nextMaxStatusId
+  let continuations = 0
+
+  while (
+    result.statuses.length === 0 &&
+    currentMaxStatusId &&
+    continuations < MAX_EMPTY_TIMELINE_CONTINUATIONS
+  ) {
+    continuations++
+    result = await getHashtagTimelinePage({
+      tag,
+      maxStatusId: currentMaxStatusId
+    })
+    currentMaxStatusId = result.nextMaxStatusId
+  }
+
+  return result
 }
 
 interface GetActorStatusesParams {

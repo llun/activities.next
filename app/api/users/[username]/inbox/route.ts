@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
+import { applyRemoteBlock } from '@/lib/actions/applyRemoteBlock'
+import { applyRemoteUnblock } from '@/lib/actions/applyRemoteUnblock'
 import { createFollower } from '@/lib/actions/createFollower'
 import { likeRequest } from '@/lib/actions/like'
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
@@ -14,7 +16,14 @@ import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardParams
 } from '@/lib/services/guards/OnlyLocalUserGuard'
-import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
+import {
+  Accept,
+  Block,
+  Follow,
+  Like,
+  Reject,
+  Undo
+} from '@/lib/types/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -31,7 +40,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
   .object({
     id: z.string(),
-    type: z.enum(['Block', 'Flag', 'Move', 'Add', 'Remove', 'QuoteRequest']),
+    type: z.enum(['Flag', 'Move', 'Add', 'Remove', 'QuoteRequest']),
     actor: z.string()
   })
   .passthrough()
@@ -54,6 +63,7 @@ const Activity = z.union([
   Accept,
   Reject,
   Follow,
+  Block,
   Like,
   Undo,
   ReferenceUndo,
@@ -166,6 +176,26 @@ export const POST = traceApiRoute(
                   responseStatusCode: 202
                 })
               }
+              case 'Block': {
+                const block = await applyRemoteBlock({
+                  database,
+                  activity,
+                  targetActorId: actor.id
+                })
+                if (!block)
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: ERROR_404,
+                    responseStatusCode: 404
+                  })
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: DEFAULT_202,
+                  responseStatusCode: 202
+                })
+              }
               case 'Like': {
                 await likeRequest({ activity, database })
                 return apiResponse({
@@ -178,6 +208,21 @@ export const POST = traceApiRoute(
               case 'Undo': {
                 const undoObject = activity.object
                 if (typeof undoObject === 'string') {
+                  const block = await applyRemoteUnblock({
+                    database,
+                    actorId: activity.actor,
+                    object: undoObject,
+                    targetActorId: actor.id
+                  })
+                  if (block) {
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: DEFAULT_202,
+                      responseStatusCode: 202
+                    })
+                  }
+
                   logAcceptedWithoutSideEffects({
                     activity,
                     reason: 'reference-only Undo object'
@@ -224,6 +269,29 @@ export const POST = traceApiRoute(
                         ? likedObject
                         : likedObject.id
                   })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+
+                const undoBlock = Block.safeParse(undoObject)
+                if (undoBlock.success) {
+                  const result = await applyRemoteUnblock({
+                    database,
+                    actorId: activity.actor,
+                    object: undoBlock.data,
+                    targetActorId: actor.id
+                  })
+                  if (!result)
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: ERROR_404,
+                      responseStatusCode: 404
+                    })
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,

@@ -3,6 +3,10 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
+import {
+  getFilteredTimelinePage,
+  normalizeTimelineLimit
+} from '@/lib/services/timelines/getFilteredTimelinePage'
 import { Timeline } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
@@ -68,31 +72,37 @@ export const GET = traceApiRoute(
 
     const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
     const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
+    const parsedLimit = limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
+    const pageLimit = normalizeTimelineLimit(parsedLimit)
 
-    const statuses = await database.getTimeline({
-      timeline,
-      actorId: currentActor.id,
-      minStatusId,
-      maxStatusId,
-      limit: limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
-    })
+    const { statuses, nextMaxStatusId, prevMinStatusId } =
+      await getFilteredTimelinePage({
+        database,
+        timeline,
+        actorId: currentActor.id,
+        minStatusId,
+        maxStatusId,
+        limit: pageLimit
+      })
     if (format === TimelineFormat.enum.activities_next) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { statuses: statuses.map((item) => cleanJson(item)) }
+        data: {
+          statuses: statuses.map((item) => cleanJson(item)),
+          nextMaxStatusId,
+          prevMinStatusId
+        }
       })
     }
 
     const host = headerHost(req.headers)
-    const nextLink =
-      statuses.length > 0
-        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&max_id=${urlToId(statuses[statuses.length - 1].id)}>; rel="next"`
-        : null
-    const prevLink =
-      statuses.length > 0
-        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${urlToId(statuses[0].id)}>; rel="prev"`
-        : null
+    const nextLink = nextMaxStatusId
+      ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
+      : null
+    const prevLink = prevMinStatusId
+      ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&min_id=${urlToId(prevMinStatusId)}>; rel="prev"`
+      : null
     const links = [nextLink, prevLink].filter(Boolean).join(', ')
     const mastodonStatuses = await Promise.all(
       statuses.map((item) => getMastodonStatus(database, item, currentActor.id))
