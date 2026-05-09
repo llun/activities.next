@@ -38,6 +38,7 @@ const MIGRATIONS_DIR = 'migrations'
 const STORAGE_DIR = 'storage'
 const MANIFEST_FILE = 'manifest.json'
 const DATABASE_PAGE_SIZE = 1000
+export const PUBLIC_STORAGE_FETCH_TIMEOUT_MS = 30_000
 const INSERT_BATCH_SIZE = 250
 
 export type StorageScope = 'referenced' | 'all'
@@ -271,6 +272,7 @@ export const isLocalDatabaseConnection = (connection: unknown): boolean => {
       const socketHost = url.searchParams.get('host')
       if (isLocalSocketPath(socketHost)) return true
       if (isLocalSocketPath(url.hostname)) return true
+      if (isLocalPostgresSocketUrl(url)) return true
       return isLocalHost(url.hostname)
     } catch {
       return false
@@ -452,6 +454,11 @@ const isLocalSocketPath = (socketPath: unknown) =>
       return path.isAbsolute(trimmed)
     }
   })()
+
+const isLocalPostgresSocketUrl = (url: URL) =>
+  (url.protocol === 'postgresql:' || url.protocol === 'postgres:') &&
+  url.hostname === '' &&
+  url.host === ''
 
 const uniqueSortedPaths = (filePaths: (string | null | undefined)[]) =>
   [...new Set(filePaths.map(normalizeStoragePath).filter(Boolean))].sort()
@@ -885,54 +892,99 @@ const exportDatabase = async (
 const tableExists = async (database: Knex, tableName: string) =>
   database.schema.hasTable(tableName)
 
-const getReferencedStoragePaths = async (
+const isKeysetValue = (value: unknown): value is Knex.Value =>
+  typeof value === 'number' ||
+  typeof value === 'string' ||
+  value instanceof Date
+
+const forEachKeysetRow = async <T extends { id: unknown }>({
+  columns,
+  database,
+  onRow,
+  tableName
+}: {
+  columns: string[]
+  database: Knex
+  onRow: (row: T) => void
+  tableName: string
+}) => {
+  let lastId: Knex.Value | null = null
+
+  for (;;) {
+    const query = database(tableName)
+      .select(['id', ...columns])
+      .orderBy('id', 'asc')
+      .limit(DATABASE_PAGE_SIZE)
+
+    if (lastId !== null) {
+      query.where('id', '>', lastId)
+    }
+
+    const rows = (await query) as T[]
+    if (rows.length === 0) break
+
+    for (const row of rows) {
+      onRow(row)
+    }
+
+    const nextLastId = rows[rows.length - 1]?.id
+    if (!isKeysetValue(nextLastId)) {
+      throw new Error(
+        `Cannot paginate ${tableName}: id must be a string, number, or Date.`
+      )
+    }
+
+    if (lastId !== null && Object.is(nextLastId, lastId)) {
+      throw new Error(`Cannot paginate ${tableName}: id did not advance.`)
+    }
+
+    lastId = nextLastId
+    if (rows.length < DATABASE_PAGE_SIZE) break
+  }
+}
+
+export const getReferencedStoragePaths = async (
   database: Knex
 ): Promise<ReferencedStoragePaths> => {
   const mediaFilePaths: string[] = []
   const fitnessFilePaths: string[] = []
 
   if (await tableExists(database, 'medias')) {
-    let offset = 0
-    for (;;) {
-      const mediaRows = await database('medias')
-        .select('original', 'thumbnail')
-        .orderBy('id', 'asc')
-        .limit(DATABASE_PAGE_SIZE)
-        .offset(offset)
-
-      if (mediaRows.length === 0) break
-
-      for (const row of mediaRows) {
-        if (typeof row.original === 'string') mediaFilePaths.push(row.original)
+    await forEachKeysetRow<{
+      id: number
+      original?: unknown
+      thumbnail?: unknown
+    }>({
+      columns: ['original', 'thumbnail'],
+      database,
+      onRow: (row) => {
+        if (typeof row.original === 'string') {
+          mediaFilePaths.push(row.original)
+        }
         if (typeof row.thumbnail === 'string') {
           mediaFilePaths.push(row.thumbnail)
         }
-      }
-
-      offset += mediaRows.length
-    }
+      },
+      tableName: 'medias'
+    })
   }
 
   if (await tableExists(database, 'fitness_files')) {
-    let offset = 0
-    for (;;) {
-      const fitnessRows = await database('fitness_files')
-        .select('path', 'mapImagePath')
-        .orderBy('id', 'asc')
-        .limit(DATABASE_PAGE_SIZE)
-        .offset(offset)
-
-      if (fitnessRows.length === 0) break
-
-      for (const row of fitnessRows) {
+    await forEachKeysetRow<{
+      id: string
+      mapImagePath?: unknown
+      path?: unknown
+    }>({
+      columns: ['path', 'mapImagePath'],
+      database,
+      onRow: (row) => {
         if (typeof row.path === 'string') fitnessFilePaths.push(row.path)
         if (typeof row.mapImagePath === 'string') {
           mediaFilePaths.push(row.mapImagePath)
         }
-      }
-
-      offset += fitnessRows.length
-    }
+      },
+      tableName: 'fitness_files'
+    })
   }
 
   return {
@@ -941,8 +993,21 @@ const getReferencedStoragePaths = async (
   }
 }
 
-const createS3Client = (source: Extract<StorageSource, { kind: 's3' }>) =>
-  new S3Client({ region: source.region })
+export const normalizeStorageHostname = (hostname: string) =>
+  hostname.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+
+export const createS3Client = (
+  source: Extract<StorageSource, { kind: 's3' }>
+) =>
+  new S3Client({
+    region: source.region,
+    ...(source.hostname
+      ? {
+          endpoint: `https://${normalizeStorageHostname(source.hostname)}`,
+          forcePathStyle: true
+        }
+      : null)
+  })
 
 const listS3Files = async (
   source: Extract<StorageSource, { kind: 's3' }>,
@@ -1120,9 +1185,12 @@ const downloadPublicStorageFile = async ({
   hostname: string
   key: string
 }) => {
-  const normalizedHostname = hostname.replace(/^https?:\/\//, '')
+  const normalizedHostname = normalizeStorageHostname(hostname)
   const encodedKey = key.split('/').map(encodeURIComponent).join('/')
-  const response = await fetch(`https://${normalizedHostname}/${encodedKey}`)
+  const response = await fetch(
+    `https://${normalizedHostname}/${encodedKey}`,
+    createPublicStorageFetchInit()
+  )
 
   if (!response.ok) {
     throw new Error(
@@ -1148,6 +1216,10 @@ const downloadPublicStorageFile = async ({
 
   return (await fs.stat(archiveFilePath)).size
 }
+
+export const createPublicStorageFetchInit = (): RequestInit => ({
+  signal: AbortSignal.timeout(PUBLIC_STORAGE_FETCH_TIMEOUT_MS)
+})
 
 const archiveStorage = async (
   plan: StoragePlanEntry[],
@@ -1486,13 +1558,20 @@ export const truncateTables = async (
   throw new Error(`Unsupported database client for restore: ${client}`)
 }
 
-const assertMatchingMigrations = (
+export const assertMatchingMigrations = (
   archiveMigrations: string[],
   localMigrations: string[]
 ) => {
-  const archiveValue = JSON.stringify(archiveMigrations)
-  const localValue = JSON.stringify(localMigrations)
-  if (archiveValue === localValue) return
+  const sortedArchiveMigrations = [...archiveMigrations].sort()
+  const sortedLocalMigrations = [...localMigrations].sort()
+  if (
+    sortedArchiveMigrations.length === sortedLocalMigrations.length &&
+    sortedArchiveMigrations.every((name, index) => {
+      return name === sortedLocalMigrations[index]
+    })
+  ) {
+    return
+  }
 
   const archiveSet = new Set(archiveMigrations)
   const localSet = new Set(localMigrations)

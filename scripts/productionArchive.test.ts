@@ -9,12 +9,18 @@ import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 
 import {
+  PUBLIC_STORAGE_FETCH_TIMEOUT_MS,
+  assertMatchingMigrations,
   assertSafeDirectoryToReplace,
   buildStoragePlan,
+  createPublicStorageFetchInit,
+  createS3Client,
+  getReferencedStoragePaths,
   isLocalDatabaseConfig,
   isLocalDatabaseConnection,
   isSafeArchiveEntryPath,
   isSafeTarArchiveVerboseEntry,
+  normalizeStorageHostname,
   parseDownloadArgs,
   parseRestoreArgs,
   sortTablesForRestore,
@@ -101,6 +107,7 @@ describe('production archive scripts', () => {
       expect(
         isLocalDatabaseConnection('postgresql:///activity?host=/var/run')
       ).toBe(true)
+      expect(isLocalDatabaseConnection('postgresql:///activity')).toBe(true)
       expect(
         isLocalDatabaseConnection(
           'postgresql://%2Fvar%2Frun%2Fpostgresql/activity'
@@ -147,6 +154,12 @@ describe('production archive scripts', () => {
         isLocalDatabaseConfig({
           client: 'pg',
           connection: 'postgresql:///activity?host=/var/run/postgresql'
+        })
+      ).toBe(true)
+      expect(
+        isLocalDatabaseConfig({
+          client: 'pg',
+          connection: 'postgresql:///activity'
         })
       ).toBe(true)
       expect(
@@ -228,6 +241,34 @@ describe('production archive scripts', () => {
       ])
     })
 
+    it('preserves object storage hostnames for S3-compatible clients', () => {
+      const plan = buildStoragePlan({
+        fitnessFilePaths: ['2026-01-01/activity.fit'],
+        mediaFilePaths: ['medias/image.webp'],
+        scope: 'referenced',
+        mediaStorage: {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'media-storage.example.com',
+          region: 'auto'
+        },
+        fitnessStorage: {
+          type: FitnessStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'fitness-storage.example.com',
+          prefix: 'fitness/',
+          region: 'auto'
+        }
+      })
+
+      expect(plan[0].source).toMatchObject({
+        hostname: 'media-storage.example.com'
+      })
+      expect(plan[1].source).toMatchObject({
+        hostname: 'fitness-storage.example.com'
+      })
+    })
+
     it('filters referenced media files inside a shared local fitness directory', () => {
       const plan = buildStoragePlan({
         fitnessFilePaths: ['2026-01-01/activity.fit'],
@@ -289,6 +330,93 @@ describe('production archive scripts', () => {
     })
   })
 
+  describe('getReferencedStoragePaths', () => {
+    it('collects media and fitness paths with keyset pagination', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+      const mediaCount = 1005
+      const fitnessCount = 1005
+
+      try {
+        await database.schema.createTable('medias', (table) => {
+          table.increments('id').primary()
+          table.string('original')
+          table.string('thumbnail')
+        })
+        await database.schema.createTable('fitness_files', (table) => {
+          table.string('id').primary()
+          table.string('path')
+          table.string('mapImagePath')
+        })
+
+        await database.batchInsert(
+          'medias',
+          Array.from({ length: mediaCount }, (_, index) => ({
+            original: `medias/original-${index}.webp`,
+            thumbnail: index % 2 === 0 ? `medias/thumb-${index}.webp` : null
+          })),
+          200
+        )
+        await database.batchInsert(
+          'fitness_files',
+          Array.from({ length: fitnessCount }, (_, index) => ({
+            id: `fitness-${String(index).padStart(4, '0')}`,
+            mapImagePath: index % 2 === 0 ? `medias/map-${index}.webp` : null,
+            path: `fitness/${index}.fit`
+          })),
+          200
+        )
+
+        const paths = await getReferencedStoragePaths(database)
+
+        expect(paths.fitnessFilePaths).toHaveLength(fitnessCount)
+        expect(paths.mediaFilePaths).toHaveLength(
+          mediaCount + Math.ceil(mediaCount / 2) + Math.ceil(fitnessCount / 2)
+        )
+        expect(paths.fitnessFilePaths).toContain('fitness/1004.fit')
+        expect(paths.mediaFilePaths).toContain('medias/original-1004.webp')
+        expect(paths.mediaFilePaths).toContain('medias/map-1004.webp')
+      } finally {
+        await database.destroy()
+      }
+    })
+  })
+
+  describe('createS3Client', () => {
+    it('uses the configured hostname as the S3-compatible endpoint', async () => {
+      expect(normalizeStorageHostname('https://storage.example.com/')).toBe(
+        'storage.example.com'
+      )
+
+      const client = createS3Client({
+        bucket: 'bucket',
+        hostname: 'https://storage.example.com/',
+        kind: 's3',
+        region: 'auto'
+      })
+
+      try {
+        const endpoint = await client.config.endpoint!()
+        expect(endpoint.hostname).toBe('storage.example.com')
+        expect(endpoint.protocol).toBe('https:')
+      } finally {
+        client.destroy()
+      }
+    })
+  })
+
+  describe('createPublicStorageFetchInit', () => {
+    it('sets a timeout signal for public storage downloads', () => {
+      const init = createPublicStorageFetchInit()
+
+      expect(PUBLIC_STORAGE_FETCH_TIMEOUT_MS).toBe(30_000)
+      expect(init.signal).toBeInstanceOf(AbortSignal)
+    })
+  })
+
   describe('sortTablesForRestore', () => {
     it('orders parent tables before dependent tables', () => {
       expect(
@@ -324,6 +452,26 @@ describe('production archive scripts', () => {
           ]
         )
       ).toThrow('foreign-key cycle')
+    })
+  })
+
+  describe('assertMatchingMigrations', () => {
+    it('compares migration sets without depending on order', () => {
+      expect(() =>
+        assertMatchingMigrations(
+          ['002_second.js', '001_first.js'],
+          ['001_first.js', '002_second.js']
+        )
+      ).not.toThrow()
+    })
+
+    it('reports real migration differences', () => {
+      expect(() =>
+        assertMatchingMigrations(
+          ['001_first.js'],
+          ['001_first.js', '002_second.js']
+        )
+      ).toThrow('Extra locally: 002_second.js')
     })
   })
 
