@@ -9,7 +9,6 @@ import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
-import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 import { FitnessStatusDetail } from './FitnessStatusDetail'
@@ -68,21 +67,16 @@ export const StatusBox: FC<Props> = ({
     )
   }
 
+  const openStatus = (statusToOpen: Status) => {
+    void (async () => {
+      const detailPath = await getStatusDetailPathClient(statusToOpen)
+      if (detailPath) router.push(detailPath)
+    })()
+  }
+
   return (
     <>
-      <article
-        className={cn(
-          'p-4 transition-colors',
-          variant === 'comment' && 'cursor-pointer hover:bg-muted/40'
-        )}
-        onClick={() => {
-          if (variant === 'detail') return
-          void (async () => {
-            const detailPath = await getStatusDetailPathClient(status)
-            if (detailPath) router.push(detailPath)
-          })()
-        }}
-      >
+      <article className="p-4 transition-colors">
         <Post
           host={host}
           currentActor={currentActor ?? undefined}
@@ -95,6 +89,7 @@ export const StatusBox: FC<Props> = ({
               ? (s) => setReplyTarget(s)
               : undefined
           }
+          onOpenStatus={variant === 'comment' ? openStatus : undefined}
           onShowAttachment={(allMedias, index) => {
             setModalMedias({ medias: allMedias, initialSelection: index })
           }}

@@ -73,49 +73,45 @@ export const Posts: FC<Props> = ({
     setReplyingToStatusId(null)
   }
 
+  const openStatus = (status: Status) => {
+    void (async () => {
+      const detailPath = await getStatusDetailPathClient(status)
+      if (detailPath) router.push(detailPath)
+    })()
+  }
+
   return (
     <section className={cn('w-full grid grid-cols-1', className)}>
-      {statuses.map((status, index) => (
+      {statuses.map((status) => (
         <article
-          key={`${index}-${status.id}`}
+          key={status.id}
           className="border-b border-border/60 p-4 last:border-b-0"
         >
-          <div
-            className="cursor-pointer transition-colors hover:bg-muted/40 -m-4 p-4"
-            onClick={() => {
-              void (async () => {
-                const detailPath = await getStatusDetailPathClient(status)
-                if (detailPath) router.push(detailPath)
-              })()
+          <Post
+            host={host}
+            currentTime={currentTime}
+            currentActor={currentActor}
+            status={status}
+            showActions={showActions}
+            editable={currentActor?.id === status.actorId}
+            collapsible
+            postLineLimit={postLineLimit}
+            onReply={handleReply}
+            onEdit={onEdit}
+            onPostDeleted={onPostDeleted}
+            onOpenStatus={openStatus}
+            onShowAttachment={(allMedias, index) => {
+              setModalMedias({ medias: allMedias, initialSelection: index })
             }}
-          >
-            <Post
-              host={host}
-              currentTime={currentTime}
-              currentActor={currentActor}
-              status={status}
-              showActions={showActions}
-              editable={currentActor?.id === status.actorId}
-              collapsible
-              postLineLimit={postLineLimit}
-              onReply={handleReply}
-              onEdit={onEdit}
-              onPostDeleted={onPostDeleted}
-              onShowAttachment={(allMedias, index) => {
-                setModalMedias({ medias: allMedias, initialSelection: index })
-              }}
-            />
-          </div>
+          />
           {replyingToStatusId === status.id && currentActor && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <StatusReplyBox
-                profile={currentActor}
-                replyStatus={status}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                onCancel={handleCancelReply}
-                onPostCreated={handleReplyCreated}
-              />
-            </div>
+            <StatusReplyBox
+              profile={currentActor}
+              replyStatus={status}
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              onCancel={handleCancelReply}
+              onPostCreated={handleReplyCreated}
+            />
           )}
         </article>
       ))}
