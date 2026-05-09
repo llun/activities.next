@@ -28,7 +28,6 @@ export const sendUndoFollowJob: JobHandle = createJobHandle(
         !currentFollow ||
         currentFollow.status !== FollowStatus.enum.Undo ||
         currentFollow.actorId !== actorId ||
-        currentFollow.actorId !== follow.actorId ||
         currentFollow.targetActorId !== follow.targetActorId
       ) {
         span.end()

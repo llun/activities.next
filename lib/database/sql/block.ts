@@ -28,6 +28,18 @@ const fixBlockDataDate = (data: Block): Block => ({
   updatedAt: getCompatibleTime(data.updatedAt)
 })
 
+const BLOCK_RELATION_LOOKUP_CHUNK_SIZE = 1000
+
+const chunkArray = <T>(items: T[], chunkSize: number) => {
+  const chunks: T[][] = []
+
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize))
+  }
+
+  return chunks
+}
+
 const isUniqueConstraintError = (error: unknown) => {
   if (typeof error !== 'object' || error === null) return false
 
@@ -234,22 +246,50 @@ export const BlockSQLDatabaseMixin = (database: Knex): BlockDatabase => ({
     actorIds,
     targetActorIds
   }: GetBlockRelationsParams) {
-    if (actorIds.length === 0 || targetActorIds.length === 0) return []
+    const uniqueActorIds = [...new Set(actorIds)]
+    const uniqueTargetActorIds = [...new Set(targetActorIds)]
 
-    return database<BlockRelation>('blocks')
-      .select('actorId', 'targetActorId')
-      .where((builder) => {
-        builder
-          .where((forward) => {
-            forward
-              .whereIn('actorId', actorIds)
-              .whereIn('targetActorId', targetActorIds)
+    if (uniqueActorIds.length === 0 || uniqueTargetActorIds.length === 0) {
+      return []
+    }
+
+    const relationsByKey = new Map<string, BlockRelation>()
+    const actorIdChunks = chunkArray(
+      uniqueActorIds,
+      BLOCK_RELATION_LOOKUP_CHUNK_SIZE
+    )
+    const targetActorIdChunks = chunkArray(
+      uniqueTargetActorIds,
+      BLOCK_RELATION_LOOKUP_CHUNK_SIZE
+    )
+
+    for (const actorIdChunk of actorIdChunks) {
+      for (const targetActorIdChunk of targetActorIdChunks) {
+        const relations = await database<BlockRelation>('blocks')
+          .select('actorId', 'targetActorId')
+          .where((builder) => {
+            builder
+              .where((forward) => {
+                forward
+                  .whereIn('actorId', actorIdChunk)
+                  .whereIn('targetActorId', targetActorIdChunk)
+              })
+              .orWhere((reverse) => {
+                reverse
+                  .whereIn('actorId', targetActorIdChunk)
+                  .whereIn('targetActorId', actorIdChunk)
+              })
           })
-          .orWhere((reverse) => {
-            reverse
-              .whereIn('actorId', targetActorIds)
-              .whereIn('targetActorId', actorIds)
-          })
-      })
+
+        for (const relation of relations) {
+          relationsByKey.set(
+            JSON.stringify([relation.actorId, relation.targetActorId]),
+            relation
+          )
+        }
+      }
+    }
+
+    return [...relationsByKey.values()]
   }
 })

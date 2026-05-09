@@ -229,4 +229,53 @@ describe('BlockDatabase', () => {
       { actorId: blockingTarget, targetActorId: actorId }
     ])
   })
+
+  it('returns all block relations across chunked bulk filtering inputs', async () => {
+    const actorIds = Array.from(
+      { length: 1005 },
+      (_, index) =>
+        `https://remote.test/users/chunk-actor-${index}-${crypto.randomUUID()}`
+    )
+    const targetActorIds = Array.from(
+      { length: 1005 },
+      (_, index) =>
+        `https://remote.test/users/chunk-target-${index}-${crypto.randomUUID()}`
+    )
+    const expectedRelations = [
+      {
+        actorId: actorIds[204],
+        targetActorId: targetActorIds[304]
+      },
+      {
+        actorId: actorIds[1004],
+        targetActorId: targetActorIds[0]
+      },
+      {
+        actorId: targetActorIds[1001],
+        targetActorId: actorIds[1002]
+      }
+    ]
+
+    await Promise.all(
+      expectedRelations.map(({ actorId, targetActorId }) =>
+        database.createBlock({
+          actorId,
+          targetActorId,
+          uri: `${actorId}#blocks/${crypto.randomUUID()}`
+        })
+      )
+    )
+
+    await expect(
+      database.getBlockRelations({
+        actorIds: [actorIds[204], ...actorIds, actorIds[1002], actorIds[1004]],
+        targetActorIds: [
+          targetActorIds[0],
+          ...targetActorIds,
+          targetActorIds[1001],
+          targetActorIds[304]
+        ]
+      })
+    ).resolves.toIncludeSameMembers(expectedRelations)
+  })
 })
