@@ -4,11 +4,12 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { execFile } from 'child_process'
-import { createWriteStream } from 'fs'
+import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import knex, { Knex } from 'knex'
 import os from 'os'
 import path from 'path'
+import { createInterface } from 'readline'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import type { ReadableStream as NodeReadableStream } from 'stream/web'
@@ -28,13 +29,14 @@ import {
 
 const execFileAsync = promisify(execFile)
 
-const ARCHIVE_VERSION = 1
+const ARCHIVE_VERSION = 2
 const DEFAULT_OUTPUT_DIR = 'backups/production-archives'
 const DEFAULT_DOWNLOAD_ENV_FILE = '.env.production'
 const DEFAULT_RESTORE_ENV_FILE = '.env.local'
 const DATABASE_DIR = 'database'
 const STORAGE_DIR = 'storage'
 const MANIFEST_FILE = 'manifest.json'
+const DATABASE_PAGE_SIZE = 1000
 const INSERT_BATCH_SIZE = 250
 
 export type StorageScope = 'referenced' | 'all'
@@ -56,6 +58,7 @@ export interface RestoreArgs {
   envFile: string
   filesOnly: boolean
   preserveFiles: boolean
+  safeStorageRoot: string
   yes: boolean
 }
 
@@ -113,6 +116,7 @@ interface ArchiveManifest {
   createdAt: string
   database: {
     client: string
+    migrations: string[]
     tables: ArchiveTableManifest[]
   } | null
   source: {
@@ -141,6 +145,7 @@ const RESTORE_USAGE = `Usage: scripts/restoreProductionArchive.ts \\
   --archive backups/production-archives/activitynext-production-<timestamp>.tar.gz \\
   --yes \\
   [--env-file .env.local] \\
+  [--safe-storage-root .] \\
   [--database-only] \\
   [--files-only] \\
   [--preserve-files] \\
@@ -242,6 +247,7 @@ export const parseRestoreArgs = (args: string[]): RestoreArgs => {
     envFile: getStringArg(parsed, 'env-file', DEFAULT_RESTORE_ENV_FILE)!,
     filesOnly,
     preserveFiles: getBooleanArg(parsed, 'preserve-files'),
+    safeStorageRoot: getStringArg(parsed, 'safe-storage-root', '.')!,
     yes
   }
 }
@@ -255,11 +261,38 @@ export const isLocalDatabaseConnection = (connection: unknown): boolean => {
     }
   }
 
-  if (!connection || typeof connection !== 'object') return true
+  if (!connection || typeof connection !== 'object') return false
+
+  const filename = (connection as { filename?: unknown }).filename
+  if (typeof filename === 'string' && filename.trim().length > 0) return true
 
   const host = (connection as { host?: unknown }).host
-  if (typeof host !== 'string' || host.trim().length === 0) return true
+  if (typeof host !== 'string' || host.trim().length === 0) return false
   return isLocalHost(host)
+}
+
+export const isLocalDatabaseConfig = (databaseConfig: Knex.Config) => {
+  const client = String(databaseConfig.client)
+
+  if (client === 'better-sqlite3' || client === 'sqlite3') {
+    const connection = databaseConfig.connection
+    if (typeof connection === 'string') return connection.trim().length > 0
+    if (!connection || typeof connection !== 'object') return false
+
+    const filename = (connection as { filename?: unknown }).filename
+    return typeof filename === 'string' && filename.trim().length > 0
+  }
+
+  if (
+    client === 'pg' ||
+    client === 'pg-native' ||
+    client === 'mysql' ||
+    client === 'mysql2'
+  ) {
+    return isLocalDatabaseConnection(databaseConfig.connection)
+  }
+
+  return false
 }
 
 export const sortTablesForRestore = (
@@ -292,8 +325,10 @@ export const sortTablesForRestore = (
     })
 
     if (ready.length === 0) {
-      ordered.push(...remaining)
-      break
+      throw new Error(
+        'Cannot determine restore order because archived tables have a ' +
+          `foreign-key cycle: ${[...remaining].sort().join(', ')}`
+      )
     }
 
     for (const table of ready) {
@@ -321,23 +356,26 @@ export const buildStoragePlan = ({
     mediaStorage,
     fitnessStorage
   )
+  const sharedFitnessPrefixes = uniqueSortedPaths([
+    sharedLocalFitnessPrefix,
+    sharedS3FitnessPrefix
+  ])
 
   if (mediaStorage) {
     const mediaFiles =
       scope === 'referenced'
         ? uniqueSortedPaths(mediaFilePaths).filter((filePath) => {
-            if (!sharedS3FitnessPrefix) return true
-            return !filePath.startsWith(sharedS3FitnessPrefix)
+            return !sharedFitnessPrefixes.some((prefix) => {
+              return isStoragePathInsidePrefix(filePath, prefix)
+            })
           })
         : undefined
+    const excludePrefixes = scope === 'all' ? sharedFitnessPrefixes : []
 
     plan.push({
       destination: 'media',
-      ...(scope === 'all' && sharedLocalFitnessPrefix
-        ? { excludePrefixes: [sharedLocalFitnessPrefix] }
-        : null),
-      ...(scope === 'all' && sharedS3FitnessPrefix
-        ? { excludePrefixes: [sharedS3FitnessPrefix] }
+      ...(excludePrefixes.length > 0
+        ? { excludePrefixes }
         : null),
       ...(mediaFiles ? { files: mediaFiles } : null),
       source: storageSourceFromMediaConfig(mediaStorage)
@@ -359,7 +397,6 @@ export const buildStoragePlan = ({
 
 const isLocalHost = (host: string) =>
   [
-    '',
     'localhost',
     '127.0.0.1',
     '::1',
@@ -369,14 +406,26 @@ const isLocalHost = (host: string) =>
     'host.docker.internal'
   ].includes(host.trim().toLowerCase())
 
-const uniqueSortedPaths = (filePaths: string[]) =>
+const uniqueSortedPaths = (filePaths: (string | null | undefined)[]) =>
   [...new Set(filePaths.map(normalizeStoragePath).filter(Boolean))].sort()
 
 const normalizeStoragePath = (filePath: string | null | undefined) => {
   if (!filePath) return ''
-  const normalized = filePath.replaceAll('\\', '/').replace(/^\/+/, '')
+  const normalized = filePath
+    .replaceAll('\\', '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '')
   if (normalized.includes('..')) return ''
   return normalized
+}
+
+const isStoragePathInsidePrefix = (filePath: string, prefix: string) => {
+  const normalizedPrefix = normalizeStoragePath(prefix)
+  if (!normalizedPrefix) return false
+  return (
+    filePath === normalizedPrefix ||
+    filePath.startsWith(`${normalizedPrefix}/`)
+  )
 }
 
 const storageSourceFromMediaConfig = (
@@ -392,7 +441,7 @@ const storageSourceFromMediaConfig = (
     case MediaStorageType.S3Storage:
       return {
         bucket: storage.bucket,
-        hostname: storage.hostname,
+        ...(storage.hostname ? { hostname: storage.hostname } : null),
         kind: 's3',
         prefix: undefined,
         region: storage.region
@@ -413,7 +462,7 @@ const storageSourceFromFitnessConfig = (
     case FitnessStorageType.S3Storage:
       return {
         bucket: storage.bucket,
-        hostname: storage.hostname,
+        ...(storage.hostname ? { hostname: storage.hostname } : null),
         kind: 's3',
         prefix: storage.prefix,
         region: storage.region
@@ -521,11 +570,6 @@ const loadEnvFile = async (envFile: string) => {
   for (const [key, value] of Object.entries(values)) {
     process.env[key] = value
   }
-
-  const memoizedGetConfig = getConfig as typeof getConfig & {
-    cache?: { clear?: () => void }
-  }
-  memoizedGetConfig.cache?.clear?.()
 }
 
 const createArchiveName = () => {
@@ -540,7 +584,7 @@ const quoteIdentifier = (identifier: string) =>
   `"${identifier.replaceAll('"', '""')}"`
 
 const tableFileName = (tableName: string) =>
-  `${encodeURIComponent(tableName)}.json`
+  `${encodeURIComponent(tableName)}.jsonl`
 
 const assertRelativeFilePath = (filePath: string) => {
   const normalized = normalizeStoragePath(filePath)
@@ -587,25 +631,69 @@ const getDatabaseTableNames = async (database: Knex) => {
   throw new Error(`Unsupported database client for archive: ${client}`)
 }
 
+const getMigrationNames = async (database: Knex) => {
+  if (!(await database.schema.hasTable('knex_migrations'))) return []
+
+  const rows = await database('knex_migrations')
+    .select('name')
+    .orderBy('id', 'asc')
+
+  return rows
+    .map((row: { name?: unknown }) => row.name)
+    .filter((name): name is string => typeof name === 'string')
+}
+
+const createTableRowsStream = (
+  database: Knex,
+  tableName: string,
+  onRow: () => void
+) => {
+  async function* rowsToJsonLines() {
+    let offset = 0
+
+    for (;;) {
+      const rows = await database(tableName)
+        .select('*')
+        .limit(DATABASE_PAGE_SIZE)
+        .offset(offset)
+
+      if (rows.length === 0) return
+
+      for (const row of rows) {
+        onRow()
+        yield `${JSON.stringify(row)}\n`
+      }
+
+      offset += rows.length
+    }
+  }
+
+  return Readable.from(rowsToJsonLines())
+}
+
 const exportDatabase = async (database: Knex, outputDir: string) => {
   const databaseDir = path.join(outputDir, DATABASE_DIR)
   await fs.mkdir(databaseDir, { recursive: true })
 
   const tableNames = await getDatabaseTableNames(database)
+  const migrations = await getMigrationNames(database)
   const tables: ArchiveTableManifest[] = []
 
   for (const tableName of tableNames) {
-    const rows = await database(tableName).select('*')
-    await fs.writeFile(
-      path.join(databaseDir, tableFileName(tableName)),
-      `${JSON.stringify(rows, null, 2)}\n`
+    let rowCount = 0
+    await pipeline(
+      createTableRowsStream(database, tableName, () => {
+        rowCount += 1
+      }),
+      createWriteStream(path.join(databaseDir, tableFileName(tableName)))
     )
-    tables.push({ name: tableName, rowCount: rows.length })
-    console.log(`Database: exported ${rows.length} row(s) from ${tableName}`)
+    tables.push({ name: tableName, rowCount })
+    console.log(`Database: exported ${rowCount} row(s) from ${tableName}`)
   }
 
   return {
     client: getKnexClientName(database),
+    migrations,
     tables
   }
 }
@@ -620,20 +708,46 @@ const getReferencedStoragePaths = async (
   const fitnessFilePaths: string[] = []
 
   if (await tableExists(database, 'medias')) {
-    const mediaRows = await database('medias').select('original', 'thumbnail')
-    for (const row of mediaRows) {
-      mediaFilePaths.push(row.original, row.thumbnail)
+    let offset = 0
+    for (;;) {
+      const mediaRows = await database('medias')
+        .select('original', 'thumbnail')
+        .orderBy('id', 'asc')
+        .limit(DATABASE_PAGE_SIZE)
+        .offset(offset)
+
+      if (mediaRows.length === 0) break
+
+      for (const row of mediaRows) {
+        if (typeof row.original === 'string') mediaFilePaths.push(row.original)
+        if (typeof row.thumbnail === 'string') {
+          mediaFilePaths.push(row.thumbnail)
+        }
+      }
+
+      offset += mediaRows.length
     }
   }
 
   if (await tableExists(database, 'fitness_files')) {
-    const fitnessRows = await database('fitness_files').select(
-      'path',
-      'mapImagePath'
-    )
-    for (const row of fitnessRows) {
-      fitnessFilePaths.push(row.path)
-      mediaFilePaths.push(row.mapImagePath)
+    let offset = 0
+    for (;;) {
+      const fitnessRows = await database('fitness_files')
+        .select('path', 'mapImagePath')
+        .orderBy('id', 'asc')
+        .limit(DATABASE_PAGE_SIZE)
+        .offset(offset)
+
+      if (fitnessRows.length === 0) break
+
+      for (const row of fitnessRows) {
+        if (typeof row.path === 'string') fitnessFilePaths.push(row.path)
+        if (typeof row.mapImagePath === 'string') {
+          mediaFilePaths.push(row.mapImagePath)
+        }
+      }
+
+      offset += fitnessRows.length
     }
   }
 
@@ -646,8 +760,10 @@ const getReferencedStoragePaths = async (
 const createS3Client = (source: Extract<StorageSource, { kind: 's3' }>) =>
   new S3Client({ region: source.region })
 
-const listS3Files = async (source: Extract<StorageSource, { kind: 's3' }>) => {
-  const client = createS3Client(source)
+const listS3Files = async (
+  source: Extract<StorageSource, { kind: 's3' }>,
+  client: S3Client
+) => {
   const files: string[] = []
   let continuationToken: string | undefined
 
@@ -710,19 +826,18 @@ const shouldExcludeStorageFile = (
 ) =>
   Boolean(
     excludePrefixes?.some((prefix) => {
-      const normalizedPrefix = normalizeStoragePath(prefix)
-      return (
-        filePath === normalizedPrefix ||
-        filePath.startsWith(`${normalizedPrefix}/`)
-      )
+      return isStoragePathInsidePrefix(filePath, prefix)
     })
   )
 
-const getStorageFiles = async (entry: StoragePlanEntry) => {
+const getStorageFiles = async (
+  entry: StoragePlanEntry,
+  s3Client?: S3Client
+) => {
   const allFiles =
     entry.files ??
     (entry.source.kind === 's3'
-      ? await listS3Files(entry.source)
+      ? await listS3Files(entry.source, s3Client ?? createS3Client(entry.source))
       : await listLocalFiles(path.resolve(entry.source.path)))
 
   return allFiles.filter((filePath) => {
@@ -747,17 +862,18 @@ const copyLocalStorageFile = async ({
 
 const downloadS3StorageFile = async ({
   archiveFilePath,
+  client,
   relativeFilePath,
   source
 }: {
   archiveFilePath: string
+  client: S3Client
   relativeFilePath: string
   source: Extract<StorageSource, { kind: 's3' }>
 }) => {
   const key = source.prefix
     ? `${source.prefix}${relativeFilePath}`
     : relativeFilePath
-  const client = createS3Client(source)
   let response
 
   try {
@@ -854,72 +970,79 @@ const archiveStorage = async (
   const storageManifests: ArchiveStorageManifest[] = []
 
   for (const entry of plan) {
-    const files = await getStorageFiles(entry)
-    let totalBytes = 0
-    let downloadedCount = 0
-    const failedFiles: { error: string; path: string }[] = []
+    const s3Client =
+      entry.source.kind === 's3' ? createS3Client(entry.source) : undefined
+    try {
+      const files = await getStorageFiles(entry, s3Client)
+      let totalBytes = 0
+      let downloadedCount = 0
+      const failedFiles: { error: string; path: string }[] = []
 
-    for (const filePath of files) {
-      const relativeFilePath = assertRelativeFilePath(filePath)
-      const archiveFilePath = path.join(
-        stagingDir,
-        STORAGE_DIR,
-        entry.destination,
-        'files',
-        relativeFilePath
+      for (const filePath of files) {
+        const relativeFilePath = assertRelativeFilePath(filePath)
+        const archiveFilePath = path.join(
+          stagingDir,
+          STORAGE_DIR,
+          entry.destination,
+          'files',
+          relativeFilePath
+        )
+
+        let size: number
+        try {
+          size =
+            entry.source.kind === 's3'
+              ? await downloadS3StorageFile({
+                  archiveFilePath,
+                  client: s3Client!,
+                  relativeFilePath,
+                  source: entry.source
+                })
+              : await copyLocalStorageFile({
+                  archiveFilePath,
+                  relativeFilePath,
+                  source: entry.source
+                })
+        } catch (error) {
+          const nodeError = error as Error
+          if (!options.allowMissingStorage) throw error
+
+          failedFiles.push({
+            error: nodeError.message,
+            path: relativeFilePath
+          })
+          console.error(
+            `Storage: failed to download ${entry.destination} file ` +
+              `${relativeFilePath}: ${nodeError.message}`
+          )
+          continue
+        }
+
+        totalBytes += size
+        downloadedCount += 1
+
+        if (downloadedCount % 25 === 0) {
+          console.log(
+            `Storage: downloaded ${downloadedCount}/${files.length} ` +
+              `${entry.destination} file(s)`
+          )
+        }
+      }
+
+      console.log(
+        `Storage: downloaded ${downloadedCount} ${entry.destination} file(s)`
       )
 
-      let size: number
-      try {
-        size =
-          entry.source.kind === 's3'
-            ? await downloadS3StorageFile({
-                archiveFilePath,
-                relativeFilePath,
-                source: entry.source
-              })
-            : await copyLocalStorageFile({
-                archiveFilePath,
-                relativeFilePath,
-                source: entry.source
-              })
-      } catch (error) {
-        const nodeError = error as Error
-        if (!options.allowMissingStorage) throw error
-
-        failedFiles.push({
-          error: nodeError.message,
-          path: relativeFilePath
-        })
-        console.error(
-          `Storage: failed to download ${entry.destination} file ` +
-            `${relativeFilePath}: ${nodeError.message}`
-        )
-        continue
-      }
-
-      totalBytes += size
-      downloadedCount += 1
-
-      if (downloadedCount % 25 === 0) {
-        console.log(
-          `Storage: downloaded ${downloadedCount}/${files.length} ` +
-            `${entry.destination} file(s)`
-        )
-      }
+      storageManifests.push({
+        destination: entry.destination,
+        failedFiles,
+        fileCount: downloadedCount,
+        source: redactStorageSource(entry.source),
+        totalBytes
+      })
+    } finally {
+      s3Client?.destroy()
     }
-
-    console.log(
-      `Storage: downloaded ${downloadedCount} ${entry.destination} file(s)`
-    )
-
-    storageManifests.push({
-      destination: entry.destination,
-      failedFiles,
-      fileCount: downloadedCount,
-      source: redactStorageSource(entry.source),
-      totalBytes
-    })
   }
 
   return storageManifests
@@ -942,8 +1065,30 @@ const createTarArchive = async (stagingDir: string, archivePath: string) => {
   await execFileAsync('tar', ['-czf', archivePath, '-C', stagingDir, '.'])
 }
 
+export const isSafeArchiveEntryPath = (entry: string) => {
+  if (!entry) return false
+  if (path.posix.isAbsolute(entry)) return false
+
+  const normalized = path.posix.normalize(entry)
+  return normalized !== '..' && !normalized.startsWith('../')
+}
+
+const validateTarArchivePaths = async (archivePath: string) => {
+  const { stdout } = await execFileAsync('tar', ['-tzf', archivePath], {
+    maxBuffer: 64 * 1024 * 1024
+  })
+
+  for (const entry of stdout.split(/\r?\n/)) {
+    if (!entry) continue
+    if (!isSafeArchiveEntryPath(entry)) {
+      throw new Error(`Archive contains unsafe path: ${entry}`)
+    }
+  }
+}
+
 const extractTarArchive = async (archivePath: string, outputDir: string) => {
   await fs.mkdir(outputDir, { recursive: true })
+  await validateTarArchivePaths(archivePath)
   await execFileAsync('tar', ['-xzf', archivePath, '-C', outputDir])
 }
 
@@ -981,8 +1126,7 @@ const ensureRestoreTargetIsLocal = (
     )
   }
 
-  const connection = config.database.connection
-  if (!isLocalDatabaseConnection(connection)) {
+  if (!isLocalDatabaseConfig(config.database)) {
     throw new Error(
       'Refusing to restore to a non-local database host. ' +
         'Pass --allow-non-local-database only if this is intentional.'
@@ -1039,7 +1183,7 @@ const truncateTables = async (database: Knex, tableNames: string[]) => {
 
   if (client === 'pg' || client === 'pg-native') {
     const tables = tableNames.map(quoteIdentifier).join(', ')
-    await database.raw(`truncate table ${tables} restart identity cascade`)
+    await database.raw(`truncate table ${tables} restart identity`)
     return
   }
 
@@ -1059,6 +1203,81 @@ const truncateTables = async (database: Knex, tableNames: string[]) => {
   }
 
   throw new Error(`Unsupported database client for restore: ${client}`)
+}
+
+const assertMatchingMigrations = (
+  archiveMigrations: string[],
+  localMigrations: string[]
+) => {
+  const archiveValue = JSON.stringify(archiveMigrations)
+  const localValue = JSON.stringify(localMigrations)
+  if (archiveValue === localValue) return
+
+  const archiveSet = new Set(archiveMigrations)
+  const localSet = new Set(localMigrations)
+  const missingLocally = archiveMigrations.filter((name) => !localSet.has(name))
+  const extraLocally = localMigrations.filter((name) => !archiveSet.has(name))
+
+  throw new Error(
+    'Local database migration state does not match the archive. ' +
+      'Restore with code that matches the archive before replacing data. ' +
+      `Missing locally: ${missingLocally.join(', ') || 'none'}. ` +
+      `Extra locally: ${extraLocally.join(', ') || 'none'}.`
+  )
+}
+
+const ensureArchiveSchemaMatchesLocal = async (
+  database: Knex,
+  archiveMigrations: string[]
+) => {
+  const migrationsBeforeLatest = await getMigrationNames(database)
+
+  if (migrationsBeforeLatest.length > 0) {
+    assertMatchingMigrations(archiveMigrations, migrationsBeforeLatest)
+    return
+  }
+
+  await database.migrate.latest()
+  assertMatchingMigrations(archiveMigrations, await getMigrationNames(database))
+}
+
+const restoreTableFromJsonLines = async (
+  database: Knex,
+  tableName: string,
+  tableFilePath: string
+) => {
+  const input = createReadStream(tableFilePath, { encoding: 'utf-8' })
+  const lines = createInterface({
+    crlfDelay: Infinity,
+    input
+  })
+  let batch: Record<string, unknown>[] = []
+  let rowCount = 0
+
+  const flushBatch = async () => {
+    if (batch.length === 0) return
+    await database.batchInsert(tableName, batch, INSERT_BATCH_SIZE)
+    rowCount += batch.length
+    batch = []
+  }
+
+  try {
+    for await (const line of lines) {
+      if (!line.trim()) continue
+
+      batch.push(JSON.parse(line) as Record<string, unknown>)
+      if (batch.length >= INSERT_BATCH_SIZE) {
+        await flushBatch()
+      }
+    }
+
+    await flushBatch()
+  } finally {
+    lines.close()
+    input.destroy()
+  }
+
+  return rowCount
 }
 
 const resetPostgresSequences = async (database: Knex, tableNames: string[]) => {
@@ -1121,7 +1340,7 @@ const restoreDatabase = async (
     return
   }
 
-  await database.migrate.latest()
+  await ensureArchiveSchemaMatchesLocal(database, manifest.database.migrations)
 
   const tableNames = manifest.database.tables.map((table) => table.name)
   const localTables = new Set(await getDatabaseTableNames(database))
@@ -1138,18 +1357,13 @@ const restoreDatabase = async (
   await truncateTables(database, tableNames)
 
   for (const tableName of orderedTables) {
-    const rows = JSON.parse(
-      await fs.readFile(
-        path.join(archiveDir, DATABASE_DIR, tableFileName(tableName)),
-        'utf-8'
-      )
-    ) as Record<string, unknown>[]
+    const rowCount = await restoreTableFromJsonLines(
+      database,
+      tableName,
+      path.join(archiveDir, DATABASE_DIR, tableFileName(tableName))
+    )
 
-    if (rows.length > 0) {
-      await database.batchInsert(tableName, rows, INSERT_BATCH_SIZE)
-    }
-
-    console.log(`Database: restored ${rows.length} row(s) into ${tableName}`)
+    console.log(`Database: restored ${rowCount} row(s) into ${tableName}`)
   }
 
   await resetPostgresSequences(database, tableNames)
@@ -1172,42 +1386,130 @@ const resolveLocalStoragePath = (
   return config.fitnessStorage.path
 }
 
-const assertSafeDirectoryToReplace = (directoryPath: string) => {
+const pathIsInside = (childPath: string, parentPath: string) => {
+  const relativePath = path.relative(parentPath, childPath)
+  return (
+    relativePath.length > 0 &&
+    !relativePath.startsWith('..') &&
+    !path.isAbsolute(relativePath)
+  )
+}
+
+export const assertSafeDirectoryToReplace = (
+  directoryPath: string,
+  safeStorageRoot = '.'
+) => {
+  if (!directoryPath.trim()) {
+    throw new Error('Refusing to replace empty directory path.')
+  }
+
+  if (!safeStorageRoot.trim()) {
+    throw new Error('Refusing to use empty safe storage root.')
+  }
+
   const resolved = path.resolve(directoryPath)
+  const resolvedSafeRoot = path.resolve(safeStorageRoot)
   const root = path.parse(resolved).root
-  if (resolved === root || resolved === os.homedir()) {
+  const homeDir = os.homedir()
+  const cwd = process.cwd()
+  const unsafePaths = new Set([
+    root,
+    homeDir,
+    cwd,
+    path.join(homeDir, 'Desktop'),
+    path.join(homeDir, 'Documents'),
+    path.join(homeDir, 'Downloads'),
+    path.join(homeDir, 'Movies'),
+    path.join(homeDir, 'Music'),
+    path.join(homeDir, 'Pictures'),
+    os.tmpdir()
+  ])
+
+  if (unsafePaths.has(resolved)) {
     throw new Error(`Refusing to replace unsafe directory: ${resolved}`)
   }
+
+  if (!pathIsInside(resolved, resolvedSafeRoot)) {
+    throw new Error(
+      `Refusing to replace directory outside safe storage root: ` +
+        `${resolved}. Safe root: ${resolvedSafeRoot}`
+    )
+  }
+
   return resolved
 }
 
 const emptyDirectory = async (directoryPath: string) => {
-  const resolved = assertSafeDirectoryToReplace(directoryPath)
-  await fs.rm(resolved, { force: true, recursive: true })
-  await fs.mkdir(resolved, { recursive: true })
+  await fs.rm(directoryPath, { force: true, recursive: true })
+  await fs.mkdir(directoryPath, { recursive: true })
 }
 
-const copyDirectoryContents = async (fromDir: string, toDir: string) => {
-  try {
-    const entries = await fs.readdir(fromDir, { withFileTypes: true })
-    await fs.mkdir(toDir, { recursive: true })
+const copyDirectoryContents = async (
+  fromDir: string,
+  toDir: string
+): Promise<number> => {
+  const entries = await fs.readdir(fromDir, { withFileTypes: true })
+  await fs.mkdir(toDir, { recursive: true })
+  let copiedCount = 0
 
-    for (const entry of entries) {
-      const sourcePath = path.join(fromDir, entry.name)
-      const destinationPath = path.join(toDir, entry.name)
+  for (const entry of entries) {
+    const sourcePath = path.join(fromDir, entry.name)
+    const destinationPath = path.join(toDir, entry.name)
 
-      if (entry.isDirectory()) {
-        await copyDirectoryContents(sourcePath, destinationPath)
-      } else if (entry.isFile()) {
-        await fs.mkdir(path.dirname(destinationPath), { recursive: true })
-        await fs.copyFile(sourcePath, destinationPath)
-      }
+    if (entry.isDirectory()) {
+      copiedCount += await copyDirectoryContents(sourcePath, destinationPath)
+    } else if (entry.isFile()) {
+      await fs.mkdir(path.dirname(destinationPath), { recursive: true })
+      await fs.copyFile(sourcePath, destinationPath)
+      copiedCount += 1
     }
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-    if (nodeError.code !== 'ENOENT') throw error
+  }
+
+  return copiedCount
+}
+
+const getStoragePayloadDir = (
+  archiveDir: string,
+  destination: StorageDestination
+) => path.join(archiveDir, STORAGE_DIR, destination, 'files')
+
+const assertStoragePayloadsExist = async (
+  archiveDir: string,
+  storageManifest: ArchiveStorageManifest[]
+) => {
+  for (const storage of storageManifest) {
+    if (storage.fileCount === 0) continue
+
+    const payloadDir = getStoragePayloadDir(archiveDir, storage.destination)
+    const stat = await fs.stat(payloadDir).catch((error) => {
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code !== 'ENOENT') throw error
+      throw new Error(
+        `Archive is missing ${storage.destination} storage payload: ` +
+          payloadDir
+      )
+    })
+
+    if (!stat.isDirectory()) {
+      throw new Error(
+        `Archive storage payload is not a directory: ${payloadDir}`
+      )
+    }
   }
 }
+
+const getRestoreStorageTargets = (
+  manifest: ArchiveManifest,
+  config: ReturnType<typeof getConfig>,
+  safeStorageRoot: string
+) =>
+  manifest.storage.map((storage) => ({
+    destinationPath: assertSafeDirectoryToReplace(
+      resolveLocalStoragePath(storage.destination, config),
+      safeStorageRoot
+    ),
+    storage
+  }))
 
 const restoreStorage = async (
   archiveDir: string,
@@ -1215,19 +1517,34 @@ const restoreStorage = async (
   config: ReturnType<typeof getConfig>,
   args: RestoreArgs
 ) => {
-  for (const storage of manifest.storage) {
-    const destinationPath = resolveLocalStoragePath(storage.destination, config)
+  await assertStoragePayloadsExist(archiveDir, manifest.storage)
+  const restoreTargets = getRestoreStorageTargets(
+    manifest,
+    config,
+    args.safeStorageRoot
+  )
 
+  for (const { destinationPath, storage } of restoreTargets) {
     if (!args.preserveFiles) {
       await emptyDirectory(destinationPath)
     } else {
       await fs.mkdir(destinationPath, { recursive: true })
     }
 
-    await copyDirectoryContents(
-      path.join(archiveDir, STORAGE_DIR, storage.destination, 'files'),
-      destinationPath
-    )
+    const copiedCount =
+      storage.fileCount > 0
+        ? await copyDirectoryContents(
+            getStoragePayloadDir(archiveDir, storage.destination),
+            destinationPath
+          )
+        : 0
+
+    if (copiedCount !== storage.fileCount) {
+      throw new Error(
+        `Archive ${storage.destination} storage payload expected ` +
+          `${storage.fileCount} file(s), copied ${copiedCount}.`
+      )
+    }
 
     console.log(
       `Storage: restored ${storage.fileCount} ` +
