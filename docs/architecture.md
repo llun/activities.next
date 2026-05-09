@@ -4,65 +4,31 @@ This document describes the high-level architecture of Activity.next, an Activit
 
 ## System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Clients                                    │
-│                                                                     │
-│  ┌──────────┐   ┌──────────────┐   ┌────────────────────────────┐  │
-│  │  Web      │   │ Mastodon     │   │ Remote ActivityPub         │  │
-│  │  Browser  │   │ Client Apps  │   │ Servers (Mastodon, etc.)   │  │
-│  └─────┬─────┘   └──────┬───────┘   └─────────────┬──────────────┘  │
-└────────┼────────────────┼──────────────────────────┼────────────────┘
-         │                │                          │
-         │ HTML/SSR       │ Mastodon API             │ ActivityPub
-         │                │ (OAuth 2.0)              │ (HTTP Signatures)
-         ▼                ▼                          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      Next.js Application                            │
-│                                                                     │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │                    App Router (app/)                            │ │
-│  │                                                                │ │
-│  │  ┌──────────────┐  ┌─────────────────┐  ┌──────────────────┐  │ │
-│  │  │  Pages &     │  │  API Routes     │  │  Federation      │  │ │
-│  │  │  Layouts     │  │                 │  │  Endpoints       │  │ │
-│  │  │              │  │  /api/v1/*      │  │                  │  │ │
-│  │  │  (timeline)/ │  │  /api/v2/*      │  │  /api/users/*    │  │ │
-│  │  │  (nosidebar)/│  │  /api/auth/*    │  │  /api/inbox      │  │ │
-│  │  │              │  │  /api/oauth/*   │  │  /.well-known/*  │  │ │
-│  │  └──────────────┘  └─────────────────┘  └──────────────────┘  │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │                    Core Library (lib/)                          │ │
-│  │                                                                │ │
-│  │  ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌──────────────┐ │ │
-│  │  │ Services   │ │ Activities │ │ Jobs     │ │ Components   │ │ │
-│  │  │            │ │            │ │          │ │              │ │ │
-│  │  │ • auth     │ │ • create   │ │ • send   │ │ • post-box   │ │ │
-│  │  │ • guards   │ │ • follow   │ │ • delete │ │ • posts      │ │ │
-│  │  │ • medias   │ │ • like     │ │ • poll   │ │ • settings   │ │ │
-│  │  │ • oauth    │ │ • announce │ │ • import │ │ • profile    │ │ │
-│  │  │ • email    │ │ • update   │ │ • fetch  │ │ • timeline   │ │ │
-│  │  │ • fitness  │ │ • delete   │ │          │ │ • ui (Radix) │ │ │
-│  │  │ • queue    │ │ • undo     │ │          │ │              │ │ │
-│  │  └──────┬─────┘ └────────────┘ └────┬─────┘ └──────────────┘ │ │
-│  └─────────┼───────────────────────────┼─────────────────────────┘ │
-│            │                           │                           │
-│            ▼                           ▼                           │
-│  ┌────────────────────┐  ┌────────────────────────────────────┐    │
-│  │ Database Layer     │  │ External Services                  │    │
-│  │ (lib/database/)    │  │                                    │    │
-│  │                    │  │  ┌──────────┐  ┌───────────────┐   │    │
-│  │ Knex Query Builder │  │  │ Storage  │  │ Queue         │   │    │
-│  │                    │  │  │ (S3/FS)  │  │ (QStash)      │   │    │
-│  │ ┌───────┐ ┌─────┐ │  │  └──────────┘  └───────────────┘   │    │
-│  │ │SQLite │ │ PG  │ │  │  ┌──────────┐                      │    │
-│  │ └───────┘ └─────┘ │  │  │ Email    │                      │    │
-│  └────────────────────┘  │  │(SMTP/SES)│                      │    │
-│                          │  └──────────┘                      │    │
-│                          └────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────┘
+```text
+Client boundary
+  ├─ Web browser (HTML/SSR)
+  ├─ Mastodon-compatible apps (OAuth 2.0 + API)
+  └─ Remote ActivityPub servers (HTTP Signatures)
+        │
+        ▼
+Application boundary: Next.js App Router (app/)
+  ├─ Presentation: pages, layouts, SSR, hydrated React components
+  ├─ Mastodon API: /api/v1, /api/v2
+  ├─ Auth/OAuth: /api/auth, /api/oauth
+  └─ Federation endpoints: /api/users, /api/inbox, /.well-known
+        │
+        ▼
+Domain and service boundary: Core library (lib/)
+  ├─ Services: auth, guards, media, fitness, email, queue, federation
+  ├─ ActivityPub: create, follow, like, announce, update, delete, undo
+  ├─ Jobs: delivery, imports, fitness processing, map and heatmap generation
+  └─ Shared UI: post box, posts, settings, profile, timeline, UI primitives
+        │
+        ▼
+Infrastructure boundary
+  ├─ Database layer: Knex with SQLite/PostgreSQL; MySQL-compatible config paths
+  ├─ File storage: local filesystem, S3, or S3-compatible object storage
+  └─ External services: QStash, SMTP/Resend/SES/Lambda, OpenTelemetry
 ```
 
 ## Request Flow
@@ -143,13 +109,13 @@ The frontend and API layer, organized using Next.js route groups:
 
 ### `migrations/` — Database Schema
 
-Knex migration files that define the database schema. Migrations are designed to work with both SQLite and PostgreSQL.
+Knex migration files that define the database schema. Migrations are designed to work with SQLite and PostgreSQL, while avoiding assumptions that break MySQL-compatible Knex clients where possible.
 
 ## Key Design Decisions
 
 ### Database Abstraction
 
-All database operations go through the `lib/database/` layer using [Knex.js](https://knexjs.org/) as the query builder. This enables support for both SQLite (development/small instances) and PostgreSQL (production) without changing application code.
+All database operations go through the `lib/database/` layer using [Knex.js](https://knexjs.org/) as the query builder. This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. The configuration loader also accepts MySQL-compatible Knex clients for deployments that provide the needed driver/runtime support.
 
 ### Mastodon API Compatibility
 
@@ -181,11 +147,11 @@ The server implements the [ActivityPub](https://www.w3.org/TR/activitypub/) prot
 Long-running operations (sending activities to remote servers, processing file uploads) are dispatched to a background queue. Supported backends:
 
 - **Upstash QStash** — Managed HTTP-based message queue (recommended for production)
-- **Synchronous** — Jobs execute inline (default, suitable for small instances)
+- **Synchronous** — Jobs execute inline (default, suitable for small instances and local development)
 
 ### Media & File Storage
 
-Media files (images) and fitness files (.fit, .gpx, .tcx) support multiple storage backends:
+Media files (images and video) and fitness files (.fit, .gpx, .tcx) support multiple storage backends:
 
 - **Local filesystem** — Files stored in a local directory
 - **S3** — Amazon S3
@@ -214,25 +180,26 @@ Media files (images) and fitness files (.fit, .gpx, .tcx) support multiple stora
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
 Other tables: sessions, notifications, medias, fitness_files,
+              fitness_route_heatmaps, blocks, domain federation rules,
               recipients, counters, poll_choices, applications,
               oauth_access_tokens, oauth_authorization_codes
 ```
 
 ## Technology Stack
 
-| Layer                | Technology                    |
-| -------------------- | ----------------------------- |
-| **Runtime**          | Node.js 24                    |
-| **Framework**        | Next.js 16 (App Router)       |
-| **Language**         | TypeScript (strict mode)      |
-| **UI Library**       | React 19                      |
-| **Styling**          | Tailwind CSS                  |
-| **UI Components**    | Radix UI primitives           |
-| **Database**         | Knex.js (SQLite / PostgreSQL) |
-| **Authentication**   | better-auth                   |
-| **Logging**          | Pino                          |
-| **Testing**          | Jest (with SWC transforms)    |
-| **Code Quality**     | ESLint + Prettier             |
-| **Package Manager**  | Yarn 4.12.0                   |
-| **Containerization** | Docker (Alpine-based)         |
-| **Observability**    | OpenTelemetry (optional)      |
+| Layer                | Technology                                                   |
+| -------------------- | ------------------------------------------------------------ |
+| **Runtime**          | Node.js 24                                                   |
+| **Framework**        | Next.js 16 (App Router)                                      |
+| **Language**         | TypeScript (strict mode)                                     |
+| **UI Library**       | React 19                                                     |
+| **Styling**          | Tailwind CSS                                                 |
+| **UI Components**    | Radix UI primitives                                          |
+| **Database**         | Knex.js (SQLite / PostgreSQL; MySQL-compatible config paths) |
+| **Authentication**   | better-auth                                                  |
+| **Logging**          | Pino                                                         |
+| **Testing**          | Jest (with SWC transforms)                                   |
+| **Code Quality**     | ESLint + Prettier                                            |
+| **Package Manager**  | Yarn 4.13.0                                                  |
+| **Containerization** | Docker (Alpine-based)                                        |
+| **Observability**    | OpenTelemetry (optional)                                     |

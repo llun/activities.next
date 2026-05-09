@@ -1,200 +1,123 @@
-# Fitness File Storage Implementation
+# Fitness File Storage and Processing
 
-This document describes the fitness file storage feature that has been implemented in activities.next.
+This document describes the current fitness file upload, processing, display, and import pipeline in Activity.next.
 
 ## Overview
 
-The fitness file storage feature allows users to upload fitness activity files (.fit, .gpx, .tcx) and store them similar to how media files are stored. These files share the same quota as media storage and are tracked per account.
+Users can upload `.fit`, `.gpx`, and `.tcx` activity files. Fitness files use the same account-level storage quota as regular media and can be stored on the local filesystem, S3, or any supported S3-compatible object storage.
 
-## What Has Been Implemented
+After a file is attached to a status, the background processor parses activity data, stores metrics on the `fitness_files` row, generates a route map when GPS data is available, and queues route heatmap cache jobs.
 
-### 1. Core Storage Infrastructure
+## Configuration
 
-#### Configuration (`lib/config/fitnessStorage.ts`)
+Fitness storage is configured in `lib/config/fitnessStorage.ts`.
 
-- `FitnessStorageConfig` - Configuration schema for fitness storage
-- Support for both local file storage and S3/Object storage
-- Falls back to media storage configuration if fitness-specific config is not provided
-- Uses separate path for local storage (`uploads/fitness` by default)
-- Uses different prefix for S3 storage (`fitness/` by default)
-
-Environment variables:
-
-- `ACTIVITIES_FITNESS_STORAGE_TYPE` - Storage type (fs, object, s3)
-- `ACTIVITIES_FITNESS_STORAGE_PATH` - Local file system path
+- `ACTIVITIES_FITNESS_STORAGE_TYPE` - Storage type: `fs`, `s3`, or `object`
+- `ACTIVITIES_FITNESS_STORAGE_PATH` - Local filesystem path
 - `ACTIVITIES_FITNESS_STORAGE_BUCKET` - S3 bucket name
 - `ACTIVITIES_FITNESS_STORAGE_REGION` - S3 region
-- `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` - Optional S3 hostname
-- `ACTIVITIES_FITNESS_STORAGE_PREFIX` - S3 key prefix
-- `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE` - Max file size (default: 50MB)
-- `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT` - Per-account quota
+- `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` - Optional S3-compatible endpoint hostname
+- `ACTIVITIES_FITNESS_STORAGE_PREFIX` - S3 key prefix, default `fitness/`
+- `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE` - Max file size, default 50 MiB
+- `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT` - Account quota override shared by media and fitness files
+- `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN` - Mapbox token for browser maps and static route images
 
-#### Storage Implementations
+If no fitness-specific storage is configured, the app falls back to the media storage backend with a separate local `fitness` directory or S3 `fitness/` prefix.
 
-- `LocalFileFitnessStorage` (`lib/services/fitness-files/localFile.ts`) - File system storage
-- `S3FitnessStorage` (`lib/services/fitness-files/S3StorageFile.ts`) - S3/Object storage
-- Both implement the `FitnessStorage` interface
+## Storage Implementations
 
-#### File Types Supported
+- `LocalFileFitnessStorage` (`lib/services/fitness-files/localFile.ts`) stores files on disk.
+- `S3FitnessStorage` (`lib/services/fitness-files/S3StorageFile.ts`) stores files in S3 or S3-compatible object storage.
+- Both implementations enforce file type, file size, and combined media + fitness quota checks before saving.
 
-- `.fit` - Garmin FIT files
-- `.gpx` - GPS Exchange Format
-- `.tcx` - Training Center XML
+## Database Schema
 
-### 2. Database Schema
+The `fitness_files` table is created by `migrations/20260211210400_add_fitness_files_table.js` and extended by later migrations for async processing, import tracking, activity metadata, and device info.
 
-#### Migration (`migrations/20260211210400_add_fitness_files_table.js`)
+Important columns include:
 
-Table: `fitness_files`
+- `id`, `actorId`, `statusId`
+- `path`, `fileName`, `fileType`, `mimeType`, `bytes`
+- `description`
+- `processingStatus`
+- `isPrimary`, `importBatchId`, `importStatus`, `importError`
+- `totalDistanceMeters`, `totalDurationSeconds`, `elevationGainMeters`
+- `activityType`, `activityStartTime`
+- `hasMapData`, `mapImagePath`
+- `deviceManufacturer`, `deviceName`
+- `createdAt`, `updatedAt`, `deletedAt`
 
-- `id` - Primary key
-- `actorId` - Foreign key to actors table
-- `statusId` - Optional foreign key to statuses table
-- `path` - File path in storage
-- `fileName` - Original file name
-- `fileType` - File type (fit, gpx, tcx)
-- `mimeType` - MIME type
-- `bytes` - File size in bytes
-- `description` - Optional description
-- `hasMapData` - Flag indicating if file contains GPS data
-- `mapImagePath` - Path to generated map image (for future use)
-- `createdAt`, `updatedAt`, `deletedAt` - Timestamps
+Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by actor, activity type, period, and region and store serialized route segments rather than generated PNG files.
 
-#### Database Operations (`lib/database/sql/fitnessFile.ts`)
+## API Endpoints
 
-- `createFitnessFile` - Create new fitness file record
-- `getFitnessFile` - Retrieve fitness file by ID
-- `getFitnessFilesByActor` - List fitness files for an actor
-- `getFitnessFileByStatus` - Get fitness file associated with a status
-- `deleteFitnessFile` - Soft delete fitness file
-- `updateFitnessFileStatus` - Associate fitness file with a status
+### Upload and Retrieval
 
-### 3. Counter Integration
+- `POST /api/v1/fitness-files` uploads a fitness file through multipart form data.
+- `GET /api/v1/fitness-files/:id` returns file content or redirects to object storage.
+- `GET /api/v1/fitness-files/:id/route-data` returns parsed route samples and analysis series for status detail maps and charts.
+- `GET /api/v1/fitness-files/by-status?statusId=...` returns fitness files attached to a status.
+- `DELETE /api/v1/fitness-files/:id` deletes an uploaded fitness file.
 
-Added to `lib/database/sql/utils/counter.ts`:
+### Account Fitness Data
 
-- `fitnessUsage(accountId)` - Total bytes used for fitness files
-- `totalFitness(accountId)` - Total number of fitness files
+- `GET /api/v1/accounts/:id/fitness-summary`
+- `GET /api/v1/accounts/:id/fitness-calendar`
+- `GET /api/v1/accounts/:id/fitness-activity-types`
+- `GET /api/v1/accounts/:id/fitness-route-heatmaps`
+- `GET` and `POST /api/v1/accounts/:id/fitness-route-heatmap`
 
-These counters are automatically updated when fitness files are created or deleted, and they share the quota limit with media storage.
+The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility adapters for route heatmaps. They call the route-heatmap handlers, then return legacy flat payloads with `imagePath: null`; route heatmaps now store serialized route segments, not generated PNG heatmap images.
 
-### 4. API Endpoints
+### Settings and Imports
 
-#### Upload Endpoint
+- `GET` and `POST /api/v1/settings/fitness/general`
+- `POST /api/v1/settings/fitness/general/regenerate-maps`
+- `GET`, `POST`, and `DELETE /api/v1/settings/fitness/strava`
+- `GET /api/v1/settings/fitness/strava/authorize`
+- `GET /api/v1/settings/fitness/strava/callback`
+- `POST /api/v1/settings/fitness/strava/archive`
+- `POST /api/v1/settings/fitness/strava/archive/presigned`
+- `GET /api/v1/settings/fitness/import/:batchId`
+- `POST /api/v1/webhooks/strava/:webhookToken`
 
-`POST /api/v1/fitness-files`
+## Processing Pipeline
 
-- Accepts multipart/form-data
-- Fields: `file` (required), `description` (optional)
-- Returns fitness file metadata including URL
-- Validates file type and size
-- Checks quota before upload
+1. The post box uploads the selected fitness file and attaches its ID to a new status.
+2. `processFitnessFileJob` downloads the stored file, parses `.fit`, `.gpx`, or `.tcx` data, and updates the `fitness_files` metadata.
+3. Privacy locations from fitness settings are applied before route maps or route-data responses expose coordinates.
+4. If visible GPS coordinates remain, a route map PNG is generated, stored as media, and inserted as the first status attachment named `Activity route map`.
+5. Empty fitness posts are backfilled with an activity summary.
+6. The status is published to followers and route heatmap cache jobs are queued.
 
-#### Retrieval Endpoint
+## User-Facing Features
 
-`GET /api/v1/fitness-files/:id`
+- Fitness upload button in the post box
+- Fitness activity status detail with route map, stats, device info, media, and analysis graphs
+- Settings pages for storage usage, file management, default visibility, Strava, privacy locations, and route map regeneration
+- Profile fitness dashboard and route heatmap view
+- Strava OAuth and webhook imports
+- Strava archive ZIP upload with progress, retry, and cancel support
 
-- Returns the fitness file content
-- Supports both buffer response and redirect (for S3 with hostname)
-- Sets appropriate cache headers
+## Maintenance Scripts
 
-## What Still Needs Implementation
+Fitness maintenance scripts live in `scripts/`:
 
-### 1. GPS Data Processing
+- `scripts/importStravaArchive.ts`
+- `scripts/resumeStravaProcessing.ts`
+- `scripts/recreateFitnessRouteHeatmaps.ts`
+- `scripts/fixStuckFitnessProcessing.ts`
+- `scripts/cleanupLegacyFitnessHeatmaps.ts`
+- `scripts/repairStravaActivityFiles.ts`
+- `scripts/retrigerStravaActivities.ts`
+- `scripts/runImportStravaActivity.ts`
+- `scripts/listStravaWebhooks.ts`
 
-- Parse .fit, .gpx, .tcx files to extract GPS coordinates
-- Extract activity metadata (distance, duration, elevation, etc.)
-- Suggested libraries:
-  - `fit-file-parser` for .fit files
-  - `gpxparser` or `@mapbox/togeojson` for .gpx files
-  - `tcx-js` for .tcx files
+See [Maintenance Scripts](maintenance.md) for general script guidance.
 
-### 2. Map Generation
+## Security and Privacy
 
-- Generate static map images from GPS coordinates
-- Use a map tile service (OpenStreetMap, Mapbox, etc.)
-- Save generated map as a media attachment
-- Store map image path in `fitness_files.mapImagePath`
-
-### 3. PostBox Integration
-
-- Add fitness file upload button to PostBox component
-- Support single fitness file upload only
-- Auto-set status visibility to "Private" when fitness file is attached
-- Generate map image from GPS data and add as first attachment
-- Create the status with fitness file association
-
-### 4. Status Display
-
-- Detect if status has an associated fitness file
-- Display map visualization on status page
-- Display route with elevation profile
-- Display activity statistics (distance, time, pace, etc.)
-- Add interactive charts for data visualization
-
-### 5. ActivityPub Integration
-
-- Include generated map image in ActivityPub Note
-- Ensure map image is first in attachments array
-- Add fitness activity metadata to Note properties
-
-### 6. Testing
-
-- Unit tests for fitness storage implementations
-- Integration tests for API endpoints
-- Tests for PostBox fitness file upload
-- Tests for quota enforcement
-
-## Usage Example
-
-### Uploading a Fitness File
-
-```typescript
-const formData = new FormData()
-formData.append('file', fitnessFile) // .fit, .gpx, or .tcx file
-formData.append('description', 'Morning run')
-
-const response = await fetch('/api/v1/fitness-files', {
-  method: 'POST',
-  body: formData,
-  headers: {
-    // Auth headers
-  }
-})
-
-const result = await response.json()
-// {
-//   id: 'uuid',
-//   type: 'fitness',
-//   file_type: 'fit',
-//   url: 'https://host/api/v1/fitness-files/uuid',
-//   fileName: 'activity.fit',
-//   size: 12345,
-//   description: 'Morning run',
-//   hasMapData: false
-// }
-```
-
-### Retrieving a Fitness File
-
-```typescript
-const response = await fetch('/api/v1/fitness-files/uuid')
-const blob = await response.blob()
-// Use blob to download or process the file
-```
-
-## Next Steps
-
-1. Implement GPS data parsing to extract coordinates and activity data
-2. Implement map generation service (consider using Mapbox Static Images API or similar)
-3. Update PostBox component to support fitness file upload
-4. Create fitness activity display components for status pages
-5. Integrate with ActivityPub for federation
-6. Add comprehensive tests
-
-## Security Considerations
-
-- Fitness files may contain sensitive location data - ensure proper privacy controls
-- Default visibility for fitness statuses is set to "Private"
-- Quota enforcement prevents storage abuse
-- File type validation prevents malicious uploads
+- Fitness files can contain sensitive location data.
+- Fitness posts default to private visibility in Strava flows unless the user chooses otherwise.
+- Privacy locations hide configured coordinate radii from route maps, route-data responses, and route heatmaps.
+- File type validation and quota enforcement prevent unsupported uploads and storage abuse.

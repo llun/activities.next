@@ -2,7 +2,7 @@
 
 This document lists all environment variables supported by Activity.next.
 
-Configuration can be provided either through environment variables or a `config.json` file in the project root. When a valid `config.json` is present, it is used exclusively and all environment variables are ignored — the two sources are **not** merged.
+Application configuration can be provided either through environment variables or a `config.json` file in the project root. When a valid `config.json` is present, it supplies the application config instead of `ACTIVITIES_*` app configuration variables, and the two sources are **not** merged. OpenTelemetry app config from `OTEL_EXPORTER_*` variables is also not merged into `config.json`; set the `openTelemetry` object in `config.json` instead. Environment variables read outside app config, such as `NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`, and `LOG_LEVEL`, still apply.
 
 ## Core Configuration
 
@@ -15,7 +15,7 @@ Configuration can be provided either through environment variables or a `config.
 
 ## Database
 
-Activity.next supports SQLite and PostgreSQL. See [SQLite Setup](sqlite-setup.md) and [PostgreSQL Setup](postgresql-setup.md) for detailed guides.
+Activity.next supports SQLite and PostgreSQL. The configuration loader also accepts MySQL-compatible Knex clients for deployments that provide the needed driver/runtime support. See [SQLite Setup](sqlite-setup.md) and [PostgreSQL Setup](postgresql-setup.md) for detailed guides.
 
 ### Full JSON Configuration
 
@@ -27,14 +27,14 @@ Activity.next supports SQLite and PostgreSQL. See [SQLite Setup](sqlite-setup.md
 
 | Variable                              | Description                                           |
 | ------------------------------------- | ----------------------------------------------------- |
-| `ACTIVITIES_DATABASE_CLIENT`          | Set to `better-sqlite3` for SQLite.                   |
+| `ACTIVITIES_DATABASE_CLIENT`          | Set to `better-sqlite3` or `sqlite3` for SQLite.      |
 | `ACTIVITIES_DATABASE_SQLITE_FILENAME` | Path to SQLite database file (e.g., `./dev.sqlite3`). |
 
 ### Individual Variables (PostgreSQL)
 
 | Variable                          | Description                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_DATABASE_CLIENT`      | Set to `pg` for PostgreSQL.                                                                                                                                                                                                                                                                                                                                                                        |
+| `ACTIVITIES_DATABASE_CLIENT`      | Set to `pg` or `pg-native` for PostgreSQL.                                                                                                                                                                                                                                                                                                                                                         |
 | `ACTIVITIES_DATABASE_PG_HOST`     | PostgreSQL host.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `ACTIVITIES_DATABASE_PG_PORT`     | PostgreSQL port (default: `5432`).                                                                                                                                                                                                                                                                                                                                                                 |
 | `ACTIVITIES_DATABASE_PG_USER`     | PostgreSQL username.                                                                                                                                                                                                                                                                                                                                                                               |
@@ -109,36 +109,36 @@ Email is used for account verification and notifications.
 
 ## Media Storage
 
-Required for media uploads (images in posts).
+Required for media uploads (images and video in posts). If no media storage is configured, media uploads are disabled.
 
-| Variable                                     | Description                                                                               |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `ACTIVITIES_MEDIA_STORAGE_TYPE`              | Storage backend: `fs` (local), `s3`, or `object` (S3-compatible).                         |
-| `ACTIVITIES_MEDIA_STORAGE_PATH`              | Local filesystem path for `fs` storage (e.g., `./uploads`).                               |
-| `ACTIVITIES_MEDIA_STORAGE_BUCKET`            | S3 bucket name (for `s3` or `object`).                                                    |
-| `ACTIVITIES_MEDIA_STORAGE_REGION`            | S3 region (e.g., `us-east-1`).                                                            |
-| `ACTIVITIES_MEDIA_STORAGE_HOSTNAME`          | Custom S3 endpoint hostname (for S3-compatible services like MinIO, DigitalOcean Spaces). |
-| `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`     | Maximum file size in bytes (default: 10 MB).                                              |
-| `ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT` | Per-account storage quota in bytes.                                                       |
+| Variable                                     | Description                                                                                                                                                                              |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_MEDIA_STORAGE_TYPE`              | Storage backend: `fs` (local), `s3`, or `object` (S3-compatible).                                                                                                                        |
+| `ACTIVITIES_MEDIA_STORAGE_PATH`              | Local filesystem path for `fs` storage (e.g., `./uploads`).                                                                                                                              |
+| `ACTIVITIES_MEDIA_STORAGE_BUCKET`            | S3 bucket name (for `s3` or `object`).                                                                                                                                                   |
+| `ACTIVITIES_MEDIA_STORAGE_REGION`            | S3 region (e.g., `us-east-1`).                                                                                                                                                           |
+| `ACTIVITIES_MEDIA_STORAGE_HOSTNAME`          | Custom S3 endpoint hostname (for S3-compatible services like MinIO, DigitalOcean Spaces).                                                                                                |
+| `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`     | Maximum file size in bytes (default: 200 MiB / `209715200`).                                                                                                                             |
+| `ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT` | Per-account combined media + fitness storage quota in bytes. If unset, the config value stays empty and the quota service applies its 1 GiB (`1073741824`) default when enforcing quota. |
 
 ## Fitness File Storage
 
 For fitness activity file uploads (.fit, .gpx, .tcx). Falls back to media storage configuration if not set.
 
-| Variable                                                    | Description                                                                                                               |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_FITNESS_STORAGE_TYPE`                           | Storage backend: `fs`, `s3`, or `object`.                                                                                 |
-| `ACTIVITIES_FITNESS_STORAGE_PATH`                           | Local filesystem path (default: `uploads/fitness`).                                                                       |
-| `ACTIVITIES_FITNESS_STORAGE_BUCKET`                         | S3 bucket name.                                                                                                           |
-| `ACTIVITIES_FITNESS_STORAGE_REGION`                         | S3 region.                                                                                                                |
-| `ACTIVITIES_FITNESS_STORAGE_HOSTNAME`                       | Custom S3 endpoint hostname.                                                                                              |
-| `ACTIVITIES_FITNESS_STORAGE_PREFIX`                         | S3 key prefix (default: `fitness/`).                                                                                      |
-| `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE`                  | Maximum file size in bytes (default: 50 MB).                                                                              |
-| `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT`              | Per-account quota in bytes.                                                                                               |
-| `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN`                    | Mapbox API token for map rendering. Only public `pk.*` tokens are passed to browser maps; secret tokens stay server-side. |
-| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_MEMORY_BUDGET_BYTES`      | Worker heap budget before route-cache accumulation is downsampled (default: 512 MB).                                      |
-| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT` | Maximum in-memory route points before accumulation is downsampled (default: 160,000).                                     |
-| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_FILE_POINT_LIMIT`         | Maximum points retained from one parsed fitness file before privacy filtering (default: 80,000).                          |
+| Variable                                                    | Description                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_FITNESS_STORAGE_TYPE`                           | Storage backend: `fs`, `s3`, or `object`.                                                                                                                                                                                                                          |
+| `ACTIVITIES_FITNESS_STORAGE_PATH`                           | Local filesystem path (default: `uploads/fitness`).                                                                                                                                                                                                                |
+| `ACTIVITIES_FITNESS_STORAGE_BUCKET`                         | S3 bucket name.                                                                                                                                                                                                                                                    |
+| `ACTIVITIES_FITNESS_STORAGE_REGION`                         | S3 region.                                                                                                                                                                                                                                                         |
+| `ACTIVITIES_FITNESS_STORAGE_HOSTNAME`                       | Custom S3 endpoint hostname.                                                                                                                                                                                                                                       |
+| `ACTIVITIES_FITNESS_STORAGE_PREFIX`                         | S3 key prefix (default: `fitness/`).                                                                                                                                                                                                                               |
+| `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE`                  | Maximum file size in bytes (default: 50 MiB / `52428800`).                                                                                                                                                                                                         |
+| `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT`              | Override for the shared per-account media + fitness storage quota in bytes. When set, it takes precedence over `ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT` for both media and fitness quota checks; when unset, the media quota or quota service default applies. |
+| `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN`                    | Mapbox API token for map rendering. Only public `pk.*` tokens are passed to browser maps; secret tokens stay server-side.                                                                                                                                          |
+| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_MEMORY_BUDGET_BYTES`      | Worker heap budget before route-cache accumulation is downsampled (default: 512 MB).                                                                                                                                                                               |
+| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT` | Maximum in-memory route points before accumulation is downsampled (default: 160,000).                                                                                                                                                                              |
+| `ACTIVITIES_FITNESS_ROUTE_HEATMAP_FILE_POINT_LIMIT`         | Maximum points retained from one parsed fitness file before privacy filtering (default: 80,000).                                                                                                                                                                   |
 
 ## Queue (Background Jobs)
 
@@ -152,12 +152,21 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 | `ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY` | QStash current signing key (for webhook verification).     |
 | `ACTIVITIES_QUEUE_NEXT_SIGNING_KEY`    | QStash next signing key (for key rotation).                |
 
+## Push Notifications
+
+| Variable                            | Description                              |
+| ----------------------------------- | ---------------------------------------- |
+| `ACTIVITIES_PUSH_VAPID_PUBLIC_KEY`  | VAPID public key for Web Push.           |
+| `ACTIVITIES_PUSH_VAPID_PRIVATE_KEY` | VAPID private key for Web Push.          |
+| `ACTIVITIES_PUSH_VAPID_EMAIL`       | VAPID contact email, often `mailto:...`. |
+
 ## Domain Controls
 
-| Variable                         | Description                                                                   |
-| -------------------------------- | ----------------------------------------------------------------------------- |
-| `ACTIVITIES_ALLOW_MEDIA_DOMAINS` | JSON array of allowed domains for remote media (e.g., `["cdn.example.com"]`). |
-| `ACTIVITIES_ALLOW_ACTOR_DOMAINS` | JSON array of allowed domains for actors.                                     |
+| Variable                         | Description                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_ALLOW_MEDIA_DOMAINS` | JSON array of allowed domains for remote media (e.g., `["cdn.example.com"]`).               |
+| `ACTIVITIES_ALLOW_ACTOR_DOMAINS` | JSON array of allowed domains for actors.                                                   |
+| `ACTIVITIES_FEDERATION_MODE`     | Federation mode: `open` (default) or `allowlist` to require explicit allowed actor domains. |
 
 ## Request Configuration
 
@@ -169,10 +178,16 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 ## Observability
 
-| Variable                      | Description                                              |
-| ----------------------------- | -------------------------------------------------------- |
-| `OTEL_SERVICE_NAME`           | OpenTelemetry service name (default: `activities.next`). |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry collector endpoint URL.                    |
+| Variable                              | Description                                                                                                                                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OTEL_SERVICE_NAME`                   | OpenTelemetry service name (default: `activities.next`).                                                                                                                                                     |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`         | OpenTelemetry collector endpoint URL.                                                                                                                                                                        |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`  | Trace-specific OTLP endpoint URL.                                                                                                                                                                            |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Metrics-specific OTLP endpoint URL.                                                                                                                                                                          |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`    | Logs-specific OTLP endpoint URL.                                                                                                                                                                             |
+| `OTEL_EXPORTER_OTLP_PROTOCOL`         | OTLP protocol: `grpc`, `http/protobuf`, or `http/json`. The app config schema also accepts the non-standard value `google`; it stores `openTelemetry.protocol` as `google` and does not require an endpoint. |
+| `OTEL_EXPORTER_OTLP_HEADERS`          | OTLP headers string passed to the exporter.                                                                                                                                                                  |
+| `LOG_LEVEL`                           | Logger level, default `info`.                                                                                                                                                                                |
 
 ## Build & Runtime
 
@@ -184,7 +199,7 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 ## config.json Format
 
-All environment variables can alternatively be set in a `config.json` file. Here is a complete example:
+Most `ACTIVITIES_*` application settings can alternatively be set in a `config.json` file. When `config.json` is present, `OTEL_EXPORTER_*` variables are not merged into app config; use the `openTelemetry` object for OpenTelemetry app config. Build/runtime flags such as `NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`, and logger settings remain environment-only. Here is a complete example:
 
 ```json
 {
@@ -227,6 +242,10 @@ All environment variables can alternatively be set in a `config.json` file. Here
     "type": "s3",
     "bucket": "my-media-bucket",
     "region": "us-east-1"
+  },
+  "openTelemetry": {
+    "endpoint": "https://otel.example.com",
+    "protocol": "http/protobuf"
   }
 }
 ```

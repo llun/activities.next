@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 [![Node.js](https://img.shields.io/badge/Node.js-24.x-green.svg)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.x-blue.svg)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
 Activity.next is a self-hosted [ActivityPub](https://www.w3.org/TR/activitypub/) server built with Next.js and TypeScript. It enables you to run your own instance in the [Fediverse](https://en.wikipedia.org/wiki/Fediverse) — the decentralized social media network — and interact with Mastodon, Pleroma, Misskey, and other ActivityPub-compatible platforms.
@@ -12,9 +12,9 @@ Activity.next is a self-hosted [ActivityPub](https://www.w3.org/TR/activitypub/)
 - **Fediverse-ready** — Full ActivityPub federation with other servers
 - **Mastodon API compatible** — Use your favorite Mastodon client apps
 - **OAuth 2.0 provider** — Acts as a full OAuth 2.0 / OpenID Connect server
-- **Multiple databases** — SQLite for development, PostgreSQL for production
-- **Flexible storage** — Local filesystem, AWS S3, or any S3-compatible object storage
-- **Fitness tracking** — Upload .fit, .gpx, and .tcx activity files with map generation
+- **Database options** — SQLite and PostgreSQL, with MySQL-compatible Knex configuration paths for advanced deployments
+- **Media and fitness storage** — Store image/video media and fitness files on the local filesystem, AWS S3, or S3-compatible object storage
+- **Fitness tracking** — Upload .fit, .gpx, and .tcx activity files with route maps, stats, heatmaps, and Strava imports
 - **Docker-ready** — Official Docker image available at `ghcr.io/llun/activities.next`
 
 See the full [Feature Roadmap](docs/features.md) for current and planned features.
@@ -23,32 +23,24 @@ See the full [Feature Roadmap](docs/features.md) for current and planned feature
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                      Clients                             │
-│  (Web Browser, Mastodon Apps, ActivityPub Servers)        │
-└──────────────┬───────────────────────────┬───────────────┘
-               │                           │
-               ▼                           ▼
-┌──────────────────────┐    ┌──────────────────────────────┐
-│   Next.js Frontend   │    │       API Routes             │
-│   (React + SSR)      │    │  /api/v1/* (Mastodon API)    │
-│                      │    │  /api/users/* (ActivityPub)   │
-│                      │    │  /api/auth/* (better-auth)    │
-│                      │    │  /api/oauth/* (OAuth 2.0)     │
-└──────────┬───────────┘    └──────────────┬───────────────┘
-           │                               │
-           └──────────┬────────────────────┘
-                      ▼
-         ┌────────────────────────┐
-         │   Services & Jobs      │
-         │  (Business Logic)      │
-         └────────────┬───────────┘
-                      │
-       ┌──────────────┼──────────────┐
-       ▼              ▼              ▼
-┌────────────┐ ┌────────────┐ ┌────────────┐
-│  Database  │ │   Storage  │ │   Queue    │
-│ SQLite/PG  │ │ Local/S3   │ │  QStash    │
-└────────────┘ └────────────┘ └────────────┘
+│ Client Layer                                             │
+│ Web browser, Mastodon apps, ActivityPub servers          │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ Next.js App Router (app/)                                │
+│ Pages/SSR, Mastodon API, ActivityPub, auth, OAuth routes │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ Core Services (lib/)                                     │
+│ Auth, media, fitness, federation, delivery, imports      │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ Infrastructure                                           │
+│ SQLite/PostgreSQL, local/S3 storage, QStash/sync jobs    │
+└──────────────────────────────────────────────────────────┘
 ```
 
 For a more detailed architecture overview, see [docs/architecture.md](docs/architecture.md).
@@ -58,7 +50,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
 ### Prerequisites
 
 - **Node.js 24** or higher
-- **Yarn** package manager (v4.12.0 via Corepack)
+- **Yarn** package manager (v4.13.0 via Corepack)
 - A **domain name** (required for federation)
 
 ### Quick Start
@@ -115,11 +107,13 @@ For detailed setup instructions, see the [Setup Guide](docs/setup.md).
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
   -e ACTIVITIES_SECRET_PHASE=your-random-secret \
+  -e ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
+  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/uploads \
   -v /path/to/data:/opt/activities.next \
   ghcr.io/llun/activities.next:latest
 ```
 
-The volume mount persists your SQLite database and uploaded media between container restarts.
+The Docker image defaults to SQLite at `/opt/activities.next/data.sqlite`. The volume mount persists that database and, when local media storage is configured as above, uploaded files between container restarts.
 
 For PostgreSQL or advanced Docker setups, see:
 
@@ -145,6 +139,7 @@ For PostgreSQL or advanced Docker setups, see:
 | [PostgreSQL Setup](docs/postgresql-setup.md)           | PostgreSQL database configuration and Docker deployment |
 | [Environment Variables](docs/environment-variables.md) | Complete reference for all configuration options        |
 | [Feature Roadmap](docs/features.md)                    | Current and planned features                            |
+| [Fitness File Storage](docs/fitness-file-storage.md)   | Fitness upload, processing, Strava, and heatmap details |
 | [Maintenance Scripts](docs/maintenance.md)             | Admin scripts for media cleanup and user management     |
 | [Contributing](CONTRIBUTING.md)                        | Guidelines for contributors                             |
 
