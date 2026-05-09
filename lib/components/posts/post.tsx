@@ -38,6 +38,7 @@ export interface PostProps {
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onPostDeleted?: (status: Status) => void
+  onOpenStatus?: () => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean
   postLineLimit?: PostLineLimit
@@ -68,6 +69,12 @@ export const Post: FC<PostProps> = (props) => {
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
     !actualStatus.isLocalActor && Boolean(externalStatusUrl)
+  const relativeCreatedAt = formatDistanceToNow(actualStatus.createdAt)
+  const actorName =
+    actualStatus.actor?.name ||
+    actualStatus.actor?.username ||
+    getActorIdMention(actualStatus.actorId)
+  const openStatusLabel = `Open status by ${actorName} from ${relativeCreatedAt}`
 
   const processedAndCleanedText = _.chain(actualStatus)
     .thru((s) => processStatusText(host, s))
@@ -231,9 +238,23 @@ export const Post: FC<PostProps> = (props) => {
               statusUrl={actualStatus.url}
             />
             <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground text-xs whitespace-nowrap">
-              {formatDistanceToNow(actualStatus.createdAt)}
-            </span>
+            {props.onOpenStatus ? (
+              <button
+                type="button"
+                className="text-muted-foreground text-xs whitespace-nowrap hover:underline"
+                aria-label={openStatusLabel}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  props.onOpenStatus?.()
+                }}
+              >
+                {relativeCreatedAt}
+              </button>
+            ) : (
+              <span className="text-muted-foreground text-xs whitespace-nowrap">
+                {relativeCreatedAt}
+              </span>
+            )}
             {showExternalLink && (
               <a
                 href={externalStatusUrl}

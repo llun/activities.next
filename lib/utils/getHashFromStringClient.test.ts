@@ -24,4 +24,24 @@ describe('getHashFromStringClient', () => {
     expect(hash).toHaveLength(64)
     expect(hash).toMatch(/^[a-f0-9]{64}$/)
   })
+
+  it('falls back when Web Crypto subtle digest is unavailable', async () => {
+    const originalCrypto = globalThis.crypto
+
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: {}
+    })
+
+    try {
+      await expect(getHashFromStringClient('test string')).resolves.toBe(
+        'd5579c46dfcc7f18207013e65b44e4cb4e2c2298f4ac457ba8f82743f31e930b'
+      )
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', {
+        configurable: true,
+        value: originalCrypto
+      })
+    }
+  })
 })
