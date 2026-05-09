@@ -5,7 +5,7 @@ import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
-import { Follow } from '@/lib/types/domain/follow'
+import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { getTracer } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -21,7 +21,32 @@ export const sendUndoFollowJob: JobHandle = createJobHandle(
       span.setAttribute('actorId', actorId)
       span.setAttribute('followId', follow.id)
 
-      if (!(await canFederateWithDomain(database, follow.targetActorId))) {
+      const currentFollow = await database.getFollowFromId({
+        followId: follow.id
+      })
+      if (
+        !currentFollow ||
+        currentFollow.status !== FollowStatus.enum.Undo ||
+        currentFollow.actorId !== actorId ||
+        currentFollow.actorId !== follow.actorId ||
+        currentFollow.targetActorId !== follow.targetActorId
+      ) {
+        span.end()
+        return
+      }
+
+      const activeFollow = await database.getAcceptedOrRequestedFollow({
+        actorId: currentFollow.actorId,
+        targetActorId: currentFollow.targetActorId
+      })
+      if (activeFollow) {
+        span.end()
+        return
+      }
+
+      if (
+        !(await canFederateWithDomain(database, currentFollow.targetActorId))
+      ) {
         span.end()
         return
       }
@@ -33,7 +58,7 @@ export const sendUndoFollowJob: JobHandle = createJobHandle(
         return
       }
 
-      const ok = await unfollow(actor, follow)
+      const ok = await unfollow(actor, currentFollow)
       if (!ok) {
         const error = new Error('Failed to send Undo Follow')
         span.recordException(error)
