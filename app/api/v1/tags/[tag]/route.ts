@@ -87,7 +87,9 @@ export const GET = traceApiRoute(
         : null
       const links = [nextLink].filter(Boolean).join(', ')
       const mastodonStatuses = await Promise.all(
-        statuses.map((item) => getMastodonStatus(database, item))
+        statuses.map((item) =>
+          getMastodonStatus(database, item, currentActor?.id)
+        )
       )
 
       return apiResponse({
