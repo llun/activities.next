@@ -1,0 +1,22 @@
+lib/jobs/sendUndoFollowJob.test.ts
+  s_1f10c44d97cf0b::t_7d46bbeb2c6c14 6,98-116
+  s_1f10c44d97cf0b::t_1407f073ddb9af 1-5,7-97,117-122
+lib/jobs/sendUndoFollowJob.ts
+  s_1f10c44d97cf0b::t_d3173e82ae9ad6 8,24-49,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d8ea37b1d749d4e77d116f24878e768367f28a7e",
+  "prompts": {},
+  "sessions": {
+    "s_1f10c44d97cf0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e06ca-749a-7ec0-912a-16e0f0292ef9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
