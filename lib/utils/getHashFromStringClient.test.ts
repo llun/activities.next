@@ -26,22 +26,31 @@ describe('getHashFromStringClient', () => {
   })
 
   it('falls back when Web Crypto subtle digest is unavailable', async () => {
-    const originalCrypto = globalThis.crypto
+    const originalSubtleDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis.crypto,
+      'subtle'
+    )
 
-    Object.defineProperty(globalThis, 'crypto', {
+    Object.defineProperty(globalThis.crypto, 'subtle', {
       configurable: true,
-      value: {}
+      value: undefined
     })
 
     try {
+      // SHA-256('test string')
       await expect(getHashFromStringClient('test string')).resolves.toBe(
         'd5579c46dfcc7f18207013e65b44e4cb4e2c2298f4ac457ba8f82743f31e930b'
       )
     } finally {
-      Object.defineProperty(globalThis, 'crypto', {
-        configurable: true,
-        value: originalCrypto
-      })
+      if (originalSubtleDescriptor) {
+        Object.defineProperty(
+          globalThis.crypto,
+          'subtle',
+          originalSubtleDescriptor
+        )
+      } else {
+        Reflect.deleteProperty(globalThis.crypto, 'subtle')
+      }
     }
   })
 })

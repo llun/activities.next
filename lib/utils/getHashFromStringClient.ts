@@ -101,6 +101,7 @@ export const getHashFromStringClient = async (str: string) => {
   const bytes = encoder.encode(str)
 
   if (!globalThis.crypto?.subtle) {
+    // activities.local browser verification can run over HTTP, where Web Crypto is unavailable.
     return getHashFromBytes(bytes)
   }
 

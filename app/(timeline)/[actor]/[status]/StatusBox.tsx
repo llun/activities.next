@@ -67,9 +67,9 @@ export const StatusBox: FC<Props> = ({
     )
   }
 
-  const openStatus = () => {
+  const openStatus = (statusToOpen: Status) => {
     void (async () => {
-      const detailPath = await getStatusDetailPathClient(status)
+      const detailPath = await getStatusDetailPathClient(statusToOpen)
       if (detailPath) router.push(detailPath)
     })()
   }

@@ -82,9 +82,9 @@ export const Posts: FC<Props> = ({
 
   return (
     <section className={cn('w-full grid grid-cols-1', className)}>
-      {statuses.map((status, index) => (
+      {statuses.map((status) => (
         <article
-          key={`${index}-${status.id}`}
+          key={status.id}
           className="border-b border-border/60 p-4 last:border-b-0"
         >
           <Post
@@ -99,21 +99,19 @@ export const Posts: FC<Props> = ({
             onReply={handleReply}
             onEdit={onEdit}
             onPostDeleted={onPostDeleted}
-            onOpenStatus={() => openStatus(status)}
+            onOpenStatus={openStatus}
             onShowAttachment={(allMedias, index) => {
               setModalMedias({ medias: allMedias, initialSelection: index })
             }}
           />
           {replyingToStatusId === status.id && currentActor && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <StatusReplyBox
-                profile={currentActor}
-                replyStatus={status}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                onCancel={handleCancelReply}
-                onPostCreated={handleReplyCreated}
-              />
-            </div>
+            <StatusReplyBox
+              profile={currentActor}
+              replyStatus={status}
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              onCancel={handleCancelReply}
+              onPostCreated={handleReplyCreated}
+            />
           )}
         </article>
       ))}

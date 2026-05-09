@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistance } from 'date-fns'
 import _ from 'lodash'
 import { Activity, ExternalLink, LoaderCircle, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
@@ -38,7 +38,7 @@ export interface PostProps {
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onPostDeleted?: (status: Status) => void
-  onOpenStatus?: () => void
+  onOpenStatus?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean
   postLineLimit?: PostLineLimit
@@ -69,12 +69,17 @@ export const Post: FC<PostProps> = (props) => {
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
     !actualStatus.isLocalActor && Boolean(externalStatusUrl)
-  const relativeCreatedAt = formatDistanceToNow(actualStatus.createdAt)
-  const actorName =
-    actualStatus.actor?.name ||
-    actualStatus.actor?.username ||
-    getActorIdMention(actualStatus.actorId)
-  const openStatusLabel = `Open status by ${actorName} from ${relativeCreatedAt}`
+  const relativeCreatedAt = formatDistance(
+    actualStatus.createdAt,
+    props.currentTime
+  )
+  const actorName = actualStatus.actor
+    ? actualStatus.actor.name || actualStatus.actor.username
+    : null
+  const openStatusLabel = actorName
+    ? `Open status by ${actorName}, posted ${relativeCreatedAt} ago`
+    : `Open status, posted ${relativeCreatedAt} ago`
+  const timestampClassName = 'text-muted-foreground text-xs whitespace-nowrap'
 
   const processedAndCleanedText = _.chain(actualStatus)
     .thru((s) => processStatusText(host, s))
@@ -132,7 +137,6 @@ export const Post: FC<PostProps> = (props) => {
               href={fitnessFile.url}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
               className="truncate text-foreground underline-offset-2 hover:underline"
               title={fitnessFile.fileName}
             >
@@ -241,26 +245,22 @@ export const Post: FC<PostProps> = (props) => {
             {props.onOpenStatus ? (
               <button
                 type="button"
-                className="text-muted-foreground text-xs whitespace-nowrap hover:underline"
+                className={`${timestampClassName} -mx-1 inline-flex min-h-8 items-center rounded-sm px-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50`}
                 aria-label={openStatusLabel}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  props.onOpenStatus?.()
+                onClick={() => {
+                  props.onOpenStatus?.(status)
                 }}
               >
                 {relativeCreatedAt}
               </button>
             ) : (
-              <span className="text-muted-foreground text-xs whitespace-nowrap">
-                {relativeCreatedAt}
-              </span>
+              <span className={timestampClassName}>{relativeCreatedAt}</span>
             )}
             {showExternalLink && (
               <a
                 href={externalStatusUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={(event) => event.stopPropagation()}
                 className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground"
                 aria-label="Open original post"
                 title="Open original post"
@@ -276,7 +276,7 @@ export const Post: FC<PostProps> = (props) => {
             statusBody
           )}
 
-          <div onClick={(e) => e.stopPropagation()}>
+          <div>
             <Actions {...props} />
           </div>
         </div>
