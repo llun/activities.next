@@ -3,7 +3,7 @@ import {
   ListObjectsV2Command,
   S3Client
 } from '@aws-sdk/client-s3'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import knex, { Knex } from 'knex'
@@ -34,6 +34,7 @@ const DEFAULT_OUTPUT_DIR = 'backups/production-archives'
 const DEFAULT_DOWNLOAD_ENV_FILE = '.env.production'
 const DEFAULT_RESTORE_ENV_FILE = '.env.local'
 const DATABASE_DIR = 'database'
+const MIGRATIONS_DIR = 'migrations'
 const STORAGE_DIR = 'storage'
 const MANIFEST_FILE = 'manifest.json'
 const DATABASE_PAGE_SIZE = 1000
@@ -131,6 +132,17 @@ interface ArchiveManifest {
 interface ReferencedStoragePaths {
   fitnessFilePaths: string[]
   mediaFilePaths: string[]
+}
+
+interface DatabaseExportResult {
+  manifest: NonNullable<ArchiveManifest['database']>
+  referencedStoragePaths?: ReferencedStoragePaths
+}
+
+interface TableExportOrder {
+  columns: string[]
+  keyset: boolean
+  raw: boolean
 }
 
 const DOWNLOAD_USAGE = `Usage: NODE_ENV=production scripts/downloadProductionArchive.ts \\
@@ -255,7 +267,11 @@ export const parseRestoreArgs = (args: string[]): RestoreArgs => {
 export const isLocalDatabaseConnection = (connection: unknown): boolean => {
   if (typeof connection === 'string') {
     try {
-      return isLocalHost(new URL(connection).hostname)
+      const url = new URL(connection)
+      const socketHost = url.searchParams.get('host')
+      if (isLocalSocketPath(socketHost)) return true
+      if (isLocalSocketPath(url.hostname)) return true
+      return isLocalHost(url.hostname)
     } catch {
       return false
     }
@@ -263,33 +279,53 @@ export const isLocalDatabaseConnection = (connection: unknown): boolean => {
 
   if (!connection || typeof connection !== 'object') return false
 
-  const filename = (connection as { filename?: unknown }).filename
-  if (typeof filename === 'string' && filename.trim().length > 0) return true
-
   const host = (connection as { host?: unknown }).host
   if (typeof host !== 'string' || host.trim().length === 0) return false
+  if (isLocalSocketPath(host)) return true
   return isLocalHost(host)
+}
+
+const isLocalSqliteConnection = (connection: unknown) => {
+  if (typeof connection === 'string') return connection.trim().length > 0
+  if (!connection || typeof connection !== 'object') return false
+
+  const filename = (connection as { filename?: unknown }).filename
+  return typeof filename === 'string' && filename.trim().length > 0
+}
+
+const isLocalMysqlConnection = (connection: unknown) => {
+  if (typeof connection === 'string') {
+    try {
+      const url = new URL(connection)
+      const socketPath = url.searchParams.get('socketPath')
+      if (isLocalSocketPath(socketPath)) return true
+      if (isLocalSocketPath(url.hostname)) return true
+      return isLocalHost(url.hostname)
+    } catch {
+      return false
+    }
+  }
+
+  if (!connection || typeof connection !== 'object') return false
+
+  const socketPath = (connection as { socketPath?: unknown }).socketPath
+  if (isLocalSocketPath(socketPath)) return true
+  return isLocalDatabaseConnection(connection)
 }
 
 export const isLocalDatabaseConfig = (databaseConfig: Knex.Config) => {
   const client = String(databaseConfig.client)
 
   if (client === 'better-sqlite3' || client === 'sqlite3') {
-    const connection = databaseConfig.connection
-    if (typeof connection === 'string') return connection.trim().length > 0
-    if (!connection || typeof connection !== 'object') return false
-
-    const filename = (connection as { filename?: unknown }).filename
-    return typeof filename === 'string' && filename.trim().length > 0
+    return isLocalSqliteConnection(databaseConfig.connection)
   }
 
-  if (
-    client === 'pg' ||
-    client === 'pg-native' ||
-    client === 'mysql' ||
-    client === 'mysql2'
-  ) {
+  if (client === 'pg' || client === 'pg-native') {
     return isLocalDatabaseConnection(databaseConfig.connection)
+  }
+
+  if (client === 'mysql' || client === 'mysql2') {
+    return isLocalMysqlConnection(databaseConfig.connection)
   }
 
   return false
@@ -374,9 +410,7 @@ export const buildStoragePlan = ({
 
     plan.push({
       destination: 'media',
-      ...(excludePrefixes.length > 0
-        ? { excludePrefixes }
-        : null),
+      ...(excludePrefixes.length > 0 ? { excludePrefixes } : null),
       ...(mediaFiles ? { files: mediaFiles } : null),
       source: storageSourceFromMediaConfig(mediaStorage)
     })
@@ -406,6 +440,19 @@ const isLocalHost = (host: string) =>
     'host.docker.internal'
   ].includes(host.trim().toLowerCase())
 
+const isLocalSocketPath = (socketPath: unknown) =>
+  typeof socketPath === 'string' &&
+  (() => {
+    const trimmed = socketPath.trim()
+    if (!trimmed) return false
+
+    try {
+      return path.isAbsolute(decodeURIComponent(trimmed))
+    } catch {
+      return path.isAbsolute(trimmed)
+    }
+  })()
+
 const uniqueSortedPaths = (filePaths: (string | null | undefined)[]) =>
   [...new Set(filePaths.map(normalizeStoragePath).filter(Boolean))].sort()
 
@@ -423,8 +470,7 @@ const isStoragePathInsidePrefix = (filePath: string, prefix: string) => {
   const normalizedPrefix = normalizeStoragePath(prefix)
   if (!normalizedPrefix) return false
   return (
-    filePath === normalizedPrefix ||
-    filePath.startsWith(`${normalizedPrefix}/`)
+    filePath === normalizedPrefix || filePath.startsWith(`${normalizedPrefix}/`)
   )
 }
 
@@ -631,6 +677,73 @@ const getDatabaseTableNames = async (database: Knex) => {
   throw new Error(`Unsupported database client for archive: ${client}`)
 }
 
+const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
+  const client = getKnexClientName(database)
+
+  if (client === 'pg' || client === 'pg-native') {
+    const result = await database.raw(
+      `
+      select kcu.column_name as name
+      from information_schema.table_constraints tc
+      join information_schema.key_column_usage kcu
+        on tc.constraint_name = kcu.constraint_name
+        and tc.table_schema = kcu.table_schema
+      where tc.constraint_type = 'PRIMARY KEY'
+        and tc.table_schema = 'public'
+        and tc.table_name = ?
+      order by kcu.ordinal_position asc
+    `,
+      [tableName]
+    )
+    return getQueryRows<{ name: string }>(result).map((row) => row.name)
+  }
+
+  if (client === 'better-sqlite3' || client === 'sqlite3') {
+    const rows = await database.raw(
+      `PRAGMA table_info(${quoteIdentifier(tableName)})`
+    )
+    return getQueryRows<{ name: string; pk: number }>(rows)
+      .filter((row) => row.pk > 0)
+      .sort((left, right) => left.pk - right.pk)
+      .map((row) => row.name)
+  }
+
+  throw new Error(`Unsupported database client for export: ${client}`)
+}
+
+const getTableExportOrder = async (
+  database: Knex,
+  tableName: string
+): Promise<TableExportOrder> => {
+  const primaryKeyColumns = await getTablePrimaryKeyColumns(database, tableName)
+  if (primaryKeyColumns.length > 0) {
+    return {
+      columns: primaryKeyColumns,
+      keyset: true,
+      raw: false
+    }
+  }
+
+  const client = getKnexClientName(database)
+  if (client === 'pg' || client === 'pg-native') {
+    return {
+      columns: ['ctid'],
+      keyset: false,
+      raw: true
+    }
+  }
+
+  if (client === 'better-sqlite3' || client === 'sqlite3') {
+    return {
+      columns: ['rowid'],
+      keyset: false,
+      raw: true
+    }
+  }
+
+  throw new Error(`Unsupported database client for export: ${client}`)
+}
+
 const getMigrationNames = async (database: Knex) => {
   if (!(await database.schema.hasTable('knex_migrations'))) return []
 
@@ -643,19 +756,73 @@ const getMigrationNames = async (database: Knex) => {
     .filter((name): name is string => typeof name === 'string')
 }
 
+const configureExportTransaction = async (database: Knex) => {
+  const client = getKnexClientName(database)
+  if (client !== 'pg' && client !== 'pg-native') return
+
+  await database.raw(
+    'set transaction isolation level repeatable read read only'
+  )
+}
+
+const withDatabaseReadSnapshot = async <T>(
+  database: Knex,
+  callback: (transaction: Knex) => Promise<T>
+) => {
+  return database.transaction(async (transaction) => {
+    const snapshot = transaction as Knex
+    await configureExportTransaction(snapshot)
+    return callback(snapshot)
+  })
+}
+
 const createTableRowsStream = (
   database: Knex,
   tableName: string,
+  order: TableExportOrder,
   onRow: () => void
 ) => {
   async function* rowsToJsonLines() {
+    let lastRow: Record<string, unknown> | null = null
     let offset = 0
 
     for (;;) {
-      const rows = await database(tableName)
-        .select('*')
-        .limit(DATABASE_PAGE_SIZE)
-        .offset(offset)
+      const query = database(tableName).select('*').limit(DATABASE_PAGE_SIZE)
+
+      for (const column of order.columns) {
+        if (order.raw) {
+          query.orderByRaw(`${column} asc`)
+        } else {
+          query.orderBy(column, 'asc')
+        }
+      }
+
+      if (order.keyset && lastRow) {
+        query.where(function () {
+          for (let index = 0; index < order.columns.length; index += 1) {
+            this.orWhere(function () {
+              for (
+                let previousIndex = 0;
+                previousIndex < index;
+                previousIndex += 1
+              ) {
+                const previousColumn = order.columns[previousIndex]
+                this.where(
+                  previousColumn,
+                  lastRow![previousColumn] as Knex.Value
+                )
+              }
+
+              const column = order.columns[index]
+              this.where(column, '>', lastRow![column] as Knex.Value)
+            })
+          }
+        })
+      } else if (!order.keyset) {
+        query.offset(offset)
+      }
+
+      const rows = await query
 
       if (rows.length === 0) return
 
@@ -664,6 +831,7 @@ const createTableRowsStream = (
         yield `${JSON.stringify(row)}\n`
       }
 
+      lastRow = rows[rows.length - 1]
       offset += rows.length
     }
   }
@@ -671,31 +839,47 @@ const createTableRowsStream = (
   return Readable.from(rowsToJsonLines())
 }
 
-const exportDatabase = async (database: Knex, outputDir: string) => {
+const exportDatabase = async (
+  database: Knex,
+  outputDir: string,
+  options: { includeReferencedStoragePaths: boolean }
+): Promise<DatabaseExportResult> => {
   const databaseDir = path.join(outputDir, DATABASE_DIR)
   await fs.mkdir(databaseDir, { recursive: true })
 
-  const tableNames = await getDatabaseTableNames(database)
-  const migrations = await getMigrationNames(database)
-  const tables: ArchiveTableManifest[] = []
+  return withDatabaseReadSnapshot(database, async (transaction) => {
+    const tableNames = await getDatabaseTableNames(transaction)
+    const migrations = await getMigrationNames(transaction)
+    const tables: ArchiveTableManifest[] = []
 
-  for (const tableName of tableNames) {
-    let rowCount = 0
-    await pipeline(
-      createTableRowsStream(database, tableName, () => {
-        rowCount += 1
-      }),
-      createWriteStream(path.join(databaseDir, tableFileName(tableName)))
-    )
-    tables.push({ name: tableName, rowCount })
-    console.log(`Database: exported ${rowCount} row(s) from ${tableName}`)
-  }
+    for (const tableName of tableNames) {
+      const order = await getTableExportOrder(transaction, tableName)
+      let rowCount = 0
+      await pipeline(
+        createTableRowsStream(transaction, tableName, order, () => {
+          rowCount += 1
+        }),
+        createWriteStream(path.join(databaseDir, tableFileName(tableName)))
+      )
+      tables.push({ name: tableName, rowCount })
+      console.log(`Database: exported ${rowCount} row(s) from ${tableName}`)
+    }
 
-  return {
-    client: getKnexClientName(database),
-    migrations,
-    tables
-  }
+    const manifest = {
+      client: getKnexClientName(transaction),
+      migrations,
+      tables
+    }
+
+    return {
+      manifest,
+      ...(options.includeReferencedStoragePaths
+        ? {
+            referencedStoragePaths: await getReferencedStoragePaths(transaction)
+          }
+        : null)
+    }
+  })
 }
 
 const tableExists = async (database: Knex, tableName: string) =>
@@ -837,7 +1021,10 @@ const getStorageFiles = async (
   const allFiles =
     entry.files ??
     (entry.source.kind === 's3'
-      ? await listS3Files(entry.source, s3Client ?? createS3Client(entry.source))
+      ? await listS3Files(
+          entry.source,
+          s3Client ?? createS3Client(entry.source)
+        )
       : await listLocalFiles(path.resolve(entry.source.path)))
 
   return allFiles.filter((filePath) => {
@@ -1067,29 +1254,96 @@ const createTarArchive = async (stagingDir: string, archivePath: string) => {
 
 export const isSafeArchiveEntryPath = (entry: string) => {
   if (!entry) return false
-  if (path.posix.isAbsolute(entry)) return false
+  const normalizedEntry = entry.replaceAll('\\', '/')
+  if (path.posix.isAbsolute(normalizedEntry)) return false
 
-  const normalized = path.posix.normalize(entry)
+  const normalized = path.posix.normalize(normalizedEntry)
   return normalized !== '..' && !normalized.startsWith('../')
 }
 
-const validateTarArchivePaths = async (archivePath: string) => {
-  const { stdout } = await execFileAsync('tar', ['-tzf', archivePath], {
-    maxBuffer: 64 * 1024 * 1024
+export const isSafeTarArchiveVerboseEntry = (entry: string) => {
+  if (!entry) return true
+  return entry[0] === '-' || entry[0] === 'd'
+}
+
+const readTarArchiveLines = async (
+  archivePath: string,
+  args: string[],
+  onLine: (entry: string) => void
+) => {
+  await new Promise<void>((resolve, reject) => {
+    const tar = spawn('tar', args, {
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    const lines = createInterface({ input: tar.stdout })
+    let settled = false
+    let stderr = ''
+    const stderrLimit = 64 * 1024
+
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      lines.close()
+      if (error) {
+        reject(error)
+      } else {
+        resolve()
+      }
+    }
+
+    lines.on('line', (entry) => {
+      try {
+        onLine(entry)
+      } catch (error) {
+        tar.kill()
+        finish(error instanceof Error ? error : new Error(String(error)))
+      }
+    })
+    tar.stderr.on('data', (chunk) => {
+      stderr = (stderr + String(chunk)).slice(-stderrLimit)
+    })
+    tar.on('error', (error) => {
+      finish(error)
+    })
+    tar.on('close', (code) => {
+      if (settled) return
+      if (code === 0) {
+        finish()
+        return
+      }
+
+      finish(
+        new Error(
+          `Failed to list archive contents: ${stderr.trim() || `tar ${code}`}`
+        )
+      )
+    })
+  })
+}
+
+export const validateTarArchivePaths = async (archivePath: string) => {
+  await readTarArchiveLines(archivePath, ['-tzf', archivePath], (entry) => {
+    if (!entry || isSafeArchiveEntryPath(entry)) return
+    throw new Error(`Archive contains unsafe path: ${entry}`)
   })
 
-  for (const entry of stdout.split(/\r?\n/)) {
-    if (!entry) continue
-    if (!isSafeArchiveEntryPath(entry)) {
-      throw new Error(`Archive contains unsafe path: ${entry}`)
-    }
-  }
+  await readTarArchiveLines(archivePath, ['-tvzf', archivePath], (entry) => {
+    if (isSafeTarArchiveVerboseEntry(entry)) return
+    throw new Error(`Archive contains unsupported entry type: ${entry}`)
+  })
 }
 
 const extractTarArchive = async (archivePath: string, outputDir: string) => {
   await fs.mkdir(outputDir, { recursive: true })
   await validateTarArchivePaths(archivePath)
-  await execFileAsync('tar', ['-xzf', archivePath, '-C', outputDir])
+  await execFileAsync('tar', [
+    '-xzf',
+    archivePath,
+    '--no-same-owner',
+    '--no-same-permissions',
+    '-C',
+    outputDir
+  ])
 }
 
 const readManifest = async (archiveDir: string): Promise<ArchiveManifest> => {
@@ -1177,27 +1431,54 @@ const getForeignKeyReferences = async (
   throw new Error(`Unsupported database client for restore: ${client}`)
 }
 
-const truncateTables = async (database: Knex, tableNames: string[]) => {
+export const truncateTables = async (
+  database: Knex,
+  tableNames: string[],
+  orderedTables: string[]
+) => {
   const client = getKnexClientName(database)
   if (tableNames.length === 0) return
 
   if (client === 'pg' || client === 'pg-native') {
     const tables = tableNames.map(quoteIdentifier).join(', ')
-    await database.raw(`truncate table ${tables} restart identity`)
+    try {
+      await database.raw(`truncate table ${tables} restart identity`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        'Failed to truncate archived tables without CASCADE. This usually ' +
+          'means a local table outside the archive has a foreign key into an ' +
+          'archived table; regenerate the archive after schema changes. ' +
+          `Original error: ${message}`
+      )
+    }
     return
   }
 
   if (client === 'better-sqlite3' || client === 'sqlite3') {
-    await database.raw('PRAGMA foreign_keys = OFF')
+    const connection = await database.client.acquireConnection()
+
     try {
-      for (const tableName of tableNames) {
-        await database(tableName).delete()
-      }
-      if (await database.schema.hasTable('sqlite_sequence')) {
-        await database('sqlite_sequence').whereIn('name', tableNames).delete()
+      await database.raw('PRAGMA foreign_keys = OFF').connection(connection)
+      try {
+        for (const tableName of [...orderedTables].reverse()) {
+          await database(tableName).connection(connection).delete()
+        }
+        if (
+          await database.schema
+            .connection(connection)
+            .hasTable('sqlite_sequence')
+        ) {
+          await database('sqlite_sequence')
+            .connection(connection)
+            .whereIn('name', tableNames)
+            .delete()
+        }
+      } finally {
+        await database.raw('PRAGMA foreign_keys = ON').connection(connection)
       }
     } finally {
-      await database.raw('PRAGMA foreign_keys = ON')
+      await database.client.releaseConnection(connection)
     }
     return
   }
@@ -1226,10 +1507,31 @@ const assertMatchingMigrations = (
   )
 }
 
+const getLocalMigrationFileNames = async () => {
+  const entries = await fs.readdir(
+    path.resolve(process.cwd(), MIGRATIONS_DIR),
+    {
+      withFileTypes: true
+    }
+  )
+
+  return entries
+    .filter((entry) => {
+      return entry.isFile() && /\.(cjs|js|mjs|ts)$/.test(entry.name)
+    })
+    .map((entry) => entry.name)
+    .sort()
+}
+
 const ensureArchiveSchemaMatchesLocal = async (
   database: Knex,
   archiveMigrations: string[]
 ) => {
+  assertMatchingMigrations(
+    archiveMigrations,
+    await getLocalMigrationFileNames()
+  )
+
   const migrationsBeforeLatest = await getMigrationNames(database)
 
   if (migrationsBeforeLatest.length > 0) {
@@ -1354,7 +1656,7 @@ const restoreDatabase = async (
   const foreignKeys = await getForeignKeyReferences(database, tableNames)
   const orderedTables = sortTablesForRestore(tableNames, foreignKeys)
 
-  await truncateTables(database, tableNames)
+  await truncateTables(database, tableNames, orderedTables)
 
   for (const tableName of orderedTables) {
     const rowCount = await restoreTableFromJsonLines(
@@ -1579,14 +1881,20 @@ export const downloadProductionArchive = async (
   const database = createDatabase()
 
   try {
-    const databaseManifest = args.skipDatabase
+    const needsReferencedStoragePaths =
+      !args.skipStorage && args.storageScope === 'referenced'
+    const databaseExport = args.skipDatabase
       ? null
-      : await exportDatabase(database, stagingDir)
+      : await exportDatabase(database, stagingDir, {
+          includeReferencedStoragePaths: needsReferencedStoragePaths
+        })
+    const databaseManifest = databaseExport?.manifest ?? null
 
     const storagePaths =
       args.skipStorage || args.storageScope === 'all'
         ? { fitnessFilePaths: [], mediaFilePaths: [] }
-        : await getReferencedStoragePaths(database)
+        : (databaseExport?.referencedStoragePaths ??
+          (await withDatabaseReadSnapshot(database, getReferencedStoragePaths)))
 
     const storageManifest = args.skipStorage
       ? []
