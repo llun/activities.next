@@ -16,7 +16,6 @@ import {
   getTextContent as getReplyTextContent
 } from '@/lib/services/email/templates/reply'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
-import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -33,6 +32,34 @@ import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
+
+const getNotificationEligibleActorIds = async (
+  database: Database,
+  recipientActorIds: string[],
+  sourceActorId: string
+) => {
+  const candidateActorIds = [
+    ...new Set(recipientActorIds.filter((actorId) => actorId !== sourceActorId))
+  ]
+  if (candidateActorIds.length === 0) return new Set<string>()
+
+  const blockRelations = await database.getBlockRelations({
+    actorIds: candidateActorIds,
+    targetActorIds: [sourceActorId]
+  })
+  const blockedActorIds = new Set<string>()
+  for (const relation of blockRelations) {
+    if (relation.actorId === sourceActorId) {
+      blockedActorIds.add(relation.targetActorId)
+    } else if (relation.targetActorId === sourceActorId) {
+      blockedActorIds.add(relation.actorId)
+    }
+  }
+
+  return new Set(
+    candidateActorIds.filter((actorId) => !blockedActorIds.has(actorId))
+  )
+}
 
 /**
  * Determines the 'to' recipients based on visibility and reply context.
@@ -275,16 +302,17 @@ export const createNoteFromUserInput = async ({
 
   // Create notifications for replies and mentions
   const notificationPromises = []
+  const eligibleNotificationActorIds = await getNotificationEligibleActorIds(
+    database,
+    [
+      ...(replyStatus ? [replyStatus.actorId] : []),
+      ...mentions.map((mention) => mention.href)
+    ],
+    currentActor.id
+  )
 
   // Create reply notification if this is a reply
-  if (
-    replyStatus &&
-    (await shouldCreateNotification(
-      database,
-      replyStatus.actorId,
-      currentActor.id
-    ))
-  ) {
+  if (replyStatus && eligibleNotificationActorIds.has(replyStatus.actorId)) {
     notificationPromises.push(
       database.createNotification({
         actorId: replyStatus.actorId,
@@ -300,13 +328,7 @@ export const createNoteFromUserInput = async ({
   for (const mention of mentions) {
     const mentionedActorId = mention.href
     // Don't create notification for self-mentions
-    if (
-      await shouldCreateNotification(
-        database,
-        mentionedActorId,
-        currentActor.id
-      )
-    ) {
+    if (eligibleNotificationActorIds.has(mentionedActorId)) {
       notificationPromises.push(
         database.createNotification({
           actorId: mentionedActorId,
@@ -336,14 +358,7 @@ export const createNoteFromUserInput = async ({
   // Uses the fetched status (with actor info) to build email content.
   const seenActorIds = new Set<string>()
 
-  if (
-    replyStatus &&
-    (await shouldCreateNotification(
-      database,
-      replyStatus.actorId,
-      currentActor.id
-    ))
-  ) {
+  if (replyStatus && eligibleNotificationActorIds.has(replyStatus.actorId)) {
     seenActorIds.add(replyStatus.actorId)
     database
       .getActorFromId({ id: replyStatus.actorId })
@@ -376,11 +391,7 @@ export const createNoteFromUserInput = async ({
     const mentionedActorId = mention.href
     if (
       !seenActorIds.has(mentionedActorId) &&
-      (await shouldCreateNotification(
-        database,
-        mentionedActorId,
-        currentActor.id
-      ))
+      eligibleNotificationActorIds.has(mentionedActorId)
     ) {
       seenActorIds.add(mentionedActorId)
       database

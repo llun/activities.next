@@ -10,7 +10,6 @@ import {
   NotificationEvent,
   sendNotificationAlerts
 } from '@/lib/services/notifications/sendNotificationAlerts'
-import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
@@ -63,15 +62,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             statusId: status.reply,
             withReplies: false
           })
-          if (
-            repliedStatus &&
-            repliedStatus.actorId === currentActor.id &&
-            (await shouldCreateNotification(
-              database,
-              currentActor.id,
-              status.actorId
-            ))
-          ) {
+          if (repliedStatus && repliedStatus.actorId === currentActor.id) {
             addToTimeline = true
             await database.createNotification({
               actorId: currentActor.id,
@@ -106,14 +97,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         addToTimeline = true
         const account = currentActor.account
 
-        if (
-          !status.isLocalActor &&
-          (await shouldCreateNotification(
-            database,
-            currentActor.id,
-            status.actorId
-          ))
-        ) {
+        if (!status.isLocalActor) {
           // Error is recorded but not re-thrown: a notification DB failure
           // should not block the mention from being added to the timeline.
           try {

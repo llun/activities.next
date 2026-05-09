@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
@@ -30,10 +31,21 @@ jest.mock('@/lib/services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 
+jest.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: jest.fn()
+}))
+
 describe('Create note action', () => {
   const database = getTestSQLDatabase()
+  const mockSendNotificationAlerts =
+    sendNotificationAlerts as jest.MockedFunction<typeof sendNotificationAlerts>
   let actor1: Actor
   let actor2: Actor
+
+  const clearSettledNotificationAlerts = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    mockSendNotificationAlerts.mockClear()
+  }
 
   beforeAll(async () => {
     await database.migrate()
@@ -124,6 +136,93 @@ describe('Create note action', () => {
           statusId: status.id
         }
       })
+    })
+
+    it('does not create reply notification or alert when reply target blocks source', async () => {
+      await clearSettledNotificationAlerts()
+      const originalStatus = (await createNoteFromUserInput({
+        text: 'Original post from actor2',
+        currentActor: actor2,
+        database
+      })) as StatusNote
+
+      await database.createBlock({
+        actorId: actor2.id,
+        targetActorId: actor1.id,
+        uri: `${actor2.id}#blocks/create-note-reply-block`
+      })
+
+      try {
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Blocked reply',
+          currentActor: actor1,
+          replyNoteId: originalStatus.id,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        const notifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          notifications.filter(
+            (notification) => notification.statusId === replyStatus.id
+          )
+        ).toHaveLength(0)
+        expect(mockSendNotificationAlerts).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+      } finally {
+        await database.deleteBlock({
+          actorId: actor2.id,
+          targetActorId: actor1.id
+        })
+      }
+    })
+
+    it('does not create mention notification or alert when mentioned actor blocks source', async () => {
+      await clearSettledNotificationAlerts()
+      await database.createBlock({
+        actorId: actor2.id,
+        targetActorId: actor1.id,
+        uri: `${actor2.id}#blocks/create-note-mention-block`
+      })
+
+      try {
+        const status = (await createNoteFromUserInput({
+          text: '@test2@llun.test blocked mention',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        const notifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          notifications.filter(
+            (notification) => notification.statusId === status.id
+          )
+        ).toHaveLength(0)
+        expect(mockSendNotificationAlerts).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: status.id
+          })
+        )
+      } finally {
+        await database.deleteBlock({
+          actorId: actor2.id,
+          targetActorId: actor1.id
+        })
+      }
     })
 
     it('linkfy and paragraph status text', async () => {
