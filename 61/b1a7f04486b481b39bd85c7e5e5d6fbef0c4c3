@@ -1,0 +1,65 @@
+docs/postgresql-setup.md
+  s_57dab98a11fa97::t_508d396dc90268 7
+docs/fitness-file-storage.md
+  s_57dab98a11fa97::t_fa0acc9cda029f 1,3,7,9,11,13,15-16,19-23,25,27,29-31,33,35,37,39-48,50,52,54,56-60,62,64-68,70,72,74-82,84,86-91,93,95-100,102,104,106-114,116,118,120-123
+.env.example
+  s_57dab98a11fa97::t_d504f4a822a023 171-172
+  s_57dab98a11fa97::t_ec2e6d92e4ef4d 28,30,47,51-60,94-99,118-119,130-131,133,152-160,168-169
+  s_57dab98a11fa97::t_868683e4bd6e83 132
+docs/features.md
+  s_57dab98a11fa97::t_09aecf770750c3 18,58,73
+  s_57dab98a11fa97::t_1bcd70842cedd4 19,25-26,38,44,46,48-52,69,74,79
+  s_57dab98a11fa97::t_22b850fc4c263d 43
+docs/architecture.md
+  s_57dab98a11fa97::t_49d1e12393c37e 7-25,27
+  s_57dab98a11fa97::t_0bdc55c9b04fd5 146,179
+  s_57dab98a11fa97::t_b04d53c6d20c1d 186-193,195-201
+  s_57dab98a11fa97::t_c5d3fd54f4f9cf 26,108,114,194
+README.md
+  s_57dab98a11fa97::t_d08d6c6737aa99 48-49,51
+  s_57dab98a11fa97::t_3a447e0e8a6c64 150
+  s_57dab98a11fa97::t_00fcfe4b0dcad4 15
+  s_57dab98a11fa97::t_41b0240381be6e 5,17,61,118-119,124
+  s_57dab98a11fa97::t_a3d59ce6732441 50
+docs/setup.md
+  s_57dab98a11fa97::t_c56ed463b98589 8,139-140,189-198,247-248
+  s_57dab98a11fa97::t_2960d37c4937d8 18
+AGENTS.md
+  s_57dab98a11fa97::t_1bcfc079056a2f 10,213
+  s_57dab98a11fa97::t_442a61ce382a25 203,210
+.github/copilot-instructions.md
+  s_57dab98a11fa97::t_262824b5a0b0a4 26-27,33
+  s_57dab98a11fa97::t_4ff502900a0f6b 31
+docs/sqlite-setup.md
+  s_57dab98a11fa97::t_e2e23e56192627 7,119-120,125
+CONTRIBUTING.md
+  s_57dab98a11fa97::t_692c52af10b220 24,332
+  s_57dab98a11fa97::t_5d4d1f62e80d4c 405
+CLAUDE.md
+  s_57dab98a11fa97::t_d6ac1c103683fa 3,15
+docs/environment-variables.md
+  s_57dab98a11fa97::t_b04d53c6d20c1d 114-121,157-161,165-168,181-190
+  s_57dab98a11fa97::t_b20e4c6ad0943e 202
+  s_57dab98a11fa97::t_3dd75e038011f8 5
+  s_57dab98a11fa97::t_d3ed5069aac604 18
+  s_57dab98a11fa97::t_535692a0475acc 30,37,112,122,136-137,155-156,162,169
+docs/maintenance.md
+  s_57dab98a11fa97::t_eb14d322b3bc82 22,25,28,31,70,73,90,93,123,128-155
+  s_57dab98a11fa97::t_8678fe3d29ae42 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "61b1a7f04486b481b39bd85c7e5e5d6fbef0c4c3",
+  "prompts": {},
+  "sessions": {
+    "s_57dab98a11fa97": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e0a-145d-7850-a332-7c0d4715223f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
