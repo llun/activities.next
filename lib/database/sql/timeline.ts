@@ -24,51 +24,14 @@ export const TimelineSQLDatabaseMixin = (
   }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LOCAL_PUBLIC: {
-        const cursorStatusIds = Array.from(
-          new Set(
-            [maxStatusId, minStatusId].filter(
-              (statusId): statusId is string => !!statusId
-            )
-          )
-        )
-        const publicCursorRows =
-          cursorStatusIds.length > 0
-            ? await database('recipients')
-                .where('recipients.type', 'to')
-                .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
-                .whereIn('recipients.statusId', cursorStatusIds)
-                .select(
-                  'recipients.statusId',
-                  'recipients.id',
-                  'recipients.createdAt'
-                )
-            : []
-        const publicCursorByStatusId = new Map<
-          string,
-          { id: string | null; createdAt: Date }
-        >(
-          publicCursorRows.map(
-            (row: { statusId: string; id: string; createdAt: Date }) => [
-              row.statusId,
-              {
-                id: row.id,
-                createdAt: row.createdAt
-              }
-            ]
-          )
-        )
-
         const lookupPublicCursor = async (
           statusId: string
-        ): Promise<{ id: string | null; createdAt: Date } | null> => {
-          const publicCursor = publicCursorByStatusId.get(statusId)
-          if (publicCursor) return publicCursor
-
+        ): Promise<{ id: string; createdAt: Date } | null> => {
           const statusRow = await database('statuses')
             .where('id', statusId)
-            .select('createdAt')
-            .first<{ createdAt: Date }>()
-          return statusRow ? { id: null, createdAt: statusRow.createdAt } : null
+            .select('id', 'createdAt')
+            .first<{ id: string; createdAt: Date }>()
+          return statusRow ?? null
         }
 
         const [maxRow, minRow] = await Promise.all([
@@ -82,7 +45,7 @@ export const TimelineSQLDatabaseMixin = (
         let query = database('recipients')
           .where('recipients.type', 'to')
           .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
-          .select('recipients.statusId')
+          .select('statuses.id as statusId')
           .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
           .innerJoin('actors', 'statuses.actorId', 'actors.id')
           .whereNotNull('actors.privateKey')
@@ -91,33 +54,31 @@ export const TimelineSQLDatabaseMixin = (
 
         if (maxRow) {
           query = query.where((wb) => {
-            wb.where('recipients.createdAt', '<', maxRow.createdAt)
-            if (maxRow.id !== null) {
-              wb.orWhere((wb2) => {
+            wb.where('statuses.createdAt', '<', maxRow.createdAt).orWhere(
+              (wb2) => {
                 wb2
-                  .where('recipients.createdAt', '=', maxRow.createdAt)
-                  .where('recipients.id', '<', maxRow.id)
-              })
-            }
+                  .where('statuses.createdAt', '=', maxRow.createdAt)
+                  .where('statuses.id', '<', maxRow.id)
+              }
+            )
           })
         }
 
         if (minRow) {
           query = query.where((wb) => {
-            wb.where('recipients.createdAt', '>', minRow.createdAt)
-            if (minRow.id !== null) {
-              wb.orWhere((wb2) => {
+            wb.where('statuses.createdAt', '>', minRow.createdAt).orWhere(
+              (wb2) => {
                 wb2
-                  .where('recipients.createdAt', '=', minRow.createdAt)
-                  .where('recipients.id', '>', minRow.id)
-              })
-            }
+                  .where('statuses.createdAt', '=', minRow.createdAt)
+                  .where('statuses.id', '>', minRow.id)
+              }
+            )
           })
         }
 
         const local = await query
-          .orderBy('recipients.createdAt', 'desc')
-          .orderBy('recipients.id', 'desc')
+          .orderBy('statuses.createdAt', 'desc')
+          .orderBy('statuses.id', 'desc')
         const statuses = await statusDatabase.getStatusesByIds({
           statusIds: local.map((item) => item.statusId)
         })

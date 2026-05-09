@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
 import { applyBlock } from '@/lib/actions/applyBlock'
-import { recordActorIfNeeded } from '@/lib/actions/utils'
+import {
+  BlockedFederationDomainError,
+  recordActorIfNeeded
+} from '@/lib/actions/utils'
 import { SEND_BLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
@@ -12,6 +15,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
+  ERROR_403,
   ERROR_404,
   apiResponse,
   defaultOptions
@@ -43,10 +47,23 @@ export const POST = traceApiRoute(
     const targetActorId = idToUrl(encodedAccountId)
 
     if (targetActorId !== currentActor.id) {
-      const targetActor = await recordActorIfNeeded({
-        actorId: targetActorId,
-        database
-      })
+      let targetActor
+      try {
+        targetActor = await recordActorIfNeeded({
+          actorId: targetActorId,
+          database
+        })
+      } catch (error) {
+        if (error instanceof BlockedFederationDomainError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
+        }
+        throw error
+      }
       if (!targetActor)
         return apiResponse({
           req,

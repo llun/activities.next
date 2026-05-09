@@ -401,6 +401,47 @@ describe('TimelineDatabase', () => {
 
           expect(statuses.map((status) => status.id)).toContain(olderStatusId)
         }, 10000)
+
+        it('keeps tied public statuses when a public cursor recipient row is gone', async () => {
+          const tiedCreatedAt = Date.now()
+          const tiedStatusId = `${TEST_ID_PUBLIC}/statuses/public-cursor-tied-a`
+          const cursorStatusId = `${TEST_ID_PUBLIC}/statuses/public-cursor-tied-z`
+
+          await database.createNote({
+            actorId: TEST_ID_PUBLIC,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: tiedStatusId,
+            text: 'Tied public cursor fallback status',
+            url: tiedStatusId,
+            reply: '',
+            createdAt: tiedCreatedAt
+          })
+          await database.createNote({
+            actorId: TEST_ID_PUBLIC,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: cursorStatusId,
+            text: 'Tied cursor status that leaves the public timeline',
+            url: cursorStatusId,
+            reply: '',
+            createdAt: tiedCreatedAt
+          })
+
+          await database.updateNoteVisibility({
+            statusId: cursorStatusId,
+            to: [`${TEST_ID_PUBLIC}/followers`],
+            cc: []
+          })
+
+          const statuses = await database.getTimeline({
+            timeline: Timeline.LOCAL_PUBLIC,
+            maxStatusId: cursorStatusId,
+            limit: 10
+          })
+
+          expect(statuses.map((status) => status.id)).toContain(tiedStatusId)
+        }, 10000)
       })
     })
   })

@@ -80,7 +80,9 @@ export const getFilteredStatusPage = async ({
     hasBufferedVisibleStatuses ||
     (visibleStatuses.length === pageLimit && !exhausted)
   ) {
-    nextMaxStatusId = lastVisibleStatusId
+    nextMaxStatusId = hasBufferedVisibleStatuses
+      ? lastVisibleStatusId
+      : (lastScannedStatusId ?? lastVisibleStatusId)
   } else if (!exhausted) {
     nextMaxStatusId = lastScannedStatusId
   }

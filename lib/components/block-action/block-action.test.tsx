@@ -94,6 +94,9 @@ describe('BlockAction', () => {
     await waitFor(() => {
       expect(dialogBlockButton).toBeEnabled()
     })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Failed to block account. Please try again.'
+    )
     expect(
       screen.getByRole('dialog', { name: 'Block account' })
     ).toBeInTheDocument()
@@ -130,6 +133,9 @@ describe('BlockAction', () => {
     await waitFor(() => {
       expect(unblockButton).toBeEnabled()
     })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Failed to unblock account. Please try again.'
+    )
     expect(refresh).not.toHaveBeenCalled()
   })
 })
