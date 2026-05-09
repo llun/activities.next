@@ -5,26 +5,30 @@ This document describes the high-level architecture of Activity.next, an Activit
 ## System Architecture
 
 ```text
-Clients
+Client boundary
   ├─ Web browser (HTML/SSR)
   ├─ Mastodon-compatible apps (OAuth 2.0 + API)
   └─ Remote ActivityPub servers (HTTP Signatures)
         │
         ▼
-Next.js App Router (app/)
-  ├─ Pages and layouts: (timeline), (nosidebar)
-  ├─ API routes: /api/v1, /api/v2, /api/auth, /api/oauth
+Application boundary: Next.js App Router (app/)
+  ├─ Presentation: pages, layouts, SSR, hydrated React components
+  ├─ Mastodon API: /api/v1, /api/v2
+  ├─ Auth/OAuth: /api/auth, /api/oauth
   └─ Federation endpoints: /api/users, /api/inbox, /.well-known
         │
         ▼
-Core library (lib/)
+Domain and service boundary: Core library (lib/)
   ├─ Services: auth, guards, media, fitness, email, queue, federation
   ├─ ActivityPub: create, follow, like, announce, update, delete, undo
   ├─ Jobs: delivery, imports, fitness processing, map and heatmap generation
-  └─ Components: post box, posts, settings, profile, timeline, UI primitives
+  └─ Shared UI: post box, posts, settings, profile, timeline, UI primitives
         │
-        ├─ Database layer: Knex with SQLite, PostgreSQL, and MySQL-compatible config paths
-        └─ External services: local/S3 storage, QStash, SMTP/Resend/SES/Lambda, OpenTelemetry
+        ▼
+Infrastructure boundary
+  ├─ Database layer: Knex with SQLite/PostgreSQL; MySQL-compatible config paths
+  ├─ File storage: local filesystem, S3, or S3-compatible object storage
+  └─ External services: QStash, SMTP/Resend/SES/Lambda, OpenTelemetry
 ```
 
 ## Request Flow
@@ -111,7 +115,7 @@ Knex migration files that define the database schema. Migrations are designed to
 
 ### Database Abstraction
 
-All database operations go through the `lib/database/` layer using [Knex.js](https://knexjs.org/) as the query builder. This enables support for SQLite (development/small instances), PostgreSQL (production), and MySQL-compatible configuration paths without changing application code.
+All database operations go through the `lib/database/` layer using [Knex.js](https://knexjs.org/) as the query builder. This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. The configuration loader also accepts MySQL-compatible Knex clients for deployments that provide the needed driver/runtime support.
 
 ### Mastodon API Compatibility
 
@@ -147,7 +151,7 @@ Long-running operations (sending activities to remote servers, processing file u
 
 ### Media & File Storage
 
-Media files (images) and fitness files (.fit, .gpx, .tcx) support multiple storage backends:
+Media files (images and video) and fitness files (.fit, .gpx, .tcx) support multiple storage backends:
 
 - **Local filesystem** — Files stored in a local directory
 - **S3** — Amazon S3

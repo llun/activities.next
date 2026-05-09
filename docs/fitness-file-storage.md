@@ -67,7 +67,7 @@ Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by a
 - `GET /api/v1/accounts/:id/fitness-route-heatmaps`
 - `GET` and `POST /api/v1/accounts/:id/fitness-route-heatmap`
 
-The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility shims for route heatmaps.
+The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility adapters for route heatmaps. They call the route-heatmap handlers, then return legacy flat payloads with `imagePath: null`; route heatmaps now store serialized route segments, not generated PNG heatmap images.
 
 ### Settings and Imports
 
@@ -86,7 +86,7 @@ The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility
 1. The post box uploads the selected fitness file and attaches its ID to a new status.
 2. `processFitnessFileJob` downloads the stored file, parses `.fit`, `.gpx`, or `.tcx` data, and updates the `fitness_files` metadata.
 3. Privacy locations from fitness settings are applied before route maps or route-data responses expose coordinates.
-4. If visible GPS coordinates remain, a route map image is generated and stored as a media attachment.
+4. If visible GPS coordinates remain, a route map PNG is generated, stored as media, and inserted as the first status attachment named `Activity route map`.
 5. Empty fitness posts are backfilled with an activity summary.
 6. The status is published to followers and route heatmap cache jobs are queued.
 

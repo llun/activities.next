@@ -12,8 +12,8 @@ Activity.next is a self-hosted [ActivityPub](https://www.w3.org/TR/activitypub/)
 - **Fediverse-ready** — Full ActivityPub federation with other servers
 - **Mastodon API compatible** — Use your favorite Mastodon client apps
 - **OAuth 2.0 provider** — Acts as a full OAuth 2.0 / OpenID Connect server
-- **Multiple databases** — SQLite and PostgreSQL, with MySQL-compatible Knex configuration paths
-- **Flexible storage** — Local filesystem, AWS S3, or any S3-compatible object storage
+- **Database options** — SQLite and PostgreSQL, with MySQL-compatible Knex configuration paths for advanced deployments
+- **Media and fitness storage** — Store image/video media and fitness files on the local filesystem, AWS S3, or S3-compatible object storage
 - **Fitness tracking** — Upload .fit, .gpx, and .tcx activity files with route maps, stats, heatmaps, and Strava imports
 - **Docker-ready** — Official Docker image available at `ghcr.io/llun/activities.next`
 
@@ -23,32 +23,24 @@ See the full [Feature Roadmap](docs/features.md) for current and planned feature
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                      Clients                             │
-│  (Web Browser, Mastodon Apps, ActivityPub Servers)        │
-└──────────────┬───────────────────────────┬───────────────┘
-               │                           │
-               ▼                           ▼
-┌──────────────────────┐    ┌──────────────────────────────┐
-│   Next.js Frontend   │    │       API Routes             │
-│   (React + SSR)      │    │  /api/v1/* (Mastodon API)    │
-│                      │    │  /api/users/* (ActivityPub)   │
-│                      │    │  /api/auth/* (better-auth)    │
-│                      │    │  /api/oauth/* (OAuth 2.0)     │
-└──────────┬───────────┘    └──────────────┬───────────────┘
-           │                               │
-           └──────────┬────────────────────┘
-                      ▼
-         ┌────────────────────────┐
-         │   Services & Jobs      │
-         │  (Business Logic)      │
-         └────────────┬───────────┘
-                      │
-       ┌──────────────┼──────────────┐
-       ▼              ▼              ▼
-┌─────────────────┐ ┌────────────┐ ┌────────────┐
-│    Database     │ │   Storage  │ │   Queue    │
-│ SQLite/PG/MySQL │ │ Local/S3   │ │QStash/Sync │
-└─────────────────┘ └────────────┘ └────────────┘
+│ Client Layer                                             │
+│ Web browser, Mastodon apps, ActivityPub servers          │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ Next.js App Router (app/)                                │
+│ Pages/SSR, Mastodon API, ActivityPub, auth, OAuth routes │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ Core Services (lib/)                                     │
+│ Auth, media, fitness, federation, delivery, imports      │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ Infrastructure                                           │
+│ SQLite/PostgreSQL, local/S3 storage, QStash/sync jobs    │
+└──────────────────────────────────────────────────────────┘
 ```
 
 For a more detailed architecture overview, see [docs/architecture.md](docs/architecture.md).

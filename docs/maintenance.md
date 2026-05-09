@@ -143,6 +143,7 @@ NODE_ENV=production ./scripts/fixStuckFitnessProcessing.ts --actor-id https://yo
 NODE_ENV=production ./scripts/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/cleanupLegacyFitnessHeatmaps.ts
 NODE_ENV=production ./scripts/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/retrigerStravaActivities.ts --actor-id https://your-domain.tld/users/username --activity-id 123456789
 NODE_ENV=production ./scripts/listStravaWebhooks.ts @username@your-domain.tld
 ```
 
@@ -152,6 +153,13 @@ For local archive or one-off activity imports, see the `--help` output from:
 ./scripts/importStravaArchive.ts --help
 ./scripts/resumeStravaProcessing.ts --help
 ./scripts/runImportStravaActivity.ts --help
+```
+
+Additional utility scripts:
+
+```bash
+NODE_ENV=production ./scripts/fixAttachmentUrls.ts --dry-run
+NODE_ENV=development ./scripts/createMockStatuses.ts
 ```
 
 ## Related Documentation

@@ -41,7 +41,7 @@ This document tracks the implemented and planned features for Activity.next.
 ### Storage & Media
 
 - ✅ **SQL database support** — SQLite and PostgreSQL, with MySQL-compatible Knex configuration paths
-- ✅ **Media upload** — Upload images, video, and audio to local filesystem, S3, or S3-compatible object storage
+- ✅ **Media upload** — Upload images and video to local filesystem, S3, or S3-compatible object storage
 - ✅ **Media management** — Browse, view, and delete uploaded media from the settings page with storage usage display
 - ✅ **Profile media gallery** — Browse a user's public media posts from profile tabs
 - ✅ **Fitness file storage** — Upload .fit, .gpx, and .tcx activity files
