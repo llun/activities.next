@@ -1,3 +1,4 @@
+import { Activity } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
@@ -21,18 +22,26 @@ export const ActivityImportNotification: FC<Props> = ({
   const statusUrl = getNotificationStatusPath(status)
 
   return (
-    <div className="min-w-0">
-      <p className="text-sm">
-        {hasMultiple
-          ? 'Your fitness activities were imported.'
-          : 'Your fitness activity was imported.'}{' '}
-        <Link href={statusUrl} className="text-primary hover:underline">
-          {hasMultiple ? 'View latest activity' : 'View activity'}
-        </Link>
-      </p>
-      <div className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-        <div className="line-clamp-2 [&_p]:inline [&_br]:hidden">
-          {cleanClassName(processStatusText(host, status))}
+    <div className="flex items-start gap-4">
+      <div
+        aria-hidden="true"
+        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+      >
+        <Activity className="size-5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm">
+          {hasMultiple
+            ? 'Your fitness activities were imported.'
+            : 'Your fitness activity was imported.'}{' '}
+          <Link href={statusUrl} className="text-primary hover:underline">
+            {hasMultiple ? 'View latest activity' : 'View activity'}
+          </Link>
+        </p>
+        <div className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+          <div className="line-clamp-2 [&_p]:inline [&_br]:hidden">
+            {cleanClassName(processStatusText(host, status))}
+          </div>
         </div>
       </div>
     </div>

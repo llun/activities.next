@@ -49,6 +49,8 @@ const renderUnavailableStatusNotification = (notificationType: string) => {
   return renderUnavailableNotification('This post is no longer available.')
 }
 
+const assertNever = (_value: never) => {}
+
 export const NotificationItem = ({
   notification,
   currentActorId,
@@ -114,6 +116,7 @@ export const NotificationItem = ({
       case 'activity_import':
         return renderStatusNotification(ActivityImportNotification)
       default:
+        assertNever(notificationWithAccount.type)
         return renderUnavailableNotification(
           'This notification is no longer available.'
         )

@@ -143,6 +143,11 @@ describe('NotificationItem', () => {
     container.querySelectorAll('a').forEach((link) => {
       expect(link.querySelector('a')).toBeNull()
     })
+    const activityImportRow = container.querySelector('.flex.items-start.gap-4')
+    expect(activityImportRow).toBeInTheDocument()
+    expect(
+      activityImportRow?.querySelector('[aria-hidden="true"]')
+    ).toHaveClass('size-12', 'shrink-0')
     expect(container.querySelector('img')).toBeNull()
   })
 
