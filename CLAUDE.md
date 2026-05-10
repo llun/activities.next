@@ -14,8 +14,6 @@ Follow `AGENTS.md` for all project rules. If an `AGENTS.override.md` file is pre
   4. `yarn test`
 - Start the local dev server with `yarn dev` unless a checkout-specific override says otherwise. The package script binds Next.js to `0.0.0.0`, so only run it on trusted local networks.
 - Use the browser to verify any UI changes.
-- Login: username `llun` / email `llun@activities.local` / password `1password;` at https://activities.local
-- ActivityPub peer account: `null@llun.dev` at https://mastodon.local
 - Do **not** create test users.
 - Activity logs: `fediverse_local-activitynext-dev-1` container; DB: `postgres` container.
 - For major changes: commit → push → open PR to `main`.
