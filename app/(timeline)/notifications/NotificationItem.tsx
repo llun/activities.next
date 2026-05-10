@@ -1,34 +1,55 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { type ComponentType, useEffect, useRef } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
-import { Status } from '@/lib/types/domain/status'
+import {
+  type NotificationWithAccount,
+  type NotificationWithStatus,
+  hasStatusActor
+} from '@/app/(timeline)/notifications/types'
+import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import type { Mastodon } from '@/lib/types/activitypub'
+import type { Status } from '@/lib/types/domain/status'
 
+import { ActivityImportNotification } from './components/ActivityImportNotification'
 import { FollowNotification } from './components/FollowNotification'
 import { FollowRequestNotification } from './components/FollowRequestNotification'
 import { LikeNotification } from './components/LikeNotification'
 import { MentionNotification } from './components/MentionNotification'
+import { ReblogNotification } from './components/ReblogNotification'
 import { ReplyNotification } from './components/ReplyNotification'
-
-interface NotificationWithData extends GroupedNotification {
-  account: Mastodon.Account
-  status?: Status
-  groupedAccounts?: (Mastodon.Account | null)[] | null
-}
 
 interface Props {
   notification: GroupedNotification & {
     account: Mastodon.Account | null
     status?: Status | null
-    groupedAccounts?: (Mastodon.Account | null)[] | null
   }
   currentActorId: string
   host: string
   isRead: boolean
   observeElement: (element: HTMLElement | null) => void
 }
+
+type StatusNotificationComponent = ComponentType<{
+  host: string
+  notification: NotificationWithStatus
+}>
+
+const renderUnavailableNotification = (message: string) => (
+  <div className="text-sm text-muted-foreground">{message}</div>
+)
+
+const renderUnavailableStatusNotification = (notificationType: string) => {
+  if (notificationType === 'activity_import') {
+    return renderUnavailableNotification(
+      'This imported activity is no longer available.'
+    )
+  }
+
+  return renderUnavailableNotification('This post is no longer available.')
+}
+
+const assertNever = (_value: never) => {}
 
 export const NotificationItem = ({
   notification,
@@ -45,18 +66,35 @@ export const NotificationItem = ({
     }
   }, [observeElement, isRead])
 
-  if (!notification.account) {
-    return null
-  }
-
-  // After null check, we know account is non-null
-  const notificationWithAccount: NotificationWithData = {
-    ...notification,
-    account: notification.account,
-    status: notification.status ?? undefined
-  }
-
   const renderNotification = () => {
+    if (!notification.account) {
+      return renderUnavailableNotification(
+        'This notification is no longer available.'
+      )
+    }
+
+    const notificationWithAccount: NotificationWithAccount = {
+      ...notification,
+      account: notification.account,
+      status: notification.status ?? null
+    }
+
+    const notificationWithStatus = hasStatusActor(notificationWithAccount)
+      ? notificationWithAccount
+      : null
+
+    const renderStatusNotification = (
+      StatusNotification: StatusNotificationComponent
+    ) => {
+      if (!notificationWithStatus) {
+        return renderUnavailableStatusNotification(notificationWithAccount.type)
+      }
+
+      return (
+        <StatusNotification host={host} notification={notificationWithStatus} />
+      )
+    }
+
     switch (notificationWithAccount.type) {
       case 'follow_request':
         return (
@@ -68,43 +106,24 @@ export const NotificationItem = ({
       case 'follow':
         return <FollowNotification notification={notificationWithAccount} />
       case 'like':
-        // Status-requiring notifications - type assertion for compatibility
-        return (
-          <LikeNotification
-            host={host}
-            notification={
-              notificationWithAccount as NotificationWithData & {
-                status: Status
-              }
-            }
-          />
-        )
+        return renderStatusNotification(LikeNotification)
       case 'reply':
-        return (
-          <ReplyNotification
-            host={host}
-            notification={
-              notificationWithAccount as NotificationWithData & {
-                status: Status
-              }
-            }
-          />
-        )
+        return renderStatusNotification(ReplyNotification)
       case 'mention':
-        return (
-          <MentionNotification
-            host={host}
-            notification={
-              notificationWithAccount as NotificationWithData & {
-                status: Status
-              }
-            }
-          />
-        )
+        return renderStatusNotification(MentionNotification)
+      case 'reblog':
+        return renderStatusNotification(ReblogNotification)
+      case 'activity_import':
+        return renderStatusNotification(ActivityImportNotification)
       default:
-        return null
+        assertNever(notificationWithAccount.type)
+        return renderUnavailableNotification(
+          'This notification is no longer available.'
+        )
     }
   }
+
+  const content = renderNotification()
 
   return (
     <div
@@ -119,7 +138,7 @@ export const NotificationItem = ({
           aria-label="Unread"
         />
       )}
-      {renderNotification()}
+      {content}
     </div>
   )
 }

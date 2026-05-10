@@ -68,38 +68,13 @@ const Page = async ({ searchParams }: Props) => {
         })
       }
 
-      let groupedAccounts = null
-      if (notification.groupedActors && notification.groupedActors.length > 1) {
-        groupedAccounts = (
-          await Promise.all(
-            notification.groupedActors
-              .slice(0, 3)
-              .map((actorId) =>
-                database.getMastodonActorFromId({ id: actorId })
-              )
-          )
-        ).filter(Boolean)
-      }
-
       return {
         ...notification,
         account,
-        status,
-        groupedAccounts
+        status
       }
     })
   )
-
-  const filteredNotifications = notificationsWithData.filter((notification) => {
-    if (!notification.account) return false
-    if (
-      ['like', 'reply', 'mention'].includes(notification.type) &&
-      (!notification.status || !notification.status.actor)
-    ) {
-      return false
-    }
-    return true
-  })
 
   return (
     <div className="space-y-6">
@@ -107,14 +82,14 @@ const Page = async ({ searchParams }: Props) => {
         <h1 className="text-2xl font-semibold">Notifications</h1>
       </div>
 
-      {filteredNotifications.length === 0 ? (
+      {notificationsWithData.length === 0 ? (
         <div className="rounded-xl border bg-background/80 p-8 text-center text-muted-foreground">
           No notifications yet
         </div>
       ) : (
         <>
           <NotificationsList
-            notifications={filteredNotifications}
+            notifications={notificationsWithData}
             currentActorId={actor.id}
             host={host}
           />

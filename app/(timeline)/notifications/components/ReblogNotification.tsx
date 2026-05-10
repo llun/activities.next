@@ -12,7 +12,7 @@ interface Props {
   notification: NotificationWithStatus
 }
 
-export const MentionNotification: FC<Props> = ({ host, notification }) => {
+export const ReblogNotification: FC<Props> = ({ host, notification }) => {
   const { account, status, groupedCount } = notification
 
   const hasMultiple = groupedCount && groupedCount > 1
@@ -40,7 +40,7 @@ export const MentionNotification: FC<Props> = ({ host, notification }) => {
               {account.display_name || account.username}
             </Link>
             {groupedCount > 2 && ` and ${groupedCount - 1} others`}
-            {groupedCount === 2 && ' and 1 other'} mentioned you in a{' '}
+            {groupedCount === 2 && ' and 1 other'} reblogged your{' '}
             <Link href={statusUrl} className="text-primary hover:underline">
               post
             </Link>
@@ -53,7 +53,7 @@ export const MentionNotification: FC<Props> = ({ host, notification }) => {
             >
               {account.display_name || account.username}
             </Link>{' '}
-            mentioned you in a{' '}
+            reblogged your{' '}
             <Link href={statusUrl} className="text-primary hover:underline">
               post
             </Link>
