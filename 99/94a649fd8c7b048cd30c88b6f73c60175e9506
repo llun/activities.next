@@ -1,0 +1,21 @@
+app/(timeline)/notifications/types.ts
+  s_b362db93d911c1::t_f502c75297fca5 7-8
+app/(timeline)/notifications/NotificationItem.tsx
+  s_b362db93d911c1::t_f502c75297fca5 72-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "9994a649fd8c7b048cd30c88b6f73c60175e9506",
+  "prompts": {},
+  "sessions": {
+    "s_b362db93d911c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e12b3-9cbd-7450-9de2-d1f8dd4315a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
