@@ -33,7 +33,9 @@ import {
   parseDownloadArgs,
   parseEnvFile,
   parseRestoreArgs,
+  readJsonLines,
   sortTablesForRestore,
+  stringifyJsonColumnValues,
   truncateTables,
   validateTarArchivePaths
 } from './productionArchive'
@@ -101,6 +103,57 @@ describe('production archive scripts', () => {
         preserveFiles: true,
         safeStorageRoot: '.',
         yes: true
+      })
+    })
+  })
+
+  describe('readJsonLines', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'json-lines-test-'))
+    })
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { force: true, recursive: true })
+    })
+
+    it('does not split JSON rows on Unicode line separators inside strings', async () => {
+      const lineSeparator = String.fromCharCode(0x2028)
+      const filePath = path.join(tempDir, 'rows.jsonl')
+      const rows = [
+        { id: 'one', summary: `hello${lineSeparator}world` },
+        { id: 'two', summary: 'next row' }
+      ]
+
+      await fs.writeFile(
+        filePath,
+        rows.map((row) => JSON.stringify(row)).join('\n') + '\n'
+      )
+
+      await expect(Array.fromAsync(readJsonLines(filePath))).resolves.toEqual(
+        rows
+      )
+    })
+  })
+
+  describe('stringifyJsonColumnValues', () => {
+    it('stringifies values for JSON columns before pg insertion', () => {
+      expect(
+        stringifyJsonColumnValues(
+          {
+            code: 'abc',
+            metadata: { nested: true },
+            scopes: ['read', 'write'],
+            textValue: 'plain'
+          },
+          new Set(['metadata', 'scopes', 'textValue'])
+        )
+      ).toEqual({
+        code: 'abc',
+        metadata: '{"nested":true}',
+        scopes: '["read","write"]',
+        textValue: '"plain"'
       })
     })
   })

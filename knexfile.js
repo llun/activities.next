@@ -5,6 +5,16 @@ dotenvFlow.config()
 const isSQLiteClient = (client) =>
   client === 'better-sqlite3' || client === 'sqlite3'
 
+const getPostgresSslConfig = () => {
+  const sslMode = process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
+  if (!sslMode || sslMode === 'disable') return null
+
+  return {
+    rejectUnauthorized: sslMode === 'verify-ca' || sslMode === 'verify-full',
+    ...(sslMode === 'verify-ca' ? { checkServerIdentity: () => undefined } : {})
+  }
+}
+
 const DEFAULT_DEV_DATABASE = {
   client: 'better-sqlite3',
   useNullAsDefault: true,
@@ -48,11 +58,7 @@ const getDatabaseConfig = () => {
           process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE ||
           process.env.ACTIVITIES_DATABASE,
         filename: process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME,
-        ssl: process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
-          ? {
-              rejectUnauthorized: false
-            }
-          : null
+        ssl: getPostgresSslConfig()
       }
     }
   }
@@ -61,7 +67,8 @@ const getDatabaseConfig = () => {
 
 const config = {
   development: getDatabaseConfig(),
-  production: getDatabaseConfig()
+  production: getDatabaseConfig(),
+  staging: getDatabaseConfig()
 }
 
 export default config

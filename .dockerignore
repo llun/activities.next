@@ -1,9 +1,17 @@
 node_modules
 .yarn
+.next
+backups
+data
+coverage
+*.tsbuildinfo
 
 # misc
 .DS_Store
 *.pem
+.claude
+.gemini
+.playwright-mcp
 .idea
 uploads
 scripts
@@ -15,10 +23,15 @@ wallaby.js
 *.log
 
 # local env files
-.env*.local
+.env
+.env.*
+!.env.example
 
 # database
+*.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 
 # shared configuration
 config.json

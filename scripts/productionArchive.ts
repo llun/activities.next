@@ -1842,16 +1842,70 @@ export const assertArchiveTableFilesReadable = async (
   }
 }
 
+export const readJsonLines = async function* (
+  filePath: string
+): AsyncGenerator<Record<string, unknown>> {
+  const input = createReadStream(filePath, { encoding: 'utf-8' })
+  let buffer = ''
+
+  for await (const chunk of input) {
+    buffer += chunk
+
+    let newlineIndex = buffer.indexOf('\n')
+    while (newlineIndex !== -1) {
+      let line = buffer.slice(0, newlineIndex)
+      if (line.endsWith('\r')) line = line.slice(0, -1)
+      if (line.trim()) yield JSON.parse(line)
+
+      buffer = buffer.slice(newlineIndex + 1)
+      newlineIndex = buffer.indexOf('\n')
+    }
+  }
+
+  if (buffer.length > 0) {
+    if (buffer.endsWith('\r')) buffer = buffer.slice(0, -1)
+    if (buffer.trim()) yield JSON.parse(buffer)
+  }
+}
+
+export const stringifyJsonColumnValues = (
+  row: Record<string, unknown>,
+  jsonColumns: Set<string>
+) => {
+  if (jsonColumns.size === 0) return row
+
+  const normalized = { ...row }
+  for (const column of jsonColumns) {
+    if (!(column in normalized) || normalized[column] === null) continue
+    normalized[column] = JSON.stringify(normalized[column])
+  }
+  return normalized
+}
+
+const getJsonColumnNames = async (database: Knex, tableName: string) => {
+  const client = getKnexClientName(database)
+  if (client !== 'pg' && client !== 'pg-native') return new Set<string>()
+
+  const result = await database.raw(
+    `
+    select column_name as name
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = ?
+      and data_type in ('json', 'jsonb')
+    `,
+    [tableName]
+  )
+
+  return new Set(getQueryRows<{ name: string }>(result).map((row) => row.name))
+}
+
 const restoreTableFromJsonLines = async (
   database: Knex,
   tableName: string,
   tableFilePath: string
 ) => {
-  const input = createReadStream(tableFilePath, { encoding: 'utf-8' })
-  const lines = createInterface({
-    crlfDelay: Infinity,
-    input
-  })
+  const jsonColumns = await getJsonColumnNames(database, tableName)
   let batch: Record<string, unknown>[] = []
   let batchSize = INSERT_BATCH_SIZE
   let rowCount = 0
@@ -1864,28 +1918,21 @@ const restoreTableFromJsonLines = async (
     batchSize = INSERT_BATCH_SIZE
   }
 
-  try {
-    for await (const line of lines) {
-      if (!line.trim()) continue
-
-      const row = JSON.parse(line) as Record<string, unknown>
-      const rowBatchSize = getRestoreInsertBatchSize(database, row)
-      if (batch.length > 0 && batch.length >= rowBatchSize) {
-        await flushBatch()
-      }
-
-      batchSize = Math.min(batchSize, rowBatchSize)
-      batch.push(row)
-      if (batch.length >= batchSize) {
-        await flushBatch()
-      }
+  for await (const row of readJsonLines(tableFilePath)) {
+    const normalizedRow = stringifyJsonColumnValues(row, jsonColumns)
+    const rowBatchSize = getRestoreInsertBatchSize(database, normalizedRow)
+    if (batch.length > 0 && batch.length >= rowBatchSize) {
+      await flushBatch()
     }
 
-    await flushBatch()
-  } finally {
-    lines.close()
-    input.destroy()
+    batchSize = Math.min(batchSize, rowBatchSize)
+    batch.push(normalizedRow)
+    if (batch.length >= batchSize) {
+      await flushBatch()
+    }
   }
+
+  await flushBatch()
 
   return rowCount
 }
