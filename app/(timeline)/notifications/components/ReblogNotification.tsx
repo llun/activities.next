@@ -2,35 +2,21 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
-import { getMention } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
-import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { getNotificationStatusPath } from '@/app/(timeline)/notifications/getNotificationStatusPath'
+import type { NotificationWithStatus } from '@/app/(timeline)/notifications/types'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
-type StatusWithActor = Status & { actor: NonNullable<Status['actor']> }
-
-interface NotificationWithData extends GroupedNotification {
-  account: Mastodon.Account
-  status: StatusWithActor
-  groupedAccounts?: (Mastodon.Account | null)[] | null
-}
-
 interface Props {
   host: string
-  notification: NotificationWithData
+  notification: NotificationWithStatus
 }
 
 export const ReblogNotification: FC<Props> = ({ host, notification }) => {
   const { account, status, groupedCount } = notification
 
   const hasMultiple = groupedCount && groupedCount > 1
-
-  const statusUrl =
-    getStatusDetailPath(status) ??
-    `/${getMention(status.actor, true)}/${encodeURIComponent(status.id)}`
+  const statusUrl = getNotificationStatusPath(status)
 
   return (
     <div className="flex items-start gap-4">

@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from 'react'
 
+import {
+  type NotificationWithAccount,
+  hasStatusActor
+} from '@/app/(timeline)/notifications/types'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Status } from '@/lib/types/domain/status'
@@ -13,18 +17,6 @@ import { LikeNotification } from './components/LikeNotification'
 import { MentionNotification } from './components/MentionNotification'
 import { ReblogNotification } from './components/ReblogNotification'
 import { ReplyNotification } from './components/ReplyNotification'
-
-interface NotificationWithData extends GroupedNotification {
-  account: Mastodon.Account
-  status?: Status
-  groupedAccounts?: (Mastodon.Account | null)[] | null
-}
-
-type StatusWithActor = Status & { actor: NonNullable<Status['actor']> }
-
-type NotificationWithStatus = NotificationWithData & {
-  status: StatusWithActor
-}
 
 interface Props {
   notification: GroupedNotification & {
@@ -74,14 +66,14 @@ export const NotificationItem = ({
       )
     }
 
-    const notificationWithAccount: NotificationWithData = {
+    const notificationWithAccount: NotificationWithAccount = {
       ...notification,
       account: notification.account,
       status: notification.status ?? undefined
     }
 
-    const notificationWithStatus = notificationWithAccount.status?.actor
-      ? (notificationWithAccount as NotificationWithStatus)
+    const notificationWithStatus = hasStatusActor(notificationWithAccount)
+      ? notificationWithAccount
       : null
 
     switch (notificationWithAccount.type) {

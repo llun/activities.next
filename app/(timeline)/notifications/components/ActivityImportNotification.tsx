@@ -2,24 +2,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
-import { getMention } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
-import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { getNotificationStatusPath } from '@/app/(timeline)/notifications/getNotificationStatusPath'
+import type { NotificationWithStatus } from '@/app/(timeline)/notifications/types'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
-type StatusWithActor = Status & { actor: NonNullable<Status['actor']> }
-
-interface NotificationWithData extends GroupedNotification {
-  account: Mastodon.Account
-  status: StatusWithActor
-}
-
 interface Props {
   host: string
-  notification: NotificationWithData
+  notification: NotificationWithStatus
 }
 
 export const ActivityImportNotification: FC<Props> = ({
@@ -29,12 +19,7 @@ export const ActivityImportNotification: FC<Props> = ({
   const { account, status } = notification
 
   const hasMultiple = notification.groupedCount && notification.groupedCount > 1
-  // activity_import is currently emitted only by the Strava importer.
-  const serviceLabel = 'Strava'
-
-  const statusUrl =
-    getStatusDetailPath(status) ??
-    `/${getMention(status.actor, true)}/${encodeURIComponent(status.id)}`
+  const statusUrl = getNotificationStatusPath(status)
 
   return (
     <div className="flex items-start gap-4">
@@ -51,8 +36,8 @@ export const ActivityImportNotification: FC<Props> = ({
       <div className="flex-1 min-w-0">
         <p className="text-sm">
           {hasMultiple
-            ? `Your ${serviceLabel} fitness activities were imported.`
-            : `Your ${serviceLabel} fitness activity was imported.`}{' '}
+            ? 'Your fitness activities were imported.'
+            : 'Your fitness activity was imported.'}{' '}
           <Link href={statusUrl} className="text-primary hover:underline">
             {hasMultiple ? 'View latest activity' : 'View activity'}
           </Link>

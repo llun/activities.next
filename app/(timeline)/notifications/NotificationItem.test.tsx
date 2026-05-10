@@ -85,13 +85,24 @@ const status: StatusNote = {
 }
 
 const renderNotificationItem = (notification: NotificationItemNotification) => {
+  return renderNotificationItemWithOptions(notification)
+}
+
+const renderNotificationItemWithOptions = (
+  notification: NotificationItemNotification,
+  options: {
+    currentActorId?: string
+    isRead?: boolean
+    observeElement?: (element: HTMLElement | null) => void
+  } = {}
+) => {
   return render(
     <NotificationItem
       notification={notification}
-      currentActorId={notification.actorId}
+      currentActorId={options.currentActorId ?? notification.actorId}
       host="llun.social"
-      isRead={true}
-      observeElement={jest.fn()}
+      isRead={options.isRead ?? true}
+      observeElement={options.observeElement ?? jest.fn()}
     />
   )
 }
@@ -112,7 +123,7 @@ describe('NotificationItem', () => {
     })
 
     expect(
-      screen.getByText(/Your Strava fitness activity was imported/)
+      screen.getByText(/Your fitness activity was imported/)
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'View activity' })).toHaveAttribute(
       'href',
@@ -145,7 +156,7 @@ describe('NotificationItem', () => {
     })
 
     expect(
-      screen.getByText(/Your Strava fitness activities were imported/)
+      screen.getByText(/Your fitness activities were imported/)
     ).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: 'View latest activity' })
@@ -178,11 +189,37 @@ describe('NotificationItem', () => {
     expect(screen.getByText(/Morning Ride/)).toBeInTheDocument()
   })
 
-  it('renders grouped reblog notifications without grouped account data', () => {
+  it.each([
+    ['like', /and 2 others liked your/],
+    ['reply', /and 2 others replied to your/],
+    ['mention', /and 2 others mentioned you in a/],
+    ['reblog', /and 2 others reblogged your/]
+  ] as const)(
+    'renders grouped %s notifications without grouped account data',
+    (type, expectedText) => {
+      renderNotificationItem({
+        id: `notification-${type}`,
+        actorId: 'https://llun.social/users/llun',
+        type,
+        sourceActorId: account.id,
+        statusId: status.id,
+        isRead: true,
+        createdAt: currentTime,
+        updatedAt: currentTime,
+        account,
+        status,
+        groupedCount: 3
+      })
+
+      expect(screen.getByText(expectedText)).toBeInTheDocument()
+    }
+  )
+
+  it('renders grouped activity import notifications with generic import copy', () => {
     renderNotificationItem({
-      id: 'notification-2',
-      actorId: 'https://llun.social/users/llun',
-      type: 'reblog',
+      id: 'notification-activity-import',
+      actorId: account.id,
+      type: 'activity_import',
       sourceActorId: account.id,
       statusId: status.id,
       isRead: true,
@@ -193,10 +230,12 @@ describe('NotificationItem', () => {
       groupedCount: 3
     })
 
-    expect(screen.getByText(/and 2 others reblogged your/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Your fitness activities were imported/)
+    ).toBeInTheDocument()
   })
 
-  it('renders stale status-backed notifications so they can be marked read', () => {
+  it('renders unavailable copy for stale activity import notifications', () => {
     renderNotificationItem({
       id: 'notification-3',
       actorId: account.id,
@@ -213,6 +252,38 @@ describe('NotificationItem', () => {
     expect(
       screen.getByText('This imported activity is no longer available.')
     ).toBeInTheDocument()
+  })
+
+  it('observes unread stale status-backed notifications so they can be marked read', () => {
+    const observeElement = jest.fn()
+
+    renderNotificationItemWithOptions(
+      {
+        id: 'notification-unread-stale',
+        actorId: account.id,
+        type: 'activity_import',
+        sourceActorId: account.id,
+        statusId: status.id,
+        isRead: false,
+        createdAt: currentTime,
+        updatedAt: currentTime,
+        account,
+        status: null
+      },
+      {
+        isRead: false,
+        observeElement
+      }
+    )
+
+    expect(
+      screen.getByText('This imported activity is no longer available.')
+    ).toBeInTheDocument()
+    expect(observeElement).toHaveBeenCalledTimes(1)
+    expect(observeElement.mock.calls[0][0]).toHaveAttribute(
+      'data-notification-id',
+      'notification-unread-stale'
+    )
   })
 
   it.each(['like', 'reply'] as const)(
