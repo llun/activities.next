@@ -3,16 +3,15 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
-import { Status } from '@/lib/types/domain/status'
+import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import type { Mastodon } from '@/lib/types/activitypub'
+import type { Status } from '@/lib/types/domain/status'
 
 import { NotificationItem } from './NotificationItem'
 
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account | null
   status?: Status | null
-  groupedAccounts?: (Mastodon.Account | null)[] | null
 }
 
 interface Props {

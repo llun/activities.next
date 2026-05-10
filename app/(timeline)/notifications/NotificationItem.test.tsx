@@ -47,6 +47,12 @@ const account: Mastodon.Account = {
   following_count: 0
 }
 
+const accountWithAvatar: Mastodon.Account = {
+  ...account,
+  avatar: 'https://llun.social/avatar.png',
+  avatar_static: 'https://llun.social/avatar.png'
+}
+
 const status: StatusNote = {
   id: 'https://llun.social/users/ride/statuses/activity-1',
   actorId: 'https://llun.social/users/ride',
@@ -118,7 +124,7 @@ describe('NotificationItem', () => {
       isRead: true,
       createdAt: currentTime,
       updatedAt: currentTime,
-      account,
+      account: accountWithAvatar,
       status
     })
 
@@ -137,6 +143,7 @@ describe('NotificationItem', () => {
     container.querySelectorAll('a').forEach((link) => {
       expect(link.querySelector('a')).toBeNull()
     })
+    expect(container.querySelector('img')).toBeNull()
   })
 
   it('renders grouped activity import notifications as multiple imports', () => {
@@ -215,6 +222,24 @@ describe('NotificationItem', () => {
     }
   )
 
+  it('renders grouped follow notifications without grouped account data', () => {
+    renderNotificationItem({
+      id: 'notification-follow',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow',
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account,
+      groupedCount: 3
+    })
+
+    expect(
+      screen.getByText(/and 2 others started following you/)
+    ).toBeInTheDocument()
+  })
+
   it('renders grouped activity import notifications with generic import copy', () => {
     renderNotificationItem({
       id: 'notification-activity-import',
@@ -235,24 +260,31 @@ describe('NotificationItem', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders unavailable copy for stale activity import notifications', () => {
-    renderNotificationItem({
-      id: 'notification-3',
-      actorId: account.id,
-      type: 'activity_import',
-      sourceActorId: account.id,
-      statusId: status.id,
-      isRead: true,
-      createdAt: currentTime,
-      updatedAt: currentTime,
-      account,
-      status: null
-    })
+  it.each([
+    ['activity_import', 'This imported activity is no longer available.'],
+    ['like', 'This post is no longer available.'],
+    ['reply', 'This post is no longer available.'],
+    ['mention', 'This post is no longer available.'],
+    ['reblog', 'This post is no longer available.']
+  ] as const)(
+    'renders unavailable status text for stale %s notifications',
+    (type, expectedText) => {
+      renderNotificationItem({
+        id: `notification-stale-${type}`,
+        actorId: account.id,
+        type,
+        sourceActorId: account.id,
+        statusId: status.id,
+        isRead: true,
+        createdAt: currentTime,
+        updatedAt: currentTime,
+        account,
+        status: null
+      })
 
-    expect(
-      screen.getByText('This imported activity is no longer available.')
-    ).toBeInTheDocument()
-  })
+      expect(screen.getByText(expectedText)).toBeInTheDocument()
+    }
+  )
 
   it('observes unread stale status-backed notifications so they can be marked read', () => {
     const observeElement = jest.fn()
@@ -307,47 +339,6 @@ describe('NotificationItem', () => {
       ).toBeInTheDocument()
     }
   )
-
-  it.each(['like', 'reply'] as const)(
-    'renders unavailable post text for %s notifications with missing statuses',
-    (type) => {
-      renderNotificationItem({
-        id: `notification-${type}`,
-        actorId: account.id,
-        type,
-        sourceActorId: account.id,
-        statusId: status.id,
-        isRead: true,
-        createdAt: currentTime,
-        updatedAt: currentTime,
-        account,
-        status: null
-      })
-
-      expect(
-        screen.getByText('This post is no longer available.')
-      ).toBeInTheDocument()
-    }
-  )
-
-  it('renders unavailable post text for reblog notifications with missing statuses', () => {
-    renderNotificationItem({
-      id: 'notification-reblog',
-      actorId: account.id,
-      type: 'reblog',
-      sourceActorId: account.id,
-      statusId: status.id,
-      isRead: true,
-      createdAt: currentTime,
-      updatedAt: currentTime,
-      account,
-      status: null
-    })
-
-    expect(
-      screen.getByText('This post is no longer available.')
-    ).toBeInTheDocument()
-  })
 
   it('renders unavailable notification text for unknown notification types', () => {
     renderNotificationItem({

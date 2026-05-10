@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { type ComponentType, useEffect, useRef } from 'react'
 
 import {
   type NotificationWithAccount,
+  type NotificationWithStatus,
   hasStatusActor
 } from '@/app/(timeline)/notifications/types'
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
-import { Status } from '@/lib/types/domain/status'
+import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import type { Mastodon } from '@/lib/types/activitypub'
+import type { Status } from '@/lib/types/domain/status'
 
 import { ActivityImportNotification } from './components/ActivityImportNotification'
 import { FollowNotification } from './components/FollowNotification'
@@ -22,13 +23,17 @@ interface Props {
   notification: GroupedNotification & {
     account: Mastodon.Account | null
     status?: Status | null
-    groupedAccounts?: (Mastodon.Account | null)[] | null
   }
   currentActorId: string
   host: string
   isRead: boolean
   observeElement: (element: HTMLElement | null) => void
 }
+
+type StatusNotificationComponent = ComponentType<{
+  host: string
+  notification: NotificationWithStatus
+}>
 
 const renderUnavailableNotification = (message: string) => (
   <div className="text-sm text-muted-foreground">{message}</div>
@@ -69,13 +74,24 @@ export const NotificationItem = ({
     const notificationWithAccount: NotificationWithAccount = {
       ...notification,
       account: notification.account,
-      status: notification.status ?? null,
-      groupedAccounts: notification.groupedAccounts ?? null
+      status: notification.status ?? null
     }
 
     const notificationWithStatus = hasStatusActor(notificationWithAccount)
       ? notificationWithAccount
       : null
+
+    const renderStatusNotification = (
+      StatusNotification: StatusNotificationComponent
+    ) => {
+      if (!notificationWithStatus) {
+        return renderUnavailableStatusNotification(notificationWithAccount.type)
+      }
+
+      return (
+        <StatusNotification host={host} notification={notificationWithStatus} />
+      )
+    }
 
     switch (notificationWithAccount.type) {
       case 'follow_request':
@@ -88,52 +104,15 @@ export const NotificationItem = ({
       case 'follow':
         return <FollowNotification notification={notificationWithAccount} />
       case 'like':
-        if (!notificationWithStatus)
-          return renderUnavailableStatusNotification(notification.type)
-
-        return (
-          <LikeNotification host={host} notification={notificationWithStatus} />
-        )
+        return renderStatusNotification(LikeNotification)
       case 'reply':
-        if (!notificationWithStatus)
-          return renderUnavailableStatusNotification(notification.type)
-
-        return (
-          <ReplyNotification
-            host={host}
-            notification={notificationWithStatus}
-          />
-        )
+        return renderStatusNotification(ReplyNotification)
       case 'mention':
-        if (!notificationWithStatus)
-          return renderUnavailableStatusNotification(notification.type)
-
-        return (
-          <MentionNotification
-            host={host}
-            notification={notificationWithStatus}
-          />
-        )
+        return renderStatusNotification(MentionNotification)
       case 'reblog':
-        if (!notificationWithStatus)
-          return renderUnavailableStatusNotification(notification.type)
-
-        return (
-          <ReblogNotification
-            host={host}
-            notification={notificationWithStatus}
-          />
-        )
+        return renderStatusNotification(ReblogNotification)
       case 'activity_import':
-        if (!notificationWithStatus)
-          return renderUnavailableStatusNotification(notification.type)
-
-        return (
-          <ActivityImportNotification
-            host={host}
-            notification={notificationWithStatus}
-          />
-        )
+        return renderStatusNotification(ActivityImportNotification)
       default:
         return renderUnavailableNotification(
           'This notification is no longer available.'

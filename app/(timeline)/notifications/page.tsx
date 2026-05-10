@@ -68,24 +68,10 @@ const Page = async ({ searchParams }: Props) => {
         })
       }
 
-      let groupedAccounts = null
-      if (notification.groupedActors && notification.groupedActors.length > 1) {
-        groupedAccounts = (
-          await Promise.all(
-            notification.groupedActors
-              .slice(0, 3)
-              .map((actorId) =>
-                database.getMastodonActorFromId({ id: actorId })
-              )
-          )
-        ).filter(Boolean)
-      }
-
       return {
         ...notification,
         account,
-        status,
-        groupedAccounts
+        status
       }
     })
   )
