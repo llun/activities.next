@@ -102,21 +102,47 @@ describe('production archive scripts', () => {
   })
 
   describe('isLocalDatabaseConnection', () => {
-    it('allows localhost, loopback, and docker postgres hosts', () => {
+    it('allows localhost, loopback, and socket hosts', () => {
       expect(isLocalDatabaseConnection({ host: 'localhost' })).toBe(true)
       expect(isLocalDatabaseConnection({ host: '127.0.0.1' })).toBe(true)
       expect(isLocalDatabaseConnection({ host: '::1' })).toBe(true)
-      expect(isLocalDatabaseConnection({ host: 'postgres' })).toBe(true)
       expect(isLocalDatabaseConnection({ host: '/var/run/postgresql' })).toBe(
         true
       )
       expect(
         isLocalDatabaseConnection('postgresql:///activity?host=/var/run')
       ).toBe(true)
-      expect(isLocalDatabaseConnection('postgresql:///activity')).toBe(true)
+      expect(
+        isLocalDatabaseConnection('postgresql:///activity?host=localhost')
+      ).toBe(true)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql:///activity?host=/var/run&host=localhost'
+        )
+      ).toBe(true)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql:///activity?host=/var/run,localhost'
+        )
+      ).toBe(true)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql:///activity?host=localhost&hostaddr=127.0.0.1'
+        )
+      ).toBe(true)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql://localhost/activity?hostaddr=127.0.0.1'
+        )
+      ).toBe(true)
       expect(
         isLocalDatabaseConnection(
           'postgresql://%2Fvar%2Frun%2Fpostgresql/activity'
+        )
+      ).toBe(true)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql://%2Fvar%2Frun%2Fpostgresql,localhost/activity'
         )
       ).toBe(true)
     })
@@ -125,6 +151,59 @@ describe('production archive scripts', () => {
       expect(isLocalDatabaseConnection({ host: 'prod-db.example.com' })).toBe(
         false
       )
+      expect(isLocalDatabaseConnection({ host: 'postgres' })).toBe(false)
+      expect(isLocalDatabaseConnection('postgresql://postgres/activity')).toBe(
+        false
+      )
+      expect(isLocalDatabaseConnection('postgresql:///activity')).toBe(false)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql:///activity?host=prod-db.example.com'
+        )
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql://localhost/activity?host=prod-db.example.com'
+        )
+      ).toBe(false)
+      expect(isLocalDatabaseConnection('postgresql:///activity?host=')).toBe(
+        false
+      )
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql:///activity?host=/var/run&host=prod-db.example.com'
+        )
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql:///activity?host=/var/run,prod-db.example.com'
+        )
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql://%2Fvar%2Frun%2Fpostgresql,prod-db.example.com/activity'
+        )
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql://%2Fvar%2Frun%2Fpostgresql%2Cprod-db.example.com/activity'
+        )
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql:///activity?host=localhost&hostaddr=203.0.113.10'
+        )
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConnection(
+          'postgresql://prod-db.example.com/activity?hostaddr=127.0.0.1'
+        )
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConnection({
+          host: '/var/run/postgresql,prod-db.example.com'
+        })
+      ).toBe(false)
     })
 
     it('fails closed for missing or empty connection hosts', () => {
@@ -165,7 +244,7 @@ describe('production archive scripts', () => {
       expect(
         isLocalDatabaseConfig({
           client: 'pg',
-          connection: 'postgresql:///activity'
+          connection: 'postgresql://%2Fvar%2Frun%2Fpostgresql/activity'
         })
       ).toBe(true)
       expect(
@@ -193,6 +272,12 @@ describe('production archive scripts', () => {
         isLocalDatabaseConfig({
           client: 'pg',
           connection: { filename: './dev.sqlite3' }
+        })
+      ).toBe(false)
+      expect(
+        isLocalDatabaseConfig({
+          client: 'pg',
+          connection: 'postgresql:///activity'
         })
       ).toBe(false)
       expect(
@@ -656,6 +741,21 @@ describe('production archive scripts', () => {
         assertSafeDirectoryToReplace('/tmp/activitynext/uploads', '/tmp')
       ).toBe('/tmp/activitynext/uploads')
     })
+
+    it('allows the safe storage root itself as the restore target', () => {
+      expect(
+        assertSafeDirectoryToReplace(
+          '/tmp/activitynext/uploads',
+          '/tmp/activitynext/uploads'
+        )
+      ).toBe('/tmp/activitynext/uploads')
+    })
+
+    it('still rejects unsafe directories when they match the safe root', () => {
+      expect(() =>
+        assertSafeDirectoryToReplace(os.tmpdir(), os.tmpdir())
+      ).toThrow('unsafe directory')
+    })
   })
 
   describe('isSafeArchiveEntryPath', () => {
@@ -703,6 +803,24 @@ describe('production archive scripts', () => {
       await expect(validateTarArchivePaths(archivePath)).rejects.toThrow(
         'unsupported entry type'
       )
+    })
+
+    it('accepts a safe archive from a relative path', async () => {
+      const sourceDir = path.join(tempDir, 'relative-source')
+      await fs.mkdir(sourceDir)
+      await fs.writeFile(path.join(sourceDir, 'file.txt'), 'content')
+      const archivePath = path.join(tempDir, 'relative-archive.tar.gz')
+      const previousCwd = process.cwd()
+
+      await execFileAsync('tar', ['-czf', archivePath, '-C', sourceDir, '.'])
+      process.chdir(tempDir)
+      try {
+        await expect(
+          validateTarArchivePaths('relative-archive.tar.gz')
+        ).resolves.toBeUndefined()
+      } finally {
+        process.chdir(previousCwd)
+      }
     })
   })
 

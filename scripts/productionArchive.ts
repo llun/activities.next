@@ -272,11 +272,25 @@ export const isLocalDatabaseConnection = (connection: unknown): boolean => {
   if (typeof connection === 'string') {
     try {
       const url = new URL(connection)
-      const socketHost = url.searchParams.get('host')
-      if (isLocalSocketPath(socketHost)) return true
-      if (isLocalSocketPath(url.hostname)) return true
-      if (isLocalPostgresSocketUrl(url)) return true
-      return isLocalHost(url.hostname)
+      const postgresHosts = getConnectionParameterList(url, 'host')
+      const postgresHostAddresses = getConnectionParameterList(url, 'hostaddr')
+      if (postgresHosts.length > 0) {
+        return (
+          postgresHosts.every(isLocalDatabaseHost) &&
+          postgresHostAddresses.every(isLocalNetworkHost)
+        )
+      }
+
+      if (postgresHostAddresses.length > 0) {
+        return (
+          isLocalDatabaseHost(url.hostname) &&
+          postgresHostAddresses.every(isLocalNetworkHost)
+        )
+      }
+
+      return getConnectionParameterValues(url.hostname).every(
+        isLocalDatabaseHost
+      )
     } catch {
       return false
     }
@@ -285,9 +299,8 @@ export const isLocalDatabaseConnection = (connection: unknown): boolean => {
   if (!connection || typeof connection !== 'object') return false
 
   const host = (connection as { host?: unknown }).host
-  if (typeof host !== 'string' || host.trim().length === 0) return false
-  if (isLocalSocketPath(host)) return true
-  return isLocalHost(host)
+  if (typeof host !== 'string') return false
+  return getConnectionParameterValues(host).every(isLocalDatabaseHost)
 }
 
 const isLocalSqliteConnection = (connection: unknown) => {
@@ -441,9 +454,33 @@ const isLocalHost = (host: string) =>
     '::1',
     '[::1]',
     '0.0.0.0',
-    'postgres',
     'host.docker.internal'
   ].includes(host.trim().toLowerCase())
+
+const isLocalNetworkHost = (host: string) => {
+  if (host.trim().length === 0) return false
+  return isLocalHost(host)
+}
+
+const isLocalDatabaseHost = (host: string) => {
+  if (host.trim().length === 0) return false
+  if (isLocalSocketPath(host)) return true
+  return isLocalHost(host)
+}
+
+const getConnectionParameterValues = (value: string) => {
+  let decodedValue = value
+  try {
+    decodedValue = decodeURIComponent(value)
+  } catch {
+    decodedValue = value
+  }
+
+  return decodedValue.split(',').map((entry) => entry.trim())
+}
+
+const getConnectionParameterList = (url: URL, key: string) =>
+  url.searchParams.getAll(key).flatMap(getConnectionParameterValues)
 
 const isLocalSocketPath = (socketPath: unknown) =>
   typeof socketPath === 'string' &&
@@ -457,11 +494,6 @@ const isLocalSocketPath = (socketPath: unknown) =>
       return path.isAbsolute(trimmed)
     }
   })()
-
-const isLocalPostgresSocketUrl = (url: URL) =>
-  (url.protocol === 'postgresql:' || url.protocol === 'postgres:') &&
-  url.hostname === '' &&
-  url.host === ''
 
 const uniqueSortedPaths = (filePaths: (string | null | undefined)[]) =>
   [...new Set(filePaths.map(normalizeStoragePath).filter(Boolean))].sort()
@@ -1394,15 +1426,25 @@ const readTarArchiveLines = async (
 }
 
 export const validateTarArchivePaths = async (archivePath: string) => {
-  await readTarArchiveLines(archivePath, ['-tzf', archivePath], (entry) => {
-    if (!entry || isSafeArchiveEntryPath(entry)) return
-    throw new Error(`Archive contains unsafe path: ${entry}`)
-  })
+  const resolvedArchivePath = path.resolve(archivePath)
 
-  await readTarArchiveLines(archivePath, ['-tvzf', archivePath], (entry) => {
-    if (isSafeTarArchiveVerboseEntry(entry)) return
-    throw new Error(`Archive contains unsupported entry type: ${entry}`)
-  })
+  await readTarArchiveLines(
+    resolvedArchivePath,
+    ['-tzf', resolvedArchivePath],
+    (entry) => {
+      if (!entry || isSafeArchiveEntryPath(entry)) return
+      throw new Error(`Archive contains unsafe path: ${entry}`)
+    }
+  )
+
+  await readTarArchiveLines(
+    resolvedArchivePath,
+    ['-tvzf', resolvedArchivePath],
+    (entry) => {
+      if (isSafeTarArchiveVerboseEntry(entry)) return
+      throw new Error(`Archive contains unsupported entry type: ${entry}`)
+    }
+  )
 }
 
 const extractTarArchive = async (archivePath: string, outputDir: string) => {
@@ -1832,9 +1874,8 @@ const resolveLocalStoragePath = (
 const pathIsInside = (childPath: string, parentPath: string) => {
   const relativePath = path.relative(parentPath, childPath)
   return (
-    relativePath.length > 0 &&
-    !relativePath.startsWith('..') &&
-    !path.isAbsolute(relativePath)
+    relativePath.length === 0 ||
+    (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
   )
 }
 
