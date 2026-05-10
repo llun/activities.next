@@ -69,7 +69,8 @@ export const NotificationItem = ({
     const notificationWithAccount: NotificationWithAccount = {
       ...notification,
       account: notification.account,
-      status: notification.status ?? undefined
+      status: notification.status ?? null,
+      groupedAccounts: notification.groupedAccounts ?? null
     }
 
     const notificationWithStatus = hasStatusActor(notificationWithAccount)

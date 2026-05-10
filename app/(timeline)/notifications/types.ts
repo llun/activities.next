@@ -4,8 +4,8 @@ import type { Status } from '@/lib/types/domain/status'
 
 export interface NotificationWithAccount extends GroupedNotification {
   account: Mastodon.Account
-  status?: Status
-  groupedAccounts?: (Mastodon.Account | null)[] | null
+  status: Status | null
+  groupedAccounts: (Mastodon.Account | null)[] | null
 }
 
 export type StatusWithActor = Status & {
