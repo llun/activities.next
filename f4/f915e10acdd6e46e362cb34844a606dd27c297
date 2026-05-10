@@ -1,0 +1,35 @@
+app/(timeline)/notifications/NotificationItem.tsx
+  s_b362db93d911c1::t_11d1966cfc4d92 23-28,41-54,84,99,106,116,126,136
+app/(timeline)/notifications/NotificationItem.test.tsx
+  s_b362db93d911c1::t_e757c5923d9834 14-16,88-98,101-112,132-145,156-167,181-198,200-211,217-294
+  s_c07bee36adf96e::t_5fb044d2863451 87
+  s_b362db93d911c1::t_307977a20020a3 6
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_b362db93d911c1::t_79fcce2dbfd58b 13-14,17,32-33,54-55
+app/(timeline)/notifications/components/ReblogNotification.tsx
+  s_b362db93d911c1::t_53d57040c1bd9c 13-14,17,27,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f4f915e10acdd6e46e362cb34844a606dd27c297",
+  "prompts": {},
+  "sessions": {
+    "s_b362db93d911c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e12b3-9cbd-7450-9de2-d1f8dd4315a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c07bee36adf96e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e12df-6b75-7492-afe5-bd43313cda8d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
