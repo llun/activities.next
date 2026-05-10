@@ -1,8 +1,10 @@
+import { S3Client } from '@aws-sdk/client-s3'
 import { execFile } from 'child_process'
 import fs from 'fs/promises'
 import knex from 'knex'
 import os from 'os'
 import path from 'path'
+import { Readable } from 'stream'
 import { promisify } from 'util'
 
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
@@ -10,12 +12,14 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 
 import {
   PUBLIC_STORAGE_FETCH_TIMEOUT_MS,
+  archiveStorage,
   assertArchiveTableFilesReadable,
   assertMatchingMigrations,
   assertSafeDirectoryToReplace,
   buildStoragePlan,
   createPublicStorageFetchInit,
   createS3Client,
+  exportDatabase,
   fetchPublicStorageResponse,
   getDatabaseTableNames,
   getReferencedStoragePaths,
@@ -103,6 +107,11 @@ describe('production archive scripts', () => {
 
   describe('isLocalDatabaseConnection', () => {
     it('allows localhost, loopback, and socket hosts', () => {
+      expect(isLocalDatabaseConnection('localhost')).toBe(true)
+      expect(isLocalDatabaseConnection('127.0.0.1')).toBe(true)
+      expect(isLocalDatabaseConnection('::1')).toBe(true)
+      expect(isLocalDatabaseConnection('[::1]')).toBe(true)
+      expect(isLocalDatabaseConnection('/var/run/postgresql')).toBe(true)
       expect(isLocalDatabaseConnection({ host: 'localhost' })).toBe(true)
       expect(isLocalDatabaseConnection({ host: '127.0.0.1' })).toBe(true)
       expect(isLocalDatabaseConnection({ host: '::1' })).toBe(true)
@@ -152,6 +161,7 @@ describe('production archive scripts', () => {
         false
       )
       expect(isLocalDatabaseConnection({ host: 'postgres' })).toBe(false)
+      expect(isLocalDatabaseConnection('prod-db.example.com')).toBe(false)
       expect(isLocalDatabaseConnection('postgresql://postgres/activity')).toBe(
         false
       )
@@ -554,6 +564,274 @@ describe('production archive scripts', () => {
     })
   })
 
+  describe('exportDatabase', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'production-archive-export-test-')
+      )
+    })
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { force: true, recursive: true })
+    })
+
+    it('uses SQLite rowid keyset pagination without exporting rowid', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+      const statements: string[] = []
+      database.on('query', (query) => {
+        statements.push(query.sql)
+      })
+      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+
+      try {
+        await database.schema.createTable('events', (table) => {
+          table.string('name')
+        })
+        await database.batchInsert(
+          'events',
+          Array.from({ length: 1005 }, (_, index) => ({
+            name: `event-${index}`
+          })),
+          200
+        )
+
+        const result = await exportDatabase(database, tempDir, {
+          includeReferencedStoragePaths: false
+        })
+
+        expect(result.manifest.tables).toEqual([
+          { name: 'events', rowCount: 1005 }
+        ])
+
+        const payload = await fs.readFile(
+          path.join(tempDir, 'database', 'events.jsonl'),
+          'utf-8'
+        )
+        const rows = payload
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+
+        expect(rows).toHaveLength(1005)
+        expect(rows[0]).toEqual({ name: 'event-0' })
+        expect(rows[1004]).toEqual({ name: 'event-1004' })
+        expect(rows.every((row) => !('rowid' in row))).toBe(true)
+        expect(
+          rows.every((row) => {
+            return !Object.keys(row).some((key) => {
+              return key.startsWith('__activitynext_archive_cursor_')
+            })
+          })
+        ).toBe(true)
+
+        const tableExportStatements = statements.filter((statement) => {
+          return statement.includes('from `events`')
+        })
+        expect(
+          tableExportStatements.every((statement) => {
+            return !statement.toLowerCase().includes('offset')
+          })
+        ).toBe(true)
+        expect(
+          tableExportStatements.some((statement) => {
+            return (
+              statement.includes('`rowid` as') &&
+              statement.includes('`rowid` > ?')
+            )
+          })
+        ).toBe(true)
+      } finally {
+        logSpy.mockRestore()
+        await database.destroy()
+      }
+    })
+
+    it('uses an unshadowed SQLite rowid cursor for no-primary-key tables', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+      const statements: string[] = []
+      database.on('query', (query) => {
+        statements.push(query.sql)
+      })
+      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+
+      try {
+        await database.schema.createTable('events', (table) => {
+          table.string('rowid')
+          table.string('name')
+        })
+        await database.batchInsert(
+          'events',
+          Array.from({ length: 1005 }, (_, index) => ({
+            name: `event-${index}`,
+            rowid: 'duplicate-user-value'
+          })),
+          200
+        )
+
+        await exportDatabase(database, tempDir, {
+          includeReferencedStoragePaths: false
+        })
+
+        const payload = await fs.readFile(
+          path.join(tempDir, 'database', 'events.jsonl'),
+          'utf-8'
+        )
+        const rows = payload
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+
+        expect(rows).toHaveLength(1005)
+        expect(rows[1004]).toEqual({
+          name: 'event-1004',
+          rowid: 'duplicate-user-value'
+        })
+        expect(
+          statements.some((statement) => {
+            return (
+              statement.includes('`_rowid_` as') &&
+              statement.includes('`_rowid_` > ?')
+            )
+          })
+        ).toBe(true)
+      } finally {
+        logSpy.mockRestore()
+        await database.destroy()
+      }
+    })
+
+    it('treats SQLite rowid cursor shadowing as case-insensitive', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+      const statements: string[] = []
+      database.on('query', (query) => {
+        statements.push(query.sql)
+      })
+      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+
+      try {
+        await database.schema.createTable('events', (table) => {
+          table.string('ROWID')
+          table.string('name')
+        })
+        await database.batchInsert(
+          'events',
+          Array.from({ length: 1005 }, (_, index) => ({
+            name: `event-${index}`,
+            ROWID: 'duplicate-user-value'
+          })),
+          200
+        )
+
+        await exportDatabase(database, tempDir, {
+          includeReferencedStoragePaths: false
+        })
+
+        const payload = await fs.readFile(
+          path.join(tempDir, 'database', 'events.jsonl'),
+          'utf-8'
+        )
+        const rows = payload
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+
+        expect(rows).toHaveLength(1005)
+        expect(rows[1004]).toEqual({
+          ROWID: 'duplicate-user-value',
+          name: 'event-1004'
+        })
+        expect(
+          statements.some((statement) => {
+            return (
+              statement.includes('`_rowid_` as') &&
+              statement.includes('`_rowid_` > ?')
+            )
+          })
+        ).toBe(true)
+      } finally {
+        logSpy.mockRestore()
+        await database.destroy()
+      }
+    })
+
+    it('uses a non-colliding private cursor alias for SQLite rowid export', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+      const statements: string[] = []
+      database.on('query', (query) => {
+        statements.push(query.sql)
+      })
+      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+
+      try {
+        await database.schema.createTable('events', (table) => {
+          table.string('__activitynext_archive_cursor')
+          table.string('__ACTIVITYNEXT_ARCHIVE_CURSOR_1')
+          table.string('name')
+        })
+        await database.batchInsert(
+          'events',
+          Array.from({ length: 1005 }, (_, index) => ({
+            __ACTIVITYNEXT_ARCHIVE_CURSOR_1: `upper-real-${index}`,
+            __activitynext_archive_cursor: `real-${index}`,
+            name: `event-${index}`
+          })),
+          200
+        )
+
+        await exportDatabase(database, tempDir, {
+          includeReferencedStoragePaths: false
+        })
+
+        const payload = await fs.readFile(
+          path.join(tempDir, 'database', 'events.jsonl'),
+          'utf-8'
+        )
+        const rows = payload
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+
+        expect(rows).toHaveLength(1005)
+        expect(rows[1004]).toEqual({
+          __ACTIVITYNEXT_ARCHIVE_CURSOR_1: 'upper-real-1004',
+          __activitynext_archive_cursor: 'real-1004',
+          name: 'event-1004'
+        })
+        expect(
+          rows.every((row) => {
+            return !('__activitynext_archive_cursor_2' in row)
+          })
+        ).toBe(true)
+        expect(
+          statements.some((statement) => {
+            return statement.includes('as `__activitynext_archive_cursor_2`')
+          })
+        ).toBe(true)
+      } finally {
+        logSpy.mockRestore()
+        await database.destroy()
+      }
+    })
+  })
+
   describe('createS3Client', () => {
     it('uses the configured hostname as the S3-compatible endpoint', async () => {
       expect(normalizeStorageHostname('https://storage.example.com/')).toBe(
@@ -651,6 +929,94 @@ describe('production archive scripts', () => {
         })
       )
       expect(jest.getTimerCount()).toBe(0)
+    })
+  })
+
+  describe('archiveStorage', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'production-archive-storage-test-')
+      )
+    })
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { force: true, recursive: true })
+    })
+
+    it('removes partial files for allowed missing storage downloads', async () => {
+      const sendSpy = jest
+        .spyOn(S3Client.prototype, 'send')
+        .mockImplementation((async (command: { input?: { Key?: string } }) => {
+          if (command.input?.Key === 'bad.txt') {
+            return {
+              Body: Readable.from(
+                (async function* streamPartialThenFail() {
+                  yield Buffer.from('partial')
+                  throw new Error('stream failed')
+                })()
+              )
+            }
+          }
+
+          return { Body: Readable.from([Buffer.from('ok')]) }
+        }) as typeof S3Client.prototype.send)
+      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation()
+
+      try {
+        await fs.mkdir(path.join(tempDir, 'storage', 'media', 'files'), {
+          recursive: true
+        })
+        await fs.writeFile(
+          path.join(tempDir, 'storage', 'media', 'files', 'bad.txt'),
+          'stale partial'
+        )
+
+        const manifest = await archiveStorage(
+          [
+            {
+              destination: 'media',
+              files: ['bad.txt', 'good.txt'],
+              source: {
+                bucket: 'activitynext',
+                kind: 's3',
+                region: 'auto'
+              }
+            }
+          ],
+          tempDir,
+          { allowMissingStorage: true }
+        )
+
+        expect(manifest).toEqual([
+          expect.objectContaining({
+            destination: 'media',
+            failedFiles: [
+              expect.objectContaining({
+                error: expect.stringContaining('stream failed'),
+                path: 'bad.txt'
+              })
+            ],
+            fileCount: 1,
+            totalBytes: 2
+          })
+        ])
+        await expect(
+          fs.readFile(
+            path.join(tempDir, 'storage', 'media', 'files', 'good.txt'),
+            'utf-8'
+          )
+        ).resolves.toBe('ok')
+        await expect(
+          fs.access(path.join(tempDir, 'storage', 'media', 'files', 'bad.txt'))
+        ).rejects.toThrow()
+      } finally {
+        sendSpy.mockRestore()
+        logSpy.mockRestore()
+        errorSpy.mockRestore()
+      }
     })
   })
 

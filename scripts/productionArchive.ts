@@ -144,6 +144,7 @@ interface DatabaseExportResult {
 }
 
 interface TableExportOrder {
+  aliases?: string[]
   columns: string[]
   keyset: boolean
   raw: boolean
@@ -270,6 +271,10 @@ export const parseRestoreArgs = (args: string[]): RestoreArgs => {
 
 export const isLocalDatabaseConnection = (connection: unknown): boolean => {
   if (typeof connection === 'string') {
+    if (getConnectionParameterValues(connection).every(isLocalDatabaseHost)) {
+      return true
+    }
+
     try {
       const url = new URL(connection)
       const postgresHosts = getConnectionParameterList(url, 'host')
@@ -725,6 +730,60 @@ const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
   throw new Error(`Unsupported database client for export: ${client}`)
 }
 
+const getTableColumnNames = async (database: Knex, tableName: string) => {
+  const client = getKnexClientName(database)
+
+  if (client === 'pg' || client === 'pg-native') {
+    const result = await database.raw(
+      `
+      select column_name as name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = ?
+      order by ordinal_position asc
+    `,
+      [tableName]
+    )
+    return getQueryRows<{ name: string }>(result).map((row) => row.name)
+  }
+
+  if (client === 'better-sqlite3' || client === 'sqlite3') {
+    const rows = await database.raw(
+      `PRAGMA table_info(${quoteIdentifier(tableName)})`
+    )
+    return getQueryRows<{ name: string }>(rows).map((row) => row.name)
+  }
+
+  throw new Error(`Unsupported database client for column discovery: ${client}`)
+}
+
+const getAvailableColumnName = (
+  existingColumns: Set<string>,
+  baseName: string
+) => {
+  const normalizedExistingColumns = new Set(
+    [...existingColumns].map((columnName) => columnName.toLowerCase())
+  )
+  let index = 0
+
+  for (;;) {
+    const candidate = index === 0 ? baseName : `${baseName}_${index}`
+    if (!normalizedExistingColumns.has(candidate.toLowerCase())) {
+      return candidate
+    }
+    index += 1
+  }
+}
+
+const getSqliteRowIdColumn = (columnNames: string[]) => {
+  const existingColumns = new Set(
+    columnNames.map((columnName) => columnName.toLowerCase())
+  )
+  return ['rowid', '_rowid_', 'oid'].find((column) => {
+    return !existingColumns.has(column)
+  })
+}
+
 const getTableExportOrder = async (
   database: Knex,
   tableName: string
@@ -739,6 +798,7 @@ const getTableExportOrder = async (
   }
 
   const client = getKnexClientName(database)
+  const columnNames = await getTableColumnNames(database, tableName)
   if (client === 'pg' || client === 'pg-native') {
     return {
       columns: ['ctid'],
@@ -748,9 +808,25 @@ const getTableExportOrder = async (
   }
 
   if (client === 'better-sqlite3' || client === 'sqlite3') {
+    const rowIdColumn = getSqliteRowIdColumn(columnNames)
+    if (!rowIdColumn) {
+      return {
+        columns: ['rowid'],
+        keyset: false,
+        raw: true
+      }
+    }
+
+    const existingColumns = new Set(columnNames)
+    const cursorAlias = getAvailableColumnName(
+      existingColumns,
+      '__activitynext_archive_cursor'
+    )
+
     return {
-      columns: ['rowid'],
-      keyset: false,
+      aliases: [cursorAlias],
+      columns: [rowIdColumn],
+      keyset: true,
       raw: true
     }
   }
@@ -790,7 +866,35 @@ const withDatabaseReadSnapshot = async <T>(
   })
 }
 
-const createTableRowsStream = (
+const rawCursorAlias = (order: TableExportOrder, index: number) => {
+  return order.aliases?.[index] ?? `__activitynext_archive_cursor_${index}`
+}
+
+const getOrderColumnValue = (
+  row: Record<string, unknown>,
+  order: TableExportOrder,
+  index: number
+) => {
+  const column = order.columns[index]
+  return order.raw && order.keyset
+    ? row[rawCursorAlias(order, index)]
+    : row[column]
+}
+
+const serializeArchiveRow = (
+  row: Record<string, unknown>,
+  order: TableExportOrder
+) => {
+  if (!order.raw || !order.keyset) return row
+
+  const archiveRow = { ...row }
+  for (let index = 0; index < order.columns.length; index += 1) {
+    delete archiveRow[rawCursorAlias(order, index)]
+  }
+  return archiveRow
+}
+
+export const createTableRowsStream = (
   database: Knex,
   tableName: string,
   order: TableExportOrder,
@@ -803,9 +907,17 @@ const createTableRowsStream = (
     for (;;) {
       const query = database(tableName).select('*').limit(DATABASE_PAGE_SIZE)
 
+      if (order.raw && order.keyset) {
+        order.columns.forEach((column, index) => {
+          query.select(
+            database.raw('?? as ??', [column, rawCursorAlias(order, index)])
+          )
+        })
+      }
+
       for (const column of order.columns) {
         if (order.raw) {
-          query.orderByRaw(`${column} asc`)
+          query.orderByRaw('?? asc', [column])
         } else {
           query.orderBy(column, 'asc')
         }
@@ -821,14 +933,28 @@ const createTableRowsStream = (
                 previousIndex += 1
               ) {
                 const previousColumn = order.columns[previousIndex]
-                this.where(
-                  previousColumn,
-                  lastRow![previousColumn] as Knex.Value
+                const previousValue = getOrderColumnValue(
+                  lastRow!,
+                  order,
+                  previousIndex
                 )
+                if (order.raw) {
+                  this.whereRaw('?? = ?', [
+                    previousColumn,
+                    previousValue as Knex.Value
+                  ])
+                } else {
+                  this.where(previousColumn, previousValue as Knex.Value)
+                }
               }
 
               const column = order.columns[index]
-              this.where(column, '>', lastRow![column] as Knex.Value)
+              const value = getOrderColumnValue(lastRow!, order, index)
+              if (order.raw) {
+                this.whereRaw('?? > ?', [column, value as Knex.Value])
+              } else {
+                this.where(column, '>', value as Knex.Value)
+              }
             })
           }
         })
@@ -842,7 +968,7 @@ const createTableRowsStream = (
 
       for (const row of rows) {
         onRow()
-        yield `${JSON.stringify(row)}\n`
+        yield `${JSON.stringify(serializeArchiveRow(row, order))}\n`
       }
 
       lastRow = rows[rows.length - 1]
@@ -853,7 +979,7 @@ const createTableRowsStream = (
   return Readable.from(rowsToJsonLines())
 }
 
-const exportDatabase = async (
+export const exportDatabase = async (
   database: Knex,
   outputDir: string,
   options: { includeReferencedStoragePaths: boolean }
@@ -1252,7 +1378,7 @@ export const fetchPublicStorageResponse = async (url: string) => {
   }
 }
 
-const archiveStorage = async (
+export const archiveStorage = async (
   plan: StoragePlanEntry[],
   stagingDir: string,
   options: { allowMissingStorage: boolean }
@@ -1297,6 +1423,7 @@ const archiveStorage = async (
           const nodeError = error as Error
           if (!options.allowMissingStorage) throw error
 
+          await fs.rm(archiveFilePath, { force: true })
           failedFiles.push({
             error: nodeError.message,
             path: relativeFilePath
