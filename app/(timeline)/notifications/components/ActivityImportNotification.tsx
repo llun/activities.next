@@ -13,7 +13,6 @@ import { processStatusText } from '@/lib/utils/text/processStatusText'
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account
   status: Status
-  groupedAccounts?: (Mastodon.Account | null)[] | null
 }
 
 interface Props {
@@ -21,11 +20,14 @@ interface Props {
   notification: NotificationWithData
 }
 
-export const MentionNotification: FC<Props> = ({ host, notification }) => {
-  const { account, status, groupedAccounts, groupedCount } = notification
+export const ActivityImportNotification: FC<Props> = ({
+  host,
+  notification
+}) => {
+  const { account, status } = notification
   if (!status.actor) return null
 
-  const hasMultiple = groupedCount && groupedCount > 1
+  const hasMultiple = notification.groupedCount && notification.groupedCount > 1
 
   const statusUrl =
     getStatusDetailPath(status) ??
@@ -44,34 +46,14 @@ export const MentionNotification: FC<Props> = ({ host, notification }) => {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        {hasMultiple && groupedAccounts ? (
-          <p className="text-sm">
-            <Link
-              href={`/@${account.acct}`}
-              className="font-medium hover:underline"
-            >
-              {account.display_name || account.username}
-            </Link>
-            {groupedCount > 2 && ` and ${groupedCount - 1} others`}
-            {groupedCount === 2 && ' and 1 other'} mentioned you in a{' '}
-            <Link href={statusUrl} className="text-primary hover:underline">
-              post
-            </Link>
-          </p>
-        ) : (
-          <p className="text-sm">
-            <Link
-              href={`/@${account.acct}`}
-              className="font-medium hover:underline"
-            >
-              {account.display_name || account.username}
-            </Link>{' '}
-            mentioned you in a{' '}
-            <Link href={statusUrl} className="text-primary hover:underline">
-              post
-            </Link>
-          </p>
-        )}
+        <p className="text-sm">
+          {hasMultiple
+            ? 'Your Strava fitness activities were imported.'
+            : 'Your Strava fitness activity was imported.'}{' '}
+          <Link href={statusUrl} className="text-primary hover:underline">
+            {hasMultiple ? 'View latest activity' : 'View activity'}
+          </Link>
+        </p>
         <div className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
           <div className="line-clamp-2 [&_p]:inline [&_br]:hidden">
             {cleanClassName(processStatusText(host, status))}

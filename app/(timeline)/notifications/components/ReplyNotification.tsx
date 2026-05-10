@@ -72,14 +72,11 @@ export const ReplyNotification: FC<Props> = ({ host, notification }) => {
             </Link>
           </p>
         )}
-        <Link
-          href={statusUrl}
-          className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground hover:bg-muted"
-        >
+        <div className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
           <div className="line-clamp-2 [&_p]:inline [&_br]:hidden">
             {cleanClassName(processStatusText(host, status))}
           </div>
-        </Link>
+        </div>
       </div>
     </div>
   )
