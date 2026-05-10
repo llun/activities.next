@@ -10,9 +10,11 @@ import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
+type StatusWithActor = Status & { actor: NonNullable<Status['actor']> }
+
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account
-  status: Status
+  status: StatusWithActor
 }
 
 interface Props {
@@ -25,9 +27,10 @@ export const ActivityImportNotification: FC<Props> = ({
   notification
 }) => {
   const { account, status } = notification
-  if (!status.actor) return null
 
   const hasMultiple = notification.groupedCount && notification.groupedCount > 1
+  // activity_import is currently emitted only by the Strava importer.
+  const serviceLabel = 'Strava'
 
   const statusUrl =
     getStatusDetailPath(status) ??
@@ -48,8 +51,8 @@ export const ActivityImportNotification: FC<Props> = ({
       <div className="flex-1 min-w-0">
         <p className="text-sm">
           {hasMultiple
-            ? 'Your Strava fitness activities were imported.'
-            : 'Your Strava fitness activity was imported.'}{' '}
+            ? `Your ${serviceLabel} fitness activities were imported.`
+            : `Your ${serviceLabel} fitness activity was imported.`}{' '}
           <Link href={statusUrl} className="text-primary hover:underline">
             {hasMultiple ? 'View latest activity' : 'View activity'}
           </Link>

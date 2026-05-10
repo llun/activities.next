@@ -10,9 +10,11 @@ import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
+type StatusWithActor = Status & { actor: NonNullable<Status['actor']> }
+
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account
-  status: Status
+  status: StatusWithActor
   groupedAccounts?: (Mastodon.Account | null)[] | null
 }
 
@@ -22,8 +24,7 @@ interface Props {
 }
 
 export const ReblogNotification: FC<Props> = ({ host, notification }) => {
-  const { account, status, groupedAccounts, groupedCount } = notification
-  if (!status.actor) return null
+  const { account, status, groupedCount } = notification
 
   const hasMultiple = groupedCount && groupedCount > 1
 
@@ -44,7 +45,7 @@ export const ReblogNotification: FC<Props> = ({ host, notification }) => {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        {hasMultiple && groupedAccounts ? (
+        {hasMultiple ? (
           <p className="text-sm">
             <Link
               href={`/@${account.acct}`}

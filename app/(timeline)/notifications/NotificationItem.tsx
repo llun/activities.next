@@ -20,6 +20,12 @@ interface NotificationWithData extends GroupedNotification {
   groupedAccounts?: (Mastodon.Account | null)[] | null
 }
 
+type StatusWithActor = Status & { actor: NonNullable<Status['actor']> }
+
+type NotificationWithStatus = NotificationWithData & {
+  status: StatusWithActor
+}
+
 interface Props {
   notification: GroupedNotification & {
     account: Mastodon.Account | null
@@ -30,6 +36,20 @@ interface Props {
   host: string
   isRead: boolean
   observeElement: (element: HTMLElement | null) => void
+}
+
+const renderUnavailableNotification = (message: string) => (
+  <div className="text-sm text-muted-foreground">{message}</div>
+)
+
+const renderUnavailableStatusNotification = (notificationType: string) => {
+  if (notificationType === 'activity_import') {
+    return renderUnavailableNotification(
+      'This imported activity is no longer available.'
+    )
+  }
+
+  return renderUnavailableNotification('This post is no longer available.')
 }
 
 export const NotificationItem = ({
@@ -47,20 +67,6 @@ export const NotificationItem = ({
     }
   }, [observeElement, isRead])
 
-  const renderUnavailableNotification = (message: string) => (
-    <div className="text-sm text-muted-foreground">{message}</div>
-  )
-
-  const renderUnavailableStatusNotification = () => {
-    if (notification.type === 'activity_import') {
-      return renderUnavailableNotification(
-        'This imported activity is no longer available.'
-      )
-    }
-
-    return renderUnavailableNotification('This post is no longer available.')
-  }
-
   const renderNotification = () => {
     if (!notification.account) {
       return renderUnavailableNotification(
@@ -75,9 +81,7 @@ export const NotificationItem = ({
     }
 
     const notificationWithStatus = notificationWithAccount.status?.actor
-      ? (notificationWithAccount as NotificationWithData & {
-          status: Status
-        })
+      ? (notificationWithAccount as NotificationWithStatus)
       : null
 
     switch (notificationWithAccount.type) {
@@ -92,14 +96,14 @@ export const NotificationItem = ({
         return <FollowNotification notification={notificationWithAccount} />
       case 'like':
         if (!notificationWithStatus)
-          return renderUnavailableStatusNotification()
+          return renderUnavailableStatusNotification(notification.type)
 
         return (
           <LikeNotification host={host} notification={notificationWithStatus} />
         )
       case 'reply':
         if (!notificationWithStatus)
-          return renderUnavailableStatusNotification()
+          return renderUnavailableStatusNotification(notification.type)
 
         return (
           <ReplyNotification
@@ -109,7 +113,7 @@ export const NotificationItem = ({
         )
       case 'mention':
         if (!notificationWithStatus)
-          return renderUnavailableStatusNotification()
+          return renderUnavailableStatusNotification(notification.type)
 
         return (
           <MentionNotification
@@ -119,7 +123,7 @@ export const NotificationItem = ({
         )
       case 'reblog':
         if (!notificationWithStatus)
-          return renderUnavailableStatusNotification()
+          return renderUnavailableStatusNotification(notification.type)
 
         return (
           <ReblogNotification
@@ -129,7 +133,7 @@ export const NotificationItem = ({
         )
       case 'activity_import':
         if (!notificationWithStatus)
-          return renderUnavailableStatusNotification()
+          return renderUnavailableStatusNotification(notification.type)
 
         return (
           <ActivityImportNotification
@@ -145,9 +149,6 @@ export const NotificationItem = ({
   }
 
   const content = renderNotification()
-  if (!content) {
-    return null
-  }
 
   return (
     <div
