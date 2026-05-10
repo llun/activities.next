@@ -2,12 +2,11 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
+import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import type { Mastodon } from '@/lib/types/activitypub'
 
 interface NotificationWithAccount extends GroupedNotification {
   account: Mastodon.Account
-  groupedAccounts?: (Mastodon.Account | null)[] | null
 }
 
 interface Props {
@@ -15,7 +14,7 @@ interface Props {
 }
 
 export const FollowNotification: FC<Props> = ({ notification }) => {
-  const { account, groupedAccounts, groupedCount } = notification
+  const { account, groupedCount } = notification
   const hasMultiple = groupedCount && groupedCount > 1
 
   return (
@@ -31,7 +30,7 @@ export const FollowNotification: FC<Props> = ({ notification }) => {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        {hasMultiple && groupedAccounts ? (
+        {hasMultiple ? (
           <p className="text-sm">
             <Link
               href={`/@${account.acct}`}
