@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
+  clearFitnessRouteHeatmaps,
   getDistinctFitnessActivityTypes,
   getFitnessCalendarData,
   getFitnessRouteHeatmap,
@@ -24,6 +25,7 @@ jest.mock('@/lib/utils/mapbox', () => ({
 }))
 
 jest.mock('@/lib/client', () => ({
+  clearFitnessRouteHeatmaps: jest.fn(),
   getDistinctFitnessActivityTypes: jest.fn(),
   getFitnessCalendarData: jest.fn(),
   getFitnessRouteHeatmap: jest.fn(),
@@ -34,6 +36,10 @@ jest.mock('@/lib/client', () => ({
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
   typeof loadMapboxModule
 >
+const mockClearFitnessRouteHeatmaps =
+  clearFitnessRouteHeatmaps as jest.MockedFunction<
+    typeof clearFitnessRouteHeatmaps
+  >
 const mockGetDistinctFitnessActivityTypes =
   getDistinctFitnessActivityTypes as jest.MockedFunction<
     typeof getDistinctFitnessActivityTypes
@@ -154,6 +160,7 @@ describe('FitnessHeatmapView', () => {
     mockGetFitnessCalendarData.mockResolvedValue([])
     mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([pendingSummary])
+    mockClearFitnessRouteHeatmaps.mockResolvedValue(0)
     mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
   })
 
@@ -266,6 +273,61 @@ describe('FitnessHeatmapView', () => {
         })
       )
     })
+  })
+
+  it('clears all route caches and reloads the current selection', async () => {
+    const confirmSpy = jest
+      .spyOn(window, 'confirm')
+      .mockImplementation(() => true)
+    mockClearFitnessRouteHeatmaps.mockResolvedValue(2)
+    mockGetFitnessRouteHeatmap
+      .mockResolvedValueOnce(completedHeatmap)
+      .mockResolvedValueOnce(null)
+    mockGetFitnessRouteHeatmaps
+      .mockResolvedValueOnce([pendingSummary])
+      .mockResolvedValueOnce([])
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
+
+    await waitFor(() => {
+      expect(mockClearFitnessRouteHeatmaps).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/llun'
+      })
+      expect(mockGetFitnessRouteHeatmap).toHaveBeenCalledTimes(2)
+      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(2)
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'https://llun.test/users/llun',
+          periodType: 'all_time',
+          periodKey: 'all'
+        })
+      )
+    })
+
+    confirmSpy.mockRestore()
+  })
+
+  it('does not clear route caches when confirmation is cancelled', async () => {
+    const confirmSpy = jest
+      .spyOn(window, 'confirm')
+      .mockImplementation(() => false)
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
+
+    expect(mockClearFitnessRouteHeatmaps).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
   })
 })
 

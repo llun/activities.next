@@ -1532,6 +1532,28 @@ export const getFitnessRouteHeatmaps = async ({
   return json.heatmaps as FitnessRouteHeatmapSummaryData[]
 }
 
+export const clearFitnessRouteHeatmaps = async ({
+  actorId
+}: {
+  actorId: string
+}): Promise<number> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmaps`,
+    {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' }
+    }
+  )
+  if (!response.ok) {
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'route heatmaps')
+    )
+  }
+  const json = await response.json()
+  return typeof json.deleted === 'number' ? json.deleted : 0
+}
+
 export const getFitnessCalendarData = async ({
   actorId,
   startDate,

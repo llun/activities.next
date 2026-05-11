@@ -278,6 +278,7 @@ export const POST = traceApiRoute(
       existing !== null &&
       !shouldResume &&
       (existing.status === 'failed' || existing.status === 'generating')
+    const requestedAt = Date.now()
     const baseJobId =
       id +
       ':route-heatmap:' +
@@ -306,6 +307,7 @@ export const POST = traceApiRoute(
           periodType,
           periodKey,
           region,
+          requestedAt,
           ...(shouldResume
             ? { resume: true, cursorOffset: existing.cursorOffset }
             : {})

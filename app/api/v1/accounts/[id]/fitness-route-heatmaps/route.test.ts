@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
-import { GET } from './route'
+import { DELETE, GET } from './route'
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -15,7 +15,11 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-type MockDatabase = Pick<Database, 'getFitnessRouteHeatmapSummariesForActor'>
+type MockDatabase = Pick<
+  Database,
+  | 'deleteFitnessRouteHeatmapsForActor'
+  | 'getFitnessRouteHeatmapSummariesForActor'
+>
 
 let mockDatabase: MockDatabase | null = null
 jest.mock('@/lib/database', () => ({
@@ -24,6 +28,7 @@ jest.mock('@/lib/database', () => ({
 
 describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
+    deleteFitnessRouteHeatmapsForActor: jest.fn(),
     getFitnessRouteHeatmapSummariesForActor: jest.fn()
   }
 
@@ -44,6 +49,7 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
       id: ACTOR1_ID
     })
     mockDb.getFitnessRouteHeatmapSummariesForActor.mockResolvedValue([])
+    mockDb.deleteFitnessRouteHeatmapsForActor.mockResolvedValue(0)
   })
 
   it('returns owner route heatmap history', async () => {
@@ -136,5 +142,35 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
     })
 
     expect(response.status).toBe(403)
+  })
+
+  it('clears owner route heatmap history', async () => {
+    mockDb.deleteFitnessRouteHeatmapsForActor.mockResolvedValue(3)
+
+    const request = new NextRequest(baseUrl, { method: 'DELETE' })
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.deleteFitnessRouteHeatmapsForActor).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID
+    })
+    await expect(response.json()).resolves.toEqual({ deleted: 3 })
+  })
+
+  it('does not clear route heatmap history for another actor', async () => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: 'https://llun.test/users/other'
+    })
+
+    const request = new NextRequest(baseUrl, { method: 'DELETE' })
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(403)
+    expect(mockDb.deleteFitnessRouteHeatmapsForActor).not.toHaveBeenCalled()
   })
 })

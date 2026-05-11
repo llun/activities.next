@@ -6,7 +6,8 @@ import {
   Loader2,
   Map,
   RefreshCw,
-  Route
+  Route,
+  Trash2
 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -15,6 +16,7 @@ import {
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapSegment,
   FitnessRouteHeatmapSummaryData,
+  clearFitnessRouteHeatmaps,
   getDistinctFitnessActivityTypes,
   getFitnessCalendarData,
   getFitnessRouteHeatmap,
@@ -482,6 +484,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isClearingCache, setIsClearingCache] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
   const [pollingStalled, setPollingStalled] = useState(false)
   const generationKeyRef = useRef<string | null>(null)
@@ -850,9 +853,43 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }
 
+  const clearRouteCache = useCallback(async () => {
+    if (isClearingCache) return
+    if (
+      !window.confirm(
+        'Clear all route heatmap cache for this account? This includes queued, generating, and failed route caches.'
+      )
+    ) {
+      return
+    }
+
+    setIsClearingCache(true)
+    setError(null)
+    try {
+      await clearFitnessRouteHeatmaps({ actorId })
+      generationKeyRef.current = null
+      pollingProgressRef.current = null
+      setHeatmapData(null)
+      setHeatmaps([])
+      setGenerationPending(false)
+      setPollingStalled(false)
+      await fetchData()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to clear route heatmap cache.'
+      )
+    } finally {
+      setIsClearingCache(false)
+    }
+  }, [actorId, fetchData, isClearingCache])
+
   const routeCount = heatmapData?.segments.length ?? 0
   const hasCompletedRoutes =
     heatmapData?.status === 'completed' && heatmapData.pointCount > 0
+  const hasRouteCache =
+    Boolean(heatmapData) || heatmaps.length > 0 || generationPending
 
   return (
     <div className="flex min-h-[720px] flex-col bg-background">
@@ -1073,18 +1110,35 @@ export const FitnessHeatmapView: FC<Props> = ({
                   <Route className="size-4" />
                   Route Cache
                 </h2>
-                {heatmapData && (
-                  <button
-                    onClick={retryCurrent}
-                    disabled={isRetrying}
-                    className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <RefreshCw
-                      className={cn('size-3', isRetrying && 'animate-spin')}
-                    />
-                    Refresh
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {hasRouteCache && (
+                    <button
+                      onClick={clearRouteCache}
+                      disabled={isClearingCache || isRetrying}
+                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <Trash2
+                        className={cn(
+                          'size-3',
+                          isClearingCache && 'animate-pulse'
+                        )}
+                      />
+                      Clear cache
+                    </button>
+                  )}
+                  {heatmapData && (
+                    <button
+                      onClick={retryCurrent}
+                      disabled={isRetrying || isClearingCache}
+                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={cn('size-3', isRetrying && 'animate-spin')}
+                      />
+                      Refresh
+                    </button>
+                  )}
+                </div>
               </div>
               <FitnessHeatmapList
                 heatmaps={heatmaps}
