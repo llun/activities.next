@@ -99,12 +99,13 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: 'actor-1',
           activityType: 'running',
           periodType: 'monthly',
-          periodKey: '2026-04'
-        }
+          periodKey: '2026-04',
+          requestedAt: expect.any(Number)
+        })
       })
     )
   })
