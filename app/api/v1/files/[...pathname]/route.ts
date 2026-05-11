@@ -15,9 +15,15 @@ export const GET = traceApiRoute(
   'getFile',
   async (req: NextRequest, context: { params: Promise<Params> }) => {
     const { pathname } = await context.params
-    const userPath = path
-      .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
-      .replace(/^(\.\.(\/|\\|$))+/, '')
+    const normalizedPath = path.normalize(
+      Array.isArray(pathname) ? pathname.join('/') : pathname
+    )
+
+    if (path.isAbsolute(normalizedPath) || /^[a-zA-Z]:/.test(normalizedPath)) {
+      return apiErrorResponse(404)
+    }
+
+    const userPath = normalizedPath.replace(/^(\.\.(\/|\\|$))+/, '')
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)
