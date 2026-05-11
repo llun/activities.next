@@ -56,9 +56,10 @@ type MapboxMap = {
 }
 
 type MapboxGL = {
-  accessToken?: string
   Map: new (options: Record<string, unknown>) => MapboxMap
 }
+
+type MapboxFallbackReason = 'module-load-failed' | 'render-failed'
 
 const MAP_WIDTH = 960
 const MAP_HEIGHT = 560
@@ -66,8 +67,9 @@ const MAP_PADDING = 52
 const currentYear = new Date().getUTCFullYear()
 const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
-const STALE_IN_FLIGHT_HEATMAP_MS =
-  STALLED_POLLING_LIMIT * ROUTE_HEATMAP_POLLING_INTERVAL_MS
+// Keep recent background jobs live while ignoring restored/stuck rows that are days old.
+const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
+// Mapbox GL can render smaller route sets interactively; large caches use SVG to avoid blank canvases.
 const MAPBOX_MAX_ROUTE_POINTS = 20_000
 
 const METRIC_LABELS: Record<CalendarMetric, string> = {
@@ -262,7 +264,8 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
-  const [mapboxFailed, setMapboxFailed] = useState(false)
+  const [mapboxFallbackReason, setMapboxFallbackReason] =
+    useState<MapboxFallbackReason | null>(null)
   const [isMapLoaded, setIsMapLoaded] = useState(false)
 
   const hasRoutes =
@@ -270,13 +273,13 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     heatmap.segments.some((segment) => segment.points.length >= 2)
   const bounds = heatmap?.bounds
   const isWithinMapboxBudget =
-    heatmap === null || heatmap.pointCount <= MAPBOX_MAX_ROUTE_POINTS
+    heatmap !== null && heatmap.pointCount <= MAPBOX_MAX_ROUTE_POINTS
   const shouldUseMapbox = Boolean(
     mapboxAccessToken &&
     hasRoutes &&
     bounds &&
     isWithinMapboxBudget &&
-    !mapboxFailed
+    !mapboxFallbackReason
   )
   const routeGeoJson = useMemo(
     () => buildRouteGeoJson(hasRoutes && heatmap ? heatmap.segments : []),
@@ -288,7 +291,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   }, [routeGeoJson])
 
   useEffect(() => {
-    setMapboxFailed(false)
+    setMapboxFallbackReason(null)
   }, [heatmap?.id, mapboxAccessToken])
 
   useEffect(() => {
@@ -307,7 +310,6 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
       .then((mapboxgl) => {
         if (cancelled || !containerRef.current) return
 
-        mapboxgl.accessToken = mapboxAccessToken
         const map = new mapboxgl.Map({
           container: containerRef.current,
           style: 'mapbox://styles/mapbox/outdoors-v12',
@@ -317,7 +319,6 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
           fitBoundsOptions: { padding: 56 }
         })
         mapRef.current = map
-        map.resize()
 
         map.on('load', () => {
           if (!map || cancelled) return
@@ -341,14 +342,14 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
             setIsMapLoaded(true)
           } catch {
             if (!cancelled) {
-              setMapboxFailed(true)
+              setMapboxFallbackReason('render-failed')
             }
           }
         })
       })
       .catch(() => {
         if (!cancelled) {
-          setMapboxFailed(true)
+          setMapboxFallbackReason('module-load-failed')
         }
       })
 
@@ -405,10 +406,13 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   }
 
   return (
-    <div className="relative min-h-[420px] overflow-hidden bg-slate-100 dark:bg-slate-950">
+    <div
+      className="relative h-[420px] overflow-hidden bg-slate-100 dark:bg-slate-950"
+      data-mapbox-fallback-reason={mapboxFallbackReason ?? undefined}
+    >
       <svg
         viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-        className="h-full min-h-[420px] w-full"
+        className="h-full w-full"
         role="img"
         aria-label="Fitness route heatmap"
         preserveAspectRatio="xMidYMid slice"
@@ -432,6 +436,9 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
       <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
         Routes
       </div>
+      {mapboxFallbackReason ? (
+        <p className="sr-only">Interactive map unavailable. Showing routes.</p>
+      ) : null}
     </div>
   )
 }

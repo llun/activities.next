@@ -102,6 +102,50 @@ const pendingSummary: FitnessRouteHeatmapSummaryData = {
 }
 
 const TEST_NOW = 1_700_000_060_000
+const IN_FLIGHT_HISTORY_POLL_WINDOW_MS = 15 * 60_000
+
+const pendingSummaryAtAge = (
+  ageMs: number
+): FitnessRouteHeatmapSummaryData => ({
+  ...pendingSummary,
+  updatedAt: TEST_NOW - ageMs
+})
+
+const buildLargeHeatmap = (): FitnessRouteHeatmapData => {
+  const segmentCount = 80
+  const pointsPerSegment = 1000
+  const segments: FitnessRouteHeatmapData['segments'] = Array.from(
+    { length: segmentCount },
+    (_, segmentIndex) => ({
+      points: Array.from({ length: pointsPerSegment }, (_point, pointIndex) => {
+        const progress =
+          (segmentIndex * pointsPerSegment + pointIndex) /
+          (segmentCount * pointsPerSegment - 1)
+        const branchOffset = (segmentIndex % 8) * 0.0008
+
+        return {
+          lat: 52.36 + progress * 0.03 + Math.sin(pointIndex / 30) * 0.0002,
+          lng: 4.88 + branchOffset + progress * 0.03
+        }
+      })
+    })
+  )
+
+  return {
+    ...completedHeatmap,
+    id: 'route-heatmap-large',
+    bounds: {
+      minLat: 52.36,
+      maxLat: 52.39,
+      minLng: 4.88,
+      maxLng: 4.916
+    },
+    segments,
+    activityCount: segmentCount,
+    pointCount: segmentCount * pointsPerSegment,
+    updatedAt: 3
+  }
+}
 
 describe('FitnessHeatmapView', () => {
   beforeEach(() => {
@@ -121,10 +165,7 @@ describe('FitnessHeatmapView', () => {
     jest.useFakeTimers()
     jest.setSystemTime(TEST_NOW)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
-      {
-        ...pendingSummary,
-        updatedAt: TEST_NOW
-      }
+      pendingSummaryAtAge(IN_FLIGHT_HISTORY_POLL_WINDOW_MS)
     ])
 
     render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
@@ -159,10 +200,7 @@ describe('FitnessHeatmapView', () => {
     jest.useFakeTimers()
     jest.setSystemTime(TEST_NOW)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
-      {
-        ...pendingSummary,
-        updatedAt: TEST_NOW - 10 * 60_000
-      }
+      pendingSummaryAtAge(IN_FLIGHT_HISTORY_POLL_WINDOW_MS + 1)
     ])
 
     render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
@@ -291,11 +329,57 @@ describe('RouteHeatmapMap', () => {
     )
   })
 
+  it('falls back with a diagnostic reason when Mapbox setup fails', async () => {
+    const mapConstructor = jest.fn().mockImplementation(() => ({
+      on: (_event: string, callback: () => void) => callback(),
+      remove: jest.fn(),
+      resize: jest.fn(),
+      addSource: jest.fn(() => {
+        throw new Error('source unavailable')
+      }),
+      addLayer: jest.fn(),
+      getSource: jest.fn(),
+      fitBounds: jest.fn()
+    }))
+    mockLoadMapboxModule.mockResolvedValue({
+      Map: mapConstructor
+    })
+
+    const { container } = render(
+      <RouteHeatmapMap
+        heatmap={completedHeatmap}
+        mapboxAccessToken="mapbox-token"
+      />
+    )
+
+    await waitFor(() => expect(screen.getByText('Routes')).toBeInTheDocument())
+    expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
+    expect(
+      container.querySelector('[data-mapbox-fallback-reason="render-failed"]')
+    ).toBeInTheDocument()
+  })
+
+  it('falls back with a diagnostic reason when Mapbox fails to load', async () => {
+    mockLoadMapboxModule.mockRejectedValue(new Error('module unavailable'))
+
+    const { container } = render(
+      <RouteHeatmapMap
+        heatmap={completedHeatmap}
+        mapboxAccessToken="mapbox-token"
+      />
+    )
+
+    await waitFor(() => expect(screen.getByText('Routes')).toBeInTheDocument())
+    expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
+    expect(
+      container.querySelector(
+        '[data-mapbox-fallback-reason="module-load-failed"]'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('uses the SVG route fallback for large route caches', () => {
-    const largeHeatmap = {
-      ...completedHeatmap,
-      pointCount: 80_000
-    }
+    const largeHeatmap = buildLargeHeatmap()
 
     const { container } = render(
       <RouteHeatmapMap
@@ -306,7 +390,9 @@ describe('RouteHeatmapMap', () => {
 
     expect(screen.getByText('Routes')).toBeInTheDocument()
     expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
-    expect(container.querySelector('polyline')).toBeInTheDocument()
+    expect(container.querySelectorAll('polyline')).toHaveLength(
+      largeHeatmap.segments.length
+    )
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 })
