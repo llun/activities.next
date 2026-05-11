@@ -71,6 +71,7 @@ const STALLED_POLLING_LIMIT = 30
 const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
 // Mapbox GL can render smaller route sets interactively; large caches use SVG to avoid blank canvases.
 const MAPBOX_MAX_ROUTE_POINTS = 20_000
+const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
 const METRIC_LABELS: Record<CalendarMetric, string> = {
   count: 'Count',
@@ -380,7 +381,12 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   if (!hasRoutes || !heatmap) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center bg-muted/40 text-sm text-muted-foreground">
+      <div
+        className={cn(
+          'flex items-center justify-center bg-muted/40 text-sm text-muted-foreground',
+          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+        )}
+      >
         No route data for this selection
       </div>
     )
@@ -388,7 +394,12 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   if (shouldUseMapbox) {
     return (
-      <div className="relative h-[420px] overflow-hidden bg-muted">
+      <div
+        className={cn(
+          'relative overflow-hidden bg-muted',
+          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+        )}
+      >
         <div ref={containerRef} className="absolute inset-0" />
         <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           Mapbox
@@ -399,7 +410,12 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   if (!svgMap) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center bg-muted/40 text-sm text-muted-foreground">
+      <div
+        className={cn(
+          'flex items-center justify-center bg-muted/40 text-sm text-muted-foreground',
+          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+        )}
+      >
         No route data for this selection
       </div>
     )
@@ -407,7 +423,10 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   return (
     <div
-      className="relative h-[420px] overflow-hidden bg-slate-100 dark:bg-slate-950"
+      className={cn(
+        'relative overflow-hidden bg-slate-100 dark:bg-slate-950',
+        ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+      )}
       data-mapbox-fallback-reason={mapboxFallbackReason ?? undefined}
     >
       <svg
