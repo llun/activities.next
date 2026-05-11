@@ -27,7 +27,10 @@ jest.mock('@/lib/services/fitness-files', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'getFitnessFile' | 'getActorFromId' | 'getDistinctRouteHeatmapRegionsForActor'
+  | 'getFitnessFile'
+  | 'getActorFromId'
+  | 'getDistinctRouteHeatmapRegionsForActor'
+  | 'getFitnessRouteHeatmapByKey'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -44,7 +47,8 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessFile: jest.fn(),
     getActorFromId: jest.fn(),
-    getDistinctRouteHeatmapRegionsForActor: jest.fn()
+    getDistinctRouteHeatmapRegionsForActor: jest.fn(),
+    getFitnessRouteHeatmapByKey: jest.fn()
   }
 
   beforeAll(() => {
@@ -79,6 +83,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
       account: { id: 'account-1' }
     } as Awaited<ReturnType<Database['getActorFromId']>>)
     mockDb.getDistinctRouteHeatmapRegionsForActor.mockResolvedValue([])
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
     mockDeleteFitnessFileFromStorage.mockResolvedValue(true)
     mockPublish.mockResolvedValue(undefined)
   })
@@ -99,12 +104,13 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: 'actor-1',
           activityType: 'running',
           periodType: 'monthly',
-          periodKey: '2026-04'
-        }
+          periodKey: '2026-04',
+          requestedAt: expect.any(Number)
+        })
       })
     )
   })

@@ -235,12 +235,14 @@ const publishRouteHeatmapVariant = ({
   queue,
   runId,
   actorId,
-  variant
+  variant,
+  requestedAt
 }: {
   queue: Queue
   runId: string
   actorId: string
   variant: RecreateFitnessRouteHeatmapVariant
+  requestedAt: number
 }) =>
   queue.publish({
     id: buildJobId({ runId, actorId, variant }),
@@ -250,6 +252,7 @@ const publishRouteHeatmapVariant = ({
       activityType: variant.activityType,
       periodType: variant.periodType,
       periodKey: variant.periodKey,
+      requestedAt,
       ...(variant.region ? { region: variant.region } : {})
     }
   })
@@ -258,12 +261,14 @@ const publishRouteHeatmapVariants = async ({
   queue,
   runId,
   actorId,
-  variants
+  variants,
+  requestedAt
 }: {
   queue: Queue
   runId: string
   actorId: string
   variants: RecreateFitnessRouteHeatmapVariant[]
+  requestedAt: number
 }): Promise<PromiseSettledResult<void>[]> => {
   const results: PromiseSettledResult<void>[] = []
   let nextIndex = 0
@@ -282,7 +287,8 @@ const publishRouteHeatmapVariants = async ({
           queue,
           runId,
           actorId,
-          variant: variants[index]
+          variant: variants[index],
+          requestedAt
         })
         results[index] = { status: 'fulfilled', value: undefined }
       } catch (error) {
@@ -327,6 +333,7 @@ export const recreateFitnessRouteHeatmapJobs = async ({
     actorId
   })
   const queue = getQueue()
+  const requestedAt = Date.now()
   const errors: RecreateFitnessRouteHeatmapJobError[] = []
   let queuedCount = 0
 
@@ -334,7 +341,8 @@ export const recreateFitnessRouteHeatmapJobs = async ({
     queue,
     runId,
     actorId,
-    variants
+    variants,
+    requestedAt
   })
 
   publishResults.forEach((result, index) => {

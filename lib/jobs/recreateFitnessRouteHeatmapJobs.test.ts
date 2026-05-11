@@ -129,24 +129,26 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: 'actor-1',
           activityType: 'run',
           periodType: 'monthly',
-          periodKey: '2026-01'
-        }
+          periodKey: '2026-01',
+          requestedAt: expect.any(Number)
+        })
       })
     )
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: 'actor-1',
           activityType: 'cycle',
           periodType: 'monthly',
           periodKey: '2026-02',
-          region: 'encoded-region'
-        }
+          region: 'encoded-region',
+          requestedAt: expect.any(Number)
+        })
       })
     )
   })
