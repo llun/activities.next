@@ -1165,7 +1165,10 @@ export const FitnessHeatmapView: FC<Props> = ({
                 <div className="flex items-center gap-1.5">
                   {hasRouteCache && (
                     <button
-                      onClick={() => setIsClearCacheDialogOpen(true)}
+                      onClick={() => {
+                        setError(null)
+                        setIsClearCacheDialogOpen(true)
+                      }}
                       disabled={isClearingCache || isRetrying}
                       className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                     >
@@ -1206,6 +1209,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         open={isClearCacheDialogOpen}
         onOpenChange={(open) => {
           if (isClearingCache) return
+          setError(null)
           setIsClearCacheDialogOpen(open)
         }}
       >
@@ -1218,11 +1222,22 @@ export const FitnessHeatmapView: FC<Props> = ({
               start a new route cache job.
             </DialogDescription>
           </DialogHeader>
+          {error ? (
+            <p
+              role="alert"
+              className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {error}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsClearCacheDialogOpen(false)}
+              onClick={() => {
+                setError(null)
+                setIsClearCacheDialogOpen(false)
+              }}
               disabled={isClearingCache}
             >
               Cancel
@@ -1232,13 +1247,12 @@ export const FitnessHeatmapView: FC<Props> = ({
               variant="destructive"
               onClick={clearRouteCache}
               disabled={isClearingCache}
+              aria-busy={isClearingCache}
             >
-              {isClearingCache ? (
-                <Trash2 className="animate-pulse" />
-              ) : (
-                <Trash2 />
-              )}
-              Clear route caches
+              <Trash2
+                className={isClearingCache ? 'animate-pulse' : undefined}
+              />
+              {isClearingCache ? 'Clearing...' : 'Clear route caches'}
             </Button>
           </DialogFooter>
         </DialogContent>

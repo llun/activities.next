@@ -2,7 +2,14 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import {
   clearFitnessRouteHeatmaps,
@@ -306,6 +313,9 @@ describe('FitnessHeatmapView', () => {
         })
       )
     })
+    await waitFor(() => {
+      expect(screen.queryByText('queue unavailable')).not.toBeInTheDocument()
+    })
   })
 
   it('clears all route caches without immediately requeueing the current selection', async () => {
@@ -375,13 +385,19 @@ describe('FitnessHeatmapView', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
-    fireEvent.click(screen.getByRole('button', { name: /Clear route caches/i }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: /Clear route caches/i })
+    )
 
-    expect(await screen.findByText('boom')).toBeInTheDocument()
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('boom')
     expect(mockClearFitnessRouteHeatmaps).toHaveBeenCalledWith({
       actorId: 'https://llun.test/users/llun'
     })
     expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /Cancel/i }))
+    expect(screen.queryByText('boom')).not.toBeInTheDocument()
   })
 })
 
