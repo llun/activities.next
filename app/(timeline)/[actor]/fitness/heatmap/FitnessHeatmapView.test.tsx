@@ -375,6 +375,33 @@ describe('FitnessHeatmapView', () => {
     expect(mockClearFitnessRouteHeatmaps).not.toHaveBeenCalled()
   })
 
+  it('keeps page errors when the clear route cache dialog is opened and cancelled', async () => {
+    mockTriggerFitnessRouteHeatmap.mockRejectedValueOnce(
+      new Error('refresh broken')
+    )
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Refresh/i }))
+
+    expect(await screen.findByText('refresh broken')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
+    const dialog = screen.getByRole('dialog')
+
+    expect(screen.getByText('refresh broken')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /Cancel/i }))
+
+    expect(screen.getByText('refresh broken')).toBeInTheDocument()
+    expect(mockClearFitnessRouteHeatmaps).not.toHaveBeenCalled()
+  })
+
   it('surfaces an error when clearing route caches fails', async () => {
     mockClearFitnessRouteHeatmaps.mockRejectedValue(new Error('boom'))
 

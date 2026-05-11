@@ -534,6 +534,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [isRetrying, setIsRetrying] = useState(false)
   const [isClearingCache, setIsClearingCache] = useState(false)
   const [isClearCacheDialogOpen, setIsClearCacheDialogOpen] = useState(false)
+  const [clearCacheError, setClearCacheError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
   const [pollingStalled, setPollingStalled] = useState(false)
   const isClearingCacheRef = useRef(false)
@@ -907,12 +908,19 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }
 
+  const setClearCacheDialogOpen = useCallback((open: boolean) => {
+    if (isClearingCacheRef.current) return
+
+    setClearCacheError(null)
+    setIsClearCacheDialogOpen(open)
+  }, [])
+
   const clearRouteCache = useCallback(async () => {
     if (isClearingCacheRef.current) return
 
     isClearingCacheRef.current = true
     setIsClearingCache(true)
-    setError(null)
+    setClearCacheError(null)
     try {
       await clearFitnessRouteHeatmaps({ actorId })
       generationKeyRef.current = null
@@ -922,9 +930,10 @@ export const FitnessHeatmapView: FC<Props> = ({
       setGenerationPending(false)
       setPollingStalled(false)
       await fetchData({ queueMissing: false })
+      setClearCacheError(null)
       setIsClearCacheDialogOpen(false)
     } catch (err) {
-      setError(
+      setClearCacheError(
         err instanceof Error
           ? err.message
           : 'Failed to clear route heatmap cache.'
@@ -1165,10 +1174,7 @@ export const FitnessHeatmapView: FC<Props> = ({
                 <div className="flex items-center gap-1.5">
                   {hasRouteCache && (
                     <button
-                      onClick={() => {
-                        setError(null)
-                        setIsClearCacheDialogOpen(true)
-                      }}
+                      onClick={() => setClearCacheDialogOpen(true)}
                       disabled={isClearingCache || isRetrying}
                       className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                     >
@@ -1207,11 +1213,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       </div>
       <Dialog
         open={isClearCacheDialogOpen}
-        onOpenChange={(open) => {
-          if (isClearingCache) return
-          setError(null)
-          setIsClearCacheDialogOpen(open)
-        }}
+        onOpenChange={setClearCacheDialogOpen}
       >
         <DialogContent>
           <DialogHeader>
@@ -1222,22 +1224,19 @@ export const FitnessHeatmapView: FC<Props> = ({
               start a new route cache job.
             </DialogDescription>
           </DialogHeader>
-          {error ? (
+          {clearCacheError ? (
             <p
               role="alert"
               className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
-              {error}
+              {clearCacheError}
             </p>
           ) : null}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                setError(null)
-                setIsClearCacheDialogOpen(false)
-              }}
+              onClick={() => setClearCacheDialogOpen(false)}
               disabled={isClearingCache}
             >
               Cancel
