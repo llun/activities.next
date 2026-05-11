@@ -84,6 +84,7 @@ export const enqueueFitnessRouteHeatmapJobs = async ({
   activityType = null,
   activityStartTime
 }: EnqueueFitnessRouteHeatmapJobsParams) => {
+  const requestedAt = Date.now()
   const activityDate = toActivityDate(activityStartTime)
   const baseVariants = buildBaseVariants(activityType, activityDate)
 
@@ -102,17 +103,29 @@ export const enqueueFitnessRouteHeatmapJobs = async ({
 
   const queue = getQueue()
   const results = await Promise.allSettled(
-    allVariants.map((variant) => {
-      const jobId = getHashFromString(
+    allVariants.map(async (variant) => {
+      const baseJobId =
         actorId +
-          ':route-heatmap:' +
-          (variant.activityType ?? 'all') +
-          ':' +
-          variant.periodType +
-          ':' +
-          variant.periodKey +
-          ':' +
-          (variant.region ?? '')
+        ':route-heatmap:' +
+        (variant.activityType ?? 'all') +
+        ':' +
+        variant.periodType +
+        ':' +
+        variant.periodKey +
+        ':' +
+        (variant.region ?? '')
+      const existing = await database.getFitnessRouteHeatmapByKey({
+        actorId,
+        activityType: variant.activityType,
+        periodType: variant.periodType,
+        periodKey: variant.periodKey,
+        region: variant.region ?? '',
+        includeDeleted: true
+      })
+      const jobId = getHashFromString(
+        existing?.deletedAt
+          ? `${baseJobId}:restore:${existing.id}:${existing.deletedAt}`
+          : baseJobId
       )
 
       return queue.publish({
@@ -123,6 +136,7 @@ export const enqueueFitnessRouteHeatmapJobs = async ({
           activityType: variant.activityType,
           periodType: variant.periodType,
           periodKey: variant.periodKey,
+          requestedAt,
           ...(variant.region ? { region: variant.region } : {})
         }
       })

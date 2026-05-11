@@ -6,7 +6,8 @@ import {
   Loader2,
   Map,
   RefreshCw,
-  Route
+  Route,
+  Trash2
 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -15,6 +16,7 @@ import {
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapSegment,
   FitnessRouteHeatmapSummaryData,
+  clearFitnessRouteHeatmaps,
   getDistinctFitnessActivityTypes,
   getFitnessCalendarData,
   getFitnessRouteHeatmap,
@@ -27,6 +29,15 @@ import {
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
 import { FitnessHeatmapList } from '@/lib/components/fitness/FitnessHeatmapList'
 import { RegionSelector } from '@/lib/components/fitness/RegionSelector'
+import { Button } from '@/lib/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/lib/components/ui/dialog'
 import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
@@ -59,11 +70,28 @@ type MapboxGL = {
   Map: new (options: Record<string, unknown>) => MapboxMap
 }
 
+type MapboxFallbackReason =
+  | 'module-load-failed'
+  | 'render-failed'
+  | 'route-cache-too-large'
+
+interface MapboxFallbackError {
+  message: string
+  stack?: string
+}
+
 const MAP_WIDTH = 960
 const MAP_HEIGHT = 560
 const MAP_PADDING = 52
 const currentYear = new Date().getUTCFullYear()
+const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
+// Keep recent background jobs live while ignoring restored/stuck rows that are days old.
+const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
+// Conservative cap: staging reproduced blank Mapbox canvases around 80k route points.
+// Keep a 4x safety margin until this path has browser/device benchmarks.
+const MAPBOX_MAX_ROUTE_POINTS = 20_000
+const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
 const METRIC_LABELS: Record<CalendarMetric, string> = {
   count: 'Count',
@@ -112,6 +140,19 @@ const MAPBOX_ROUTE_LINE_PAINT = {
 const getRouteLineStyle = (isHiddenByPrivacy: boolean) =>
   isHiddenByPrivacy ? ROUTE_LINE_STYLES.hidden : ROUTE_LINE_STYLES.visible
 
+const getMapboxFallbackError = (error: unknown): MapboxFallbackError => {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      stack: error.stack
+    }
+  }
+
+  return {
+    message: String(error)
+  }
+}
+
 const formatActivityType = (type?: string): string =>
   type
     ? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -124,6 +165,13 @@ const isRouteHeatmapInFlight = (
     | null
     | undefined
 ): boolean => heatmap?.status === 'generating' || heatmap?.status === 'pending'
+
+const shouldPollRouteHeatmapSummary = (
+  heatmap: Pick<FitnessRouteHeatmapSummaryData, 'status' | 'updatedAt'>,
+  currentTime: number
+): boolean =>
+  isRouteHeatmapInFlight(heatmap) &&
+  currentTime - heatmap.updatedAt <= STALE_IN_FLIGHT_HEATMAP_MS
 
 const getCalendarDateRange = (
   periodType: PeriodType,
@@ -250,16 +298,36 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
-  const [mapboxFailed, setMapboxFailed] = useState(false)
+  const [runtimeMapboxFallbackReason, setRuntimeMapboxFallbackReason] =
+    useState<Exclude<MapboxFallbackReason, 'route-cache-too-large'> | null>(
+      null
+    )
+  const [mapboxFallbackError, setMapboxFallbackError] =
+    useState<MapboxFallbackError | null>(null)
   const [isMapLoaded, setIsMapLoaded] = useState(false)
 
   const hasRoutes =
     heatmap?.status === 'completed' &&
     heatmap.segments.some((segment) => segment.points.length >= 2)
   const bounds = heatmap?.bounds
-  const shouldUseMapbox = Boolean(
-    mapboxAccessToken && hasRoutes && bounds && !mapboxFailed
-  )
+  const isWithinMapboxBudget =
+    heatmap !== null && heatmap.pointCount <= MAPBOX_MAX_ROUTE_POINTS
+  const budgetMapboxFallbackReason: MapboxFallbackReason | null =
+    mapboxAccessToken && hasRoutes && !isWithinMapboxBudget
+      ? 'route-cache-too-large'
+      : null
+  const mapboxFallbackReason =
+    runtimeMapboxFallbackReason ?? budgetMapboxFallbackReason
+  const mapboxFallbackErrorMessage =
+    process.env.NODE_ENV !== 'production'
+      ? mapboxFallbackError?.message
+      : undefined
+  const shouldUseMapbox =
+    Boolean(mapboxAccessToken) &&
+    hasRoutes &&
+    Boolean(bounds) &&
+    isWithinMapboxBudget &&
+    !runtimeMapboxFallbackReason
   const routeGeoJson = useMemo(
     () => buildRouteGeoJson(hasRoutes && heatmap ? heatmap.segments : []),
     [hasRoutes, heatmap?.id, heatmap?.updatedAt]
@@ -270,8 +338,9 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   }, [routeGeoJson])
 
   useEffect(() => {
-    setMapboxFailed(false)
-  }, [heatmap?.id, mapboxAccessToken])
+    setRuntimeMapboxFallbackReason(null)
+    setMapboxFallbackError(null)
+  }, [heatmap?.id, heatmap?.updatedAt, mapboxAccessToken])
 
   useEffect(() => {
     if (!shouldUseMapbox || !containerRef.current || !bounds) {
@@ -301,27 +370,36 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
         map.on('load', () => {
           if (!map || cancelled) return
-          map.addSource('route-heatmap', {
-            type: 'geojson',
-            data: routeGeoJsonRef.current
-          })
-          map.addLayer({
-            id: 'route-heatmap-lines',
-            type: 'line',
-            source: 'route-heatmap',
-            layout: {
-              'line-cap': 'round',
-              'line-join': 'round'
-            },
-            paint: MAPBOX_ROUTE_LINE_PAINT
-          })
-          map.fitBounds(mapBounds, { padding: 56, duration: 0 })
-          setIsMapLoaded(true)
+          try {
+            map.resize()
+            map.addSource('route-heatmap', {
+              type: 'geojson',
+              data: routeGeoJsonRef.current
+            })
+            map.addLayer({
+              id: 'route-heatmap-lines',
+              type: 'line',
+              source: 'route-heatmap',
+              layout: {
+                'line-cap': 'round',
+                'line-join': 'round'
+              },
+              paint: MAPBOX_ROUTE_LINE_PAINT
+            })
+            map.fitBounds(mapBounds, { padding: 56, duration: 0 })
+            setIsMapLoaded(true)
+          } catch (error) {
+            if (!cancelled) {
+              setMapboxFallbackError(getMapboxFallbackError(error))
+              setRuntimeMapboxFallbackReason('render-failed')
+            }
+          }
         })
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
-          setMapboxFailed(true)
+          setMapboxFallbackError(getMapboxFallbackError(error))
+          setRuntimeMapboxFallbackReason('module-load-failed')
         }
       })
 
@@ -352,7 +430,12 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   if (!hasRoutes || !heatmap) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center bg-muted/40 text-sm text-muted-foreground">
+      <div
+        className={cn(
+          'flex items-center justify-center bg-muted/40 text-sm text-muted-foreground',
+          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+        )}
+      >
         No route data for this selection
       </div>
     )
@@ -360,7 +443,12 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   if (shouldUseMapbox) {
     return (
-      <div className="relative min-h-[420px] overflow-hidden bg-muted">
+      <div
+        className={cn(
+          'relative overflow-hidden bg-muted',
+          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+        )}
+      >
         <div ref={containerRef} className="absolute inset-0" />
         <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           Mapbox
@@ -371,17 +459,29 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   if (!svgMap) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center bg-muted/40 text-sm text-muted-foreground">
+      <div
+        className={cn(
+          'flex items-center justify-center bg-muted/40 text-sm text-muted-foreground',
+          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+        )}
+      >
         No route data for this selection
       </div>
     )
   }
 
   return (
-    <div className="relative min-h-[420px] overflow-hidden bg-slate-100 dark:bg-slate-950">
+    <div
+      className={cn(
+        'relative overflow-hidden bg-slate-100 dark:bg-slate-950',
+        ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+      )}
+      data-mapbox-fallback-reason={mapboxFallbackReason ?? undefined}
+      data-mapbox-fallback-error={mapboxFallbackErrorMessage}
+    >
       <svg
         viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-        className="h-full min-h-[420px] w-full"
+        className="h-full w-full"
         role="img"
         aria-label="Fitness route heatmap"
         preserveAspectRatio="xMidYMid slice"
@@ -405,6 +505,9 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
       <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
         Routes
       </div>
+      {mapboxFallbackReason ? (
+        <p className="sr-only">Interactive map unavailable. Showing routes.</p>
+      ) : null}
     </div>
   )
 }
@@ -429,8 +532,12 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isClearingCache, setIsClearingCache] = useState(false)
+  const [isClearCacheDialogOpen, setIsClearCacheDialogOpen] = useState(false)
+  const [clearCacheError, setClearCacheError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
   const [pollingStalled, setPollingStalled] = useState(false)
+  const isClearingCacheRef = useRef(false)
   const generationKeyRef = useRef<string | null>(null)
   const selectionKeyRef = useRef<string>('')
   const fetchRequestIdRef = useRef(0)
@@ -516,89 +623,96 @@ export const FitnessHeatmapView: FC<Props> = ({
     selectionKey
   ])
 
-  const fetchData = useCallback(async () => {
-    const requestId = fetchRequestIdRef.current + 1
-    fetchRequestIdRef.current = requestId
-    const isCurrentRequest = () =>
-      fetchRequestIdRef.current === requestId &&
-      selectionKeyRef.current === selectionKey
+  const fetchData = useCallback(
+    async (options?: { queueMissing?: boolean }) => {
+      const requestId = fetchRequestIdRef.current + 1
+      fetchRequestIdRef.current = requestId
+      const queueMissing = options?.queueMissing ?? true
+      const isCurrentRequest = () =>
+        fetchRequestIdRef.current === requestId &&
+        selectionKeyRef.current === selectionKey
 
-    setIsLoading(true)
-    setError(null)
+      setIsLoading(true)
+      setError(null)
 
-    try {
-      const { startDate, endDate } = getCalendarDateRange(
-        periodType,
-        effectivePeriodKey
-      )
-      const [heatmap, calendar, allHeatmaps] = await Promise.all([
-        getFitnessRouteHeatmap({
-          actorId,
-          activityType: selectedActivityType,
+      try {
+        const { startDate, endDate } = getCalendarDateRange(
           periodType,
-          periodKey: effectivePeriodKey,
-          region: serializedRegion
-        }),
-        getFitnessCalendarData({
-          actorId,
-          startDate,
-          endDate,
-          activityType: selectedActivityType
-        }),
-        getFitnessRouteHeatmaps({ actorId })
-      ])
+          effectivePeriodKey
+        )
+        const [heatmap, calendar, allHeatmaps] = await Promise.all([
+          getFitnessRouteHeatmap({
+            actorId,
+            activityType: selectedActivityType,
+            periodType,
+            periodKey: effectivePeriodKey,
+            region: serializedRegion
+          }),
+          getFitnessCalendarData({
+            actorId,
+            startDate,
+            endDate,
+            activityType: selectedActivityType
+          }),
+          getFitnessRouteHeatmaps({ actorId })
+        ])
 
-      if (!isCurrentRequest()) return
+        if (!isCurrentRequest()) return
 
-      setHeatmapData(heatmap)
-      setCalendarDays(calendar)
-      setHeatmaps(allHeatmaps)
+        setHeatmapData(heatmap)
+        setCalendarDays(calendar)
+        setHeatmaps(allHeatmaps)
 
-      if (heatmap === null) {
-        if (generationKeyRef.current !== selectionKey) {
-          if (!isCurrentRequest()) return
-          generationKeyRef.current = selectionKey
-          try {
-            const queued = await queueCurrentRouteHeatmap()
-            if (!queued && generationKeyRef.current === selectionKey) {
-              generationKeyRef.current = null
-            }
-          } catch (err) {
+        if (heatmap === null && queueMissing) {
+          if (generationKeyRef.current !== selectionKey) {
             if (!isCurrentRequest()) return
-            generationKeyRef.current = null
-            throw err
+            generationKeyRef.current = selectionKey
+            try {
+              const queued = await queueCurrentRouteHeatmap()
+              if (!queued && generationKeyRef.current === selectionKey) {
+                generationKeyRef.current = null
+              }
+            } catch (err) {
+              if (!isCurrentRequest()) return
+              generationKeyRef.current = null
+              throw err
+            }
           }
         }
+      } catch (err) {
+        if (!isCurrentRequest()) return
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to load route heatmap data.'
+        )
+      } finally {
+        if (isCurrentRequest()) {
+          setIsLoading(false)
+        }
       }
-    } catch (err) {
-      if (!isCurrentRequest()) return
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to load route heatmap data.'
-      )
-    } finally {
-      if (isCurrentRequest()) {
-        setIsLoading(false)
-      }
-    }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    serializedRegion,
-    selectionKey,
-    queueCurrentRouteHeatmap
-  ])
+    },
+    [
+      actorId,
+      selectedActivityType,
+      periodType,
+      effectivePeriodKey,
+      serializedRegion,
+      selectionKey,
+      queueCurrentRouteHeatmap
+    ]
+  )
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
   const hasAnyListInFlight = useMemo(
-    () => heatmaps.some(isRouteHeatmapInFlight),
-    [heatmaps]
+    () =>
+      heatmaps.some((heatmap) =>
+        shouldPollRouteHeatmapSummary(heatmap, currentTime)
+      ),
+    [currentTime, heatmaps]
   )
   const isFocusedHeatmapInFlight =
     generationPending || isRouteHeatmapInFlight(heatmapData)
@@ -679,7 +793,7 @@ export const FitnessHeatmapView: FC<Props> = ({
           }
         })
         .catch(() => {})
-    }, 5000)
+    }, ROUTE_HEATMAP_POLLING_INTERVAL_MS)
 
     return () => clearInterval(id)
   }, [
@@ -794,9 +908,49 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }
 
+  const setClearCacheDialogOpen = useCallback((open: boolean) => {
+    if (isClearingCacheRef.current) return
+
+    setClearCacheError(null)
+    setIsClearCacheDialogOpen(open)
+  }, [])
+
+  const clearRouteCache = useCallback(async () => {
+    if (isClearingCacheRef.current) return
+
+    isClearingCacheRef.current = true
+    setIsClearingCache(true)
+    setClearCacheError(null)
+    try {
+      await clearFitnessRouteHeatmaps({ actorId })
+      generationKeyRef.current = null
+      pollingProgressRef.current = null
+      setHeatmapData(null)
+      setHeatmaps([])
+      setGenerationPending(false)
+      setPollingStalled(false)
+      await fetchData({ queueMissing: false })
+      setClearCacheError(null)
+      setIsClearCacheDialogOpen(false)
+    } catch (err) {
+      setClearCacheError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to clear route heatmap cache.'
+      )
+    } finally {
+      isClearingCacheRef.current = false
+      setIsClearingCache(false)
+    }
+  }, [actorId, fetchData])
+
   const routeCount = heatmapData?.segments.length ?? 0
   const hasCompletedRoutes =
     heatmapData?.status === 'completed' && heatmapData.pointCount > 0
+  const hasRouteCache =
+    Boolean(heatmapData) || heatmaps.length > 0 || generationPending
+  const canRefreshRouteCache =
+    !isLoading && !generationPending && !isRouteHeatmapInFlight(heatmapData)
 
   return (
     <div className="flex min-h-[720px] flex-col bg-background">
@@ -1017,18 +1171,35 @@ export const FitnessHeatmapView: FC<Props> = ({
                   <Route className="size-4" />
                   Route Cache
                 </h2>
-                {heatmapData && (
-                  <button
-                    onClick={retryCurrent}
-                    disabled={isRetrying}
-                    className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <RefreshCw
-                      className={cn('size-3', isRetrying && 'animate-spin')}
-                    />
-                    Refresh
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {hasRouteCache && (
+                    <button
+                      onClick={() => setClearCacheDialogOpen(true)}
+                      disabled={isClearingCache || isRetrying}
+                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <Trash2
+                        className={cn(
+                          'size-3',
+                          isClearingCache && 'animate-pulse'
+                        )}
+                      />
+                      Clear cache
+                    </button>
+                  )}
+                  {canRefreshRouteCache && (
+                    <button
+                      onClick={retryCurrent}
+                      disabled={isRetrying || isClearingCache}
+                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={cn('size-3', isRetrying && 'animate-spin')}
+                      />
+                      {heatmapData ? 'Refresh' : 'Generate'}
+                    </button>
+                  )}
+                </div>
               </div>
               <FitnessHeatmapList
                 heatmaps={heatmaps}
@@ -1040,6 +1211,51 @@ export const FitnessHeatmapView: FC<Props> = ({
           </div>
         </aside>
       </div>
+      <Dialog
+        open={isClearCacheDialogOpen}
+        onOpenChange={setClearCacheDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear route cache</DialogTitle>
+            <DialogDescription>
+              Clear all route heatmap cache for this account, including queued,
+              generating, and failed route caches. This does not immediately
+              start a new route cache job.
+            </DialogDescription>
+          </DialogHeader>
+          {clearCacheError ? (
+            <p
+              role="alert"
+              className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {clearCacheError}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setClearCacheDialogOpen(false)}
+              disabled={isClearingCache}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={clearRouteCache}
+              disabled={isClearingCache}
+              aria-busy={isClearingCache}
+            >
+              <Trash2
+                className={isClearingCache ? 'animate-pulse' : undefined}
+              />
+              {isClearingCache ? 'Clearing...' : 'Clear route caches'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

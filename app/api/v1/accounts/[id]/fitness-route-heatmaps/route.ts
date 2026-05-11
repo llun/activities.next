@@ -14,7 +14,11 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
-const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+const CORS_HEADERS = [
+  HttpMethod.enum.OPTIONS,
+  HttpMethod.enum.GET,
+  HttpMethod.enum.DELETE
+]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -93,6 +97,69 @@ export const GET = traceApiRoute(
       data: {
         heatmaps: heatmaps.map(serializeRouteHeatmapSummary)
       }
+    })
+  },
+  {
+    addAttributes: async (_req, context) => {
+      const params = await context.params
+      return { accountId: params?.id || 'unknown' }
+    }
+  }
+)
+
+export const DELETE = traceApiRoute(
+  'deleteAccountFitnessRouteHeatmaps',
+  async (req, params: AppRouterParams<Params>) => {
+    const session = await getServerAuthSession()
+    if (!session?.user?.email) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
+    }
+
+    const database = getDatabase()
+    if (!database) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
+    }
+
+    const currentActor = await getActorFromSession(database, session)
+    if (!currentActor) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
+    }
+
+    const { id: encodedAccountId } = await params.params
+    const id = idToUrl(encodedAccountId)
+
+    if (currentActor.id !== id) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
+    }
+
+    const deleted = await database.deleteFitnessRouteHeatmapsForActor({
+      actorId: id
+    })
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { deleted }
     })
   },
   {

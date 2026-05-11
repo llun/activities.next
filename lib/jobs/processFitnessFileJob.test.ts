@@ -229,42 +229,54 @@ describe('processFitnessFileJob', () => {
     const heatmapPayloads = heatmapCalls.map(
       ([msg]: [{ data: object }]) => msg.data
     )
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: 'running',
-      periodType: 'all_time',
-      periodKey: 'all'
-    })
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: 'running',
-      periodType: 'yearly',
-      periodKey: '2026'
-    })
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: 'running',
-      periodType: 'monthly',
-      periodKey: '2026-01'
-    })
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: null,
-      periodType: 'all_time',
-      periodKey: 'all'
-    })
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: null,
-      periodType: 'yearly',
-      periodKey: '2026'
-    })
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: null,
-      periodType: 'monthly',
-      periodKey: '2026-01'
-    })
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'all_time',
+        periodKey: 'all'
+      })
+    )
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'yearly',
+        periodKey: '2026'
+      })
+    )
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-01'
+      })
+    )
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: null,
+        periodType: 'all_time',
+        periodKey: 'all'
+      })
+    )
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: null,
+        periodType: 'yearly',
+        periodKey: '2026'
+      })
+    )
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: null,
+        periodType: 'monthly',
+        periodKey: '2026-01'
+      })
+    )
   })
 
   it('completes without map generation when there are no GPS coordinates', async () => {
@@ -477,18 +489,22 @@ describe('processFitnessFileJob', () => {
       })
     }
 
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: null,
-      periodType: 'yearly',
-      periodKey: '2025'
-    })
-    expect(heatmapPayloads).toContainEqual({
-      actorId: actor.id,
-      activityType: null,
-      periodType: 'monthly',
-      periodKey: '2025-03'
-    })
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: null,
+        periodType: 'yearly',
+        periodKey: '2025'
+      })
+    )
+    expect(heatmapPayloads).toContainEqual(
+      expect.objectContaining({
+        actorId: actor.id,
+        activityType: null,
+        periodType: 'monthly',
+        periodKey: '2025-03'
+      })
+    )
   })
 
   it('does not queue heatmap jobs when processing fails', async () => {
