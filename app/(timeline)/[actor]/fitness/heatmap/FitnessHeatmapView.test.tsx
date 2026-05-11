@@ -101,6 +101,8 @@ const pendingSummary: FitnessRouteHeatmapSummaryData = {
   updatedAt: 2
 }
 
+const TEST_NOW = 1_700_000_060_000
+
 describe('FitnessHeatmapView', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -115,8 +117,53 @@ describe('FitnessHeatmapView', () => {
     jest.useRealTimers()
   })
 
-  it('keeps polling history entries without stalling a completed selection', async () => {
+  it('keeps polling fresh history entries without stalling a completed selection', async () => {
     jest.useFakeTimers()
+    jest.setSystemTime(TEST_NOW)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      {
+        ...pendingSummary,
+        updatedAt: TEST_NOW
+      }
+    ])
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    await waitFor(() => {
+      expect(mockGetFitnessRouteHeatmap).toHaveBeenCalledTimes(1)
+      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
+      expect(screen.getByText('Generating…')).toBeInTheDocument()
+    })
+
+    mockGetFitnessRouteHeatmap.mockClear()
+
+    const callsAfterInitialLoad = mockGetFitnessRouteHeatmaps.mock.calls.length
+
+    for (let i = 0; i < 2; i++) {
+      await act(async () => {
+        jest.advanceTimersByTime(5000)
+        await Promise.resolve()
+      })
+    }
+
+    expect(mockGetFitnessRouteHeatmaps.mock.calls.length).toBeGreaterThan(
+      callsAfterInitialLoad
+    )
+    expect(mockGetFitnessRouteHeatmap).not.toHaveBeenCalled()
+    expect(
+      screen.queryByText('Route cache is taking longer than expected')
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not keep polling stale in-progress history entries', async () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(TEST_NOW)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      {
+        ...pendingSummary,
+        updatedAt: TEST_NOW - 10 * 60_000
+      }
+    ])
 
     render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
 
@@ -125,31 +172,16 @@ describe('FitnessHeatmapView', () => {
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
     })
 
-    mockGetFitnessRouteHeatmap.mockClear()
-
     const callsAfterInitialLoad = mockGetFitnessRouteHeatmaps.mock.calls.length
 
-    for (let i = 0; i < 35; i++) {
-      await act(async () => {
-        jest.advanceTimersByTime(5000)
-        await Promise.resolve()
-      })
-    }
-    const callsAfterStallWindow = mockGetFitnessRouteHeatmaps.mock.calls.length
-
     await act(async () => {
-      jest.advanceTimersByTime(5000)
+      jest.advanceTimersByTime(15_000)
       await Promise.resolve()
     })
 
-    expect(callsAfterStallWindow).toBeGreaterThan(callsAfterInitialLoad)
-    expect(mockGetFitnessRouteHeatmaps.mock.calls.length).toBeGreaterThan(
-      callsAfterStallWindow
+    expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(
+      callsAfterInitialLoad
     )
-    expect(mockGetFitnessRouteHeatmap).not.toHaveBeenCalled()
-    expect(
-      screen.queryByText('Route cache is taking longer than expected')
-    ).not.toBeInTheDocument()
   })
 
   it('ignores stale selection responses before mutating state or enqueueing', async () => {
@@ -257,5 +289,24 @@ describe('RouteHeatmapMap', () => {
         attributionControl: true
       })
     )
+  })
+
+  it('uses the SVG route fallback for large route caches', () => {
+    const largeHeatmap = {
+      ...completedHeatmap,
+      pointCount: 80_000
+    }
+
+    const { container } = render(
+      <RouteHeatmapMap
+        heatmap={largeHeatmap}
+        mapboxAccessToken="mapbox-token"
+      />
+    )
+
+    expect(screen.getByText('Routes')).toBeInTheDocument()
+    expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
+    expect(container.querySelector('polyline')).toBeInTheDocument()
+    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 })

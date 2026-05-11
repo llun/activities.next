@@ -56,6 +56,7 @@ type MapboxMap = {
 }
 
 type MapboxGL = {
+  accessToken?: string
   Map: new (options: Record<string, unknown>) => MapboxMap
 }
 
@@ -63,7 +64,11 @@ const MAP_WIDTH = 960
 const MAP_HEIGHT = 560
 const MAP_PADDING = 52
 const currentYear = new Date().getUTCFullYear()
+const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
+const STALE_IN_FLIGHT_HEATMAP_MS =
+  STALLED_POLLING_LIMIT * ROUTE_HEATMAP_POLLING_INTERVAL_MS
+const MAPBOX_MAX_ROUTE_POINTS = 20_000
 
 const METRIC_LABELS: Record<CalendarMetric, string> = {
   count: 'Count',
@@ -124,6 +129,13 @@ const isRouteHeatmapInFlight = (
     | null
     | undefined
 ): boolean => heatmap?.status === 'generating' || heatmap?.status === 'pending'
+
+const shouldPollRouteHeatmapSummary = (
+  heatmap: Pick<FitnessRouteHeatmapSummaryData, 'status' | 'updatedAt'>,
+  currentTime: number
+): boolean =>
+  isRouteHeatmapInFlight(heatmap) &&
+  currentTime - heatmap.updatedAt <= STALE_IN_FLIGHT_HEATMAP_MS
 
 const getCalendarDateRange = (
   periodType: PeriodType,
@@ -257,8 +269,14 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     heatmap?.status === 'completed' &&
     heatmap.segments.some((segment) => segment.points.length >= 2)
   const bounds = heatmap?.bounds
+  const isWithinMapboxBudget =
+    heatmap === null || heatmap.pointCount <= MAPBOX_MAX_ROUTE_POINTS
   const shouldUseMapbox = Boolean(
-    mapboxAccessToken && hasRoutes && bounds && !mapboxFailed
+    mapboxAccessToken &&
+    hasRoutes &&
+    bounds &&
+    isWithinMapboxBudget &&
+    !mapboxFailed
   )
   const routeGeoJson = useMemo(
     () => buildRouteGeoJson(hasRoutes && heatmap ? heatmap.segments : []),
@@ -289,6 +307,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
       .then((mapboxgl) => {
         if (cancelled || !containerRef.current) return
 
+        mapboxgl.accessToken = mapboxAccessToken
         const map = new mapboxgl.Map({
           container: containerRef.current,
           style: 'mapbox://styles/mapbox/outdoors-v12',
@@ -298,25 +317,33 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
           fitBoundsOptions: { padding: 56 }
         })
         mapRef.current = map
+        map.resize()
 
         map.on('load', () => {
           if (!map || cancelled) return
-          map.addSource('route-heatmap', {
-            type: 'geojson',
-            data: routeGeoJsonRef.current
-          })
-          map.addLayer({
-            id: 'route-heatmap-lines',
-            type: 'line',
-            source: 'route-heatmap',
-            layout: {
-              'line-cap': 'round',
-              'line-join': 'round'
-            },
-            paint: MAPBOX_ROUTE_LINE_PAINT
-          })
-          map.fitBounds(mapBounds, { padding: 56, duration: 0 })
-          setIsMapLoaded(true)
+          try {
+            map.resize()
+            map.addSource('route-heatmap', {
+              type: 'geojson',
+              data: routeGeoJsonRef.current
+            })
+            map.addLayer({
+              id: 'route-heatmap-lines',
+              type: 'line',
+              source: 'route-heatmap',
+              layout: {
+                'line-cap': 'round',
+                'line-join': 'round'
+              },
+              paint: MAPBOX_ROUTE_LINE_PAINT
+            })
+            map.fitBounds(mapBounds, { padding: 56, duration: 0 })
+            setIsMapLoaded(true)
+          } catch {
+            if (!cancelled) {
+              setMapboxFailed(true)
+            }
+          }
         })
       })
       .catch(() => {
@@ -360,7 +387,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   if (shouldUseMapbox) {
     return (
-      <div className="relative min-h-[420px] overflow-hidden bg-muted">
+      <div className="relative h-[420px] overflow-hidden bg-muted">
         <div ref={containerRef} className="absolute inset-0" />
         <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           Mapbox
@@ -597,8 +624,11 @@ export const FitnessHeatmapView: FC<Props> = ({
   }, [fetchData])
 
   const hasAnyListInFlight = useMemo(
-    () => heatmaps.some(isRouteHeatmapInFlight),
-    [heatmaps]
+    () =>
+      heatmaps.some((heatmap) =>
+        shouldPollRouteHeatmapSummary(heatmap, currentTime)
+      ),
+    [currentTime, heatmaps]
   )
   const isFocusedHeatmapInFlight =
     generationPending || isRouteHeatmapInFlight(heatmapData)
@@ -679,7 +709,7 @@ export const FitnessHeatmapView: FC<Props> = ({
           }
         })
         .catch(() => {})
-    }, 5000)
+    }, ROUTE_HEATMAP_POLLING_INTERVAL_MS)
 
     return () => clearInterval(id)
   }, [
