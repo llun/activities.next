@@ -367,11 +367,12 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     const query = database('fitness_route_heatmaps').where('id', id)
     if (!clearDeleted) {
       query.whereNull('deletedAt')
-    } else if (clearDeletedBefore !== undefined) {
+    } else {
+      const clearDeletedCutoff = clearDeletedBefore ?? 0
       query.where((builder) => {
         builder
           .whereNull('deletedAt')
-          .orWhere('deletedAt', '<=', new Date(clearDeletedBefore))
+          .orWhere('deletedAt', '<=', new Date(clearDeletedCutoff))
       })
     }
     const result = await query.update(updateData)

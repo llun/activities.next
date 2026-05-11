@@ -229,6 +229,66 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     )
   })
 
+  it('versions the job id when restoring a cleared route heatmap cache', async () => {
+    const deletedAt = Date.now() - 1000
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-deleted',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: 'netherlands',
+      status: 'completed',
+      segments: [],
+      activityCount: 8,
+      pointCount: 200,
+      cursorOffset: 0,
+      isPartial: false,
+      createdAt: deletedAt - 1000,
+      updatedAt: deletedAt,
+      deletedAt
+    })
+
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        activity_type: 'running',
+        period_type: 'monthly',
+        period_key: '2026-04',
+        region: 'netherlands'
+      })
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockDb.getFitnessRouteHeatmapByKey).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: 'netherlands',
+      includeDeleted: true
+    })
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: getHashFromString(
+          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:restore:route-heatmap-deleted:${deletedAt}`
+        ),
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: expect.objectContaining({
+          actorId: ACTOR1_ID,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-04',
+          region: 'netherlands',
+          requestedAt: expect.any(Number)
+        })
+      })
+    )
+  })
+
   it('uses a unique retry job id for existing non-resumable caches', async () => {
     const retryNonce = '00000000-0000-4000-8000-000000000000'
     const randomUUIDSpy = jest

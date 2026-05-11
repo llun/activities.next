@@ -29,6 +29,15 @@ import {
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
 import { FitnessHeatmapList } from '@/lib/components/fitness/FitnessHeatmapList'
 import { RegionSelector } from '@/lib/components/fitness/RegionSelector'
+import { Button } from '@/lib/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/lib/components/ui/dialog'
 import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
@@ -524,8 +533,10 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
   const [isClearingCache, setIsClearingCache] = useState(false)
+  const [isClearCacheDialogOpen, setIsClearCacheDialogOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
   const [pollingStalled, setPollingStalled] = useState(false)
+  const isClearingCacheRef = useRef(false)
   const generationKeyRef = useRef<string | null>(null)
   const selectionKeyRef = useRef<string>('')
   const fetchRequestIdRef = useRef(0)
@@ -611,81 +622,85 @@ export const FitnessHeatmapView: FC<Props> = ({
     selectionKey
   ])
 
-  const fetchData = useCallback(async () => {
-    const requestId = fetchRequestIdRef.current + 1
-    fetchRequestIdRef.current = requestId
-    const isCurrentRequest = () =>
-      fetchRequestIdRef.current === requestId &&
-      selectionKeyRef.current === selectionKey
+  const fetchData = useCallback(
+    async (options?: { queueMissing?: boolean }) => {
+      const requestId = fetchRequestIdRef.current + 1
+      fetchRequestIdRef.current = requestId
+      const queueMissing = options?.queueMissing ?? true
+      const isCurrentRequest = () =>
+        fetchRequestIdRef.current === requestId &&
+        selectionKeyRef.current === selectionKey
 
-    setIsLoading(true)
-    setError(null)
+      setIsLoading(true)
+      setError(null)
 
-    try {
-      const { startDate, endDate } = getCalendarDateRange(
-        periodType,
-        effectivePeriodKey
-      )
-      const [heatmap, calendar, allHeatmaps] = await Promise.all([
-        getFitnessRouteHeatmap({
-          actorId,
-          activityType: selectedActivityType,
+      try {
+        const { startDate, endDate } = getCalendarDateRange(
           periodType,
-          periodKey: effectivePeriodKey,
-          region: serializedRegion
-        }),
-        getFitnessCalendarData({
-          actorId,
-          startDate,
-          endDate,
-          activityType: selectedActivityType
-        }),
-        getFitnessRouteHeatmaps({ actorId })
-      ])
+          effectivePeriodKey
+        )
+        const [heatmap, calendar, allHeatmaps] = await Promise.all([
+          getFitnessRouteHeatmap({
+            actorId,
+            activityType: selectedActivityType,
+            periodType,
+            periodKey: effectivePeriodKey,
+            region: serializedRegion
+          }),
+          getFitnessCalendarData({
+            actorId,
+            startDate,
+            endDate,
+            activityType: selectedActivityType
+          }),
+          getFitnessRouteHeatmaps({ actorId })
+        ])
 
-      if (!isCurrentRequest()) return
+        if (!isCurrentRequest()) return
 
-      setHeatmapData(heatmap)
-      setCalendarDays(calendar)
-      setHeatmaps(allHeatmaps)
+        setHeatmapData(heatmap)
+        setCalendarDays(calendar)
+        setHeatmaps(allHeatmaps)
 
-      if (heatmap === null) {
-        if (generationKeyRef.current !== selectionKey) {
-          if (!isCurrentRequest()) return
-          generationKeyRef.current = selectionKey
-          try {
-            const queued = await queueCurrentRouteHeatmap()
-            if (!queued && generationKeyRef.current === selectionKey) {
-              generationKeyRef.current = null
-            }
-          } catch (err) {
+        if (heatmap === null && queueMissing) {
+          if (generationKeyRef.current !== selectionKey) {
             if (!isCurrentRequest()) return
-            generationKeyRef.current = null
-            throw err
+            generationKeyRef.current = selectionKey
+            try {
+              const queued = await queueCurrentRouteHeatmap()
+              if (!queued && generationKeyRef.current === selectionKey) {
+                generationKeyRef.current = null
+              }
+            } catch (err) {
+              if (!isCurrentRequest()) return
+              generationKeyRef.current = null
+              throw err
+            }
           }
         }
+      } catch (err) {
+        if (!isCurrentRequest()) return
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to load route heatmap data.'
+        )
+      } finally {
+        if (isCurrentRequest()) {
+          setIsLoading(false)
+        }
       }
-    } catch (err) {
-      if (!isCurrentRequest()) return
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to load route heatmap data.'
-      )
-    } finally {
-      if (isCurrentRequest()) {
-        setIsLoading(false)
-      }
-    }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    serializedRegion,
-    selectionKey,
-    queueCurrentRouteHeatmap
-  ])
+    },
+    [
+      actorId,
+      selectedActivityType,
+      periodType,
+      effectivePeriodKey,
+      serializedRegion,
+      selectionKey,
+      queueCurrentRouteHeatmap
+    ]
+  )
 
   useEffect(() => {
     fetchData()
@@ -893,15 +908,9 @@ export const FitnessHeatmapView: FC<Props> = ({
   }
 
   const clearRouteCache = useCallback(async () => {
-    if (isClearingCache) return
-    if (
-      !window.confirm(
-        'Clear all route heatmap cache for this account? This includes queued, generating, and failed route caches.'
-      )
-    ) {
-      return
-    }
+    if (isClearingCacheRef.current) return
 
+    isClearingCacheRef.current = true
     setIsClearingCache(true)
     setError(null)
     try {
@@ -912,7 +921,8 @@ export const FitnessHeatmapView: FC<Props> = ({
       setHeatmaps([])
       setGenerationPending(false)
       setPollingStalled(false)
-      await fetchData()
+      await fetchData({ queueMissing: false })
+      setIsClearCacheDialogOpen(false)
     } catch (err) {
       setError(
         err instanceof Error
@@ -920,15 +930,18 @@ export const FitnessHeatmapView: FC<Props> = ({
           : 'Failed to clear route heatmap cache.'
       )
     } finally {
+      isClearingCacheRef.current = false
       setIsClearingCache(false)
     }
-  }, [actorId, fetchData, isClearingCache])
+  }, [actorId, fetchData])
 
   const routeCount = heatmapData?.segments.length ?? 0
   const hasCompletedRoutes =
     heatmapData?.status === 'completed' && heatmapData.pointCount > 0
   const hasRouteCache =
     Boolean(heatmapData) || heatmaps.length > 0 || generationPending
+  const canRefreshRouteCache =
+    !isLoading && (Boolean(heatmapData) || !hasRouteCache)
 
   return (
     <div className="flex min-h-[720px] flex-col bg-background">
@@ -1152,7 +1165,7 @@ export const FitnessHeatmapView: FC<Props> = ({
                 <div className="flex items-center gap-1.5">
                   {hasRouteCache && (
                     <button
-                      onClick={clearRouteCache}
+                      onClick={() => setIsClearCacheDialogOpen(true)}
                       disabled={isClearingCache || isRetrying}
                       className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                     >
@@ -1165,7 +1178,7 @@ export const FitnessHeatmapView: FC<Props> = ({
                       Clear cache
                     </button>
                   )}
-                  {heatmapData && (
+                  {canRefreshRouteCache && (
                     <button
                       onClick={retryCurrent}
                       disabled={isRetrying || isClearingCache}
@@ -1174,7 +1187,7 @@ export const FitnessHeatmapView: FC<Props> = ({
                       <RefreshCw
                         className={cn('size-3', isRetrying && 'animate-spin')}
                       />
-                      Refresh
+                      {heatmapData ? 'Refresh' : 'Generate'}
                     </button>
                   )}
                 </div>
@@ -1189,6 +1202,47 @@ export const FitnessHeatmapView: FC<Props> = ({
           </div>
         </aside>
       </div>
+      <Dialog
+        open={isClearCacheDialogOpen}
+        onOpenChange={(open) => {
+          if (isClearingCache) return
+          setIsClearCacheDialogOpen(open)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear route cache</DialogTitle>
+            <DialogDescription>
+              Clear all route heatmap cache for this account, including queued,
+              generating, and failed route caches. This does not immediately
+              start a new route cache job.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsClearCacheDialogOpen(false)}
+              disabled={isClearingCache}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={clearRouteCache}
+              disabled={isClearingCache}
+            >
+              {isClearingCache ? (
+                <Trash2 className="animate-pulse" />
+              ) : (
+                <Trash2 />
+              )}
+              Clear route caches
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

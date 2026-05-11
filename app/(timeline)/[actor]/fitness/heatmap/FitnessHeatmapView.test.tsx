@@ -275,10 +275,7 @@ describe('FitnessHeatmapView', () => {
     })
   })
 
-  it('clears all route caches and reloads the current selection', async () => {
-    const confirmSpy = jest
-      .spyOn(window, 'confirm')
-      .mockImplementation(() => true)
+  it('clears all route caches without immediately requeueing the current selection', async () => {
     mockClearFitnessRouteHeatmaps.mockResolvedValue(2)
     mockGetFitnessRouteHeatmap
       .mockResolvedValueOnce(completedHeatmap)
@@ -294,6 +291,8 @@ describe('FitnessHeatmapView', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Clear route caches/i }))
 
     await waitFor(() => {
       expect(mockClearFitnessRouteHeatmaps).toHaveBeenCalledWith({
@@ -301,6 +300,15 @@ describe('FitnessHeatmapView', () => {
       })
       expect(mockGetFitnessRouteHeatmap).toHaveBeenCalledTimes(2)
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(2)
+      expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
+    })
+
+    const generateButton = await screen.findByRole('button', {
+      name: /Generate/i
+    })
+    fireEvent.click(generateButton)
+
+    await waitFor(() => {
       expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: 'https://llun.test/users/llun',
@@ -309,14 +317,23 @@ describe('FitnessHeatmapView', () => {
         })
       )
     })
-
-    confirmSpy.mockRestore()
   })
 
   it('does not clear route caches when confirmation is cancelled', async () => {
-    const confirmSpy = jest
-      .spyOn(window, 'confirm')
-      .mockImplementation(() => false)
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }))
+
+    expect(mockClearFitnessRouteHeatmaps).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an error when clearing route caches fails', async () => {
+    mockClearFitnessRouteHeatmaps.mockRejectedValue(new Error('boom'))
 
     render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
 
@@ -325,9 +342,13 @@ describe('FitnessHeatmapView', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Clear route caches/i }))
 
-    expect(mockClearFitnessRouteHeatmaps).not.toHaveBeenCalled()
-    confirmSpy.mockRestore()
+    expect(await screen.findByText('boom')).toBeInTheDocument()
+    expect(mockClearFitnessRouteHeatmaps).toHaveBeenCalledWith({
+      actorId: 'https://llun.test/users/llun'
+    })
+    expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
   })
 })
 
