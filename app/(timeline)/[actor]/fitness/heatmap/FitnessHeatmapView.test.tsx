@@ -107,6 +107,13 @@ const pendingSummary: FitnessRouteHeatmapSummaryData = {
   updatedAt: 2
 }
 
+const completedSummary: FitnessRouteHeatmapSummaryData = {
+  ...pendingSummary,
+  id: 'route-heatmap-completed',
+  status: 'completed',
+  cursorOffset: 0
+}
+
 const TEST_NOW = 1_700_000_060_000
 const IN_FLIGHT_HISTORY_POLL_WINDOW_MS = 15 * 60_000
 
@@ -270,6 +277,32 @@ describe('FitnessHeatmapView', () => {
           periodType: 'yearly',
           periodKey: '2026',
           retry: false
+        })
+      )
+    })
+  })
+
+  it('allows manual generation retry for a missing selection when other route caches exist', async () => {
+    mockGetFitnessRouteHeatmap.mockResolvedValue(null)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([completedSummary])
+    mockTriggerFitnessRouteHeatmap
+      .mockRejectedValueOnce(new Error('queue unavailable'))
+      .mockResolvedValueOnce(true)
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    expect(await screen.findByText('queue unavailable')).toBeInTheDocument()
+
+    const generateButton = screen.getByRole('button', { name: /Generate/i })
+    fireEvent.click(generateButton)
+
+    await waitFor(() => {
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledTimes(2)
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          actorId: 'https://llun.test/users/llun',
+          periodType: 'all_time',
+          periodKey: 'all'
         })
       )
     })

@@ -941,7 +941,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   const hasRouteCache =
     Boolean(heatmapData) || heatmaps.length > 0 || generationPending
   const canRefreshRouteCache =
-    !isLoading && (Boolean(heatmapData) || !hasRouteCache)
+    !isLoading && !generationPending && !isRouteHeatmapInFlight(heatmapData)
 
   return (
     <div className="flex min-h-[720px] flex-col bg-background">
