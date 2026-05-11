@@ -84,6 +84,7 @@ export const enqueueFitnessRouteHeatmapJobs = async ({
   activityType = null,
   activityStartTime
 }: EnqueueFitnessRouteHeatmapJobsParams) => {
+  const requestedAt = Date.now()
   const activityDate = toActivityDate(activityStartTime)
   const baseVariants = buildBaseVariants(activityType, activityDate)
 
@@ -99,7 +100,6 @@ export const enqueueFitnessRouteHeatmapJobs = async ({
     baseVariants.map((variant) => ({ ...variant, region }))
   )
   const allVariants = [...baseVariants, ...regionVariants]
-  const requestedAt = Date.now()
 
   const queue = getQueue()
   const results = await Promise.allSettled(

@@ -317,22 +317,37 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           allSegmentPointCount = countSegmentPoints(allSegments)
           activityCount = existing.activityCount
         }
-        await database.updateFitnessRouteHeatmapStatus({
-          id: existing.id,
-          status: 'generating',
-          error: null,
-          clearDeleted: true,
-          ...(isResume
-            ? {}
-            : {
-                bounds: null,
-                segments: null,
-                activityCount: 0,
-                pointCount: 0,
-                cursorOffset: 0,
-                isPartial: false
-              })
-        })
+        const markedGenerating = await database.updateFitnessRouteHeatmapStatus(
+          {
+            id: existing.id,
+            status: 'generating',
+            error: null,
+            clearDeleted: true,
+            clearDeletedBefore: requestedAt ?? 0,
+            ...(isResume
+              ? {}
+              : {
+                  bounds: null,
+                  segments: null,
+                  activityCount: 0,
+                  pointCount: 0,
+                  cursorOffset: 0,
+                  isPartial: false
+                })
+          }
+        )
+        if (!markedGenerating) {
+          logger.info({
+            message:
+              'Skipping stale route heatmap generation after cache clear',
+            actorId,
+            periodType,
+            periodKey,
+            requestedAt,
+            status: existing.status
+          })
+          return
+        }
       } else {
         const created = await database.createFitnessRouteHeatmap({
           actorId,

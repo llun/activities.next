@@ -61,7 +61,15 @@ type MapboxGL = {
   Map: new (options: Record<string, unknown>) => MapboxMap
 }
 
-type MapboxFallbackReason = 'module-load-failed' | 'render-failed'
+type MapboxFallbackReason =
+  | 'module-load-failed'
+  | 'render-failed'
+  | 'route-cache-too-large'
+
+interface MapboxFallbackError {
+  message: string
+  stack?: string
+}
 
 const MAP_WIDTH = 960
 const MAP_HEIGHT = 560
@@ -71,7 +79,8 @@ const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
 // Keep recent background jobs live while ignoring restored/stuck rows that are days old.
 const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
-// Mapbox GL can render smaller route sets interactively; large caches use SVG to avoid blank canvases.
+// Conservative cap: staging reproduced blank Mapbox canvases around 80k route points.
+// Keep a 4x safety margin until this path has browser/device benchmarks.
 const MAPBOX_MAX_ROUTE_POINTS = 20_000
 const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
@@ -121,6 +130,19 @@ const MAPBOX_ROUTE_LINE_PAINT = {
 
 const getRouteLineStyle = (isHiddenByPrivacy: boolean) =>
   isHiddenByPrivacy ? ROUTE_LINE_STYLES.hidden : ROUTE_LINE_STYLES.visible
+
+const getMapboxFallbackError = (error: unknown): MapboxFallbackError => {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      stack: error.stack
+    }
+  }
+
+  return {
+    message: String(error)
+  }
+}
 
 const formatActivityType = (type?: string): string =>
   type
@@ -267,8 +289,12 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
-  const [mapboxFallbackReason, setMapboxFallbackReason] =
-    useState<MapboxFallbackReason | null>(null)
+  const [runtimeMapboxFallbackReason, setRuntimeMapboxFallbackReason] =
+    useState<Exclude<MapboxFallbackReason, 'route-cache-too-large'> | null>(
+      null
+    )
+  const [mapboxFallbackError, setMapboxFallbackError] =
+    useState<MapboxFallbackError | null>(null)
   const [isMapLoaded, setIsMapLoaded] = useState(false)
 
   const hasRoutes =
@@ -277,13 +303,22 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   const bounds = heatmap?.bounds
   const isWithinMapboxBudget =
     heatmap !== null && heatmap.pointCount <= MAPBOX_MAX_ROUTE_POINTS
-  const shouldUseMapbox = Boolean(
-    mapboxAccessToken &&
+  const budgetMapboxFallbackReason: MapboxFallbackReason | null =
+    mapboxAccessToken && hasRoutes && !isWithinMapboxBudget
+      ? 'route-cache-too-large'
+      : null
+  const mapboxFallbackReason =
+    runtimeMapboxFallbackReason ?? budgetMapboxFallbackReason
+  const mapboxFallbackErrorMessage =
+    process.env.NODE_ENV !== 'production'
+      ? mapboxFallbackError?.message
+      : undefined
+  const shouldUseMapbox =
+    Boolean(mapboxAccessToken) &&
     hasRoutes &&
-    bounds &&
+    Boolean(bounds) &&
     isWithinMapboxBudget &&
-    !mapboxFallbackReason
-  )
+    !runtimeMapboxFallbackReason
   const routeGeoJson = useMemo(
     () => buildRouteGeoJson(hasRoutes && heatmap ? heatmap.segments : []),
     [hasRoutes, heatmap?.id, heatmap?.updatedAt]
@@ -294,8 +329,9 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   }, [routeGeoJson])
 
   useEffect(() => {
-    setMapboxFallbackReason(null)
-  }, [heatmap?.id, mapboxAccessToken])
+    setRuntimeMapboxFallbackReason(null)
+    setMapboxFallbackError(null)
+  }, [heatmap?.id, heatmap?.updatedAt, mapboxAccessToken])
 
   useEffect(() => {
     if (!shouldUseMapbox || !containerRef.current || !bounds) {
@@ -343,16 +379,18 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
             })
             map.fitBounds(mapBounds, { padding: 56, duration: 0 })
             setIsMapLoaded(true)
-          } catch {
+          } catch (error) {
             if (!cancelled) {
-              setMapboxFallbackReason('render-failed')
+              setMapboxFallbackError(getMapboxFallbackError(error))
+              setRuntimeMapboxFallbackReason('render-failed')
             }
           }
         })
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
-          setMapboxFallbackReason('module-load-failed')
+          setMapboxFallbackError(getMapboxFallbackError(error))
+          setRuntimeMapboxFallbackReason('module-load-failed')
         }
       })
 
@@ -430,6 +468,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
         ROUTE_HEATMAP_MAP_HEIGHT_CLASS
       )}
       data-mapbox-fallback-reason={mapboxFallbackReason ?? undefined}
+      data-mapbox-fallback-error={mapboxFallbackErrorMessage}
     >
       <svg
         viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}

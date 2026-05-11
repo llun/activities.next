@@ -143,6 +143,32 @@ describe('FitnessRouteHeatmapDatabase', () => {
 
         expect(result).toBe(false)
       })
+
+      it('does not revive a route cache deleted after the restore cutoff', async () => {
+        const cutoff = Date.now() - 10_000
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: 'delete-race-sql',
+          periodType: 'monthly',
+          periodKey: '2099-03'
+        })
+
+        await database.deleteFitnessRouteHeatmapsForActor({
+          actorId: actors.replyAuthor.id
+        })
+
+        const result = await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'generating',
+          clearDeleted: true,
+          clearDeletedBefore: cutoff
+        })
+
+        expect(result).toBe(false)
+        await expect(
+          database.getFitnessRouteHeatmap({ id: created.id })
+        ).resolves.toBeNull()
+      })
     })
 
     describe('getFitnessRouteHeatmapsForActor', () => {

@@ -419,6 +419,11 @@ describe('RouteHeatmapMap', () => {
     expect(
       container.querySelector('[data-mapbox-fallback-reason="render-failed"]')
     ).toBeInTheDocument()
+    expect(
+      container.querySelector(
+        '[data-mapbox-fallback-error="source unavailable"]'
+      )
+    ).toBeInTheDocument()
   })
 
   it('falls back with a diagnostic reason when Mapbox fails to load', async () => {
@@ -438,6 +443,70 @@ describe('RouteHeatmapMap', () => {
         '[data-mapbox-fallback-reason="module-load-failed"]'
       )
     ).toBeInTheDocument()
+    expect(
+      container.querySelector(
+        '[data-mapbox-fallback-error="module unavailable"]'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('retries Mapbox when the same route cache is regenerated', async () => {
+    const failingMapConstructor = jest.fn().mockImplementation(() => ({
+      on: (_event: string, callback: () => void) => callback(),
+      remove: jest.fn(),
+      resize: jest.fn(),
+      addSource: jest.fn(() => {
+        throw new Error('source unavailable')
+      }),
+      addLayer: jest.fn(),
+      getSource: jest.fn(),
+      fitBounds: jest.fn()
+    }))
+    mockLoadMapboxModule.mockResolvedValue({
+      Map: failingMapConstructor
+    })
+
+    const { container, rerender } = render(
+      <RouteHeatmapMap
+        heatmap={completedHeatmap}
+        mapboxAccessToken="mapbox-token"
+      />
+    )
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-mapbox-fallback-reason="render-failed"]')
+      ).toBeInTheDocument()
+    )
+
+    const workingMapConstructor = jest.fn().mockImplementation(() => ({
+      on: (_event: string, callback: () => void) => callback(),
+      remove: jest.fn(),
+      resize: jest.fn(),
+      addSource: jest.fn(),
+      addLayer: jest.fn(),
+      getSource: jest.fn(),
+      fitBounds: jest.fn()
+    }))
+    mockLoadMapboxModule.mockResolvedValue({
+      Map: workingMapConstructor
+    })
+
+    rerender(
+      <RouteHeatmapMap
+        heatmap={{
+          ...completedHeatmap,
+          updatedAt: completedHeatmap.updatedAt + 1
+        }}
+        mapboxAccessToken="mapbox-token"
+      />
+    )
+
+    await waitFor(() => expect(screen.getByText('Mapbox')).toBeInTheDocument())
+    await waitFor(() => expect(workingMapConstructor).toHaveBeenCalled())
+    expect(
+      container.querySelector('[data-mapbox-fallback-reason]')
+    ).not.toBeInTheDocument()
   })
 
   it('uses the SVG route fallback for large route caches', () => {
@@ -451,10 +520,27 @@ describe('RouteHeatmapMap', () => {
     )
 
     expect(screen.getByText('Routes')).toBeInTheDocument()
+    expect(
+      screen.getByText('Interactive map unavailable. Showing routes.')
+    ).toBeInTheDocument()
     expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('polyline')).toHaveLength(
-      largeHeatmap.segments.length
-    )
+    const polylines = Array.from(container.querySelectorAll('polyline'))
+    expect(polylines).toHaveLength(largeHeatmap.segments.length)
+    expect(
+      polylines.map(
+        (polyline) =>
+          polyline.getAttribute('points')?.trim().split(/\s+/).filter(Boolean)
+            .length ?? 0
+      )
+    ).toEqual(largeHeatmap.segments.map((segment) => segment.points.length))
+    expect(
+      container.querySelector(
+        '[data-mapbox-fallback-reason="route-cache-too-large"]'
+      )
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-mapbox-fallback-error]')
+    ).not.toBeInTheDocument()
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 })

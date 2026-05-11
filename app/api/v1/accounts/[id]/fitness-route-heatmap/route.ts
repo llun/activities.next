@@ -181,6 +181,7 @@ export const GET = traceApiRoute(
 export const POST = traceApiRoute(
   'triggerFitnessRouteHeatmap',
   async (req: NextRequest, params: AppRouterParams<Params>) => {
+    const requestedAt = Date.now()
     const database = getDatabase()
     if (!database) {
       return apiResponse({
@@ -278,7 +279,6 @@ export const POST = traceApiRoute(
       existing !== null &&
       !shouldResume &&
       (existing.status === 'failed' || existing.status === 'generating')
-    const requestedAt = Date.now()
     const baseJobId =
       id +
       ':route-heatmap:' +

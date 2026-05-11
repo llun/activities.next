@@ -247,6 +247,60 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(mockGetFitnessFile).not.toHaveBeenCalled()
   })
 
+  it('does not restore a route cache deleted after the job read it', async () => {
+    await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'delete-race-test',
+      periodType: 'monthly',
+      periodKey: '2099-03'
+    })
+
+    const requestedAt = Date.now() - 10_000
+    const getByKey = database.getFitnessRouteHeatmapByKey.bind(database)
+    const deleteAfterRead = jest
+      .spyOn(database, 'getFitnessRouteHeatmapByKey')
+      .mockImplementation(async (params) => {
+        const heatmap = await getByKey(params)
+        if (
+          params.actorId === actor.id &&
+          params.activityType === 'delete-race-test' &&
+          params.periodType === 'monthly' &&
+          params.periodKey === '2099-03'
+        ) {
+          await database.deleteFitnessRouteHeatmapsForActor({
+            actorId: actor.id
+          })
+        }
+        return heatmap
+      })
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-clear-race',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'delete-race-test',
+          periodType: 'monthly',
+          periodKey: '2099-03',
+          requestedAt
+        }
+      })
+    } finally {
+      deleteAfterRead.mockRestore()
+    }
+
+    await expect(
+      database.getFitnessRouteHeatmapByKey({
+        actorId: actor.id,
+        activityType: 'delete-race-test',
+        periodType: 'monthly',
+        periodKey: '2099-03'
+      })
+    ).resolves.toBeNull()
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+  })
+
   it('skips failed file parses and completes from remaining route data', async () => {
     const firstId = await createCompletedFitnessFile(
       'running',

@@ -53,6 +53,7 @@ export interface UpdateFitnessRouteHeatmapStatusParams {
   cursorOffset?: number
   isPartial?: boolean
   clearDeleted?: boolean
+  clearDeletedBefore?: number
 }
 
 export interface GetDistinctActivityTypesParams {
@@ -330,7 +331,8 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     pointCount,
     cursorOffset,
     isPartial,
-    clearDeleted
+    clearDeleted,
+    clearDeletedBefore
   }: UpdateFitnessRouteHeatmapStatusParams) {
     const updateData: Record<string, unknown> = {
       status,
@@ -365,6 +367,12 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     const query = database('fitness_route_heatmaps').where('id', id)
     if (!clearDeleted) {
       query.whereNull('deletedAt')
+    } else if (clearDeletedBefore !== undefined) {
+      query.where((builder) => {
+        builder
+          .whereNull('deletedAt')
+          .orWhere('deletedAt', '<=', new Date(clearDeletedBefore))
+      })
     }
     const result = await query.update(updateData)
 
