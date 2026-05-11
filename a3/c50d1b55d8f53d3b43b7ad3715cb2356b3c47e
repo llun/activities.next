@@ -1,0 +1,32 @@
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  s_cba68909fc500e::t_897c4fa67bff94 62-63,267-268,282,294,345,352,409-412,439-441
+  s_cba68909fc500e::t_e8d976f627eec3 70-72,276,415
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_cba68909fc500e::t_67b9375ad987c2 105
+  s_cba68909fc500e::t_d8b9ab763564aa 332-380
+  s_d5f18a0cf1535d::t_765f7f5a28aa76 106-148,168,203,382,393-395
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "a3c50d1b55d8f53d3b43b7ad3715cb2356b3c47e",
+  "prompts": {},
+  "sessions": {
+    "s_cba68909fc500e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e15ca-9049-7b80-8fa2-76bc34836c56",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d5f18a0cf1535d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1633-0e12-73e1-8957-7883b118ed4a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
