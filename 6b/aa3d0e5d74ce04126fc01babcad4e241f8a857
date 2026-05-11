@@ -1,0 +1,50 @@
+lib/jobs/recreateFitnessRouteHeatmapJobs.ts
+  s_cba68909fc500e::t_3dfe9e5583aee3 238-239,245,255,264-265,271,290-291,336,344-345
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  s_cba68909fc500e::t_3dc7d61b284204 220,225-227,278,283-285,335,340-342,390,397-399,443,450-452,474,479-481
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.test.ts
+  s_cba68909fc500e::t_4475698a6bb107 6,18-22,31,52,146-174
+lib/jobs/enqueueFitnessRouteHeatmapJobs.ts
+  s_cba68909fc500e::t_070e517840bec9 102,127
+lib/client.ts
+  s_cba68909fc500e::t_cb3963cc9704fd 1535-1556
+lib/jobs/enqueueFitnessRouteHeatmapJobs.test.ts
+  s_cba68909fc500e::t_599496f42f7f22 39,43-45,67,72-74,80,85-87
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  s_cba68909fc500e::t_fd4c8909747570 281,310
+lib/jobs/recreateFitnessRouteHeatmapJobs.test.ts
+  s_cba68909fc500e::t_e8517d5579577f 132,136-138,144,149-151
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_cba68909fc500e::t_30a0dd333f4e11 8,28,39-42,163,277-292,294-323,326-330
+  s_cba68909fc500e::t_66a5dac4023b84 293,324
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.ts
+  s_cba68909fc500e::t_196f74e869443a 17-21,109-162
+lib/jobs/processFitnessFileJob.test.ts
+  s_cba68909fc500e::t_776e71e434b0de 232-279,492-507
+lib/client.test.ts
+  s_cba68909fc500e::t_3da56de69f89c1 4,117-131
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  s_cba68909fc500e::t_8b5e15ff0b2442 1117,1132
+  s_cba68909fc500e::t_717bb57f398ef8 9-10,19,487,856-887,891-892,1113-1116,1118-1131,1133-1141
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_cba68909fc500e::t_d04d85820ef24c 211-249
+  s_cba68909fc500e::t_fb92c476dc49d3 401-407,411-415
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_cba68909fc500e::t_218f74114fa26c 77-78,229-230,259-277,415-416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6baa3d0e5d74ce04126fc01babcad4e241f8a857",
+  "prompts": {},
+  "sessions": {
+    "s_cba68909fc500e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e15ca-9049-7b80-8fa2-76bc34836c56",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
