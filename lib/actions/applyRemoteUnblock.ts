@@ -1,8 +1,19 @@
 import { Database } from '@/lib/database/types'
 import { Block as BlockActivity } from '@/lib/types/activitypub'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 
 const getObjectId = (object: BlockActivity['object']) =>
   typeof object === 'string' ? object : object.id
+
+const actorIdsMatch = (firstActorId: string, secondActorId: string) => {
+  const normalizedFirstActorId = normalizeActorId(firstActorId)
+  const normalizedSecondActorId = normalizeActorId(secondActorId)
+
+  return (
+    Boolean(normalizedFirstActorId) &&
+    normalizedFirstActorId === normalizedSecondActorId
+  )
+}
 
 interface ApplyRemoteUnblockParams {
   database: Database
@@ -17,37 +28,48 @@ export const applyRemoteUnblock = async ({
   object,
   targetActorId
 }: ApplyRemoteUnblockParams) => {
+  const normalizedActorId = normalizeActorId(actorId)
+  const normalizedTargetActorId = normalizeActorId(targetActorId)
+  if (!normalizedActorId || !normalizedTargetActorId) return null
+
   if (typeof object === 'string') {
     const block = await database.getBlockByUri({ uri: object })
     if (
       !block ||
-      block.actorId !== actorId ||
-      block.targetActorId !== targetActorId
+      !actorIdsMatch(block.actorId, normalizedActorId) ||
+      !actorIdsMatch(block.targetActorId, normalizedTargetActorId)
     )
       return null
 
     return database.deleteBlockByUri({
-      actorId,
+      actorId: block.actorId,
       uri: object
     })
   }
 
-  if (object.actor !== actorId || getObjectId(object.object) !== targetActorId)
+  if (
+    !actorIdsMatch(object.actor, normalizedActorId) ||
+    !actorIdsMatch(getObjectId(object.object), normalizedTargetActorId)
+  ) {
     return null
+  }
 
   const block = await database.getBlockByUri({ uri: object.id })
   if (block) {
-    if (block.actorId !== actorId || block.targetActorId !== targetActorId) {
+    if (
+      !actorIdsMatch(block.actorId, normalizedActorId) ||
+      !actorIdsMatch(block.targetActorId, normalizedTargetActorId)
+    ) {
       return null
     }
     return database.deleteBlockByUri({
-      actorId,
+      actorId: block.actorId,
       uri: object.id
     })
   }
 
   return database.deleteBlock({
-    actorId,
-    targetActorId
+    actorId: normalizedActorId,
+    targetActorId: normalizedTargetActorId
   })
 }
