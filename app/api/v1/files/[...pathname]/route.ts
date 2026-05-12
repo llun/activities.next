@@ -19,6 +19,7 @@ export const GET = traceApiRoute(
       Array.isArray(pathname) ? pathname.join('/') : pathname
     )
 
+    // POSIX hosts do not treat Windows drive paths as absolute.
     if (path.isAbsolute(normalizedPath) || /^[a-zA-Z]:/.test(normalizedPath)) {
       return apiErrorResponse(404)
     }

@@ -51,7 +51,17 @@ export class LocalFileStorage implements MediaStorage {
   }
 
   async getFile(filePath: string) {
-    const fullPath = path.resolve(this._config.path, filePath)
+    const storageRoot = path.resolve(this._config.path)
+    const fullPath = path.resolve(storageRoot, filePath)
+    const relativePath = path.relative(storageRoot, fullPath)
+    if (
+      relativePath === '..' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    ) {
+      return null
+    }
+
     const contentType = mime.contentType(path.extname(fullPath))
     if (!contentType) return null
 
