@@ -24,11 +24,10 @@ const Page = async () => {
     process.env.ACTIVITIES_PUSH_VAPID_EMAIL
   )
 
-  // Collect ACTIVITIES_* environment variable names only.
-  const envVars = Object.entries(process.env)
-    .filter(([key]) => key.startsWith(ENV_VAR_PREFIX))
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key]) => ({ key }))
+  const envVars = Object.keys(process.env)
+    .filter((key) => key.startsWith(ENV_VAR_PREFIX))
+    .sort((a, b) => a.localeCompare(b))
+    .map((key) => ({ key }))
 
   return (
     <div className="space-y-6">
