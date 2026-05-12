@@ -1,0 +1,46 @@
+migrations/20260512230000_require_pkce_for_oauth_clients.js
+  s_fd2b6608a54922::t_d82a76a85a5fc6 1-20
+app/api/v1/statuses/route.test.ts
+  s_fd2b6608a54922::t_8eecb42efb6913 92-93,164-165,223-224,261-262,294-295,329-330
+app/api/v1/statuses/[id]/route.test.ts
+  s_fd2b6608a54922::t_37af10543426aa 507-508,550-551,593-594
+app/api/v1/apps/createApplication.ts
+  s_fd2b6608a54922::t_d349cebf095a72 57-60,62-65,67,73-77
+  s_fd2b6608a54922::t_b68f888d28e8a8 2
+  s_fd2b6608a54922::t_330df38be7d7de 68-72
+  s_fd2b6608a54922::t_a4639b1a92a3ae 39-56,61,66,78-104,106-107,117-135,184,193-194
+lib/services/guards/OAuthGuard.test.ts
+  s_fd2b6608a54922::t_444b17998981e5 124-127,129,152-203
+lib/services/guards/OAuthGuard.ts
+  s_fd2b6608a54922::t_25babd9df1a2c3 63-88,118-120,124-125,127-131,134-149,152-154,156-169,173-183,187-204,210-213,215-217,219-222,224-231,233-235,237-255
+app/api/v1/apps/route.ts
+  s_fd2b6608a54922::t_1120248831a7fd 1,22-32,54-56
+app/(nosidebar)/oauth/token/route.ts
+  s_fd2b6608a54922::t_d0c71c9164235d 4,19-83,86-91
+  s_fd2b6608a54922::t_5d7274790db470 98
+app/api/v1/apps/createApplication.test.ts
+  s_fd2b6608a54922::t_2cdcd5fbdc7b27 7,120
+  s_fd2b6608a54922::t_0a2f38f7e01a79 116-119,121-223
+lib/database/sql/oauthPkceMigration.test.ts
+  s_fd2b6608a54922::t_6c59b5dd6395d7 1-2,4-42
+  s_fd2b6608a54922::t_6f294a50fe0da8 3
+app/(nosidebar)/oauth/token/route.test.ts
+  s_fd2b6608a54922::t_9b1f5d80cc9533 1-8,12-66
+  s_fd2b6608a54922::t_32d35173b2d869 9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "db43771540ec424d01ec1cabc4366e12fbce1dad",
+  "prompts": {},
+  "sessions": {
+    "s_fd2b6608a54922": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e03-b578-7102-9cc4-1ac8bec6cdc2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
