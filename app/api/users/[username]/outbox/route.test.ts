@@ -126,4 +126,62 @@ describe('GET /api/users/[username]/outbox', () => {
     expect(data.orderedItems[0].object).not.toHaveProperty('actorId')
     expect(data.orderedItems[0].object).not.toHaveProperty('text')
   })
+
+  it('omits followers-only statuses from public ActivityPub outbox pages', async () => {
+    const createdAt = Date.UTC(2026, 0, 2)
+    const publicStatus = {
+      id: 'https://example.com/users/test/statuses/public-post',
+      actorId: mockActor.id,
+      actor: null,
+      type: StatusType.enum.Note,
+      url: 'https://example.com/@test/public-post',
+      text: '<p>Public post</p>',
+      summary: null,
+      reply: '',
+      replies: [],
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${mockActor.id}/followers`],
+      edits: [],
+      isLocalActor: true,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt,
+      updatedAt: createdAt
+    }
+    const privateStatus = {
+      ...publicStatus,
+      id: 'https://example.com/users/test/statuses/private-post',
+      url: 'https://example.com/@test/private-post',
+      text: '<p>Private post</p>',
+      to: [`${mockActor.id}/followers`],
+      cc: []
+    }
+    mockDatabase.getActorStatuses.mockResolvedValue([
+      publicStatus,
+      privateStatus
+    ])
+
+    const response = await GET(
+      new NextRequest('https://example.com/api/users/test/outbox?page=true', {
+        headers: {
+          accept:
+            'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+        }
+      }),
+      { params: Promise.resolve({ username: 'test' }) }
+    )
+
+    const data = await response.json()
+
+    expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith({
+      actorId: mockActor.id,
+      publicOnly: true
+    })
+    expect(data.orderedItems).toHaveLength(1)
+    expect(data.orderedItems[0].object.id).toBe(publicStatus.id)
+  })
 })

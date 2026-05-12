@@ -10,6 +10,7 @@ import {
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
+import type { JobMessage } from '@/lib/services/queue/type'
 import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@/lib/types/activitypub'
 import {
   AnnounceAction,
@@ -18,7 +19,9 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
+import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 const ENTITY_TYPE_IMAGE = 'Image'
 const ENTITY_TYPE_PAGE = 'Page'
@@ -33,7 +36,43 @@ const NOTE_TYPES = [
   ENTITY_TYPE_VIDEO
 ]
 
-export const getJobMessage = (activity: StatusActivity) => {
+const createJobMessage = ({
+  data,
+  id,
+  name,
+  verifiedSenderActorId
+}: JobMessage) => ({
+  id,
+  name,
+  data,
+  ...(verifiedSenderActorId ? { verifiedSenderActorId } : {})
+})
+
+const createObjectActorMismatch = (
+  object: unknown,
+  verifiedSenderActorId?: string
+) => {
+  if (!verifiedSenderActorId || !isRecord(object)) return false
+
+  const normalizedVerifiedSenderActorId = normalizeActorId(
+    verifiedSenderActorId
+  )
+  if (!normalizedVerifiedSenderActorId) return true
+
+  const objectActorIds = [
+    extractActivityPubId(object.attributedTo),
+    extractActivityPubId(object.actor)
+  ].filter((actorId): actorId is string => Boolean(actorId))
+
+  return objectActorIds.some(
+    (actorId) => normalizeActorId(actorId) !== normalizedVerifiedSenderActorId
+  )
+}
+
+export const getJobMessage = (
+  activity: StatusActivity,
+  verifiedSenderActorId?: string
+) => {
   const deduplicationId = getHashFromString(activity.id)
 
   if (activity.type === CreateAction) {
@@ -42,6 +81,10 @@ export const getJobMessage = (activity: StatusActivity) => {
       activity.object !== null &&
       NOTE_TYPES.includes(activity.object.type)
     ) {
+      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
+        return null
+      }
+
       if (
         activity.object.type === ENTITY_TYPE_NOTE &&
         activity.object.inReplyTo &&
@@ -49,18 +92,20 @@ export const getJobMessage = (activity: StatusActivity) => {
         activity.object.name &&
         !activity.object.content
       ) {
-        return {
+        return createJobMessage({
           id: deduplicationId,
           name: CREATE_POLL_VOTE_JOB_NAME,
-          data: activity.object
-        }
+          data: activity.object,
+          verifiedSenderActorId
+        })
       }
 
-      return {
+      return createJobMessage({
         id: deduplicationId,
         name: CREATE_NOTE_JOB_NAME,
-        data: activity.object
-      }
+        data: activity.object,
+        verifiedSenderActorId
+      })
     }
 
     if (
@@ -68,11 +113,16 @@ export const getJobMessage = (activity: StatusActivity) => {
       activity.object !== null &&
       activity.object.type === ENTITY_TYPE_QUESTION
     ) {
-      return {
+      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
+        return null
+      }
+
+      return createJobMessage({
         id: deduplicationId,
         name: CREATE_POLL_JOB_NAME,
-        data: activity.object
-      }
+        data: activity.object,
+        verifiedSenderActorId
+      })
     }
   }
 

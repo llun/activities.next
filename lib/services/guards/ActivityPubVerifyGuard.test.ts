@@ -323,6 +323,7 @@ describe('ActivityPubVerifySenderGuard', () => {
     expect(response.status).toBe(200)
     expect(handler).toHaveBeenCalled()
     expect(handler.mock.calls[0]?.[1]).toMatchObject({
+      verifiedSenderActorId: 'https://remote.test/users/alice',
       activityBody: {
         actor: 'https://remote.test/users/alice',
         type: 'Follow'

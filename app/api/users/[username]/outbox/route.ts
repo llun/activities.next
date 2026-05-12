@@ -1,4 +1,5 @@
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import {
   AnnounceAction,
   CreateAction
@@ -31,7 +32,12 @@ export const GET = traceApiRoute(
         })
       }
 
-      const statuses = await database.getActorStatuses({ actorId: actor.id })
+      const statuses = (
+        await database.getActorStatuses({
+          actorId: actor.id,
+          publicOnly: true
+        })
+      ).filter(isStatusPubliclyReadable)
       const items = statuses.map((status) => {
         if (status.type === StatusType.enum.Announce) {
           return {

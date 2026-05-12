@@ -7,12 +7,20 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
+import { POST as bookmarkStatus } from './bookmark/route'
+import { GET as getStatusContext } from './context/route'
+import { GET as getStatusFavouritedBy } from './favourited_by/route'
+import { GET as getStatusHistory } from './history/route'
+import { POST as muteStatus } from './mute/route'
+import { GET as getStatusRebloggedBy } from './reblogged_by/route'
 import { GET, PUT } from './route'
+import { GET as getStatusSource } from './source/route'
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -48,6 +56,21 @@ jest.mock('@/lib/config', () => ({
     secretPhase: 'test-secret'
   })
 }))
+
+type StatusRouteHandler = (
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) => Promise<Response> | Response
+
+const inaccessibleStatusRouteCases: Array<
+  [string, 'GET' | 'POST', StatusRouteHandler]
+> = [
+  ['source', 'GET', getStatusSource],
+  ['bookmark', 'POST', bookmarkStatus],
+  ['mute', 'POST', muteStatus],
+  ['favourited_by', 'GET', getStatusFavouritedBy],
+  ['reblogged_by', 'GET', getStatusRebloggedBy]
+]
 
 /**
  * Tests for GET /api/v1/statuses/[id]
@@ -182,6 +205,31 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(data.visibility).toBe('private')
     })
 
+    it('returns not found for authenticated non-followers reading followers-only statuses by id', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-private-non-follower-read`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Private non-follower read target',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(404)
+    })
+
     it('returns not found for authenticated non-recipients of direct statuses', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }
@@ -299,6 +347,87 @@ describe('GET /api/v1/statuses/[id]', () => {
       const mastodonStatus = await getMastodonStatus(database, fakeStatus)
       expect(mastodonStatus).toBeNull()
     })
+  })
+
+  describe('status-adjacent visibility checks', () => {
+    it('returns not found for context of a followers-only status when requested by a non-follower', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-private-context-non-follower`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Private context target',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(404)
+    })
+
+    it('returns not found for history of a followers-only status when requested by a non-follower', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-private-history-non-follower`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Private history target',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await getStatusHistory(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/history`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(404)
+    })
+
+    it.each(inaccessibleStatusRouteCases)(
+      'returns not found for %s of a followers-only status when requested by a non-follower',
+      async (routeName, method, handler) => {
+        mockGetServerSession.mockResolvedValue({
+          user: { email: seedActor3.email }
+        })
+
+        const statusId = `${ACTOR1_ID}/statuses/api-private-${routeName}-non-follower`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text: `Private ${routeName} target`,
+          to: [`${ACTOR1_ID}/followers`],
+          cc: []
+        })
+
+        const response = await handler(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/${routeName}`,
+            { method }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+        expect(response.status).toBe(404)
+      }
+    )
   })
 
   describe('status visibility derivation', () => {

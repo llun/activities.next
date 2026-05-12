@@ -8,6 +8,7 @@ const mockPublish = jest.fn()
 const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
 let mockConsumeRequestBody = false
+let mockVerifiedSenderActorId = 'https://allowed.test/users/a'
 
 jest.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
@@ -23,6 +24,7 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
           activityBody: unknown
           database: typeof mockDatabase
           params: Promise<{}>
+          verifiedSenderActorId: string
         }
       ) => Promise<Response> | Response
     ) =>
@@ -42,7 +44,8 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       return handle(req, {
         activityBody,
         database: mockDatabase,
-        params: context.params
+        params: context.params,
+        verifiedSenderActorId: mockVerifiedSenderActorId
       })
     }
 }))
@@ -86,6 +89,7 @@ describe('POST /api/inbox', () => {
     jest.clearAllMocks()
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
+    mockVerifiedSenderActorId = 'https://allowed.test/users/a'
   })
 
   it('rejects activities from blocked actor domains', async () => {
@@ -188,5 +192,57 @@ describe('POST /api/inbox', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'CreateNoteJob' })
     )
+  })
+
+  it('carries the verified sender identity into queued jobs', async () => {
+    const actor = 'https://allowed.test/users/a'
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockVerifiedSenderActorId = `${actor}#main-key`
+    mockActivityBody = {
+      id: `${actor}/activities/create-1`,
+      type: 'Create',
+      actor,
+      object: {
+        id: `${actor}/statuses/1`,
+        type: 'Note',
+        attributedTo: actor
+      }
+    }
+
+    const response = await POST(createRequest(actor), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'CreateNoteJob',
+        verifiedSenderActorId: mockVerifiedSenderActorId
+      })
+    )
+  })
+
+  it('rejects Create Note activities whose inner object actor does not match the verified sender', async () => {
+    const actor = 'https://allowed.test/users/a'
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockVerifiedSenderActorId = actor
+    mockActivityBody = {
+      id: `${actor}/activities/create-1`,
+      type: 'Create',
+      actor,
+      object: {
+        id: `${actor}/statuses/1`,
+        type: 'Note',
+        actor: 'https://spoofed.test/users/mallory',
+        attributedTo: actor
+      }
+    }
+
+    const response = await POST(createRequest(actor), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(404)
+    expect(mockPublish).not.toHaveBeenCalled()
   })
 })

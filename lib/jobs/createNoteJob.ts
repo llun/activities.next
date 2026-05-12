@@ -25,6 +25,7 @@ import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
+import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
@@ -39,6 +40,10 @@ export const createNoteJob = createJobHandle(
     const note = BaseNoteSchema.parse(
       normalizeActivityPubContent(message.data)
     ) as BaseNote
+    if (!actorMatchesVerifiedSender(note.attributedTo, message)) {
+      return
+    }
+
     const attachments = getAttachments(note)
 
     const existingStatus = await database.getStatus({

@@ -1,4 +1,5 @@
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -16,7 +17,7 @@ interface Params {
 export const GET = traceApiRoute(
   'getStatusSource',
   OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { database, params } = context
+    const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId)
       return apiResponse({
@@ -27,7 +28,12 @@ export const GET = traceApiRoute(
       })
 
     const statusId = idToUrl(encodedStatusId)
-    const status = await database.getStatus({ statusId, withReplies: false })
+    const status = await getReadableStatus({
+      database,
+      statusId,
+      currentActor,
+      withReplies: false
+    })
     if (!status)
       return apiResponse({
         req,

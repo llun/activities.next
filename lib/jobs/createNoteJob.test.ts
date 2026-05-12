@@ -181,6 +181,23 @@ describe('createNoteJob', () => {
     await expect(database.getStatus({ statusId: note.id })).resolves.toBeNull()
   })
 
+  it('ignores inbox notes whose attributedTo does not match the verified sender', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: 'https://somewhere.test/actors/friend/statuses/spoofed-note',
+      from: FRIEND_ACTOR_ID,
+      content: '<p>Spoofed sender</p>'
+    })
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note,
+      verifiedSenderActorId: 'https://somewhere.test/actors/mallory'
+    })
+
+    await expect(database.getStatus({ statusId: note.id })).resolves.toBeNull()
+  })
+
   it('adds note with single content map when contentMap is array', async () => {
     const note = MockMastodonActivityPubNote({
       content: '<p>Hello</p>',
