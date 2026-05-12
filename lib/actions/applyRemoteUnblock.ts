@@ -15,6 +15,34 @@ const actorIdsMatch = (firstActorId: string, secondActorId: string) => {
   )
 }
 
+const uniqueActorPairs = (
+  pairs: { actorId: string; targetActorId: string }[]
+) => {
+  const seen = new Set<string>()
+
+  return pairs.filter((pair) => {
+    const key = `${pair.actorId}\0${pair.targetActorId}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+const deleteBlockByActorPairs = async ({
+  database,
+  pairs
+}: {
+  database: Database
+  pairs: { actorId: string; targetActorId: string }[]
+}) => {
+  for (const pair of uniqueActorPairs(pairs)) {
+    const block = await database.deleteBlock(pair)
+    if (block) return block
+  }
+
+  return null
+}
+
 interface ApplyRemoteUnblockParams {
   database: Database
   actorId: string
@@ -68,8 +96,21 @@ export const applyRemoteUnblock = async ({
     })
   }
 
-  return database.deleteBlock({
-    actorId: normalizedActorId,
-    targetActorId: normalizedTargetActorId
+  return deleteBlockByActorPairs({
+    database,
+    pairs: [
+      {
+        actorId: object.actor,
+        targetActorId: getObjectId(object.object)
+      },
+      {
+        actorId,
+        targetActorId
+      },
+      {
+        actorId: normalizedActorId,
+        targetActorId: normalizedTargetActorId
+      }
+    ]
   })
 }

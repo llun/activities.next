@@ -20,10 +20,42 @@ const createStoredBlock = () => ({
 })
 
 describe('applyRemoteUnblock', () => {
-  it('normalizes actor ids before deleting a full Undo Block object', async () => {
+  it('preserves raw Undo Block actor ids when deleting a full object fallback', async () => {
     const database = createDatabase()
+    const storedBlock = {
+      ...createStoredBlock(),
+      actorId: 'https://REMOTE.test/users/alice#activity'
+    }
     database.getBlockByUri.mockResolvedValue(null)
-    database.deleteBlock.mockResolvedValue(createStoredBlock())
+    database.deleteBlock.mockResolvedValue(storedBlock)
+
+    const result = await applyRemoteUnblock({
+      database: database as unknown as Database,
+      actorId: 'https://remote.test/users/alice',
+      object: {
+        id: 'https://remote.test/users/alice#blocks/1',
+        type: 'Block',
+        actor: 'https://REMOTE.test/users/alice#activity',
+        object: 'https://activities.local/users/llun'
+      },
+      targetActorId: 'https://activities.local/users/llun'
+    })
+
+    expect(result).toEqual(storedBlock)
+    expect(database.deleteBlock).toHaveBeenCalledWith({
+      actorId: 'https://REMOTE.test/users/alice#activity',
+      targetActorId: 'https://activities.local/users/llun'
+    })
+  })
+
+  it('falls back to normalized actor ids when raw fallback pairs miss', async () => {
+    const database = createDatabase()
+    const storedBlock = createStoredBlock()
+    database.getBlockByUri.mockResolvedValue(null)
+    database.deleteBlock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(storedBlock)
 
     const result = await applyRemoteUnblock({
       database: database as unknown as Database,
@@ -39,8 +71,16 @@ describe('applyRemoteUnblock', () => {
       targetActorId: 'https://activities.local/users/llun'
     })
 
-    expect(result).toEqual(createStoredBlock())
-    expect(database.deleteBlock).toHaveBeenCalledWith({
+    expect(result).toEqual(storedBlock)
+    expect(database.deleteBlock).toHaveBeenNthCalledWith(1, {
+      actorId: 'https://remote.test/users/alice',
+      targetActorId: 'https://ACTIVITIES.local/users/llun#target'
+    })
+    expect(database.deleteBlock).toHaveBeenNthCalledWith(2, {
+      actorId: 'https://REMOTE.test/users/alice#activity',
+      targetActorId: 'https://activities.local/users/llun'
+    })
+    expect(database.deleteBlock).toHaveBeenNthCalledWith(3, {
       actorId: 'https://remote.test/users/alice',
       targetActorId: 'https://activities.local/users/llun'
     })
