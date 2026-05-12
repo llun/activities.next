@@ -143,6 +143,11 @@ export const ActivityPubVerifySenderGuard =
       return guardErrorResponse(request, 400, allowedMethods)
     }
 
+    const activityActor = await getPostActivityActor(request)
+    if (!activityActor.valid) {
+      return guardErrorResponse(request, 400, allowedMethods)
+    }
+
     if (!(await canFederateWithDomain(database, signatureParts.keyId))) {
       return guardErrorResponse(request, 403, allowedMethods)
     }
@@ -157,11 +162,6 @@ export const ActivityPubVerifySenderGuard =
     if (
       !(await verify(requestTarget, request.headers, senderPublicKey.publicKey))
     ) {
-      return guardErrorResponse(request, 400, allowedMethods)
-    }
-
-    const activityActor = await getPostActivityActor(request)
-    if (!activityActor.valid) {
       return guardErrorResponse(request, 400, allowedMethods)
     }
 

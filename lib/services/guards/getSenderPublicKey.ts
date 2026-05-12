@@ -4,7 +4,10 @@ import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { Database } from '@/lib/database/types'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
-import { normalizeActorId } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubUri,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
@@ -99,11 +102,30 @@ const parseSenderPublicKey = ({
   if (!json) return null
 
   const actor = Actor.safeParse(json)
+  const normalizedKeyId = normalizeActivityPubUri(keyId)
+  const normalizedKeyOwner = normalizeActorId(keyId)
+  if (!normalizedKeyId || !normalizedKeyOwner) return null
+
   if (actor.success) {
-    if (actor.data.id !== keyId && actor.data.publicKey.id !== keyId) {
+    const normalizedActorId = normalizeActorId(actor.data.id)
+    const normalizedActorPublicKeyId = normalizeActivityPubUri(
+      actor.data.publicKey.id
+    )
+    const normalizedPublicKeyOwner = normalizeActorId(
+      actor.data.publicKey.owner
+    )
+    if (
+      !normalizedActorId ||
+      !normalizedActorPublicKeyId ||
+      normalizedActorId !== normalizedPublicKeyOwner
+    ) {
       return null
     }
-    if (actor.data.publicKey.owner !== actor.data.id) {
+
+    if (
+      normalizedActorId !== normalizedKeyOwner &&
+      normalizedActorPublicKeyId !== normalizedKeyId
+    ) {
       return null
     }
 
@@ -111,7 +133,7 @@ const parseSenderPublicKey = ({
       type: 'actor',
       actorId: actor.data.id,
       keyId: actor.data.publicKey.id,
-      requiresOwnerValidation: actor.data.id !== keyId,
+      requiresOwnerValidation: normalizedActorId !== normalizedKeyOwner,
       details: {
         owner: actor.data.id,
         publicKey: actor.data.publicKey.publicKeyPem
@@ -121,7 +143,9 @@ const parseSenderPublicKey = ({
 
   const publicKeyDocument = PublicKeyDocument.safeParse(json)
   if (!publicKeyDocument.success) return null
-  if (publicKeyDocument.data.id !== keyId) return null
+  if (normalizeActivityPubUri(publicKeyDocument.data.id) !== normalizedKeyId) {
+    return null
+  }
 
   return {
     type: 'publicKey',
@@ -173,14 +197,22 @@ const validateOwnerActorKey = async (
   signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
 ) => {
   if (!owner) return null
+  const normalizedOwner = normalizeActorId(owner)
+  const normalizedKeyId = normalizeActivityPubUri(keyId)
+  if (!normalizedOwner || !normalizedKeyId) return null
 
-  const ownerResponse = await fetchSenderPublicKey(owner, signingActor)
+  const ownerResponse = await fetchSenderPublicKey(
+    normalizedOwner,
+    signingActor
+  )
   if (ownerResponse.statusCode !== 200) return null
   if (ownerResponse.document?.type !== 'actor') return null
 
   const ownerDocument = ownerResponse.document
-  if (ownerDocument.actorId !== owner) return null
-  if (ownerDocument.keyId !== keyId) return null
+  if (normalizeActorId(ownerDocument.actorId) !== normalizedOwner) return null
+  if (normalizeActivityPubUri(ownerDocument.keyId) !== normalizedKeyId) {
+    return null
+  }
   if (ownerDocument.details.publicKey !== publicKey) {
     return null
   }

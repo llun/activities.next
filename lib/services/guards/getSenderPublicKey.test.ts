@@ -119,6 +119,51 @@ describe('getSenderPublicKey', () => {
     })
   })
 
+  it('accepts actor documents fetched by fragment key id without refetching the owner actor', async () => {
+    const owner = 'https://remote.test/users/test1'
+    const keyId = `${owner}#main-key`
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        createActorDocument({
+          id: owner,
+          publicKeyId: keyId,
+          publicKeyPem: 'fragment-public-key'
+        })
+      ),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({
+      owner,
+      publicKey: 'fragment-public-key'
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts actor key identifiers that only differ by URI casing', async () => {
+    const owner = 'https://remote.test/users/test1'
+    const keyId = 'HTTPS://REMOTE.TEST/users/test1#main-key'
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        createActorDocument({
+          id: owner,
+          publicKeyId: `${owner}#main-key`,
+          publicKeyPem: 'case-normalized-public-key'
+        })
+      ),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({
+      owner,
+      publicKey: 'case-normalized-public-key'
+    })
+  })
+
   it('returns public key details from path-based key documents', async () => {
     const keyId = 'https://remote.test/users/test1/keys/main'
     const owner = 'https://remote.test/users/test1'
@@ -290,6 +335,37 @@ describe('getSenderPublicKey', () => {
     })
   })
 
+  it('accepts public key documents whose owner differs from the actor id only by fragment', async () => {
+    const keyId = 'https://remote.test/users/test1/keys/main'
+    const owner = 'https://remote.test/users/test1'
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: keyId,
+        owner: `${owner}#owner`,
+        publicKeyPem: 'fragment-owner-public-key'
+      }),
+      { status: 200 }
+    )
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        createActorDocument({
+          id: owner,
+          publicKeyId: keyId,
+          publicKeyPem: 'fragment-owner-public-key'
+        })
+      ),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({
+      owner,
+      publicKey: 'fragment-owner-public-key'
+    })
+    expect(fetchMock.mock.calls.at(1)?.[0]).toBe(owner)
+  })
+
   it('rejects actor documents whose public key owner differs from the actor id', async () => {
     const actorId = 'https://remote.test/users/test1'
     fetchMock.mockResponseOnce(
@@ -307,6 +383,27 @@ describe('getSenderPublicKey', () => {
     expect(publicKey).toEqual({
       owner: null,
       publicKey: ''
+    })
+  })
+
+  it('accepts actor documents whose public key owner differs from the actor id only by fragment', async () => {
+    const actorId = 'https://remote.test/users/test1'
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        createActorDocument({
+          id: actorId,
+          publicKeyOwner: `${actorId}#owner`,
+          publicKeyPem: 'fragment-owner-public-key'
+        })
+      ),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, actorId)
+
+    expect(publicKey).toEqual({
+      owner: actorId,
+      publicKey: 'fragment-owner-public-key'
     })
   })
 

@@ -115,6 +115,9 @@ describe('ActivityPubVerifySenderGuard', () => {
 
     expect(response.status).toBe(400)
     expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+    expect(mockVerify).not.toHaveBeenCalled()
   })
 
   it('rejects POST requests without a digest header', async () => {
@@ -231,6 +234,9 @@ describe('ActivityPubVerifySenderGuard', () => {
 
     expect(response.status).toBe(400)
     expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+    expect(mockVerify).not.toHaveBeenCalled()
   })
 
   it('rejects POST activities without a non-empty actor identity', async () => {
@@ -250,6 +256,9 @@ describe('ActivityPubVerifySenderGuard', () => {
 
     expect(response.status).toBe(400)
     expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+    expect(mockVerify).not.toHaveBeenCalled()
   })
 
   it('rejects POST activities when the signing key owner does not match the activity actor', async () => {
