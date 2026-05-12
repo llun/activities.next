@@ -179,4 +179,6 @@ jobs:
         shell: bash
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: git push "https://x-access-token:${PAT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:oltp
+        run: |
+          git -c credential.helper='!f() { echo "username=x-access-token"; echo "password=${PAT_TOKEN}"; }; f' \
+            push origin HEAD:oltp
