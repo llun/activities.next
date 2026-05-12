@@ -50,6 +50,26 @@ export const getPresignedUrl = async (
   }
 }
 
+export const completePresignedMediaUpload = async (
+  database: Database,
+  actor: Actor,
+  mediaId: string
+) => {
+  const { mediaStorage, host } = getConfig()
+  switch (mediaStorage?.type) {
+    case MediaStorageType.S3Storage:
+    case MediaStorageType.ObjectStorage: {
+      return S3FileStorage.getStorage(
+        mediaStorage,
+        host,
+        database
+      ).completePresignedUpload(actor, mediaId)
+    }
+    default:
+      return null
+  }
+}
+
 export const getMedia = async (database: Database, path: string) => {
   const { mediaStorage, host } = getConfig()
   switch (mediaStorage?.type) {

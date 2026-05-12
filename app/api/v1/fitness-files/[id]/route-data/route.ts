@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -25,10 +26,13 @@ import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_404,
+  ERROR_429,
   ERROR_500,
+  HTTP_STATUS,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface Params {
@@ -53,6 +57,81 @@ interface FitnessRouteSegment {
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const MAX_ROUTE_SAMPLE_POINTS = 1_500
+const PUBLIC_ROUTE_DATA_CACHE_TTL_MS = 60_000
+const PUBLIC_ROUTE_DATA_RATE_LIMIT_WINDOW_MS = 60_000
+const PUBLIC_ROUTE_DATA_RATE_LIMIT_MAX_REQUESTS = 60
+
+type RouteDataResponsePayload = {
+  samples: FitnessRouteSample[]
+  segments: FitnessRouteSegment[]
+  totalDurationSeconds: number
+  powerSeries?: unknown
+  heartRateSeries?: unknown
+  altitudeSeries?: unknown
+  speedSeries?: unknown
+}
+
+const publicRouteDataCache = new Map<
+  string,
+  { expiresAt: number; payload: RouteDataResponsePayload }
+>()
+const routeDataRateLimit = new Map<string, { resetAt: number; count: number }>()
+
+export const resetFitnessRouteDataSecurityStateForTests = () => {
+  publicRouteDataCache.clear()
+  routeDataRateLimit.clear()
+}
+
+const getClientRateLimitKey = (req: NextRequest) => {
+  const forwardedFor = req.headers.get('x-forwarded-for')
+  const firstForwarded = forwardedFor?.split(',')[0]?.trim()
+  return (
+    firstForwarded ||
+    req.headers.get('x-real-ip') ||
+    req.headers.get('cf-connecting-ip') ||
+    'anonymous'
+  )
+}
+
+const consumePublicRouteDataRateLimit = (key: string) => {
+  const now = Date.now()
+  const existing = routeDataRateLimit.get(key)
+  if (!existing || existing.resetAt <= now) {
+    routeDataRateLimit.set(key, {
+      resetAt: now + PUBLIC_ROUTE_DATA_RATE_LIMIT_WINDOW_MS,
+      count: 1
+    })
+    return true
+  }
+
+  existing.count += 1
+  return existing.count <= PUBLIC_ROUTE_DATA_RATE_LIMIT_MAX_REQUESTS
+}
+
+const getPublicRouteDataCacheKey = ({
+  fileMetadata,
+  privacySettings
+}: {
+  fileMetadata: FitnessFile
+  privacySettings?: {
+    updatedAt?: number
+    privacyHomeLatitude?: number
+    privacyHomeLongitude?: number
+    privacyHideRadiusMeters?: number
+    privacyLocations?: unknown
+  } | null
+}) =>
+  [
+    fileMetadata.id,
+    fileMetadata.updatedAt,
+    fileMetadata.bytes,
+    fileMetadata.processingStatus ?? '',
+    privacySettings?.updatedAt ?? 0,
+    privacySettings?.privacyHomeLatitude ?? '',
+    privacySettings?.privacyHomeLongitude ?? '',
+    privacySettings?.privacyHideRadiusMeters ?? '',
+    JSON.stringify(privacySettings?.privacyLocations ?? [])
+  ].join(':')
 
 const getFetchResponseErrorDetail = async (
   response: Response
@@ -155,7 +234,13 @@ const getFitnessFileBuffer = async (
     )
   }
 
-  return Buffer.from(await response.arrayBuffer())
+  return Buffer.from(
+    await readResponseArrayBufferWithLimit(
+      response,
+      DEFAULT_FITNESS_MAX_FILE_SIZE,
+      'Fitness redirect body'
+    )
+  )
 }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -268,6 +353,54 @@ export const GET = traceApiRoute(
         }
       }
 
+      if (!isParseableFitnessFileType(fileMetadata.fileType)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      const privacySettings = await database.getFitnessSettings({
+        actorId: fileMetadata.actorId,
+        serviceType: 'general'
+      })
+      const isAnonymousPublicRequest = isPubliclyAccessible && !currentActor
+      if (
+        isAnonymousPublicRequest &&
+        !consumePublicRouteDataRateLimit(getClientRateLimitKey(req))
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_429,
+          responseStatusCode: HTTP_STATUS.TOO_MANY_REQUESTS,
+          additionalHeaders: [['Retry-After', '60']]
+        })
+      }
+
+      const publicCacheKey = isAnonymousPublicRequest
+        ? getPublicRouteDataCacheKey({
+            fileMetadata,
+            privacySettings
+          })
+        : null
+      if (publicCacheKey) {
+        const cached = publicRouteDataCache.get(publicCacheKey)
+        if (cached && cached.expiresAt > Date.now()) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: cached.payload,
+            additionalHeaders: [
+              ['Cache-Control', 'public, max-age=60'],
+              ['X-Route-Data-Cache', 'HIT']
+            ]
+          })
+        }
+      }
+
       const fitnessFileBuffer = await getFitnessFileBuffer(
         id,
         fileMetadata,
@@ -285,14 +418,6 @@ export const GET = traceApiRoute(
           responseStatusCode: 404
         })
       }
-      if (!isParseableFitnessFileType(fileMetadata.fileType)) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
-        })
-      }
 
       const activityData = await parseFitnessFile({
         fileType: fileMetadata.fileType,
@@ -302,10 +427,6 @@ export const GET = traceApiRoute(
         activityData.trackPoints,
         activityData.totalDurationSeconds
       )
-      const privacySettings = await database.getFitnessSettings({
-        actorId: fileMetadata.actorId,
-        serviceType: 'general'
-      })
       const privacyLocation = getFitnessPrivacyLocations(privacySettings)
 
       const privacyAwareSamples = annotatePointsWithPrivacy(
@@ -325,23 +446,31 @@ export const GET = traceApiRoute(
       )
       const responseSamples = flattenPrivacySegments(sampledSegments)
       const responseSegments = toResponseSegments(sampledSegments)
+      const payload: RouteDataResponsePayload = {
+        samples: responseSamples,
+        segments: responseSegments,
+        totalDurationSeconds: activityData.totalDurationSeconds,
+        powerSeries: activityData.powerSeries,
+        heartRateSeries: activityData.heartRateSeries,
+        altitudeSeries: activityData.altitudeSeries,
+        speedSeries: activityData.speedSeries
+      }
+
+      if (publicCacheKey) {
+        publicRouteDataCache.set(publicCacheKey, {
+          expiresAt: Date.now() + PUBLIC_ROUTE_DATA_CACHE_TTL_MS,
+          payload
+        })
+      }
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          samples: responseSamples,
-          segments: responseSegments,
-          totalDurationSeconds: activityData.totalDurationSeconds,
-          powerSeries: activityData.powerSeries,
-          heartRateSeries: activityData.heartRateSeries,
-          altitudeSeries: activityData.altitudeSeries,
-          speedSeries: activityData.speedSeries
-        },
+        data: payload,
         additionalHeaders: [
           [
             'Cache-Control',
-            isPubliclyAccessible ? 'no-store' : 'private, no-store'
+            isPubliclyAccessible ? 'public, max-age=60' : 'private, no-store'
           ]
         ]
       })

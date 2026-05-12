@@ -169,3 +169,25 @@ export const getPresignedFitnessFileUrl = async (
 
   return null
 }
+
+export const verifyPresignedFitnessFileUpload = async (
+  database: Database,
+  actor: Actor,
+  fitnessFile: FitnessFile
+) => {
+  const { host } = getConfig()
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
+
+  if (
+    fitnessStorage?.type === FitnessStorageType.S3Storage ||
+    fitnessStorage?.type === FitnessStorageType.ObjectStorage
+  ) {
+    return S3FitnessStorage.getStorage(
+      fitnessStorage,
+      host,
+      database
+    ).verifyPresignedUpload(actor, fitnessFile)
+  }
+
+  return false
+}

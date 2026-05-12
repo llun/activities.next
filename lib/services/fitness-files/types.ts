@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
+import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 
 import {
@@ -116,6 +117,10 @@ export interface FitnessStorage {
       description?: string
     }
   ): Promise<PresignedFitnessUrlOutput | null>
+  verifyPresignedUpload(
+    actor: Actor,
+    fitnessFile: FitnessFile
+  ): Promise<boolean>
 }
 
 // Helper to determine file type from filename or mime type

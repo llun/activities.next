@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
@@ -10,11 +11,19 @@ import { format } from 'date-fns'
 import { Readable } from 'stream'
 import type { ReadableStream as WebReadableStream } from 'stream/web'
 
-import { FitnessStorageS3Config } from '@/lib/config/fitnessStorage'
+import {
+  DEFAULT_FITNESS_MAX_FILE_SIZE,
+  FitnessStorageS3Config
+} from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
+import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
+import {
+  assertByteLengthWithinLimit,
+  readUnknownBodyToBufferWithLimit
+} from '@/lib/utils/streamLimit'
 
 import { QuotaExceededError } from './errors'
 import {
@@ -25,6 +34,9 @@ import {
   PresignedFitnessUrlOutput,
   getFitnessFileType
 } from './types'
+
+const normalizeContentType = (contentType?: string) =>
+  contentType?.split(';')[0]?.trim().toLowerCase() ?? ''
 
 export class S3FitnessStorage implements FitnessStorage {
   private static _instance: FitnessStorage
@@ -69,10 +81,20 @@ export class S3FitnessStorage implements FitnessStorage {
       if (!object.Body) return null
 
       const message = object.Body
+      const maxBytes = this._config.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE
+      assertByteLengthWithinLimit({
+        byteLength: object.ContentLength,
+        maxBytes,
+        label: 'Fitness object body'
+      })
       return FitnessStorageGetFileOutput.parse({
         type: 'buffer',
         contentType: object.ContentType ?? 'application/octet-stream',
-        buffer: Buffer.from(await message.transformToByteArray())
+        buffer: await readUnknownBodyToBufferWithLimit(
+          message,
+          maxBytes,
+          'Fitness object body'
+        )
       })
     } catch (error) {
       const nodeError = error as {
@@ -257,5 +279,38 @@ export class S3FitnessStorage implements FitnessStorage {
       url,
       fitnessFileId: storedFile.id
     })
+  }
+
+  async verifyPresignedUpload(
+    actor: Actor,
+    fitnessFile: FitnessFile
+  ): Promise<boolean> {
+    if (fitnessFile.actorId !== actor.id) {
+      return false
+    }
+
+    const { bucket, prefix } = this._config
+    const key = prefix ? `${prefix}${fitnessFile.path}` : fitnessFile.path
+    const object = await this._client.send(
+      new HeadObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ChecksumMode: 'ENABLED'
+      })
+    )
+    const contentLength = object.ContentLength
+    const contentType = normalizeContentType(object.ContentType)
+    const expectedContentType = normalizeContentType(fitnessFile.mimeType)
+    const isValid =
+      contentLength === fitnessFile.bytes && contentType === expectedContentType
+
+    if (!isValid) {
+      await this.deleteFile(fitnessFile.path).catch(() => false)
+      await this._database
+        .deleteFitnessFile({ id: fitnessFile.id })
+        .catch(() => false)
+    }
+
+    return isValid
   }
 }

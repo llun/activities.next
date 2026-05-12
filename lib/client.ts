@@ -788,16 +788,18 @@ export const createUploadPresignedUrl = async ({
 interface UploadFileToPresignedUrlParams {
   presignedUrl: string
   media: File
+  headers?: Record<string, string>
 }
 
 export const uploadFileToPresignedUrl = async ({
   presignedUrl,
-  media
+  media,
+  headers = {}
 }: UploadFileToPresignedUrlParams) => {
   const response = await fetch(presignedUrl, {
     method: 'PUT',
     body: media,
-    headers: { 'Content-Type': media.type }
+    headers: { 'Content-Type': media.type, ...headers }
   })
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
@@ -806,6 +808,36 @@ export const uploadFileToPresignedUrl = async ({
     )
   }
   return response
+}
+
+export const completeUploadPresignedUrl = async ({
+  mediaId
+}: {
+  mediaId: string
+}): Promise<UploadedAttachment | null> => {
+  const response = await fetch('/api/v1/medias/presigned', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ mediaId })
+  })
+  if (response.status !== 200) return null
+
+  const result = (await response.json()) as {
+    media: PresignedUrlOutput['saveFileOutput']
+  }
+
+  return {
+    type: 'upload',
+    id: result.media.id,
+    mediaType: result.media.mime_type,
+    url: result.media.url,
+    posterUrl: result.media.preview_url ?? undefined,
+    width: result.media.meta.original.width,
+    height: result.media.meta.original.height,
+    name: result.media.description
+  }
 }
 
 export const uploadAttachment = async (
@@ -827,17 +859,15 @@ export const uploadAttachment = async (
     }
   }
 
-  const { url: presignedUrl, saveFileOutput } = result.presigned
-  await uploadFileToPresignedUrl({ media: file, presignedUrl })
+  const { url: presignedUrl, saveFileOutput, headers } = result.presigned
+  await uploadFileToPresignedUrl({ media: file, presignedUrl, headers })
+  const completed = await completeUploadPresignedUrl({
+    mediaId: saveFileOutput.id
+  })
+  if (!completed) return null
 
   return {
-    type: 'upload',
-    id: saveFileOutput.id,
-    mediaType: saveFileOutput.mime_type,
-    url: saveFileOutput.url,
-    posterUrl: saveFileOutput.preview_url ?? undefined,
-    width: saveFileOutput.meta.original.width,
-    height: saveFileOutput.meta.original.height,
+    ...completed,
     name: file.name
   }
 }

@@ -11,7 +11,9 @@ import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { GET } from './route'
+import * as routeModule from './route'
+
+const { GET } = routeModule
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -62,6 +64,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    routeModule.resetFitnessRouteDataSecurityStateForTests?.()
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',
       contentType: 'application/vnd.ant.fit',
@@ -89,11 +92,12 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
   })
 
-  const createRequest = () =>
+  const createRequest = (headers?: Record<string, string>) =>
     new NextRequest(
       'https://llun.test/api/v1/fitness-files/file-id/route-data',
       {
-        method: 'GET'
+        method: 'GET',
+        headers
       }
     )
 
@@ -174,7 +178,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=60')
 
     const payload = (await response.json()) as {
       samples: Array<{ elapsedSeconds: number; isHiddenByPrivacy: boolean }>
@@ -201,6 +205,80 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       fileType: 'fit',
       buffer: Buffer.from('fit-data')
     })
+  })
+
+  it('caches anonymous public route data parsing responses', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-cache`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-cache`,
+      actorId: ACTOR1_ID,
+      text: 'Public route data cache',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-cache.fit',
+      fileName: 'public-route-data-cache.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const firstResponse = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const secondResponse = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+
+    expect(firstResponse.status).toBe(200)
+    expect(secondResponse.status).toBe(200)
+    expect(secondResponse.headers.get('X-Route-Data-Cache')).toBe('HIT')
+    expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
+    expect(mockParseFitnessFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('rate-limits anonymous public route data parsing requests', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-rate-limit`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-rate-limit`,
+      actorId: ACTOR1_ID,
+      text: 'Public route data rate limit',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-rate-limit.fit',
+      fileName: 'public-route-data-rate-limit.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    let response: Response | null = null
+    for (let index = 0; index < 61; index += 1) {
+      response = await GET(
+        createRequest({
+          'x-forwarded-for': '203.0.113.10'
+        }),
+        {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        }
+      )
+    }
+
+    expect(response?.status).toBe(429)
+    expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
   })
 
   it('returns not found for private status route data without a session', async () => {

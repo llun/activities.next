@@ -1,7 +1,8 @@
 import { IMPORT_STRAVA_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import {
   deleteFitnessFile,
-  saveFitnessFile
+  saveFitnessFile,
+  verifyPresignedFitnessFileUpload
 } from '@/lib/services/fitness-files'
 import { getQueue } from '@/lib/services/queue'
 
@@ -51,7 +52,8 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
 
 jest.mock('@/lib/services/fitness-files', () => ({
   saveFitnessFile: jest.fn(),
-  deleteFitnessFile: jest.fn()
+  deleteFitnessFile: jest.fn(),
+  verifyPresignedFitnessFileUpload: jest.fn()
 }))
 
 jest.mock('@/lib/services/queue', () => ({
@@ -72,6 +74,10 @@ const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
 const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
   typeof deleteFitnessFile
 >
+const mockVerifyPresignedFitnessFileUpload =
+  verifyPresignedFitnessFileUpload as jest.MockedFunction<
+    typeof verifyPresignedFitnessFileUpload
+  >
 
 describe('Strava archive import route', () => {
   const db: MockDatabase = {
@@ -132,6 +138,7 @@ describe('Strava archive import route', () => {
       size: 1024
     })
     mockDeleteFitnessFile.mockResolvedValue(true)
+    mockVerifyPresignedFitnessFileUpload.mockResolvedValue(true)
   })
 
   it('GET returns current active archive import state', async () => {
@@ -420,10 +427,49 @@ describe('Strava archive import route', () => {
       'strava-archive:550e8400-e29b-41d4-a716-446655440001'
     )
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+    expect(mockVerifyPresignedFitnessFileUpload).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ id: 'https://llun.test/users/llun' }),
+      expect.objectContaining({ id: 'pre-created-fitness-file-id' })
+    )
     expect(body.importId).toBeDefined()
 
     const queue = getQueue()
     expect(queue.publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('POST with presigned fitnessFileId rejects an oversized completed upload', async () => {
+    mockVerifyPresignedFitnessFileUpload.mockResolvedValueOnce(false)
+    db.getFitnessFile.mockResolvedValueOnce({
+      id: 'pre-created-fitness-file-id',
+      actorId: 'https://llun.test/users/llun',
+      path: 'fitness/2024-01-01/abc.zip',
+      fileName: 'export.zip',
+      fileType: 'zip',
+      mimeType: 'application/zip',
+      bytes: 2048,
+      importBatchId:
+        'strava-archive-source:550e8400-e29b-41d4-a716-446655440005'
+    })
+
+    const req = new Request(
+      'http://localhost/api/v1/settings/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440005',
+          visibility: 'private'
+        })
+      }
+    )
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(422)
+    expect(db.createStravaArchiveImport).not.toHaveBeenCalled()
+    expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
   it('POST with presigned fitnessFileId returns 403 when file belongs to different actor', async () => {

@@ -75,7 +75,7 @@ export type MediaStorageGetRedirectOutput = z.infer<
 
 export const PresigedMediaInput = z.object({
   fileName: z.string(),
-  checksum: z.string(),
+  checksum: z.string().regex(/^[a-f0-9]{40}$/i),
   width: z.number(),
   height: z.number(),
   contentType: z
@@ -93,7 +93,8 @@ export type PresigedMediaInput = z.infer<typeof PresigedMediaInput>
 
 export const PresignedUrlOutput = z.object({
   url: z.string().url(),
-  saveFileOutput: MediaStorageSaveFileOutput
+  saveFileOutput: MediaStorageSaveFileOutput,
+  headers: z.record(z.string(), z.string()).optional()
 })
 export type PresignedUrlOutput = z.infer<typeof PresignedUrlOutput>
 
@@ -107,6 +108,10 @@ export interface MediaStorage {
     actor: Actor,
     media: PresigedMediaInput
   ): Promise<PresignedUrlOutput | null>
+  completePresignedUpload(
+    actor: Actor,
+    mediaId: string
+  ): Promise<MediaStorageSaveFileOutput | null>
   getFile(
     filePath: string
   ): Promise<MediaStorageGetFileOutput | MediaStorageGetRedirectOutput | null>

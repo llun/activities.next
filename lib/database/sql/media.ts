@@ -21,6 +21,7 @@ import {
   GetMediaByIdParams,
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
+  MarkMediaUploadVerifiedParams,
   Media,
   MediaDatabase,
   PaginatedMediaWithStatus
@@ -78,6 +79,51 @@ const deleteMediaById = async (
   database: Knex,
   mediaId: string
 ): Promise<boolean> => deleteMediaByConditions(database, { id: mediaId })
+
+type MediaRow = {
+  id: string | number
+  actorId: string
+  original: string
+  originalBytes: number | string | bigint
+  originalMimeType: string
+  originalMetaData: string
+  originalFileName?: string | null
+  thumbnail?: string | null
+  thumbnailBytes?: number | string | bigint | null
+  thumbnailMimeType?: string | null
+  thumbnailMetaData?: string | null
+  description?: string | null
+}
+
+type MediaMetaData = Media['original']['metaData']
+
+const parseMediaMetaData = (
+  input?: string | MediaMetaData | null
+): MediaMetaData =>
+  getCompatibleJSON<MediaMetaData>(input ?? ({} as MediaMetaData))
+
+const parseMediaRow = (data: MediaRow): Media => ({
+  id: String(data.id),
+  actorId: data.actorId,
+  original: {
+    path: data.original,
+    bytes: Number(data.originalBytes),
+    mimeType: data.originalMimeType,
+    metaData: parseMediaMetaData(data.originalMetaData),
+    ...(data.originalFileName ? { fileName: data.originalFileName } : {})
+  },
+  ...(data.thumbnail
+    ? {
+        thumbnail: {
+          path: data.thumbnail,
+          bytes: Number(data.thumbnailBytes),
+          mimeType: data.thumbnailMimeType ?? '',
+          metaData: parseMediaMetaData(data.thumbnailMetaData)
+        }
+      }
+    : {}),
+  ...(data.description ? { description: data.description } : {})
+})
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
@@ -143,6 +189,55 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         ...(description ? { description } : null)
       } as Media
     })
+  },
+  async markMediaUploadVerified({
+    mediaId,
+    accountId,
+    verifiedAt
+  }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
+    const data = await database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('medias.id', mediaId)
+      .where('actors.accountId', accountId)
+      .select(
+        'medias.id',
+        'medias.actorId',
+        'medias.original',
+        'medias.originalBytes',
+        'medias.originalMimeType',
+        'medias.originalMetaData',
+        'medias.originalFileName',
+        'medias.thumbnail',
+        'medias.thumbnailBytes',
+        'medias.thumbnailMimeType',
+        'medias.thumbnailMetaData',
+        'medias.description'
+      )
+      .first<MediaRow>()
+
+    if (!data) return null
+
+    const media = parseMediaRow(data)
+    const metaData = {
+      ...media.original.metaData,
+      upload: {
+        ...media.original.metaData.upload,
+        state: 'verified' as const,
+        verifiedAt
+      }
+    }
+
+    await database('medias')
+      .where('id', media.id)
+      .update({ originalMetaData: JSON.stringify(metaData) })
+
+    return {
+      ...media,
+      original: {
+        ...media.original,
+        metaData
+      }
+    }
   },
   async createAttachment({
     actorId,
@@ -330,7 +425,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         path: item.original,
         bytes: Number(item.originalBytes),
         mimeType: item.originalMimeType,
-        metaData: getCompatibleJSON(item.originalMetaData),
+        metaData: parseMediaMetaData(item.originalMetaData),
         ...(item.originalFileName ? { fileName: item.originalFileName } : {})
       },
       ...(item.thumbnail
@@ -339,7 +434,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               path: item.thumbnail,
               bytes: Number(item.thumbnailBytes),
               mimeType: item.thumbnailMimeType,
-              metaData: getCompatibleJSON(item.thumbnailMetaData)
+              metaData: parseMediaMetaData(item.thumbnailMetaData)
             }
           }
         : {}),
@@ -376,28 +471,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
     if (!data) return null
 
-    return {
-      id: String(data.id),
-      actorId: data.actorId,
-      original: {
-        path: data.original,
-        bytes: Number(data.originalBytes),
-        mimeType: data.originalMimeType,
-        metaData: getCompatibleJSON(data.originalMetaData),
-        ...(data.originalFileName ? { fileName: data.originalFileName } : {})
-      },
-      ...(data.thumbnail
-        ? {
-            thumbnail: {
-              path: data.thumbnail,
-              bytes: Number(data.thumbnailBytes),
-              mimeType: data.thumbnailMimeType,
-              metaData: getCompatibleJSON(data.thumbnailMetaData)
-            }
-          }
-        : {}),
-      ...(data.description ? { description: data.description } : {})
-    }
+    return parseMediaRow(data)
   },
 
   async getStorageUsageForAccount({

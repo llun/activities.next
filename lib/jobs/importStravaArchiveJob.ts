@@ -8,6 +8,7 @@ import { pipeline } from 'stream/promises'
 import type { ReadableStream as NodeReadableStream } from 'stream/web'
 import { z } from 'zod'
 
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import {
@@ -15,11 +16,13 @@ import {
   getEffectiveFitnessStorageConfig,
   saveFitnessFile
 } from '@/lib/services/fitness-files'
+import { assertFitnessStoragePath } from '@/lib/services/fitness-files/path'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
 import {
   StravaArchiveActivity,
+  StravaArchiveLimitError,
   StravaArchiveReader,
   getArchiveMediaMimeType,
   toStravaArchiveFitnessFilePayload
@@ -27,6 +30,11 @@ import {
 import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import {
+  assertByteLengthWithinLimit,
+  createByteLimitTransform,
+  readAsyncIterableToBufferWithLimit
+} from '@/lib/utils/streamLimit'
 
 import { createJobHandle } from './createJobHandle'
 import { IMPORT_STRAVA_ARCHIVE_JOB_NAME } from './names'
@@ -101,13 +109,19 @@ const getUniqueAttachmentName = ({
 
 const streamBodyToFile = async ({
   body,
-  outputPath
+  outputPath,
+  maxBytes
 }: {
   body: unknown
   outputPath: string
+  maxBytes: number
 }) => {
   if (body && typeof body === 'object' && 'pipe' in body) {
-    await pipeline(body as NodeJS.ReadableStream, createWriteStream(outputPath))
+    await pipeline(
+      body as NodeJS.ReadableStream,
+      createByteLimitTransform(maxBytes, 'Archive object body'),
+      createWriteStream(outputPath)
+    )
     return
   }
 
@@ -121,7 +135,11 @@ const streamBodyToFile = async ({
     const webStream = (
       body as { transformToWebStream: () => NodeReadableStream }
     ).transformToWebStream()
-    await pipeline(Readable.fromWeb(webStream), createWriteStream(outputPath))
+    await pipeline(
+      Readable.fromWeb(webStream),
+      createByteLimitTransform(maxBytes, 'Archive object body'),
+      createWriteStream(outputPath)
+    )
     return
   }
 
@@ -132,9 +150,26 @@ const streamBodyToFile = async ({
     typeof (body as { transformToByteArray: () => Promise<Uint8Array> })
       .transformToByteArray === 'function'
   ) {
-    const bytes = await (
-      body as { transformToByteArray: () => Promise<Uint8Array> }
-    ).transformToByteArray()
+    const bytes = Buffer.from(
+      await (
+        body as { transformToByteArray: () => Promise<Uint8Array> }
+      ).transformToByteArray()
+    )
+    assertByteLengthWithinLimit({
+      byteLength: bytes.byteLength,
+      maxBytes,
+      label: 'Archive object body'
+    })
+    await fs.writeFile(outputPath, bytes)
+    return
+  }
+
+  if (body && Symbol.asyncIterator in Object(body)) {
+    const bytes = await readAsyncIterableToBufferWithLimit(
+      body as AsyncIterable<unknown>,
+      maxBytes,
+      'Archive object body'
+    )
     await fs.writeFile(outputPath, bytes)
     return
   }
@@ -153,7 +188,10 @@ const resolveArchivePath = async (
 
   if (fitnessStorage.type === 'fs') {
     return {
-      archiveFilePath: path.resolve(fitnessStorage.path, archivePath),
+      archiveFilePath: assertFitnessStoragePath(
+        fitnessStorage.path,
+        archivePath
+      ),
       cleanup: async () => {}
     }
   }
@@ -176,10 +214,16 @@ const resolveArchivePath = async (
   if (!object.Body) {
     throw new Error('Archive object body is empty')
   }
+  assertByteLengthWithinLimit({
+    byteLength: object.ContentLength,
+    maxBytes: fitnessStorage.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE,
+    label: 'Archive object body'
+  })
 
   await streamBodyToFile({
     body: object.Body,
-    outputPath: temporaryArchivePath
+    outputPath: temporaryArchivePath,
+    maxBytes: fitnessStorage.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE
   })
 
   return {
@@ -229,6 +273,35 @@ const getImportedFitnessFiles = async ({
   }
 
   return importedFiles
+}
+
+const rollbackSavedArchiveFitnessFiles = async ({
+  database,
+  fitnessFileIds
+}: {
+  database: Database
+  fitnessFileIds: string[]
+}) => {
+  const rollbackResults = await Promise.all(
+    fitnessFileIds.map(async (fitnessFileId) => {
+      try {
+        const deleted = await deleteFitnessFile(database, fitnessFileId)
+        return {
+          fitnessFileId,
+          deleted
+        }
+      } catch {
+        return {
+          fitnessFileId,
+          deleted: false
+        }
+      }
+    })
+  )
+
+  return rollbackResults
+    .filter((result) => !result.deleted)
+    .map((result) => result.fitnessFileId)
 }
 
 const attachActivityMediaToStatus = async ({
@@ -661,7 +734,7 @@ export const importStravaArchiveJob = createJobHandle(
             throw new Error('Fitness activity file is missing from archive')
           }
 
-          const fitnessPayload = toStravaArchiveFitnessFilePayload({
+          const fitnessPayload = await toStravaArchiveFitnessFilePayload({
             fitnessFilePath: archiveActivity.fitnessFilePath,
             buffer: fitnessArchiveBuffer
           })
@@ -689,6 +762,26 @@ export const importStravaArchiveJob = createJobHandle(
           })
         } catch (error) {
           const nodeError = error as Error
+          if (nodeError instanceof StravaArchiveLimitError) {
+            const rollbackFailures = await rollbackSavedArchiveFitnessFiles({
+              database,
+              fitnessFileIds: savedArchiveActivities.map(
+                ({ fitnessFileId }) => fitnessFileId
+              )
+            })
+            if (rollbackFailures.length > 0) {
+              logger.error({
+                message:
+                  'Failed to rollback staged Strava archive fitness files after archive limit rejection',
+                actorId,
+                archiveId,
+                importId,
+                rollbackFailures
+              })
+            }
+            throw nodeError
+          }
+
           failedActivities += 1
           if (!importFailureMessage) {
             importFailureMessage = nodeError.message
@@ -723,25 +816,10 @@ export const importStravaArchiveJob = createJobHandle(
             }
           })
         } catch (error) {
-          const rollbackResults = await Promise.all(
-            savedFitnessFileIds.map(async (fitnessFileId) => {
-              try {
-                const deleted = await deleteFitnessFile(database, fitnessFileId)
-                return {
-                  fitnessFileId,
-                  deleted
-                }
-              } catch {
-                return {
-                  fitnessFileId,
-                  deleted: false
-                }
-              }
-            })
-          )
-          const rollbackFailures = rollbackResults
-            .filter((result) => !result.deleted)
-            .map((result) => result.fitnessFileId)
+          const rollbackFailures = await rollbackSavedArchiveFitnessFiles({
+            database,
+            fitnessFileIds: savedFitnessFileIds
+          })
           if (rollbackFailures.length > 0) {
             logger.error({
               message:
