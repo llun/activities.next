@@ -1,0 +1,33 @@
+lib/services/guards/getSenderPublicKey.test.ts
+  s_549610a9a6d886::t_38a5df9baa941b 4-7,57-83
+app/api/inbox/route.ts
+  s_549610a9a6d886::t_6be12bf97a2947 32-33
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  s_549610a9a6d886::t_7ab1c7deca332c 11,25-27,39-59,65-68,217-277
+  s_549610a9a6d886::t_02235e2e405ee6 167-170
+app/api/inbox/route.test.ts
+  s_549610a9a6d886::t_f8bc34d439db3d 30-33,36-40,42,46,51,69-80
+  s_549610a9a6d886::t_da678151af5b09 34
+lib/services/guards/getSenderPublicKey.ts
+  s_549610a9a6d886::t_88be05dd2061dd 1,3,6-7,10-54,56,58-94,96-103,108,125-129,137-138
+  s_549610a9a6d886::t_e1729f3e514d41 104-107,109-124
+lib/services/guards/ActivityPubVerifyGuard.ts
+  s_549610a9a6d886::t_50e1c32753a267 16,56-75,150-153,157-161,166
+  s_549610a9a6d886::t_acbf9df1304e5a 154-156,165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "8681237b873d9773c470da932d02adebfed5715d",
+  "prompts": {},
+  "sessions": {
+    "s_549610a9a6d886": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1a8b-372d-7683-99cb-f0b2df043120",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
