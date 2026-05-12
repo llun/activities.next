@@ -180,5 +180,20 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          git -c credential.helper='!f() { echo "username=x-access-token"; echo "password=${PAT_TOKEN}"; }; f' \
+          if [ -z "${PAT_TOKEN}" ]; then
+            echo "Missing secrets.PAT_TOKEN" >&2
+            exit 1
+          fi
+
+          if [[ "${PAT_TOKEN}" == *$'\r'* || "${PAT_TOKEN}" == *$'\n'* ]]; then
+            echo "secrets.PAT_TOKEN must not contain line breaks" >&2
+            exit 1
+          fi
+
+          auth_header="$(printf 'x-access-token:%s' "${PAT_TOKEN}" | base64 -w 0)"
+          echo "::add-mask::${auth_header}"
+
+          git \
+            -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${auth_header}" \
+            -c credential.helper= \
             push origin HEAD:oltp
