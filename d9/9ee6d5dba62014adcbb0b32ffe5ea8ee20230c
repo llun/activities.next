@@ -1,0 +1,21 @@
+lib/services/guards/getSenderPublicKey.ts
+  s_549610a9a6d886::t_50900e917bf2ee 12,56-59,61-62,66-69,78,105-108
+lib/services/guards/getSenderPublicKey.test.ts
+  s_549610a9a6d886::t_06becc4babb44a 86-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d99ee6d5dba62014adcbb0b32ffe5ea8ee20230c",
+  "prompts": {},
+  "sessions": {
+    "s_549610a9a6d886": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1a8b-372d-7683-99cb-f0b2df043120",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
