@@ -132,5 +132,11 @@ export const ActivityPubVerifySenderGuard =
       return guardErrorResponse(request, 400, allowedMethods)
     }
 
-    return handle(request, { database, params: context.params })
+    const verifiedSenderActorId = signatureParts.keyId.split('#')[0]
+
+    return handle(request, {
+      database,
+      params: context.params,
+      verifiedSenderActorId
+    })
   }

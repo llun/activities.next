@@ -36,6 +36,7 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
         context: {
           database: typeof mockDatabase
           params: Promise<{ username: string }>
+          verifiedSenderActorId: string
         }
       ) => Promise<Response> | Response
     ) =>
@@ -49,7 +50,8 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
 
       return handle(req, {
         database: mockDatabase,
-        params: context.params
+        params: context.params,
+        verifiedSenderActorId: 'https://remote.test/users/alice'
       })
     }
 }))
@@ -181,6 +183,25 @@ describe('POST /api/users/[username]/inbox', () => {
 
     expect(response.status).toBe(400)
     expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockCreateFollower).not.toHaveBeenCalled()
+  })
+
+  it('rejects requests when activity actor does not match the verified sender', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/follows/1',
+          type: 'Follow',
+          actor: 'https://remote.test/users/bob',
+          object: 'https://activities.local/users/llun'
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(403)
     expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 

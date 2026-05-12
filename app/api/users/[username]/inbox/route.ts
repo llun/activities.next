@@ -115,6 +115,14 @@ export const POST = traceApiRoute(
             }
 
             const activity = parsed.data
+            if (activity.actor !== context.verifiedSenderActorId) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_403,
+                responseStatusCode: 403
+              })
+            }
             if (!(await canFederateWithDomain(database, activity.actor))) {
               return apiResponse({
                 req,

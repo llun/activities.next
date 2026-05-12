@@ -27,5 +27,9 @@ export type OptionalAuthenticatedApiHandle<P> = (
 
 export type ActivityPubVerifiedSenderHandle<P> = (
   request: NextRequest,
-  context: { database: Database; params: Promise<P> }
+  context: {
+    database: Database
+    params: Promise<P>
+    verifiedSenderActorId: string
+  }
 ) => Promise<Response> | Response
