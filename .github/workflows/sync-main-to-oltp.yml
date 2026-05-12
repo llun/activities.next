@@ -185,20 +185,15 @@ jobs:
             exit 1
           fi
 
-          if printf '%s' "${PAT_TOKEN}" | grep -q $'[\r\n]'; then
+          if [[ "${PAT_TOKEN}" == *$'\r'* || "${PAT_TOKEN}" == *$'\n'* ]]; then
             echo "secrets.PAT_TOKEN must not contain line breaks" >&2
             exit 1
           fi
 
-          auth_header="$(printf 'x-access-token:%s' "${PAT_TOKEN}" | base64 | tr -d '\n')"
+          auth_header="$(printf 'x-access-token:%s' "${PAT_TOKEN}" | base64 -w 0)"
           echo "::add-mask::${auth_header}"
 
-          cleanup() {
-            git config --local --unset-all http.https://github.com/.extraheader || true
-          }
-
-          trap cleanup EXIT
-          cleanup
-
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${auth_header}"
-          git -c credential.helper= push origin HEAD:oltp
+          git \
+            -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${auth_header}" \
+            -c credential.helper= \
+            push origin HEAD:oltp
