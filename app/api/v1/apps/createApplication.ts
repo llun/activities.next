@@ -4,7 +4,7 @@ import { getKnex } from '@/lib/database'
 import { Scope } from '@/lib/types/database/operations'
 import { getTracer } from '@/lib/utils/trace'
 
-import {
+import type {
   ErrorResponse,
   PostRequest,
   PostResponse,
@@ -35,6 +35,11 @@ const generateRandomString = (length: number): string => {
   return result
 }
 
+const validationErrorResponse = (): ErrorResponse => ({
+  type: 'error',
+  error: 'Failed to validate request'
+})
+
 export const createApplication = async (
   request: PostRequest
 ): Promise<PostResponse> => {
@@ -57,19 +62,21 @@ export const createApplication = async (
         const clientId = generateRandomString(32)
         const clientSecret = generateRandomString(32)
         const hashedSecret = hashClientSecret(clientSecret)
-        const parsedScopes = scopes
-          .split(' ')
-          .map((scope) => Scope.parse(scope))
+        const parsedScopes: Scope[] = []
+        for (const scope of scopes.split(' ')) {
+          const parsed = Scope.safeParse(scope)
+          if (!parsed.success) {
+            return validationErrorResponse()
+          }
+          parsedScopes.push(parsed.data)
+        }
         // Mastodon API: multiple redirect URIs are newline-separated
         const redirectUris = request.redirect_uris
           .split('\n')
           .map((uri) => uri.trim())
           .filter(Boolean)
         if (redirectUris.length === 0) {
-          return ErrorResponse.parse({
-            type: 'error',
-            error: 'Failed to validate request'
-          })
+          return validationErrorResponse()
         }
         // RFC 8252 §7.1: native apps may use custom URI schemes (e.g. myapp://callback)
         // or http://localhost for loopback redirect.
@@ -78,16 +85,10 @@ export const createApplication = async (
           try {
             const parsed = new URL(uri)
             if (unsafeSchemes.has(parsed.protocol)) {
-              return ErrorResponse.parse({
-                type: 'error',
-                error: 'Failed to validate request'
-              })
+              return validationErrorResponse()
             }
           } catch {
-            return ErrorResponse.parse({
-              type: 'error',
-              error: 'Failed to validate request'
-            })
+            return validationErrorResponse()
           }
         }
         const now = new Date()
@@ -114,7 +115,7 @@ export const createApplication = async (
           updatedAt: now
         })
 
-        return SuccessResponse.parse({
+        const response: SuccessResponse = {
           type: 'success',
           id: dbId,
           client_id: clientId,
@@ -122,14 +123,12 @@ export const createApplication = async (
           name: request.client_name,
           website: request.website,
           redirect_uri: redirectUris[0]
-        })
+        }
+        return response
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
-        return ErrorResponse.parse({
-          type: 'error',
-          error: 'Failed to validate request'
-        })
+        return validationErrorResponse()
       } finally {
         span.end()
       }

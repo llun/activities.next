@@ -27,7 +27,17 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
     const body = await req.json()
-    const { statusId } = RepostRequest.parse(body)
+    const parsed = RepostRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const { statusId } = parsed.data
     const announceStatus = await userAnnounce({
       currentActor,
       statusId,
@@ -54,7 +64,17 @@ export const DELETE = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
     const body = await req.json()
-    const { statusId } = RepostRequest.parse(body)
+    const parsed = RepostRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const { statusId } = parsed.data
     const undoStatus = await userUndoAnnounce({
       currentActor,
       statusId,

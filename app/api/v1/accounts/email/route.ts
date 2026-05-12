@@ -4,7 +4,11 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailChangeRequest = z.object({
@@ -27,7 +31,11 @@ export const POST = traceApiRoute(
 
     try {
       const body = await req.json()
-      const { newEmail } = EmailChangeRequest.parse(body)
+      const parsed = EmailChangeRequest.safeParse(body)
+      if (!parsed.success) {
+        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
+      const { newEmail } = parsed.data
 
       // Check if email is already in use
       const existingAccount = await database.getAccountFromEmail({
@@ -105,15 +113,7 @@ export const POST = traceApiRoute(
         },
         responseStatusCode: 200
       })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: 'Invalid email address' },
-          responseStatusCode: 400
-        })
-      }
+    } catch (_error) {
       return apiResponse({
         req,
         allowedMethods: [],

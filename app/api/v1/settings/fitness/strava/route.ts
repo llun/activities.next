@@ -10,7 +10,11 @@ import {
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const StravaSettingsRequest = z.object({
@@ -104,8 +108,11 @@ export const POST = traceApiRoute(
 
     try {
       const body = await req.json()
-      const { clientId, clientSecret, defaultVisibility } =
-        StravaSettingsRequest.parse(body)
+      const parsed = StravaSettingsRequest.safeParse(body)
+      if (!parsed.success) {
+        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
+      const { clientId, clientSecret, defaultVisibility } = parsed.data
 
       const existing = await database.getFitnessSettings({
         actorId: currentActor.id,
@@ -150,12 +157,7 @@ export const POST = traceApiRoute(
       }
 
       return getStravaSettingsSavedResponse(req)
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errorMessage =
-          error.issues.length > 0 ? error.issues[0].message : 'Invalid input'
-        return getValidationErrorResponse(req, errorMessage)
-      }
+    } catch (_error) {
       return apiResponse({
         req,
         allowedMethods: [],

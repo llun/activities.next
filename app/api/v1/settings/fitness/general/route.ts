@@ -7,7 +7,11 @@ import {
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PrivacyRadiusSchema = z
@@ -57,18 +61,26 @@ type FitnessGeneralSettingsRequest =
   | z.infer<typeof FitnessGeneralSettingsLegacyRequest>
   | z.infer<typeof FitnessGeneralSettingsListRequest>
 
-const parseFitnessGeneralSettingsRequest = (
+const safeParseFitnessGeneralSettingsRequest = (
   body: unknown
-): FitnessGeneralSettingsRequest => {
+):
+  | { success: true; data: FitnessGeneralSettingsRequest }
+  | { success: false } => {
   if (
     body &&
     typeof body === 'object' &&
     Object.prototype.hasOwnProperty.call(body, 'privacyLocations')
   ) {
-    return FitnessGeneralSettingsListRequest.parse(body)
+    const parsed = FitnessGeneralSettingsListRequest.safeParse(body)
+    return parsed.success
+      ? { success: true, data: parsed.data }
+      : { success: false }
   }
 
-  return FitnessGeneralSettingsLegacyRequest.parse(body)
+  const parsed = FitnessGeneralSettingsLegacyRequest.safeParse(body)
+  return parsed.success
+    ? { success: true, data: parsed.data }
+    : { success: false }
 }
 
 interface FitnessGeneralSettingsResponse {
@@ -209,8 +221,12 @@ export const POST = traceApiRoute(
 
     try {
       const body = await req.json()
-      const parsed = parseFitnessGeneralSettingsRequest(body)
-      const normalized = toSettingsPayload(parsed)
+      const parsed = safeParseFitnessGeneralSettingsRequest(body)
+      if (!parsed.success) {
+        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
+
+      const normalized = toSettingsPayload(parsed.data)
       if ('error' in normalized) {
         return apiResponse({
           req,
@@ -251,18 +267,7 @@ export const POST = traceApiRoute(
         },
         responseStatusCode: 200
       })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errorMessage =
-          error.issues.length > 0 ? error.issues[0].message : 'Invalid input'
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: errorMessage },
-          responseStatusCode: 400
-        })
-      }
-
+    } catch (_error) {
       return apiResponse({
         req,
         allowedMethods: [],

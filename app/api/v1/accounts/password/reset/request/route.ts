@@ -8,7 +8,12 @@ import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_422,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordResetRequest = z.object({ email: z.string().email() })
@@ -34,7 +39,16 @@ export const POST = traceApiRoute(
 
     try {
       const body = await request.json()
-      const { email } = PasswordResetRequest.parse(body)
+      const parsed = PasswordResetRequest.safeParse(body)
+      if (!parsed.success) {
+        return apiResponse({
+          req: request,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+      const { email } = parsed.data
       const config = getConfig()
       const account = await database.getAccountFromEmail({ email })
 
@@ -115,16 +129,7 @@ export const POST = traceApiRoute(
         data: { success: true, message: SUCCESS_MESSAGE },
         responseStatusCode: 200
       })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req: request,
-          allowedMethods: CORS_HEADERS,
-          data: { error: 'Invalid email address' },
-          responseStatusCode: 400
-        })
-      }
-
+    } catch (_error) {
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,

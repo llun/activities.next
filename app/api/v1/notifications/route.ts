@@ -7,7 +7,12 @@ import { getMastodonNotification } from '@/lib/services/notifications/getMastodo
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_422,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -71,7 +76,15 @@ export const GET = traceApiRoute(
         queryParams[normalizedKey] = allValues.length > 1 ? allValues : value
       }
     })
-    const parsedParams = NotificationQueryParams.parse(queryParams)
+    const parsedParams = NotificationQueryParams.safeParse(queryParams)
+    if (!parsedParams.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
 
     const {
       limit = DEFAULT_LIMIT,
@@ -82,7 +95,7 @@ export const GET = traceApiRoute(
       exclude_types: excludeTypes,
       account_id: accountId,
       grouped = false
-    } = parsedParams
+    } = parsedParams.data
 
     // Convert Mastodon types to internal types for filtering
     const internalTypes = types?.map((type) => {

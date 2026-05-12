@@ -1,7 +1,11 @@
 import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailVerifyRequest = z.object({
@@ -24,7 +28,11 @@ export const POST = traceApiRoute(
 
     try {
       const body = await req.json()
-      const { emailChangeCode } = EmailVerifyRequest.parse(body)
+      const parsed = EmailVerifyRequest.safeParse(body)
+      if (!parsed.success) {
+        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
+      const { emailChangeCode } = parsed.data
 
       const updatedAccount = await database.verifyEmailChange({
         accountId: currentActor.account.id,
@@ -50,15 +58,7 @@ export const POST = traceApiRoute(
         },
         responseStatusCode: 200
       })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: 'Invalid verification code' },
-          responseStatusCode: 400
-        })
-      }
+    } catch (_error) {
       return apiResponse({
         req,
         allowedMethods: [],

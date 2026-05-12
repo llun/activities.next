@@ -9,6 +9,7 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   ERROR_404,
+  ERROR_422,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -29,7 +30,17 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
     const body = await req.json()
-    const { statusId } = LikeStatusRequest.parse(body)
+    const parsed = LikeStatusRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const { statusId } = parsed.data
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status)
       return apiResponse({
@@ -50,7 +61,17 @@ export const DELETE = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
     const body = await req.json()
-    const { statusId } = LikeStatusRequest.parse(body)
+    const parsed = LikeStatusRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const { statusId } = parsed.data
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status)
       return apiResponse({

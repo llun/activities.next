@@ -447,5 +447,27 @@ describe('Fitness General Settings API', () => {
       expect(response.status).toBe(400)
       expect(data.error).toContain('home location')
     })
+
+    it('returns 422 when the settings payload fails schema validation', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyHomeLatitude: '13.7563',
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.status).toBe('Unprocessable entity')
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+    })
   })
 })

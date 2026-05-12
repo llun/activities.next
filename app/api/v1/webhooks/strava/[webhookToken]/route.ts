@@ -7,7 +7,11 @@ import { getQueue } from '@/lib/services/queue'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 type Params = { webhookToken: string }
@@ -161,6 +165,12 @@ export const POST = traceApiRoute(
       }
 
       const stravaActivityId = String(body.object_id)
+      const visibility = Visibility.safeParse(
+        fitnessSettings.defaultVisibility ?? 'private'
+      )
+      if (!visibility.success) {
+        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
 
       await getQueue().publish({
         id: getHashFromString(
@@ -170,9 +180,7 @@ export const POST = traceApiRoute(
         data: {
           actorId: fitnessSettings.actorId,
           stravaActivityId,
-          visibility: Visibility.parse(
-            fitnessSettings.defaultVisibility ?? 'private'
-          )
+          visibility: visibility.data
         }
       })
 

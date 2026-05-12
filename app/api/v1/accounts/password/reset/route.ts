@@ -5,7 +5,12 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_422,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ResetPasswordRequest = z.object({
@@ -32,7 +37,16 @@ export const POST = traceApiRoute(
 
     try {
       const body = await request.json()
-      const { code, newPassword } = ResetPasswordRequest.parse(body)
+      const parsed = ResetPasswordRequest.safeParse(body)
+      if (!parsed.success) {
+        return apiResponse({
+          req: request,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+      const { code, newPassword } = parsed.data
       const passwordResetCode = hashPasswordResetCode(code)
       const accountId = await database.validatePasswordResetCode({
         passwordResetCode
@@ -70,16 +84,7 @@ export const POST = traceApiRoute(
         data: { success: true, message: 'Password reset successfully' },
         responseStatusCode: 200
       })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req: request,
-          allowedMethods: CORS_HEADERS,
-          data: { error: 'Invalid password format' },
-          responseStatusCode: 400
-        })
-      }
-
+    } catch (_error) {
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
