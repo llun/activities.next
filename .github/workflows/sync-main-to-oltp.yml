@@ -43,6 +43,7 @@ jobs:
           ref: oltp
           fetch-depth: 0
           token: ${{ secrets.PAT_TOKEN }}
+          persist-credentials: false
 
       - name: Enable corepack
         shell: bash
@@ -177,4 +178,8 @@ jobs:
       - name: Push oltp
         if: steps.synced.outputs.skip == 'false'
         shell: bash
-        run: git push origin HEAD:oltp
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git remote set-url origin "https://x-access-token:${PAT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin HEAD:oltp
