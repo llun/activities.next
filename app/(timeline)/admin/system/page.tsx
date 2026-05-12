@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation'
 
-import { EnvironmentVariables } from '@/lib/components/admin/EnvironmentVariables'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { ENV_VAR_PREFIX } from '@/lib/utils/adminConstants'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -23,11 +21,6 @@ const Page = async () => {
     process.env.ACTIVITIES_PUSH_VAPID_PRIVATE_KEY &&
     process.env.ACTIVITIES_PUSH_VAPID_EMAIL
   )
-
-  const envVars = Object.keys(process.env)
-    .filter((key) => key.startsWith(ENV_VAR_PREFIX))
-    .sort((a, b) => a.localeCompare(b))
-    .map((key) => ({ key }))
 
   return (
     <div className="space-y-6">
@@ -58,33 +51,9 @@ const Page = async () => {
         </div>
         {!pushEnabled && (
           <p className="mt-3 text-sm text-muted-foreground">
-            Set{' '}
-            <code className="font-mono text-xs">
-              ACTIVITIES_PUSH_VAPID_PUBLIC_KEY
-            </code>
-            ,{' '}
-            <code className="font-mono text-xs">
-              ACTIVITIES_PUSH_VAPID_PRIVATE_KEY
-            </code>
-            , and{' '}
-            <code className="font-mono text-xs">
-              ACTIVITIES_PUSH_VAPID_EMAIL
-            </code>{' '}
-            to enable browser push notifications. Generate VAPID keys with:{' '}
-            <code className="font-mono text-xs">
-              npx web-push generate-vapid-keys
-            </code>
+            Browser push notifications are not configured.
           </p>
         )}
-      </div>
-
-      <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Environment Variables</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Showing {envVars.length} configuration variable
-          {envVars.length !== 1 ? 's' : ''}. Values are hidden.
-        </p>
-        <EnvironmentVariables variables={envVars} />
       </div>
     </div>
   )
