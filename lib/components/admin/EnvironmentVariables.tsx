@@ -1,7 +1,3 @@
-'use client'
-
-import { FC } from 'react'
-
 interface EnvVar {
   key: string
 }
@@ -10,12 +6,12 @@ interface Props {
   variables: EnvVar[]
 }
 
-export const EnvironmentVariables: FC<Props> = ({ variables }) => {
+export const EnvironmentVariables = ({ variables }: Props) => {
   return (
     <div className="space-y-2">
       {variables.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No environment variables found
+          No ACTIVITIES_* environment variables found
         </p>
       ) : (
         variables.map((envVar) => (
