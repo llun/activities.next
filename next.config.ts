@@ -35,6 +35,121 @@ export const getProxyHostConfigEnv = () => {
 
 const proxyHostConfigEnv = getProxyHostConfigEnv()
 
+type Header = { key: string; value: string }
+type ImageRemotePatterns = NonNullable<
+  NonNullable<NextConfig['images']>['remotePatterns']
+>
+
+const IMAGE_REMOTE_ALLOWLIST_ENV = 'ACTIVITIES_ALLOW_MEDIA_DOMAINS'
+
+const isDevelopment = () => process.env.NODE_ENV !== 'production'
+
+export const getSecurityHeaders = (): Header[] => {
+  const csp = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    `script-src 'self' 'unsafe-inline'${isDevelopment() ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    `connect-src 'self' https:${isDevelopment() ? ' ws: wss:' : ''}`,
+    "font-src 'self' data:",
+    "media-src 'self' https:",
+    "worker-src 'self' blob:"
+  ].join('; ')
+
+  return [
+    {
+      key: 'Content-Security-Policy',
+      value: csp
+    },
+    {
+      key: 'X-Content-Type-Options',
+      value: 'nosniff'
+    },
+    {
+      key: 'X-Frame-Options',
+      value: 'DENY'
+    },
+    {
+      key: 'Referrer-Policy',
+      value: 'strict-origin-when-cross-origin'
+    },
+    {
+      key: 'Permissions-Policy',
+      value: 'camera=(), microphone=(), geolocation=()'
+    }
+  ]
+}
+
+const parseImageRemoteAllowlist = (rawAllowlist: string | undefined) => {
+  try {
+    const parsed = JSON.parse(rawAllowlist || '[]')
+    return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : []
+  } catch {
+    return []
+  }
+}
+
+const getImageRemotePattern = (
+  rawEntry: string
+): ImageRemotePatterns[number] | null => {
+  const entry = rawEntry.trim().toLowerCase()
+  if (!entry || entry.includes('*')) return null
+
+  try {
+    const url = new URL(entry.includes('://') ? entry : `https://${entry}`)
+    if (url.protocol !== 'https:') return null
+    if (!url.hostname || url.hostname.includes('*')) return null
+
+    const pathname =
+      url.pathname && url.pathname !== '/'
+        ? `${url.pathname.replace(/\/$/, '')}/**`
+        : undefined
+
+    return {
+      protocol: 'https',
+      hostname: url.hostname,
+      ...(url.port ? { port: url.port } : {}),
+      ...(pathname ? { pathname } : {})
+    }
+  } catch {
+    return null
+  }
+}
+
+export const getImageRemotePatterns = (
+  rawAllowlist = process.env[IMAGE_REMOTE_ALLOWLIST_ENV]
+): ImageRemotePatterns =>
+  parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
+    const pattern = getImageRemotePattern(entry)
+    return pattern ? [pattern] : []
+  })
+
+export const isRemoteImageUrlAllowed = (
+  rawUrl: string,
+  patterns: ImageRemotePatterns
+) => {
+  try {
+    const url = new URL(rawUrl)
+    return patterns.some((pattern) => {
+      if (pattern.protocol && `${pattern.protocol}:` !== url.protocol) {
+        return false
+      }
+      if (pattern.hostname !== url.hostname) return false
+      if (pattern.port && pattern.port !== url.port) return false
+      if (!pattern.pathname) return true
+
+      const prefix = pattern.pathname.replace(/\/\*\*$/, '/')
+      return url.pathname.startsWith(prefix)
+    })
+  } catch {
+    return false
+  }
+}
+
 const nextConfig: NextConfig = {
   ...(Object.keys(proxyHostConfigEnv).length
     ? { env: proxyHostConfigEnv }
@@ -68,10 +183,13 @@ const nextConfig: NextConfig = {
   },
   sassOptions: {},
   images: {
-    remotePatterns: [
+    remotePatterns: getImageRemotePatterns()
+  },
+  async headers() {
+    return [
       {
-        protocol: 'https',
-        hostname: '**'
+        source: '/:path*',
+        headers: getSecurityHeaders()
       }
     ]
   },

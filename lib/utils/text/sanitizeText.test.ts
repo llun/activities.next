@@ -105,9 +105,17 @@ describe('sanitizeText', () => {
       expect(sanitizeText(input)).toEqual('<p>Safe</p>')
     })
 
-    it('removes img tags', () => {
+    it('removes non-emoji img tags', () => {
       const input = '<img src="https://example.com/image.jpg"><p>Text</p>'
       expect(sanitizeText(input)).toEqual('<p>Text</p>')
+    })
+
+    it('allows emoji img tags with safe sources', () => {
+      const input =
+        '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:">'
+      expect(sanitizeText(input)).toEqual(
+        '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:" />'
+      )
     })
 
     it('allows mailto links', () => {
@@ -117,9 +125,9 @@ describe('sanitizeText', () => {
       )
     })
 
-    it('allows tel links', () => {
+    it('removes tel links', () => {
       const input = '<a href="tel:+1234567890">Call</a>'
-      expect(sanitizeText(input)).toEqual('<a href="tel:+1234567890">Call</a>')
+      expect(sanitizeText(input)).toEqual('<a>Call</a>')
     })
 
     it('removes javascript links', () => {

@@ -17,15 +17,28 @@ export const SANITIZED_OPTION = {
     'em',
     'ul',
     'ol',
-    'li'
+    'li',
+    'img'
   ],
   allowedAttributes: {
     a: ['href', 'rel', 'class', 'translate'],
+    img: ['class', 'src', 'alt'],
     span: ['class', 'translate'],
     ol: ['start', 'reversed'],
     li: ['value']
   },
-  allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel']
+  allowedClasses: {
+    img: ['emoji']
+  },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowedSchemesByTag: {
+    a: ['http', 'https', 'mailto'],
+    img: ['http', 'https']
+  },
+  exclusiveFilter(frame: sanitizeHtml.IFrame) {
+    if (frame.tag !== 'img') return false
+    return !frame.attribs.class?.split(/\s+/).includes('emoji')
+  }
 }
 
 // Support the same tags as Mastodon here
