@@ -1,0 +1,120 @@
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 77-78,229-230,259-277,320-350,430-431
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 5-12,15,35,46-49,117-169,177,185,187-190,197,204,212,220-245,291-428,490-641
+app/(timeline)/notifications/NotificationsList.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 6-8
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 220,225-287,338,343-345,395,400-402,450,457-459,503,510-512,534,539-541
+app/(timeline)/notifications/components/ReblogNotification.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-70
+app/(timeline)/notifications/NotificationItem.test.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-364
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 17-21,109-162
+lib/jobs/recreateFitnessRouteHeatmapJobs.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 238-239,245,255,264-265,271,290-291,336,344-345
+app/(timeline)/notifications/page.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 74,85,92
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 11,25-27,39-70,76-79,129-131,178-195,199-202,221-253,282-390
+lib/services/medias/localFile.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-74
+app/(timeline)/notifications/components/MentionNotification.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 5-6,12,16,19,34,43-46,56-59,62,66
+lib/utils/typeGuards.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-2
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-49
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 30-33,50-51,86,107,111-113
+lib/utils/activitypub.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-17
+app/api/inbox/route.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 5,16,24-35,39-43,47-49,58
+lib/services/guards/getSenderPublicKey.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1,3,5,7-13,16-300,307,309,311-316,323-326
+app/(timeline)/admin/system/page.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 54
+app/api/users/[username]/inbox/route.ts
+  s_1e378ed0a5a2c9::t_18f550c690c06e 27,74-83,253-261,304-312
+  s_1e378ed0a5a2c9::t_f30afad0411081 118-120
+app/api/v1/files/[...pathname]/route.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 18-27
+package.json
+  s_1e378ed0a5a2c9::t_f30afad0411081 3,62,68
+app/(timeline)/notifications/components/ReplyNotification.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 5-6,12,16,19,34,62,66
+app/api/v1/files/[...pathname]/route.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-57
+lib/client.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 4,117-131
+lib/components/settings/PushNotificationSettings.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 5-10,73-75,79,122-125,127,144,146,168-169,200
+app/(timeline)/notifications/types.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-20
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 184,270-271,275,282,300-302,315
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 6,18-22,31,52,146-174
+.github/workflows/sync-main-to-oltp.yml
+  s_1e378ed0a5a2c9::t_f30afad0411081 45,180-199
+app/(timeline)/notifications/components/FollowNotification.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 5-6,17,33
+app/(timeline)/notifications/components/LikeNotification.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 5-6,12,16,19,34,62,66
+lib/components/settings/NotificationSettings.test.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-80
+lib/database/sql/fitnessRouteHeatmap.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 56,334-335,370-376
+app/(timeline)/admin/system/page.test.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-55
+lib/jobs/processFitnessFileJob.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 232-279,492-507
+lib/jobs/recreateFitnessRouteHeatmapJobs.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 132,136-138,144,149-151
+app/(timeline)/notifications/NotificationItem.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 3,5-12,14,19,33-53,69-74,76-96,109,111,113-117,119-122,126-127,141
+app/api/inbox/route.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 8-10,22-26,29-47,54-65,67-71,73,77,82,87-88,102-177
+app/(timeline)/notifications/getNotificationStatusPath.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1-7
+app/api/users/[username]/inbox/route.test.ts
+  s_1e378ed0a5a2c9::t_4a58fa36e80b62 124
+  s_1e378ed0a5a2c9::t_f30afad0411081 15-17,41,55-66,68,174-175,208-211,213-225,228-236,255-267
+  s_1e378ed0a5a2c9::t_baad734f30e69c 10,70,173,348-393
+lib/jobs/enqueueFitnessRouteHeatmapJobs.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 87,106-107,109-128,139
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 211-303,455-461,465-469
+lib/database/sql/fitnessRouteHeatmap.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 146-195
+lib/services/medias/localFile.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 54-64
+lib/services/guards/getSenderPublicKey.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 4-7,12,16-65,88-91,112-598
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 9-10,19,32-40,73-82,87,89-94,143-155,169-175,301-306,313-330,341-343,373-396,399,401-402,433-438,446-451,462-467,474-481,484,508-510,535-537,540,626-633,635-636,638-639,641-676,678,682-692,694-704,711-715,796,911-946,950-953,1174-1202,1214-1258
+lib/components/settings/NotificationSettings.tsx
+  s_1e378ed0a5a2c9::t_f30afad0411081 308
+lib/client.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 1535-1556
+lib/jobs/enqueueFitnessRouteHeatmapJobs.test.ts
+  s_1e378ed0a5a2c9::t_f30afad0411081 5,13-16,20-21,27,45,49-97,119,124-126,132,137-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "c88b57467f0e45e51ecdb3a4377b4c6e15f9c662",
+  "prompts": {},
+  "sessions": {
+    "s_1e378ed0a5a2c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d94-78e4-7061-b5a6-2463b0b1d743",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
