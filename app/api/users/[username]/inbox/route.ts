@@ -104,7 +104,9 @@ export const POST = traceApiRoute(
               })
             }
 
-            const parsed = Activity.safeParse(await req.json())
+            const parsed = Activity.safeParse(
+              context.activityBody ?? (await req.json())
+            )
             if (!parsed.success) {
               return apiResponse({
                 req,

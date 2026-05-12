@@ -11,6 +11,9 @@ const mockVerifyAllows = jest.fn()
 const mockDatabase = {
   deleteLike: (...params: unknown[]) => mockDeleteLike(...params)
 }
+const mockDefaultActivityBody = Symbol('defaultActivityBody')
+let mockActivityBody: unknown = mockDefaultActivityBody
+let mockConsumeRequestBody = false
 type MockActor = {
   id: string
   username: string
@@ -34,6 +37,7 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       handle: (
         req: NextRequest,
         context: {
+          activityBody: unknown | null
           database: typeof mockDatabase
           params: Promise<{ username: string }>
         }
@@ -47,7 +51,20 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
         return Response.json({ status: 'Bad Request' }, { status: 400 })
       }
 
+      const activityBody =
+        mockActivityBody === mockDefaultActivityBody
+          ? await req
+              .clone()
+              .json()
+              .catch(() => null)
+          : mockActivityBody
+
+      if (mockConsumeRequestBody) {
+        await req.text().catch(() => null)
+      }
+
       return handle(req, {
+        activityBody,
         database: mockDatabase,
         params: context.params
       })
@@ -152,6 +169,8 @@ describe('POST /api/users/[username]/inbox', () => {
       actorId: 'https://remote.test/users/alice',
       targetActorId: 'https://activities.local/users/llun'
     })
+    mockActivityBody = mockDefaultActivityBody
+    mockConsumeRequestBody = false
   })
 
   it('accepts verified deliveries to the headless signer inbox without creating state', async () => {
@@ -202,6 +221,48 @@ describe('POST /api/users/[username]/inbox', () => {
         type: 'Follow'
       })
     })
+  })
+
+  it('processes verified actor inbox requests from guard activityBody after the request body is consumed', async () => {
+    mockActivityBody = {
+      id: 'https://remote.test/users/alice/follows/1',
+      type: 'Follow',
+      actor: 'https://remote.test/users/alice',
+      object: 'https://activities.local/users/llun'
+    }
+    mockConsumeRequestBody = true
+
+    const response = await POST(createFollowRequest(), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+      mockDatabase,
+      'https://remote.test/users/alice'
+    )
+    expect(mockCreateFollower).toHaveBeenCalledWith({
+      database: mockDatabase,
+      followRequest: expect.objectContaining({
+        actor: 'https://remote.test/users/alice',
+        type: 'Follow'
+      })
+    })
+  })
+
+  it('rejects invalid JSON bodies without side effects', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"actor":"https://remote.test/users/alice",'
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 
   it('dispatches verified Block activities to applyRemoteBlock', async () => {

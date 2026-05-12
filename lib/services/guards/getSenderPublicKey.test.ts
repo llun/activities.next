@@ -366,6 +366,58 @@ describe('getSenderPublicKey', () => {
     expect(fetchMock.mock.calls.at(1)?.[0]).toBe(owner)
   })
 
+  it('does not fetch owner actors from blocked domains', async () => {
+    const keyId = 'https://remote.test/users/test1/keys/main'
+    const owner = 'https://blocked-owner.test/users/test1'
+    await database.createDomainBlock({
+      domain: 'blocked-owner.test',
+      severity: 'suspend'
+    })
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: keyId,
+        owner,
+        publicKeyPem: 'blocked-owner-public-key'
+      }),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({
+      owner: null,
+      publicKey: ''
+    })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([keyId])
+  })
+
+  it('does not refetch blocked owner actors from actor documents served at key URLs', async () => {
+    const keyId = 'https://remote.test/users/test1/keys/main'
+    const owner = 'https://blocked-actor.test/users/test1'
+    await database.createDomainBlock({
+      domain: 'blocked-actor.test',
+      severity: 'suspend'
+    })
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        createActorDocument({
+          id: owner,
+          publicKeyId: keyId,
+          publicKeyPem: 'blocked-owner-public-key'
+        })
+      ),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({
+      owner: null,
+      publicKey: ''
+    })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([keyId])
+  })
+
   it('rejects actor documents whose public key owner differs from the actor id', async () => {
     const actorId = 'https://remote.test/users/test1'
     fetchMock.mockResponseOnce(
@@ -497,12 +549,34 @@ describe('getSenderPublicKey', () => {
     })
     expect(mockWarn).toHaveBeenCalledWith(
       expect.objectContaining({
-        actorId,
         err: expect.any(SyntaxError),
+        keyId: actorId,
         message: 'Unable to parse sender public key response'
       })
     )
     expect(mockWarn.mock.calls[0][0]).not.toHaveProperty('body')
+  })
+
+  it('falls back to the instance actor key after a gone actor response', async () => {
+    const actorId = 'https://remote.test/users/deleted'
+    const fallbackActorId = 'https://remote.test/actor'
+    fetchMock.resetMocks()
+    fetchMock
+      .mockResponseOnce('', { status: 410 })
+      .mockResponseOnce(
+        JSON.stringify(createActorDocument({ id: fallbackActorId }))
+      )
+
+    const publicKey = await getSenderPublicKeyDetails(database, actorId)
+
+    expect(publicKey).toEqual({
+      owner: fallbackActorId,
+      publicKey: 'public-key'
+    })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      actorId,
+      `${fallbackActorId}#main-key`
+    ])
   })
 
   it('records sender public key lookup exceptions before returning empty details', async () => {

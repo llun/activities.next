@@ -2,7 +2,7 @@ import { StatusActivity } from '@/lib/activities/statusAction'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
-import { normalizeActorId } from '@/lib/utils/activitypub'
+import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
@@ -21,17 +21,32 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const getActivityBody = async (
+  request: Request,
+  activityBody: unknown | null
+) => {
+  if (activityBody !== null) return activityBody
+
+  try {
+    return (await request.json()) as unknown
+  } catch {
+    return null
+  }
+}
+
 export const POST = traceApiRoute(
   'sharedInbox',
-  ActivityPubVerifySenderGuard(async (request, { database }) => {
-    const body = await request.json()
+  ActivityPubVerifySenderGuard(async (request, { activityBody, database }) => {
+    const body = await getActivityBody(request, activityBody)
+    const actor = isRecord(body) ? extractActivityPubId(body.actor) : undefined
+
     // The guard enforces signed POST actors; keep route validation before casting unknown JSON.
     if (
       !isRecord(body) ||
       typeof body.id !== 'string' ||
       typeof body.type !== 'string' ||
-      typeof body.actor !== 'string' ||
-      !normalizeActorId(body.actor)
+      !actor ||
+      !normalizeActorId(actor)
     ) {
       return apiResponse({
         req: request,
@@ -40,7 +55,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 400
       })
     }
-    const activity = body as unknown as StatusActivity
+    const activity = { ...body, actor } as unknown as StatusActivity
     if (!(await canFederateWithDomain(database, activity.actor))) {
       return apiResponse({
         req: request,

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
 import {
@@ -72,19 +73,13 @@ const getLocalSenderPublicKeyDetails = async (
   }
 }
 
-const parseJsonBody = ({
-  body,
-  actorId
-}: {
-  body: string
-  actorId: string
-}) => {
+const parseJsonBody = ({ body, keyId }: { body: string; keyId: string }) => {
   try {
     return JSON.parse(body) as unknown
   } catch (error) {
     logger.warn({
-      actorId,
       err: error as Error,
+      keyId,
       message: 'Unable to parse sender public key response'
     })
     return null
@@ -98,7 +93,7 @@ const parseSenderPublicKey = ({
   body: string
   keyId: string
 }): ParsedSenderPublicKey | null => {
-  const json = parseJsonBody({ body, actorId: keyId })
+  const json = parseJsonBody({ body, keyId })
   if (!json) return null
 
   const actor = Actor.safeParse(json)
@@ -194,12 +189,14 @@ const validateOwnerActorKey = async (
     owner: string | null
     publicKey: string
   },
-  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
+  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
+  database: Database
 ) => {
   if (!owner) return null
   const normalizedOwner = normalizeActorId(owner)
   const normalizedKeyId = normalizeActivityPubUri(keyId)
   if (!normalizedOwner || !normalizedKeyId) return null
+  if (!(await canFederateWithDomain(database, normalizedOwner))) return null
 
   const ownerResponse = await fetchSenderPublicKey(
     normalizedOwner,
@@ -225,7 +222,8 @@ const validateOwnerActorKey = async (
 
 const resolveFetchedPublicKey = async (
   document: ParsedSenderPublicKey | null,
-  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
+  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
+  database: Database
 ) => {
   if (!document) return null
   if (document.type === 'actor') {
@@ -236,7 +234,8 @@ const resolveFetchedPublicKey = async (
         owner: document.actorId,
         publicKey: document.details.publicKey
       },
-      signingActor
+      signingActor,
+      database
     )
   }
 
@@ -246,17 +245,23 @@ const resolveFetchedPublicKey = async (
       owner: document.details.owner,
       publicKey: document.details.publicKey
     },
-    signingActor
+    signingActor,
+    database
   )
 }
 
 const fetchSenderPublicKeyDetails = async (
   actorId: string,
-  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
+  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
+  database: Database
 ) => {
   const response = await fetchSenderPublicKey(actorId, signingActor)
   return {
-    details: await resolveFetchedPublicKey(response.document, signingActor),
+    details: await resolveFetchedPublicKey(
+      response.document,
+      signingActor,
+      database
+    ),
     statusCode: response.statusCode
   }
 }
@@ -269,14 +274,19 @@ const resolveSenderPublicKeyDetails = async (
   if (localPublicKey) return localPublicKey
 
   const signingActor = await getFederationSigningActor(database)
-  const response = await fetchSenderPublicKeyDetails(actorId, signingActor)
+  const response = await fetchSenderPublicKeyDetails(
+    actorId,
+    signingActor,
+    database
+  )
   if (response.details) return response.details
 
   if (response.statusCode === 410) {
     const url = new URL(actorId)
     const fallbackResponse = await fetchSenderPublicKeyDetails(
-      `${url.protocol}//${url.host}/actor#main-key`,
-      signingActor
+      new URL('/actor#main-key', url).toString(),
+      signingActor,
+      database
     )
     return fallbackResponse.details ?? EMPTY_PUBLIC_KEY_DETAILS
   }
