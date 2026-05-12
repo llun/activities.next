@@ -11,6 +11,7 @@ Application configuration can be provided either through environment variables o
 | `ACTIVITIES_HOST`          | **Yes**  | Domain name for your instance (e.g., `social.example.com`). No protocol, no trailing slash.                           |
 | `ACTIVITIES_SECRET_PHASE`  | **Yes**  | Secret string for signing cookies and tokens. Generate with `openssl rand -base64 32`.                                |
 | `ACTIVITIES_ALLOW_EMAILS`  | No       | JSON array of email addresses allowed to register (e.g., `["user@example.com"]`). If unset, registration may be open. |
+| `ACTIVITIES_TRUSTED_HOSTS` | No       | JSON array of additional public hosts that may be accepted from trusted reverse-proxy host headers.                   |
 | `ACTIVITIES_INSECURE_AUTH` | No       | Set to `true` to allow HTTP (non-HTTPS) authentication. Only for local development.                                   |
 
 ## Database
@@ -162,11 +163,12 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 ## Domain Controls
 
-| Variable                         | Description                                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_ALLOW_MEDIA_DOMAINS` | JSON array of allowed domains for remote media (e.g., `["cdn.example.com"]`).               |
-| `ACTIVITIES_ALLOW_ACTOR_DOMAINS` | JSON array of allowed domains for actors.                                                   |
-| `ACTIVITIES_FEDERATION_MODE`     | Federation mode: `open` (default) or `allowlist` to require explicit allowed actor domains. |
+| Variable                         | Description                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_ALLOW_MEDIA_DOMAINS` | JSON array of allowed domains for remote media (e.g., `["cdn.example.com"]`).                      |
+| `ACTIVITIES_ALLOW_ACTOR_DOMAINS` | JSON array of allowed domains for actors.                                                          |
+| `ACTIVITIES_FEDERATION_MODE`     | Federation mode: `open` (default) or `allowlist` to require explicit allowed actor domains.        |
+| `ACTIVITIES_TRUSTED_HOSTS`       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`. |
 
 ## Request Configuration
 
@@ -204,6 +206,7 @@ Most `ACTIVITIES_*` application settings can alternatively be set in a `config.j
 ```json
 {
   "host": "social.example.com",
+  "trustedHosts": ["social-alias.example.com"],
   "secretPhase": "your-random-secret",
   "allowEmails": ["admin@example.com"],
   "database": {

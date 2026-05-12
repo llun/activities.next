@@ -1,8 +1,19 @@
 import { IncomingHttpHeaders } from 'http'
 
+import { getConfig } from '@/lib/config'
+
 import { headerHost } from './headerHost'
 
+const mockGetConfig = getConfig as jest.Mock
+
 describe('#headerHost', () => {
+  beforeEach(() => {
+    mockGetConfig.mockReturnValue({
+      host: 'test.llun.dev',
+      allowActorDomains: ['test-forwarded.llun.dev', 'test-custom.llun.dev']
+    })
+  })
+
   describe('standard headers', () => {
     it('returns host value from Headers', () => {
       const headers = new Headers([['Host', 'test.llun.dev']])
@@ -14,7 +25,12 @@ describe('#headerHost', () => {
       expect(headerHost(headers)).toEqual('test.llun.dev')
     })
 
-    it('returns X-Forwarded-Host if it is availbled instead of Host', () => {
+    it('returns config host when host is not configured as a trusted local host', () => {
+      const headers = new Headers([['Host', 'evil.llun.dev']])
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
+
+    it('returns X-Forwarded-Host when it is configured as a trusted local host', () => {
       const headers = new Headers([
         ['Host', 'test.llun.dev'],
         ['X-Forwarded-Host', 'test-forwarded.llun.dev']
@@ -22,12 +38,28 @@ describe('#headerHost', () => {
       expect(headerHost(headers)).toEqual('test-forwarded.llun.dev')
     })
 
-    it('returns host from custom Activity.next header host', () => {
+    it('returns host from custom Activity.next header when it is configured as a trusted local host', () => {
       const headers = new Headers([
         ['Host', 'test.llun.dev'],
         ['X-Activity-Next-Host', 'test-custom.llun.dev']
       ])
       expect(headerHost(headers)).toEqual('test-custom.llun.dev')
+    })
+
+    it('returns config host when X-Forwarded-Host is not configured as a trusted local host', () => {
+      const headers = new Headers([
+        ['Host', 'internal.llun.dev'],
+        ['X-Forwarded-Host', 'evil.llun.dev']
+      ])
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
+
+    it('returns config host when X-Activity-Next-Host is not configured as a trusted local host', () => {
+      const headers = new Headers([
+        ['Host', 'internal.llun.dev'],
+        ['X-Activity-Next-Host', 'evil.llun.dev']
+      ])
+      expect(headerHost(headers)).toEqual('test.llun.dev')
     })
 
     it('returns config host if no host is specify', () => {
@@ -51,7 +83,14 @@ describe('#headerHost', () => {
       expect(headerHost(headers)).toEqual('test.llun.dev')
     })
 
-    it('returns X-Forwarded-Host if it is availabled instead of host', () => {
+    it('returns config host when host is not configured as a trusted local host', () => {
+      const headers = {
+        Host: 'evil.llun.dev'
+      } as IncomingHttpHeaders
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
+
+    it('returns X-Forwarded-Host when it is configured as a trusted local host', () => {
       const headers = {
         Host: 'test.llun.dev',
         'X-Forwarded-Host': 'test-forwarded.llun.dev'
@@ -59,12 +98,28 @@ describe('#headerHost', () => {
       expect(headerHost(headers)).toEqual('test-forwarded.llun.dev')
     })
 
-    it('returns host from custom Activity.next header host', () => {
+    it('returns host from custom Activity.next header when it is configured as a trusted local host', () => {
       const headers = {
         Host: 'test.llun.dev',
         'X-Activity-Next-Host': 'test-custom.llun.dev'
       } as IncomingHttpHeaders
       expect(headerHost(headers)).toEqual('test-custom.llun.dev')
+    })
+
+    it('returns config host when X-Forwarded-Host is not configured as a trusted local host', () => {
+      const headers = {
+        Host: 'internal.llun.dev',
+        'X-Forwarded-Host': 'evil.llun.dev'
+      } as IncomingHttpHeaders
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
+
+    it('returns config host when X-Activity-Next-Host is not configured as a trusted local host', () => {
+      const headers = {
+        Host: 'internal.llun.dev',
+        'X-Activity-Next-Host': 'evil.llun.dev'
+      } as IncomingHttpHeaders
+      expect(headerHost(headers)).toEqual('test.llun.dev')
     })
 
     it('returns config host if no host is specify', () => {

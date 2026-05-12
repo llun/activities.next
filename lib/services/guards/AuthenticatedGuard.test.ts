@@ -39,6 +39,7 @@ jest.mock('next/headers', () => ({
 // Mock config
 jest.mock('@/lib/config', () => ({
   getConfig: () => ({
+    host: 'llun.test',
     allowEmails: []
   })
 }))

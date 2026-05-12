@@ -35,6 +35,7 @@ const Config = z.object({
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
   allowActorDomains: z.string().array().optional(),
+  trustedHosts: z.string().array().optional(),
   federationMode: FederationMode.default('open'),
   auth: AuthConfig.optional(),
   email: z
@@ -82,6 +83,7 @@ const getConfigFromEnvironment = () => {
       allowActorDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS || '[]'
       ),
+      trustedHosts: JSON.parse(process.env.ACTIVITIES_TRUSTED_HOSTS || '[]'),
       federationMode: process.env.ACTIVITIES_FEDERATION_MODE || 'open',
       ...getEmailConfig(),
       ...getAuthConfig(),

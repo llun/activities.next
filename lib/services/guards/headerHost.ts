@@ -1,31 +1,98 @@
 import { IncomingHttpHeaders } from 'http'
 
-import { getConfig } from '@/lib/config'
+import { type Config, getConfig } from '@/lib/config'
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 
 type NextAuthHeaders = Record<string, any> | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
+
+type HostConfig = Pick<Config, 'host' | 'allowActorDomains'> & {
+  trustedHosts?: string[]
+}
+
+const getFirstHeaderValue = (value: string | string[] | undefined | null) => {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
+const normalizeHost = (value: string | undefined | null): string | null => {
+  const firstHost = value?.split(',')[0]?.trim()
+  if (!firstHost || firstHost.startsWith('0.0.0.0')) return null
+  const hasWildcard = firstHost.startsWith('*.')
+  const hostToParse = hasWildcard ? firstHost.slice(2) : firstHost
+
+  try {
+    const url = new URL(
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(hostToParse)
+        ? hostToParse
+        : `https://${hostToParse}`
+    )
+    const normalizedHost = url.host.toLowerCase().replace(/\.$/, '')
+    return hasWildcard ? `*.${normalizedHost}` : normalizedHost
+  } catch {
+    return null
+  }
+}
+
+const getConfiguredHost = (config: HostConfig) =>
+  normalizeHost(config.host) ?? config.host ?? ''
+
+const hostMatchesRule = (host: string, rule: string) => {
+  const normalizedRule = normalizeHost(rule)
+  if (!normalizedRule) return false
+  if (host === normalizedRule) return true
+
+  if (normalizedRule.startsWith('*.')) {
+    const parent = normalizedRule.slice(2)
+    const hostname = host.split(':')[0]
+    return hostname.endsWith(`.${parent}`)
+  }
+
+  return false
+}
+
+export const isTrustedHeaderHost = (
+  host: string | undefined | null,
+  config: HostConfig = getConfig()
+) => {
+  const normalizedHost = normalizeHost(host)
+  if (!normalizedHost) return false
+
+  return [
+    config.host,
+    ...(config.allowActorDomains ?? []),
+    ...(config.trustedHosts ?? [])
+  ].some((rule) => hostMatchesRule(normalizedHost, rule))
+}
 
 export function headerHost(
   headers: IncomingHttpHeaders | Headers | NextAuthHeaders
 ): string {
   const config = getConfig()
-  if (!headers) return config.host
+  const configuredHost = getConfiguredHost(config)
+  if (!headers) return configuredHost
 
   if (headers.constructor.name === Headers.name) {
     const standardHeaders = headers as Headers
-    if (standardHeaders.get(ACTIVITIES_HOST)) {
-      return standardHeaders.get(ACTIVITIES_HOST) as string
-    }
-    if (standardHeaders.get(FORWARDED_HOST)) {
-      return standardHeaders.get(FORWARDED_HOST) as string
-    }
-
-    const host = standardHeaders.get('host')
-    if (host && !host.startsWith('0.0.0.0')) {
-      return host
+    const activityHost = standardHeaders.get(ACTIVITIES_HOST)
+    if (activityHost) {
+      return isTrustedHeaderHost(activityHost, config)
+        ? (normalizeHost(activityHost) as string)
+        : configuredHost
     }
 
-    return config.host
+    const forwardedHost = standardHeaders.get(FORWARDED_HOST)
+    if (forwardedHost) {
+      return isTrustedHeaderHost(forwardedHost, config)
+        ? (normalizeHost(forwardedHost) as string)
+        : configuredHost
+    }
+
+    const host = normalizeHost(standardHeaders.get('host'))
+    if (host) {
+      return isTrustedHeaderHost(host, config) ? host : configuredHost
+    }
+
+    return configuredHost
   }
 
   const nodeHeaders = headers as IncomingHttpHeaders
@@ -35,19 +102,23 @@ export function headerHost(
   )
 
   if (normalizedHeaders[ACTIVITIES_HOST]) {
-    const value = normalizedHeaders[ACTIVITIES_HOST]
-    return Array.isArray(value) ? value[0] : value
+    const value = getFirstHeaderValue(normalizedHeaders[ACTIVITIES_HOST])
+    return isTrustedHeaderHost(value, config)
+      ? (normalizeHost(value) as string)
+      : configuredHost
   }
 
   if (normalizedHeaders[FORWARDED_HOST]) {
-    const value = normalizedHeaders[FORWARDED_HOST]
-    return Array.isArray(value) ? value[0] : value
+    const value = getFirstHeaderValue(normalizedHeaders[FORWARDED_HOST])
+    return isTrustedHeaderHost(value, config)
+      ? (normalizeHost(value) as string)
+      : configuredHost
   }
 
-  const host = normalizedHeaders.host
-  if (host && !(Array.isArray(host) ? host[0] : host).startsWith('0.0.0.0')) {
-    return Array.isArray(host) ? host[0] : host
+  const host = normalizeHost(getFirstHeaderValue(normalizedHeaders.host))
+  if (host) {
+    return isTrustedHeaderHost(host, config) ? host : configuredHost
   }
 
-  return config.host
+  return configuredHost
 }
