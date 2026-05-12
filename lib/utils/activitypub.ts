@@ -1,5 +1,20 @@
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+import { isRecord } from '@/lib/utils/typeGuards'
+
+export const normalizeActivityPubUri = (uri: string | null | undefined) => {
+  if (!uri) return null
+
+  try {
+    const url = new URL(uri)
+    url.protocol = url.protocol.toLowerCase()
+    url.hostname = url.hostname.toLowerCase()
+    return url.toString()
+  } catch {
+    return uri
+  }
+}
+
+export const normalizeActorId = (actorId: string | null | undefined) =>
+  normalizeActivityPubUri(actorId?.split('#')[0])
 
 export const extractActivityPubId = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value

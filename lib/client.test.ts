@@ -1,6 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
+  clearFitnessRouteHeatmaps,
   getActorStatuses,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
@@ -110,6 +111,24 @@ describe('fitness route heatmap client calls', () => {
       })
     ).rejects.toThrow(
       'Failed to load route heatmaps (503): upstream unavailable'
+    )
+  })
+
+  it('clears all route heatmaps for an actor', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ deleted: 3 }), { status: 200 })
+
+    await expect(
+      clearFitnessRouteHeatmaps({
+        actorId: 'https://llun.test/users/test1'
+      })
+    ).resolves.toBe(3)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://llun.test/api/v1/accounts/llun.test:users:test1/fitness-route-heatmaps',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { Accept: 'application/json' }
+      })
     )
   })
 

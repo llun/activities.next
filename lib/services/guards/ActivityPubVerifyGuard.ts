@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
+import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   StatusCode,
@@ -12,8 +13,9 @@ import {
   codeMap
 } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
+import { isRecord } from '@/lib/utils/typeGuards'
 
-import { getSenderPublicKey } from './getSenderPublicKey'
+import { getSenderPublicKeyDetails } from './getSenderPublicKey'
 import { headerHost } from './headerHost'
 import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
@@ -53,6 +55,36 @@ const getExpectedSha256Digest = (digestHeader: string) =>
     })
     .find((part) => part?.algorithm === 'sha-256')?.value
 
+const getPostActivity = ({
+  bodyText,
+  method
+}: {
+  bodyText: string | null
+  method: string
+}) => {
+  if (method.toUpperCase() !== 'POST') {
+    return { actor: null, body: null, valid: true }
+  }
+
+  try {
+    if (bodyText === null) return { actor: null, body: null, valid: false }
+
+    const body = JSON.parse(bodyText) as unknown
+    if (!isRecord(body)) {
+      return { actor: null, body: null, valid: false }
+    }
+
+    const actor = extractActivityPubId(body.actor)
+    if (!actor || !normalizeActorId(actor)) {
+      return { actor: null, body: null, valid: false }
+    }
+
+    return { actor, body: { ...body, actor }, valid: true }
+  } catch {
+    return { actor: null, body: null, valid: false }
+  }
+}
+
 const isDateHeaderFresh = (
   headers: Headers,
   signedHeaders: string[],
@@ -72,12 +104,15 @@ const isDateHeaderFresh = (
 const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
   const digestHeader = getHeadersValue(request.headers, 'digest')
   if (!digestHeader)
-    return ['GET', 'HEAD'].includes(request.method.toUpperCase())
-  if (Array.isArray(digestHeader)) return false
-  if (!signedHeaders.includes('digest')) return false
+    return {
+      bodyText: null,
+      valid: ['GET', 'HEAD'].includes(request.method.toUpperCase())
+    }
+  if (Array.isArray(digestHeader)) return { bodyText: null, valid: false }
+  if (!signedHeaders.includes('digest')) return { bodyText: null, valid: false }
 
   const expectedDigest = getExpectedSha256Digest(digestHeader)
-  if (!expectedDigest) return false
+  if (!expectedDigest) return { bodyText: null, valid: false }
 
   const bodyBuffer = Buffer.from(await request.clone().arrayBuffer())
   const actualDigest = crypto
@@ -88,9 +123,14 @@ const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
   const actualDigestBuffer = Buffer.from(actualDigest, 'base64')
   const expectedDigestBuffer = Buffer.from(expectedDigest, 'base64')
 
-  if (actualDigestBuffer.length !== expectedDigestBuffer.length) return false
+  if (actualDigestBuffer.length !== expectedDigestBuffer.length) {
+    return { bodyText: null, valid: false }
+  }
 
-  return crypto.timingSafeEqual(actualDigestBuffer, expectedDigestBuffer)
+  return {
+    bodyText: bodyBuffer.toString('utf8'),
+    valid: crypto.timingSafeEqual(actualDigestBuffer, expectedDigestBuffer)
+  }
 }
 
 export const ActivityPubVerifySenderGuard =
@@ -116,7 +156,16 @@ export const ActivityPubVerifySenderGuard =
       return guardErrorResponse(request, 400, allowedMethods)
     }
 
-    if (!(await digestMatches(request, signedHeaders))) {
+    const digestResult = await digestMatches(request, signedHeaders)
+    if (!digestResult.valid) {
+      return guardErrorResponse(request, 400, allowedMethods)
+    }
+
+    const activity = getPostActivity({
+      bodyText: digestResult.bodyText,
+      method: request.method
+    })
+    if (!activity.valid) {
       return guardErrorResponse(request, 400, allowedMethods)
     }
 
@@ -127,16 +176,28 @@ export const ActivityPubVerifySenderGuard =
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)
     const requestTarget = `${request.method.toLowerCase()} ${requestUrl.pathname}${requestUrl.search}`
-    const publicKey = await getSenderPublicKey(database, signatureParts.keyId)
-    if (!(await verify(requestTarget, request.headers, publicKey))) {
+    const senderPublicKey = await getSenderPublicKeyDetails(
+      database,
+      signatureParts.keyId
+    )
+    if (
+      !(await verify(requestTarget, request.headers, senderPublicKey.publicKey))
+    ) {
       return guardErrorResponse(request, 400, allowedMethods)
     }
 
-    const verifiedSenderActorId = signatureParts.keyId.split('#')[0]
+    if (activity.actor) {
+      const normalizedOwner = normalizeActorId(senderPublicKey.owner)
+      const normalizedActor = normalizeActorId(activity.actor)
+
+      if (!normalizedOwner || normalizedOwner !== normalizedActor) {
+        return guardErrorResponse(request, 403, allowedMethods)
+      }
+    }
 
     return handle(request, {
+      activityBody: activity.body,
       database,
-      params: context.params,
-      verifiedSenderActorId
+      params: context.params
     })
   }

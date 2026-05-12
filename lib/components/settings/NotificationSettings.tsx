@@ -305,19 +305,7 @@ export const NotificationSettings: FC<Props> = ({
           )}
           {pushState === 'not_configured' && (
             <p className="text-sm text-muted-foreground">
-              Push notifications are not configured on this server. Set{' '}
-              <code className="font-mono text-xs">
-                ACTIVITIES_PUSH_VAPID_PUBLIC_KEY
-              </code>
-              ,{' '}
-              <code className="font-mono text-xs">
-                ACTIVITIES_PUSH_VAPID_PRIVATE_KEY
-              </code>
-              , and{' '}
-              <code className="font-mono text-xs">
-                ACTIVITIES_PUSH_VAPID_EMAIL
-              </code>{' '}
-              to enable.
+              Push notifications are not configured on this server.
             </p>
           )}
           {pushState === 'permission_denied' && (

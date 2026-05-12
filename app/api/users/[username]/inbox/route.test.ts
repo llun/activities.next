@@ -7,10 +7,14 @@ const mockCreateFollower = jest.fn()
 const mockDeleteLike = jest.fn()
 const mockApplyRemoteBlock = jest.fn()
 const mockApplyRemoteUnblock = jest.fn()
+const mockUndoFollowRequest = jest.fn()
 const mockVerifyAllows = jest.fn()
 const mockDatabase = {
   deleteLike: (...params: unknown[]) => mockDeleteLike(...params)
 }
+const mockDefaultActivityBody = Symbol('defaultActivityBody')
+let mockActivityBody: unknown = mockDefaultActivityBody
+let mockConsumeRequestBody = false
 type MockActor = {
   id: string
   username: string
@@ -34,9 +38,9 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       handle: (
         req: NextRequest,
         context: {
+          activityBody: unknown | null
           database: typeof mockDatabase
           params: Promise<{ username: string }>
-          verifiedSenderActorId: string
         }
       ) => Promise<Response> | Response
     ) =>
@@ -48,10 +52,22 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
         return Response.json({ status: 'Bad Request' }, { status: 400 })
       }
 
+      const activityBody =
+        mockActivityBody === mockDefaultActivityBody
+          ? await req
+              .clone()
+              .json()
+              .catch(() => null)
+          : mockActivityBody
+
+      if (mockConsumeRequestBody) {
+        await req.text().catch(() => null)
+      }
+
       return handle(req, {
+        activityBody,
         database: mockDatabase,
-        params: context.params,
-        verifiedSenderActorId: 'https://remote.test/users/alice'
+        params: context.params
       })
     }
 }))
@@ -105,7 +121,7 @@ jest.mock('@/lib/actions/rejectFollowRequest', () => ({
 }))
 
 jest.mock('@/lib/actions/undoFollowRequest', () => ({
-  undoFollowRequest: jest.fn()
+  undoFollowRequest: (...params: unknown[]) => mockUndoFollowRequest(...params)
 }))
 
 const createFollowRequest = (username = 'llun') =>
@@ -154,6 +170,9 @@ describe('POST /api/users/[username]/inbox', () => {
       actorId: 'https://remote.test/users/alice',
       targetActorId: 'https://activities.local/users/llun'
     })
+    mockUndoFollowRequest.mockResolvedValue(true)
+    mockActivityBody = mockDefaultActivityBody
+    mockConsumeRequestBody = false
   })
 
   it('accepts verified deliveries to the headless signer inbox without creating state', async () => {
@@ -186,25 +205,6 @@ describe('POST /api/users/[username]/inbox', () => {
     expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 
-  it('rejects requests when activity actor does not match the verified sender', async () => {
-    const response = await POST(
-      new NextRequest('https://activities.local/api/users/llun/inbox', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          id: 'https://remote.test/users/alice/follows/1',
-          type: 'Follow',
-          actor: 'https://remote.test/users/bob',
-          object: 'https://activities.local/users/llun'
-        })
-      }),
-      { params: Promise.resolve({ username: 'llun' }) }
-    )
-
-    expect(response.status).toBe(403)
-    expect(mockCreateFollower).not.toHaveBeenCalled()
-  })
-
   it('processes verified actor inbox requests', async () => {
     const response = await POST(createFollowRequest(), {
       params: Promise.resolve({ username: 'llun' })
@@ -223,6 +223,48 @@ describe('POST /api/users/[username]/inbox', () => {
         type: 'Follow'
       })
     })
+  })
+
+  it('processes verified actor inbox requests from guard activityBody after the request body is consumed', async () => {
+    mockActivityBody = {
+      id: 'https://remote.test/users/alice/follows/1',
+      type: 'Follow',
+      actor: 'https://remote.test/users/alice',
+      object: 'https://activities.local/users/llun'
+    }
+    mockConsumeRequestBody = true
+
+    const response = await POST(createFollowRequest(), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+      mockDatabase,
+      'https://remote.test/users/alice'
+    )
+    expect(mockCreateFollower).toHaveBeenCalledWith({
+      database: mockDatabase,
+      followRequest: expect.objectContaining({
+        actor: 'https://remote.test/users/alice',
+        type: 'Follow'
+      })
+    })
+  })
+
+  it('rejects invalid JSON bodies without side effects', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"actor":"https://remote.test/users/alice",'
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 
   it('dispatches verified Block activities to applyRemoteBlock', async () => {
@@ -301,6 +343,54 @@ describe('POST /api/users/[username]/inbox', () => {
       object: expect.objectContaining({ type: 'Block' }),
       targetActorId: 'https://activities.local/users/llun'
     })
+  })
+
+  it('rejects full Undo Follow activities whose object actor does not match the activity actor', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-follow',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/bob/follows/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/bob',
+            object: 'https://activities.local/users/llun'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockUndoFollowRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects full Undo Block activities whose object actor does not match the activity actor', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-block',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/bob#blocks/1',
+            type: 'Block',
+            actor: 'https://remote.test/users/bob',
+            object: 'https://activities.local/users/llun'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockApplyRemoteUnblock).not.toHaveBeenCalled()
   })
 
   it('treats partial Undo Like objects as accepted no-ops', async () => {

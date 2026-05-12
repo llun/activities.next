@@ -181,6 +181,7 @@ export const GET = traceApiRoute(
 export const POST = traceApiRoute(
   'triggerFitnessRouteHeatmap',
   async (req: NextRequest, params: AppRouterParams<Params>) => {
+    const requestedAt = Date.now()
     const database = getDatabase()
     if (!database) {
       return apiResponse({
@@ -266,16 +267,19 @@ export const POST = traceApiRoute(
       activityType: activityType ?? null,
       periodType,
       periodKey,
-      region
+      region,
+      includeDeleted: true
     })
     const shouldResume =
       existing !== null &&
+      !existing.deletedAt &&
       existing.cursorOffset > 0 &&
       (existing.status === 'failed' ||
         (existing.status === 'completed' && existing.isPartial))
     const shouldUseRetryId =
       retry === true &&
       existing !== null &&
+      !existing.deletedAt &&
       !shouldResume &&
       (existing.status === 'failed' || existing.status === 'generating')
     const baseJobId =
@@ -293,7 +297,9 @@ export const POST = traceApiRoute(
         ? `${baseJobId}:resume:${existing.id}:${existing.cursorOffset}`
         : shouldUseRetryId
           ? `${baseJobId}:retry:${existing.id}:${crypto.randomUUID()}`
-          : baseJobId
+          : existing?.deletedAt
+            ? `${baseJobId}:restore:${existing.id}:${existing.deletedAt}`
+            : baseJobId
     )
 
     try {
@@ -306,6 +312,7 @@ export const POST = traceApiRoute(
           periodType,
           periodKey,
           region,
+          requestedAt,
           ...(shouldResume
             ? { resume: true, cursorOffset: existing.cursorOffset }
             : {})

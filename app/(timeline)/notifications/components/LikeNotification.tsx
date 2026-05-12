@@ -2,34 +2,21 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
-import { getMention } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
-import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { getNotificationStatusPath } from '@/app/(timeline)/notifications/getNotificationStatusPath'
+import type { NotificationWithStatus } from '@/app/(timeline)/notifications/types'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
-interface NotificationWithData extends GroupedNotification {
-  account: Mastodon.Account
-  status: Status
-  groupedAccounts?: (Mastodon.Account | null)[] | null
-}
-
 interface Props {
   host: string
-  notification: NotificationWithData
+  notification: NotificationWithStatus
 }
 
 export const LikeNotification: FC<Props> = ({ host, notification }) => {
-  const { account, status, groupedAccounts, groupedCount } = notification
-  if (!status.actor) return null
+  const { account, status, groupedCount } = notification
 
   const hasMultiple = groupedCount && groupedCount > 1
-
-  const statusUrl =
-    getStatusDetailPath(status) ??
-    `/${getMention(status.actor, true)}/${encodeURIComponent(status.id)}`
+  const statusUrl = getNotificationStatusPath(status)
 
   return (
     <div className="flex items-start gap-4">
@@ -44,7 +31,7 @@ export const LikeNotification: FC<Props> = ({ host, notification }) => {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        {hasMultiple && groupedAccounts ? (
+        {hasMultiple ? (
           <p className="text-sm">
             <Link
               href={`/@${account.acct}`}
@@ -72,14 +59,11 @@ export const LikeNotification: FC<Props> = ({ host, notification }) => {
             </Link>
           </p>
         )}
-        <Link
-          href={statusUrl}
-          className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground hover:bg-muted"
-        >
+        <div className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
           <div className="line-clamp-2 [&_p]:inline [&_br]:hidden">
             {cleanClassName(processStatusText(host, status))}
           </div>
-        </Link>
+        </div>
       </div>
     </div>
   )

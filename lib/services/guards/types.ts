@@ -28,8 +28,8 @@ export type OptionalAuthenticatedApiHandle<P> = (
 export type ActivityPubVerifiedSenderHandle<P> = (
   request: NextRequest,
   context: {
+    activityBody: unknown | null
     database: Database
     params: Promise<P>
-    verifiedSenderActorId: string
   }
 ) => Promise<Response> | Response

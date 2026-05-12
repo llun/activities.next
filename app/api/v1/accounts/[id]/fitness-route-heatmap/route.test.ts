@@ -217,13 +217,74 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: ACTOR1_ID,
           activityType: 'running',
           periodType: 'monthly',
           periodKey: '2026-04',
-          region: 'netherlands,singapore'
-        }
+          region: 'netherlands,singapore',
+          requestedAt: expect.any(Number)
+        })
+      })
+    )
+  })
+
+  it('versions the job id when restoring a cleared route heatmap cache', async () => {
+    const deletedAt = Date.now() - 1000
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-deleted',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: 'netherlands',
+      status: 'completed',
+      segments: [],
+      activityCount: 8,
+      pointCount: 200,
+      cursorOffset: 0,
+      isPartial: false,
+      createdAt: deletedAt - 1000,
+      updatedAt: deletedAt,
+      deletedAt
+    })
+
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        activity_type: 'running',
+        period_type: 'monthly',
+        period_key: '2026-04',
+        region: 'netherlands'
+      })
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockDb.getFitnessRouteHeatmapByKey).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: 'netherlands',
+      includeDeleted: true
+    })
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: getHashFromString(
+          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:restore:route-heatmap-deleted:${deletedAt}`
+        ),
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: expect.objectContaining({
+          actorId: ACTOR1_ID,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-04',
+          region: 'netherlands',
+          requestedAt: expect.any(Number)
+        })
       })
     )
   })
@@ -274,13 +335,14 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
             `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:retry:route-heatmap-failed-zero:${retryNonce}`
           ),
           name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-          data: {
+          data: expect.objectContaining({
             actorId: ACTOR1_ID,
             activityType: 'running',
             periodType: 'monthly',
             periodKey: '2026-04',
-            region: 'netherlands'
-          }
+            region: 'netherlands',
+            requestedAt: expect.any(Number)
+          })
         })
       )
     } finally {
@@ -330,13 +392,14 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
             `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands`
           ),
           name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-          data: {
+          data: expect.objectContaining({
             actorId: ACTOR1_ID,
             activityType: 'running',
             periodType: 'monthly',
             periodKey: '2026-04',
-            region: 'netherlands'
-          }
+            region: 'netherlands',
+            requestedAt: expect.any(Number)
+          })
         })
       )
     } finally {
@@ -384,15 +447,16 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:resume:route-heatmap-failed:500`
         ),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: ACTOR1_ID,
           activityType: 'running',
           periodType: 'monthly',
           periodKey: '2026-04',
           region: 'netherlands',
           resume: true,
-          cursorOffset: 500
-        }
+          cursorOffset: 500,
+          requestedAt: expect.any(Number)
+        })
       })
     )
   })
@@ -436,15 +500,16 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:resume:route-heatmap-partial:1000000`
         ),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: ACTOR1_ID,
           activityType: 'running',
           periodType: 'monthly',
           periodKey: '2026-04',
           region: 'netherlands',
           resume: true,
-          cursorOffset: 1_000_000
-        }
+          cursorOffset: 1_000_000,
+          requestedAt: expect.any(Number)
+        })
       })
     )
   })
@@ -466,13 +531,14 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: {
+        data: expect.objectContaining({
           actorId: ACTOR1_ID,
           activityType: null,
           periodType: 'monthly',
           periodKey: '2026-04',
-          region: ''
-        }
+          region: '',
+          requestedAt: expect.any(Number)
+        })
       })
     )
   })

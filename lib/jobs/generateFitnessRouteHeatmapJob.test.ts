@@ -208,6 +208,99 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
   })
 
+  it('does not restore deleted route caches from stale queued jobs', async () => {
+    await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'stale-clear-test',
+      periodType: 'monthly',
+      periodKey: '2099-02'
+    })
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    const deletedHeatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'stale-clear-test',
+      periodType: 'monthly',
+      periodKey: '2099-02',
+      includeDeleted: true
+    })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-stale-after-clear',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'stale-clear-test',
+        periodType: 'monthly',
+        periodKey: '2099-02',
+        requestedAt: (deletedHeatmap?.deletedAt ?? Date.now()) - 1
+      }
+    })
+
+    await expect(
+      database.getFitnessRouteHeatmapByKey({
+        actorId: actor.id,
+        activityType: 'stale-clear-test',
+        periodType: 'monthly',
+        periodKey: '2099-02'
+      })
+    ).resolves.toBeNull()
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+  })
+
+  it('does not restore a route cache deleted after the job read it', async () => {
+    await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'delete-race-test',
+      periodType: 'monthly',
+      periodKey: '2099-03'
+    })
+
+    const requestedAt = Date.now() - 10_000
+    const getByKey = database.getFitnessRouteHeatmapByKey.bind(database)
+    const deleteAfterRead = jest
+      .spyOn(database, 'getFitnessRouteHeatmapByKey')
+      .mockImplementation(async (params) => {
+        const heatmap = await getByKey(params)
+        if (
+          params.actorId === actor.id &&
+          params.activityType === 'delete-race-test' &&
+          params.periodType === 'monthly' &&
+          params.periodKey === '2099-03'
+        ) {
+          await database.deleteFitnessRouteHeatmapsForActor({
+            actorId: actor.id
+          })
+        }
+        return heatmap
+      })
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-clear-race',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'delete-race-test',
+          periodType: 'monthly',
+          periodKey: '2099-03',
+          requestedAt
+        }
+      })
+    } finally {
+      deleteAfterRead.mockRestore()
+    }
+
+    await expect(
+      database.getFitnessRouteHeatmapByKey({
+        actorId: actor.id,
+        activityType: 'delete-race-test',
+        periodType: 'monthly',
+        periodKey: '2099-03'
+      })
+    ).resolves.toBeNull()
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+  })
+
   it('skips failed file parses and completes from remaining route data', async () => {
     const firstId = await createCompletedFitnessFile(
       'running',
@@ -359,10 +452,21 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(first?.status).toBe('completed')
 
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    const deleted = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-05',
+      includeDeleted: true
+    })
 
     await generateFitnessRouteHeatmapJob(database, {
       ...job,
-      id: 'job-route-heatmap-revive-again'
+      id: 'job-route-heatmap-revive-again',
+      data: {
+        ...job.data,
+        requestedAt: (deleted?.deletedAt ?? Date.now()) + 1
+      }
     })
 
     const revived = await database.getFitnessRouteHeatmapByKey({

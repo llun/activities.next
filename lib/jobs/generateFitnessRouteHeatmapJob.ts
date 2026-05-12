@@ -74,7 +74,8 @@ const JobData = z.object({
   region: z.string().nullable().optional(),
   resume: z.boolean().optional(),
   cursorOffset: z.number().int().nonnegative().optional(),
-  maxCursorOffset: z.number().int().positive().optional()
+  maxCursorOffset: z.number().int().positive().optional(),
+  requestedAt: z.number().int().nonnegative().optional()
 })
 
 const getPeriodRange = (
@@ -225,7 +226,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       region,
       resume,
       cursorOffset: requestedCursorOffset,
-      maxCursorOffset: requestedMaxCursorOffset
+      maxCursorOffset: requestedMaxCursorOffset,
+      requestedAt
     } = JobData.parse(message.data)
 
     const startedAt = Date.now()
@@ -254,6 +256,25 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       })
 
       const isResume = resume === true
+      if (existing?.deletedAt) {
+        const canRestoreDeleted =
+          !isResume &&
+          requestedAt !== undefined &&
+          requestedAt >= existing.deletedAt
+        if (!canRestoreDeleted) {
+          logger.info({
+            message: 'Skipping stale route heatmap generation',
+            actorId,
+            periodType,
+            periodKey,
+            requestedAt,
+            deletedAt: existing.deletedAt,
+            status: existing.status
+          })
+          return
+        }
+      }
+
       const canResumeExisting =
         existing &&
         (['generating', 'failed'].includes(existing.status) ||
@@ -296,22 +317,37 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           allSegmentPointCount = countSegmentPoints(allSegments)
           activityCount = existing.activityCount
         }
-        await database.updateFitnessRouteHeatmapStatus({
-          id: existing.id,
-          status: 'generating',
-          error: null,
-          clearDeleted: true,
-          ...(isResume
-            ? {}
-            : {
-                bounds: null,
-                segments: null,
-                activityCount: 0,
-                pointCount: 0,
-                cursorOffset: 0,
-                isPartial: false
-              })
-        })
+        const markedGenerating = await database.updateFitnessRouteHeatmapStatus(
+          {
+            id: existing.id,
+            status: 'generating',
+            error: null,
+            clearDeleted: true,
+            clearDeletedBefore: requestedAt ?? 0,
+            ...(isResume
+              ? {}
+              : {
+                  bounds: null,
+                  segments: null,
+                  activityCount: 0,
+                  pointCount: 0,
+                  cursorOffset: 0,
+                  isPartial: false
+                })
+          }
+        )
+        if (!markedGenerating) {
+          logger.info({
+            message:
+              'Skipping stale route heatmap generation after cache clear',
+            actorId,
+            periodType,
+            periodKey,
+            requestedAt,
+            status: existing.status
+          })
+          return
+        }
       } else {
         const created = await database.createFitnessRouteHeatmap({
           actorId,
@@ -391,7 +427,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             ...(normalizedRegion ? { region: normalizedRegion } : {}),
             resume: true,
             cursorOffset: nextCursorOffset,
-            maxCursorOffset: maxCursorOffsetForRun
+            maxCursorOffset: maxCursorOffsetForRun,
+            ...(requestedAt !== undefined ? { requestedAt } : {})
           }
         })
 
