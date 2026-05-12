@@ -114,6 +114,16 @@ const closeServer = async (server: Server) => {
   })
 }
 
+const withDevelopmentNodeEnv = async (callback: () => Promise<void>) => {
+  const originalNodeEnv = process.env.NODE_ENV
+  process.env.NODE_ENV = 'development'
+  try {
+    await callback()
+  } finally {
+    process.env.NODE_ENV = originalNodeEnv
+  }
+}
+
 describe('request utility', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
@@ -201,57 +211,63 @@ describe('request utility', () => {
     })
 
     it('returns a streamed response within the response size limit', async () => {
-      fetchMock.dontMock()
-      const { server, url } = await createTestServer('small body')
+      await withDevelopmentNodeEnv(async () => {
+        fetchMock.dontMock()
+        const { server, url } = await createTestServer('small body')
 
-      try {
-        const response = await request({
-          url,
-          numberOfRetry: 0,
-          maxResponseSize: 64
-        })
+        try {
+          const response = await request({
+            url,
+            numberOfRetry: 0,
+            maxResponseSize: 64
+          })
 
-        expect(response.statusCode).toBe(200)
-        expect(response.body).toBe('small body')
-      } finally {
-        await closeServer(server)
-      }
+          expect(response.statusCode).toBe(200)
+          expect(response.body).toBe('small body')
+        } finally {
+          await closeServer(server)
+        }
+      })
     })
 
     it('rejects a streamed response over the response size limit', async () => {
-      fetchMock.dontMock()
-      const { server, url } = await createTestServer('x'.repeat(32))
+      await withDevelopmentNodeEnv(async () => {
+        fetchMock.dontMock()
+        const { server, url } = await createTestServer('x'.repeat(32))
 
-      try {
-        await expect(
-          request({
-            url,
-            numberOfRetry: 0,
-            maxResponseSize: 8
-          })
-        ).rejects.toThrow('Response body too large')
-      } finally {
-        await closeServer(server)
-      }
+        try {
+          await expect(
+            request({
+              url,
+              numberOfRetry: 0,
+              maxResponseSize: 8
+            })
+          ).rejects.toThrow('Response body too large')
+        } finally {
+          await closeServer(server)
+        }
+      })
     })
 
     it('rejects a streamed response with an oversized content length', async () => {
-      fetchMock.dontMock()
-      const { server, url } = await createTestServer('small body', {
-        'content-length': '32'
-      })
+      await withDevelopmentNodeEnv(async () => {
+        fetchMock.dontMock()
+        const { server, url } = await createTestServer('small body', {
+          'content-length': '32'
+        })
 
-      try {
-        await expect(
-          request({
-            url,
-            numberOfRetry: 0,
-            maxResponseSize: 8
-          })
-        ).rejects.toThrow('Response body too large')
-      } finally {
-        await closeServer(server)
-      }
+        try {
+          await expect(
+            request({
+              url,
+              numberOfRetry: 0,
+              maxResponseSize: 8
+            })
+          ).rejects.toThrow('Response body too large')
+        } finally {
+          await closeServer(server)
+        }
+      })
     })
   })
 })

@@ -1,12 +1,31 @@
-import got, { Headers, Method, OptionsInit } from 'got'
-import { Buffer } from 'node:buffer'
-
 import { getConfig } from '@/lib/config'
+import {
+  DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES,
+  SafeRemoteFetchHeaders,
+  SafeRemoteFetchMethod,
+  safeRemoteFetch
+} from '@/lib/utils/safeRemoteFetch'
 import packageJson from '@/package.json'
 
 const USER_AGENT = `activities.next/${packageJson.version}`
 const DEFAULT_RESPONSE_TIMEOUT = 10000
 const MAX_RETRY_LIMIT = 1
+const RETRYABLE_METHODS = new Set([
+  'DELETE',
+  'GET',
+  'HEAD',
+  'OPTIONS',
+  'PUT',
+  'TRACE'
+])
+const RETRYABLE_ERROR_CODES = new Set([
+  'EADDRINUSE',
+  'EAI_AGAIN',
+  'ECONNRESET',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'ETIMEDOUT'
+])
 
 const SHARED_HEADERS = {
   'User-Agent': USER_AGENT
@@ -14,8 +33,8 @@ const SHARED_HEADERS = {
 
 export interface RequestOptions {
   url: string
-  method?: Method
-  headers?: Headers
+  method?: SafeRemoteFetchMethod
+  headers?: SafeRemoteFetchHeaders
   body?: string
   responseTimeout?: number
   numberOfRetry?: number
@@ -28,86 +47,54 @@ export interface RequestResult {
   body: string
 }
 
-const getGotOptions = ({
+const getRequestOptions = ({
   method = 'GET',
   headers,
   body,
   responseTimeout,
-  numberOfRetry
-}: Omit<RequestOptions, 'url' | 'maxResponseSize'>): OptionsInit => {
+  numberOfRetry,
+  maxResponseSize
+}: Omit<RequestOptions, 'url'>) => {
   const config = getConfig()
   const retryLimit = config.request?.numberOfRetry ?? MAX_RETRY_LIMIT
-  const retryNoise = config.request?.retryNoise
   const defaultResponseTimeout =
     responseTimeout ||
     config.request?.timeoutInMilliseconds ||
     DEFAULT_RESPONSE_TIMEOUT
+  const maxBodyBytes =
+    maxResponseSize ||
+    config.request?.maxResponseSizeInBytes ||
+    DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES
 
   return {
+    body,
+    connectTimeoutInMilliseconds: defaultResponseTimeout,
     headers: {
       ...SHARED_HEADERS,
       ...headers
     },
-    timeout: {
-      request: defaultResponseTimeout
-    },
-    retry: {
-      limit: typeof numberOfRetry === 'number' ? numberOfRetry : retryLimit,
-      ...(typeof retryNoise === 'number' ? { noise: retryNoise } : null)
-    },
-    throwHttpErrors: false,
-    method: method as Method,
-    body
+    maxBodyBytes,
+    method,
+    numberOfRetry:
+      typeof numberOfRetry === 'number' ? numberOfRetry : retryLimit,
+    readTimeoutInMilliseconds: defaultResponseTimeout,
+    timeoutInMilliseconds: defaultResponseTimeout
   }
 }
 
-const requestWithResponseSizeLimit = (
-  url: string,
-  options: OptionsInit,
-  maxResponseSize: number
-): Promise<RequestResult> =>
-  new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    let bodyBytes = 0
-    let statusCode = 0
-    let headers: Record<string, string | string[] | undefined> = {}
-    const stream = got.stream(url, options)
+const isRetryableRequestError = (
+  error: unknown,
+  method: SafeRemoteFetchMethod
+) => {
+  const code = (error as NodeJS.ErrnoException).code
+  return (
+    RETRYABLE_METHODS.has(method.toUpperCase()) &&
+    typeof code === 'string' &&
+    RETRYABLE_ERROR_CODES.has(code)
+  )
+}
 
-    stream.on('response', (response) => {
-      statusCode = response.statusCode
-      headers = response.headers
-
-      const declaredLengthHeader = response.headers['content-length']
-      const declaredLengthValue = Array.isArray(declaredLengthHeader)
-        ? declaredLengthHeader[0]
-        : declaredLengthHeader
-      const declaredLength = Number(declaredLengthValue ?? 0)
-      if (Number.isFinite(declaredLength) && declaredLength > maxResponseSize) {
-        stream.destroy(new Error('Response body too large'))
-      }
-    })
-    stream.on('data', (chunk) => {
-      const buffer = Buffer.from(chunk)
-      bodyBytes += buffer.byteLength
-
-      if (bodyBytes > maxResponseSize) {
-        stream.destroy(new Error('Response body too large'))
-        return
-      }
-
-      chunks.push(buffer)
-    })
-    stream.on('end', () => {
-      resolve({
-        statusCode,
-        headers,
-        body: Buffer.concat(chunks).toString('utf8')
-      })
-    })
-    stream.on('error', reject)
-  })
-
-export const request = ({
+export const request = async ({
   url,
   method = 'GET',
   headers,
@@ -115,18 +102,37 @@ export const request = ({
   responseTimeout,
   numberOfRetry,
   maxResponseSize
-}: RequestOptions) => {
-  const options = getGotOptions({
+}: RequestOptions): Promise<RequestResult> => {
+  const options = getRequestOptions({
     method,
     headers,
     body,
     responseTimeout,
-    numberOfRetry
+    numberOfRetry,
+    maxResponseSize
   })
+  let attempt = 0
 
-  if (typeof maxResponseSize === 'number') {
-    return requestWithResponseSizeLimit(url, options, maxResponseSize)
+  while (true) {
+    try {
+      return await safeRemoteFetch({
+        body: options.body,
+        connectTimeoutInMilliseconds: options.connectTimeoutInMilliseconds,
+        headers: options.headers,
+        maxBodyBytes: options.maxBodyBytes,
+        method: options.method,
+        readTimeoutInMilliseconds: options.readTimeoutInMilliseconds,
+        timeoutInMilliseconds: options.timeoutInMilliseconds,
+        url
+      })
+    } catch (error) {
+      if (
+        attempt >= options.numberOfRetry ||
+        !isRetryableRequestError(error, method)
+      ) {
+        throw error
+      }
+      attempt += 1
+    }
   }
-
-  return got(url, options)
 }
