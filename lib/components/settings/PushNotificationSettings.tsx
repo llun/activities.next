@@ -2,6 +2,12 @@
 
 import { FC, useCallback, useEffect, useState } from 'react'
 
+import {
+  getVapidKey,
+  subscribePushNotifications,
+  unsubscribePushNotifications,
+  updatePushNotifications
+} from '@/lib/client'
 import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
 import { urlBase64ToUint8Array } from '@/lib/utils/urlBase64ToUint8Array'
@@ -64,14 +70,13 @@ export const PushNotificationSettings: FC<Props> = ({
       return
     }
 
-    fetch('/api/v1/push/vapid-key')
-      .then(async (res) => {
-        if (!res.ok) {
+    getVapidKey()
+      .then(async (vapidKey) => {
+        if (!vapidKey) {
           setPushState('not_configured')
           return
         }
-        const data = await res.json()
-        setVapidPublicKey(data.vapidPublicKey)
+        setVapidPublicKey(vapidKey)
 
         if (Notification.permission === 'denied') {
           setPushState('permission_denied')
@@ -114,16 +119,12 @@ export const PushNotificationSettings: FC<Props> = ({
       })
 
       const subJson = sub.toJSON()
-      const res = await fetch('/api/v1/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: subJson.endpoint,
-          keys: subJson.keys
-        })
-      })
+      const ok = await subscribePushNotifications(
+        subJson.endpoint!,
+        subJson.keys as { p256dh: string; auth: string }
+      )
 
-      if (!res.ok) {
+      if (!ok) {
         await sub.unsubscribe()
         setPushState('error')
         return
@@ -140,13 +141,9 @@ export const PushNotificationSettings: FC<Props> = ({
     if (!subscription) return
 
     try {
-      const res = await fetch('/api/v1/push/subscribe', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: subscription.endpoint })
-      })
+      const ok = await unsubscribePushNotifications(subscription.endpoint)
 
-      if (!res.ok) {
+      if (!ok) {
         setPushState('error')
         return
       }
@@ -168,16 +165,8 @@ export const PushNotificationSettings: FC<Props> = ({
       setStatusMessage(null)
 
       try {
-        const res = await fetch('/api/v1/accounts/push-notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actorId, ...updated })
-        })
-        if (res.ok) {
-          setStatusMessage('Saved')
-        } else {
-          setStatusMessage('Failed to save')
-        }
+        const ok = await updatePushNotifications(actorId, updated)
+        setStatusMessage(ok ? 'Saved' : 'Failed to save')
       } catch {
         setStatusMessage('Failed to save')
       } finally {
@@ -208,17 +197,7 @@ export const PushNotificationSettings: FC<Props> = ({
 
       {pushState === 'not_configured' && (
         <p className="text-sm text-muted-foreground">
-          Push notifications are not configured on this server. Set{' '}
-          <code className="font-mono text-xs">
-            ACTIVITIES_PUSH_VAPID_PUBLIC_KEY
-          </code>
-          ,{' '}
-          <code className="font-mono text-xs">
-            ACTIVITIES_PUSH_VAPID_PRIVATE_KEY
-          </code>
-          , and{' '}
-          <code className="font-mono text-xs">ACTIVITIES_PUSH_VAPID_EMAIL</code>{' '}
-          to enable.
+          Push notifications are not configured on this server.
         </p>
       )}
 
