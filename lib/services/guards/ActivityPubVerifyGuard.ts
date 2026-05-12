@@ -13,7 +13,7 @@ import {
 } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
 
-import { getSenderPublicKey } from './getSenderPublicKey'
+import { getSenderPublicKeyDetails } from './getSenderPublicKey'
 import { headerHost } from './headerHost'
 import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
@@ -52,6 +52,26 @@ const getExpectedSha256Digest = (digestHeader: string) =>
       }
     })
     .find((part) => part?.algorithm === 'sha-256')?.value
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const getPostActivityActor = async (request: NextRequest) => {
+  if (request.method.toUpperCase() !== 'POST') {
+    return { actor: null, valid: true }
+  }
+
+  try {
+    const body = (await request.clone().json()) as unknown
+    if (!isRecord(body) || typeof body.actor !== 'string') {
+      return { actor: null, valid: false }
+    }
+
+    return { actor: body.actor, valid: true }
+  } catch {
+    return { actor: null, valid: false }
+  }
+}
 
 const isDateHeaderFresh = (
   headers: Headers,
@@ -127,9 +147,23 @@ export const ActivityPubVerifySenderGuard =
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)
     const requestTarget = `${request.method.toLowerCase()} ${requestUrl.pathname}${requestUrl.search}`
-    const publicKey = await getSenderPublicKey(database, signatureParts.keyId)
-    if (!(await verify(requestTarget, request.headers, publicKey))) {
+    const senderPublicKey = await getSenderPublicKeyDetails(
+      database,
+      signatureParts.keyId
+    )
+    if (
+      !(await verify(requestTarget, request.headers, senderPublicKey.publicKey))
+    ) {
       return guardErrorResponse(request, 400, allowedMethods)
+    }
+
+    const activityActor = await getPostActivityActor(request)
+    if (!activityActor.valid) {
+      return guardErrorResponse(request, 400, allowedMethods)
+    }
+
+    if (activityActor.actor && senderPublicKey.owner !== activityActor.actor) {
+      return guardErrorResponse(request, 403, allowedMethods)
     }
 
     return handle(request, { database, params: context.params })

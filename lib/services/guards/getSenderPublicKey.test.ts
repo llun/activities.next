@@ -1,7 +1,10 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { getSenderPublicKey } from '@/lib/services/guards/getSenderPublicKey'
+import {
+  getSenderPublicKey,
+  getSenderPublicKeyDetails
+} from '@/lib/services/guards/getSenderPublicKey'
 import { mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -49,6 +52,35 @@ describe('getSenderPublicKey', () => {
     const publicKey = await getSenderPublicKey(database, actorId)
 
     expect(publicKey).toBeTruthy()
+  })
+
+  it('returns public key owner details from remote actor', async () => {
+    const actorId = 'https://remote.test/users/test1'
+    const publicKey = await getSenderPublicKeyDetails(database, actorId)
+
+    expect(publicKey).toMatchObject({
+      owner: actorId,
+      publicKey: expect.any(String)
+    })
+  })
+
+  it('returns public key details from path-based key documents', async () => {
+    const keyId = 'https://remote.test/users/test1/keys/main'
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: keyId,
+        owner: 'https://remote.test/users/test1',
+        publicKeyPem: 'path-public-key'
+      }),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({
+      owner: 'https://remote.test/users/test1',
+      publicKey: 'path-public-key'
+    })
   })
 
   it('signs remote public key fetches with a local actor', async () => {

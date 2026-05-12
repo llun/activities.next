@@ -11,7 +11,6 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
-import { parse } from '@/lib/utils/signature'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { getJobMessage } from './getJobMessage'
@@ -23,8 +22,6 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const normalizeActorId = (actorId: string) => actorId.split('#')[0]
-
 export const POST = traceApiRoute(
   'sharedInbox',
   ActivityPubVerifySenderGuard(async (request, { database }) => {
@@ -32,7 +29,8 @@ export const POST = traceApiRoute(
     if (
       !isRecord(body) ||
       typeof body.id !== 'string' ||
-      typeof body.type !== 'string'
+      typeof body.type !== 'string' ||
+      typeof body.actor !== 'string'
     ) {
       return apiResponse({
         req: request,
@@ -42,28 +40,6 @@ export const POST = traceApiRoute(
       })
     }
     const activity = body as unknown as StatusActivity
-    const signatureHeader = request.headers.get('signature')
-    if (!signatureHeader) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-    const signatureParts = await parse(signatureHeader)
-    if (
-      !signatureParts.keyId ||
-      normalizeActorId(signatureParts.keyId) !==
-        normalizeActorId(activity.actor)
-    ) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_403,
-        responseStatusCode: 403
-      })
-    }
     if (!(await canFederateWithDomain(database, activity.actor))) {
       return apiResponse({
         req: request,

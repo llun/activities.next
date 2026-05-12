@@ -8,6 +8,7 @@ import { ActivityPubVerifySenderGuard } from './ActivityPubVerifyGuard'
 const mockCanFederateWithDomain = jest.fn()
 const mockDatabase = {}
 const mockGetSenderPublicKey = jest.fn()
+const mockGetSenderPublicKeyDetails = jest.fn()
 const mockVerify = jest.fn()
 
 jest.mock('@/lib/database', () => ({
@@ -21,7 +22,9 @@ jest.mock('@/lib/services/federation/domainPolicy', () => ({
 
 jest.mock('@/lib/services/guards/getSenderPublicKey', () => ({
   getSenderPublicKey: (...params: unknown[]) =>
-    mockGetSenderPublicKey(...params)
+    mockGetSenderPublicKey(...params),
+  getSenderPublicKeyDetails: (...params: unknown[]) =>
+    mockGetSenderPublicKeyDetails(...params)
 }))
 
 jest.mock('@/lib/utils/signature', () => {
@@ -33,11 +36,36 @@ jest.mock('@/lib/utils/signature', () => {
   }
 })
 
+const createSignedPostRequest = ({
+  body,
+  keyId = 'https://remote.test/users/alice#main-key'
+}: {
+  body: unknown
+  keyId?: string
+}) => {
+  const payload = JSON.stringify(body)
+  const digest = crypto.createHash('sha256').update(payload).digest('base64')
+
+  return new NextRequest('https://activities.local/api/inbox', {
+    method: 'POST',
+    headers: {
+      date: new Date().toUTCString(),
+      digest: `SHA-256=${digest}`,
+      signature: `keyId="${keyId}",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="signature"`
+    },
+    body: payload
+  })
+}
+
 describe('ActivityPubVerifySenderGuard', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockCanFederateWithDomain.mockResolvedValue(true)
     mockGetSenderPublicKey.mockResolvedValue('public-key')
+    mockGetSenderPublicKeyDetails.mockResolvedValue({
+      owner: 'https://remote.test/users/alice',
+      publicKey: 'public-key'
+    })
     mockVerify.mockResolvedValue(true)
   })
 
@@ -136,7 +164,10 @@ describe('ActivityPubVerifySenderGuard', () => {
   it('accepts a matching sha-256 value from a multi-value signed digest header', async () => {
     const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
-    const body = JSON.stringify({ type: 'Follow' })
+    const body = JSON.stringify({
+      actor: 'https://remote.test/users/alice',
+      type: 'Follow'
+    })
     const digest = crypto.createHash('sha256').update(body).digest('base64')
 
     const response = await guard(
@@ -182,5 +213,67 @@ describe('ActivityPubVerifySenderGuard', () => {
       expect.any(Headers),
       'public-key'
     )
+  })
+
+  it('rejects POST activities without a string actor', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      createSignedPostRequest({
+        body: {
+          id: 'https://remote.test/users/alice/activities/create-1',
+          type: 'Create'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('rejects POST activities when the signing key owner does not match the activity actor', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      createSignedPostRequest({
+        body: {
+          id: 'https://remote.test/users/mallory/activities/create-1',
+          type: 'Create',
+          actor: 'https://remote.test/users/mallory'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(403)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('accepts POST activities when a path-based signing key is owned by the activity actor', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+    const keyId = 'https://remote.test/users/alice/keys/main'
+
+    const response = await guard(
+      createSignedPostRequest({
+        keyId,
+        body: {
+          id: 'https://remote.test/users/alice/activities/create-1',
+          type: 'Create',
+          actor: 'https://remote.test/users/alice'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetSenderPublicKeyDetails).toHaveBeenCalledWith(
+      mockDatabase,
+      keyId
+    )
+    expect(handler).toHaveBeenCalled()
   })
 })
