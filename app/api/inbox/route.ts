@@ -2,6 +2,7 @@ import { StatusActivity } from '@/lib/activities/statusAction'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
@@ -12,6 +13,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 import { getJobMessage } from './getJobMessage'
 
@@ -19,18 +21,17 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 export const POST = traceApiRoute(
   'sharedInbox',
   ActivityPubVerifySenderGuard(async (request, { database }) => {
     const body = await request.json()
+    // The guard enforces signed POST actors; keep route validation before casting unknown JSON.
     if (
       !isRecord(body) ||
       typeof body.id !== 'string' ||
       typeof body.type !== 'string' ||
-      typeof body.actor !== 'string'
+      typeof body.actor !== 'string' ||
+      !normalizeActorId(body.actor)
     ) {
       return apiResponse({
         req: request,

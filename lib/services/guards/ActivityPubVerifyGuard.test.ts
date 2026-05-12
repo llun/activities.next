@@ -233,6 +233,25 @@ describe('ActivityPubVerifySenderGuard', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
+  it('rejects POST activities without a non-empty actor identity', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      createSignedPostRequest({
+        body: {
+          id: 'https://remote.test/users/alice/activities/create-1',
+          type: 'Create',
+          actor: ''
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
   it('rejects POST activities when the signing key owner does not match the activity actor', async () => {
     const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
@@ -274,6 +293,29 @@ describe('ActivityPubVerifySenderGuard', () => {
       mockDatabase,
       keyId
     )
+    expect(handler).toHaveBeenCalled()
+  })
+
+  it('accepts POST activities when actor and key owner only differ by fragment', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+    mockGetSenderPublicKeyDetails.mockResolvedValue({
+      owner: 'https://remote.test/users/alice#main-key',
+      publicKey: 'public-key'
+    })
+
+    const response = await guard(
+      createSignedPostRequest({
+        body: {
+          id: 'https://remote.test/users/alice/activities/create-1',
+          type: 'Create',
+          actor: 'https://remote.test/users/alice#activity'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
     expect(handler).toHaveBeenCalled()
   })
 })

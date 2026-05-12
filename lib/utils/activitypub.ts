@@ -1,5 +1,7 @@
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+import { isRecord } from '@/lib/utils/typeGuards'
+
+export const normalizeActorId = (actorId: string | null | undefined) =>
+  actorId?.split('#')[0] ?? null
 
 export const extractActivityPubId = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value

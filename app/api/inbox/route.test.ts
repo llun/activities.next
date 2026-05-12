@@ -66,7 +66,7 @@ describe('POST /api/inbox', () => {
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
-  it.each([undefined, null, 42, { id: 'https://invalid.test/users/a' }])(
+  it.each([undefined, null, '', 42, { id: 'https://invalid.test/users/a' }])(
     'rejects activities without a string actor',
     async (actor) => {
       const response = await POST(createRequest(actor), {

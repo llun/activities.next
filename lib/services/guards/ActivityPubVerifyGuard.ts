@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   StatusCode,
@@ -12,6 +13,7 @@ import {
   codeMap
 } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 import { getSenderPublicKeyDetails } from './getSenderPublicKey'
 import { headerHost } from './headerHost'
@@ -53,9 +55,6 @@ const getExpectedSha256Digest = (digestHeader: string) =>
     })
     .find((part) => part?.algorithm === 'sha-256')?.value
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 const getPostActivityActor = async (request: NextRequest) => {
   if (request.method.toUpperCase() !== 'POST') {
     return { actor: null, valid: true }
@@ -63,7 +62,11 @@ const getPostActivityActor = async (request: NextRequest) => {
 
   try {
     const body = (await request.clone().json()) as unknown
-    if (!isRecord(body) || typeof body.actor !== 'string') {
+    if (
+      !isRecord(body) ||
+      typeof body.actor !== 'string' ||
+      !normalizeActorId(body.actor)
+    ) {
       return { actor: null, valid: false }
     }
 
@@ -162,8 +165,13 @@ export const ActivityPubVerifySenderGuard =
       return guardErrorResponse(request, 400, allowedMethods)
     }
 
-    if (activityActor.actor && senderPublicKey.owner !== activityActor.actor) {
-      return guardErrorResponse(request, 403, allowedMethods)
+    if (activityActor.actor) {
+      const normalizedOwner = normalizeActorId(senderPublicKey.owner)
+      const normalizedActor = normalizeActorId(activityActor.actor)
+
+      if (!normalizedOwner || normalizedOwner !== normalizedActor) {
+        return guardErrorResponse(request, 403, allowedMethods)
+      }
     }
 
     return handle(request, { database, params: context.params })
