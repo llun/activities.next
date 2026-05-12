@@ -1,0 +1,19 @@
+lib/components/admin/EnvironmentVariables.tsx
+  s_905a36efc42cc8::t_d87efd84a40760 9,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "98673e64dc0a7dbcca121c5b9fdfd61c5d3e341c",
+  "prompts": {},
+  "sessions": {
+    "s_905a36efc42cc8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1a89-8cc8-7622-8891-8d80780383ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
