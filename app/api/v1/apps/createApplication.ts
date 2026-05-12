@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import type { Knex } from 'knex'
 
 import { getKnex } from '@/lib/database'
 import { Scope } from '@/lib/types/database/operations'
@@ -40,8 +41,75 @@ const validationErrorResponse = (): ErrorResponse => ({
   error: 'Failed to validate request'
 })
 
+type CreateApplicationOptions = {
+  registrationKey?: string
+  now?: Date
+}
+
+const APP_REGISTRATION_REFERENCE_PREFIX = 'app-registration:'
+const APP_REGISTRATION_LIMIT = 5
+const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
+const APP_REGISTRATION_GC_AFTER_MS = 24 * 60 * 60 * 1000
+
+const getRegistrationReference = (registrationKey?: string): string | null => {
+  if (!registrationKey) return null
+  return `${APP_REGISTRATION_REFERENCE_PREFIX}${registrationKey}`
+}
+
+const garbageCollectStaleAppRegistrations = async (db: Knex, now: Date) => {
+  const staleBefore = new Date(now.getTime() - APP_REGISTRATION_GC_AFTER_MS)
+  const staleClientIds = await db('oauthClient')
+    .leftJoin(
+      'oauthAccessToken',
+      'oauthAccessToken.clientId',
+      'oauthClient.clientId'
+    )
+    .leftJoin(
+      'oauthRefreshToken',
+      'oauthRefreshToken.clientId',
+      'oauthClient.clientId'
+    )
+    .leftJoin('oauthConsent', 'oauthConsent.clientId', 'oauthClient.clientId')
+    .where(
+      'oauthClient.referenceId',
+      'like',
+      `${APP_REGISTRATION_REFERENCE_PREFIX}%`
+    )
+    .where('oauthClient.createdAt', '<', staleBefore)
+    .whereNull('oauthAccessToken.id')
+    .whereNull('oauthRefreshToken.id')
+    .whereNull('oauthConsent.id')
+    .pluck('oauthClient.clientId')
+
+  if (staleClientIds.length > 0) {
+    await db('oauthClient').whereIn('clientId', staleClientIds).delete()
+  }
+}
+
+const isAppRegistrationRateLimited = async ({
+  db,
+  now,
+  registrationReference
+}: {
+  db: Knex
+  now: Date
+  registrationReference: string | null
+}): Promise<boolean> => {
+  if (!registrationReference) return false
+
+  const windowStart = new Date(now.getTime() - APP_REGISTRATION_WINDOW_MS)
+  const countResult = await db('oauthClient')
+    .where('referenceId', registrationReference)
+    .where('createdAt', '>=', windowStart)
+    .count<{ count: number | string | bigint }[]>({ count: '*' })
+    .first()
+
+  return Number(countResult?.count ?? 0) >= APP_REGISTRATION_LIMIT
+}
+
 export const createApplication = async (
-  request: PostRequest
+  request: PostRequest,
+  options: CreateApplicationOptions = {}
 ): Promise<PostResponse> => {
   return getTracer().startActiveSpan(
     'createApplication',
@@ -51,14 +119,28 @@ export const createApplication = async (
       const db = getKnex()
 
       try {
+        const now = options.now ?? new Date()
+        const registrationReference = getRegistrationReference(
+          options.registrationKey
+        )
+
+        await garbageCollectStaleAppRegistrations(db, now)
+        if (
+          await isAppRegistrationRateLimited({
+            db,
+            now,
+            registrationReference
+          })
+        ) {
+          return ErrorResponse.parse({
+            type: 'error',
+            error: 'Too many application registrations'
+          })
+        }
+
         // Always create a new client — per the Mastodon API spec, each POST
         // creates a new application with fresh credentials. Silent secret
         // rotation on re-registration would break existing configured clients.
-        //
-        // NOTE: This means popular apps (Ivory, Ice Cubes, etc.) that call
-        // POST /api/v1/apps on every login will accumulate orphaned client
-        // rows. Operators should periodically clean up stale oauthClient rows
-        // that have no associated active tokens or consents.
         const clientId = generateRandomString(32)
         const clientSecret = generateRandomString(32)
         const hashedSecret = hashClientSecret(clientSecret)
@@ -97,8 +179,6 @@ export const createApplication = async (
             return validationErrorResponse()
           }
         }
-        const now = new Date()
-
         const dbId = crypto.randomUUID()
         await db('oauthClient').insert({
           id: dbId,
@@ -108,7 +188,7 @@ export const createApplication = async (
           scopes: JSON.stringify(parsedScopes),
           redirectUris: JSON.stringify(redirectUris),
           uri: request.website || null,
-          requirePKCE: false,
+          requirePKCE: true,
           disabled: false,
           grantTypes: JSON.stringify([
             'authorization_code',
@@ -117,6 +197,8 @@ export const createApplication = async (
           ]),
           responseTypes: JSON.stringify(['code']),
           tokenEndpointAuthMethod: 'client_secret_post',
+          referenceId: registrationReference,
+          metadata: JSON.stringify({ registeredUnauthenticated: true }),
           createdAt: now,
           updatedAt: now
         })

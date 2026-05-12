@@ -4,7 +4,7 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { seedDatabase } from '@/lib/stub/database'
 
 import { createApplication } from './createApplication'
-import { SuccessResponse } from './types'
+import { PostResponse, SuccessResponse } from './types'
 
 // Create a knex instance we can use for both the database and for getKnex mock
 const knexDatabase = knex({
@@ -159,5 +159,113 @@ describe('createApplication', () => {
     })) as SuccessResponse
     expect(response.type).toEqual('success')
     expect(response.redirect_uri).toEqual('https://test.llun.dev/callback')
+  })
+
+  test('it rate limits app registration floods from the same unauthenticated source', async () => {
+    const registrationKey = 'flood-source'
+    const now = new Date('2026-05-12T12:00:00.000Z')
+    const responses: PostResponse[] = []
+
+    for (let i = 0; i < 6; i++) {
+      responses.push(
+        await createApplication(
+          {
+            redirect_uris: `https://flood-${i}.llun.dev/callback`,
+            client_name: `floodClient${i}`,
+            scopes: 'read',
+            website: `https://flood-${i}.llun.dev`
+          },
+          { registrationKey, now }
+        )
+      )
+    }
+
+    expect(
+      responses.slice(0, 5).every((response) => response.type === 'success')
+    ).toBe(true)
+    expect(responses[5]).toEqual({
+      type: 'error',
+      error: 'Too many application registrations'
+    })
+
+    const rows = await knexDatabase('oauthClient')
+      .where('referenceId', `app-registration:${registrationKey}`)
+      .select()
+    expect(rows).toHaveLength(5)
+  })
+
+  test('it garbage-collects stale unused app registrations without deleting token-backed clients', async () => {
+    const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
+    const now = new Date('2026-05-12T12:00:00.000Z')
+
+    await knexDatabase('oauthClient').insert([
+      {
+        id: 'stale-unused-client-id',
+        clientId: 'stale-unused-client',
+        clientSecret: 'hashed-secret',
+        name: 'stale-unused',
+        scopes: JSON.stringify(['read']),
+        redirectUris: JSON.stringify([
+          'https://stale-unused.llun.dev/callback'
+        ]),
+        requirePKCE: true,
+        disabled: false,
+        grantTypes: JSON.stringify(['authorization_code']),
+        responseTypes: JSON.stringify(['code']),
+        tokenEndpointAuthMethod: 'client_secret_post',
+        referenceId: 'app-registration:stale-unused',
+        createdAt: staleCreatedAt,
+        updatedAt: staleCreatedAt
+      },
+      {
+        id: 'stale-active-client-id',
+        clientId: 'stale-active-client',
+        clientSecret: 'hashed-secret',
+        name: 'stale-active',
+        scopes: JSON.stringify(['read']),
+        redirectUris: JSON.stringify([
+          'https://stale-active.llun.dev/callback'
+        ]),
+        requirePKCE: true,
+        disabled: false,
+        grantTypes: JSON.stringify(['authorization_code']),
+        responseTypes: JSON.stringify(['code']),
+        tokenEndpointAuthMethod: 'client_secret_post',
+        referenceId: 'app-registration:stale-active',
+        createdAt: staleCreatedAt,
+        updatedAt: staleCreatedAt
+      }
+    ])
+    await knexDatabase('oauthAccessToken').insert({
+      id: 'stale-active-token-id',
+      token: 'stale-active-token',
+      clientId: 'stale-active-client',
+      referenceId: null,
+      expiresAt: new Date('2026-05-13T00:00:00.000Z'),
+      scopes: JSON.stringify(['read'])
+    })
+
+    await createApplication(
+      {
+        redirect_uris: 'https://gc.llun.dev/callback',
+        client_name: 'gcClient',
+        scopes: 'read',
+        website: 'https://gc.llun.dev'
+      },
+      { registrationKey: 'gc-source', now }
+    )
+
+    await expect(
+      knexDatabase('oauthClient')
+        .where('clientId', 'stale-unused-client')
+        .first()
+    ).resolves.toBeUndefined()
+    await expect(
+      knexDatabase('oauthClient')
+        .where('clientId', 'stale-active-client')
+        .first()
+    ).resolves.toEqual(
+      expect.objectContaining({ clientId: 'stale-active-client' })
+    )
   })
 })

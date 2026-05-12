@@ -60,6 +60,32 @@ export const getTokenFromHeader = (
   return parts[1] || null
 }
 
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+const getOrigin = (value: string | null): string | null => {
+  if (!value) return null
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
+  }
+}
+
+const hasSameOriginProof = (req: NextRequest): boolean => {
+  if (!STATE_CHANGING_METHODS.has(req.method)) return true
+
+  const allowedOrigins = new Set([new URL(getBaseURL()).origin])
+  if (req.nextUrl?.origin) allowedOrigins.add(req.nextUrl.origin)
+
+  const origin = getOrigin(req.headers.get('Origin'))
+  if (origin) return allowedOrigins.has(origin)
+
+  const referer = getOrigin(req.headers.get('Referer'))
+  if (referer) return allowedOrigins.has(referer)
+
+  return false
+}
+
 type ScopeMatchMode = 'all' | 'any'
 
 type GuardContext<P> = {
@@ -88,139 +114,145 @@ const resolveAuthenticatedContext = async <P>({
     return { authenticated: false, response: apiErrorResponse(500) }
   }
 
-  const session = await getServerAuthSession()
-  if (session?.user?.email) {
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return { authenticated: false, response: apiErrorResponse(401) }
-    }
-    return {
-      authenticated: true,
-      context: { currentActor, database, params: context.params }
-    }
-  }
-
   const authorizationToken = req.headers.get('Authorization')
-  const token = getTokenFromHeader(authorizationToken)
-  if (!token) {
-    if (authorizationToken) {
+  if (authorizationToken) {
+    const token = getTokenFromHeader(authorizationToken)
+    if (!token) {
       return { authenticated: false, response: apiErrorResponse(401) }
     }
-    return { authenticated: false }
-  }
 
-  const baseURL = getBaseURL()
-  const jwksUrl = `${baseURL}/api/auth/jwks`
+    const baseURL = getBaseURL()
+    const jwksUrl = `${baseURL}/api/auth/jwks`
 
-  // Distinguish JWT from opaque tokens by format: JWTs have three
-  // dot-separated segments. This prevents tampered/expired JWTs from
-  // falling through to the opaque DB lookup path.
-  let jwtPayload: Record<string, unknown> | null = null
-  let grantedScopes: string[] = []
+    // Distinguish JWT from opaque tokens by format: JWTs have three
+    // dot-separated segments. This prevents tampered/expired JWTs from
+    // falling through to the opaque DB lookup path.
+    let jwtPayload: Record<string, unknown> | null = null
+    let grantedScopes: string[] = []
 
-  if (isJwtFormat(token)) {
     try {
-      jwtPayload = (await verifyAccessToken(token, {
-        jwksUrl,
-        // For 'any' mode, skip scope checking in verifyAccessToken
-        // and do it manually below
-        scopes: matchMode === 'all' ? scopes : [],
-        verifyOptions: {
-          issuer: baseURL,
-          audience: baseURL
-        }
-      })) as Record<string, unknown>
-    } catch {
-      // JWT verification failed (expired, invalid signature, wrong scope,
-      // etc.) — reject immediately, do NOT fall through to opaque lookup
-      return { authenticated: false, response: apiErrorResponse(401) }
-    }
-
-    const jwtScope = jwtPayload.scope as string | undefined
-    const jwtScopes = jwtScope ? jwtScope.split(' ') : []
-    grantedScopes = jwtScopes
-
-    if (matchMode === 'all') {
-      // Defense-in-depth: explicitly verify JWT scope claims in case
-      // verifyAccessToken's scope checking changes in a future version
-      for (const scope of scopes) {
-        if (!jwtScopes.includes(scope)) {
+      if (isJwtFormat(token)) {
+        try {
+          jwtPayload = (await verifyAccessToken(token, {
+            jwksUrl,
+            // For 'any' mode, skip scope checking in verifyAccessToken
+            // and do it manually below
+            scopes: matchMode === 'all' ? scopes : [],
+            verifyOptions: {
+              issuer: baseURL,
+              audience: baseURL
+            }
+          })) as Record<string, unknown>
+        } catch {
+          // JWT verification failed (expired, invalid signature, wrong scope,
+          // etc.) — reject immediately, do NOT fall through to opaque lookup
           return { authenticated: false, response: apiErrorResponse(401) }
         }
-      }
-    } else {
-      // 'any' mode: at least one required scope must be present
-      const hasAny = scopes.some((scope) => jwtScopes.includes(scope))
-      if (!hasAny) {
-        return { authenticated: false, response: apiErrorResponse(401) }
-      }
-    }
-  }
 
-  try {
-    // Verify the token exists in DB (revocation check for JWTs,
-    // primary auth check for opaque tokens).
-    // better-auth's storeToken() hashes ALL token types (JWT and opaque)
-    // via defaultHasher (SHA-256 base64url) before storing in the
-    // oauthAccessToken.token column.
-    // See: @better-auth/oauth-provider/dist/utils-DgozotLg.mjs storeToken()
-    const db = getKnex()
-    const storedToken = await db('oauthAccessToken')
-      .where('token', hashToken(token))
-      .first()
-    if (!storedToken) {
-      return { authenticated: false, response: apiErrorResponse(401) }
-    }
+        const jwtScope = jwtPayload.scope as string | undefined
+        const jwtScopes = jwtScope ? jwtScope.split(' ') : []
+        grantedScopes = jwtScopes
 
-    // For opaque tokens, check expiration and scopes manually
-    // (JWT verification already handles these for JWT tokens)
-    if (!jwtPayload) {
-      if (new Date(storedToken.expiresAt) < new Date()) {
-        return { authenticated: false, response: apiErrorResponse(401) }
-      }
-      const storedScopes = parseStoredScopes(storedToken.scopes as string)
-      grantedScopes = storedScopes
-
-      if (matchMode === 'all') {
-        for (const scope of scopes) {
-          if (!storedScopes.includes(scope)) {
+        if (matchMode === 'all') {
+          // Defense-in-depth: explicitly verify JWT scope claims in case
+          // verifyAccessToken's scope checking changes in a future version
+          for (const scope of scopes) {
+            if (!jwtScopes.includes(scope)) {
+              return { authenticated: false, response: apiErrorResponse(401) }
+            }
+          }
+        } else {
+          // 'any' mode: at least one required scope must be present
+          const hasAny = scopes.some((scope) => jwtScopes.includes(scope))
+          if (!hasAny) {
             return { authenticated: false, response: apiErrorResponse(401) }
           }
         }
-      } else {
-        const hasAny = scopes.some((scope) => storedScopes.includes(scope))
-        if (!hasAny) {
+      }
+
+      // Verify the token exists in DB (revocation check for JWTs,
+      // primary auth check for opaque tokens).
+      // better-auth's storeToken() hashes ALL token types (JWT and opaque)
+      // via defaultHasher (SHA-256 base64url) before storing in the
+      // oauthAccessToken.token column.
+      // See: @better-auth/oauth-provider/dist/utils-DgozotLg.mjs storeToken()
+      const db = getKnex()
+      const storedToken = await db('oauthAccessToken')
+        .where('token', hashToken(token))
+        .first()
+      if (!storedToken) {
+        return { authenticated: false, response: apiErrorResponse(401) }
+      }
+
+      // For opaque tokens, check expiration and scopes manually
+      // (JWT verification already handles these for JWT tokens)
+      if (!jwtPayload) {
+        if (new Date(storedToken.expiresAt) < new Date()) {
           return { authenticated: false, response: apiErrorResponse(401) }
         }
+        const storedScopes = parseStoredScopes(storedToken.scopes as string)
+        grantedScopes = storedScopes
+
+        if (matchMode === 'all') {
+          for (const scope of scopes) {
+            if (!storedScopes.includes(scope)) {
+              return { authenticated: false, response: apiErrorResponse(401) }
+            }
+          }
+        } else {
+          const hasAny = scopes.some((scope) => storedScopes.includes(scope))
+          if (!hasAny) {
+            return { authenticated: false, response: apiErrorResponse(401) }
+          }
+        }
       }
-    }
 
-    // Extract actorId: from JWT claims or from stored referenceId (opaque)
-    const actorId = jwtPayload
-      ? (jwtPayload.actorId as string | null)
-      : (storedToken.referenceId as string | null)
+      // Extract actorId: from JWT claims or from stored referenceId (opaque)
+      const actorId = jwtPayload
+        ? (jwtPayload.actorId as string | null)
+        : (storedToken.referenceId as string | null)
 
-    if (!actorId) {
-      return { authenticated: false, response: apiErrorResponse(401) }
-    }
-
-    const actor = await database.getActorFromId({ id: actorId })
-    if (!actor) {
-      return { authenticated: false, response: apiErrorResponse(401) }
-    }
-
-    return {
-      authenticated: true,
-      context: {
-        currentActor: Actor.parse(actor),
-        database,
-        params: context.params,
-        grantedScopes
+      if (!actorId) {
+        return { authenticated: false, response: apiErrorResponse(401) }
       }
+
+      const actor = await database.getActorFromId({ id: actorId })
+      if (!actor) {
+        return { authenticated: false, response: apiErrorResponse(401) }
+      }
+
+      return {
+        authenticated: true,
+        context: {
+          currentActor: Actor.parse(actor),
+          database,
+          params: context.params,
+          grantedScopes
+        }
+      }
+    } catch (e) {
+      logger.error(e as Error)
+      return { authenticated: false, response: apiErrorResponse(500) }
     }
-  } catch (e) {
-    logger.error(e as Error)
-    return { authenticated: false, response: apiErrorResponse(500) }
+  }
+
+  const session = await getServerAuthSession()
+  if (!session?.user?.email) {
+    return { authenticated: false }
+  }
+
+  if (!hasSameOriginProof(req)) {
+    return { authenticated: false, response: apiErrorResponse(403) }
+  }
+
+  const currentActor = await getActorFromSession(database, session)
+  if (!currentActor) {
+    return { authenticated: false, response: apiErrorResponse(401) }
+  }
+
+  return {
+    authenticated: true,
+    context: { currentActor, database, params: context.params }
   }
 }
 

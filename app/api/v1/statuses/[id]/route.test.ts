@@ -731,7 +731,8 @@ describe('GET /api/v1/statuses/[id]', () => {
               spoiler_text: ''
             }),
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
             }
           }
         ),
@@ -773,7 +774,8 @@ describe('GET /api/v1/statuses/[id]', () => {
               spoiler_text: null
             }),
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
             }
           }
         ),
@@ -815,7 +817,8 @@ describe('GET /api/v1/statuses/[id]', () => {
               spoiler_text: ''
             }),
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
             }
           }
         ),

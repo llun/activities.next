@@ -89,7 +89,8 @@ describe('POST /api/v1/statuses', () => {
           media_ids: [media!.id]
         }),
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
         }
       }),
       { params: Promise.resolve({}) }
@@ -160,7 +161,8 @@ describe('POST /api/v1/statuses', () => {
         method: 'POST',
         body,
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Origin: 'https://llun.test'
         }
       }),
       { params: Promise.resolve({}) }
@@ -218,7 +220,8 @@ describe('POST /api/v1/statuses', () => {
     const request = new NextRequest('https://llun.test/api/v1/statuses', {
       method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data; boundary=test-boundary'
+        'Content-Type': 'multipart/form-data; boundary=test-boundary',
+        Origin: 'https://llun.test'
       }
     })
     Object.defineProperty(request, 'formData', {
@@ -255,7 +258,8 @@ describe('POST /api/v1/statuses', () => {
           status: '   '
         }),
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
         }
       }),
       { params: Promise.resolve({}) }
@@ -287,7 +291,8 @@ describe('POST /api/v1/statuses', () => {
           media_ids: [media!.id]
         }),
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
         }
       }),
       { params: Promise.resolve({}) }
@@ -321,7 +326,8 @@ describe('POST /api/v1/statuses', () => {
           media_ids: mediaIds
         }),
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
         }
       }),
       { params: Promise.resolve({}) }

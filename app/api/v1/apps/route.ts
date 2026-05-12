@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
@@ -17,6 +18,17 @@ import { PostRequest } from './types'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+const getAppRegistrationKey = (req: NextRequest): string => {
+  const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const ipAddress =
+    forwardedFor ||
+    req.headers.get('cf-connecting-ip') ||
+    req.headers.get('x-real-ip') ||
+    'unknown'
+
+  return crypto.createHash('sha256').update(ipAddress).digest('base64url')
+}
 
 export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
   const database = getDatabase()
@@ -39,7 +51,9 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
       responseStatusCode: 422
     })
   }
-  const response = await createApplication(parseResult.data)
+  const response = await createApplication(parseResult.data, {
+    registrationKey: getAppRegistrationKey(req)
+  })
 
   const { type, ...rest } = response
   if (type === 'error') {
