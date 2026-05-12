@@ -21,23 +21,10 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const getActivityBody = async (
-  request: Request,
-  activityBody: unknown | null
-) => {
-  if (activityBody !== null) return activityBody
-
-  try {
-    return (await request.json()) as unknown
-  } catch {
-    return null
-  }
-}
-
 export const POST = traceApiRoute(
   'sharedInbox',
   ActivityPubVerifySenderGuard(async (request, { activityBody, database }) => {
-    const body = await getActivityBody(request, activityBody)
+    const body = activityBody
     const actor = isRecord(body) ? extractActivityPubId(body.actor) : undefined
 
     // The guard enforces signed POST actors; keep route validation before casting unknown JSON.

@@ -20,7 +20,7 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       handle: (
         req: NextRequest,
         context: {
-          activityBody: unknown | null
+          activityBody: unknown
           database: typeof mockDatabase
           params: Promise<{}>
         }
