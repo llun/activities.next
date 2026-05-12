@@ -9,6 +9,7 @@ import { getTracer } from '@/lib/utils/trace'
 
 const PublicKeyDocument = z
   .object({
+    id: z.string(),
     owner: z.string(),
     publicKeyPem: z.string()
   })
@@ -52,12 +53,20 @@ const getLocalSenderPublicKeyDetails = async (
   }
 }
 
-const parseSenderPublicKeyDetails = (
+const parseSenderPublicKeyDetails = ({
+  body,
+  keyId
+}: {
   body: string
-): SenderPublicKeyDetails | null => {
+  keyId: string
+}): SenderPublicKeyDetails | null => {
   const json = JSON.parse(body)
   const actor = Actor.safeParse(json)
   if (actor.success) {
+    if (actor.data.id !== keyId && actor.data.publicKey.id !== keyId) {
+      return null
+    }
+
     return {
       owner: actor.data.publicKey.owner,
       publicKey: actor.data.publicKey.publicKeyPem
@@ -66,6 +75,7 @@ const parseSenderPublicKeyDetails = (
 
   const publicKeyDocument = PublicKeyDocument.safeParse(json)
   if (!publicKeyDocument.success) return null
+  if (publicKeyDocument.data.id !== keyId) return null
 
   return {
     owner: publicKeyDocument.data.owner,
@@ -92,7 +102,10 @@ const fetchSenderPublicKeyDetails = async (
   }
 
   return {
-    details: parseSenderPublicKeyDetails(response.body),
+    details: parseSenderPublicKeyDetails({
+      body: response.body,
+      keyId: actorId
+    }),
     statusCode: response.statusCode
   }
 }

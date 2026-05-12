@@ -83,6 +83,25 @@ describe('getSenderPublicKey', () => {
     })
   })
 
+  it('rejects public key documents that do not match the requested key id', async () => {
+    const keyId = 'https://remote.test/users/test1/keys/main'
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: 'https://remote.test/users/test1/keys/other',
+        owner: 'https://remote.test/users/test1',
+        publicKeyPem: 'wrong-key'
+      }),
+      { status: 200 }
+    )
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({
+      owner: null,
+      publicKey: ''
+    })
+  })
+
   it('signs remote public key fetches with a local actor', async () => {
     const actorId = 'https://remote.test/users/signed-key'
     const publicKey = await getSenderPublicKey(database, actorId)
