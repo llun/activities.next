@@ -24,6 +24,7 @@ import {
   Reject,
   Undo
 } from '@/lib/types/activitypub'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -70,6 +71,16 @@ const Activity = z.union([
   GracefullyAcceptedActivity
 ])
 
+const actorIdsMatch = (firstActorId: string, secondActorId: string) => {
+  const normalizedFirstActorId = normalizeActorId(firstActorId)
+  const normalizedSecondActorId = normalizeActorId(secondActorId)
+
+  return (
+    Boolean(normalizedFirstActorId) &&
+    normalizedFirstActorId === normalizedSecondActorId
+  )
+}
+
 const logAcceptedWithoutSideEffects = ({
   activity,
   reason
@@ -104,9 +115,7 @@ export const POST = traceApiRoute(
               })
             }
 
-            const parsed = Activity.safeParse(
-              context.activityBody ?? (await req.json())
-            )
+            const parsed = Activity.safeParse(context.activityBody)
             if (!parsed.success) {
               return apiResponse({
                 req,
@@ -239,6 +248,15 @@ export const POST = traceApiRoute(
 
                 const undoFollow = Follow.safeParse(undoObject)
                 if (undoFollow.success) {
+                  if (!actorIdsMatch(activity.actor, undoFollow.data.actor)) {
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: ERROR_403,
+                      responseStatusCode: 403
+                    })
+                  }
+
                   const result = await undoFollowRequest({
                     database,
                     request: {
@@ -281,6 +299,15 @@ export const POST = traceApiRoute(
 
                 const undoBlock = Block.safeParse(undoObject)
                 if (undoBlock.success) {
+                  if (!actorIdsMatch(activity.actor, undoBlock.data.actor)) {
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: ERROR_403,
+                      responseStatusCode: 403
+                    })
+                  }
+
                   const result = await applyRemoteUnblock({
                     database,
                     actorId: activity.actor,
