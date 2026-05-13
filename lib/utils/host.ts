@@ -16,6 +16,7 @@ const MAX_HOST_CACHE_ENTRIES = 1024
 const MAX_HOST_RULES_CACHE_ENTRIES = 256
 
 const normalizedRulesCache = new Map<string, string[]>()
+const DEFAULT_HTTPS_PORT = '443'
 
 type HostParts = {
   hasWildcard: boolean
@@ -99,6 +100,9 @@ const getHostParts = (normalizedHost: string) => {
   return hostParts
 }
 
+const getPortForRuleMatching = (port: string) =>
+  port === DEFAULT_HTTPS_PORT ? '' : port
+
 export const normalizeHostRules = (rules: readonly string[]) => {
   const cacheKey = JSON.stringify(rules)
   const cachedRules = normalizedRulesCache.get(cacheKey)
@@ -135,13 +139,15 @@ export const hostMatchesRule = (host: string, normalizedRule: string) => {
   if (ruleParts.hasWildcard) {
     return (
       hostParts.hostname.endsWith(`.${ruleParts.hostname}`) &&
-      hostParts.port === ruleParts.port
+      getPortForRuleMatching(hostParts.port) ===
+        getPortForRuleMatching(ruleParts.port)
     )
   }
 
   return (
     hostParts.hostname === ruleParts.hostname &&
-    hostParts.port === ruleParts.port
+    getPortForRuleMatching(hostParts.port) ===
+      getPortForRuleMatching(ruleParts.port)
   )
 }
 

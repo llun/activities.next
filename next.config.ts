@@ -1,35 +1,61 @@
 import fs from 'fs'
-import { NextConfig } from 'next'
+import type { NextConfig } from 'next'
 import path from 'path'
+import { z } from 'zod'
 
-const getProxyHostConfigEnv = () => {
+const ProxyFileHostConfig = z.object({
+  host: z.string(),
+  secretPhase: z.string(),
+  allowEmails: z.string().array(),
+  database: z.unknown(),
+  allowActorDomains: z.string().array().optional(),
+  trustedHosts: z.string().array().optional()
+})
+
+const getEnvironmentList = (key: string): string[] => {
   try {
-    const parsed = JSON.parse(
-      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
-    )
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {}
-    }
+    const value = JSON.parse(process.env[key] || '[]')
+    return Array.isArray(value) ? value.filter(Boolean).map(String) : []
+  } catch {
+    return []
+  }
+}
 
-    const fileConfig = parsed as {
-      host?: unknown
-      allowActorDomains?: unknown
-      trustedHosts?: unknown
-    }
+const getEnvironmentProxyHostConfig = () => ({
+  host: process.env.ACTIVITIES_HOST || '',
+  allowActorDomains: getEnvironmentList('ACTIVITIES_ALLOW_ACTOR_DOMAINS'),
+  trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
+})
+
+const getFileProxyHostConfig = () => {
+  try {
+    const parsed = ProxyFileHostConfig.parse(
+      JSON.parse(
+        fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+      )
+    )
 
     return {
-      ACTIVITIES_PROXY_HOST_CONFIG: JSON.stringify({
-        host: typeof fileConfig.host === 'string' ? fileConfig.host : '',
-        allowActorDomains: Array.isArray(fileConfig.allowActorDomains)
-          ? fileConfig.allowActorDomains
-          : [],
-        trustedHosts: Array.isArray(fileConfig.trustedHosts)
-          ? fileConfig.trustedHosts
-          : []
-      })
+      host: parsed.host,
+      allowActorDomains: parsed.allowActorDomains ?? [],
+      trustedHosts: parsed.trustedHosts ?? []
     }
   } catch {
-    return {}
+    return null
+  }
+}
+
+export const getProxyHostConfigEnv = () => {
+  const config = getFileProxyHostConfig() ?? getEnvironmentProxyHostConfig()
+
+  if (!config.host && config.allowActorDomains.length === 0) {
+    return config.trustedHosts.length === 0
+      ? {}
+      : { ACTIVITIES_PROXY_HOST_CONFIG: JSON.stringify(config) }
+  }
+
+  return {
+    ACTIVITIES_PROXY_HOST_CONFIG: JSON.stringify(config)
   }
 }
 

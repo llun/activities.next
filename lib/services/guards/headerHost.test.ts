@@ -38,10 +38,18 @@ describe('#headerHost', () => {
       expect(headerHost(headers)).toEqual('test-forwarded.llun.dev')
     })
 
-    it('rejects trusted forwarded hosts with an unconfigured default proxy port', () => {
+    it('returns trusted forwarded hosts with an explicit default HTTPS port', () => {
       const headers = new Headers([
         ['Host', 'test.llun.dev'],
         ['X-Forwarded-Host', 'test-forwarded.llun.dev:443']
+      ])
+      expect(headerHost(headers)).toEqual('test-forwarded.llun.dev:443')
+    })
+
+    it('rejects trusted forwarded hosts with an unconfigured non-default proxy port', () => {
+      const headers = new Headers([
+        ['Host', 'test.llun.dev'],
+        ['X-Forwarded-Host', 'test-forwarded.llun.dev:8443']
       ])
       expect(headerHost(headers)).toEqual('test.llun.dev')
     })

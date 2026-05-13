@@ -10,13 +10,13 @@ describe('isHostTrustedByRules', () => {
     resetHostCachesForTests()
   })
 
-  it('matches a rule without a port only when the host has no non-default port', () => {
+  it('matches a rule without a port when the host has no port or the default HTTPS port', () => {
     expect(
       isHostTrustedByRules('edge.example.com', ['edge.example.com'])
     ).toBeTrue()
     expect(
       isHostTrustedByRules('edge.example.com:443', ['edge.example.com'])
-    ).toBeFalse()
+    ).toBeTrue()
     expect(
       isHostTrustedByRules('edge.example.com:8443', ['edge.example.com'])
     ).toBeFalse()
@@ -34,13 +34,16 @@ describe('isHostTrustedByRules', () => {
     ).toBeFalse()
   })
 
-  it('preserves explicit default ports for exact rule matching', () => {
+  it('preserves explicit non-default port behavior for exact rule matching', () => {
     expect(normalizeHost('edge.example.com:443')).toBe('edge.example.com:443')
     expect(
       isHostTrustedByRules('edge.example.com:443', ['edge.example.com:443'])
     ).toBeTrue()
     expect(
       isHostTrustedByRules('edge.example.com', ['edge.example.com:443'])
+    ).toBeTrue()
+    expect(
+      isHostTrustedByRules('edge.example.com', ['edge.example.com:8443'])
     ).toBeFalse()
   })
 
@@ -70,5 +73,17 @@ describe('isHostTrustedByRules', () => {
     }
 
     expect(getHostCacheSizesForTests().hostParts).toBeLessThanOrEqual(1024)
+  })
+
+  it('bounds normalized host rules cache entries', () => {
+    for (let index = 0; index < 300; index += 1) {
+      expect(
+        isHostTrustedByRules(`tenant-${index}.edge.example.com`, [
+          `tenant-${index}.edge.example.com`
+        ])
+      ).toBeTrue()
+    }
+
+    expect(getHostCacheSizesForTests().normalizedRules).toBeLessThanOrEqual(256)
   })
 })
