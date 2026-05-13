@@ -1,0 +1,35 @@
+lib/utils/text/sanitizeText.test.ts
+  s_5eb7f416e121b2::t_bdc8ad0ac0707d 127,130,133,136,142,148
+lib/utils/text/processStatusText.test.ts
+  s_5eb7f416e121b2::t_a7980c0b32ad66 6,166-193
+lib/utils/text/sanitizeText.ts
+  s_5eb7f416e121b2::t_eaee998b710427 20,30,49-51,53-64,68-69,79,83
+  s_8f8c7653879d27::t_538bb50de3eaef 52,80-82,84
+lib/utils/text/processStatusText.ts
+  s_5eb7f416e121b2::t_fe6d06dd7212cd 6,9,39
+  s_8f8c7653879d27::t_538bb50de3eaef 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "891b10b12785ee6aa106d412f4dd05f8bd9bc11a",
+  "prompts": {},
+  "sessions": {
+    "s_5eb7f416e121b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2078-1dd4-7b33-85a1-6b34f56b7450",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
