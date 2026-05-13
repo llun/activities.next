@@ -1,5 +1,9 @@
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 
+type NormalizeHostOptions = {
+  allowWildcard?: boolean
+}
+
 type HostRuleConfig = {
   host?: string | null
   allowActorDomains?: readonly string[] | null
@@ -47,6 +51,11 @@ const getAuthority = (value: string): string => {
   return withoutScheme.split(/[/?#]/)[0]
 }
 
+const hasOnlyAuthority = (value: string) => {
+  const withoutScheme = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+  return !/[@/?#]/.test(withoutScheme)
+}
+
 const getExplicitPort = (value: string): string => {
   const authority = getAuthority(value)
   const bracketedPort = authority.match(/^\[[^\]]+\]:(\d+)$/)
@@ -76,12 +85,15 @@ const isLocalHostname = (hostname: string) => {
 }
 
 export const normalizeHost = (
-  value: string | undefined | null
+  value: string | undefined | null,
+  { allowWildcard = true }: NormalizeHostOptions = {}
 ): string | null => {
   const firstHost = value?.split(',')[0]?.trim()
   if (!firstHost || firstHost.startsWith('0.0.0.0')) return null
   const hasWildcard = firstHost.startsWith('*.')
+  if (hasWildcard && !allowWildcard) return null
   const hostToParse = hasWildcard ? firstHost.slice(2) : firstHost
+  if (!hasOnlyAuthority(hostToParse)) return null
   if (isSocketStyleHost(hostToParse)) return null
 
   const explicitPort = getExplicitPort(hostToParse)
@@ -182,7 +194,7 @@ export const isHostTrustedByRules = (
   host: string | undefined | null,
   rules: readonly string[]
 ) => {
-  const normalizedHost = normalizeHost(host)
+  const normalizedHost = normalizeHost(host, { allowWildcard: false })
   if (!normalizedHost) return false
 
   return normalizeHostRules(rules).some((rule) =>
@@ -231,7 +243,7 @@ export const selectHeaderHost = (
     const headerHost = getHeaderValue(headers, headerName)
     if (!headerHost) continue
 
-    const normalizedHost = normalizeHost(headerHost)
+    const normalizedHost = normalizeHost(headerHost, { allowWildcard: false })
     if (!normalizedHost) continue
 
     return isHostTrustedByRules(normalizedHost, getTrustedHostRules(config))

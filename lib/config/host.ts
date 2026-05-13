@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+
 export type HostConfig = {
   host: string
   allowActorDomains: string[]
@@ -39,23 +42,31 @@ const getEnvironmentList = (
   }
 }
 
-const getInjectedProxyHostConfig = (): HostConfig | null => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const getFileProxyHostConfig = (): HostConfig | null => {
   try {
     const parsed = JSON.parse(
-      process.env.ACTIVITIES_PROXY_HOST_CONFIG || 'null'
+      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
     )
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (!isRecord(parsed)) {
       return null
     }
 
-    const config = parsed as Partial<HostConfig>
+    const hasHostConfig =
+      typeof parsed.host === 'string' ||
+      Array.isArray(parsed.allowActorDomains) ||
+      Array.isArray(parsed.trustedHosts)
+    if (!hasHostConfig) return null
+
     return {
-      host: typeof config.host === 'string' ? config.host : '',
+      host: typeof parsed.host === 'string' ? parsed.host : '',
       allowActorDomains: toStringList(
-        config.allowActorDomains,
+        parsed.allowActorDomains,
         'allowActorDomains'
       ),
-      trustedHosts: toStringList(config.trustedHosts, 'trustedHosts')
+      trustedHosts: toStringList(parsed.trustedHosts, 'trustedHosts')
     }
   } catch {
     return null
@@ -84,7 +95,7 @@ export const getProxyHostConfig = (): HostConfig => {
   if (cachedProxyHostConfig) return cachedProxyHostConfig
 
   cachedProxyHostConfig =
-    getInjectedProxyHostConfig() ?? getHostConfigFromEnvironment()
+    getFileProxyHostConfig() ?? getHostConfigFromEnvironment()
   return cachedProxyHostConfig
 }
 

@@ -89,6 +89,31 @@ describe('isHostTrustedByRules', () => {
     expect(normalizeHost('unix:/var/run/activities.sock')).toBeNull()
   })
 
+  it('rejects userinfo and non-host URL parts', () => {
+    expect(normalizeHost('evil.example.com@edge.example.com')).toBeNull()
+    expect(
+      normalizeHost('https://evil.example.com@edge.example.com')
+    ).toBeNull()
+    expect(normalizeHost('edge.example.com/path')).toBeNull()
+    expect(normalizeHost('edge.example.com?target=other')).toBeNull()
+    expect(normalizeHost('edge.example.com#fragment')).toBeNull()
+  })
+
+  it('rejects wildcard values from incoming hosts while allowing wildcard rules', () => {
+    expect(
+      isHostTrustedByRules('tenant.edge.example.com', ['*.edge.example.com'])
+    ).toBeTrue()
+    expect(
+      isHostTrustedByRules('*.edge.example.com', ['edge.example.com'])
+    ).toBeFalse()
+    expect(
+      selectHeaderHost(new Headers({ 'x-forwarded-host': '*.example.com' }), {
+        host: 'example.com',
+        trustedHosts: ['example.com']
+      })
+    ).toBe('example.com')
+  })
+
   it('uses direct record header lookups before scanning keys', () => {
     const headers = new Proxy(
       {

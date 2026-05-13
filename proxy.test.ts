@@ -104,33 +104,36 @@ describe('proxy', () => {
     )
   })
 
-  it('uses injected full app host config for edge proxy host trust', async () => {
-    process.env.ACTIVITIES_HOST = 'env-public.example.com'
+  it('uses runtime host config instead of stale injected proxy config', async () => {
+    process.env.ACTIVITIES_HOST = 'runtime-public.example.com'
+    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
+      'runtime-edge.example.com'
+    ])
     process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
-      host: 'config-public.example.com',
-      trustedHosts: ['edge-public.example.com']
+      host: 'build-public.example.com',
+      trustedHosts: ['build-edge.example.com']
     })
 
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'GET',
       headers: {
         host: 'internal.example.com',
-        'x-forwarded-host': 'edge-public.example.com'
+        'x-forwarded-host': 'runtime-edge.example.com'
       }
     })
 
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@edge-public.example.com'
+      'https://internal.example.com/@alice@runtime-edge.example.com'
     )
   })
 
-  it('falls back to injected full app host config when headers are untrusted', async () => {
-    process.env.ACTIVITIES_HOST = 'env-public.example.com'
+  it('falls back to runtime host when stale injected proxy config is present', async () => {
+    process.env.ACTIVITIES_HOST = 'runtime-public.example.com'
     process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
-      host: 'config-public.example.com',
-      trustedHosts: ['edge-public.example.com']
+      host: 'build-public.example.com',
+      trustedHosts: ['build-edge.example.com']
     })
 
     const request = new NextRequest('https://internal.example.com/@alice', {
@@ -144,7 +147,7 @@ describe('proxy', () => {
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@config-public.example.com'
+      'https://internal.example.com/@alice@runtime-public.example.com'
     )
   })
 })
