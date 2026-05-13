@@ -67,7 +67,7 @@ export const normalizeHost = (
         ? hostToParse
         : `https://${hostToParse}`
     )
-    const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
+    const hostname = url.hostname.replace(/\.$/, '')
     const normalizedHost = explicitPort
       ? `${hostname}:${explicitPort}`
       : hostname
