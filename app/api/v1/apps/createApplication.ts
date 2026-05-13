@@ -3,6 +3,7 @@ import type { Knex } from 'knex'
 
 import { getKnex } from '@/lib/database'
 import { Scope } from '@/lib/types/database/operations'
+import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
 import type {
@@ -50,6 +51,9 @@ const APP_REGISTRATION_REFERENCE_PREFIX = 'app-registration:'
 const APP_REGISTRATION_LIMIT = 5
 const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
 const APP_REGISTRATION_GC_AFTER_MS = 24 * 60 * 60 * 1000
+const APP_REGISTRATION_GC_INTERVAL_MS = 60 * 60 * 1000
+
+let lastAppRegistrationGcAt: number | null = null
 
 const getRegistrationReference = (registrationKey?: string): string | null => {
   if (!registrationKey) return null
@@ -107,6 +111,36 @@ const isAppRegistrationRateLimited = async ({
   return Number(countResult?.count ?? 0) >= APP_REGISTRATION_LIMIT
 }
 
+const shouldRunAppRegistrationGc = (now: Date): boolean => {
+  const nowMs = now.getTime()
+  if (
+    lastAppRegistrationGcAt !== null &&
+    nowMs >= lastAppRegistrationGcAt &&
+    nowMs - lastAppRegistrationGcAt < APP_REGISTRATION_GC_INTERVAL_MS
+  ) {
+    return false
+  }
+
+  lastAppRegistrationGcAt = nowMs
+  return true
+}
+
+const maybeGarbageCollectStaleAppRegistrations = async (
+  db: Knex,
+  now: Date
+) => {
+  if (!shouldRunAppRegistrationGc(now)) return
+
+  try {
+    await garbageCollectStaleAppRegistrations(db, now)
+  } catch (error) {
+    logger.warn({
+      message: 'Stale app registration cleanup failed',
+      error
+    })
+  }
+}
+
 export const createApplication = async (
   request: PostRequest,
   options: CreateApplicationOptions = {}
@@ -124,7 +158,6 @@ export const createApplication = async (
           options.registrationKey
         )
 
-        await garbageCollectStaleAppRegistrations(db, now)
         if (
           await isAppRegistrationRateLimited({
             db,
@@ -137,6 +170,11 @@ export const createApplication = async (
             error: 'Too many application registrations'
           })
         }
+
+        // The registration throttle is a best-effort guard: count + insert is
+        // intentionally not a cross-database atomic hard cap. Cleanup is also
+        // best effort and throttled so rejected floods do not trigger joins.
+        await maybeGarbageCollectStaleAppRegistrations(db, now)
 
         // Always create a new client — per the Mastodon API spec, each POST
         // creates a new application with fresh credentials. Silent secret

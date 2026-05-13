@@ -4,6 +4,7 @@ import { POST } from './route'
 
 const mockAuthHandler = jest.fn()
 const mockClients = new Map<string, Record<string, unknown>>()
+let mockClientLookupError: Error | null = null
 
 jest.mock('@/lib/config', () => ({
   getConfig: () => ({
@@ -15,8 +16,12 @@ jest.mock('@/lib/config', () => ({
 jest.mock('@/lib/database', () => ({
   getKnex: () => (table: string) => ({
     where: (_field: string, value: string) => ({
-      first: () =>
-        Promise.resolve(table === 'oauthClient' ? mockClients.get(value) : null)
+      first: () => {
+        if (mockClientLookupError) return Promise.reject(mockClientLookupError)
+        return Promise.resolve(
+          table === 'oauthClient' ? mockClients.get(value) : null
+        )
+      }
     })
   })
 }))
@@ -27,10 +32,19 @@ jest.mock('@/lib/services/auth/auth', () => ({
   })
 }))
 
+jest.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn()
+  }
+}))
+
 describe('OAuth token endpoint', () => {
   beforeEach(() => {
     mockAuthHandler.mockReset()
     mockClients.clear()
+    mockClientLookupError = null
   })
 
   test('rejects authorization-code exchanges for PKCE-required clients when code_verifier is missing', async () => {
@@ -61,6 +75,82 @@ describe('OAuth token endpoint', () => {
       error_description: 'PKCE is required for this client'
     })
     expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('rejects authorization-code exchanges without client credentials before proxying', async () => {
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: 'authorization-code',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_client'
+    })
+    expect(response.status).toBe(401)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('returns OAuth server_error when PKCE preflight fails internally', async () => {
+    mockClientLookupError = new Error('database unavailable')
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'pkce-client',
+        client_secret: 'client-secret',
+        code: 'authorization-code',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'server_error'
+    })
+    expect(response.status).toBe(500)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('rejects oversized token bodies before buffering them for PKCE checks', async () => {
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'content-length': '65537'
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'pkce-client',
+        code: 'authorization-code'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'Request body is too large'
+    })
+    expect(response.status).toBe(413)
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
 })

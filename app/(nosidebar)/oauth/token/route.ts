@@ -6,6 +6,7 @@ import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {
+  HTTP_STATUS,
   StatusCode,
   apiResponse,
   codeMap,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+const MAX_TOKEN_REQUEST_BODY_BYTES = 64 * 1024
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -32,17 +34,82 @@ const parseBasicClientId = (authorization: string | null): string | null => {
 const getClientId = (req: NextRequest, body: URLSearchParams): string | null =>
   body.get('client_id') || parseBasicClientId(req.headers.get('authorization'))
 
+class TokenRequestBodyTooLargeError extends Error {}
+
+const readTokenRequestBodyWithLimit = async (
+  req: NextRequest
+): Promise<string> => {
+  const clonedReq = req.clone()
+  const body = clonedReq.body
+  if (!body) return ''
+  if (typeof body.getReader !== 'function') {
+    const bodyBuffer = Buffer.from(await clonedReq.arrayBuffer())
+    if (bodyBuffer.byteLength > MAX_TOKEN_REQUEST_BODY_BYTES) {
+      throw new TokenRequestBodyTooLargeError()
+    }
+    return bodyBuffer.toString('utf8')
+  }
+
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > MAX_TOKEN_REQUEST_BODY_BYTES) {
+      throw new TokenRequestBodyTooLargeError()
+    }
+    chunks.push(value)
+  }
+
+  return Buffer.concat(chunks).toString('utf8')
+}
+
 const getTokenRequestBody = async (
   req: NextRequest
-): Promise<{ bodyText: string; params: URLSearchParams | null }> => {
-  const bodyText = await req.text()
+): Promise<{ params: URLSearchParams | null; error: Response | null }> => {
+  const contentLength = Number(req.headers.get('content-length') ?? 0)
+  if (contentLength > MAX_TOKEN_REQUEST_BODY_BYTES) {
+    return {
+      params: null,
+      error: apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          error: 'invalid_request',
+          error_description: 'Request body is too large'
+        },
+        responseStatusCode: HTTP_STATUS.PAYLOAD_TOO_LARGE
+      })
+    }
+  }
+
   const contentType = req.headers.get('content-type') ?? ''
 
   if (!contentType.includes('application/x-www-form-urlencoded')) {
-    return { bodyText, params: null }
+    return { params: null, error: null }
   }
 
-  return { bodyText, params: new URLSearchParams(bodyText) }
+  try {
+    const bodyText = await readTokenRequestBodyWithLimit(req)
+    return { params: new URLSearchParams(bodyText), error: null }
+  } catch (error) {
+    if (!(error instanceof TokenRequestBodyTooLargeError)) throw error
+    return {
+      params: null,
+      error: apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          error: 'invalid_request',
+          error_description: 'Request body is too large'
+        },
+        responseStatusCode: HTTP_STATUS.PAYLOAD_TOO_LARGE
+      })
+    }
+  }
 }
 
 const validatePkceTokenExchange = async (
@@ -50,23 +117,29 @@ const validatePkceTokenExchange = async (
   body: URLSearchParams
 ): Promise<Response | null> => {
   if (body.get('grant_type') !== 'authorization_code') return null
-  if (body.get('code_verifier')) return null
 
   const clientId = getClientId(req, body)
-  if (!clientId) return null
+  if (!clientId) {
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { error: 'invalid_client' },
+      responseStatusCode: HTTP_STATUS.UNAUTHORIZED
+    })
+  }
 
   try {
     const client = await getKnex()('oauthClient')
       .where('clientId', clientId)
       .first()
-    if (!client?.requirePKCE) return null
+    if (!client?.requirePKCE || body.get('code_verifier')) return null
   } catch (e) {
     logger.error({ message: 'PKCE token preflight failed', error: e })
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: codeMap[500],
-      responseStatusCode: 500
+      data: { error: 'server_error' },
+      responseStatusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
     })
   }
 
@@ -83,7 +156,8 @@ const validatePkceTokenExchange = async (
 
 export const POST = async (req: NextRequest) => {
   const auth = getAuth()
-  const { bodyText, params } = await getTokenRequestBody(req)
+  const { params, error } = await getTokenRequestBody(req)
+  if (error) return error
 
   if (params) {
     const pkceError = await validatePkceTokenExchange(req, params)
@@ -95,7 +169,9 @@ export const POST = async (req: NextRequest) => {
   const proxyReq = new Request(url.toString(), {
     method: 'POST',
     headers: req.headers,
-    body: bodyText
+    body: req.body,
+    // @ts-expect-error duplex is needed for streaming body
+    duplex: 'half'
   })
 
   let response: Response
@@ -106,8 +182,8 @@ export const POST = async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: codeMap[500],
-      responseStatusCode: 500
+      data: { error: 'server_error' },
+      responseStatusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
     })
   }
 

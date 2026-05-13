@@ -194,6 +194,66 @@ describe('createApplication', () => {
     expect(rows).toHaveLength(5)
   })
 
+  test('it checks the rate limit before garbage collecting stale app registrations', async () => {
+    const registrationKey = 'rate-limited-gc-source'
+    const now = new Date('2026-05-12T13:00:00.000Z')
+    const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
+
+    for (let i = 0; i < 5; i++) {
+      await createApplication(
+        {
+          redirect_uris: `https://rate-limited-${i}.llun.dev/callback`,
+          client_name: `rateLimitedClient${i}`,
+          scopes: 'read',
+          website: `https://rate-limited-${i}.llun.dev`
+        },
+        { registrationKey, now }
+      )
+    }
+    await knexDatabase('oauthClient').insert({
+      id: 'rate-limited-stale-unused-client-id',
+      clientId: 'rate-limited-stale-unused-client',
+      clientSecret: 'hashed-secret',
+      name: 'rate-limited-stale-unused',
+      scopes: JSON.stringify(['read']),
+      redirectUris: JSON.stringify([
+        'https://rate-limited-stale-unused.llun.dev/callback'
+      ]),
+      requirePKCE: true,
+      disabled: false,
+      grantTypes: JSON.stringify(['authorization_code']),
+      responseTypes: JSON.stringify(['code']),
+      tokenEndpointAuthMethod: 'client_secret_post',
+      referenceId: 'app-registration:rate-limited-stale-unused',
+      createdAt: staleCreatedAt,
+      updatedAt: staleCreatedAt
+    })
+
+    const response = await createApplication(
+      {
+        redirect_uris: 'https://blocked.llun.dev/callback',
+        client_name: 'blockedClient',
+        scopes: 'read',
+        website: 'https://blocked.llun.dev'
+      },
+      { registrationKey, now }
+    )
+
+    expect(response).toEqual({
+      type: 'error',
+      error: 'Too many application registrations'
+    })
+    await expect(
+      knexDatabase('oauthClient')
+        .where('clientId', 'rate-limited-stale-unused-client')
+        .first()
+    ).resolves.toEqual(
+      expect.objectContaining({
+        clientId: 'rate-limited-stale-unused-client'
+      })
+    )
+  })
+
   test('it garbage-collects stale unused app registrations without deleting token-backed clients', async () => {
     const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
     const now = new Date('2026-05-12T12:00:00.000Z')

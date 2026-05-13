@@ -1,3 +1,8 @@
+// WARNING: This migration unconditionally enables requirePKCE for all
+// existing OAuth clients. Any client that does not support PKCE will stop
+// being able to exchange authorization codes after this migration runs.
+// The change is intentionally irreversible (down() is a no-op).
+
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
