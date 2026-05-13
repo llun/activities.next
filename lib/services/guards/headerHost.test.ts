@@ -10,7 +10,8 @@ describe('#headerHost', () => {
   beforeEach(() => {
     mockGetConfig.mockReturnValue({
       host: 'test.llun.dev',
-      allowActorDomains: ['test-forwarded.llun.dev', 'test-custom.llun.dev']
+      allowActorDomains: ['actor.llun.dev'],
+      trustedHosts: ['test-forwarded.llun.dev', 'test-custom.llun.dev']
     })
   })
 
@@ -66,6 +67,14 @@ describe('#headerHost', () => {
       const headers = new Headers([
         ['Host', 'internal.llun.dev'],
         ['X-Forwarded-Host', 'evil.llun.dev']
+      ])
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
+
+    it('does not trust X-Forwarded-Host from actor domain allowlists', () => {
+      const headers = new Headers([
+        ['Host', 'internal.llun.dev'],
+        ['X-Forwarded-Host', 'actor.llun.dev']
       ])
       expect(headerHost(headers)).toEqual('test.llun.dev')
     })

@@ -131,6 +131,9 @@ describe('proxy', () => {
 
   it('falls back to runtime host when stale injected proxy config is present', async () => {
     process.env.ACTIVITIES_HOST = 'runtime-public.example.com'
+    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
+      'runtime-edge.example.com'
+    ])
     process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
       host: 'build-public.example.com',
       trustedHosts: ['build-edge.example.com']
@@ -140,7 +143,7 @@ describe('proxy', () => {
       method: 'GET',
       headers: {
         host: 'internal.example.com',
-        'x-forwarded-host': 'evil.example.com'
+        'x-forwarded-host': 'build-edge.example.com'
       }
     })
 
@@ -148,6 +151,28 @@ describe('proxy', () => {
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
       'https://internal.example.com/@alice@runtime-public.example.com'
+    )
+  })
+
+  it('uses injected proxy host config when runtime host config is absent', async () => {
+    delete process.env.ACTIVITIES_HOST
+    process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
+      host: 'build-public.example.com',
+      trustedHosts: ['build-edge.example.com']
+    })
+
+    const request = new NextRequest('https://internal.example.com/@alice', {
+      method: 'GET',
+      headers: {
+        host: 'internal.example.com',
+        'x-forwarded-host': 'build-edge.example.com'
+      }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://internal.example.com/@alice@build-edge.example.com'
     )
   })
 })

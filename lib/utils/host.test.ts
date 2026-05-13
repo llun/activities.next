@@ -114,6 +114,20 @@ describe('isHostTrustedByRules', () => {
     ).toBe('example.com')
   })
 
+  it('does not trust forwarded hosts from actor domain allowlists', () => {
+    expect(
+      selectHeaderHost(
+        new Headers({ 'x-forwarded-host': 'actor.example.com' }),
+        {
+          host: 'test.llun.dev',
+          allowActorDomains: ['actor.example.com']
+        } as Parameters<typeof selectHeaderHost>[1] & {
+          allowActorDomains: string[]
+        }
+      )
+    ).toBe('test.llun.dev')
+  })
+
   it('uses direct record header lookups before scanning keys', () => {
     const headers = new Proxy(
       {
@@ -129,7 +143,7 @@ describe('isHostTrustedByRules', () => {
     expect(
       selectHeaderHost(headers, {
         host: 'test.llun.dev',
-        allowActorDomains: ['test-custom.llun.dev']
+        trustedHosts: ['test-custom.llun.dev']
       })
     ).toBe('test-custom.llun.dev')
   })

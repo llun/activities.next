@@ -1,7 +1,3 @@
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
-
 import {
   getHostConfigFromEnvironment,
   getProxyHostConfig,
@@ -49,7 +45,6 @@ describe('getHostConfigFromEnvironment', () => {
 })
 
 describe('getProxyHostConfig', () => {
-  const originalCwd = process.cwd()
   const previousEnv = {
     ACTIVITIES_ALLOW_ACTOR_DOMAINS: process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS,
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
@@ -57,16 +52,14 @@ describe('getProxyHostConfig', () => {
     ACTIVITIES_TRUSTED_HOSTS: process.env.ACTIVITIES_TRUSTED_HOSTS
   }
 
-  let tempDirectory: string
-
   beforeEach(() => {
-    tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'activities-next-'))
-    process.chdir(tempDirectory)
+    delete process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
+    delete process.env.ACTIVITIES_HOST
+    delete process.env.ACTIVITIES_PROXY_HOST_CONFIG
+    delete process.env.ACTIVITIES_TRUSTED_HOSTS
   })
 
   afterEach(() => {
-    process.chdir(originalCwd)
-    fs.rmSync(tempDirectory, { force: true, recursive: true })
     resetHostConfigCacheForTests()
 
     for (const [key, value] of Object.entries(previousEnv)) {
@@ -94,29 +87,20 @@ describe('getProxyHostConfig', () => {
 
     expect(getProxyHostConfig()).toEqual({
       host: 'runtime.example.com',
-      allowActorDomains: ['runtime-actor.example.com'],
       trustedHosts: ['runtime-edge.example.com']
     })
   })
 
-  it('loads proxy host settings from config.json at runtime', () => {
-    process.env.ACTIVITIES_HOST = 'runtime.example.com'
-    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
-      'runtime-edge.example.com'
-    ])
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({
-        host: 'file.example.com',
-        allowActorDomains: ['file-actor.example.com'],
-        trustedHosts: ['file-edge.example.com']
-      })
-    )
+  it('uses injected proxy host settings when runtime host settings are absent', () => {
+    process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
+      host: 'build.example.com',
+      allowActorDomains: ['build-actor.example.com'],
+      trustedHosts: ['build-edge.example.com']
+    })
 
     expect(getProxyHostConfig()).toEqual({
-      host: 'file.example.com',
-      allowActorDomains: ['file-actor.example.com'],
-      trustedHosts: ['file-edge.example.com']
+      host: 'build.example.com',
+      trustedHosts: ['build-edge.example.com']
     })
   })
 })

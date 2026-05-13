@@ -10,7 +10,8 @@ describe('#getRedirectUrl', () => {
   beforeEach(() => {
     mockGetConfig.mockReturnValue({
       host: 'example.com',
-      allowActorDomains: ['public.example.com']
+      allowActorDomains: ['actor.example.com'],
+      trustedHosts: ['public.example.com']
     })
   })
 
@@ -38,6 +39,17 @@ describe('#getRedirectUrl', () => {
       headers: {
         Host: 'internal.example.com',
         'X-Forwarded-Host': 'evil.example.com'
+      }
+    })
+    const result = getRedirectUrl(req, '/callback')
+    expect(result).toEqual('https://example.com/callback')
+  })
+
+  it('does not use X-Forwarded-Host from actor domain allowlists', () => {
+    const req = new NextRequest('https://internal.example.com/path', {
+      headers: {
+        Host: 'internal.example.com',
+        'X-Forwarded-Host': 'actor.example.com'
       }
     })
     const result = getRedirectUrl(req, '/callback')

@@ -1,17 +1,17 @@
-import fs from 'fs'
-import path from 'path'
-
 export type HostConfig = {
   host: string
-  allowActorDomains: string[]
   trustedHosts: string[]
+}
+
+export type AppHostConfig = HostConfig & {
+  allowActorDomains: string[]
 }
 
 type EnvironmentListOptions = {
   onInvalidList?: 'empty' | 'throw'
 }
 
-let cachedHostConfig: HostConfig | null = null
+let cachedHostConfig: AppHostConfig | null = null
 let cachedProxyHostConfig: HostConfig | null = null
 
 const toStringList = (
@@ -45,27 +45,21 @@ const getEnvironmentList = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
-const getFileProxyHostConfig = (): HostConfig | null => {
+const getInjectedProxyHostConfig = (): HostConfig | null => {
   try {
     const parsed = JSON.parse(
-      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+      process.env.ACTIVITIES_PROXY_HOST_CONFIG || 'null'
     )
     if (!isRecord(parsed)) {
       return null
     }
 
     const hasHostConfig =
-      typeof parsed.host === 'string' ||
-      Array.isArray(parsed.allowActorDomains) ||
-      Array.isArray(parsed.trustedHosts)
+      typeof parsed.host === 'string' || Array.isArray(parsed.trustedHosts)
     if (!hasHostConfig) return null
 
     return {
       host: typeof parsed.host === 'string' ? parsed.host : '',
-      allowActorDomains: toStringList(
-        parsed.allowActorDomains,
-        'allowActorDomains'
-      ),
       trustedHosts: toStringList(parsed.trustedHosts, 'trustedHosts')
     }
   } catch {
@@ -75,7 +69,7 @@ const getFileProxyHostConfig = (): HostConfig | null => {
 
 export const getHostConfigFromEnvironment = (
   options?: EnvironmentListOptions
-): HostConfig => ({
+): AppHostConfig => ({
   host: process.env.ACTIVITIES_HOST || '',
   allowActorDomains: getEnvironmentList(
     'ACTIVITIES_ALLOW_ACTOR_DOMAINS',
@@ -84,7 +78,18 @@ export const getHostConfigFromEnvironment = (
   trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
 })
 
-export const getHostConfig = (): HostConfig => {
+const getProxyHostConfigFromEnvironment = (
+  options?: EnvironmentListOptions
+): HostConfig => ({
+  host: process.env.ACTIVITIES_HOST || '',
+  trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
+})
+
+const hasRuntimeProxyHostConfig = () =>
+  process.env.ACTIVITIES_HOST !== undefined ||
+  process.env.ACTIVITIES_TRUSTED_HOSTS !== undefined
+
+export const getHostConfig = (): AppHostConfig => {
   if (cachedHostConfig) return cachedHostConfig
 
   cachedHostConfig = getHostConfigFromEnvironment()
@@ -94,8 +99,9 @@ export const getHostConfig = (): HostConfig => {
 export const getProxyHostConfig = (): HostConfig => {
   if (cachedProxyHostConfig) return cachedProxyHostConfig
 
-  cachedProxyHostConfig =
-    getFileProxyHostConfig() ?? getHostConfigFromEnvironment()
+  cachedProxyHostConfig = hasRuntimeProxyHostConfig()
+    ? getProxyHostConfigFromEnvironment()
+    : (getInjectedProxyHostConfig() ?? getProxyHostConfigFromEnvironment())
   return cachedProxyHostConfig
 }
 

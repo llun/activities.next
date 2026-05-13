@@ -21,7 +21,8 @@ jest.mock('@/lib/config', () => {
   return {
     getConfig: () => ({
       host: TEST_DOMAIN,
-      allowActorDomains: ['llun.test'],
+      allowActorDomains: ['actor.llun.test'],
+      trustedHosts: ['llun.test'],
       secretPhase: MOCK_SECRET_PHASES
     })
   }

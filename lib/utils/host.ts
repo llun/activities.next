@@ -6,7 +6,6 @@ type NormalizeHostOptions = {
 
 type HostRuleConfig = {
   host?: string | null
-  allowActorDomains?: readonly string[] | null
   trustedHosts?: readonly string[] | null
 }
 
@@ -162,7 +161,6 @@ export const normalizeHostRules = (rules: readonly string[]) => {
 
 export const getTrustedHostRules = (config: HostRuleConfig): string[] => [
   config.host ?? '',
-  ...(config.allowActorDomains ?? []),
   ...(config.trustedHosts ?? [])
 ]
 

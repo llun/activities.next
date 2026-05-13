@@ -9,9 +9,7 @@ import {
 
 type NextAuthHeaders = Record<string, any> | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
 
-type HostConfig = Pick<Config, 'host' | 'allowActorDomains'> & {
-  trustedHosts?: string[]
-}
+type HostConfig = Pick<Config, 'host' | 'trustedHosts'>
 
 export const isTrustedHeaderHost = (
   host: string | undefined | null,
