@@ -7,6 +7,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { GET } from './route'
 
 const mockDatabase = {
+  getActorStatusesCount: jest.fn(),
   getActorStatuses: jest.fn()
 }
 const mockActor: Actor = {
@@ -69,16 +70,14 @@ jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
 
 describe('GET /api/users/[username]/outbox', () => {
   beforeEach(() => {
+    mockDatabase.getActorStatusesCount.mockClear()
+    mockDatabase.getActorStatusesCount.mockResolvedValue(0)
     mockDatabase.getActorStatuses.mockClear()
     mockDatabase.getActorStatuses.mockResolvedValue([])
   })
 
   it('negotiates collection responses with the shared ActivityPub helper', async () => {
-    mockDatabase.getActorStatuses.mockResolvedValue([
-      createPublicNoteStatus('https://example.com/users/test/statuses/post-1'),
-      createPublicNoteStatus('https://example.com/users/test/statuses/post-2'),
-      createPublicNoteStatus('https://example.com/users/test/statuses/post-3')
-    ])
+    mockDatabase.getActorStatusesCount.mockResolvedValue(3)
 
     const response = await GET(
       new NextRequest('https://example.com/api/users/test/outbox', {
@@ -103,6 +102,11 @@ describe('GET /api/users/[username]/outbox', () => {
       totalItems: 3,
       first: 'https://example.com/users/test/outbox?page=true'
     })
+    expect(mockDatabase.getActorStatusesCount).toHaveBeenCalledWith({
+      actorId: mockActor.id,
+      publicOnly: true
+    })
+    expect(mockDatabase.getActorStatuses).not.toHaveBeenCalled()
   })
 
   it('serializes outbox Create objects as ActivityPub Note objects', async () => {
@@ -179,23 +183,8 @@ describe('GET /api/users/[username]/outbox', () => {
     expect(data.orderedItems[0].object.id).toBe(publicStatus.id)
   })
 
-  it('derives collection totalItems from publicly readable statuses', async () => {
-    const publicStatus = createPublicNoteStatus(
-      'https://example.com/users/test/statuses/public-post',
-      Date.UTC(2026, 0, 3)
-    )
-    const privateStatus = {
-      ...publicStatus,
-      id: 'https://example.com/users/test/statuses/private-post',
-      url: 'https://example.com/@test/private-post',
-      text: '<p>Private post</p>',
-      to: [`${mockActor.id}/followers`],
-      cc: []
-    }
-    mockDatabase.getActorStatuses.mockResolvedValue([
-      publicStatus,
-      privateStatus
-    ])
+  it('derives collection totalItems from a SQL count', async () => {
+    mockDatabase.getActorStatusesCount.mockResolvedValue(1)
 
     const response = await GET(
       new NextRequest('https://example.com/api/users/test/outbox', {
@@ -209,11 +198,11 @@ describe('GET /api/users/[username]/outbox', () => {
 
     const data = await response.json()
 
-    expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith({
+    expect(mockDatabase.getActorStatusesCount).toHaveBeenCalledWith({
       actorId: mockActor.id,
-      limit: mockActor.statusCount,
       publicOnly: true
     })
+    expect(mockDatabase.getActorStatuses).not.toHaveBeenCalled()
     expect(data.totalItems).toBe(1)
   })
 })

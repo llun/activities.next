@@ -2,7 +2,7 @@ import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 
-import { canActorReadStatus } from './statusAccess'
+import { canActorReadStatus, isStatusPubliclyReadable } from './statusAccess'
 
 interface GetReadableStatusParams {
   database: Database
@@ -40,13 +40,32 @@ export const filterReadableStatuses = async ({
   database: Database
   statuses: Status[]
   currentActor: Actor | null
-}) =>
-  (
+}) => {
+  const readableStatuses: Status[] = []
+  const statusesNeedingAccessCheck: Status[] = []
+
+  for (const status of statuses) {
+    if (isStatusPubliclyReadable(status)) {
+      readableStatuses.push(status)
+    } else if (currentActor) {
+      statusesNeedingAccessCheck.push(status)
+    }
+  }
+
+  const checkedStatuses = (
     await Promise.all(
-      statuses.map(async (status) =>
+      statusesNeedingAccessCheck.map(async (status) =>
         (await canActorReadStatus({ database, status, currentActor }))
           ? status
           : null
       )
     )
   ).filter((status): status is Status => status !== null)
+
+  const readableStatusIds = new Set(readableStatuses.map((status) => status.id))
+  const checkedStatusIds = new Set(checkedStatuses.map((status) => status.id))
+  return statuses.filter(
+    (status) =>
+      readableStatusIds.has(status.id) || checkedStatusIds.has(status.id)
+  )
+}

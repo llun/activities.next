@@ -324,6 +324,57 @@ describe('StatusDatabase', () => {
         })
         expect(count).toBe(3)
       })
+
+      it('counts only publicly readable actor statuses when requested', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const publicStatusId = `${emptyActorId}/statuses/public-${suffix}`
+        const privateStatusId = `${emptyActorId}/statuses/private-${suffix}`
+        const privateAnnounceId = `${emptyActorId}/statuses/announce-private-${suffix}`
+        const beforePublicCount = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+
+        await database.createNote({
+          id: publicStatusId,
+          url: publicStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Public count status'
+        })
+        await database.createNote({
+          id: privateStatusId,
+          url: privateStatusId,
+          actorId: emptyActorId,
+          to: [`${emptyActorId}/followers`],
+          cc: [],
+          text: 'Private count status'
+        })
+        await database.createAnnounce({
+          id: privateAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: privateStatusId
+        })
+
+        const count = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+        const statuses = await database.getActorStatuses({
+          actorId: emptyActorId,
+          publicOnly: true,
+          limit: 50
+        })
+        const publicStatusIds = statuses.map((status) => status.id)
+
+        expect(count).toBe(beforePublicCount + 1)
+        expect(publicStatusIds).toContain(publicStatusId)
+        expect(publicStatusIds).not.toContain(privateStatusId)
+        expect(publicStatusIds).not.toContain(privateAnnounceId)
+      })
     })
 
     describe('getActorStatuses followers audience fallback', () => {
@@ -362,6 +413,65 @@ describe('StatusDatabase', () => {
         expect((replies[1] as StatusNote).text).toBe(
           '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> This is Actor1 post</p>'
         )
+      })
+
+      it('filters replies to statuses potentially visible to the current actor', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const parentStatusId = `${primaryActorId}/statuses/context-parent-${suffix}`
+        const publicReplyId = `${replyAuthorId}/statuses/context-public-${suffix}`
+        const directReplyId = `${replyAuthorId}/statuses/context-direct-${suffix}`
+        const hiddenReplyId = `${replyAuthorId}/statuses/context-hidden-${suffix}`
+        const createdAt = Date.now()
+
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Context parent',
+          createdAt
+        })
+        await database.createNote({
+          id: publicReplyId,
+          url: publicReplyId,
+          actorId: replyAuthorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Public context reply',
+          reply: parentStatusId,
+          createdAt: createdAt + 1
+        })
+        await database.createNote({
+          id: directReplyId,
+          url: directReplyId,
+          actorId: replyAuthorId,
+          to: [extraActorId],
+          cc: [],
+          text: 'Direct context reply',
+          reply: parentStatusId,
+          createdAt: createdAt + 2
+        })
+        await database.createNote({
+          id: hiddenReplyId,
+          url: hiddenReplyId,
+          actorId: replyAuthorId,
+          to: [primaryActorId],
+          cc: [],
+          text: 'Hidden context reply',
+          reply: parentStatusId,
+          createdAt: createdAt + 3
+        })
+
+        const replies = await database.getStatusReplies({
+          statusId: parentStatusId,
+          visibleToActorId: extraActorId
+        })
+
+        expect(replies.map((status) => status.id)).toEqual([
+          directReplyId,
+          publicReplyId
+        ])
       })
     })
 

@@ -60,7 +60,10 @@ export const GET = traceApiRoute(
           )
         : Promise.resolve(null),
       database
-        .getStatusReplies({ statusId })
+        .getStatusReplies({
+          statusId,
+          visibleToActorId: currentActor.id
+        })
         .then((statuses) =>
           filterReadableStatuses({ database, statuses, currentActor })
         )

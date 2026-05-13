@@ -33,18 +33,17 @@ export const GET = traceApiRoute(
       const pageParam = url.searchParams.get('page')
       if (!pageParam) {
         const outboxId = getLocalActorOutboxId(actor.id)
-        const statuses = await getPubliclyReadableActorStatuses(
-          database,
-          actor.id,
-          actor.statusCount
-        )
+        const totalItems = await database.getActorStatusesCount({
+          actorId: actor.id,
+          publicOnly: true
+        })
         return activityPubResponse({
           req,
           data: {
             '@context': ACTIVITY_STREAM_URL,
             id: outboxId,
             type: 'OrderedCollection',
-            totalItems: statuses.length,
+            totalItems,
             first: `${outboxId}?page=true`,
             last: `${outboxId}?min_id=0&page=true`
           }
