@@ -94,19 +94,35 @@ describe('next config security hardening', () => {
     })
     expect(headers).toContainEqual({
       key: 'Permissions-Policy',
-      value: 'camera=(), microphone=(), geolocation=()'
+      value: 'camera=(), microphone=(), geolocation=(self)'
     })
   })
 
-  it('allows HTTPS remote images by default for open federation', () => {
+  it('uses the configured instance host and safe local hosts by default', () => {
     const originalAllowlist = process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
+    const originalHost = process.env.ACTIVITIES_HOST
+    const originalNodeEnv = process.env.NODE_ENV
     delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
+    process.env.ACTIVITIES_HOST = 'social.example.com'
+    process.env.NODE_ENV = 'development'
 
     try {
       expect(getImageRemotePatterns()).toEqual([
         {
           protocol: 'https',
-          hostname: '**'
+          hostname: 'social.example.com'
+        },
+        {
+          protocol: 'http',
+          hostname: 'localhost'
+        },
+        {
+          protocol: 'http',
+          hostname: '127.0.0.1'
+        },
+        {
+          protocol: 'http',
+          hostname: '[::1]'
         }
       ])
     } finally {
@@ -114,6 +130,43 @@ describe('next config security hardening', () => {
         delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
       } else {
         process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = originalAllowlist
+      }
+      if (originalHost === undefined) {
+        delete process.env.ACTIVITIES_HOST
+      } else {
+        process.env.ACTIVITIES_HOST = originalHost
+      }
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
+    }
+  })
+
+  it('treats an empty image host allowlist as default config', () => {
+    const originalHost = process.env.ACTIVITIES_HOST
+    const originalNodeEnv = process.env.NODE_ENV
+    process.env.ACTIVITIES_HOST = 'social.example.com'
+    process.env.NODE_ENV = 'production'
+
+    try {
+      expect(getImageRemotePatterns('')).toEqual([
+        {
+          protocol: 'https',
+          hostname: 'social.example.com'
+        }
+      ])
+    } finally {
+      if (originalHost === undefined) {
+        delete process.env.ACTIVITIES_HOST
+      } else {
+        process.env.ACTIVITIES_HOST = originalHost
+      }
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
       }
     }
   })

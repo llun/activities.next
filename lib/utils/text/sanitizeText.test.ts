@@ -1,4 +1,8 @@
-import { SANITIZED_OPTION, sanitizeText } from './sanitizeText'
+import {
+  SANITIZED_OPTION,
+  sanitizeText,
+  sanitizeTrustedStatusText
+} from './sanitizeText'
 
 describe('sanitizeText', () => {
   describe('SANITIZED_OPTION', () => {
@@ -168,6 +172,24 @@ describe('sanitizeText', () => {
     it('handles br tags', () => {
       const input = 'Line 1<br>Line 2'
       expect(sanitizeText(input)).toEqual('Line 1<br />Line 2')
+    })
+  })
+
+  describe('#sanitizeTrustedStatusText', () => {
+    it('preserves generated emoji img tags with padded class attributes', () => {
+      const input =
+        '<img class=" emoji " src="https://example.com/image.jpg" alt=":emoji:">'
+
+      expect(sanitizeTrustedStatusText(input)).toEqual(
+        '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:" />'
+      )
+    })
+
+    it('removes trusted img tags without an emoji class', () => {
+      const input =
+        '<img class=" not-emoji " src="https://example.com/image.jpg" alt="image">'
+
+      expect(sanitizeTrustedStatusText(input)).toEqual('')
     })
   })
 })

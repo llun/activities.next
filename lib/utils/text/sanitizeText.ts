@@ -65,7 +65,7 @@ const SANITIZED_TRUSTED_STATUS_OPTION = {
   },
   exclusiveFilter(frame: sanitizeHtml.IFrame) {
     if (frame.tag !== 'img') return false
-    const classes = frame.attribs.class?.split(/\s+/) ?? []
+    const classes = frame.attribs.class?.trim().split(/\s+/) ?? []
     return !classes.includes('emoji') || !frame.attribs.src
   }
 }

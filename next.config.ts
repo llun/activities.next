@@ -41,14 +41,25 @@ type ImageRemotePatterns = NonNullable<
 >
 
 const IMAGE_REMOTE_ALLOWLIST_ENV = 'ACTIVITIES_ALLOW_MEDIA_DOMAINS'
-const DEFAULT_IMAGE_REMOTE_PATTERNS: ImageRemotePatterns = [
+const INSTANCE_HOST_ENV = 'ACTIVITIES_HOST'
+const SAFE_LOCAL_IMAGE_REMOTE_PATTERNS: ImageRemotePatterns = [
   {
-    protocol: 'https',
-    hostname: '**'
+    protocol: 'http',
+    hostname: 'localhost'
+  },
+  {
+    protocol: 'http',
+    hostname: '127.0.0.1'
+  },
+  {
+    protocol: 'http',
+    hostname: '[::1]'
   }
 ]
 
 const isDevelopment = () => process.env.NODE_ENV !== 'production'
+const isSafeLocalHostname = (hostname: string) =>
+  ['localhost', '127.0.0.1', '[::1]'].includes(hostname.toLowerCase())
 
 export const getSecurityHeaders = (): Header[] => {
   const csp = [
@@ -85,7 +96,7 @@ export const getSecurityHeaders = (): Header[] => {
     },
     {
       key: 'Permissions-Policy',
-      value: 'camera=(), microphone=(), geolocation=()'
+      value: 'camera=(), microphone=(), geolocation=(self)'
     }
   ]
 }
@@ -106,14 +117,19 @@ const parseImageRemoteAllowlist = (rawAllowlist: string | undefined) => {
 }
 
 const getImageRemotePattern = (
-  rawEntry: string
+  rawEntry: string,
+  { allowLocalHttp = false } = {}
 ): ImageRemotePatterns[number] | null => {
   const entry = rawEntry.trim()
   if (!entry || entry.includes('*')) return null
 
   try {
     const url = new URL(entry.includes('://') ? entry : `https://${entry}`)
-    if (url.protocol !== 'https:') return null
+    const isLocalHttp =
+      url.protocol === 'http:' &&
+      allowLocalHttp &&
+      isSafeLocalHostname(url.hostname)
+    if (url.protocol !== 'https:' && !isLocalHttp) return null
     if (!url.hostname || url.hostname.includes('*')) return null
 
     const pathname =
@@ -122,7 +138,7 @@ const getImageRemotePattern = (
         : undefined
 
     return {
-      protocol: 'https',
+      protocol: url.protocol.replace(':', '') as 'http' | 'https',
       hostname: url.hostname.toLowerCase(),
       ...(url.port ? { port: url.port } : {}),
       ...(pathname ? { pathname } : {})
@@ -132,11 +148,27 @@ const getImageRemotePattern = (
   }
 }
 
+const getDefaultImageRemotePatterns = (): ImageRemotePatterns => {
+  const patterns = process.env[INSTANCE_HOST_ENV]
+    ? [
+        getImageRemotePattern(process.env[INSTANCE_HOST_ENV], {
+          allowLocalHttp: isDevelopment()
+        })
+      ].flatMap((pattern) => (pattern ? [pattern] : []))
+    : []
+
+  if (isDevelopment()) {
+    patterns.push(...SAFE_LOCAL_IMAGE_REMOTE_PATTERNS)
+  }
+
+  return patterns
+}
+
 export const getImageRemotePatterns = (
   rawAllowlist = process.env[IMAGE_REMOTE_ALLOWLIST_ENV]
 ): ImageRemotePatterns => {
-  if (rawAllowlist === undefined) {
-    return DEFAULT_IMAGE_REMOTE_PATTERNS
+  if (rawAllowlist === undefined || rawAllowlist.trim() === '') {
+    return getDefaultImageRemotePatterns()
   }
 
   return parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
