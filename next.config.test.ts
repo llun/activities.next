@@ -200,6 +200,35 @@ describe('next config security hardening', () => {
     }
   })
 
+  it('allows local object storage images in development', () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    const originalStorageHostname =
+      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    process.env.NODE_ENV = 'development'
+    process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'http://localhost:9000'
+
+    try {
+      const csp = getSecurityHeaders().find(
+        (header) => header.key === 'Content-Security-Policy'
+      )
+
+      expect(csp?.value).toContain(
+        "img-src 'self' data: blob: https: http://localhost:9000"
+      )
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
+      if (originalStorageHostname === undefined) {
+        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+      } else {
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
+      }
+    }
+  })
+
   it('allows default S3 presigned upload hosts in connect-src', () => {
     const originalStorageType = process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
     const originalStorageBucket = process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET

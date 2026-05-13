@@ -117,6 +117,13 @@ export const getSecurityHeaders = (): Header[] => {
     ...getDefaultS3CspSources(),
     ...(isDevelopment() ? ['ws:', 'wss:'] : [])
   ].join(' ')
+  const imageSources = [
+    "'self'",
+    'data:',
+    'blob:',
+    'https:',
+    ...(mediaStorageSource ? [mediaStorageSource] : [])
+  ].join(' ')
   const scriptSources = [
     "'self'",
     "'unsafe-inline'",
@@ -137,7 +144,7 @@ export const getSecurityHeaders = (): Header[] => {
     // Federated avatars and remote emoji are intentionally unbounded browser
     // image loads. next/image optimization is disabled below so this does not
     // reintroduce arbitrary server-side media fetches.
-    "img-src 'self' data: blob: https:",
+    `img-src ${imageSources}`,
     `connect-src ${connectSources}`,
     "font-src 'self' data:",
     "manifest-src 'self'",

@@ -59,6 +59,15 @@ describe('sanitizeText', () => {
       )
     })
 
+    it('removes named link targets from untrusted links', () => {
+      const input =
+        '<a href="https://example.com" target="shared-window">Link</a>'
+
+      expect(sanitizeText(input)).toEqual(
+        '<a href="https://example.com">Link</a>'
+      )
+    })
+
     it('allows span with class', () => {
       const input = '<span class="mention">@user</span>'
       expect(sanitizeText(input)).toEqual('<span class="mention">@user</span>')

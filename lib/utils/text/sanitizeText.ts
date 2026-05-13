@@ -32,7 +32,10 @@ export const SANITIZED_OPTION = {
   allowProtocolRelative: false,
   transformTags: {
     a: (tagName: string, attribs: sanitizeHtml.Attributes) => {
-      if (attribs.target !== '_blank') return { tagName, attribs }
+      if (attribs.target !== '_blank') {
+        const { target: _target, ...safeAttribs } = attribs
+        return { tagName, attribs: safeAttribs }
+      }
 
       const rel = new Set((attribs.rel ?? '').split(/\s+/).filter(Boolean))
       rel.add('noopener')
