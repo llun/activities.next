@@ -325,10 +325,6 @@ describe('next config security hardening', () => {
     expect(patterns).toEqual([
       {
         protocol: 'https',
-        hostname: '**'
-      },
-      {
-        protocol: 'https',
         hostname: 'media.example.com'
       },
       {
@@ -340,17 +336,10 @@ describe('next config security hardening', () => {
   })
 
   it('rejects wildcard image host configuration', () => {
-    const federatedAvatarPattern = {
-      protocol: 'https',
-      hostname: '**'
-    }
-
-    expect(getImageRemotePatterns(JSON.stringify(['**']))).toEqual([
-      federatedAvatarPattern
-    ])
-    expect(getImageRemotePatterns(JSON.stringify(['*.example.com']))).toEqual([
-      federatedAvatarPattern
-    ])
+    expect(getImageRemotePatterns(JSON.stringify(['**']))).toEqual([])
+    expect(getImageRemotePatterns(JSON.stringify(['*.example.com']))).toEqual(
+      []
+    )
   })
 
   it('rejects malformed image host configuration', () => {

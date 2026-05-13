@@ -233,13 +233,10 @@ export const getImageRemotePatterns = (
     return getDefaultImageRemotePatterns()
   }
 
-  return [
-    { protocol: 'https', hostname: '**' },
-    ...parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
-      const pattern = getImageRemotePattern(entry)
-      return pattern ? [pattern] : []
-    })
-  ]
+  return parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
+    const pattern = getImageRemotePattern(entry)
+    return pattern ? [pattern] : []
+  })
 }
 
 const nextConfig: NextConfig = {
