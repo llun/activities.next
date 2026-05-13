@@ -8,7 +8,12 @@ import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordResetRequest = z.object({ email: z.string().email() })
@@ -27,25 +32,43 @@ const passwordResetSuccessResponse = (req: NextRequest) =>
     responseStatusCode: 200
   })
 
+const badRequestResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: ERROR_400,
+    responseStatusCode: 400
+  })
+
+const internalServerErrorResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: ERROR_500,
+    responseStatusCode: 500
+  })
+
 export const POST = traceApiRoute(
   'requestPasswordReset',
   async (request: NextRequest) => {
     const database = getDatabase()
     if (!database) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
+      return internalServerErrorResponse(request)
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return badRequestResponse(request)
+    }
+
+    const parsed = PasswordResetRequest.safeParse(body)
+    if (!parsed.success) {
+      return badRequestResponse(request)
     }
 
     try {
-      const body = await request.json()
-      const parsed = PasswordResetRequest.safeParse(body)
-      if (!parsed.success) {
-        return passwordResetSuccessResponse(request)
-      }
       const { email } = parsed.data
       const config = getConfig()
       const account = await database.getAccountFromEmail({ email })
@@ -108,24 +131,14 @@ export const POST = traceApiRoute(
                 { email },
                 'Failed to restore previous password reset code'
               )
-              return apiResponse({
-                req: request,
-                allowedMethods: CORS_HEADERS,
-                data: ERROR_500,
-                responseStatusCode: 500
-              })
+              return internalServerErrorResponse(request)
             }
           } catch (error) {
             logger.error(
               { email, error },
               'Failed to restore previous password reset code'
             )
-            return apiResponse({
-              req: request,
-              allowedMethods: CORS_HEADERS,
-              data: ERROR_500,
-              responseStatusCode: 500
-            })
+            return internalServerErrorResponse(request)
           }
           return passwordResetSuccessResponse(request)
         }
@@ -134,7 +147,7 @@ export const POST = traceApiRoute(
       return passwordResetSuccessResponse(request)
     } catch (error) {
       logger.error({ error }, 'Failed to request password reset')
-      return passwordResetSuccessResponse(request)
+      return internalServerErrorResponse(request)
     }
   }
 )

@@ -9,6 +9,15 @@ jest.mock('@/lib/services/email', () => ({
   sendMail: (...args: unknown[]) => mockSendMail(...args)
 }))
 
+const mockLoggerError = jest.fn()
+const mockLoggerWarn = jest.fn()
+jest.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: (...args: unknown[]) => mockLoggerError(...args),
+    warn: (...args: unknown[]) => mockLoggerWarn(...args)
+  }
+}))
+
 jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
@@ -37,7 +46,20 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     new NextRequest('http://llun.test/api/v1/accounts/password/reset/request', {
       method: 'POST',
       body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://client.llun.test'
+      }
+    })
+
+  const buildRawRequest = (body: string) =>
+    new NextRequest('http://llun.test/api/v1/accounts/password/reset/request', {
+      method: 'POST',
+      body,
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://client.llun.test'
+      }
     })
 
   beforeAll(() => {
@@ -128,19 +150,56 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     expect(mockDb.requestPasswordReset).toHaveBeenCalledTimes(2)
   })
 
-  it('returns uniform success for invalid request bodies', async () => {
+  it('returns a CORS-aware bad request response for schema-invalid request bodies', async () => {
     const request = buildRequest({ email: 'not-an-email' })
 
     const response = await POST(request, { params: Promise.resolve({}) })
     const data = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(data).toEqual({
-      success: true,
-      message:
-        'If an account exists for that email, a password reset link has been sent.'
-    })
+    expect(response.status).toBe(400)
+    expect(data).toEqual({ status: 'Bad Request' })
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      'https://client.llun.test'
+    )
+    expect(mockLoggerError).not.toHaveBeenCalled()
     expect(mockDb.getAccountFromEmail).not.toHaveBeenCalled()
     expect(mockDb.requestPasswordReset).not.toHaveBeenCalled()
+  })
+
+  it('returns a CORS-aware bad request response for malformed JSON bodies', async () => {
+    const request = buildRawRequest('{')
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data).toEqual({ status: 'Bad Request' })
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      'https://client.llun.test'
+    )
+    expect(mockLoggerError).not.toHaveBeenCalled()
+    expect(mockDb.getAccountFromEmail).not.toHaveBeenCalled()
+    expect(mockDb.requestPasswordReset).not.toHaveBeenCalled()
+  })
+
+  it('returns a CORS-aware internal error response for account lookup failures', async () => {
+    mockDb.getAccountFromEmail.mockRejectedValue(new Error('database failed'))
+
+    const request = buildRequest({ email: 'test@llun.test' })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(data).toEqual({ status: 'Internal Server Error' })
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      'https://client.llun.test'
+    )
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      { error: expect.any(Error) },
+      'Failed to request password reset'
+    )
+    expect(mockDb.requestPasswordReset).not.toHaveBeenCalled()
+    expect(mockSendMail).not.toHaveBeenCalled()
   })
 })
