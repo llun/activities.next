@@ -7,7 +7,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { seedActor3 } from '@/lib/stub/seed/actor3'
+import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -54,6 +54,11 @@ jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
   })
+}))
+
+jest.mock('@/lib/activities', () => ({
+  sendLike: jest.fn().mockResolvedValue(undefined),
+  sendUndoLike: jest.fn().mockResolvedValue(undefined)
 }))
 
 jest.mock('@/lib/config', () => ({
@@ -444,6 +449,83 @@ describe('GET /api/v1/statuses/[id]', () => {
         expect(response.status).toBe(404)
       }
     )
+
+    it('allows actors to unreblog their announce when the original status is no longer readable', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const originalStatusId = `${ACTOR1_ID}/statuses/api-unreblog-after-access-change`
+      const announceId = `${ACTOR3_ID}/statuses/api-unreblog-after-access-change`
+      await database.createNote({
+        id: originalStatusId,
+        url: originalStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Original status that becomes private after a reblog',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createAnnounce({
+        id: announceId,
+        actorId: ACTOR3_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId
+      })
+      await database.updateNoteVisibility({
+        statusId: originalStatusId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await unreblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(originalStatusId)}/unreblog`,
+          { method: 'POST' }
+        ),
+        { params: Promise.resolve({ id: urlToId(originalStatusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.getStatus({ statusId: announceId })
+      ).resolves.toBeNull()
+    })
+
+    it('allows actors to unfavourite their like when the original status is no longer readable', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-unfavourite-after-access-change`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Original status that becomes private after a favourite',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createLike({ actorId: ACTOR3_ID, statusId })
+      await database.updateNoteVisibility({
+        statusId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await unfavouriteStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unfavourite`,
+          { method: 'POST' }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.isActorLikedStatus({ actorId: ACTOR3_ID, statusId })
+      ).resolves.toBe(false)
+    })
   })
 
   describe('status visibility derivation', () => {

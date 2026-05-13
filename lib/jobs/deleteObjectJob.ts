@@ -9,6 +9,7 @@ import { createJobHandle } from './createJobHandle'
 import { DELETE_OBJECT_JOB_NAME } from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
+// Undefined intentionally preserves unscoped deletes for legacy queued messages.
 const getVerifiedSenderActorId = (actorId?: string) =>
   normalizeActorId(actorId) ?? undefined
 

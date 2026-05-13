@@ -76,11 +76,19 @@ const activityActorMismatch = (
   )
 }
 
+const extractActivityPubIds = (value: unknown): string[] => {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(extractActivityPubIds)
+  if (!isRecord(value)) return []
+
+  return [value.id, value.href, value.url].flatMap(extractActivityPubIds)
+}
+
 const createObjectActorMismatch = (
   object: unknown,
   verifiedSenderActorId?: string
 ) => {
-  if (!verifiedSenderActorId || !isRecord(object)) return false
+  if (!isRecord(object)) return false
 
   const normalizedVerifiedSenderActorId = normalizeActorId(
     verifiedSenderActorId
@@ -88,14 +96,14 @@ const createObjectActorMismatch = (
   if (!normalizedVerifiedSenderActorId) return true
 
   const objectActorIds = [
-    extractActivityPubId(object.attributedTo),
-    extractActivityPubId(object.actor)
-  ].filter((actorId): actorId is string => Boolean(actorId))
+    ...extractActivityPubIds(object.attributedTo),
+    ...extractActivityPubIds(object.actor)
+  ]
 
   if (objectActorIds.length === 0) return true
 
-  return objectActorIds.some(
-    (actorId) => normalizeActorId(actorId) !== normalizedVerifiedSenderActorId
+  return !objectActorIds.every(
+    (actorId) => normalizeActorId(actorId) === normalizedVerifiedSenderActorId
   )
 }
 

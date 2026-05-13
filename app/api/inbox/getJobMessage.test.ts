@@ -1,8 +1,26 @@
+import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+
 import { getJobMessage } from './getJobMessage'
 
 const verifiedSenderActorId = 'https://remote.test/users/alice'
 
 describe('getJobMessage', () => {
+  it('rejects Create Note activities when the verified sender actor id is missing', () => {
+    const result = getJobMessage({
+      id: 'https://remote.test/activities/create-unverified',
+      type: 'Create',
+      actor: verifiedSenderActorId,
+      object: {
+        id: 'https://remote.test/users/alice/statuses/1',
+        type: 'Note',
+        attributedTo: verifiedSenderActorId,
+        content: 'Unverified sender'
+      }
+    } as never)
+
+    expect(result).toBeNull()
+  })
+
   it('rejects Create Note activities without object actor attribution when the sender is verified', () => {
     const result = getJobMessage(
       {
@@ -19,6 +37,54 @@ describe('getJobMessage', () => {
     )
 
     expect(result).toBeNull()
+  })
+
+  it('rejects Create Note activities when any nested attribution differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-mixed-attribution',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: [
+            { id: `${verifiedSenderActorId}#main-key` },
+            [{ id: 'https://remote.test/users/mallory' }]
+          ],
+          content: 'Mixed attribution'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('accepts Create Note activities only when every object actor id matches the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-matching-attribution',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: [
+            verifiedSenderActorId,
+            { id: `${verifiedSenderActorId}#main-key` }
+          ],
+          actor: { id: verifiedSenderActorId },
+          content: 'Matching attribution'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      verifiedSenderActorId
+    })
   })
 
   it.each([

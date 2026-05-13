@@ -35,19 +35,38 @@ export const POST = traceApiRoute(
       })
 
     const statusId = idToUrl(encodedStatusId)
-    const status = await getReadableStatus({
+    let status = await getReadableStatus({
       database,
       statusId,
       currentActor,
       withReplies: false
     })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+    if (!status) {
+      const isActorLikedStatus = await database.isActorLikedStatus({
+        actorId: currentActor.id,
+        statusId
       })
+      if (!isActorLikedStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      status = await database.getStatus({
+        statusId,
+        withReplies: false,
+        currentActorId: currentActor.id
+      })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+    }
 
     await database.deleteLike({ actorId: currentActor.id, statusId })
     await sendUndoLike({ currentActor, status })
