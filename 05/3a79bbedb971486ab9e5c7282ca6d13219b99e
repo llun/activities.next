@@ -1,0 +1,25 @@
+next.config.test.ts
+  s_ee5cc684fbe1fc::t_abc6de14cda403 128-152
+lib/utils/text/sanitizeText.ts
+  s_ee5cc684fbe1fc::t_ed717b767f1d8b 35-38
+lib/utils/text/sanitizeText.test.ts
+  s_ee5cc684fbe1fc::t_abc6de14cda403 62-70
+next.config.ts
+  s_ee5cc684fbe1fc::t_ed717b767f1d8b 85-91,112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "053a79bbedb971486ab9e5c7282ca6d13219b99e",
+  "prompts": {},
+  "sessions": {
+    "s_ee5cc684fbe1fc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20f3-c90f-7bd3-a6e5-739e3f528bd7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
