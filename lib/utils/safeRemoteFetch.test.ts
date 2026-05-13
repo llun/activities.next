@@ -186,6 +186,9 @@ describe('safeRemoteFetch', () => {
       safeRemoteFetch({ url: 'https://[64:ff9b::10.0.0.1]/actor' })
     ).rejects.toThrow('Unsafe remote address')
     await expect(
+      safeRemoteFetch({ url: 'https://[64:ff9b:1:c0a8:0:100::]/actor' })
+    ).rejects.toThrow('Unsafe remote address')
+    await expect(
       safeRemoteFetch({ url: 'https://[100::1]/actor' })
     ).rejects.toThrow('Unsafe remote address')
     await expect(
@@ -332,37 +335,91 @@ describe('safeRemoteFetch', () => {
     expect(destroy).toHaveBeenCalled()
   })
 
-  it('changes POST redirects for 301, 302, and 303 to lowercase GET', async () => {
-    const seenRequests: Array<{ body?: string; method: string }> = []
-    const safeRemoteFetch = createSafeRemoteFetch({
-      resolveHost: async () => [SAFE_ADDRESS],
-      transport: async ({ body, method, url }) => {
-        seenRequests.push({ body, method })
-        if (url.pathname === '/from') {
-          return {
-            statusCode: 301,
-            headers: { location: 'https://safe.example/to' },
-            body: streamFrom([])
+  it.each([301, 302, 303])(
+    'preserves POST redirects for %s responses',
+    async (statusCode) => {
+      const seenRequests: Array<{ body?: string; method: string }> = []
+      const safeRemoteFetch = createSafeRemoteFetch({
+        resolveHost: async () => [SAFE_ADDRESS],
+        transport: async ({ body, method, url }) => {
+          seenRequests.push({ body, method })
+          if (url.pathname === '/from') {
+            return {
+              statusCode,
+              headers: { location: 'https://safe.example/to' },
+              body: streamFrom([])
+            }
           }
+
+          return okResponse()
         }
+      })
 
-        return okResponse()
-      }
+      await safeRemoteFetch({
+        body: 'payload',
+        headers: {
+          'content-type': 'text/plain'
+        },
+        method: 'POST',
+        url: 'https://safe.example/from'
+      })
+
+      expect(seenRequests).toEqual([
+        { body: 'payload', method: 'POST' },
+        { body: 'payload', method: 'POST' }
+      ])
+    }
+  )
+
+  it('does not leave got stream error listeners after reading the body', async () => {
+    const stream = new Readable({
+      read() {}
+    })
+    mockGotStream.mockImplementationOnce(() => {
+      process.nextTick(() => {
+        stream.emit('response', {
+          headers: {},
+          statusCode: 200
+        })
+        stream.push('ok')
+        stream.push(null)
+      })
+      return stream
+    })
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS]
     })
 
-    await safeRemoteFetch({
-      body: 'payload',
-      headers: {
-        'content-type': 'text/plain'
-      },
-      method: 'POST',
-      url: 'https://safe.example/from'
+    await expect(
+      safeRemoteFetch({ url: 'https://safe.example/actor' })
+    ).resolves.toMatchObject({
+      body: 'ok',
+      statusCode: 200
+    })
+    expect(stream.listenerCount('error')).toBe(0)
+  })
+
+  it('surfaces got stream errors after receiving a response', async () => {
+    const stream = new Readable({
+      read() {}
+    })
+    mockGotStream.mockImplementationOnce(() => {
+      process.nextTick(() => {
+        stream.emit('response', {
+          headers: {},
+          statusCode: 200
+        })
+        stream.destroy(new Error('stream failed'))
+      })
+      return stream
+    })
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS]
     })
 
-    expect(seenRequests).toEqual([
-      { body: 'payload', method: 'POST' },
-      { body: undefined, method: 'get' }
-    ])
+    await expect(
+      safeRemoteFetch({ url: 'https://safe.example/actor' })
+    ).rejects.toThrow('stream failed')
   })
 
   it('preserves all resolved safe addresses for transport fallback', async () => {

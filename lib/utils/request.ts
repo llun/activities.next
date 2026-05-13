@@ -11,7 +11,7 @@ const USER_AGENT = `activities.next/${packageJson.version}`
 const DEFAULT_RESPONSE_TIMEOUT = 10000
 const MAX_RETRY_LIMIT = 1
 const DEFAULT_RETRY_NOISE = 100
-const RETRY_BACKOFF_LIMIT = Number.POSITIVE_INFINITY
+const RETRY_BACKOFF_LIMIT = 30_000
 const RETRYABLE_METHODS = new Set([
   'DELETE',
   'GET',
@@ -65,7 +65,11 @@ const getRequestOptions = ({
 }: Omit<RequestOptions, 'url'>) => {
   const config = getConfig()
   const retryLimit = config.request?.numberOfRetry ?? MAX_RETRY_LIMIT
-  const configuredRetryNoise = config.request?.retryNoise ?? DEFAULT_RETRY_NOISE
+  const configRetryNoise = config.request?.retryNoise
+  const configuredRetryNoise =
+    typeof configRetryNoise === 'number' || configRetryNoise === null
+      ? configRetryNoise
+      : DEFAULT_RETRY_NOISE
   const defaultResponseTimeout =
     responseTimeout ||
     config.request?.timeoutInMilliseconds ||
@@ -103,7 +107,7 @@ const wait = (milliseconds: number) =>
 
 const getRetryDelay = (attempt: number, retryNoise: number | null) => {
   const noise = retryNoise ? Math.random() * retryNoise : 0
-  return Math.min(2 ** attempt * 1000, RETRY_BACKOFF_LIMIT) + noise
+  return Math.min(2 ** attempt * 1000 + noise, RETRY_BACKOFF_LIMIT)
 }
 
 const isRetryableRequestError = (

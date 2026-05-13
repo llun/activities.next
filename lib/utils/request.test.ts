@@ -369,5 +369,62 @@ describe('request utility', () => {
       })
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
+
+    it('preserves configured null retry noise', async () => {
+      jest.useFakeTimers()
+      mockGetConfig.mockReturnValue({
+        ...defaultConfig,
+        request: {
+          timeoutInMilliseconds: 1000,
+          numberOfRetry: 1,
+          retryNoise: null,
+          maxResponseSizeInBytes: 1024
+        }
+      })
+      jest.spyOn(Math, 'random').mockReturnValue(0.5)
+      const error = Object.assign(new Error('dns lookup timed out'), {
+        code: 'EAI_AGAIN'
+      })
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test'
+      })
+      await jest.advanceTimersByTimeAsync(1000)
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+    })
+
+    it('caps retry backoff at thirty seconds', async () => {
+      jest.useFakeTimers()
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout')
+      jest.spyOn(Math, 'random').mockReturnValue(1)
+      const error = Object.assign(new Error('dns lookup timed out'), {
+        code: 'EAI_AGAIN'
+      })
+      fetchMock.mockReject(error)
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test',
+        numberOfRetry: 6,
+        retryNoise: 100
+      }).catch((error) => error as Error)
+
+      for (const delay of [1100, 2100, 4100, 8100, 16100]) {
+        await jest.advanceTimersByTimeAsync(delay)
+      }
+
+      const scheduledDelays = setTimeoutSpy.mock.calls.map(([, delay]) => delay)
+      expect(scheduledDelays).toEqual([1100, 2100, 4100, 8100, 16100, 30000])
+
+      await jest.advanceTimersByTimeAsync(30000)
+      await expect(responsePromise).resolves.toThrow('dns lookup timed out')
+      expect(fetchMock).toHaveBeenCalledTimes(7)
+    })
   })
 })

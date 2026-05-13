@@ -1,7 +1,7 @@
 import got, { Headers, Method, OptionsInit } from 'got'
 import { lookup } from 'node:dns/promises'
 import net from 'node:net'
-import type { Readable } from 'node:stream'
+import { PassThrough, type Readable } from 'node:stream'
 
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS = 3
@@ -12,17 +12,6 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   'cookie',
   'cookie2',
   'proxy-authorization',
-  'signature'
-])
-// Signature covers both request metadata and the signed body digest, so it is
-// stripped on cross-host redirects and on redirects that rewrite the method.
-const BODY_HEADERS = new Set([
-  'content-encoding',
-  'content-language',
-  'content-length',
-  'content-location',
-  'content-type',
-  'digest',
   'signature'
 ])
 const RETRY_DISABLED = { limit: 0 }
@@ -198,14 +187,25 @@ const hasIpv4CompatibleIpv6Tail = (bytes: number[]) =>
   bytes.slice(0, 12).every((byte) => byte === 0) &&
   bytes.slice(12).some((byte) => byte !== 0)
 
-const isNat64Ipv6 = (bytes: number[]) =>
+const isWellKnownNat64Ipv6 = (bytes: number[]) =>
   bytes[0] === 0x00 &&
   bytes[1] === 0x64 &&
   bytes[2] === 0xff &&
   bytes[3] === 0x9b &&
   bytes.slice(4, 12).every((byte) => byte === 0)
 
+const isRfc8215LocalUseNat64Ipv6 = (bytes: number[]) =>
+  bytes[0] === 0x00 &&
+  bytes[1] === 0x64 &&
+  bytes[2] === 0xff &&
+  bytes[3] === 0x9b &&
+  bytes[4] === 0x00 &&
+  bytes[5] === 0x01
+
 const getIpv4Tail = (bytes: number[]) => bytes.slice(12).join('.')
+
+const getPrefix48EmbeddedIpv4 = (bytes: number[]) =>
+  [bytes[6], bytes[7], bytes[9], bytes[10]].join('.')
 
 const isUnsafeIpv6 = (address: string) => {
   const bytes = parseIpv6Bytes(address)
@@ -214,9 +214,12 @@ const isUnsafeIpv6 = (address: string) => {
   if (
     isIpv4MappedIpv6(bytes) ||
     hasIpv4CompatibleIpv6Tail(bytes) ||
-    isNat64Ipv6(bytes)
+    isWellKnownNat64Ipv6(bytes)
   ) {
     return isUnsafeIpv4(getIpv4Tail(bytes))
+  }
+  if (isRfc8215LocalUseNat64Ipv6(bytes)) {
+    return isUnsafeIpv4(getPrefix48EmbeddedIpv4(bytes))
   }
 
   const isUnspecified = bytes.every((byte) => byte === 0)
@@ -434,17 +437,27 @@ const gotTransport: SafeRemoteFetchTransport = async ({
       }
     }
     const stream = got.stream(url.toString(), options)
-    const observeStreamError = () => {}
+    const responseBody = new PassThrough()
     const rejectBeforeResponse = (error: Error) => {
       reject(error)
     }
+    const forwardStreamError = (error: Error) => {
+      queueMicrotask(() => {
+        responseBody.destroy(error)
+      })
+    }
 
-    stream.on('error', observeStreamError)
     stream.once('error', rejectBeforeResponse)
     stream.once('response', (response) => {
       stream.off('error', rejectBeforeResponse)
+      stream.on('error', forwardStreamError)
+      responseBody.once('close', () => {
+        stream.off('error', forwardStreamError)
+        if (!stream.destroyed) stream.destroy()
+      })
+      stream.pipe(responseBody)
       resolve({
-        body: stream,
+        body: responseBody,
         headers: response.headers,
         statusCode: response.statusCode
       })
@@ -463,12 +476,10 @@ const compactHeaders = (headers: SafeRemoteFetchHeaders = {}) =>
 
 const buildHeaders = ({
   headers,
-  methodChanged,
   previousUrl,
   url
 }: {
   headers: SafeRemoteFetchHeaders
-  methodChanged: boolean
   previousUrl?: URL
   url: URL
 }) => {
@@ -479,9 +490,6 @@ const buildHeaders = ({
     const normalizedKey = key.toLowerCase()
     if (normalizedKey === 'host') delete normalizedHeaders[key]
     if (isCrossHostRedirect && SENSITIVE_REDIRECT_HEADERS.has(normalizedKey)) {
-      delete normalizedHeaders[key]
-    }
-    if (methodChanged && BODY_HEADERS.has(normalizedKey)) {
       delete normalizedHeaders[key]
     }
   }
@@ -579,7 +587,6 @@ export const createSafeRemoteFetch = ({
     let currentMethod = method
     let previousUrl: URL | undefined
     let redirectCount = 0
-    let methodChanged = false
     const connectTimeout = connectTimeoutInMilliseconds ?? timeoutInMilliseconds
     const readTimeout = readTimeoutInMilliseconds ?? timeoutInMilliseconds
     const effectiveMaxRedirects = Math.min(
@@ -591,7 +598,6 @@ export const createSafeRemoteFetch = ({
       assertAllowedProtocol(currentUrl)
       const requestHeaders = buildHeaders({
         headers: currentHeaders,
-        methodChanged,
         previousUrl,
         url: currentUrl
       })
@@ -635,13 +641,6 @@ export const createSafeRemoteFetch = ({
       previousUrl = currentUrl
       currentUrl = redirectUrl
       redirectCount += 1
-      methodChanged =
-        [301, 302, 303].includes(response.statusCode) &&
-        currentMethod.toUpperCase() !== 'GET'
-      if (methodChanged) {
-        currentMethod = 'get'
-        currentBody = undefined
-      }
       currentHeaders = requestHeaders
     }
   }
