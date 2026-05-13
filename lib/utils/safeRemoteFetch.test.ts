@@ -17,7 +17,7 @@ jest.mock('got', () => ({
 
 const SAFE_ADDRESS = { address: '93.184.216.34', family: 4 as const }
 
-const streamFrom = (chunks: string[]) => Readable.from(chunks)
+const streamFrom = (chunks: Array<string | Buffer>) => Readable.from(chunks)
 
 const okResponse = (body = 'ok') => ({
   statusCode: 200,
@@ -100,6 +100,40 @@ describe('safeRemoteFetch', () => {
     ).rejects.toThrow('Response body too large')
     expect(readCount).toBe(0)
     expect(body.destroyed).toBe(true)
+  })
+
+  it('decodes response bodies using the response charset when present', async () => {
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'text/plain; charset=iso-8859-1' },
+        body: streamFrom([Buffer.from([0x63, 0x61, 0x66, 0xe9])])
+      })
+    })
+
+    await expect(
+      safeRemoteFetch({ url: 'https://safe.example/latin1' })
+    ).resolves.toMatchObject({
+      body: 'café'
+    })
+  })
+
+  it('avoids utf8 replacement when no charset is declared for non-utf8 text', async () => {
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'text/plain' },
+        body: streamFrom([Buffer.from([0x63, 0x61, 0x66, 0xe9])])
+      })
+    })
+
+    await expect(
+      safeRemoteFetch({ url: 'https://safe.example/latin1' })
+    ).resolves.toMatchObject({
+      body: 'café'
+    })
   })
 
   it('rejects redirects beyond the configured cap', async () => {
@@ -335,7 +369,7 @@ describe('safeRemoteFetch', () => {
     expect(destroy).toHaveBeenCalled()
   })
 
-  it.each([301, 302, 303])(
+  it.each([301, 302])(
     'preserves POST redirects for %s responses',
     async (statusCode) => {
       const seenRequests: Array<{ body?: string; method: string }> = []
@@ -370,6 +404,60 @@ describe('safeRemoteFetch', () => {
       ])
     }
   )
+
+  it('converts POST redirects to GET for 303 responses', async () => {
+    const seenRequests: Array<{
+      body?: string
+      headers: Record<string, string | string[] | undefined>
+      method: string
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ body, headers, method, url }) => {
+        seenRequests.push({ body, headers, method })
+        if (url.pathname === '/from') {
+          return {
+            statusCode: 303,
+            headers: { location: 'https://safe.example/to' },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      body: 'payload',
+      headers: {
+        'content-type': 'text/plain',
+        digest: 'sha-256=payload',
+        signature: 'keyId="secret",signature="secret"'
+      },
+      method: 'POST',
+      url: 'https://safe.example/from'
+    })
+
+    expect(seenRequests).toEqual([
+      {
+        body: 'payload',
+        headers: expect.objectContaining({
+          'content-type': 'text/plain',
+          digest: 'sha-256=payload',
+          host: 'safe.example',
+          signature: 'keyId="secret",signature="secret"'
+        }),
+        method: 'POST'
+      },
+      {
+        body: undefined,
+        headers: {
+          host: 'safe.example'
+        },
+        method: 'GET'
+      }
+    ])
+  })
 
   it('does not leave got stream error listeners after reading the body', async () => {
     const stream = new Readable({

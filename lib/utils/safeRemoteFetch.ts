@@ -2,6 +2,7 @@ import got, { Headers, Method, OptionsInit } from 'got'
 import { lookup } from 'node:dns/promises'
 import net from 'node:net'
 import { PassThrough, type Readable } from 'node:stream'
+import { TextDecoder } from 'node:util'
 
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS = 3
@@ -12,6 +13,13 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   'cookie',
   'cookie2',
   'proxy-authorization',
+  'signature'
+])
+const BODY_REDIRECT_HEADERS = new Set([
+  'content-digest',
+  'content-length',
+  'content-type',
+  'digest',
   'signature'
 ])
 const RETRY_DISABLED = { limit: 0 }
@@ -513,6 +521,51 @@ const getHeaderValue = (
   return value
 }
 
+const getResponseCharset = (
+  headers: Record<string, string | string[] | undefined>
+) => {
+  const contentType = getHeaderValue(headers, 'content-type')
+  if (!contentType) return null
+
+  const parameters = contentType.split(';').slice(1)
+  for (const parameter of parameters) {
+    const [rawKey, ...rawValue] = parameter.split('=')
+    if (rawKey?.trim().toLowerCase() !== 'charset') continue
+
+    const value = rawValue.join('=').trim()
+    if (!value) return null
+
+    return value.replace(/^["']|["']$/g, '')
+  }
+
+  return null
+}
+
+const isUtf8 = (body: Buffer) => {
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(body)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const decodeResponseBody = (
+  body: Buffer,
+  headers: Record<string, string | string[] | undefined>
+) => {
+  const charset = getResponseCharset(headers)
+  if (charset) {
+    try {
+      return new TextDecoder(charset).decode(body)
+    } catch {
+      return body.toString('utf8')
+    }
+  }
+
+  return isUtf8(body) ? body.toString('utf8') : body.toString('latin1')
+}
+
 const readResponseBody = async (
   response: SafeRemoteFetchTransportResponse,
   maxBodyBytes: number
@@ -542,7 +595,7 @@ const readResponseBody = async (
     chunks.push(buffer)
   }
 
-  return Buffer.concat(chunks).toString('utf8')
+  return decodeResponseBody(Buffer.concat(chunks), response.headers)
 }
 
 const getRedirectLocation = (
@@ -558,6 +611,17 @@ const getRedirectLocation = (
   redirectUrl.username = ''
   redirectUrl.password = ''
   return redirectUrl
+}
+
+const stripBodyHeaders = (headers: SafeRemoteFetchHeaders) => {
+  const normalizedHeaders = compactHeaders(headers)
+  for (const key of Object.keys(normalizedHeaders)) {
+    if (BODY_REDIRECT_HEADERS.has(key.toLowerCase())) {
+      delete normalizedHeaders[key]
+    }
+  }
+
+  return normalizedHeaders
 }
 
 export const createSafeRemoteFetch = ({
@@ -641,7 +705,13 @@ export const createSafeRemoteFetch = ({
       previousUrl = currentUrl
       currentUrl = redirectUrl
       redirectCount += 1
-      currentHeaders = requestHeaders
+      if (response.statusCode === 303) {
+        currentBody = undefined
+        currentMethod = 'GET'
+        currentHeaders = stripBodyHeaders(requestHeaders)
+      } else {
+        currentHeaders = requestHeaders
+      }
     }
   }
 
