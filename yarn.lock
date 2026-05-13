@@ -737,9 +737,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/s3-request-presigner@npm:^3.1041.0":
-  version: 3.1041.0
-  resolution: "@aws-sdk/s3-request-presigner@npm:3.1041.0"
+"@aws-sdk/s3-request-presigner@npm:^3.1045.0":
+  version: 3.1045.0
+  resolution: "@aws-sdk/s3-request-presigner@npm:3.1045.0"
   dependencies:
     "@aws-sdk/signature-v4-multi-region": "npm:^3.996.25"
     "@aws-sdk/types": "npm:^3.973.8"
@@ -749,7 +749,7 @@ __metadata:
     "@smithy/smithy-client": "npm:^4.12.13"
     "@smithy/types": "npm:^4.14.1"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/2f20899b00063466dcfc24fabcb0b682a737111a1750ecea3edd65cff9a516f6b7e34da88a82313b7d3c6904dd4ec322dd901c5b44609c47ac26d44561995ef5
+  checksum: 10c0/f9068614a93850d9af495dad84abcc1198b162ec60a62e5622ecd96678f761c35ed0b60efcdbcc200bd8220d7ed6ff7190b8ec9e0b033a302d8b6c2ff684d8ff
   languageName: node
   linkType: hard
 
@@ -5817,7 +5817,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.1041.0"
     "@aws-sdk/client-ses": "npm:^3.1041.0"
     "@aws-sdk/s3-presigned-post": "npm:^3.1043.0"
-    "@aws-sdk/s3-request-presigner": "npm:^3.1041.0"
+    "@aws-sdk/s3-request-presigner": "npm:^3.1045.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.6.11"
     "@better-auth/oauth-provider": "npm:^1.6.9"
