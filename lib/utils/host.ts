@@ -6,6 +6,14 @@ type HostRuleConfig = {
 
 const normalizedRulesCache = new Map<string, string[]>()
 
+type HostParts = {
+  hasWildcard: boolean
+  hostname: string
+  port: string
+}
+
+const hostPartsCache = new Map<string, HostParts>()
+
 export const normalizeHost = (
   value: string | undefined | null
 ): string | null => {
@@ -28,16 +36,20 @@ export const normalizeHost = (
 }
 
 const getHostParts = (normalizedHost: string) => {
+  const cachedParts = hostPartsCache.get(normalizedHost)
+  if (cachedParts) return cachedParts
+
   const hasWildcard = normalizedHost.startsWith('*.')
   const hostToParse = hasWildcard ? normalizedHost.slice(2) : normalizedHost
   const url = new URL(`https://${hostToParse}`)
 
-  return {
+  const hostParts = {
     hasWildcard,
-    host: url.host,
     hostname: url.hostname,
     port: url.port
   }
+  hostPartsCache.set(normalizedHost, hostParts)
+  return hostParts
 }
 
 export const normalizeHostRules = (rules: readonly string[]) => {

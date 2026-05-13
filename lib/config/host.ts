@@ -1,16 +1,7 @@
-import fs from 'fs'
-import path from 'path'
-
 export type HostConfig = {
   host: string
   allowActorDomains: string[]
   trustedHosts: string[]
-}
-
-type HostFileConfig = {
-  host?: unknown
-  allowActorDomains?: unknown
-  trustedHosts?: unknown
 }
 
 type EnvironmentListOptions = {
@@ -45,28 +36,10 @@ export const getHostConfigFromEnvironment = (
   trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
 })
 
-export const getHostConfigFromFile = (): HostConfig | null => {
-  try {
-    const parsed = JSON.parse(
-      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
-    ) as HostFileConfig
-
-    if (!parsed || typeof parsed !== 'object') return null
-
-    return {
-      host: typeof parsed.host === 'string' ? parsed.host : '',
-      allowActorDomains: toStringList(parsed.allowActorDomains),
-      trustedHosts: toStringList(parsed.trustedHosts)
-    }
-  } catch {
-    return null
-  }
-}
-
 export const getHostConfig = (): HostConfig => {
   if (cachedHostConfig) return cachedHostConfig
 
-  cachedHostConfig = getHostConfigFromFile() ?? getHostConfigFromEnvironment()
+  cachedHostConfig = getHostConfigFromEnvironment()
   return cachedHostConfig
 }
 
