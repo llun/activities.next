@@ -315,4 +315,41 @@ describe('OAuth token endpoint', () => {
     expect(response.status).toBe(413)
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
+
+  test('rejects token bodies that cannot be read with a bounded stream', async () => {
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        Origin: 'https://client.llun.dev'
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: 'client-id',
+        client_secret: 'client-secret'
+      })
+    })
+    const arrayBufferSpy = jest.spyOn(req, 'arrayBuffer')
+    Object.defineProperty(req, 'body', {
+      value: {},
+      configurable: true
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'Unable to read request body'
+    })
+    expect(response.status).toBe(400)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
+      'https://client.llun.dev'
+    )
+    expect(arrayBufferSpy).not.toHaveBeenCalled()
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
 })

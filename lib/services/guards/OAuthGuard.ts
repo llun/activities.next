@@ -75,7 +75,6 @@ const hasSameOriginProof = (req: NextRequest): boolean => {
   if (!STATE_CHANGING_METHODS.has(req.method)) return true
 
   const allowedOrigins = new Set([new URL(getBaseURL()).origin])
-  if (req.nextUrl?.origin) allowedOrigins.add(req.nextUrl.origin)
 
   const origin = getOrigin(req.headers.get('Origin'))
   if (origin) return allowedOrigins.has(origin)

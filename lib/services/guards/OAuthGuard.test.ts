@@ -123,9 +123,10 @@ describe('#OAuthGuard', () => {
 
   const createRequest = (
     headers: Record<string, string> = {},
-    method = 'GET'
+    method = 'GET',
+    url = 'https://llun.test/api/test'
   ) => {
-    return new NextRequest('https://llun.test/api/test', {
+    return new NextRequest(url, {
       method,
       headers
     })
@@ -173,6 +174,23 @@ describe('#OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('rejects a cookie-session mutation when origin only matches the request URL', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest(
+        { Origin: 'https://attacker.test' },
+        'POST',
+        'https://attacker.test/api/test'
+      )
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(403)
+      expect(mockHandler).not.toHaveBeenCalled()
     })
 
     test('does not fall back to cookie session when a bearer token lacks the required scope', async () => {

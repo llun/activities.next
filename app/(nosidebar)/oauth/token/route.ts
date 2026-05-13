@@ -42,32 +42,68 @@ const getClientId = (
 }
 
 class TokenRequestBodyTooLargeError extends Error {}
+class TokenRequestBodyUnreadableError extends Error {}
+
+const appendTokenRequestBodyChunk = (
+  chunks: Uint8Array[],
+  size: number,
+  value: unknown
+): number => {
+  const chunk = toBodyChunk(value)
+  const nextSize = size + chunk.byteLength
+  if (nextSize > MAX_TOKEN_REQUEST_BODY_BYTES) {
+    throw new TokenRequestBodyTooLargeError()
+  }
+  chunks.push(chunk)
+  return nextSize
+}
+
+const toBodyChunk = (value: unknown): Uint8Array => {
+  if (value instanceof Uint8Array) return value
+  if (value instanceof ArrayBuffer) return new Uint8Array(value)
+  if (typeof value === 'number') return Uint8Array.of(value)
+  if (typeof value === 'string') return Buffer.from(value)
+  throw new TokenRequestBodyUnreadableError()
+}
+
+const getAsyncIterableBody = (
+  body: ReadableStream<Uint8Array>
+): AsyncIterable<Uint8Array> | null => {
+  const asyncIterable = body as ReadableStream<Uint8Array> &
+    AsyncIterable<Uint8Array>
+  if (typeof asyncIterable[Symbol.asyncIterator] === 'function') {
+    return asyncIterable
+  }
+
+  const valuesBody = body as ReadableStream<Uint8Array> & {
+    values?: () => AsyncIterable<Uint8Array>
+  }
+  return typeof valuesBody.values === 'function' ? valuesBody.values() : null
+}
 
 const readTokenRequestBodyWithLimit = async (
   req: NextRequest
 ): Promise<string> => {
   const body = req.body
   if (!body) return ''
-  if (typeof body.getReader !== 'function') {
-    const bodyBuffer = Buffer.from(await req.arrayBuffer())
-    if (bodyBuffer.byteLength > MAX_TOKEN_REQUEST_BODY_BYTES) {
-      throw new TokenRequestBodyTooLargeError()
-    }
-    return bodyBuffer.toString('utf8')
-  }
-
-  const reader = body.getReader()
   const chunks: Uint8Array[] = []
   let size = 0
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.byteLength
-    if (size > MAX_TOKEN_REQUEST_BODY_BYTES) {
-      throw new TokenRequestBodyTooLargeError()
+  if (typeof body.getReader === 'function') {
+    const reader = body.getReader()
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size = appendTokenRequestBodyChunk(chunks, size, value)
     }
-    chunks.push(value)
+  } else {
+    const asyncIterableBody = getAsyncIterableBody(body)
+    if (!asyncIterableBody) throw new TokenRequestBodyUnreadableError()
+
+    for await (const value of asyncIterableBody) {
+      size = appendTokenRequestBodyChunk(chunks, size, value)
+    }
   }
 
   return Buffer.concat(chunks).toString('utf8')
@@ -123,6 +159,22 @@ const getTokenRequestBody = async (
     const bodyText = await readTokenRequestBodyWithLimit(req)
     return { bodyText, params: new URLSearchParams(bodyText), error: null }
   } catch (error) {
+    if (error instanceof TokenRequestBodyUnreadableError) {
+      return {
+        bodyText: null,
+        params: null,
+        error: apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            error: 'invalid_request',
+            error_description: 'Unable to read request body'
+          },
+          responseStatusCode: HTTP_STATUS.BAD_REQUEST
+        })
+      }
+    }
+
     if (!(error instanceof TokenRequestBodyTooLargeError)) throw error
     return {
       bodyText: null,
