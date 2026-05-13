@@ -282,22 +282,22 @@ const rollbackSavedArchiveFitnessFiles = async ({
   database: Database
   fitnessFileIds: string[]
 }) => {
-  const rollbackResults = await Promise.all(
-    fitnessFileIds.map(async (fitnessFileId) => {
-      try {
-        const deleted = await deleteFitnessFile(database, fitnessFileId)
-        return {
-          fitnessFileId,
-          deleted
-        }
-      } catch {
-        return {
-          fitnessFileId,
-          deleted: false
-        }
-      }
-    })
-  )
+  const rollbackResults: { fitnessFileId: string; deleted: boolean }[] = []
+
+  for (const fitnessFileId of fitnessFileIds) {
+    try {
+      const deleted = await deleteFitnessFile(database, fitnessFileId)
+      rollbackResults.push({
+        fitnessFileId,
+        deleted
+      })
+    } catch {
+      rollbackResults.push({
+        fitnessFileId,
+        deleted: false
+      })
+    }
+  }
 
   return rollbackResults
     .filter((result) => !result.deleted)

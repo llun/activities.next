@@ -578,6 +578,81 @@ describe('importStravaArchiveJob', () => {
     )
   })
 
+  it('rolls back staged fitness files sequentially when import enqueue fails', async () => {
+    mockArchiveReaderOpen.mockResolvedValueOnce({
+      close: jest.fn(),
+      hasEntry: jest.fn().mockReturnValue(true),
+      getActivities: jest.fn().mockResolvedValue([
+        {
+          activityId: 'activity-1',
+          activityName: 'Morning Ride',
+          fitnessFilePath: 'activities/activity-1.fit',
+          mediaPaths: []
+        },
+        {
+          activityId: 'activity-2',
+          activityName: 'Evening Ride',
+          fitnessFilePath: 'activities/activity-2.fit',
+          mediaPaths: []
+        }
+      ]),
+      readEntryBuffer: jest.fn().mockResolvedValue(Buffer.from('fitness-file'))
+    } as never)
+    mockSaveFitnessFile
+      .mockResolvedValueOnce({
+        id: 'activity-file-1',
+        type: 'fitness',
+        file_type: 'fit',
+        mime_type: 'application/vnd.ant.fit',
+        url: 'https://llun.test/api/v1/fitness-files/activity-file-1',
+        fileName: 'activity-1.fit',
+        size: 16
+      })
+      .mockResolvedValueOnce({
+        id: 'activity-file-2',
+        type: 'fitness',
+        file_type: 'fit',
+        mime_type: 'application/vnd.ant.fit',
+        url: 'https://llun.test/api/v1/fitness-files/activity-file-2',
+        fileName: 'activity-2.fit',
+        size: 16
+      })
+    mockQueuePublish.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    let activeDeletes = 0
+    let maxActiveDeletes = 0
+    mockDeleteFitnessFile.mockImplementation(async () => {
+      activeDeletes += 1
+      maxActiveDeletes = Math.max(maxActiveDeletes, activeDeletes)
+      await Promise.resolve()
+      activeDeletes -= 1
+      return true
+    })
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-queue-fail-sequential-rollback',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-1'
+    )
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-2'
+    )
+    expect(maxActiveDeletes).toBe(1)
+  })
+
   it('cleans up archive source file when actor no longer exists', async () => {
     database.getActorFromId.mockResolvedValueOnce(null as never)
 

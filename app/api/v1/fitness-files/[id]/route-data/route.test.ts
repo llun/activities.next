@@ -281,14 +281,14 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
   })
 
-  it('uses the trusted rightmost forwarded address for anonymous rate limiting', async () => {
+  it('uses the originating forwarded address for anonymous rate limiting', async () => {
     mockGetServerSession.mockResolvedValue(null)
 
     const status = await database.createNote({
-      id: `${ACTOR1_ID}/statuses/public-route-data-rightmost-rate-limit`,
-      url: `${ACTOR1_ID}/statuses/public-route-data-rightmost-rate-limit`,
+      id: `${ACTOR1_ID}/statuses/public-route-data-originating-rate-limit`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-originating-rate-limit`,
       actorId: ACTOR1_ID,
-      text: 'Public route data rightmost rate limit',
+      text: 'Public route data originating rate limit',
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [ACTOR1_FOLLOWER_URL]
     })
@@ -296,8 +296,8 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     const fitnessFile = await database.createFitnessFile({
       actorId: ACTOR1_ID,
       statusId: status.id,
-      path: 'fitness/public-route-data-rightmost-rate-limit.fit',
-      fileName: 'public-route-data-rightmost-rate-limit.fit',
+      path: 'fitness/public-route-data-originating-rate-limit.fit',
+      fileName: 'public-route-data-originating-rate-limit.fit',
       fileType: 'fit',
       mimeType: 'application/vnd.ant.fit',
       bytes: 1_024
@@ -315,7 +315,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       )
     }
 
-    expect(response?.status).toBe(429)
+    expect(response?.status).toBe(200)
   })
 
   it('keeps route-data security maps bounded', () => {

@@ -840,6 +840,37 @@ export const completeUploadPresignedUrl = async ({
   }
 }
 
+const MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS = 3
+
+const completeUploadPresignedUrlWithRetry = async ({
+  mediaId
+}: {
+  mediaId: string
+}): Promise<UploadedAttachment | null> => {
+  for (
+    let attempt = 1;
+    attempt <= MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      const completed = await completeUploadPresignedUrl({ mediaId })
+      if (completed) return completed
+    } catch {
+      if (attempt === MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS) {
+        return null
+      }
+    }
+  }
+
+  return null
+}
+
+const cleanupPendingUploadMedia = async (mediaId: string) => {
+  await fetch(`/api/v1/accounts/media/${mediaId}`, {
+    method: 'DELETE'
+  }).catch(() => undefined)
+}
+
 export const uploadAttachment = async (
   file: File
 ): Promise<UploadedAttachment | null> => {
@@ -861,10 +892,13 @@ export const uploadAttachment = async (
 
   const { url: presignedUrl, saveFileOutput, headers } = result.presigned
   await uploadFileToPresignedUrl({ media: file, presignedUrl, headers })
-  const completed = await completeUploadPresignedUrl({
+  const completed = await completeUploadPresignedUrlWithRetry({
     mediaId: saveFileOutput.id
   })
-  if (!completed) return null
+  if (!completed) {
+    await cleanupPendingUploadMedia(saveFileOutput.id)
+    return null
+  }
 
   return {
     ...completed,

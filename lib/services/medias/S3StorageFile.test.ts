@@ -156,6 +156,39 @@ describe('S3FileStorage presigned upload completion', () => {
     expect(database.deleteMedia).not.toHaveBeenCalled()
   })
 
+  it('does not request checksum mode when verifying presigned uploads', async () => {
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: 1024,
+          ContentType: 'image/png',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await storage.completePresignedUpload(actor, 'media-1')
+
+    expect(HeadObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'bucket',
+      Key: 'medias/2026-01-01/upload.png'
+    })
+  })
+
   it('rejects uploads when no S3 checksum or checksum metadata is available', async () => {
     send.mockImplementation(async (command) => {
       if (command instanceof HeadObjectCommand) {

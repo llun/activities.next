@@ -292,8 +292,7 @@ export class S3FileStorage implements MediaStorage {
         .send(
           new HeadObjectCommand({
             Bucket: this._config.bucket,
-            Key: media.original.path,
-            ChecksumMode: 'ENABLED'
+            Key: media.original.path
           })
         )
         .catch((error) => {

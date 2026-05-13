@@ -145,12 +145,12 @@ export const seedFitnessRouteDataSecurityStateForTests = ({
 const getClientRateLimitKey = (req: NextRequest) => {
   const requestIp = (req as NextRequest & { ip?: string }).ip
   const forwardedFor = req.headers.get('x-forwarded-for')
-  const rightmostForwarded = forwardedFor?.split(',').at(-1)?.trim()
+  const originatingForwarded = forwardedFor?.split(',')[0]?.trim()
   return (
     requestIp ||
     req.headers.get('cf-connecting-ip') ||
     req.headers.get('x-real-ip') ||
-    rightmostForwarded ||
+    originatingForwarded ||
     'anonymous'
   )
 }
