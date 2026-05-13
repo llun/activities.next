@@ -304,22 +304,6 @@ describe('request utility', () => {
       })
     })
 
-    it('does not retry local port binding errors', async () => {
-      const error = Object.assign(new Error('address in use'), {
-        code: 'EADDRINUSE'
-      })
-      fetchMock.mockRejectOnce(error)
-      fetchMock.mockResponseOnce('ok', { status: 200 })
-
-      await expect(
-        request({
-          url: 'https://example.com/api/test',
-          numberOfRetry: 1
-        })
-      ).rejects.toThrow('address in use')
-      expect(fetchMock).toHaveBeenCalledTimes(1)
-    })
-
     it('does not retry URLs blocked by safe remote fetch validation', async () => {
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout')
 
@@ -336,6 +320,74 @@ describe('request utility', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it('retries transient HTTP status responses after reading the body', async () => {
+      jest.useFakeTimers()
+      fetchMock.mockResponseOnce('temporary upstream failure', { status: 500 })
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test',
+        numberOfRetry: 1,
+        retryNoise: null
+      })
+      await jest.advanceTimersByTimeAsync(1000)
+
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not retry transient HTTP status responses for POST requests', async () => {
+      fetchMock.mockResponseOnce('temporary upstream failure', { status: 500 })
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const response = await request({
+        url: 'https://example.com/api/test',
+        method: 'POST',
+        numberOfRetry: 1,
+        retryNoise: null
+      })
+
+      expect(response).toMatchObject({
+        body: 'temporary upstream failure',
+        statusCode: 500
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      'EAI_AGAIN',
+      'EADDRINUSE',
+      'ECONNREFUSED',
+      'ECONNRESET',
+      'EPIPE',
+      'ENETUNREACH',
+      'ENOTFOUND',
+      'ETIMEDOUT'
+    ])('retries transient socket error %s', async (code) => {
+      jest.useFakeTimers()
+      const error = Object.assign(new Error(`socket failure: ${code}`), {
+        code
+      })
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test',
+        numberOfRetry: 1,
+        retryNoise: null
+      })
+      await jest.advanceTimersByTimeAsync(1000)
+
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
     it('waits with retry noise before retrying retryable errors', async () => {
       jest.useFakeTimers()
       mockGetConfig.mockReturnValue({
@@ -344,6 +396,40 @@ describe('request utility', () => {
           timeoutInMilliseconds: 1000,
           numberOfRetry: 1,
           retryNoise: 50,
+          maxResponseSizeInBytes: 1024
+        }
+      })
+      jest.spyOn(Math, 'random').mockReturnValue(0.5)
+      const error = Object.assign(new Error('dns lookup timed out'), {
+        code: 'EAI_AGAIN'
+      })
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test'
+      })
+      await jest.advanceTimersByTimeAsync(1024)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      await jest.advanceTimersByTimeAsync(1)
+
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('uses absolute retry noise for negative configured values', async () => {
+      jest.useFakeTimers()
+      mockGetConfig.mockReturnValue({
+        ...defaultConfig,
+        request: {
+          timeoutInMilliseconds: 1000,
+          numberOfRetry: 1,
+          retryNoise: -50,
           maxResponseSizeInBytes: 1024
         }
       })
@@ -393,6 +479,37 @@ describe('request utility', () => {
       })
       await jest.advanceTimersByTimeAsync(1000)
 
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+    })
+
+    it('preserves configured zero retry noise', async () => {
+      jest.useFakeTimers()
+      mockGetConfig.mockReturnValue({
+        ...defaultConfig,
+        request: {
+          timeoutInMilliseconds: 1000,
+          numberOfRetry: 1,
+          retryNoise: 0,
+          maxResponseSizeInBytes: 1024
+        }
+      })
+      const randomSpy = jest.spyOn(Math, 'random')
+      const error = Object.assign(new Error('dns lookup timed out'), {
+        code: 'EAI_AGAIN'
+      })
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test'
+      })
+      await jest.advanceTimersByTimeAsync(1000)
+
+      expect(randomSpy).not.toHaveBeenCalled()
       expect(fetchMock).toHaveBeenCalledTimes(2)
       await expect(responsePromise).resolves.toMatchObject({
         body: 'ok',

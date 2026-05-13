@@ -22,10 +22,16 @@ const RETRYABLE_METHODS = new Set([
 ])
 const RETRYABLE_ERROR_CODES = new Set([
   'EAI_AGAIN',
+  'EADDRINUSE',
+  'ECONNREFUSED',
   'ECONNRESET',
+  'EPIPE',
   'ENETUNREACH',
   'ENOTFOUND',
   'ETIMEDOUT'
+])
+const RETRYABLE_STATUS_CODES = new Set([
+  408, 413, 429, 500, 502, 503, 504, 521, 522, 524
 ])
 const NON_RETRYABLE_SAFE_REMOTE_FETCH_ERROR_CODES = new Set([
   'ERR_UNSAFE_REMOTE_URL',
@@ -106,7 +112,7 @@ const wait = (milliseconds: number) =>
   })
 
 const getRetryDelay = (attempt: number, retryNoise: number | null) => {
-  const noise = retryNoise ? Math.random() * retryNoise : 0
+  const noise = retryNoise ? Math.random() * Math.abs(retryNoise) : 0
   return Math.min(2 ** attempt * 1000 + noise, RETRY_BACKOFF_LIMIT)
 }
 
@@ -128,6 +134,13 @@ const isRetryableRequestError = (
     RETRYABLE_ERROR_CODES.has(code)
   )
 }
+
+const isRetryableStatusCode = (
+  statusCode: number,
+  method: SafeRemoteFetchMethod
+) =>
+  RETRYABLE_METHODS.has(method.toUpperCase()) &&
+  RETRYABLE_STATUS_CODES.has(statusCode)
 
 export const request = async ({
   url,
@@ -152,7 +165,7 @@ export const request = async ({
 
   while (true) {
     try {
-      return await safeRemoteFetch({
+      const response = await safeRemoteFetch({
         body: options.body,
         connectTimeoutInMilliseconds: options.connectTimeoutInMilliseconds,
         headers: options.headers,
@@ -162,6 +175,16 @@ export const request = async ({
         timeoutInMilliseconds: options.timeoutInMilliseconds,
         url
       })
+
+      if (
+        attempt >= options.numberOfRetry ||
+        !isRetryableStatusCode(response.statusCode, method)
+      ) {
+        return response
+      }
+
+      attempt += 1
+      await wait(getRetryDelay(attempt - 1, options.retryNoise))
     } catch (error) {
       if (
         attempt >= options.numberOfRetry ||
