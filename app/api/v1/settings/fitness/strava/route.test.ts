@@ -296,6 +296,26 @@ describe('Strava Settings API', () => {
       expect(response.status).toBe(422)
       expect(data.status).toBe('Unprocessable entity')
     })
+
+    it('returns a bad request response for malformed JSON bodies', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/strava',
+        {
+          method: 'POST',
+          body: '{',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.status).toBe('Bad Request')
+      expect(mockDb.getFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+    })
   })
 
   describe('DELETE /api/v1/settings/fitness/strava', () => {

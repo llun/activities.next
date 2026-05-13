@@ -8,6 +8,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
+  ERROR_400,
   ERROR_404,
   ERROR_422,
   apiResponse,
@@ -29,7 +30,18 @@ export const POST = traceApiRoute(
   'likeToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
     const parsed = LikeStatusRequest.safeParse(body)
     if (!parsed.success) {
       return apiResponse({
@@ -60,7 +72,18 @@ export const DELETE = traceApiRoute(
   'unlikeToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
     const parsed = LikeStatusRequest.safeParse(body)
     if (!parsed.success) {
       return apiResponse({

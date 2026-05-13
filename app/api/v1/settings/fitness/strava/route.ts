@@ -11,6 +11,7 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { logger } from '@/lib/utils/logger'
 import {
+  ERROR_400,
   HTTP_STATUS,
   apiErrorResponse,
   apiResponse
@@ -106,12 +107,24 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const parsed = StravaSettingsRequest.safeParse(body)
-      if (!parsed.success) {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
-      }
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
+    const parsed = StravaSettingsRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+
+    try {
       const { clientId, clientSecret, defaultVisibility } = parsed.data
 
       const existing = await database.getFitnessSettings({

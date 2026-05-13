@@ -9,7 +9,12 @@ import { userAnnounce } from '@/lib/actions/announce'
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { ERROR_422, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_422,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const RepostRequest = z.object({ statusId: z.string() })
@@ -26,7 +31,18 @@ export const POST = traceApiRoute(
   'repostToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
     const parsed = RepostRequest.safeParse(body)
     if (!parsed.success) {
       return apiResponse({
@@ -63,7 +79,18 @@ export const DELETE = traceApiRoute(
   'unrepostToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
     const parsed = RepostRequest.safeParse(body)
     if (!parsed.success) {
       return apiResponse({

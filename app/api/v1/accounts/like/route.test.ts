@@ -60,6 +60,22 @@ describe('POST /api/v1/accounts/like', () => {
     expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockSendLike).not.toHaveBeenCalled()
   })
+
+  it('returns 400 when the request payload is malformed JSON', async () => {
+    const request = new NextRequest('https://llun.test/api/v1/accounts/like', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{'
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data.status).toBe('Bad Request')
+    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockSendLike).not.toHaveBeenCalled()
+  })
 })
 
 describe('DELETE /api/v1/accounts/like', () => {
@@ -79,6 +95,22 @@ describe('DELETE /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(422)
     expect(data.status).toBe('Unprocessable entity')
+    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockSendUndoLike).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when the request payload is malformed JSON', async () => {
+    const request = new NextRequest('https://llun.test/api/v1/accounts/like', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: '{'
+    })
+
+    const response = await DELETE(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data.status).toBe('Bad Request')
     expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockSendUndoLike).not.toHaveBeenCalled()
   })

@@ -6,6 +6,7 @@ import { getDatabase } from '@/lib/database'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
+  ERROR_400,
   ERROR_422,
   ERROR_500,
   apiResponse,
@@ -35,17 +36,29 @@ export const POST = traceApiRoute(
       })
     }
 
+    let body: unknown
     try {
-      const body = await request.json()
-      const parsed = ResetPasswordRequest.safeParse(body)
-      if (!parsed.success) {
-        return apiResponse({
-          req: request,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
-      }
+      body = await request.json()
+    } catch {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
+    const parsed = ResetPasswordRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    try {
       const { code, newPassword } = parsed.data
       const passwordResetCode = hashPasswordResetCode(code)
       const accountId = await database.validatePasswordResetCode({
