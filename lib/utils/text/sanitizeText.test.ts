@@ -25,6 +25,7 @@ describe('sanitizeText', () => {
       expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('href')
       expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('rel')
       expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('class')
+      expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('target')
     })
   })
 
@@ -45,6 +46,13 @@ describe('sanitizeText', () => {
       const input =
         '<a href="https://example.com" rel="nofollow noopener">Link</a>'
       expect(sanitizeText(input)).toContain('rel="nofollow noopener"')
+    })
+
+    it('preserves blank link targets with opener protection', () => {
+      const input = '<a href="https://example.com" target="_blank">Link</a>'
+      expect(sanitizeText(input)).toEqual(
+        '<a href="https://example.com" target="_blank" rel="noopener noreferrer">Link</a>'
+      )
     })
 
     it('allows span with class', () => {
@@ -116,6 +124,12 @@ describe('sanitizeText', () => {
       expect(sanitizeText(input)).toEqual(
         '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:" />'
       )
+    })
+
+    it('removes http emoji image sources', () => {
+      const input =
+        '<img class="emoji" src="http://example.com/image.jpg" alt=":emoji:">'
+      expect(sanitizeText(input)).toEqual('<img class="emoji" alt=":emoji:" />')
     })
 
     it('allows mailto links', () => {

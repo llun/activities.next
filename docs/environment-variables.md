@@ -163,12 +163,12 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 ## Domain Controls
 
-| Variable                         | Description                                                                                        |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_ALLOW_MEDIA_DOMAINS` | JSON array of allowed domains for remote media (e.g., `["cdn.example.com"]`).                      |
-| `ACTIVITIES_ALLOW_ACTOR_DOMAINS` | JSON array of allowed domains for actors.                                                          |
-| `ACTIVITIES_FEDERATION_MODE`     | Federation mode: `open` (default) or `allowlist` to require explicit allowed actor domains.        |
-| `ACTIVITIES_TRUSTED_HOSTS`       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`. |
+| Variable                         | Description                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_ALLOW_MEDIA_DOMAINS` | JSON array of allowed domains for Next image optimization remote media (e.g., `["cdn.example.com"]`). This value is read during `next build`, so Docker/standalone deployments must provide it in the build environment, not only at container runtime. Browser `<img>` loads remain governed by CSP separately and allow HTTPS remote media. |
+| `ACTIVITIES_ALLOW_ACTOR_DOMAINS` | JSON array of allowed domains for actors.                                                                                                                                                                                                                                                                                                     |
+| `ACTIVITIES_FEDERATION_MODE`     | Federation mode: `open` (default) or `allowlist` to require explicit allowed actor domains.                                                                                                                                                                                                                                                   |
+| `ACTIVITIES_TRUSTED_HOSTS`       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`.                                                                                                                                                                                                                                            |
 
 ## Request Configuration
 

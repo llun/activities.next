@@ -24,7 +24,6 @@ import { RequestConfig, getRequestConfig } from './request'
 
 const FederationMode = z.enum(['open', 'allowlist'])
 const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
-const getEnvironmentValue = (key: string) => process.env[key]
 
 const Config = z.object({
   host: z.string(),
@@ -52,8 +51,8 @@ const Config = z.object({
 export type Config = z.infer<typeof Config>
 
 const shouldValidateProductionRuntimeSecret = () =>
-  getEnvironmentValue('NODE_ENV') === 'production' &&
-  getEnvironmentValue('NEXT_PHASE') !== PHASE_PRODUCTION_BUILD
+  process.env.NODE_ENV === 'production' &&
+  process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD
 
 const validateProductionRuntimeSecret = (config: Config) => {
   if (!shouldValidateProductionRuntimeSecret()) return

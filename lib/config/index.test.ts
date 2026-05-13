@@ -2,6 +2,7 @@ describe('Config', () => {
   const originalEnv = process.env
 
   beforeEach(() => {
+    jest.resetModules()
     process.env = { ...originalEnv }
   })
 
@@ -10,7 +11,6 @@ describe('Config', () => {
   })
 
   it('rejects an empty production secret phase at runtime', async () => {
-    jest.resetModules()
     jest.unmock('@/lib/config')
     const { getConfig } = await import('./index')
 

@@ -26,7 +26,7 @@ export const processStatusText = (host: string, status: Status) => {
   const actualStatus = getActualStatus(status)
 
   return _.chain(actualStatus.text)
-    .thru(actualStatus.isLocalActor ? convertMarkdownText(host) : sanitizeText)
+    .thru(actualStatus.isLocalActor ? convertMarkdownText(host) : _.identity)
     .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
     .thru(sanitizeText)
     .thru(_.trim)

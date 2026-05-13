@@ -220,7 +220,7 @@ describe('#getMastodonStatus', () => {
           following_count: 1
         },
         content:
-          '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" class="u-url mention">@<span>test1</span></a></span> This is Actor1 post</p>',
+          '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" target="_blank" class="u-url mention" rel="noopener noreferrer">@<span>test1</span></a></span> This is Actor1 post</p>',
         visibility: 'public',
         url: `${ACTOR2_ID}/statuses/post-2`,
         created_at: expect.toBeString(),

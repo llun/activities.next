@@ -21,7 +21,7 @@ export const SANITIZED_OPTION = {
     'img'
   ],
   allowedAttributes: {
-    a: ['href', 'rel', 'class', 'translate'],
+    a: ['href', 'rel', 'class', 'translate', 'target'],
     img: ['class', 'src', 'alt'],
     span: ['class', 'translate'],
     ol: ['start', 'reversed'],
@@ -33,7 +33,24 @@ export const SANITIZED_OPTION = {
   allowedSchemes: ['http', 'https', 'mailto'],
   allowedSchemesByTag: {
     a: ['http', 'https', 'mailto'],
-    img: ['http', 'https']
+    img: ['https']
+  },
+  transformTags: {
+    a: (tagName: string, attribs: sanitizeHtml.Attributes) => {
+      if (attribs.target !== '_blank') return { tagName, attribs }
+
+      const rel = new Set((attribs.rel ?? '').split(/\s+/).filter(Boolean))
+      rel.add('noopener')
+      rel.add('noreferrer')
+
+      return {
+        tagName,
+        attribs: {
+          ...attribs,
+          rel: Array.from(rel).join(' ')
+        }
+      }
+    }
   },
   exclusiveFilter(frame: sanitizeHtml.IFrame) {
     if (frame.tag !== 'img') return false

@@ -46,13 +46,13 @@ const isDevelopment = () => process.env.NODE_ENV !== 'production'
 
 export const getSecurityHeaders = (): Header[] => {
   const csp = [
-    "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    `script-src 'self' 'unsafe-inline'${isDevelopment() ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
+    // Browser image loads intentionally allow arbitrary HTTPS remote media.
+    // next/image optimization remains separately constrained by remotePatterns.
     "img-src 'self' data: blob: https:",
     `connect-src 'self' https:${isDevelopment() ? ' ws: wss:' : ''}`,
     "font-src 'self' data:",
@@ -89,14 +89,16 @@ const parseImageRemoteAllowlist = (rawAllowlist: string | undefined) => {
     const parsed = JSON.parse(rawAllowlist || '[]')
     return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : []
   } catch {
-    return []
+    throw new Error(
+      `${IMAGE_REMOTE_ALLOWLIST_ENV} must be a JSON array of HTTPS hostnames or URLs`
+    )
   }
 }
 
 const getImageRemotePattern = (
   rawEntry: string
 ): ImageRemotePatterns[number] | null => {
-  const entry = rawEntry.trim().toLowerCase()
+  const entry = rawEntry.trim()
   if (!entry || entry.includes('*')) return null
 
   try {
@@ -111,7 +113,7 @@ const getImageRemotePattern = (
 
     return {
       protocol: 'https',
-      hostname: url.hostname,
+      hostname: url.hostname.toLowerCase(),
       ...(url.port ? { port: url.port } : {}),
       ...(pathname ? { pathname } : {})
     }
@@ -142,8 +144,8 @@ export const isRemoteImageUrlAllowed = (
       if (pattern.port && pattern.port !== url.port) return false
       if (!pattern.pathname) return true
 
-      const prefix = pattern.pathname.replace(/\/\*\*$/, '/')
-      return url.pathname.startsWith(prefix)
+      const prefix = pattern.pathname.replace(/\/\*\*$/, '')
+      return url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)
     })
   } catch {
     return false

@@ -87,6 +87,7 @@ describe('next config security hardening', () => {
     )
 
     expect(csp?.value).toContain("frame-ancestors 'none'")
+    expect(csp?.value).not.toContain('script-src')
     expect(headers).toContainEqual({
       key: 'X-Content-Type-Options',
       value: 'nosniff'
@@ -103,7 +104,7 @@ describe('next config security hardening', () => {
 
   it('only allows configured HTTPS image hosts', () => {
     const patterns = getImageRemotePatterns(
-      JSON.stringify(['media.example.com', 'https://cdn.example.com/images'])
+      JSON.stringify(['media.example.com', 'https://cdn.example.com/Images'])
     )
 
     expect(patterns).toEqual([
@@ -114,7 +115,7 @@ describe('next config security hardening', () => {
       {
         protocol: 'https',
         hostname: 'cdn.example.com',
-        pathname: '/images/**'
+        pathname: '/Images/**'
       }
     ])
     expect(
@@ -123,12 +124,30 @@ describe('next config security hardening', () => {
     expect(
       isRemoteImageUrlAllowed('https://evil.example/avatar.png', patterns)
     ).toBe(false)
+    expect(
+      isRemoteImageUrlAllowed('https://cdn.example.com/Images', patterns)
+    ).toBe(true)
+    expect(
+      isRemoteImageUrlAllowed('https://cdn.example.com/images', patterns)
+    ).toBe(false)
+    expect(
+      isRemoteImageUrlAllowed(
+        'https://cdn.example.com/Images/avatar.png',
+        patterns
+      )
+    ).toBe(true)
   })
 
   it('rejects wildcard image host configuration', () => {
     expect(getImageRemotePatterns(JSON.stringify(['**']))).toEqual([])
     expect(getImageRemotePatterns(JSON.stringify(['*.example.com']))).toEqual(
       []
+    )
+  })
+
+  it('rejects malformed image host configuration', () => {
+    expect(() => getImageRemotePatterns('{')).toThrow(
+      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
     )
   })
 })
