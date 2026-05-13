@@ -1,0 +1,25 @@
+lib/services/guards/OAuthGuard.test.ts
+  s_8f8c7653879d27::t_dd67986dcb1dd8 227,559-575
+app/api/v1/apps/route.ts
+  s_8f8c7653879d27::t_acbe4ff010d600 25-30,56-62
+lib/services/guards/OAuthGuard.ts
+  s_8f8c7653879d27::t_d1bf929aa93d22 58-59,66
+app/api/v1/apps/route.test.ts
+  s_8f8c7653879d27::t_4842ea154f9bf6 4,31,120-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "a2cbc8780abe177578ccb33d0528f666b8056e13",
+  "prompts": {},
+  "sessions": {
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
