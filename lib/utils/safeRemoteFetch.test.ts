@@ -6,6 +6,15 @@ import {
   createSafeRemoteFetch
 } from '@/lib/utils/safeRemoteFetch'
 
+const mockGotStream = jest.fn()
+
+jest.mock('got', () => ({
+  __esModule: true,
+  default: {
+    stream: (url: string, options: unknown) => mockGotStream(url, options)
+  }
+}))
+
 const SAFE_ADDRESS = { address: '93.184.216.34', family: 4 as const }
 
 const streamFrom = (chunks: string[]) => Readable.from(chunks)
@@ -17,6 +26,10 @@ const okResponse = (body = 'ok') => ({
 })
 
 describe('safeRemoteFetch', () => {
+  afterEach(() => {
+    mockGotStream.mockReset()
+  })
+
   it('rejects a redirect whose hostname resolves to a private IPv4 address', async () => {
     const transport: SafeRemoteFetchTransport = jest.fn(async ({ url }) => {
       if (url.hostname === 'safe.example') {
@@ -179,8 +192,34 @@ describe('safeRemoteFetch', () => {
       safeRemoteFetch({ url: 'https://[2001:10::1]/actor' })
     ).rejects.toThrow('Unsafe remote address')
     await expect(
+      safeRemoteFetch({ url: 'https://[2001:20::1]/actor' })
+    ).rejects.toThrow('Unsafe remote address')
+    await expect(
+      safeRemoteFetch({ url: 'https://[2001::1]/actor' })
+    ).rejects.toThrow('Unsafe remote address')
+    await expect(
+      safeRemoteFetch({ url: 'https://[2002::1]/actor' })
+    ).rejects.toThrow('Unsafe remote address')
+    await expect(
       safeRemoteFetch({ url: 'https://[2001:db8::1]/actor' })
     ).rejects.toThrow('Unsafe remote address')
+  })
+
+  it('allows NAT64 addresses when the embedded IPv4 address is safe', async () => {
+    const transport: SafeRemoteFetchTransport = jest.fn(async () =>
+      okResponse()
+    )
+    const safeRemoteFetch = createSafeRemoteFetch({
+      transport
+    })
+
+    await expect(
+      safeRemoteFetch({ url: 'https://[64:ff9b::93.184.216.34]/actor' })
+    ).resolves.toMatchObject({
+      body: 'ok',
+      statusCode: 200
+    })
+    expect(transport).toHaveBeenCalledTimes(1)
   })
 
   it('rejects reserved IPv4 ranges', async () => {
@@ -349,5 +388,79 @@ describe('safeRemoteFetch', () => {
     await safeRemoteFetch({ url: 'https://safe.example/actor' })
 
     expect(seenResolvedAddresses).toEqual([addresses])
+  })
+
+  it('pins got DNS lookups to prevalidated addresses for all lookup overloads', async () => {
+    const addresses: ResolvedRemoteAddress[] = [
+      { address: '2001:4860:4860::8888', family: 6 },
+      SAFE_ADDRESS
+    ]
+    const observedLookups: Array<unknown[]> = []
+    mockGotStream.mockImplementationOnce((_url: string, options: unknown) => {
+      const stream = new Readable({
+        read() {}
+      })
+      const { dnsLookup } = options as {
+        dnsLookup: (
+          hostname: string,
+          optionsOrCallback: unknown,
+          callback?: unknown
+        ) => void
+      }
+
+      dnsLookup(
+        'safe.example',
+        { all: true },
+        (error: unknown, result: unknown) => {
+          observedLookups.push([error, result])
+        }
+      )
+      dnsLookup(
+        'safe.example',
+        { all: true, family: 4 },
+        (error: unknown, result: unknown) => {
+          observedLookups.push([error, result])
+        }
+      )
+      dnsLookup(
+        'safe.example',
+        4,
+        (error: unknown, address: unknown, family: unknown) => {
+          observedLookups.push([error, address, family])
+        }
+      )
+      dnsLookup(
+        'safe.example',
+        (error: unknown, address: unknown, family: unknown) => {
+          observedLookups.push([error, address, family])
+        }
+      )
+
+      process.nextTick(() => {
+        stream.emit('response', {
+          headers: {},
+          statusCode: 200
+        })
+        stream.push('ok')
+        stream.push(null)
+      })
+      return stream
+    })
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => addresses
+    })
+
+    await expect(
+      safeRemoteFetch({ url: 'https://safe.example/actor' })
+    ).resolves.toMatchObject({
+      body: 'ok',
+      statusCode: 200
+    })
+    expect(observedLookups).toEqual([
+      [null, addresses],
+      [null, [SAFE_ADDRESS]],
+      [null, SAFE_ADDRESS.address, SAFE_ADDRESS.family],
+      [null, addresses[0]?.address, addresses[0]?.family]
+    ])
   })
 })

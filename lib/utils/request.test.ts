@@ -320,6 +320,22 @@ describe('request utility', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
+    it('does not retry URLs blocked by safe remote fetch validation', async () => {
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout')
+
+      await expect(
+        request({
+          url: 'https://127.0.0.1/api/test',
+          numberOfRetry: 1
+        })
+      ).rejects.toMatchObject({
+        code: 'ERR_UNSAFE_REMOTE_URL',
+        name: 'SafeRemoteFetchError'
+      })
+      expect(setTimeoutSpy).not.toHaveBeenCalled()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('waits with retry noise before retrying retryable errors', async () => {
       jest.useFakeTimers()
       mockGetConfig.mockReturnValue({

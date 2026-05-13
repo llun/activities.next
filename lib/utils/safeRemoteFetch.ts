@@ -198,12 +198,25 @@ const hasIpv4CompatibleIpv6Tail = (bytes: number[]) =>
   bytes.slice(0, 12).every((byte) => byte === 0) &&
   bytes.slice(12).some((byte) => byte !== 0)
 
+const isNat64Ipv6 = (bytes: number[]) =>
+  bytes[0] === 0x00 &&
+  bytes[1] === 0x64 &&
+  bytes[2] === 0xff &&
+  bytes[3] === 0x9b &&
+  bytes.slice(4, 12).every((byte) => byte === 0)
+
+const getIpv4Tail = (bytes: number[]) => bytes.slice(12).join('.')
+
 const isUnsafeIpv6 = (address: string) => {
   const bytes = parseIpv6Bytes(address)
   if (!bytes) return true
 
-  if (isIpv4MappedIpv6(bytes) || hasIpv4CompatibleIpv6Tail(bytes)) {
-    return isUnsafeIpv4(bytes.slice(12).join('.'))
+  if (
+    isIpv4MappedIpv6(bytes) ||
+    hasIpv4CompatibleIpv6Tail(bytes) ||
+    isNat64Ipv6(bytes)
+  ) {
+    return isUnsafeIpv4(getIpv4Tail(bytes))
   }
 
   const isUnspecified = bytes.every((byte) => byte === 0)
@@ -213,17 +226,22 @@ const isUnsafeIpv6 = (address: string) => {
     bytes[0] === 0x01 &&
     bytes[1] === 0x00 &&
     bytes.slice(2, 8).every((byte) => byte === 0)
-  const isIpv4Ipv6Translation =
-    bytes[0] === 0x00 &&
-    bytes[1] === 0x64 &&
-    bytes[2] === 0xff &&
-    bytes[3] === 0x9b &&
-    bytes.slice(4, 12).every((byte) => byte === 0)
-  const isOrchidV2 =
+  const isTeredo =
+    bytes[0] === 0x20 &&
+    bytes[1] === 0x01 &&
+    bytes[2] === 0x00 &&
+    bytes[3] === 0x00
+  const isDeprecatedOrchid =
     bytes[0] === 0x20 &&
     bytes[1] === 0x01 &&
     bytes[2] === 0x00 &&
     (bytes[3] & 0xf0) === 0x10
+  const isOrchidV2 =
+    bytes[0] === 0x20 &&
+    bytes[1] === 0x01 &&
+    bytes[2] === 0x00 &&
+    (bytes[3] & 0xf0) === 0x20
+  const is6to4 = bytes[0] === 0x20 && bytes[1] === 0x02
   const isDocumentation =
     bytes[0] === 0x20 &&
     bytes[1] === 0x01 &&
@@ -237,8 +255,10 @@ const isUnsafeIpv6 = (address: string) => {
     isUnspecified ||
     isLoopback ||
     isDiscard ||
-    isIpv4Ipv6Translation ||
+    isTeredo ||
+    isDeprecatedOrchid ||
     isOrchidV2 ||
+    is6to4 ||
     isDocumentation ||
     isUniqueLocal ||
     isLinkLocal ||
@@ -336,10 +356,12 @@ const createFixedDnsLookup = (
   resolvedAddresses: ResolvedRemoteAddress[]
 ): OptionsInit['dnsLookup'] =>
   ((_hostname: string, optionsOrCallback: unknown, maybeCallback: unknown) => {
+    const rawOptions =
+      typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback
     const options =
-      typeof optionsOrCallback === 'function'
-        ? undefined
-        : (optionsOrCallback as { all?: boolean } | undefined)
+      typeof rawOptions === 'number'
+        ? { family: rawOptions as 0 | 4 | 6 }
+        : (rawOptions as { all?: boolean; family?: 0 | 4 | 6 } | undefined)
     const callback = (
       typeof optionsOrCallback === 'function'
         ? optionsOrCallback
@@ -358,22 +380,24 @@ const createFixedDnsLookup = (
 
     if (!callback) return
 
+    const requestedFamily = options?.family
+    const filterByRequestedFamily = ({ family }: ResolvedRemoteAddress) =>
+      requestedFamily === undefined ||
+      requestedFamily === 0 ||
+      family === requestedFamily
+
     if (options?.all) {
       ;(
         callback as (
           error: NodeJS.ErrnoException | null,
           addresses: ResolvedRemoteAddress[]
         ) => void
-      )(null, resolvedAddresses)
+      )(null, resolvedAddresses.filter(filterByRequestedFamily))
       return
     }
 
-    const requestedFamily = (
-      optionsOrCallback as { family?: 0 | 4 | 6 } | undefined
-    )?.family
     const resolvedAddress =
-      resolvedAddresses.find(({ family }) => family === requestedFamily) ??
-      resolvedAddresses[0]
+      resolvedAddresses.find(filterByRequestedFamily) ?? resolvedAddresses[0]
     if (!resolvedAddress) return
     ;(
       callback as (

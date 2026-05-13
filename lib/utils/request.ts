@@ -27,6 +27,11 @@ const RETRYABLE_ERROR_CODES = new Set([
   'ENOTFOUND',
   'ETIMEDOUT'
 ])
+const NON_RETRYABLE_SAFE_REMOTE_FETCH_ERROR_CODES = new Set([
+  'ERR_UNSAFE_REMOTE_URL',
+  'ERR_RESPONSE_TOO_LARGE',
+  'ERR_TOO_MANY_REDIRECTS'
+])
 
 const SHARED_HEADERS = {
   'User-Agent': USER_AGENT
@@ -106,6 +111,13 @@ const isRetryableRequestError = (
   method: SafeRemoteFetchMethod
 ) => {
   const code = (error as NodeJS.ErrnoException).code
+  if (
+    typeof code === 'string' &&
+    NON_RETRYABLE_SAFE_REMOTE_FETCH_ERROR_CODES.has(code)
+  ) {
+    return false
+  }
+
   return (
     RETRYABLE_METHODS.has(method.toUpperCase()) &&
     typeof code === 'string' &&
