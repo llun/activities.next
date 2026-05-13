@@ -3,9 +3,16 @@ import { NextRequest } from 'next/server'
 import { POST } from './route'
 
 const mockCreateApplication = jest.fn()
+const mockLoggerWarn = jest.fn()
 
 jest.mock('@/lib/database', () => ({
   getDatabase: () => ({})
+}))
+
+jest.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: (...args: unknown[]) => mockLoggerWarn(...args)
+  }
 }))
 
 jest.mock('./createApplication', () => ({
@@ -15,6 +22,7 @@ jest.mock('./createApplication', () => ({
 describe('apps route', () => {
   beforeEach(() => {
     mockCreateApplication.mockReset()
+    mockLoggerWarn.mockReset()
     mockCreateApplication.mockResolvedValue({
       type: 'success',
       id: 'app-id',
@@ -26,7 +34,7 @@ describe('apps route', () => {
     })
   })
 
-  test('derives registration limits from the connection IP when available', async () => {
+  test('derives registration limits from supported forwarded IP headers', async () => {
     const req = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -40,19 +48,16 @@ describe('apps route', () => {
         redirect_uris: 'https://client.llun.dev/callback'
       })
     })
-    Object.defineProperty(req, 'ip', {
-      value: '203.0.113.5',
-      configurable: true
-    })
 
     await POST(req)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
       registrationKey: expect.stringMatching(/^ip:[A-Za-z0-9_-]{43}$/)
     })
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
 
-  test('ignores raw forwarded IP chains when no trusted source exists', async () => {
+  test('uses the rightmost forwarded IP when stronger platform headers are absent', async () => {
     const forwardedReq = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -64,6 +69,16 @@ describe('apps route', () => {
         redirect_uris: 'https://forwarded.llun.dev/callback'
       })
     })
+
+    await POST(forwardedReq)
+
+    expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
+      registrationKey: expect.stringMatching(/^ip:[A-Za-z0-9_-]{43}$/)
+    })
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  test('warns when no supported registration source exists', async () => {
     const directReq = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -75,19 +90,15 @@ describe('apps route', () => {
       })
     })
 
-    await POST(forwardedReq)
     await POST(directReq)
 
-    expect(mockCreateApplication).toHaveBeenNthCalledWith(
-      1,
-      expect.any(Object),
-      { registrationKey: undefined }
-    )
-    expect(mockCreateApplication).toHaveBeenNthCalledWith(
-      2,
-      expect.any(Object),
-      { registrationKey: undefined }
-    )
+    expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
+      registrationKey: undefined
+    })
+    expect(mockLoggerWarn).toHaveBeenCalledWith({
+      message:
+        'App registration source IP is unavailable; rate limiting is disabled'
+    })
   })
 
   test('returns too many requests when app registration is throttled', async () => {

@@ -81,6 +81,75 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
 
+  test('accepts a case-insensitive Basic auth scheme during PKCE preflight', async () => {
+    mockClients.set('pkce-client', {
+      clientId: 'pkce-client',
+      requirePKCE: true
+    })
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `basic ${Buffer.from('pkce-client:client-secret').toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: 'authorization-code',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'PKCE is required for this client'
+    })
+    expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('prefers the Basic auth client over a mismatched body client_id for PKCE preflight', async () => {
+    mockClients.set('pkce-client', {
+      clientId: 'pkce-client',
+      requirePKCE: true
+    })
+    mockClients.set('non-pkce-client', {
+      clientId: 'non-pkce-client',
+      requirePKCE: false
+    })
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${Buffer.from('pkce-client:client-secret').toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'non-pkce-client',
+        code: 'authorization-code',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'PKCE is required for this client'
+    })
+    expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
   test('rejects authorization-code exchanges without client credentials before proxying', async () => {
     mockAuthHandler.mockResolvedValue(
       Response.json({ access_token: 'should-not-issue' })
@@ -165,19 +234,23 @@ describe('OAuth token endpoint', () => {
   })
 
   test('does not look up the client during PKCE preflight when code_verifier is present', async () => {
-    mockAuthHandler.mockResolvedValue(Response.json({ access_token: 'issued' }))
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: 'pkce-client',
+      client_secret: 'client-secret',
+      code: 'authorization-code',
+      code_verifier: 'valid-code-verifier',
+      redirect_uri: 'https://client.llun.dev/callback'
+    })
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      await expect(request.text()).resolves.toBe(body.toString())
+      return Response.json({ access_token: 'issued' })
+    })
 
     const req = new NextRequest('https://llun.test/oauth/token', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: 'pkce-client',
-        client_secret: 'client-secret',
-        code: 'authorization-code',
-        code_verifier: 'valid-code-verifier',
-        redirect_uri: 'https://client.llun.dev/callback'
-      })
+      body
     })
 
     const response = await POST(req)

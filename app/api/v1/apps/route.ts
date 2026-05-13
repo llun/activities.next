@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_422,
   ERROR_429,
@@ -21,9 +22,32 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const getTrustedClientIp = (req: NextRequest): string | undefined => {
+  const cfConnectingIp = req.headers.get('cf-connecting-ip')?.trim()
+  if (cfConnectingIp) return cfConnectingIp
+
+  const realIp = req.headers.get('x-real-ip')?.trim()
+  if (realIp) return realIp
+
+  const forwardedFor = req.headers
+    .get('x-forwarded-for')
+    ?.split(',')
+    .at(-1)
+    ?.trim()
+  if (forwardedFor) return forwardedFor
+
+  return undefined
+}
+
 const getAppRegistrationKey = (req: NextRequest): string | undefined => {
-  const connectionIp = (req as NextRequest & { ip?: string }).ip
-  if (!connectionIp) return undefined
+  const connectionIp = getTrustedClientIp(req)
+  if (!connectionIp) {
+    logger.warn({
+      message:
+        'App registration source IP is unavailable; rate limiting is disabled'
+    })
+    return undefined
+  }
 
   const hash = crypto
     .createHash('sha256')

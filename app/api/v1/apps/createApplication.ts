@@ -160,10 +160,9 @@ export const createApplication = async (
 
       try {
         const now = options.now ?? new Date()
-        const rateLimitReference = getRegistrationReference(
+        const registrationReference = getRegistrationReference(
           options.registrationKey
         )
-        const registrationReference = rateLimitReference
 
         if (
           await isAppRegistrationRateLimited({

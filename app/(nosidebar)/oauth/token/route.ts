@@ -20,10 +20,11 @@ const FORM_URLENCODED_MEDIA_TYPE = 'application/x-www-form-urlencoded'
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const parseBasicClientId = (authorization: string | null): string | null => {
-  if (!authorization?.startsWith('Basic ')) return null
+  const [scheme, credentials] = authorization?.split(/\s+/, 2) ?? []
+  if (scheme?.toLowerCase() !== 'basic' || !credentials) return null
 
   try {
-    const decoded = Buffer.from(authorization.slice('Basic '.length), 'base64')
+    const decoded = Buffer.from(credentials, 'base64')
       .toString('utf8')
       .split(':')[0]
     return decoded || null
@@ -32,19 +33,23 @@ const parseBasicClientId = (authorization: string | null): string | null => {
   }
 }
 
-const getClientId = (req: NextRequest, body: URLSearchParams): string | null =>
-  body.get('client_id') || parseBasicClientId(req.headers.get('authorization'))
+const getClientId = (
+  req: NextRequest,
+  body: URLSearchParams
+): string | null => {
+  const basicClientId = parseBasicClientId(req.headers.get('authorization'))
+  return basicClientId || body.get('client_id')
+}
 
 class TokenRequestBodyTooLargeError extends Error {}
 
 const readTokenRequestBodyWithLimit = async (
   req: NextRequest
 ): Promise<string> => {
-  const clonedReq = req.clone()
-  const body = clonedReq.body
+  const body = req.body
   if (!body) return ''
   if (typeof body.getReader !== 'function') {
-    const bodyBuffer = Buffer.from(await clonedReq.arrayBuffer())
+    const bodyBuffer = Buffer.from(await req.arrayBuffer())
     if (bodyBuffer.byteLength > MAX_TOKEN_REQUEST_BODY_BYTES) {
       throw new TokenRequestBodyTooLargeError()
     }
@@ -70,10 +75,15 @@ const readTokenRequestBodyWithLimit = async (
 
 const getTokenRequestBody = async (
   req: NextRequest
-): Promise<{ params: URLSearchParams | null; error: Response | null }> => {
+): Promise<{
+  bodyText: string | null
+  params: URLSearchParams | null
+  error: Response | null
+}> => {
   const contentLength = Number(req.headers.get('content-length') ?? 0)
   if (contentLength > MAX_TOKEN_REQUEST_BODY_BYTES) {
     return {
+      bodyText: null,
       params: null,
       error: apiResponse({
         req,
@@ -94,6 +104,7 @@ const getTokenRequestBody = async (
 
   if (contentType !== FORM_URLENCODED_MEDIA_TYPE) {
     return {
+      bodyText: null,
       params: null,
       error: apiResponse({
         req,
@@ -110,10 +121,11 @@ const getTokenRequestBody = async (
 
   try {
     const bodyText = await readTokenRequestBodyWithLimit(req)
-    return { params: new URLSearchParams(bodyText), error: null }
+    return { bodyText, params: new URLSearchParams(bodyText), error: null }
   } catch (error) {
     if (!(error instanceof TokenRequestBodyTooLargeError)) throw error
     return {
+      bodyText: null,
       params: null,
       error: apiResponse({
         req,
@@ -173,7 +185,7 @@ const validatePkceTokenExchange = async (
 
 export const POST = async (req: NextRequest) => {
   const auth = getAuth()
-  const { params, error } = await getTokenRequestBody(req)
+  const { bodyText, params, error } = await getTokenRequestBody(req)
   if (error) return error
 
   if (params) {
@@ -186,9 +198,7 @@ export const POST = async (req: NextRequest) => {
   const proxyReq = new Request(url.toString(), {
     method: 'POST',
     headers: req.headers,
-    body: req.body,
-    // @ts-expect-error duplex is needed for streaming body
-    duplex: 'half'
+    body: bodyText ?? ''
   })
 
   let response: Response
