@@ -5,18 +5,21 @@ import { getJobMessage } from './getJobMessage'
 const verifiedSenderActorId = 'https://remote.test/users/alice'
 
 describe('getJobMessage', () => {
-  it('rejects Create Note activities when the verified sender actor id is missing', () => {
-    const result = getJobMessage({
-      id: 'https://remote.test/activities/create-unverified',
-      type: 'Create',
-      actor: verifiedSenderActorId,
-      object: {
-        id: 'https://remote.test/users/alice/statuses/1',
-        type: 'Note',
-        attributedTo: verifiedSenderActorId,
-        content: 'Unverified sender'
-      }
-    } as never)
+  it('rejects Create Note activities when the verified sender actor id is invalid', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-unverified',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: verifiedSenderActorId,
+          content: 'Unverified sender'
+        }
+      } as never,
+      ''
+    )
 
     expect(result).toBeNull()
   })
@@ -76,6 +79,31 @@ describe('getJobMessage', () => {
           ],
           actor: { id: verifiedSenderActorId },
           content: 'Matching attribution'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      verifiedSenderActorId
+    })
+  })
+
+  it('accepts Create Note activities when the inline actor object id matches the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-inline-actor',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: {
+            id: verifiedSenderActorId,
+            url: 'https://remote.test/@alice'
+          },
+          content: 'Inline actor object'
         }
       } as never,
       verifiedSenderActorId
@@ -148,6 +176,20 @@ describe('getJobMessage', () => {
         object: 'https://remote.test/users/alice/statuses/1'
       } as never,
       verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Announce activities when the verified sender actor id is invalid', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/announce-unverified',
+        type: 'Announce',
+        actor: verifiedSenderActorId,
+        object: 'https://remote.test/users/alice/statuses/1'
+      } as never,
+      ''
     )
 
     expect(result).toBeNull()

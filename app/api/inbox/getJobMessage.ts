@@ -58,10 +58,8 @@ const createJobMessage = ({
 
 const activityActorMismatch = (
   activity: StatusActivity,
-  verifiedSenderActorId?: string
+  verifiedSenderActorId: string
 ) => {
-  if (!verifiedSenderActorId) return false
-
   const normalizedVerifiedSenderActorId = normalizeActorId(
     verifiedSenderActorId
   )
@@ -81,12 +79,12 @@ const extractActivityPubIds = (value: unknown): string[] => {
   if (Array.isArray(value)) return value.flatMap(extractActivityPubIds)
   if (!isRecord(value)) return []
 
-  return [value.id, value.href, value.url].flatMap(extractActivityPubIds)
+  return typeof value.id === 'string' ? [value.id] : []
 }
 
 const createObjectActorMismatch = (
   object: unknown,
-  verifiedSenderActorId?: string
+  verifiedSenderActorId: string
 ) => {
   if (!isRecord(object)) return false
 
@@ -109,7 +107,7 @@ const createObjectActorMismatch = (
 
 export const getJobMessage = (
   activity: StatusActivity,
-  verifiedSenderActorId?: string
+  verifiedSenderActorId: string
 ) => {
   const deduplicationId = getHashFromString(activity.id)
 

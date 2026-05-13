@@ -48,19 +48,10 @@ export const POST = traceApiRoute(
       readableStatus?.type !== StatusType.enum.Announce ||
       readableStatus.actorId !== currentActor.id
     ) {
-      const ownedAnnounce = await database.getStatus({
-        statusId,
-        withReplies: false,
-        currentActorId: currentActor.id
+      const actorAnnounce = await database.getActorAnnounceStatus({
+        actorId: currentActor.id,
+        statusId
       })
-      const actorAnnounce =
-        ownedAnnounce?.type === StatusType.enum.Announce &&
-        ownedAnnounce.actorId === currentActor.id
-          ? ownedAnnounce
-          : await database.getActorAnnounceStatus({
-              actorId: currentActor.id,
-              statusId
-            })
 
       if (!actorAnnounce && !readableStatus)
         return apiResponse({
