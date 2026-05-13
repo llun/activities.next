@@ -9,6 +9,9 @@ type HostConfig = Pick<Config, 'host' | 'allowActorDomains'> & {
   trustedHosts?: string[]
 }
 
+const ACTIVITIES_HOST_HEADER = ACTIVITIES_HOST.toLowerCase()
+const FORWARDED_HOST_HEADER = FORWARDED_HOST.toLowerCase()
+
 const getFirstHeaderValue = (value: string | string[] | undefined | null) => {
   if (Array.isArray(value)) return value[0]
   return value
@@ -101,15 +104,15 @@ export function headerHost(
     {} as IncomingHttpHeaders
   )
 
-  if (normalizedHeaders[ACTIVITIES_HOST]) {
-    const value = getFirstHeaderValue(normalizedHeaders[ACTIVITIES_HOST])
+  if (normalizedHeaders[ACTIVITIES_HOST_HEADER]) {
+    const value = getFirstHeaderValue(normalizedHeaders[ACTIVITIES_HOST_HEADER])
     return isTrustedHeaderHost(value, config)
       ? (normalizeHost(value) as string)
       : configuredHost
   }
 
-  if (normalizedHeaders[FORWARDED_HOST]) {
-    const value = getFirstHeaderValue(normalizedHeaders[FORWARDED_HOST])
+  if (normalizedHeaders[FORWARDED_HOST_HEADER]) {
+    const value = getFirstHeaderValue(normalizedHeaders[FORWARDED_HOST_HEADER])
     return isTrustedHeaderHost(value, config)
       ? (normalizeHost(value) as string)
       : configuredHost
