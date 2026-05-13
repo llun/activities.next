@@ -815,6 +815,19 @@ export const completeUploadPresignedUrl = async ({
 }: {
   mediaId: string
 }): Promise<UploadedAttachment | null> => {
+  const result = await completeUploadPresignedUrlRequest({ mediaId })
+  return result.ok ? result.attachment : null
+}
+
+type CompleteUploadPresignedUrlResult =
+  | { ok: true; attachment: UploadedAttachment }
+  | { ok: false; status: number }
+
+const completeUploadPresignedUrlRequest = async ({
+  mediaId
+}: {
+  mediaId: string
+}): Promise<CompleteUploadPresignedUrlResult> => {
   const response = await fetch('/api/v1/medias/presigned', {
     method: 'PATCH',
     headers: {
@@ -822,23 +835,35 @@ export const completeUploadPresignedUrl = async ({
     },
     body: JSON.stringify({ mediaId })
   })
-  if (response.status !== 200) return null
+  if (response.status !== 200) {
+    return { ok: false, status: response.status }
+  }
 
   const result = (await response.json()) as {
     media: PresignedUrlOutput['saveFileOutput']
   }
 
   return {
-    type: 'upload',
-    id: result.media.id,
-    mediaType: result.media.mime_type,
-    url: result.media.url,
-    posterUrl: result.media.preview_url ?? undefined,
-    width: result.media.meta.original.width,
-    height: result.media.meta.original.height,
-    name: result.media.description
+    ok: true,
+    attachment: {
+      type: 'upload',
+      id: result.media.id,
+      mediaType: result.media.mime_type,
+      url: result.media.url,
+      posterUrl: result.media.preview_url ?? undefined,
+      width: result.media.meta.original.width,
+      height: result.media.meta.original.height,
+      name: result.media.description
+    }
   }
 }
+
+const isPermanentCompletionFailure = (status: number) =>
+  status >= 400 && status < 500
+
+type CompleteUploadPresignedUrlWithRetryResult =
+  | { completed: UploadedAttachment; shouldCleanup: false }
+  | { completed: null; shouldCleanup: boolean }
 
 const MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS = 3
 
@@ -846,23 +871,28 @@ const completeUploadPresignedUrlWithRetry = async ({
   mediaId
 }: {
   mediaId: string
-}): Promise<UploadedAttachment | null> => {
+}): Promise<CompleteUploadPresignedUrlWithRetryResult> => {
   for (
     let attempt = 1;
     attempt <= MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS;
     attempt += 1
   ) {
     try {
-      const completed = await completeUploadPresignedUrl({ mediaId })
-      if (completed) return completed
+      const completed = await completeUploadPresignedUrlRequest({ mediaId })
+      if (completed.ok) {
+        return { completed: completed.attachment, shouldCleanup: false }
+      }
+      if (isPermanentCompletionFailure(completed.status)) {
+        return { completed: null, shouldCleanup: false }
+      }
     } catch {
       if (attempt === MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS) {
-        return null
+        return { completed: null, shouldCleanup: true }
       }
     }
   }
 
-  return null
+  return { completed: null, shouldCleanup: true }
 }
 
 const cleanupPendingUploadMedia = async (mediaId: string) => {
@@ -892,16 +922,18 @@ export const uploadAttachment = async (
 
   const { url: presignedUrl, saveFileOutput, headers } = result.presigned
   await uploadFileToPresignedUrl({ media: file, presignedUrl, headers })
-  const completed = await completeUploadPresignedUrlWithRetry({
+  const completion = await completeUploadPresignedUrlWithRetry({
     mediaId: saveFileOutput.id
   })
-  if (!completed) {
-    await cleanupPendingUploadMedia(saveFileOutput.id)
+  if (!completion.completed) {
+    if (completion.shouldCleanup) {
+      await cleanupPendingUploadMedia(saveFileOutput.id)
+    }
     return null
   }
 
   return {
-    ...completed,
+    ...completion.completed,
     name: file.name
   }
 }

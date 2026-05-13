@@ -462,6 +462,7 @@ export const GET = traceApiRoute(
             data: cached.payload,
             additionalHeaders: [
               ['Cache-Control', 'public, max-age=60'],
+              ['Vary', 'Authorization, Cookie'],
               ['X-Route-Data-Cache', 'HIT']
             ]
           })
@@ -540,8 +541,11 @@ export const GET = traceApiRoute(
         additionalHeaders: [
           [
             'Cache-Control',
-            isPubliclyAccessible ? 'public, max-age=60' : 'private, no-store'
-          ]
+            isAnonymousPublicRequest
+              ? 'public, max-age=60'
+              : 'private, no-store'
+          ],
+          ['Vary', 'Authorization, Cookie']
         ]
       })
     } catch (error) {

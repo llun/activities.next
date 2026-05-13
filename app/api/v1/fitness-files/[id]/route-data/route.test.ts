@@ -207,6 +207,39 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
   })
 
+  it('keeps authenticated public route data out of shared caches', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/authenticated-public-route-data`,
+      url: `${ACTOR1_ID}/statuses/authenticated-public-route-data`,
+      actorId: ACTOR1_ID,
+      text: 'Authenticated public route data',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/authenticated-public-route-data.fit',
+      fileName: 'authenticated-public-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(mockParseFitnessFile).toHaveBeenCalled()
+  })
+
   it('caches anonymous public route data parsing responses', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

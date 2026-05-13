@@ -73,4 +73,36 @@ describe('S3FitnessStorage presigned upload verification', () => {
       storage.verifyPresignedUpload(actor, fitnessFile)
     ).resolves.toBe(false)
   })
+
+  it('does not request checksum mode when verifying presigned uploads', async () => {
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: 1024,
+          ContentType: 'application/zip'
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FitnessStorage(
+      {
+        type: FitnessStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        prefix: ''
+      },
+      'llun.test',
+      database
+    )
+
+    await expect(
+      storage.verifyPresignedUpload(actor, fitnessFile)
+    ).resolves.toBe(true)
+
+    expect(HeadObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'bucket',
+      Key: '2026-01-01/archive.zip'
+    })
+  })
 })

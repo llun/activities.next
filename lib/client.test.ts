@@ -256,4 +256,28 @@ describe('client uploadAttachment presigned completion', () => {
       expect.objectContaining({ method: 'DELETE' })
     )
   })
+
+  it('does not retry or clean up permanent presigned upload completion failures', async () => {
+    fetchMock
+      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce('', { status: 422 })
+
+    await expect(
+      uploadAttachment(
+        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
+      )
+    ).resolves.toBeNull()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/medias/presigned',
+      expect.objectContaining({ method: 'PATCH' })
+    )
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/v1/accounts/media/media-1',
+      expect.anything()
+    )
+  })
 })

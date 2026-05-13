@@ -307,8 +307,7 @@ export class S3FitnessStorage implements FitnessStorage {
       .send(
         new HeadObjectCommand({
           Bucket: bucket,
-          Key: key,
-          ChecksumMode: 'ENABLED'
+          Key: key
         })
       )
       .catch((error) => {
