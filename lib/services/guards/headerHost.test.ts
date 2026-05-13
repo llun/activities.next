@@ -38,12 +38,12 @@ describe('#headerHost', () => {
       expect(headerHost(headers)).toEqual('test-forwarded.llun.dev')
     })
 
-    it('matches trusted forwarded hosts that include a default proxy port', () => {
+    it('rejects trusted forwarded hosts with an unconfigured default proxy port', () => {
       const headers = new Headers([
         ['Host', 'test.llun.dev'],
         ['X-Forwarded-Host', 'test-forwarded.llun.dev:443']
       ])
-      expect(headerHost(headers)).toEqual('test-forwarded.llun.dev')
+      expect(headerHost(headers)).toEqual('test.llun.dev')
     })
 
     it('returns host from custom Activity.next header when it is configured as a trusted local host', () => {

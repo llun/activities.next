@@ -14,6 +14,16 @@ type HostParts = {
 
 const hostPartsCache = new Map<string, HostParts>()
 
+const getExplicitPort = (value: string): string => {
+  const withoutScheme = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+  const authority = withoutScheme.split(/[/?#]/)[0]
+  const bracketedPort = authority.match(/^\[[^\]]+\]:(\d+)$/)
+  if (bracketedPort) return bracketedPort[1]
+
+  const port = authority.match(/:(\d+)$/)
+  return port ? port[1] : ''
+}
+
 export const normalizeHost = (
   value: string | undefined | null
 ): string | null => {
@@ -21,6 +31,7 @@ export const normalizeHost = (
   if (!firstHost || firstHost.startsWith('0.0.0.0')) return null
   const hasWildcard = firstHost.startsWith('*.')
   const hostToParse = hasWildcard ? firstHost.slice(2) : firstHost
+  const explicitPort = getExplicitPort(hostToParse)
 
   try {
     const url = new URL(
@@ -28,7 +39,10 @@ export const normalizeHost = (
         ? hostToParse
         : `https://${hostToParse}`
     )
-    const normalizedHost = url.host.toLowerCase().replace(/\.$/, '')
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
+    const normalizedHost = explicitPort
+      ? `${hostname}:${explicitPort}`
+      : hostname
     return hasWildcard ? `*.${normalizedHost}` : normalizedHost
   } catch {
     return null
@@ -42,11 +56,12 @@ const getHostParts = (normalizedHost: string) => {
   const hasWildcard = normalizedHost.startsWith('*.')
   const hostToParse = hasWildcard ? normalizedHost.slice(2) : normalizedHost
   const url = new URL(`https://${hostToParse}`)
+  const explicitPort = getExplicitPort(hostToParse)
 
   const hostParts = {
     hasWildcard,
     hostname: url.hostname,
-    port: url.port
+    port: explicitPort
   }
   hostPartsCache.set(normalizedHost, hostParts)
   return hostParts

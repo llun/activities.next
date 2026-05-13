@@ -1,4 +1,4 @@
-import { isHostTrustedByRules } from './host'
+import { isHostTrustedByRules, normalizeHost } from './host'
 
 describe('isHostTrustedByRules', () => {
   it('matches a rule without a port only when the host has no non-default port', () => {
@@ -7,7 +7,7 @@ describe('isHostTrustedByRules', () => {
     ).toBeTrue()
     expect(
       isHostTrustedByRules('edge.example.com:443', ['edge.example.com'])
-    ).toBeTrue()
+    ).toBeFalse()
     expect(
       isHostTrustedByRules('edge.example.com:8443', ['edge.example.com'])
     ).toBeFalse()
@@ -22,6 +22,16 @@ describe('isHostTrustedByRules', () => {
     ).toBeFalse()
     expect(
       isHostTrustedByRules('edge.example.com', ['edge.example.com:8443'])
+    ).toBeFalse()
+  })
+
+  it('preserves explicit default ports for exact rule matching', () => {
+    expect(normalizeHost('edge.example.com:443')).toBe('edge.example.com:443')
+    expect(
+      isHostTrustedByRules('edge.example.com:443', ['edge.example.com:443'])
+    ).toBeTrue()
+    expect(
+      isHostTrustedByRules('edge.example.com', ['edge.example.com:443'])
     ).toBeFalse()
   })
 

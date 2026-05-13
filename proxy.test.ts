@@ -1,4 +1,6 @@
+import fs from 'fs'
 import { NextRequest } from 'next/server'
+import path from 'path'
 
 import { resetHostConfigCacheForTests } from '@/lib/config/host'
 
@@ -78,7 +80,7 @@ describe('proxy', () => {
 
   it('uses trusted forwarded host when the proxy includes a port', async () => {
     process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
-      'edge-public.example.com'
+      'edge-public.example.com:443'
     ])
 
     const request = new NextRequest('https://internal.example.com/@alice', {
@@ -92,7 +94,43 @@ describe('proxy', () => {
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@edge-public.example.com'
+      'https://internal.example.com/@alice@edge-public.example.com:443'
     )
+  })
+
+  it('keeps using the environment host when config.json has no host', async () => {
+    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
+      'edge-public.example.com'
+    ])
+    const configPath = path.resolve(process.cwd(), 'config.json')
+    const previousConfig = fs.existsSync(configPath)
+      ? fs.readFileSync(configPath, 'utf-8')
+      : null
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ trustedHosts: ['edge-public.example.com'] })
+    )
+
+    try {
+      const request = new NextRequest('https://internal.example.com/@alice', {
+        method: 'GET',
+        headers: {
+          host: 'internal.example.com',
+          'x-forwarded-host': 'evil.example.com'
+        }
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('x-middleware-rewrite')).toBe(
+        'https://internal.example.com/@alice@public.example.com'
+      )
+    } finally {
+      if (previousConfig === null) {
+        fs.unlinkSync(configPath)
+      } else {
+        fs.writeFileSync(configPath, previousConfig)
+      }
+    }
   })
 })
