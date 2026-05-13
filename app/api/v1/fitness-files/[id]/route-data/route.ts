@@ -62,6 +62,12 @@ const PUBLIC_ROUTE_DATA_CACHE_TTL_MS = 60_000
 const PUBLIC_ROUTE_DATA_SECURITY_MAP_MAX_ENTRIES = 500
 const PUBLIC_ROUTE_DATA_RATE_LIMIT_WINDOW_MS = 60_000
 const PUBLIC_ROUTE_DATA_RATE_LIMIT_MAX_REQUESTS = 60
+const ROUTE_DATA_RATE_LIMIT_FALLBACK_HEADER_NAMES = [
+  'user-agent',
+  'accept-language',
+  'accept',
+  'sec-fetch-site'
+]
 
 type RouteDataResponsePayload = {
   samples: FitnessRouteSample[]
@@ -142,22 +148,44 @@ export const seedFitnessRouteDataSecurityStateForTests = ({
   })
 }
 
-const getClientRateLimitKey = (req: NextRequest) => {
+const enforceRouteDataSecurityMapBounds = (now: number) => {
+  pruneExpiredRouteDataSecurityEntries(now)
+  pruneOldestMapEntries(
+    publicRouteDataCache,
+    PUBLIC_ROUTE_DATA_SECURITY_MAP_MAX_ENTRIES
+  )
+  pruneOldestMapEntries(
+    routeDataRateLimit,
+    PUBLIC_ROUTE_DATA_SECURITY_MAP_MAX_ENTRIES
+  )
+}
+
+const getClientRateLimitKey = (req: NextRequest, routeDataId: string) => {
   const requestIp = (req as NextRequest & { ip?: string }).ip
   const forwardedFor = req.headers.get('x-forwarded-for')
   const originatingForwarded = forwardedFor?.split(',')[0]?.trim()
-  return (
+  const clientAddress =
     requestIp ||
     req.headers.get('cf-connecting-ip') ||
     req.headers.get('x-real-ip') ||
-    originatingForwarded ||
-    'anonymous'
+    originatingForwarded
+
+  if (clientAddress) {
+    return `ip:${clientAddress}`
+  }
+
+  const fallbackParts = ROUTE_DATA_RATE_LIMIT_FALLBACK_HEADER_NAMES.map(
+    (headerName) => `${headerName}:${req.headers.get(headerName) ?? ''}`
   )
+  const fallbackKey = getHashFromString(
+    [routeDataId, req.nextUrl.pathname, ...fallbackParts].join('\n')
+  )
+  return `request:${fallbackKey}`
 }
 
 const consumePublicRouteDataRateLimit = (key: string) => {
   const now = Date.now()
-  pruneExpiredRouteDataSecurityEntries(now)
+  enforceRouteDataSecurityMapBounds(now)
   const existing = routeDataRateLimit.get(key)
   if (!existing || existing.resetAt <= now) {
     setBoundedMapEntry(routeDataRateLimit, key, {
@@ -435,7 +463,7 @@ export const GET = traceApiRoute(
       const isAnonymousPublicRequest = isPubliclyAccessible && !currentActor
       if (
         isAnonymousPublicRequest &&
-        !consumePublicRouteDataRateLimit(getClientRateLimitKey(req))
+        !consumePublicRouteDataRateLimit(getClientRateLimitKey(req, id))
       ) {
         return apiResponse({
           req,
@@ -453,6 +481,7 @@ export const GET = traceApiRoute(
           })
         : null
       if (publicCacheKey) {
+        enforceRouteDataSecurityMapBounds(Date.now())
         const cached = publicRouteDataCache.get(publicCacheKey)
         if (cached && cached.expiresAt > Date.now()) {
           setBoundedMapEntry(publicRouteDataCache, publicCacheKey, cached)

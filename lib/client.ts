@@ -833,7 +833,8 @@ const completeUploadPresignedUrlRequest = async ({
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ mediaId })
+    body: JSON.stringify({ mediaId }),
+    signal: AbortSignal.timeout(30_000)
   })
   if (response.status !== 200) {
     return { ok: false, status: response.status }
@@ -866,6 +867,12 @@ type CompleteUploadPresignedUrlWithRetryResult =
   | { completed: null; shouldCleanup: boolean }
 
 const MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS = 3
+const PRESIGNED_UPLOAD_COMPLETION_RETRY_DELAY_MS = 250
+
+const wait = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 
 const completeUploadPresignedUrlWithRetry = async ({
   mediaId
@@ -889,6 +896,12 @@ const completeUploadPresignedUrlWithRetry = async ({
       if (attempt === MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS) {
         return { completed: null, shouldCleanup: true }
       }
+    }
+
+    if (attempt < MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS) {
+      await wait(
+        PRESIGNED_UPLOAD_COMPLETION_RETRY_DELAY_MS * 2 ** (attempt - 1)
+      )
     }
   }
 

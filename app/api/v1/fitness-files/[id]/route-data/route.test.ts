@@ -369,6 +369,53 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
   })
 
+  it('derives separate no-IP rate limit fallback keys per route file', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-no-ip-fallback`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-no-ip-fallback`,
+      actorId: ACTOR1_ID,
+      text: 'Public route data no IP fallback',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const firstFitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-no-ip-fallback-1.fit',
+      fileName: 'public-route-data-no-ip-fallback-1.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+    const secondFitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-no-ip-fallback-2.fit',
+      fileName: 'public-route-data-no-ip-fallback-2.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const firstResponse = await GET(createRequest(), {
+      params: Promise.resolve({ id: firstFitnessFile!.id })
+    })
+    const secondResponse = await GET(createRequest(), {
+      params: Promise.resolve({ id: secondFitnessFile!.id })
+    })
+
+    expect(firstResponse.status).toBe(200)
+    expect(secondResponse.status).toBe(200)
+    expect(
+      routeModule.getFitnessRouteDataSecurityStateForTests?.()
+    ).toMatchObject({
+      routeDataRateLimitSize: 2
+    })
+  })
+
   it('returns not found for private status route data without a session', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

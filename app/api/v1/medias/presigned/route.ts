@@ -10,6 +10,7 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_404,
   ERROR_422,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -113,8 +114,8 @@ export const PATCH = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: 422
+        data: ERROR_500,
+        responseStatusCode: 500
       })
     }
   })

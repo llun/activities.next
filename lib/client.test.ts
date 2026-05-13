@@ -170,6 +170,8 @@ describe('fitness route heatmap client calls', () => {
 })
 
 describe('client uploadAttachment presigned completion', () => {
+  let setTimeoutSpy: jest.SpyInstance
+
   const presignedResponse = {
     presigned: {
       url: 'https://storage.example/upload',
@@ -199,6 +201,18 @@ describe('client uploadAttachment presigned completion', () => {
 
   beforeEach(() => {
     fetchMock.resetMocks()
+    setTimeoutSpy = jest
+      .spyOn(globalThis, 'setTimeout')
+      .mockImplementation((handler: Parameters<typeof setTimeout>[0]) => {
+        if (typeof handler === 'function') {
+          handler()
+        }
+        return 0 as unknown as ReturnType<typeof setTimeout>
+      })
+  })
+
+  afterEach(() => {
+    setTimeoutSpy.mockRestore()
   })
 
   it('retries presigned upload completion after the file PUT succeeds', async () => {
@@ -234,6 +248,8 @@ describe('client uploadAttachment presigned completion', () => {
       '/api/v1/medias/presigned',
       expect.objectContaining({ method: 'PATCH' })
     )
+    expect(setTimeoutSpy).toHaveBeenNthCalledWith(1, expect.any(Function), 250)
+    expect(setTimeoutSpy).toHaveBeenNthCalledWith(2, expect.any(Function), 500)
   })
 
   it('cleans up pending media when presigned upload completion is exhausted', async () => {
@@ -270,6 +286,7 @@ describe('client uploadAttachment presigned completion', () => {
     ).resolves.toBeNull()
 
     expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(setTimeoutSpy).not.toHaveBeenCalled()
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       '/api/v1/medias/presigned',
