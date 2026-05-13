@@ -68,4 +68,24 @@ describe('proxy', () => {
       'https://internal.example.com/@alice@edge-public.example.com'
     )
   })
+
+  it('uses trusted forwarded host when the proxy includes a port', async () => {
+    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
+      'edge-public.example.com'
+    ])
+
+    const request = new NextRequest('https://internal.example.com/@alice', {
+      method: 'GET',
+      headers: {
+        host: 'internal.example.com',
+        'x-forwarded-host': 'edge-public.example.com:443'
+      }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://internal.example.com/@alice@edge-public.example.com'
+    )
+  })
 })

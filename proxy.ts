@@ -2,28 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
+import {
+  getConfiguredHost,
+  getTrustedHostRules,
+  isHostTrustedByRules,
+  normalizeHost
+} from '@/lib/utils/host'
 
 export const config = {
   matcher: ['/(@.*)']
 }
 
-const normalizeHost = (value: string | undefined | null): string | null => {
-  const firstHost = value?.split(',')[0]?.trim()
-  if (!firstHost || firstHost.startsWith('0.0.0.0')) return null
-  const hasWildcard = firstHost.startsWith('*.')
-  const hostToParse = hasWildcard ? firstHost.slice(2) : firstHost
-
-  try {
-    const url = new URL(
-      /^[a-z][a-z0-9+.-]*:\/\//i.test(hostToParse)
-        ? hostToParse
-        : `https://${hostToParse}`
-    )
-    const normalizedHost = url.host.toLowerCase().replace(/\.$/, '')
-    return hasWildcard ? `*.${normalizedHost}` : normalizedHost
-  } catch {
-    return null
-  }
+type ProxyHostConfig = {
+  host: string
+  allowActorDomains: string[]
+  trustedHosts: string[]
 }
 
 const getEnvironmentList = (key: string): string[] => {
@@ -35,56 +28,40 @@ const getEnvironmentList = (key: string): string[] => {
   }
 }
 
-const getConfiguredHost = () =>
-  normalizeHost(process.env.ACTIVITIES_HOST) ??
-  process.env.ACTIVITIES_HOST ??
-  ''
-
-const hostMatchesRule = (host: string, rule: string) => {
-  const normalizedRule = normalizeHost(rule)
-  if (!normalizedRule) return false
-  if (host === normalizedRule) return true
-
-  if (normalizedRule.startsWith('*.')) {
-    const parent = normalizedRule.slice(2)
-    const hostname = host.split(':')[0]
-    return hostname.endsWith(`.${parent}`)
+const getProxyHostConfig = (): ProxyHostConfig => {
+  return {
+    host: process.env.ACTIVITIES_HOST ?? '',
+    allowActorDomains: getEnvironmentList('ACTIVITIES_ALLOW_ACTOR_DOMAINS'),
+    trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
   }
-
-  return false
 }
 
-const isTrustedHeaderHost = (host: string | undefined | null) => {
-  const normalizedHost = normalizeHost(host)
-  if (!normalizedHost) return false
-
-  return [
-    process.env.ACTIVITIES_HOST ?? '',
-    ...getEnvironmentList('ACTIVITIES_ALLOW_ACTOR_DOMAINS'),
-    ...getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
-  ].some((rule) => hostMatchesRule(normalizedHost, rule))
-}
+const isTrustedHeaderHost = (
+  host: string | undefined | null,
+  config: ProxyHostConfig
+) => isHostTrustedByRules(host, getTrustedHostRules(config))
 
 const proxyHeaderHost = (headers: Headers): string => {
-  const configuredHost = getConfiguredHost()
+  const config = getProxyHostConfig()
+  const configuredHost = getConfiguredHost(config.host)
 
   const activityHost = headers.get(ACTIVITIES_HOST)
   if (activityHost) {
-    return isTrustedHeaderHost(activityHost)
+    return isTrustedHeaderHost(activityHost, config)
       ? (normalizeHost(activityHost) as string)
       : configuredHost
   }
 
   const forwardedHost = headers.get(FORWARDED_HOST)
   if (forwardedHost) {
-    return isTrustedHeaderHost(forwardedHost)
+    return isTrustedHeaderHost(forwardedHost, config)
       ? (normalizeHost(forwardedHost) as string)
       : configuredHost
   }
 
   const host = normalizeHost(headers.get('host'))
   if (host) {
-    return isTrustedHeaderHost(host) ? host : configuredHost
+    return isTrustedHeaderHost(host, config) ? host : configuredHost
   }
 
   return configuredHost
