@@ -127,7 +127,7 @@
     "globals": "^17.6.0",
     "husky": "^9.1.7",
     "jest": "^30.3.0",
-    "jest-environment-jsdom": "^30.3.0",
+    "jest-environment-jsdom": "^30.4.1",
     "jest-extended": "^7.0.0",
     "jest-fetch-mock": "^3.0.3",
     "pino-pretty": "^13.1.3",
