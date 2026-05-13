@@ -240,7 +240,7 @@ const validatePkceTokenExchange = async (
       error: 'invalid_request',
       error_description: 'PKCE is required for this client'
     },
-    responseStatusCode: 400
+    responseStatusCode: HTTP_STATUS.BAD_REQUEST
   })
 }
 
