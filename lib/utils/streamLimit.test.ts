@@ -32,4 +32,24 @@ describe('readResponseArrayBufferWithLimit', () => {
       ...new Uint8Array(arrayBuffer)
     ])
   })
+
+  it('cancels streaming responses when the byte limit is exceeded', async () => {
+    const cancel = jest.fn()
+    const response = {
+      headers: new Headers(),
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2]))
+          controller.enqueue(new Uint8Array([3, 4]))
+        },
+        cancel
+      })
+    } as unknown as Response
+
+    await expect(
+      readResponseArrayBufferWithLimit(response, 3, 'Streaming body')
+    ).rejects.toThrow('Streaming body exceeds byte limit of 3 bytes')
+
+    expect(cancel).toHaveBeenCalled()
+  })
 })

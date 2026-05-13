@@ -73,4 +73,24 @@ describe('PATCH /api/v1/medias/presigned', () => {
       'media-1'
     )
   })
+
+  it('returns 422 for presigned upload verification failures', async () => {
+    const error = new Error('Uploaded object does not match expected checksum')
+    error.name = 'PresignedUploadValidationError'
+    mockCompletePresignedMediaUpload.mockRejectedValueOnce(error)
+
+    const response = await PATCH(
+      createRequest(JSON.stringify({ mediaId: 'media-1' })),
+      {
+        params: Promise.resolve({})
+      }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockCompletePresignedMediaUpload).toHaveBeenCalledWith(
+      mockDatabase,
+      mockCurrentActor,
+      'media-1'
+    )
+  })
 })

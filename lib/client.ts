@@ -862,6 +862,9 @@ const completeUploadPresignedUrlRequest = async ({
 const isPermanentCompletionFailure = (status: number) =>
   status >= 400 && status < 500
 
+const shouldCleanupAfterPermanentCompletionFailure = (status: number) =>
+  status === 401 || status === 403
+
 type CompleteUploadPresignedUrlWithRetryResult =
   | { completed: UploadedAttachment; shouldCleanup: false }
   | { completed: null; shouldCleanup: boolean }
@@ -890,7 +893,12 @@ const completeUploadPresignedUrlWithRetry = async ({
         return { completed: completed.attachment, shouldCleanup: false }
       }
       if (isPermanentCompletionFailure(completed.status)) {
-        return { completed: null, shouldCleanup: false }
+        return {
+          completed: null,
+          shouldCleanup: shouldCleanupAfterPermanentCompletionFailure(
+            completed.status
+          )
+        }
       }
     } catch {
       if (attempt === MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS) {

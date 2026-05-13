@@ -297,4 +297,25 @@ describe('client uploadAttachment presigned completion', () => {
       expect.anything()
     )
   })
+
+  it('cleans up pending media when presigned upload completion is unauthorized', async () => {
+    fetchMock
+      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce('', { status: 401 })
+      .mockResponseOnce(JSON.stringify({ success: true }), { status: 200 })
+
+    await expect(
+      uploadAttachment(
+        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
+      )
+    ).resolves.toBeNull()
+
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(setTimeoutSpy).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/v1/accounts/media/media-1',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+  })
 })

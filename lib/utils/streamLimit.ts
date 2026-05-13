@@ -187,6 +187,7 @@ export const readResponseArrayBufferWithLimit = async (
       const buffer = Buffer.from(value)
       totalBytes += buffer.byteLength
       if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => undefined)
         throw new StreamByteLimitError(label, maxBytes)
       }
       chunks.push(buffer)

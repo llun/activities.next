@@ -26,6 +26,9 @@ const CompletePresignedUploadInput = z.object({
   mediaId: z.string().min(1)
 })
 
+const isPresignedUploadVerificationError = (error: unknown) =>
+  error instanceof Error && error.name === 'PresignedUploadValidationError'
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = traceApiRoute(
@@ -110,7 +113,16 @@ export const PATCH = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: { media }
       })
-    } catch {
+    } catch (error) {
+      if (isPresignedUploadVerificationError(error)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
