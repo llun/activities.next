@@ -1,7 +1,6 @@
-import fs from 'fs'
 import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
 
+import { getHostConfig } from '@/lib/config/host'
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import {
@@ -15,68 +14,13 @@ export const config = {
   matcher: ['/(@.*)']
 }
 
-type ProxyHostConfig = {
-  host: string
-  allowActorDomains: string[]
-  trustedHosts: string[]
-}
-
-type ProxyHostFileConfig = {
-  host?: unknown
-  allowActorDomains?: unknown
-  trustedHosts?: unknown
-}
-
-const getProxyHostFileConfig = (): ProxyHostFileConfig => {
-  try {
-    const parsed = JSON.parse(
-      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
-    )
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-const getEnvironmentList = (key: string): string[] => {
-  try {
-    const parsed = JSON.parse(process.env[key] || '[]')
-    return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : []
-  } catch {
-    return []
-  }
-}
-
-const getConfigList = (key: string, fileValue: unknown): string[] => {
-  if (process.env[key] !== undefined) return getEnvironmentList(key)
-  return Array.isArray(fileValue) ? fileValue.filter(Boolean).map(String) : []
-}
-
-const getProxyHostConfig = (): ProxyHostConfig => {
-  const fileConfig = getProxyHostFileConfig()
-
-  return {
-    host:
-      process.env.ACTIVITIES_HOST ??
-      (typeof fileConfig.host === 'string' ? fileConfig.host : ''),
-    allowActorDomains: getConfigList(
-      'ACTIVITIES_ALLOW_ACTOR_DOMAINS',
-      fileConfig.allowActorDomains
-    ),
-    trustedHosts: getConfigList(
-      'ACTIVITIES_TRUSTED_HOSTS',
-      fileConfig.trustedHosts
-    )
-  }
-}
-
 const isTrustedHeaderHost = (
   host: string | undefined | null,
-  config: ProxyHostConfig
+  config: ReturnType<typeof getHostConfig>
 ) => isHostTrustedByRules(host, getTrustedHostRules(config))
 
 const proxyHeaderHost = (headers: Headers): string => {
-  const config = getProxyHostConfig()
+  const config = getHostConfig()
   const configuredHost = getConfiguredHost(config.host)
 
   const activityHost = headers.get(ACTIVITIES_HOST)

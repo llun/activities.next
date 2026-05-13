@@ -71,13 +71,13 @@ export const hostMatchesRule = (host: string, normalizedRule: string) => {
   if (ruleParts.hasWildcard) {
     return (
       hostParts.hostname.endsWith(`.${ruleParts.hostname}`) &&
-      (!ruleParts.port || hostParts.port === ruleParts.port)
+      hostParts.port === ruleParts.port
     )
   }
 
   return (
     hostParts.hostname === ruleParts.hostname &&
-    (!ruleParts.port || hostParts.port === ruleParts.port)
+    hostParts.port === ruleParts.port
   )
 }
 

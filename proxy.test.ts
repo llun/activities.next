@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import os from 'os'
 import path from 'path'
 
+import { resetHostConfigCacheForTests } from '@/lib/config/host'
+
 import { proxy } from './proxy'
 
 describe('proxy', () => {
@@ -13,6 +15,7 @@ describe('proxy', () => {
   let testCwd: string
 
   beforeEach(() => {
+    resetHostConfigCacheForTests()
     testCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'activities-proxy-'))
     process.chdir(testCwd)
     process.env.ACTIVITIES_HOST = 'public.example.com'
@@ -23,6 +26,7 @@ describe('proxy', () => {
   afterEach(() => {
     process.chdir(previousCwd)
     fs.rmSync(testCwd, { force: true, recursive: true })
+    resetHostConfigCacheForTests()
   })
 
   afterAll(() => {
@@ -157,7 +161,7 @@ describe('proxy', () => {
     )
   })
 
-  it('prefers runtime environment config over runtime file config', async () => {
+  it('prefers runtime file config over runtime environment config', async () => {
     process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
       'env-edge.example.com'
     ])
@@ -180,7 +184,53 @@ describe('proxy', () => {
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@env-edge.example.com'
+      'https://internal.example.com/@alice@file-public.example.com'
+    )
+  })
+
+  it('reuses runtime config file values after the first proxy request', async () => {
+    delete process.env.ACTIVITIES_HOST
+    fs.writeFileSync(
+      path.join(testCwd, 'config.json'),
+      JSON.stringify({
+        host: 'runtime-public.example.com',
+        trustedHosts: ['runtime-edge.example.com']
+      })
+    )
+
+    const firstRequest = new NextRequest(
+      'https://internal.example.com/@alice',
+      {
+        method: 'GET',
+        headers: {
+          host: 'internal.example.com',
+          'x-forwarded-host': 'evil.example.com'
+        }
+      }
+    )
+
+    await proxy(firstRequest)
+
+    fs.writeFileSync(
+      path.join(testCwd, 'config.json'),
+      JSON.stringify({
+        host: 'changed-public.example.com',
+        trustedHosts: ['changed-edge.example.com']
+      })
+    )
+
+    const secondRequest = new NextRequest('https://internal.example.com/@bob', {
+      method: 'GET',
+      headers: {
+        host: 'internal.example.com',
+        'x-forwarded-host': 'changed-edge.example.com'
+      }
+    })
+
+    const response = await proxy(secondRequest)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://internal.example.com/@bob@runtime-public.example.com'
     )
   })
 
