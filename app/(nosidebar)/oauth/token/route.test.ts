@@ -264,6 +264,44 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).toHaveBeenCalled()
   })
 
+  test('filters destination-conflicting headers before proxying to the auth handler', async () => {
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: 'client-id',
+      client_secret: 'client-secret'
+    })
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      expect(request.headers.get('authorization')).toBe('Bearer original')
+      expect(request.headers.get('content-type')).toBe(
+        'application/x-www-form-urlencoded'
+      )
+      expect(request.headers.has('host')).toBe(false)
+      expect(request.headers.has('content-length')).toBe(false)
+      await expect(request.text()).resolves.toBe(body.toString())
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer original',
+        'content-type': 'application/x-www-form-urlencoded',
+        host: 'llun.test',
+        'content-length': '999'
+      },
+      body
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      access_token: 'issued',
+      created_at: expect.any(Number)
+    })
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
   test('returns OAuth server_error when PKCE preflight fails internally', async () => {
     mockClientLookupError = new Error('database unavailable')
 

@@ -88,6 +88,7 @@ const garbageCollectStaleAppRegistrations = async (db: Knex, now: Date) => {
     .whereNull('oauthAccessToken.id')
     .whereNull('oauthRefreshToken.id')
     .whereNull('oauthConsent.id')
+    .orderBy('oauthClient.createdAt', 'asc')
     .limit(APP_REGISTRATION_GC_BATCH_SIZE)
     .pluck('oauthClient.clientId')
 

@@ -405,4 +405,35 @@ describe('createApplication', () => {
       expect.objectContaining({ clientId: 'stale-active-client' })
     )
   })
+
+  test('it orders stale app registration garbage collection before limiting', async () => {
+    const queries: string[] = []
+    const onQuery = (query: { sql: string }) => queries.push(query.sql)
+    knexDatabase.on('query', onQuery)
+
+    try {
+      await createApplication(
+        {
+          redirect_uris: 'https://ordered-gc.llun.dev/callback',
+          client_name: 'orderedGcClient',
+          scopes: 'read',
+          website: 'https://ordered-gc.llun.dev'
+        },
+        {
+          registrationKey: 'ordered-gc-source',
+          now: new Date('2026-05-12T14:00:00.000Z')
+        }
+      )
+    } finally {
+      knexDatabase.off('query', onQuery)
+    }
+
+    const staleClientQuery = queries.find(
+      (sql) =>
+        sql.includes('from `oauthClient`') &&
+        sql.includes('left join `oauthAccessToken`') &&
+        sql.includes('limit ?')
+    )
+    expect(staleClientQuery).toContain('order by `oauthClient`.`createdAt` asc')
+  })
 })

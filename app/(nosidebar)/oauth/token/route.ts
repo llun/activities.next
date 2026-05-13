@@ -16,6 +16,7 @@ import {
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const MAX_TOKEN_REQUEST_BODY_BYTES = 64 * 1024
 const FORM_URLENCODED_MEDIA_TYPE = 'application/x-www-form-urlencoded'
+const TOKEN_PROXY_EXCLUDED_HEADERS = ['content-length', 'host']
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -107,6 +108,14 @@ const readTokenRequestBodyWithLimit = async (
   }
 
   return Buffer.concat(chunks).toString('utf8')
+}
+
+const getTokenProxyHeaders = (headers: Headers): Headers => {
+  const proxyHeaders = new Headers(headers)
+  for (const header of TOKEN_PROXY_EXCLUDED_HEADERS) {
+    proxyHeaders.delete(header)
+  }
+  return proxyHeaders
 }
 
 const getTokenRequestBody = async (
@@ -248,8 +257,8 @@ export const POST = async (req: NextRequest) => {
   // Rewrite the URL to better-auth's token endpoint
   const url = new URL('/api/auth/oauth2/token', getBaseURL())
   const proxyReq = new Request(url.toString(), {
-    method: 'POST',
-    headers: req.headers,
+    method: 'post',
+    headers: getTokenProxyHeaders(req.headers),
     body: bodyText ?? ''
   })
 
