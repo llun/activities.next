@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
@@ -19,17 +18,11 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const getTrustedClientIp = (req: NextRequest): string | undefined =>
-  req.headers.get('cf-connecting-ip')?.trim() ||
-  req.headers.get('x-real-ip')?.trim() ||
-  undefined
-
-const getAppRegistrationKey = (req: NextRequest): string | undefined => {
-  const ipAddress = getTrustedClientIp(req)
-
-  if (!ipAddress) return undefined
-
-  return crypto.createHash('sha256').update(ipAddress).digest('base64url')
+const getAppRegistrationKey = (_req: NextRequest): undefined => {
+  // This route has no configured trusted-proxy boundary, so forwarded IP
+  // headers are treated as client-supplied. createApplication falls back to
+  // a global anonymous registration bucket when this key is undefined.
+  return undefined
 }
 
 export const POST = traceApiRoute('createApp', async (req: NextRequest) => {

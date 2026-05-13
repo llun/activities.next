@@ -15,6 +15,7 @@ import {
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const MAX_TOKEN_REQUEST_BODY_BYTES = 64 * 1024
+const FORM_URLENCODED_MEDIA_TYPE = 'application/x-www-form-urlencoded'
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -86,10 +87,25 @@ const getTokenRequestBody = async (
     }
   }
 
-  const contentType = req.headers.get('content-type') ?? ''
+  const contentType = (req.headers.get('content-type') ?? '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase()
 
-  if (!contentType.includes('application/x-www-form-urlencoded')) {
-    return { params: null, error: null }
+  if (contentType !== FORM_URLENCODED_MEDIA_TYPE) {
+    return {
+      params: null,
+      error: apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          error: 'invalid_request',
+          error_description:
+            'Token requests must use application/x-www-form-urlencoded'
+        },
+        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+      })
+    }
   }
 
   try {
@@ -117,6 +133,7 @@ const validatePkceTokenExchange = async (
   body: URLSearchParams
 ): Promise<Response | null> => {
   if (body.get('grant_type') !== 'authorization_code') return null
+  if (body.get('code_verifier')) return null
 
   const clientId = getClientId(req, body)
   if (!clientId) {
@@ -132,7 +149,7 @@ const validatePkceTokenExchange = async (
     const client = await getKnex()('oauthClient')
       .where('clientId', clientId)
       .first()
-    if (!client?.requirePKCE || body.get('code_verifier')) return null
+    if (!client?.requirePKCE) return null
   } catch (e) {
     logger.error({ message: 'PKCE token preflight failed', error: e })
     return apiResponse({

@@ -57,6 +57,10 @@ const APP_REGISTRATION_GC_BATCH_SIZE = 1000
 
 let lastAppRegistrationGcAt: number | null = null
 
+export const resetAppRegistrationGcStateForTests = () => {
+  lastAppRegistrationGcAt = null
+}
+
 const getRegistrationReference = (registrationKey?: string): string | null => {
   if (!registrationKey) return null
   return `${APP_REGISTRATION_REFERENCE_PREFIX}${registrationKey}`
@@ -167,7 +171,7 @@ export const createApplication = async (
           await isAppRegistrationRateLimited({
             db,
             now,
-            registrationReference: rateLimitReference
+            registrationReference
           })
         ) {
           return ErrorResponse.parse({

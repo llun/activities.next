@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { POST } from './route'
@@ -12,9 +11,6 @@ jest.mock('@/lib/database', () => ({
 jest.mock('./createApplication', () => ({
   createApplication: (...args: unknown[]) => mockCreateApplication(...args)
 }))
-
-const hashIpAddress = (ipAddress: string) =>
-  crypto.createHash('sha256').update(ipAddress).digest('base64url')
 
 describe('apps route', () => {
   beforeEach(() => {
@@ -30,7 +26,7 @@ describe('apps route', () => {
     })
   })
 
-  test('keys registration limits with trusted client IP headers before forwarded hops', async () => {
+  test('does not derive registration limits from client-supplied IP headers without trusted proxy config', async () => {
     const req = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -48,11 +44,11 @@ describe('apps route', () => {
     await POST(req)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
-      registrationKey: hashIpAddress('203.0.113.10')
+      registrationKey: undefined
     })
   })
 
-  test('ignores raw forwarded IP chains and disables rate limiting when no trusted source exists', async () => {
+  test('ignores raw forwarded IP chains when no trusted source exists', async () => {
     const forwardedReq = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {

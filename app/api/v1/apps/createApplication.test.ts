@@ -3,7 +3,10 @@ import knex from 'knex'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { seedDatabase } from '@/lib/stub/database'
 
-import { createApplication } from './createApplication'
+import {
+  createApplication,
+  resetAppRegistrationGcStateForTests
+} from './createApplication'
 import { PostResponse, SuccessResponse } from './types'
 
 // Create a knex instance we can use for both the database and for getKnex mock
@@ -24,12 +27,19 @@ describe('createApplication', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
-    await createApplication({
-      client_name: 'existsClient',
-      redirect_uris: 'https://exists.llun.dev/apps/redirect',
-      scopes: 'read write',
-      website: 'https://exists.llun.dev'
-    })
+    await createApplication(
+      {
+        client_name: 'existsClient',
+        redirect_uris: 'https://exists.llun.dev/apps/redirect',
+        scopes: 'read write',
+        website: 'https://exists.llun.dev'
+      },
+      { registrationKey: 'setup-source' }
+    )
+  })
+
+  beforeEach(() => {
+    resetAppRegistrationGcStateForTests()
   })
 
   afterAll(async () => {
@@ -37,12 +47,15 @@ describe('createApplication', () => {
   })
 
   test('it generates secret and create application in database and returns application response', async () => {
-    const response = (await createApplication({
-      redirect_uris: 'https://test.llun.dev/apps/redirect',
-      client_name: 'client1',
-      scopes: 'read write',
-      website: 'https://test.llun.dev'
-    })) as SuccessResponse
+    const response = (await createApplication(
+      {
+        redirect_uris: 'https://test.llun.dev/apps/redirect',
+        client_name: 'client1',
+        scopes: 'read write',
+        website: 'https://test.llun.dev'
+      },
+      { registrationKey: 'generated-source' }
+    )) as SuccessResponse
     expect(response).toEqual({
       type: 'success',
       id: expect.toBeString(),
@@ -59,12 +72,15 @@ describe('createApplication', () => {
   })
 
   test('it always creates a new application even when one with the same name exists', async () => {
-    const response = await createApplication({
-      client_name: 'existsClient',
-      redirect_uris: 'https://test.llun.dev/apps/redirect',
-      scopes: 'read write',
-      website: 'https://test.llun.dev'
-    })
+    const response = await createApplication(
+      {
+        client_name: 'existsClient',
+        redirect_uris: 'https://test.llun.dev/apps/redirect',
+        scopes: 'read write',
+        website: 'https://test.llun.dev'
+      },
+      { registrationKey: 'same-name-source' }
+    )
     expect(response).toEqual({
       type: 'success',
       id: expect.toBeString(),
@@ -77,12 +93,15 @@ describe('createApplication', () => {
   })
 
   test('it errors with message validation failed when scope is not valid', async () => {
-    const response = await createApplication({
-      client_name: 'newClient',
-      redirect_uris: 'https://test.llun.dev/apps/redirect',
-      scopes: 'read write something else',
-      website: 'https://test.llun.dev'
-    })
+    const response = await createApplication(
+      {
+        client_name: 'newClient',
+        redirect_uris: 'https://test.llun.dev/apps/redirect',
+        scopes: 'read write something else',
+        website: 'https://test.llun.dev'
+      },
+      { registrationKey: 'invalid-scope-source' }
+    )
     expect(response).toEqual({
       type: 'error',
       error: 'Failed to validate request'
@@ -137,12 +156,15 @@ describe('createApplication', () => {
   })
 
   test('it errors when redirect_uris is empty or whitespace-only', async () => {
-    const response = await createApplication({
-      client_name: 'noRedirectClient',
-      redirect_uris: '   ',
-      scopes: 'read write',
-      website: 'https://test.llun.dev'
-    })
+    const response = await createApplication(
+      {
+        client_name: 'noRedirectClient',
+        redirect_uris: '   ',
+        scopes: 'read write',
+        website: 'https://test.llun.dev'
+      },
+      { registrationKey: 'empty-redirect-source' }
+    )
     expect(response).toEqual({
       type: 'error',
       error: 'Failed to validate request'
@@ -150,13 +172,16 @@ describe('createApplication', () => {
   })
 
   test('it supports newline-separated redirect URIs per Mastodon API spec', async () => {
-    const response = (await createApplication({
-      redirect_uris:
-        'https://test.llun.dev/callback\nhttps://test.llun.dev/alt-callback',
-      client_name: 'multiRedirectClient',
-      scopes: 'read',
-      website: 'https://test.llun.dev'
-    })) as SuccessResponse
+    const response = (await createApplication(
+      {
+        redirect_uris:
+          'https://test.llun.dev/callback\nhttps://test.llun.dev/alt-callback',
+        client_name: 'multiRedirectClient',
+        scopes: 'read',
+        website: 'https://test.llun.dev'
+      },
+      { registrationKey: 'multi-redirect-source' }
+    )) as SuccessResponse
     expect(response.type).toEqual('success')
     expect(response.redirect_uri).toEqual('https://test.llun.dev/callback')
   })
@@ -210,6 +235,44 @@ describe('createApplication', () => {
         referenceId: 'app-registration:anonymous'
       })
     )
+  })
+
+  test('it rate limits anonymous app registrations with the global fallback bucket', async () => {
+    const now = new Date('2030-05-12T12:00:00.000Z')
+    const responses: PostResponse[] = []
+
+    for (let i = 0; i < 6; i++) {
+      responses.push(
+        await createApplication(
+          {
+            redirect_uris: `https://anonymous-flood-${i}.llun.dev/callback`,
+            client_name: `anonymousFloodClient${i}`,
+            scopes: 'read',
+            website: `https://anonymous-flood-${i}.llun.dev`
+          },
+          { now }
+        )
+      )
+    }
+
+    expect(
+      responses.slice(0, 5).every((response) => response.type === 'success')
+    ).toBe(true)
+    expect(responses[5]).toEqual({
+      type: 'error',
+      error: 'Too many application registrations'
+    })
+
+    const rows = await knexDatabase('oauthClient')
+      .where('referenceId', 'app-registration:anonymous')
+      .where('createdAt', '>=', new Date('2030-05-12T11:50:00.000Z'))
+      .select()
+    expect(rows).toHaveLength(5)
+
+    await knexDatabase('oauthClient')
+      .where('referenceId', 'app-registration:anonymous')
+      .where('createdAt', '>=', new Date('2030-05-12T11:50:00.000Z'))
+      .delete()
   })
 
   test('it checks the rate limit before garbage collecting stale app registrations', async () => {
