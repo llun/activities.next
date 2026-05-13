@@ -11,8 +11,6 @@ type EnvironmentListOptions = {
 let cachedHostConfig: HostConfig | null = null
 let cachedProxyHostConfig: HostConfig | null = null
 
-const PROXY_HOST_CONFIG = 'ACTIVITIES_PROXY_HOST_CONFIG'
-
 const toStringList = (
   value: unknown,
   key: string,
@@ -43,7 +41,9 @@ const getEnvironmentList = (
 
 const getInjectedProxyHostConfig = (): HostConfig | null => {
   try {
-    const parsed = JSON.parse(process.env[PROXY_HOST_CONFIG] || 'null')
+    const parsed = JSON.parse(
+      process.env.ACTIVITIES_PROXY_HOST_CONFIG || 'null'
+    )
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return null
     }

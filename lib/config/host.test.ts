@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+
 import {
   getHostConfigFromEnvironment,
   resetHostConfigCacheForTests
@@ -40,5 +43,14 @@ describe('getHostConfigFromEnvironment', () => {
       allowActorDomains: [],
       trustedHosts: []
     })
+  })
+})
+
+describe('getProxyHostConfig', () => {
+  it('uses static ACTIVITIES_PROXY_HOST_CONFIG env access for Next config injection', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'host.ts'), 'utf-8')
+
+    expect(source).toContain('process.env.ACTIVITIES_PROXY_HOST_CONFIG')
+    expect(source).not.toContain('process.env[PROXY_HOST_CONFIG]')
   })
 })
