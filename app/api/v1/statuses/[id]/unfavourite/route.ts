@@ -1,6 +1,7 @@
 import { sendUndoLike } from '@/lib/activities'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -34,10 +35,11 @@ export const POST = traceApiRoute(
       })
 
     const statusId = idToUrl(encodedStatusId)
-    const status = await database.getStatus({
+    const status = await getReadableStatus({
+      database,
       statusId,
-      withReplies: false,
-      currentActorId: currentActor.id
+      currentActor,
+      withReplies: false
     })
     if (!status)
       return apiResponse({

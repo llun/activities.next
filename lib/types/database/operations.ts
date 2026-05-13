@@ -396,7 +396,9 @@ export type GetStatusRepliesParams = BaseStatusParams & {
   limit?: number
   publicOnly?: boolean
 }
-export type DeleteStatusParams = BaseStatusParams
+export type DeleteStatusParams = BaseStatusParams & {
+  actorId?: string
+}
 
 export type GetStatusFromUrlParams = {
   url: string

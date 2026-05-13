@@ -851,17 +851,22 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function deleteStatus({
+    actorId,
     statusId,
     trx
   }: DeleteStatusParams & { trx?: Knex.Transaction }) {
     if (!trx) {
       await database.transaction(async (trx) => {
-        await deleteStatus({ statusId, trx })
+        await deleteStatus({ actorId, statusId, trx })
       })
       return
     }
 
-    const status = await trx('statuses').where('id', statusId).first()
+    const statusQuery = trx('statuses').where('id', statusId)
+    if (actorId) {
+      statusQuery.where('actorId', actorId)
+    }
+    const status = await statusQuery.first()
     if (!status) return
 
     const replies = await trx('statuses').where('reply', statusId).select('id')

@@ -78,7 +78,8 @@ const createRequest = (actor: unknown) => {
       actor,
       object: {
         id: `${actorId}/statuses/1`,
-        type: 'Note'
+        type: 'Note',
+        attributedTo: actorId
       }
     })
   })
@@ -144,7 +145,8 @@ describe('POST /api/inbox', () => {
       actor,
       object: {
         id: `${actor}/statuses/1`,
-        type: 'Note'
+        type: 'Note',
+        attributedTo: actor
       }
     }
     mockConsumeRequestBody = true
@@ -217,7 +219,7 @@ describe('POST /api/inbox', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'CreateNoteJob',
-        verifiedSenderActorId: mockVerifiedSenderActorId
+        verifiedSenderActorId: actor
       })
     )
   })

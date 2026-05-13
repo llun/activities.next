@@ -1,6 +1,7 @@
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -35,6 +36,19 @@ export const POST = traceApiRoute(
       })
 
     const statusId = idToUrl(encodedStatusId)
+    const status = await getReadableStatus({
+      database,
+      statusId,
+      currentActor,
+      withReplies: false
+    })
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     const undoStatus = await userUndoAnnounce({
       currentActor,

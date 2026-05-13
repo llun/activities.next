@@ -1,9 +1,16 @@
 import { Announce, Tombstone } from '@/lib/types/activitypub'
-import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubAnnounce,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
 import { getTracer } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
 import { DELETE_OBJECT_JOB_NAME } from './names'
+import { actorMatchesVerifiedSender } from './verifiedSender'
+
+const getVerifiedSenderActorId = (actorId?: string) =>
+  normalizeActorId(actorId) ?? undefined
 
 export const deleteObjectJob = createJobHandle(
   DELETE_OBJECT_JOB_NAME,
@@ -11,6 +18,12 @@ export const deleteObjectJob = createJobHandle(
     await getTracer().startActiveSpan('deleteObject', async (span) => {
       const data = message.data
       if (typeof data === 'string') {
+        if (!actorMatchesVerifiedSender(data, message)) {
+          span.setAttribute('senderMismatch', true)
+          span.end()
+          return
+        }
+
         span.setAttribute('actorId', data)
         await database.deleteActor({
           actorId: data
@@ -24,7 +37,8 @@ export const deleteObjectJob = createJobHandle(
         const tombStone = tombStoneResult.data
         span.setAttribute('statusId', tombStone.id)
         await database.deleteStatus({
-          statusId: tombStone.id
+          statusId: tombStone.id,
+          actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
         })
         span.end()
         return
@@ -35,9 +49,16 @@ export const deleteObjectJob = createJobHandle(
       )
       if (announceResult.success) {
         const announce = announceResult.data
+        if (!actorMatchesVerifiedSender(announce.actor, message)) {
+          span.setAttribute('senderMismatch', true)
+          span.end()
+          return
+        }
+
         span.setAttribute('statusId', announce.id)
         await database.deleteStatus({
-          statusId: announce.id
+          statusId: announce.id,
+          actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
         })
         span.end()
         return

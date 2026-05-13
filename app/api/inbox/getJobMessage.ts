@@ -41,12 +41,40 @@ const createJobMessage = ({
   id,
   name,
   verifiedSenderActorId
-}: JobMessage) => ({
-  id,
-  name,
-  data,
-  ...(verifiedSenderActorId ? { verifiedSenderActorId } : {})
-})
+}: JobMessage) => {
+  const normalizedVerifiedSenderActorId = normalizeActorId(
+    verifiedSenderActorId
+  )
+
+  return {
+    id,
+    name,
+    data,
+    ...(normalizedVerifiedSenderActorId
+      ? { verifiedSenderActorId: normalizedVerifiedSenderActorId }
+      : {})
+  }
+}
+
+const activityActorMismatch = (
+  activity: StatusActivity,
+  verifiedSenderActorId?: string
+) => {
+  if (!verifiedSenderActorId) return false
+
+  const normalizedVerifiedSenderActorId = normalizeActorId(
+    verifiedSenderActorId
+  )
+  const normalizedActivityActorId = normalizeActorId(
+    extractActivityPubId(activity.actor)
+  )
+
+  return (
+    !normalizedVerifiedSenderActorId ||
+    !normalizedActivityActorId ||
+    normalizedActivityActorId !== normalizedVerifiedSenderActorId
+  )
+}
 
 const createObjectActorMismatch = (
   object: unknown,
@@ -63,6 +91,8 @@ const createObjectActorMismatch = (
     extractActivityPubId(object.attributedTo),
     extractActivityPubId(object.actor)
   ].filter((actorId): actorId is string => Boolean(actorId))
+
+  if (objectActorIds.length === 0) return true
 
   return objectActorIds.some(
     (actorId) => normalizeActorId(actorId) !== normalizedVerifiedSenderActorId
@@ -132,11 +162,16 @@ export const getJobMessage = (
       activity.object !== null &&
       activity.object.type === ENTITY_TYPE_QUESTION
     ) {
-      return {
+      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
+        return null
+      }
+
+      return createJobMessage({
         id: deduplicationId,
         name: UPDATE_POLL_JOB_NAME,
-        data: activity.object
-      }
+        data: activity.object,
+        verifiedSenderActorId
+      })
     }
 
     if (
@@ -144,31 +179,46 @@ export const getJobMessage = (
       activity.object !== null &&
       NOTE_TYPES.includes(activity.object.type)
     ) {
-      return {
+      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
+        return null
+      }
+
+      return createJobMessage({
         id: deduplicationId,
         name: UPDATE_NOTE_JOB_NAME,
-        data: activity.object
-      }
+        data: activity.object,
+        verifiedSenderActorId
+      })
     }
   }
 
   if (isMatch(activity, { type: AnnounceAction })) {
-    return {
+    if (activityActorMismatch(activity, verifiedSenderActorId)) {
+      return null
+    }
+
+    return createJobMessage({
       id: deduplicationId,
       name: CREATE_ANNOUNCE_JOB_NAME,
-      data: activity
-    }
+      data: activity,
+      verifiedSenderActorId
+    })
   }
 
   if (
     isMatch(activity, { type: UndoAction, object: { type: AnnounceAction } }) ||
     isMatch(activity, { type: DeleteAction })
   ) {
-    return {
+    if (activityActorMismatch(activity, verifiedSenderActorId)) {
+      return null
+    }
+
+    return createJobMessage({
       id: deduplicationId,
       name: DELETE_OBJECT_JOB_NAME,
-      data: activity.object
-    }
+      data: activity.object,
+      verifiedSenderActorId
+    })
   }
 
   return null

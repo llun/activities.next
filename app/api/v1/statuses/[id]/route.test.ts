@@ -15,12 +15,20 @@ import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 import { POST as bookmarkStatus } from './bookmark/route'
 import { GET as getStatusContext } from './context/route'
+import { POST as favouriteStatus } from './favourite/route'
 import { GET as getStatusFavouritedBy } from './favourited_by/route'
 import { GET as getStatusHistory } from './history/route'
 import { POST as muteStatus } from './mute/route'
+import { POST as pinStatus } from './pin/route'
+import { POST as reblogStatus } from './reblog/route'
 import { GET as getStatusRebloggedBy } from './reblogged_by/route'
 import { GET, PUT } from './route'
 import { GET as getStatusSource } from './source/route'
+import { POST as unbookmarkStatus } from './unbookmark/route'
+import { POST as unfavouriteStatus } from './unfavourite/route'
+import { POST as unmuteStatus } from './unmute/route'
+import { POST as unpinStatus } from './unpin/route'
+import { POST as unreblogStatus } from './unreblog/route'
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -67,7 +75,15 @@ const inaccessibleStatusRouteCases: Array<
 > = [
   ['source', 'GET', getStatusSource],
   ['bookmark', 'POST', bookmarkStatus],
+  ['unbookmark', 'POST', unbookmarkStatus],
   ['mute', 'POST', muteStatus],
+  ['unmute', 'POST', unmuteStatus],
+  ['favourite', 'POST', favouriteStatus],
+  ['unfavourite', 'POST', unfavouriteStatus],
+  ['reblog', 'POST', reblogStatus],
+  ['unreblog', 'POST', unreblogStatus],
+  ['pin', 'POST', pinStatus],
+  ['unpin', 'POST', unpinStatus],
   ['favourited_by', 'GET', getStatusFavouritedBy],
   ['reblogged_by', 'GET', getStatusRebloggedBy]
 ]

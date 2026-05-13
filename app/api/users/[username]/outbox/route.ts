@@ -1,3 +1,4 @@
+import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import {
@@ -11,6 +12,19 @@ import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+const getPubliclyReadableActorStatuses = async (
+  database: Database,
+  actorId: string,
+  limit?: number
+) =>
+  (
+    await database.getActorStatuses({
+      actorId,
+      ...(limit === undefined ? {} : { limit }),
+      publicOnly: true
+    })
+  ).filter(isStatusPubliclyReadable)
+
 export const GET = traceApiRoute(
   'getActorOutbox',
   OnlyLocalUserGuard(
@@ -19,25 +33,30 @@ export const GET = traceApiRoute(
       const pageParam = url.searchParams.get('page')
       if (!pageParam) {
         const outboxId = getLocalActorOutboxId(actor.id)
+        const statuses = await getPubliclyReadableActorStatuses(
+          database,
+          actor.id,
+          actor.statusCount
+        )
         return activityPubResponse({
           req,
           data: {
             '@context': ACTIVITY_STREAM_URL,
             id: outboxId,
             type: 'OrderedCollection',
-            totalItems: actor.statusCount,
+            totalItems: statuses.length,
             first: `${outboxId}?page=true`,
             last: `${outboxId}?min_id=0&page=true`
           }
         })
       }
 
-      const statuses = (
-        await database.getActorStatuses({
-          actorId: actor.id,
-          publicOnly: true
-        })
-      ).filter(isStatusPubliclyReadable)
+      const statuses = await getPubliclyReadableActorStatuses(
+        database,
+        actor.id
+      )
+      // publicOnly checks the Announce recipients in SQL; this second filter
+      // also confirms the boosted original status is publicly readable.
       const items = statuses.map((status) => {
         if (status.type === StatusType.enum.Announce) {
           return {
