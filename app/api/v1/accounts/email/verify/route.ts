@@ -1,7 +1,12 @@
 import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { apiResponse } from '@/lib/utils/response'
+import { logger } from '@/lib/utils/logger'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailVerifyRequest = z.object({
@@ -22,10 +27,20 @@ export const POST = traceApiRoute(
       })
     }
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const { emailChangeCode } = EmailVerifyRequest.parse(body)
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
+    const parsed = EmailVerifyRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+    const { emailChangeCode } = parsed.data
+
+    try {
       const updatedAccount = await database.verifyEmailChange({
         accountId: currentActor.account.id,
         emailChangeCode
@@ -51,20 +66,12 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: 'Invalid verification code' },
-          responseStatusCode: 400
-        })
-      }
-      return apiResponse({
-        req,
-        allowedMethods: [],
-        data: { error: 'Failed to verify email change' },
-        responseStatusCode: 500
+      logger.error({
+        message: 'Failed to verify email change',
+        accountId: currentActor.account.id,
+        error
       })
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

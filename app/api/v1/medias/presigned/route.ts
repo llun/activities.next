@@ -20,10 +20,20 @@ export const POST = traceApiRoute(
     const { database, currentActor } = context
     try {
       const content = await req.json()
+      const input = PresigedMediaInput.safeParse(content)
+      if (!input.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
       const presigned = await getPresignedUrl(
         database,
         currentActor,
-        PresigedMediaInput.parse(content)
+        input.data
       )
 
       if (!presigned) {

@@ -8,6 +8,7 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
   ERROR_404,
+  ERROR_422,
   ERROR_500,
   apiResponse,
   defaultOptions
@@ -64,9 +65,17 @@ export const GET = traceApiRoute(
 
     const url = new URL(req.url)
     const queryParams = Object.fromEntries(url.searchParams.entries())
-    const parsedParams = MediaQueryParams.parse(queryParams)
+    const parsedParams = MediaQueryParams.safeParse(queryParams)
+    if (!parsedParams.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
 
-    const { limit = 25, max_created_at: maxCreatedAt } = parsedParams
+    const { limit = 25, max_created_at: maxCreatedAt } = parsedParams.data
 
     const attachments = await database.getAttachmentsForActor({
       actorId: id,

@@ -8,7 +8,12 @@ import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordResetRequest = z.object({ email: z.string().email() })
@@ -19,22 +24,52 @@ const SUCCESS_MESSAGE =
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const passwordResetSuccessResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: { success: true, message: SUCCESS_MESSAGE },
+    responseStatusCode: 200
+  })
+
+const badRequestResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: ERROR_400,
+    responseStatusCode: 400
+  })
+
+const internalServerErrorResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: ERROR_500,
+    responseStatusCode: 500
+  })
+
 export const POST = traceApiRoute(
   'requestPasswordReset',
   async (request: NextRequest) => {
     const database = getDatabase()
     if (!database) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
+      return internalServerErrorResponse(request)
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return badRequestResponse(request)
+    }
+
+    const parsed = PasswordResetRequest.safeParse(body)
+    if (!parsed.success) {
+      return badRequestResponse(request)
     }
 
     try {
-      const body = await request.json()
-      const { email } = PasswordResetRequest.parse(body)
+      const { email } = parsed.data
       const config = getConfig()
       const account = await database.getAccountFromEmail({ email })
 
@@ -44,12 +79,7 @@ export const POST = traceApiRoute(
             { email },
             'Password reset requested but email service is not configured'
           )
-          return apiResponse({
-            req: request,
-            allowedMethods: CORS_HEADERS,
-            data: { success: true, message: SUCCESS_MESSAGE },
-            responseStatusCode: 200
-          })
+          return passwordResetSuccessResponse(request)
         }
 
         const passwordResetCode = crypto.randomBytes(32).toString('base64url')
@@ -67,12 +97,7 @@ export const POST = traceApiRoute(
             { email },
             'Password reset code persistence failed for existing account'
           )
-          return apiResponse({
-            req: request,
-            allowedMethods: CORS_HEADERS,
-            data: { success: true, message: SUCCESS_MESSAGE },
-            responseStatusCode: 200
-          })
+          return passwordResetSuccessResponse(request)
         }
 
         try {
@@ -93,44 +118,36 @@ export const POST = traceApiRoute(
           })
         } catch (_error) {
           logger.error({ email }, 'Failed to send password reset email')
-          await database.requestPasswordReset({
-            email,
-            passwordResetCode: previousPasswordResetCode,
-            ...(previousPasswordResetCodeExpiresAt !== null
-              ? { expiresAt: previousPasswordResetCodeExpiresAt }
-              : null)
-          })
-          return apiResponse({
-            req: request,
-            allowedMethods: CORS_HEADERS,
-            data: { success: true, message: SUCCESS_MESSAGE },
-            responseStatusCode: 200
-          })
+          try {
+            const restored = await database.requestPasswordReset({
+              email,
+              passwordResetCode: previousPasswordResetCode,
+              ...(previousPasswordResetCodeExpiresAt !== null
+                ? { expiresAt: previousPasswordResetCodeExpiresAt }
+                : null)
+            })
+            if (!restored) {
+              logger.error(
+                { email },
+                'Failed to restore previous password reset code'
+              )
+              return internalServerErrorResponse(request)
+            }
+          } catch (error) {
+            logger.error(
+              { email, error },
+              'Failed to restore previous password reset code'
+            )
+            return internalServerErrorResponse(request)
+          }
+          return passwordResetSuccessResponse(request)
         }
       }
 
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: { success: true, message: SUCCESS_MESSAGE },
-        responseStatusCode: 200
-      })
+      return passwordResetSuccessResponse(request)
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req: request,
-          allowedMethods: CORS_HEADERS,
-          data: { error: 'Invalid email address' },
-          responseStatusCode: 400
-        })
-      }
-
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: { error: 'Failed to request password reset' },
-        responseStatusCode: 500
-      })
+      logger.error({ error }, 'Failed to request password reset')
+      return internalServerErrorResponse(request)
     }
   }
 )

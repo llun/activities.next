@@ -6,6 +6,7 @@ import {
   POST_LINE_LIMIT_VALUES,
   PostLineLimit
 } from '@/lib/types/database/rows'
+import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ProfileRequest = z.object({
@@ -30,7 +31,10 @@ export const POST = traceApiRoute(
     const body = await req.formData()
     const json = Object.fromEntries(body.entries())
 
-    const parsed = ProfileRequest.parse(json)
+    const parsed = ProfileRequest.safeParse(json)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
     // Handle checkbox behavior:
     // 1. If 'on', it's checked -> true
     // 2. If missing but marker is present, it's unchecked -> false
@@ -41,7 +45,7 @@ export const POST = traceApiRoute(
       manuallyApprovesFollowers: rawValue,
       postLineLimit: rawPostLineLimit,
       ...safeParsed
-    } = parsed
+    } = parsed.data
 
     let manuallyApprovesFollowers: boolean | undefined
     if (rawValue === 'on') {

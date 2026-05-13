@@ -62,7 +62,11 @@ export const POST = traceApiRoute(
       }
 
       const content = await req.json()
-      const input = PresignedArchiveInput.parse(content)
+      const parsed = PresignedArchiveInput.safeParse(content)
+      if (!parsed.success) {
+        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
+      const input = parsed.data
 
       const archiveId = crypto.randomUUID()
       const sourceBatchId = getStravaArchiveSourceBatchId(archiveId)
@@ -110,9 +114,6 @@ export const POST = traceApiRoute(
 
       if (error instanceof QuotaExceededError) {
         return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
-      }
-      if (error instanceof z.ZodError) {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
       }
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }

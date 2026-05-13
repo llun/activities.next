@@ -4,7 +4,12 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { apiResponse } from '@/lib/utils/response'
+import { logger } from '@/lib/utils/logger'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailChangeRequest = z.object({
@@ -25,10 +30,20 @@ export const POST = traceApiRoute(
       })
     }
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const { newEmail } = EmailChangeRequest.parse(body)
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
+    const parsed = EmailChangeRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+    const { newEmail } = parsed.data
+
+    try {
       // Check if email is already in use
       const existingAccount = await database.getAccountFromEmail({
         email: newEmail
@@ -71,7 +86,13 @@ export const POST = traceApiRoute(
               `
             }
           })
-        } catch (_error) {
+        } catch (error) {
+          logger.error({
+            message: 'Failed to send email change verification email',
+            accountId: currentActor.account.id,
+            newEmail,
+            error
+          })
           return apiResponse({
             req,
             allowedMethods: [],
@@ -106,20 +127,13 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: 'Invalid email address' },
-          responseStatusCode: 400
-        })
-      }
-      return apiResponse({
-        req,
-        allowedMethods: [],
-        data: { error: 'Failed to request email change' },
-        responseStatusCode: 500
+      logger.error({
+        message: 'Failed to request email change',
+        accountId: currentActor.account.id,
+        newEmail,
+        error
       })
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )
