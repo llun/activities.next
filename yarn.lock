@@ -5873,7 +5873,7 @@ __metadata:
     "@upstash/qstash": "npm:^2.10.1"
     bcrypt: "npm:^6.0.0"
     better-auth: "npm:^1.6.9"
-    better-call: "npm:1.3.5"
+    better-call: "npm:2.0.3"
     better-sqlite3: "npm:^12.9.0"
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
@@ -6464,6 +6464,23 @@ __metadata:
     zod:
       optional: true
   checksum: 10c0/2b629138301b2cf34c3c7c808f658d77510123fd31c0e30622981608c6f8e5571187f0919af37951f92c66f0cbfaa67bc07c5c16139fdf7e5f8e6616964b1628
+  languageName: node
+  linkType: hard
+
+"better-call@npm:2.0.3":
+  version: 2.0.3
+  resolution: "better-call@npm:2.0.3"
+  dependencies:
+    "@better-auth/utils": "npm:^0.4.0"
+    "@better-fetch/fetch": "npm:^1.1.21"
+    rou3: "npm:^0.7.12"
+    set-cookie-parser: "npm:^3.0.1"
+  peerDependencies:
+    zod: ^4.0.0
+  peerDependenciesMeta:
+    zod:
+      optional: true
+  checksum: 10c0/2f59e03cf38e9f1b174747dce1bb343e683d80ab276f82dd2353c254079359f53d1790a96f370a690550f2135081114af771c21f703d47c9160b66b960de8b0f
   languageName: node
   linkType: hard
 
