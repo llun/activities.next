@@ -41,6 +41,12 @@ type ImageRemotePatterns = NonNullable<
 >
 
 const IMAGE_REMOTE_ALLOWLIST_ENV = 'ACTIVITIES_ALLOW_MEDIA_DOMAINS'
+const DEFAULT_IMAGE_REMOTE_PATTERNS: ImageRemotePatterns = [
+  {
+    protocol: 'https',
+    hostname: '**'
+  }
+]
 
 const isDevelopment = () => process.env.NODE_ENV !== 'production'
 
@@ -86,8 +92,12 @@ export const getSecurityHeaders = (): Header[] => {
 
 const parseImageRemoteAllowlist = (rawAllowlist: string | undefined) => {
   try {
-    const parsed = JSON.parse(rawAllowlist || '[]')
-    return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : []
+    const parsed = JSON.parse(rawAllowlist ?? '[]')
+    if (!Array.isArray(parsed)) {
+      throw new Error()
+    }
+
+    return parsed.filter(Boolean).map(String)
   } catch {
     throw new Error(
       `${IMAGE_REMOTE_ALLOWLIST_ENV} must be a JSON array of HTTPS hostnames or URLs`
@@ -124,32 +134,15 @@ const getImageRemotePattern = (
 
 export const getImageRemotePatterns = (
   rawAllowlist = process.env[IMAGE_REMOTE_ALLOWLIST_ENV]
-): ImageRemotePatterns =>
-  parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
+): ImageRemotePatterns => {
+  if (rawAllowlist === undefined) {
+    return DEFAULT_IMAGE_REMOTE_PATTERNS
+  }
+
+  return parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
     const pattern = getImageRemotePattern(entry)
     return pattern ? [pattern] : []
   })
-
-export const isRemoteImageUrlAllowed = (
-  rawUrl: string,
-  patterns: ImageRemotePatterns
-) => {
-  try {
-    const url = new URL(rawUrl)
-    return patterns.some((pattern) => {
-      if (pattern.protocol && `${pattern.protocol}:` !== url.protocol) {
-        return false
-      }
-      if (pattern.hostname !== url.hostname) return false
-      if (pattern.port && pattern.port !== url.port) return false
-      if (!pattern.pathname) return true
-
-      const prefix = pattern.pathname.replace(/\/\*\*$/, '')
-      return url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)
-    })
-  } catch {
-    return false
-  }
 }
 
 const nextConfig: NextConfig = {

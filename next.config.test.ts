@@ -2,11 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import {
-  getImageRemotePatterns,
-  getSecurityHeaders,
-  isRemoteImageUrlAllowed
-} from './next.config'
+import { getImageRemotePatterns, getSecurityHeaders } from './next.config'
 
 const loadNextConfig = async () => {
   jest.resetModules()
@@ -102,7 +98,27 @@ describe('next config security hardening', () => {
     })
   })
 
-  it('only allows configured HTTPS image hosts', () => {
+  it('allows HTTPS remote images by default for open federation', () => {
+    const originalAllowlist = process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
+    delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
+
+    try {
+      expect(getImageRemotePatterns()).toEqual([
+        {
+          protocol: 'https',
+          hostname: '**'
+        }
+      ])
+    } finally {
+      if (originalAllowlist === undefined) {
+        delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
+      } else {
+        process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = originalAllowlist
+      }
+    }
+  })
+
+  it('builds configured HTTPS image host patterns', () => {
     const patterns = getImageRemotePatterns(
       JSON.stringify(['media.example.com', 'https://cdn.example.com/Images'])
     )
@@ -118,24 +134,6 @@ describe('next config security hardening', () => {
         pathname: '/Images/**'
       }
     ])
-    expect(
-      isRemoteImageUrlAllowed('https://media.example.com/avatar.png', patterns)
-    ).toBe(true)
-    expect(
-      isRemoteImageUrlAllowed('https://evil.example/avatar.png', patterns)
-    ).toBe(false)
-    expect(
-      isRemoteImageUrlAllowed('https://cdn.example.com/Images', patterns)
-    ).toBe(true)
-    expect(
-      isRemoteImageUrlAllowed('https://cdn.example.com/images', patterns)
-    ).toBe(false)
-    expect(
-      isRemoteImageUrlAllowed(
-        'https://cdn.example.com/Images/avatar.png',
-        patterns
-      )
-    ).toBe(true)
   })
 
   it('rejects wildcard image host configuration', () => {
@@ -147,6 +145,15 @@ describe('next config security hardening', () => {
 
   it('rejects malformed image host configuration', () => {
     expect(() => getImageRemotePatterns('{')).toThrow(
+      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
+    )
+  })
+
+  it('rejects non-array image host configuration', () => {
+    expect(() => getImageRemotePatterns(JSON.stringify({}))).toThrow(
+      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
+    )
+    expect(() => getImageRemotePatterns(JSON.stringify('example.com'))).toThrow(
       'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
     )
   })

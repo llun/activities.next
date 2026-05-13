@@ -118,11 +118,25 @@ describe('sanitizeText', () => {
       expect(sanitizeText(input)).toEqual('<p>Text</p>')
     })
 
+    it('removes remote content images that are not custom emoji', () => {
+      const input =
+        '<p>Before<img class="u-photo" src="https://example.com/photo.jpg" alt="photo">After</p>'
+      expect(sanitizeText(input)).toEqual('<p>BeforeAfter</p>')
+    })
+
     it('allows emoji img tags with safe sources', () => {
       const input =
         '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:">'
       expect(sanitizeText(input)).toEqual(
         '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:" />'
+      )
+    })
+
+    it('preserves emoji img tags inside sanitized status text', () => {
+      const input =
+        '<p>Status with <img class="emoji" src="https://example.com/emoji.png" alt=":emoji:"> custom emoji</p>'
+      expect(sanitizeText(input)).toEqual(
+        '<p>Status with <img class="emoji" src="https://example.com/emoji.png" alt=":emoji:" /> custom emoji</p>'
       )
     })
 
