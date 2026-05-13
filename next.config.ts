@@ -185,9 +185,7 @@ const parseImageRemoteAllowlist = (rawAllowlist: string | undefined) => {
 
     return parsed.filter(Boolean).map(String)
   } catch {
-    throw new Error(
-      `${IMAGE_REMOTE_ALLOWLIST_ENV} must be a JSON array of HTTPS hostnames or URLs`
-    )
+    throw new Error(`${IMAGE_REMOTE_ALLOWLIST_ENV} must be a JSON array`)
   }
 }
 
