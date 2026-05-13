@@ -89,6 +89,22 @@ describe('createApplication', () => {
     })
   })
 
+  test('it ignores extra whitespace between scopes', async () => {
+    const response = (await createApplication({
+      client_name: 'whitespaceScopesClient',
+      redirect_uris: 'https://test.llun.dev/apps/redirect',
+      scopes: '  read   write\nfollow\t',
+      website: 'https://test.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.scopes)).toEqual(['read', 'write', 'follow'])
+  })
+
   test('it errors when redirect_uris is empty or whitespace-only', async () => {
     const response = await createApplication({
       client_name: 'noRedirectClient',

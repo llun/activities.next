@@ -408,6 +408,49 @@ describe('Fitness General Settings API', () => {
       )
     })
 
+    it('falls back to legacy settings when no privacyLocations payload is sent', async () => {
+      mockDb.createFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 10,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyHomeLatitude: 13.7563,
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: 10
+            }
+          ],
+          privacyHomeLatitude: 13.7563,
+          privacyHomeLongitude: 100.5018,
+          privacyHideRadiusMeters: 10
+        })
+      )
+    })
+
     it('rejects request when only one coordinate is provided', async () => {
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/general',

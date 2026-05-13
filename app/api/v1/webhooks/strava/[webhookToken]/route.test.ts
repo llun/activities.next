@@ -19,6 +19,15 @@ jest.mock('@/lib/services/queue', () => ({
   })
 }))
 
+const mockLoggerWarn = jest.fn()
+jest.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: (...args: unknown[]) => mockLoggerWarn(...args)
+  }
+}))
+
 describe('Strava Webhook API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessSettingsByWebhookToken: jest.fn()
@@ -134,6 +143,56 @@ describe('Strava Webhook API', () => {
         data: {
           actorId: 'actor-1',
           stravaActivityId: '13579',
+          visibility: 'private'
+        }
+      })
+    )
+  })
+
+  it('falls back to private when persisted webhook visibility is invalid', async () => {
+    mockDb.getFitnessSettingsByWebhookToken.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      webhookToken: 'token-123',
+      accessToken: 'access-token',
+      defaultVisibility: 'followers_only' as never,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    const request = new NextRequest(
+      'http://llun.test/api/v1/webhooks/strava/token-123',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          object_type: 'activity',
+          object_id: 24680,
+          aspect_type: 'create',
+          owner_id: 1,
+          event_time: 1_735_689_600
+        })
+      }
+    )
+
+    const response = await POST(request, {
+      params: Promise.resolve({ webhookToken: 'token-123' })
+    })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Invalid Strava default visibility; falling back to private',
+        actorId: 'actor-1'
+      })
+    )
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '24680',
           visibility: 'private'
         }
       })

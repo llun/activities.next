@@ -66,20 +66,12 @@ const safeParseFitnessGeneralSettingsRequest = (
 ):
   | { success: true; data: FitnessGeneralSettingsRequest }
   | { success: false } => {
-  if (
-    body &&
-    typeof body === 'object' &&
-    Object.prototype.hasOwnProperty.call(body, 'privacyLocations')
-  ) {
-    const parsed = FitnessGeneralSettingsListRequest.safeParse(body)
-    return parsed.success
-      ? { success: true, data: parsed.data }
-      : { success: false }
-  }
+  const listResult = FitnessGeneralSettingsListRequest.safeParse(body)
+  if (listResult.success) return { success: true, data: listResult.data }
 
-  const parsed = FitnessGeneralSettingsLegacyRequest.safeParse(body)
-  return parsed.success
-    ? { success: true, data: parsed.data }
+  const legacyResult = FitnessGeneralSettingsLegacyRequest.safeParse(body)
+  return legacyResult.success
+    ? { success: true, data: legacyResult.data }
     : { success: false }
 }
 

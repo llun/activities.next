@@ -62,8 +62,12 @@ export const createApplication = async (
         const clientId = generateRandomString(32)
         const clientSecret = generateRandomString(32)
         const hashedSecret = hashClientSecret(clientSecret)
+        const scopeValues = scopes.trim().split(/\s+/).filter(Boolean)
+        if (scopeValues.length === 0) {
+          return validationErrorResponse()
+        }
         const parsedScopes: Scope[] = []
-        for (const scope of scopes.split(' ')) {
+        for (const scope of scopeValues) {
           const parsed = Scope.safeParse(scope)
           if (!parsed.success) {
             return validationErrorResponse()

@@ -52,4 +52,25 @@ describe('GET /api/v1/notifications', () => {
     expect(data.status).toBe('Unprocessable entity')
     expect(mockDatabase.getNotifications).not.toHaveBeenCalled()
   })
+
+  it('normalizes a single types[] query parameter to an array', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v1/notifications?types[]=favourite',
+      { method: 'GET' }
+    )
+
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data).toEqual([])
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: mockCurrentActor.id,
+        types: ['like']
+      })
+    )
+  })
 })

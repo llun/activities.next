@@ -8,12 +8,7 @@ import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import {
-  ERROR_422,
-  ERROR_500,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordResetRequest = z.object({ email: z.string().email() })
@@ -23,6 +18,14 @@ const SUCCESS_MESSAGE =
   'If an account exists for that email, a password reset link has been sent.'
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+const passwordResetSuccessResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: { success: true, message: SUCCESS_MESSAGE },
+    responseStatusCode: 200
+  })
 
 export const POST = traceApiRoute(
   'requestPasswordReset',
@@ -41,12 +44,7 @@ export const POST = traceApiRoute(
       const body = await request.json()
       const parsed = PasswordResetRequest.safeParse(body)
       if (!parsed.success) {
-        return apiResponse({
-          req: request,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
+        return passwordResetSuccessResponse(request)
       }
       const { email } = parsed.data
       const config = getConfig()
@@ -58,36 +56,11 @@ export const POST = traceApiRoute(
             { email },
             'Password reset requested but email service is not configured'
           )
-          return apiResponse({
-            req: request,
-            allowedMethods: CORS_HEADERS,
-            data: { success: true, message: SUCCESS_MESSAGE },
-            responseStatusCode: 200
-          })
+          return passwordResetSuccessResponse(request)
         }
 
         const passwordResetCode = crypto.randomBytes(32).toString('base64url')
         const passwordResetCodeHash = hashPasswordResetCode(passwordResetCode)
-        const previousPasswordResetCode = account.passwordResetCode ?? null
-        const previousPasswordResetCodeExpiresAt =
-          account.passwordResetCodeExpiresAt ?? null
-
-        const saved = await database.requestPasswordReset({
-          email,
-          passwordResetCode: passwordResetCodeHash
-        })
-        if (!saved) {
-          logger.error(
-            { email },
-            'Password reset code persistence failed for existing account'
-          )
-          return apiResponse({
-            req: request,
-            allowedMethods: CORS_HEADERS,
-            data: { success: true, message: SUCCESS_MESSAGE },
-            responseStatusCode: 200
-          })
-        }
 
         try {
           await sendMail({
@@ -107,35 +80,26 @@ export const POST = traceApiRoute(
           })
         } catch (_error) {
           logger.error({ email }, 'Failed to send password reset email')
-          await database.requestPasswordReset({
-            email,
-            passwordResetCode: previousPasswordResetCode,
-            ...(previousPasswordResetCodeExpiresAt !== null
-              ? { expiresAt: previousPasswordResetCodeExpiresAt }
-              : null)
-          })
-          return apiResponse({
-            req: request,
-            allowedMethods: CORS_HEADERS,
-            data: { success: true, message: SUCCESS_MESSAGE },
-            responseStatusCode: 200
-          })
+          return passwordResetSuccessResponse(request)
+        }
+
+        const saved = await database.requestPasswordReset({
+          email,
+          passwordResetCode: passwordResetCodeHash
+        })
+        if (!saved) {
+          logger.error(
+            { email },
+            'Password reset code persistence failed for existing account'
+          )
+          return passwordResetSuccessResponse(request)
         }
       }
 
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: { success: true, message: SUCCESS_MESSAGE },
-        responseStatusCode: 200
-      })
-    } catch (_error) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: { error: 'Failed to request password reset' },
-        responseStatusCode: 500
-      })
+      return passwordResetSuccessResponse(request)
+    } catch (error) {
+      logger.error({ error }, 'Failed to request password reset')
+      return passwordResetSuccessResponse(request)
     }
   }
 )

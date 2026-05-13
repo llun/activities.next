@@ -23,6 +23,7 @@ const CORS_HEADERS = [
 ]
 const DEFAULT_LIMIT = 40
 const MAX_LIMIT = 80
+const ARRAY_QUERY_PARAMS = new Set(['types', 'exclude_types'])
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -62,20 +63,26 @@ export const GET = traceApiRoute(
     // Handle repeated query params (types[], exclude_types[])
     // Normalize keys by removing [] suffix to match Zod schema
     const queryParams: Record<string, string | string[]> = {}
-    url.searchParams.forEach((value, key) => {
+    for (const key of new Set(url.searchParams.keys())) {
       // Normalize key: types[] -> types, exclude_types[] -> exclude_types
       const normalizedKey = key.replace(/\[\]$/, '')
+      const allValues = url.searchParams.getAll(key)
+      const normalizedValue =
+        ARRAY_QUERY_PARAMS.has(normalizedKey) || allValues.length > 1
+          ? allValues
+          : allValues[0]
       const existing = queryParams[normalizedKey]
-      if (existing) {
-        queryParams[normalizedKey] = Array.isArray(existing)
-          ? [...existing, value]
-          : [existing, value]
+      if (existing === undefined) {
+        queryParams[normalizedKey] = normalizedValue
       } else {
-        // Check if this key appears multiple times
-        const allValues = url.searchParams.getAll(key)
-        queryParams[normalizedKey] = allValues.length > 1 ? allValues : value
+        queryParams[normalizedKey] = [
+          ...(Array.isArray(existing) ? existing : [existing]),
+          ...(Array.isArray(normalizedValue)
+            ? normalizedValue
+            : [normalizedValue])
+        ]
       }
-    })
+    }
     const parsedParams = NotificationQueryParams.safeParse(queryParams)
     if (!parsedParams.success) {
       return apiResponse({
