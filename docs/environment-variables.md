@@ -11,7 +11,7 @@ Application configuration can be provided either through environment variables o
 | `ACTIVITIES_HOST`          | **Yes**  | Domain name for your instance (e.g., `social.example.com`). No protocol, no trailing slash.                           |
 | `ACTIVITIES_SECRET_PHASE`  | **Yes**  | Secret string for signing cookies and tokens. Generate with `openssl rand -base64 32`.                                |
 | `ACTIVITIES_ALLOW_EMAILS`  | No       | JSON array of email addresses allowed to register (e.g., `["user@example.com"]`). If unset, registration may be open. |
-| `ACTIVITIES_TRUSTED_HOSTS` | No       | JSON array of additional public hosts that may be accepted from trusted reverse-proxy host headers.                   |
+| `ACTIVITIES_TRUSTED_HOSTS` | No       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`.                    |
 | `ACTIVITIES_INSECURE_AUTH` | No       | Set to `true` to allow HTTP (non-HTTPS) authentication. Only for local development.                                   |
 
 ## Database
