@@ -1,0 +1,35 @@
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_0ffdd7b5464187::t_04643506550e10 3,174-176
+lib/client.ts
+  s_0ffdd7b5464187::t_a8ba18fc1b6de9 865-867,896-901
+lib/utils/streamLimit.test.ts
+  s_0ffdd7b5464187::t_f638e13780ac5b 35-54
+lib/client.test.ts
+  s_0ffdd7b5464187::t_5f55e5c43c306a 300-320
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_0ffdd7b5464187::t_13fc3ea5eac725 683-735
+  s_0ffdd7b5464187::t_f93b87315c1c0a 23-29,31,50-55,77-86,262,293-295,298,321,333
+app/api/v1/medias/presigned/route.ts
+  s_0ffdd7b5464187::t_f6d813d1cfe4e7 29-31
+  s_0ffdd7b5464187::t_5b12511d9ed5a8 115-124
+lib/utils/streamLimit.ts
+  s_0ffdd7b5464187::t_36d6949407a6b3 190
+app/api/v1/medias/presigned/route.test.ts
+  s_0ffdd7b5464187::t_0edd8778eae50b 76-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "38795453465e18215b012a6f2b204152fa789011",
+  "prompts": {},
+  "sessions": {
+    "s_0ffdd7b5464187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20c0-ca9d-7252-ab8d-d53f9c7a8ea4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
