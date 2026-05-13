@@ -121,7 +121,7 @@ describe('POST /api/v1/accounts/email', () => {
     expect(mockDb.requestEmailChange).toHaveBeenCalled()
   })
 
-  it('returns 400 for body failing schema validation', async () => {
+  it('returns 422 for body failing schema validation', async () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
       body: JSON.stringify({ newEmail: 'not-an-email' }),
@@ -130,7 +130,7 @@ describe('POST /api/v1/accounts/email', () => {
 
     const response = await POST(request, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(422)
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
   })
 })

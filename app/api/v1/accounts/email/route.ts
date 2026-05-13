@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -38,7 +39,7 @@ export const POST = traceApiRoute(
 
     const parsed = EmailChangeRequest.safeParse(body)
     if (!parsed.success) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
     const { newEmail } = parsed.data
 
@@ -85,7 +86,13 @@ export const POST = traceApiRoute(
               `
             }
           })
-        } catch (_error) {
+        } catch (error) {
+          logger.error({
+            message: 'Failed to send email change verification email',
+            accountId: currentActor.account.id,
+            newEmail,
+            error
+          })
           return apiResponse({
             req,
             allowedMethods: [],
@@ -119,7 +126,13 @@ export const POST = traceApiRoute(
         },
         responseStatusCode: 200
       })
-    } catch (_error) {
+    } catch (error) {
+      logger.error({
+        message: 'Failed to request email change',
+        accountId: currentActor.account.id,
+        newEmail,
+        error
+      })
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })

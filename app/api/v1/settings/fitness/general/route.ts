@@ -7,6 +7,7 @@ import {
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -271,7 +272,12 @@ export const POST = traceApiRoute(
         },
         responseStatusCode: 200
       })
-    } catch (_error) {
+    } catch (error) {
+      logger.error({
+        message: 'Failed to save fitness general settings',
+        actorId: currentActor.id,
+        error
+      })
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })

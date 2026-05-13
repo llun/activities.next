@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_422,
@@ -97,7 +98,8 @@ export const POST = traceApiRoute(
         data: { success: true, message: 'Password reset successfully' },
         responseStatusCode: 200
       })
-    } catch (_error) {
+    } catch (error) {
+      logger.error({ message: 'Failed to reset password', error })
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,

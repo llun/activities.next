@@ -164,7 +164,12 @@ export const POST = traceApiRoute(
       }
 
       return getStravaSettingsSavedResponse(req)
-    } catch (_error) {
+    } catch (error) {
+      logger.error({
+        message: 'Failed to save Strava settings',
+        actorId: currentActor.id,
+        error
+      })
       return apiResponse({
         req,
         allowedMethods: [],
@@ -238,7 +243,12 @@ export const DELETE = traceApiRoute(
         },
         responseStatusCode: 200
       })
-    } catch (_error) {
+    } catch (error) {
+      logger.error({
+        message: 'Failed to delete Strava settings',
+        actorId: currentActor.id,
+        error
+      })
       return apiResponse({
         req,
         allowedMethods: [],
