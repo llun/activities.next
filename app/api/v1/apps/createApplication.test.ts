@@ -120,18 +120,20 @@ describe('createApplication', () => {
     expect(JSON.parse(dbClient.scopes)).toEqual(['read'])
   })
 
-  test('it errors when scopes are whitespace-only', async () => {
-    const response = await createApplication({
+  test('it defaults whitespace-only scopes to read', async () => {
+    const response = (await createApplication({
       client_name: 'blankScopesClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
       scopes: '   \n\t  ',
       website: 'https://test.llun.dev'
-    })
+    })) as SuccessResponse
 
-    expect(response).toEqual({
-      type: 'error',
-      error: 'Failed to validate request'
-    })
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.scopes)).toEqual(['read'])
   })
 
   test('it errors when redirect_uris is empty or whitespace-only', async () => {

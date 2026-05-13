@@ -62,7 +62,9 @@ export const createApplication = async (
         const clientId = generateRandomString(32)
         const clientSecret = generateRandomString(32)
         const hashedSecret = hashClientSecret(clientSecret)
-        const scopeValues = (scopes || '').trim().split(/\s+/).filter(Boolean)
+        const scopeValues = (scopes.trim() || Scope.enum.read)
+          .split(/\s+/)
+          .filter(Boolean)
         if (scopeValues.length === 0) {
           return validationErrorResponse()
         }

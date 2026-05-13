@@ -532,5 +532,23 @@ describe('Fitness General Settings API', () => {
       expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
       expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
     })
+
+    it('returns a bad request error for invalid JSON body', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: 'not-json',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({ status: 'Bad Request' })
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+    })
   })
 })

@@ -266,12 +266,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (_error) {
-      return apiResponse({
-        req,
-        allowedMethods: [],
-        data: { error: 'Failed to save fitness general settings' },
-        responseStatusCode: 500
-      })
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
     }
   })
 )

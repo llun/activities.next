@@ -103,6 +103,22 @@ describe('POST /api/v1/accounts/email', () => {
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
   })
 
+  it('returns a bad request error when email change processing fails', async () => {
+    mockDb.requestEmailChange.mockRejectedValue(new Error('database failed'))
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ status: 'Bad Request' })
+    expect(mockDb.requestEmailChange).toHaveBeenCalled()
+  })
+
   it('returns 400 for body failing schema validation', async () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',

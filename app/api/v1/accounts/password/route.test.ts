@@ -20,7 +20,7 @@ jest.mock('@/lib/config', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'getAccountFromEmail' | 'getActorsForAccount' | 'verifyEmailChange'
+  'getAccountFromEmail' | 'getActorsForAccount'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -38,6 +38,7 @@ const account = {
   id: 'account-1',
   email: seedActor1.email,
   defaultActorId: ACTOR1_ID,
+  passwordHash: 'password-hash',
   createdAt: Date.now(),
   updatedAt: Date.now()
 }
@@ -55,11 +56,10 @@ const actor = {
   updatedAt: Date.now()
 }
 
-describe('POST /api/v1/accounts/email/verify', () => {
+describe('POST /api/v1/accounts/password', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getAccountFromEmail: jest.fn(),
-    getActorsForAccount: jest.fn(),
-    verifyEmailChange: jest.fn()
+    getActorsForAccount: jest.fn()
   }
 
   beforeAll(() => {
@@ -73,36 +73,14 @@ describe('POST /api/v1/accounts/email/verify', () => {
     })
     mockDb.getAccountFromEmail.mockResolvedValue(account)
     mockDb.getActorsForAccount.mockResolvedValue([actor])
-    mockDb.verifyEmailChange.mockResolvedValue(account)
   })
 
-  it.each([
-    ['invalid JSON', 'not-json'],
-    ['empty JSON body', '']
-  ])('returns 400 for %s', async (_name, body) => {
+  it('returns a bad request error for invalid JSON body', async () => {
     const request = new NextRequest(
-      'http://llun.test/api/v1/accounts/email/verify',
+      'http://llun.test/api/v1/accounts/password',
       {
         method: 'POST',
-        body,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    )
-
-    const response = await POST(request, { params: Promise.resolve({}) })
-
-    expect(response.status).toBe(400)
-    expect(mockDb.verifyEmailChange).not.toHaveBeenCalled()
-  })
-
-  it('returns a bad request error when email verification processing fails', async () => {
-    mockDb.verifyEmailChange.mockRejectedValue(new Error('database failed'))
-
-    const request = new NextRequest(
-      'http://llun.test/api/v1/accounts/email/verify',
-      {
-        method: 'POST',
-        body: JSON.stringify({ emailChangeCode: 'verification-code' }),
+        body: 'not-json',
         headers: { 'Content-Type': 'application/json' }
       }
     )
