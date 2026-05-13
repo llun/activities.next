@@ -1,0 +1,19 @@
+lib/services/guards/headerHost.ts
+  s_ebfef2b994963d::t_21236481709082 12-14,107-108,114-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "75461e60b07d28b1289ec8c2ee57842528cd22d1",
+  "prompts": {},
+  "sessions": {
+    "s_ebfef2b994963d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ffa-422e-7e31-a9a1-78d415031055",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

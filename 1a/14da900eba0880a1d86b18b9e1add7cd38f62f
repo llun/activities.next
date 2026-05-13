@@ -1,0 +1,19 @@
+docs/environment-variables.md
+  s_fb453680a6d8d2::t_be0a0882d8d8be 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "1a14da900eba0880a1d86b18b9e1add7cd38f62f",
+  "prompts": {},
+  "sessions": {
+    "s_fb453680a6d8d2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20de-c0a7-73e0-a9cb-26709263df09",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

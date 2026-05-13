@@ -1,0 +1,21 @@
+lib/utils/host.ts
+  s_156728eed705a8::t_1a77c157724dfb 45,47-51,55-57,61-77,85-86,96-97,210-215
+lib/utils/host.test.ts
+  s_156728eed705a8::t_d5f4df73332ca2 2,6-7,68-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2755ba362e7b02cd0314561bb3e6b48bf781c624",
+  "prompts": {},
+  "sessions": {
+    "s_156728eed705a8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20f3-942e-75d1-85f0-64533bf10562",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
