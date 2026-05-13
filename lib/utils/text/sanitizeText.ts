@@ -17,23 +17,17 @@ export const SANITIZED_OPTION = {
     'em',
     'ul',
     'ol',
-    'li',
-    'img'
+    'li'
   ],
   allowedAttributes: {
     a: ['href', 'rel', 'class', 'translate', 'target'],
-    img: ['class', 'src', 'alt'],
     span: ['class', 'translate'],
     ol: ['start', 'reversed'],
     li: ['value']
   },
-  allowedClasses: {
-    img: ['emoji']
-  },
   allowedSchemes: ['http', 'https', 'mailto'],
   allowedSchemesByTag: {
-    a: ['http', 'https', 'mailto'],
-    img: ['https']
+    a: ['http', 'https', 'mailto']
   },
   allowProtocolRelative: false,
   transformTags: {
@@ -52,10 +46,27 @@ export const SANITIZED_OPTION = {
         }
       }
     }
+  }
+}
+
+const SANITIZED_TRUSTED_STATUS_OPTION = {
+  ...SANITIZED_OPTION,
+  allowedTags: [...SANITIZED_OPTION.allowedTags, 'img'],
+  allowedAttributes: {
+    ...SANITIZED_OPTION.allowedAttributes,
+    img: ['class', 'src', 'alt']
+  },
+  allowedClasses: {
+    img: ['emoji']
+  },
+  allowedSchemesByTag: {
+    ...SANITIZED_OPTION.allowedSchemesByTag,
+    img: ['https']
   },
   exclusiveFilter(frame: sanitizeHtml.IFrame) {
     if (frame.tag !== 'img') return false
-    return !frame.attribs.class?.split(/\s+/).includes('emoji')
+    const classes = frame.attribs.class?.split(/\s+/) ?? []
+    return !classes.includes('emoji') || !frame.attribs.src
   }
 }
 
@@ -64,4 +75,11 @@ export const SANITIZED_OPTION = {
 export const sanitizeText = (text: string) =>
   sanitizeHtml(text, {
     ...SANITIZED_OPTION
+  })
+
+// Use only after untrusted input has already gone through sanitizeText and the
+// app has injected known custom-emoji image tags from structured status tags.
+export const sanitizeTrustedStatusText = (text: string) =>
+  sanitizeHtml(text, {
+    ...SANITIZED_TRUSTED_STATUS_OPTION
   })
