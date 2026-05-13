@@ -1,0 +1,33 @@
+lib/jobs/importStravaArchiveJob.ts
+  s_137b1f60d30121::t_7e6dccd9c9a4ee 285-300
+lib/client.ts
+  s_137b1f60d30121::t_3a9368a085edc4 843-873,895,898-901
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_137b1f60d30121::t_351f49ccf56a4e 148,153
+lib/services/medias/S3StorageFile.ts
+  s_137b1f60d30121::t_f14b69bc4eee33 295
+lib/services/medias/S3StorageFile.test.ts
+  s_137b1f60d30121::t_7085c9df96dd79 159-191
+lib/jobs/importStravaArchiveJob.test.ts
+  s_137b1f60d30121::t_5c47c610eebf32 581-655
+lib/client.test.ts
+  s_137b1f60d30121::t_2ab8408ffbb794 9-10,15-18,171-256
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_137b1f60d30121::t_5e7bf31d40acb9 284,288-289,291,299-300,318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2e5271f280f16a813435db5126d8f7be841d1897",
+  "prompts": {},
+  "sessions": {
+    "s_137b1f60d30121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e201c-b2c2-7c42-b6ff-9d399e71684e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
