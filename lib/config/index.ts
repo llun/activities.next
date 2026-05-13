@@ -15,6 +15,7 @@ import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
 import { getEmailConfig } from './email'
 import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
+import { getHostConfigFromEnvironment } from './host'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 import { PushConfig, getPushConfig } from './push'
@@ -35,6 +36,7 @@ const Config = z.object({
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
   allowActorDomains: z.string().array().optional(),
+  trustedHosts: z.string().array().optional(),
   federationMode: FederationMode.default('open'),
   auth: AuthConfig.optional(),
   email: z
@@ -72,16 +74,19 @@ const getConfigFromFile = () => {
 
 const getConfigFromEnvironment = () => {
   try {
+    const hostConfig = getHostConfigFromEnvironment({
+      onInvalidList: 'throw'
+    })
+
     return Config.parse({
-      host: process.env.ACTIVITIES_HOST || '',
+      host: hostConfig.host,
       secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
       allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
       allowMediaDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
       ),
-      allowActorDomains: JSON.parse(
-        process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS || '[]'
-      ),
+      allowActorDomains: hostConfig.allowActorDomains,
+      trustedHosts: hostConfig.trustedHosts,
       federationMode: process.env.ACTIVITIES_FEDERATION_MODE || 'open',
       ...getEmailConfig(),
       ...getAuthConfig(),

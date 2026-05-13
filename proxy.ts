@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
+import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
+import { selectHeaderHost } from '@/lib/utils/host'
 
 export const config = {
   matcher: ['/(@.*)']
+}
+
+const proxyHeaderHost = (headers: Headers): string => {
+  return selectHeaderHost(headers, getProxyHostConfig())
 }
 
 export async function proxy(request: NextRequest) {
@@ -47,12 +52,7 @@ export async function proxy(request: NextRequest) {
         .reduce((count, char) => (char === '@' ? count + 1 : count), 0)
       if (totalAt === 2) return NextResponse.next()
 
-      const headers = request.headers
-      const host =
-        headers.get(ACTIVITIES_HOST) ??
-        headers.get(FORWARDED_HOST) ??
-        headers.get('host') ??
-        request.nextUrl.host
+      const host = proxyHeaderHost(request.headers) || request.nextUrl.host
       const pathItems = pathname.split('/').slice(1)
       pathItems[0] = `${pathItems[0]}@${host}`
 

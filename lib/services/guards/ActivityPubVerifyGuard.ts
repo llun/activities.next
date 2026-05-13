@@ -39,6 +39,21 @@ const guardErrorResponse = (
 const getSignedHeaders = (signatureParts: Record<string, string>) =>
   (signatureParts.headers ?? '').toLowerCase().split(/\s+/).filter(Boolean)
 
+const REQUIRED_MUTATING_SIGNED_HEADERS = [
+  '(request-target)',
+  'host',
+  'date',
+  'digest'
+]
+
+const isMutatingRequest = (method: string) =>
+  !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
+
+const hasRequiredMutatingSignedHeaders = (signedHeaders: string[]) =>
+  REQUIRED_MUTATING_SIGNED_HEADERS.every((header) =>
+    signedHeaders.includes(header)
+  )
+
 const getExpectedSha256Digest = (digestHeader: string) =>
   digestHeader
     .split(',')
@@ -101,6 +116,11 @@ const isDateHeaderFresh = (
   return Math.abs(now - signedAt) <= SIGNATURE_CLOCK_SKEW_MS
 }
 
+const hasHostHeader = (headers: Headers) => {
+  const host = getHeadersValue(headers, 'host')
+  return typeof host === 'string' && host.trim().length > 0
+}
+
 const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
   const digestHeader = getHeadersValue(request.headers, 'digest')
   if (!digestHeader)
@@ -151,6 +171,15 @@ export const ActivityPubVerifySenderGuard =
       return guardErrorResponse(request, 400, allowedMethods)
     }
     const signedHeaders = getSignedHeaders(signatureParts)
+    const requiresMutatingSignature = isMutatingRequest(request.method)
+
+    if (
+      requiresMutatingSignature &&
+      (!hasHostHeader(request.headers) ||
+        !hasRequiredMutatingSignedHeaders(signedHeaders))
+    ) {
+      return guardErrorResponse(request, 400, allowedMethods)
+    }
 
     if (!isDateHeaderFresh(request.headers, signedHeaders)) {
       return guardErrorResponse(request, 400, allowedMethods)

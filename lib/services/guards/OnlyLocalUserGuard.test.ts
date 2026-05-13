@@ -14,6 +14,20 @@ jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
+jest.mock('@/lib/config', () => {
+  const { TEST_DOMAIN } = jest.requireActual('@/lib/stub/const')
+  const { MOCK_SECRET_PHASES } = jest.requireActual('@/lib/stub/actor')
+
+  return {
+    getConfig: () => ({
+      host: TEST_DOMAIN,
+      allowActorDomains: ['actor.llun.test'],
+      trustedHosts: ['llun.test'],
+      secretPhase: MOCK_SECRET_PHASES
+    })
+  }
+})
+
 describe('OnlyLocalUserGuard', () => {
   const database = getTestSQLDatabase()
 

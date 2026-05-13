@@ -38,10 +38,14 @@ jest.mock('@/lib/utils/signature', () => {
 
 const createSignedRawPostRequest = ({
   bodyText,
-  keyId = 'https://remote.test/users/alice#main-key'
+  keyId = 'https://remote.test/users/alice#main-key',
+  signatureHeaders = '(request-target) host date digest',
+  host = 'activities.local'
 }: {
   bodyText: string
   keyId?: string
+  signatureHeaders?: string
+  host?: string
 }) => {
   const digest = crypto.createHash('sha256').update(bodyText).digest('base64')
 
@@ -50,7 +54,8 @@ const createSignedRawPostRequest = ({
     headers: {
       date: new Date().toUTCString(),
       digest: `SHA-256=${digest}`,
-      signature: `keyId="${keyId}",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="signature"`
+      ...(host ? { host } : {}),
+      signature: `keyId="${keyId}",algorithm="rsa-sha256",headers="${signatureHeaders}",signature="signature"`
     },
     body: bodyText
   })
@@ -120,6 +125,104 @@ describe('ActivityPubVerifySenderGuard', () => {
           signature:
             'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="signature"'
         }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+    expect(mockVerify).not.toHaveBeenCalled()
+  })
+
+  it('rejects signed dates too far in the future', async () => {
+    const handler = jest.fn()
+    const guard = ActivityPubVerifySenderGuard(handler)
+    const bodyText = JSON.stringify({
+      actor: 'https://remote.test/users/alice',
+      type: 'Follow'
+    })
+    const digest = crypto.createHash('sha256').update(bodyText).digest('base64')
+    const futureDate = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
+
+    const response = await guard(
+      new NextRequest('https://activities.local/api/inbox', {
+        method: 'POST',
+        headers: {
+          date: futureDate,
+          digest: `SHA-256=${digest}`,
+          host: 'activities.local',
+          signature:
+            'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="signature"'
+        },
+        body: bodyText
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+    expect(mockVerify).not.toHaveBeenCalled()
+  })
+
+  it('rejects POST requests without a host header', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      createSignedRawPostRequest({
+        bodyText: JSON.stringify({
+          actor: 'https://remote.test/users/alice',
+          type: 'Follow'
+        }),
+        host: ''
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+    expect(mockVerify).not.toHaveBeenCalled()
+  })
+
+  it('rejects mutating signatures that do not cover host', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      createSignedRawPostRequest({
+        bodyText: JSON.stringify({
+          actor: 'https://remote.test/users/alice',
+          type: 'Follow'
+        }),
+        signatureHeaders: '(request-target) date digest'
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(handler).not.toHaveBeenCalled()
+    expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
+    expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+    expect(mockVerify).not.toHaveBeenCalled()
+  })
+
+  it('rejects mutating signatures that do not cover request-target', async () => {
+    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const guard = ActivityPubVerifySenderGuard(handler)
+
+    const response = await guard(
+      createSignedRawPostRequest({
+        bodyText: JSON.stringify({
+          actor: 'https://remote.test/users/alice',
+          type: 'Follow'
+        }),
+        signatureHeaders: 'host date digest'
       }),
       { params: Promise.resolve({}) }
     )
@@ -208,6 +311,7 @@ describe('ActivityPubVerifySenderGuard', () => {
         headers: {
           date: new Date().toUTCString(),
           digest: `SHA-512=ignored, SHA-256=${digest}`,
+          host: 'activities.local',
           signature:
             'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="signature"'
         },
