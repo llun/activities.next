@@ -89,7 +89,6 @@ const getConfigFromFile = () => {
     return null
   }
 
-  validateProductionRuntimeSecret(config)
   return config
 }
 
@@ -132,16 +131,21 @@ const getConfigFromEnvironment = () => {
     return null
   }
 
-  validateProductionRuntimeSecret(config)
   return config
 }
 
 export const getConfig = memoize((): Config => {
   const fileConfig = getConfigFromFile()
-  if (fileConfig) return fileConfig
+  if (fileConfig) {
+    validateProductionRuntimeSecret(fileConfig)
+    return fileConfig
+  }
 
   const environmentConfig = getConfigFromEnvironment()
-  if (environmentConfig) return environmentConfig
+  if (environmentConfig) {
+    validateProductionRuntimeSecret(environmentConfig)
+    return environmentConfig
+  }
 
   throw new Error('Fail to read Activities.next config')
 })

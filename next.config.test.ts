@@ -2,7 +2,10 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import { getImageRemotePatterns, getSecurityHeaders } from './next.config'
+import nextConfig, {
+  getImageRemotePatterns,
+  getSecurityHeaders
+} from './next.config'
 
 const loadNextConfig = async () => {
   jest.resetModules()
@@ -77,25 +80,97 @@ describe('getProxyHostConfigEnv', () => {
 
 describe('next config security hardening', () => {
   it('sets baseline browser security headers', () => {
-    const headers = getSecurityHeaders()
-    const csp = headers.find(
-      (header) => header.key === 'Content-Security-Policy'
-    )
+    const originalNodeEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
 
-    expect(csp?.value).toContain("frame-ancestors 'none'")
-    expect(csp?.value).not.toContain('script-src')
-    expect(headers).toContainEqual({
-      key: 'X-Content-Type-Options',
-      value: 'nosniff'
-    })
-    expect(headers).toContainEqual({
-      key: 'Referrer-Policy',
-      value: 'strict-origin-when-cross-origin'
-    })
-    expect(headers).toContainEqual({
-      key: 'Permissions-Policy',
-      value: 'camera=(), microphone=(), geolocation=(self)'
-    })
+    try {
+      const headers = getSecurityHeaders()
+      const csp = headers.find(
+        (header) => header.key === 'Content-Security-Policy'
+      )
+
+      expect(csp?.value).toContain("default-src 'none'")
+      expect(csp?.value).toContain("frame-ancestors 'none'")
+      expect(csp?.value).toContain(
+        "script-src 'self' 'unsafe-inline' https://api.mapbox.com"
+      )
+      expect(csp?.value).toContain(
+        "style-src 'self' 'unsafe-inline' https://api.mapbox.com"
+      )
+      expect(csp?.value).toContain(
+        "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com"
+      )
+      expect(csp?.value).toContain("manifest-src 'self'")
+      expect(csp?.value).not.toContain("'unsafe-eval'")
+      expect(csp?.value).not.toContain('connect-src https:')
+      expect(headers).toContainEqual({
+        key: 'X-Content-Type-Options',
+        value: 'nosniff'
+      })
+      expect(headers).toContainEqual({
+        key: 'Referrer-Policy',
+        value: 'strict-origin-when-cross-origin'
+      })
+      expect(headers).toContainEqual({
+        key: 'Permissions-Policy',
+        value: 'camera=(), microphone=(), geolocation=(self)'
+      })
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
+    }
+  })
+
+  it('allows development websocket connections for Next and HMR', () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = 'development'
+
+    try {
+      const csp = getSecurityHeaders().find(
+        (header) => header.key === 'Content-Security-Policy'
+      )
+
+      expect(csp?.value).toContain(
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.mapbox.com"
+      )
+      expect(csp?.value).toContain(
+        "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com ws: wss:"
+      )
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
+    }
+  })
+
+  it('disables next/image optimization for unbounded federated avatars', () => {
+    expect(nextConfig.images?.unoptimized).toBe(true)
+  })
+
+  it('allows configured object storage connections without allowing all HTTPS', () => {
+    const originalStorageHostname =
+      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'uploads.example.com'
+
+    try {
+      const csp = getSecurityHeaders().find(
+        (header) => header.key === 'Content-Security-Policy'
+      )
+
+      expect(csp?.value).toContain('https://uploads.example.com')
+      expect(csp?.value).not.toContain('connect-src https:')
+    } finally {
+      if (originalStorageHostname === undefined) {
+        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+      } else {
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
+      }
+    }
   })
 
   it('uses the configured instance host and safe local hosts by default', () => {

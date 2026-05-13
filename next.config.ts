@@ -42,6 +42,12 @@ type ImageRemotePatterns = NonNullable<
 
 const IMAGE_REMOTE_ALLOWLIST_ENV = 'ACTIVITIES_ALLOW_MEDIA_DOMAINS'
 const INSTANCE_HOST_ENV = 'ACTIVITIES_HOST'
+const MEDIA_STORAGE_HOSTNAME_ENV = 'ACTIVITIES_MEDIA_STORAGE_HOSTNAME'
+const MAPBOX_CSP_SOURCES = [
+  'https://api.mapbox.com',
+  'https://events.mapbox.com',
+  'https://*.tiles.mapbox.com'
+]
 const SAFE_LOCAL_IMAGE_REMOTE_PATTERNS: ImageRemotePatterns = [
   {
     protocol: 'http',
@@ -61,18 +67,55 @@ const isDevelopment = () => process.env.NODE_ENV !== 'production'
 const isSafeLocalHostname = (hostname: string) =>
   ['localhost', '127.0.0.1', '[::1]'].includes(hostname.toLowerCase())
 
+const getHttpsCspSource = (rawSource: string | undefined) => {
+  if (!rawSource?.trim()) return null
+
+  try {
+    const url = new URL(
+      rawSource.includes('://') ? rawSource : `https://${rawSource}`
+    )
+    if (url.protocol !== 'https:' || !url.hostname.includes('.')) return null
+
+    return `https://${url.hostname.toLowerCase()}${url.port ? `:${url.port}` : ''}`
+  } catch {
+    return null
+  }
+}
+
 export const getSecurityHeaders = (): Header[] => {
+  const mediaStorageSource = getHttpsCspSource(
+    process.env[MEDIA_STORAGE_HOSTNAME_ENV]
+  )
+  const connectSources = [
+    "'self'",
+    ...MAPBOX_CSP_SOURCES,
+    ...(mediaStorageSource ? [mediaStorageSource] : []),
+    ...(isDevelopment() ? ['ws:', 'wss:'] : [])
+  ].join(' ')
+  const scriptSources = [
+    "'self'",
+    "'unsafe-inline'",
+    ...(isDevelopment() ? ["'unsafe-eval'"] : []),
+    'https://api.mapbox.com'
+  ].join(' ')
+
   const csp = [
+    "default-src 'none'",
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    // Browser image loads intentionally allow arbitrary HTTPS remote media.
-    // next/image optimization remains separately constrained by remotePatterns.
+    // Static Next headers cannot attach a per-request nonce to framework
+    // hydration scripts, so inline scripts remain allowed but origins do not.
+    `script-src ${scriptSources}`,
+    "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
+    // Federated avatars and remote emoji are intentionally unbounded browser
+    // image loads. next/image optimization is disabled below so this does not
+    // reintroduce arbitrary server-side media fetches.
     "img-src 'self' data: blob: https:",
-    `connect-src 'self' https:${isDevelopment() ? ' ws: wss:' : ''}`,
+    `connect-src ${connectSources}`,
     "font-src 'self' data:",
+    "manifest-src 'self'",
     "media-src 'self' https:",
     "worker-src 'self' blob:"
   ].join('; ')
@@ -210,6 +253,7 @@ const nextConfig: NextConfig = {
   },
   sassOptions: {},
   images: {
+    unoptimized: true,
     remotePatterns: getImageRemotePatterns()
   },
   async headers() {
