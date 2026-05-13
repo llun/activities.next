@@ -1,35 +1,6 @@
-import fs from 'fs'
 import { NextConfig } from 'next'
-import path from 'path'
-
-const getProxyConfigEnv = (): NonNullable<NextConfig['env']> => {
-  let fileConfig: {
-    host?: string
-    allowActorDomains?: string[]
-    trustedHosts?: string[]
-  } = {}
-
-  try {
-    fileConfig = JSON.parse(
-      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
-    )
-  } catch {
-    fileConfig = {}
-  }
-
-  return {
-    ACTIVITIES_HOST: process.env.ACTIVITIES_HOST ?? fileConfig.host ?? '',
-    ACTIVITIES_ALLOW_ACTOR_DOMAINS:
-      process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS ??
-      JSON.stringify(fileConfig.allowActorDomains ?? []),
-    ACTIVITIES_TRUSTED_HOSTS:
-      process.env.ACTIVITIES_TRUSTED_HOSTS ??
-      JSON.stringify(fileConfig.trustedHosts ?? [])
-  }
-}
 
 const nextConfig: NextConfig = {
-  env: getProxyConfigEnv(),
   allowedDevOrigins: [process.env.ACTIVITIES_HOST ?? ''],
   reactStrictMode: true,
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,

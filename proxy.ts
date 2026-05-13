@@ -1,4 +1,6 @@
+import fs from 'fs'
 import { NextRequest, NextResponse } from 'next/server'
+import path from 'path'
 
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
@@ -19,6 +21,23 @@ type ProxyHostConfig = {
   trustedHosts: string[]
 }
 
+type ProxyHostFileConfig = {
+  host?: unknown
+  allowActorDomains?: unknown
+  trustedHosts?: unknown
+}
+
+const getProxyHostFileConfig = (): ProxyHostFileConfig => {
+  try {
+    const parsed = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+    )
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
 const getEnvironmentList = (key: string): string[] => {
   try {
     const parsed = JSON.parse(process.env[key] || '[]')
@@ -28,11 +47,26 @@ const getEnvironmentList = (key: string): string[] => {
   }
 }
 
+const getConfigList = (key: string, fileValue: unknown): string[] => {
+  if (process.env[key] !== undefined) return getEnvironmentList(key)
+  return Array.isArray(fileValue) ? fileValue.filter(Boolean).map(String) : []
+}
+
 const getProxyHostConfig = (): ProxyHostConfig => {
+  const fileConfig = getProxyHostFileConfig()
+
   return {
-    host: process.env.ACTIVITIES_HOST ?? '',
-    allowActorDomains: getEnvironmentList('ACTIVITIES_ALLOW_ACTOR_DOMAINS'),
-    trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
+    host:
+      process.env.ACTIVITIES_HOST ??
+      (typeof fileConfig.host === 'string' ? fileConfig.host : ''),
+    allowActorDomains: getConfigList(
+      'ACTIVITIES_ALLOW_ACTOR_DOMAINS',
+      fileConfig.allowActorDomains
+    ),
+    trustedHosts: getConfigList(
+      'ACTIVITIES_TRUSTED_HOSTS',
+      fileConfig.trustedHosts
+    )
   }
 }
 
