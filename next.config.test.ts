@@ -173,6 +173,77 @@ describe('next config security hardening', () => {
     }
   })
 
+  it('allows local object storage connections in development', () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    const originalStorageHostname =
+      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    process.env.NODE_ENV = 'development'
+    process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'http://localhost:9000'
+
+    try {
+      const csp = getSecurityHeaders().find(
+        (header) => header.key === 'Content-Security-Policy'
+      )
+
+      expect(csp?.value).toContain('http://localhost:9000')
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
+      if (originalStorageHostname === undefined) {
+        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+      } else {
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
+      }
+    }
+  })
+
+  it('allows default S3 presigned upload hosts in connect-src', () => {
+    const originalStorageType = process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
+    const originalStorageBucket = process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+    const originalStorageRegion = process.env.ACTIVITIES_MEDIA_STORAGE_REGION
+    const originalStorageHostname =
+      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 's3'
+    process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'media-bucket'
+    process.env.ACTIVITIES_MEDIA_STORAGE_REGION = 'eu-west-1'
+    delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+
+    try {
+      const csp = getSecurityHeaders().find(
+        (header) => header.key === 'Content-Security-Policy'
+      )
+
+      expect(csp?.value).toContain(
+        'https://media-bucket.s3.eu-west-1.amazonaws.com'
+      )
+      expect(csp?.value).toContain('https://s3.eu-west-1.amazonaws.com')
+    } finally {
+      if (originalStorageType === undefined) {
+        delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
+      } else {
+        process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = originalStorageType
+      }
+      if (originalStorageBucket === undefined) {
+        delete process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+      } else {
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = originalStorageBucket
+      }
+      if (originalStorageRegion === undefined) {
+        delete process.env.ACTIVITIES_MEDIA_STORAGE_REGION
+      } else {
+        process.env.ACTIVITIES_MEDIA_STORAGE_REGION = originalStorageRegion
+      }
+      if (originalStorageHostname === undefined) {
+        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+      } else {
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
+      }
+    }
+  })
+
   it('uses the configured instance host and safe local hosts by default', () => {
     const originalAllowlist = process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
     const originalHost = process.env.ACTIVITIES_HOST
@@ -185,7 +256,7 @@ describe('next config security hardening', () => {
       expect(getImageRemotePatterns()).toEqual([
         {
           protocol: 'https',
-          hostname: 'social.example.com'
+          hostname: '**'
         },
         {
           protocol: 'http',
@@ -229,7 +300,7 @@ describe('next config security hardening', () => {
       expect(getImageRemotePatterns('')).toEqual([
         {
           protocol: 'https',
-          hostname: 'social.example.com'
+          hostname: '**'
         }
       ])
     } finally {
@@ -254,6 +325,10 @@ describe('next config security hardening', () => {
     expect(patterns).toEqual([
       {
         protocol: 'https',
+        hostname: '**'
+      },
+      {
+        protocol: 'https',
         hostname: 'media.example.com'
       },
       {
@@ -265,10 +340,17 @@ describe('next config security hardening', () => {
   })
 
   it('rejects wildcard image host configuration', () => {
-    expect(getImageRemotePatterns(JSON.stringify(['**']))).toEqual([])
-    expect(getImageRemotePatterns(JSON.stringify(['*.example.com']))).toEqual(
-      []
-    )
+    const federatedAvatarPattern = {
+      protocol: 'https',
+      hostname: '**'
+    }
+
+    expect(getImageRemotePatterns(JSON.stringify(['**']))).toEqual([
+      federatedAvatarPattern
+    ])
+    expect(getImageRemotePatterns(JSON.stringify(['*.example.com']))).toEqual([
+      federatedAvatarPattern
+    ])
   })
 
   it('rejects malformed image host configuration', () => {

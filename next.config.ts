@@ -41,8 +41,10 @@ type ImageRemotePatterns = NonNullable<
 >
 
 const IMAGE_REMOTE_ALLOWLIST_ENV = 'ACTIVITIES_ALLOW_MEDIA_DOMAINS'
-const INSTANCE_HOST_ENV = 'ACTIVITIES_HOST'
 const MEDIA_STORAGE_HOSTNAME_ENV = 'ACTIVITIES_MEDIA_STORAGE_HOSTNAME'
+const MEDIA_STORAGE_TYPE_ENV = 'ACTIVITIES_MEDIA_STORAGE_TYPE'
+const MEDIA_STORAGE_BUCKET_ENV = 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+const MEDIA_STORAGE_REGION_ENV = 'ACTIVITIES_MEDIA_STORAGE_REGION'
 const MAPBOX_CSP_SOURCES = [
   'https://api.mapbox.com',
   'https://events.mapbox.com',
@@ -67,29 +69,52 @@ const isDevelopment = () => process.env.NODE_ENV !== 'production'
 const isSafeLocalHostname = (hostname: string) =>
   ['localhost', '127.0.0.1', '[::1]'].includes(hostname.toLowerCase())
 
-const getHttpsCspSource = (rawSource: string | undefined) => {
+const getCspSource = (rawSource: string | undefined) => {
   if (!rawSource?.trim()) return null
 
   try {
     const url = new URL(
       rawSource.includes('://') ? rawSource : `https://${rawSource}`
     )
-    if (url.protocol !== 'https:' || !url.hostname.includes('.')) return null
+    const isLocal = isSafeLocalHostname(url.hostname)
+    if (url.protocol !== 'https:' && !(isLocal && isDevelopment())) {
+      return null
+    }
+    if (!isLocal && !url.hostname.includes('.')) return null
 
-    return `https://${url.hostname.toLowerCase()}${url.port ? `:${url.port}` : ''}`
+    return `${url.protocol}//${url.hostname.toLowerCase()}${url.port ? `:${url.port}` : ''}`
   } catch {
     return null
   }
 }
 
+const getDefaultS3CspSources = () => {
+  if (
+    process.env[MEDIA_STORAGE_TYPE_ENV] !== 's3' ||
+    process.env[MEDIA_STORAGE_HOSTNAME_ENV]
+  ) {
+    return []
+  }
+
+  const bucket = process.env[MEDIA_STORAGE_BUCKET_ENV]?.trim()
+  const region = process.env[MEDIA_STORAGE_REGION_ENV]?.trim()
+  if (!bucket || !region) return []
+
+  return [
+    `https://${bucket}.s3.${region}.amazonaws.com`,
+    `https://s3.${region}.amazonaws.com`
+  ]
+}
+
 export const getSecurityHeaders = (): Header[] => {
-  const mediaStorageSource = getHttpsCspSource(
+  const mediaStorageSource = getCspSource(
     process.env[MEDIA_STORAGE_HOSTNAME_ENV]
   )
   const connectSources = [
     "'self'",
     ...MAPBOX_CSP_SOURCES,
     ...(mediaStorageSource ? [mediaStorageSource] : []),
+    ...getDefaultS3CspSources(),
     ...(isDevelopment() ? ['ws:', 'wss:'] : [])
   ].join(' ')
   const scriptSources = [
@@ -192,13 +217,7 @@ const getImageRemotePattern = (
 }
 
 const getDefaultImageRemotePatterns = (): ImageRemotePatterns => {
-  const patterns = process.env[INSTANCE_HOST_ENV]
-    ? [
-        getImageRemotePattern(process.env[INSTANCE_HOST_ENV], {
-          allowLocalHttp: isDevelopment()
-        })
-      ].flatMap((pattern) => (pattern ? [pattern] : []))
-    : []
+  const patterns: ImageRemotePatterns = [{ protocol: 'https', hostname: '**' }]
 
   if (isDevelopment()) {
     patterns.push(...SAFE_LOCAL_IMAGE_REMOTE_PATTERNS)
@@ -214,10 +233,13 @@ export const getImageRemotePatterns = (
     return getDefaultImageRemotePatterns()
   }
 
-  return parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
-    const pattern = getImageRemotePattern(entry)
-    return pattern ? [pattern] : []
-  })
+  return [
+    { protocol: 'https', hostname: '**' },
+    ...parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
+      const pattern = getImageRemotePattern(entry)
+      return pattern ? [pattern] : []
+    })
+  ]
 }
 
 const nextConfig: NextConfig = {
