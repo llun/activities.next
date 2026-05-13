@@ -194,6 +194,24 @@ describe('createApplication', () => {
     expect(rows).toHaveLength(5)
   })
 
+  test('it stores anonymous unauthenticated registrations with a cleanup reference', async () => {
+    const response = (await createApplication({
+      redirect_uris: 'https://anonymous.llun.dev/callback',
+      client_name: 'anonymousClient',
+      scopes: 'read',
+      website: 'https://anonymous.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+    await expect(
+      knexDatabase('oauthClient').where({ id: response.id }).first()
+    ).resolves.toEqual(
+      expect.objectContaining({
+        referenceId: 'app-registration:anonymous'
+      })
+    )
+  })
+
   test('it checks the rate limit before garbage collecting stale app registrations', async () => {
     const registrationKey = 'rate-limited-gc-source'
     const now = new Date('2026-05-12T13:00:00.000Z')

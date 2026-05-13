@@ -52,7 +52,7 @@ describe('apps route', () => {
     })
   })
 
-  test('uses the rightmost forwarded IP and disables rate limiting when no trusted source exists', async () => {
+  test('ignores raw forwarded IP chains and disables rate limiting when no trusted source exists', async () => {
     const forwardedReq = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -81,7 +81,7 @@ describe('apps route', () => {
     expect(mockCreateApplication).toHaveBeenNthCalledWith(
       1,
       expect.any(Object),
-      { registrationKey: hashIpAddress('198.51.100.40') }
+      { registrationKey: undefined }
     )
     expect(mockCreateApplication).toHaveBeenNthCalledWith(
       2,

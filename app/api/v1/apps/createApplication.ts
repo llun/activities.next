@@ -48,10 +48,12 @@ type CreateApplicationOptions = {
 }
 
 const APP_REGISTRATION_REFERENCE_PREFIX = 'app-registration:'
+const ANONYMOUS_APP_REGISTRATION_REFERENCE = `${APP_REGISTRATION_REFERENCE_PREFIX}anonymous`
 const APP_REGISTRATION_LIMIT = 5
 const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
 const APP_REGISTRATION_GC_AFTER_MS = 24 * 60 * 60 * 1000
 const APP_REGISTRATION_GC_INTERVAL_MS = 60 * 60 * 1000
+const APP_REGISTRATION_GC_BATCH_SIZE = 1000
 
 let lastAppRegistrationGcAt: number | null = null
 
@@ -83,6 +85,7 @@ const garbageCollectStaleAppRegistrations = async (db: Knex, now: Date) => {
     .whereNull('oauthAccessToken.id')
     .whereNull('oauthRefreshToken.id')
     .whereNull('oauthConsent.id')
+    .limit(APP_REGISTRATION_GC_BATCH_SIZE)
     .pluck('oauthClient.clientId')
 
   if (staleClientIds.length > 0) {
@@ -154,15 +157,17 @@ export const createApplication = async (
 
       try {
         const now = options.now ?? new Date()
-        const registrationReference = getRegistrationReference(
+        const rateLimitReference = getRegistrationReference(
           options.registrationKey
         )
+        const registrationReference =
+          rateLimitReference ?? ANONYMOUS_APP_REGISTRATION_REFERENCE
 
         if (
           await isAppRegistrationRateLimited({
             db,
             now,
-            registrationReference
+            registrationReference: rateLimitReference
           })
         ) {
           return ErrorResponse.parse({

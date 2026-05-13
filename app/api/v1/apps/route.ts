@@ -19,16 +19,13 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const getTrustedClientIp = (req: NextRequest): string | undefined =>
+  req.headers.get('cf-connecting-ip')?.trim() ||
+  req.headers.get('x-real-ip')?.trim() ||
+  undefined
+
 const getAppRegistrationKey = (req: NextRequest): string | undefined => {
-  const cloudflareIp = req.headers.get('cf-connecting-ip')?.trim()
-  const realIp = req.headers.get('x-real-ip')?.trim()
-  const forwardedFor = req.headers
-    .get('x-forwarded-for')
-    ?.split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .at(-1)
-  const ipAddress = cloudflareIp || realIp || forwardedFor
+  const ipAddress = getTrustedClientIp(req)
 
   if (!ipAddress) return undefined
 
