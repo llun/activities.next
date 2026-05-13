@@ -1,6 +1,10 @@
+import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { POST } from './route'
+
+const hashIpRegistrationKey = (ip: string) =>
+  `ip:${crypto.createHash('sha256').update(ip).digest('base64url')}`
 
 const mockCreateApplication = jest.fn()
 const mockLoggerWarn = jest.fn()
@@ -20,7 +24,10 @@ jest.mock('./createApplication', () => ({
 }))
 
 describe('apps route', () => {
+  const originalEnv = process.env
+
   beforeEach(() => {
+    process.env = { ...originalEnv }
     mockCreateApplication.mockReset()
     mockLoggerWarn.mockReset()
     mockCreateApplication.mockResolvedValue({
@@ -34,7 +41,11 @@ describe('apps route', () => {
     })
   })
 
-  test('derives registration limits from supported forwarded IP headers', async () => {
+  afterAll(() => {
+    process.env = originalEnv
+  })
+
+  test('does not derive registration limits from untrusted forwarded IP headers', async () => {
     const req = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -52,12 +63,16 @@ describe('apps route', () => {
     await POST(req)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
-      registrationKey: expect.stringMatching(/^ip:[A-Za-z0-9_-]{43}$/)
+      registrationKey: undefined
     })
-    expect(mockLoggerWarn).not.toHaveBeenCalled()
+    expect(mockLoggerWarn).toHaveBeenCalledWith({
+      message:
+        'App registration source IP is unavailable; rate limiting is disabled'
+    })
   })
 
-  test('uses the rightmost forwarded IP when stronger platform headers are absent', async () => {
+  test('uses the originating forwarded IP when forwarded IP headers are trusted', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
     const forwardedReq = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -73,7 +88,7 @@ describe('apps route', () => {
     await POST(forwardedReq)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
-      registrationKey: expect.stringMatching(/^ip:[A-Za-z0-9_-]{43}$/)
+      registrationKey: hashIpRegistrationKey('198.51.100.30')
     })
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })

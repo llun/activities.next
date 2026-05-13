@@ -150,6 +150,20 @@ describe('#OAuthGuard', () => {
       expect(mockHandler).toHaveBeenCalled()
     })
 
+    test('ignores non-Bearer authorization when a valid session exists', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({ Authorization: 'Basic upstream-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+    })
+
     test('rejects a cookie-session mutation without same-origin proof', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }

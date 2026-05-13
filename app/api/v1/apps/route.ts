@@ -22,7 +22,12 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const shouldTrustProxyIpHeaders = (): boolean =>
+  process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS === 'true'
+
 const getTrustedClientIp = (req: NextRequest): string | undefined => {
+  if (!shouldTrustProxyIpHeaders()) return undefined
+
   const cfConnectingIp = req.headers.get('cf-connecting-ip')?.trim()
   if (cfConnectingIp) return cfConnectingIp
 
@@ -32,8 +37,8 @@ const getTrustedClientIp = (req: NextRequest): string | undefined => {
   const forwardedFor = req.headers
     .get('x-forwarded-for')
     ?.split(',')
-    .at(-1)
-    ?.trim()
+    .map((ip) => ip.trim())
+    .find(Boolean)
   if (forwardedFor) return forwardedFor
 
   return undefined

@@ -60,6 +60,12 @@ export const getTokenFromHeader = (
   return parts[1] || null
 }
 
+const isBearerAuthorizationHeader = (
+  authorizationHeader: string | null
+): boolean =>
+  authorizationHeader === 'Bearer' ||
+  authorizationHeader?.startsWith('Bearer ') === true
+
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 const getOrigin = (value: string | null): string | null => {
@@ -114,7 +120,7 @@ const resolveAuthenticatedContext = async <P>({
   }
 
   const authorizationToken = req.headers.get('Authorization')
-  if (authorizationToken) {
+  if (isBearerAuthorizationHeader(authorizationToken)) {
     const token = getTokenFromHeader(authorizationToken)
     if (!token) {
       return { authenticated: false, response: apiErrorResponse(401) }
