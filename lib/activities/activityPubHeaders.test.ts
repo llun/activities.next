@@ -4,6 +4,18 @@ import { generateKeyPair, verify } from '@/lib/utils/signature'
 
 import { activityPubRequestHeaders } from './activityPubHeaders'
 
+jest.mock('@/lib/config', () => ({
+  getConfig: () => {
+    const { MOCK_SECRET_PHASES } = jest.requireActual('@/lib/stub/actor')
+
+    return {
+      host: 'local.test',
+      secretPhase: MOCK_SECRET_PHASES,
+      trustedHosts: ['remote.test']
+    }
+  }
+}))
+
 describe('#activityPubRequestHeaders', () => {
   let signingActor: Actor
 

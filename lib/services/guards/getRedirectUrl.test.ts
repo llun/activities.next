@@ -1,8 +1,20 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
+
 import { getRedirectUrl } from './getRedirectUrl'
 
+const mockGetConfig = getConfig as jest.Mock
+
 describe('#getRedirectUrl', () => {
+  beforeEach(() => {
+    mockGetConfig.mockReturnValue({
+      host: 'example.com',
+      allowActorDomains: ['actor.example.com'],
+      trustedHosts: ['public.example.com']
+    })
+  })
+
   it('returns URL with https protocol and path', () => {
     const req = new NextRequest('https://example.com/some/path', {
       headers: { Host: 'example.com' }
@@ -11,7 +23,7 @@ describe('#getRedirectUrl', () => {
     expect(result).toEqual('https://example.com/signin')
   })
 
-  it('uses X-Forwarded-Host if available', () => {
+  it('uses X-Forwarded-Host when it is configured as a trusted local host', () => {
     const req = new NextRequest('https://internal.example.com/path', {
       headers: {
         Host: 'internal.example.com',
@@ -20,6 +32,28 @@ describe('#getRedirectUrl', () => {
     })
     const result = getRedirectUrl(req, '/callback')
     expect(result).toEqual('https://public.example.com/callback')
+  })
+
+  it('uses configured public host when X-Forwarded-Host is not trusted', () => {
+    const req = new NextRequest('https://internal.example.com/path', {
+      headers: {
+        Host: 'internal.example.com',
+        'X-Forwarded-Host': 'evil.example.com'
+      }
+    })
+    const result = getRedirectUrl(req, '/callback')
+    expect(result).toEqual('https://example.com/callback')
+  })
+
+  it('does not use X-Forwarded-Host from actor domain allowlists', () => {
+    const req = new NextRequest('https://internal.example.com/path', {
+      headers: {
+        Host: 'internal.example.com',
+        'X-Forwarded-Host': 'actor.example.com'
+      }
+    })
+    const result = getRedirectUrl(req, '/callback')
+    expect(result).toEqual('https://example.com/callback')
   })
 
   it('handles root path', () => {

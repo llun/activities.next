@@ -3,8 +3,8 @@ import { IncomingHttpHeaders } from 'http'
 import util from 'util'
 
 import { getConfig } from '@/lib/config'
-import { FORWARDED_HOST } from '@/lib/constants'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Actor } from '@/lib/types/domain/actor'
 import { getSpan } from '@/lib/utils/trace'
 
@@ -50,8 +50,8 @@ export async function verify(
       if (item === '(request-target)') {
         return `(request-target): ${requestTarget}`
       }
-      if (item === 'host' && getHeadersValue(headers, FORWARDED_HOST)) {
-        return `${item}: ${getHeadersValue(headers, FORWARDED_HOST)}`
+      if (item === 'host') {
+        return `${item}: ${headerHost(headers)}`
       }
       return `${item}: ${getHeadersValue(headers, item)}`
     })

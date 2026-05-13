@@ -1,5 +1,11 @@
 import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
 
+jest.mock('@/lib/config', () => ({
+  getConfig: () => ({
+    host: 'api.example.com'
+  })
+}))
+
 describe('#getCORSHeaders', () => {
   it('returns CORS headers with origin from request', () => {
     const headers = new Headers([
