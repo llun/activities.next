@@ -35,6 +35,7 @@ export const SANITIZED_OPTION = {
     a: ['http', 'https', 'mailto'],
     img: ['https']
   },
+  allowProtocolRelative: false,
   transformTags: {
     a: (tagName: string, attribs: sanitizeHtml.Attributes) => {
       if (attribs.target !== '_blank') return { tagName, attribs }

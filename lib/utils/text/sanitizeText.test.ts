@@ -132,6 +132,12 @@ describe('sanitizeText', () => {
       expect(sanitizeText(input)).toEqual('<img class="emoji" alt=":emoji:" />')
     })
 
+    it('removes protocol-relative emoji image sources', () => {
+      const input =
+        '<img class="emoji" src="//example.com/image.jpg" alt=":emoji:">'
+      expect(sanitizeText(input)).toEqual('<img class="emoji" alt=":emoji:" />')
+    })
+
     it('allows mailto links', () => {
       const input = '<a href="mailto:test@example.com">Email</a>'
       expect(sanitizeText(input)).toEqual(
