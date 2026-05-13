@@ -224,7 +224,7 @@ describe('#OAuthGuard', () => {
       const guard = OAuthGuard([Scope.enum.write], mockHandler)
       const req = createRequest(
         {
-          Authorization: 'Bearer read-only-opaque-with-session',
+          Authorization: 'bearer read-only-opaque-with-session',
           Origin: 'https://llun.test'
         },
         'POST'
@@ -549,6 +549,30 @@ describe('#OAuthGuard', () => {
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({ Authorization: 'Bearer opaque-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+    })
+
+    test('allows request with lowercase bearer opaque token', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('lowercase-opaque-token'), {
+        token: hashToken('lowercase-opaque-token'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({
+        Authorization: 'bearer lowercase-opaque-token'
+      })
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(200)

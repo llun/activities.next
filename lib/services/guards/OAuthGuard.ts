@@ -55,16 +55,15 @@ export const getTokenFromHeader = (
   authorizationHeader: string | null
 ): string | null => {
   if (!authorizationHeader) return null
-  const parts = authorizationHeader.split(' ')
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return null
+  const parts = authorizationHeader.trim().split(/\s+/)
+  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') return null
   return parts[1] || null
 }
 
 const isBearerAuthorizationHeader = (
   authorizationHeader: string | null
 ): boolean =>
-  authorizationHeader === 'Bearer' ||
-  authorizationHeader?.startsWith('Bearer ') === true
+  authorizationHeader?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer'
 
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 

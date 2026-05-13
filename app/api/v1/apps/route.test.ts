@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
-import { POST } from './route'
+import { POST, resetAppRegistrationWarningStateForTests } from './route'
 
 const hashIpRegistrationKey = (ip: string) =>
   `ip:${crypto.createHash('sha256').update(ip).digest('base64url')}`
@@ -28,6 +28,7 @@ describe('apps route', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    resetAppRegistrationWarningStateForTests()
     mockCreateApplication.mockReset()
     mockLoggerWarn.mockReset()
     mockCreateApplication.mockResolvedValue({
@@ -114,6 +115,26 @@ describe('apps route', () => {
       message:
         'App registration source IP is unavailable; rate limiting is disabled'
     })
+  })
+
+  test('warns only once when app registration source stays unavailable', async () => {
+    const createRequest = (clientName: string) =>
+      new NextRequest('https://llun.test/api/v1/apps', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_name: clientName,
+          redirect_uris: `https://${clientName}.llun.dev/callback`
+        })
+      })
+
+    await POST(createRequest('first'))
+    await POST(createRequest('second'))
+
+    expect(mockCreateApplication).toHaveBeenCalledTimes(2)
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
   })
 
   test('returns too many requests when app registration is throttled', async () => {

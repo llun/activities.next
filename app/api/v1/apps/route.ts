@@ -22,6 +22,12 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+let hasWarnedMissingAppRegistrationSource = false
+
+export const resetAppRegistrationWarningStateForTests = () => {
+  hasWarnedMissingAppRegistrationSource = false
+}
+
 const shouldTrustProxyIpHeaders = (): boolean =>
   process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS === 'true'
 
@@ -47,10 +53,13 @@ const getTrustedClientIp = (req: NextRequest): string | undefined => {
 const getAppRegistrationKey = (req: NextRequest): string | undefined => {
   const connectionIp = getTrustedClientIp(req)
   if (!connectionIp) {
-    logger.warn({
-      message:
-        'App registration source IP is unavailable; rate limiting is disabled'
-    })
+    if (!hasWarnedMissingAppRegistrationSource) {
+      hasWarnedMissingAppRegistrationSource = true
+      logger.warn({
+        message:
+          'App registration source IP is unavailable; rate limiting is disabled'
+      })
+    }
     return undefined
   }
 
