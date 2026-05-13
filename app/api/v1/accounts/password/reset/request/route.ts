@@ -96,18 +96,36 @@ export const POST = traceApiRoute(
         } catch (_error) {
           logger.error({ email }, 'Failed to send password reset email')
           try {
-            await database.requestPasswordReset({
+            const restored = await database.requestPasswordReset({
               email,
               passwordResetCode: previousPasswordResetCode,
               ...(previousPasswordResetCodeExpiresAt !== null
                 ? { expiresAt: previousPasswordResetCodeExpiresAt }
                 : null)
             })
+            if (!restored) {
+              logger.error(
+                { email },
+                'Failed to restore previous password reset code'
+              )
+              return apiResponse({
+                req: request,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_500,
+                responseStatusCode: 500
+              })
+            }
           } catch (error) {
             logger.error(
               { email, error },
               'Failed to restore previous password reset code'
             )
+            return apiResponse({
+              req: request,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_500,
+              responseStatusCode: 500
+            })
           }
           return passwordResetSuccessResponse(request)
         }

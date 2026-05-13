@@ -33,6 +33,12 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     getAccountFromEmail: jest.fn(),
     requestPasswordReset: jest.fn()
   }
+  const buildRequest = (body: unknown) =>
+    new NextRequest('http://llun.test/api/v1/accounts/password/reset/request', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' }
+    })
 
   beforeAll(() => {
     mockDatabase = mockDb
@@ -64,14 +70,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       updatedAt: Date.now()
     })
 
-    const request = new NextRequest(
-      'http://llun.test/api/v1/accounts/password/reset/request',
-      {
-        method: 'POST',
-        body: JSON.stringify({ email: 'test@llun.test' }),
-        headers: { 'Content-Type': 'application/json' }
-      }
-    )
+    const request = buildRequest({ email: 'test@llun.test' })
 
     const response = await POST(request, { params: Promise.resolve({}) })
     const data = await response.json()
@@ -97,15 +96,40 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     })
   })
 
-  it('returns uniform success for invalid request bodies', async () => {
-    const request = new NextRequest(
-      'http://llun.test/api/v1/accounts/password/reset/request',
-      {
-        method: 'POST',
-        body: JSON.stringify({ email: 'not-an-email' }),
-        headers: { 'Content-Type': 'application/json' }
-      }
+  it('returns an error when email sending fails and reset code restoration returns false', async () => {
+    mockSendMail.mockRejectedValue(new Error('mail failed'))
+    mockDb.requestPasswordReset.mockResolvedValueOnce(true)
+    mockDb.requestPasswordReset.mockResolvedValueOnce(false)
+
+    const request = buildRequest({ email: 'test@llun.test' })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(data).toEqual({ status: 'Internal Server Error' })
+    expect(mockDb.requestPasswordReset).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns an error when email sending fails and reset code restoration rejects', async () => {
+    mockSendMail.mockRejectedValue(new Error('mail failed'))
+    mockDb.requestPasswordReset.mockResolvedValueOnce(true)
+    mockDb.requestPasswordReset.mockRejectedValueOnce(
+      new Error('restore failed')
     )
+
+    const request = buildRequest({ email: 'test@llun.test' })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(data).toEqual({ status: 'Internal Server Error' })
+    expect(mockDb.requestPasswordReset).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns uniform success for invalid request bodies', async () => {
+    const request = buildRequest({ email: 'not-an-email' })
 
     const response = await POST(request, { params: Promise.resolve({}) })
     const data = await response.json()
