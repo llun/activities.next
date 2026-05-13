@@ -27,7 +27,13 @@ export const POST = traceApiRoute(
     }
 
     try {
-      const body = await req.json()
+      let body: unknown
+      try {
+        body = await req.json()
+      } catch (_error) {
+        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      }
+
       const parsed = EmailVerifyRequest.safeParse(body)
       if (!parsed.success) {
         return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
