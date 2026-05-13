@@ -1,0 +1,30 @@
+lib/client.ts
+  s_4301987c270c49::t_d8222de8fc20cf 836-837,870-875,900-904
+app/api/v1/medias/presigned/route.ts
+  s_4301987c270c49::t_cbc0486f03634d 116-117
+  s_4301987c270c49::t_a3da446b1b881e 13
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_4301987c270c49::t_d970ca4047d0ec 65-70,151-163,167,171-178,180-183,188,466,484
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_4301987c270c49::t_8bfefdd0a076dc 372-418
+lib/client.test.ts
+  s_4301987c270c49::t_7678ba060565c7 173-174,204-215,251-252,289
+app/api/v1/medias/presigned/route.test.ts
+  s_4301987c270c49::t_5106e900e058c2 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f641de51d745b705a39709b3c967cffac95222dd",
+  "prompts": {},
+  "sessions": {
+    "s_4301987c270c49": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e209a-bc18-7f62-9a09-4e693b9f82d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
