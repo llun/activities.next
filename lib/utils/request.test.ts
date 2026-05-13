@@ -2,6 +2,8 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { type Server, createServer } from 'node:http'
 import { type AddressInfo } from 'node:net'
 
+import { getConfig } from '@/lib/config'
+
 import { request } from './request'
 
 jest.mock('got', () => {
@@ -84,6 +86,9 @@ jest.mock('got', () => {
 
 enableFetchMocks()
 
+const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
+const defaultConfig = mockGetConfig()
+
 const createTestServer = async (
   body: string,
   headers: Record<string, string> = {}
@@ -120,13 +125,23 @@ const withDevelopmentNodeEnv = async (callback: () => Promise<void>) => {
   try {
     await callback()
   } finally {
-    process.env.NODE_ENV = originalNodeEnv
+    if (typeof originalNodeEnv === 'undefined') {
+      delete process.env.NODE_ENV
+    } else {
+      process.env.NODE_ENV = originalNodeEnv
+    }
   }
 }
 
 describe('request utility', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+    jest.useRealTimers()
+  })
+
   beforeEach(() => {
     fetchMock.resetMocks()
+    mockGetConfig.mockReturnValue(defaultConfig)
   })
 
   describe('request', () => {
@@ -268,6 +283,75 @@ describe('request utility', () => {
           await closeServer(server)
         }
       })
+    })
+
+    it('honors a zero-byte max response size', async () => {
+      await withDevelopmentNodeEnv(async () => {
+        fetchMock.dontMock()
+        const { server, url } = await createTestServer('body')
+
+        try {
+          await expect(
+            request({
+              url,
+              numberOfRetry: 0,
+              maxResponseSize: 0
+            })
+          ).rejects.toThrow('Response body too large')
+        } finally {
+          await closeServer(server)
+        }
+      })
+    })
+
+    it('does not retry local port binding errors', async () => {
+      const error = Object.assign(new Error('address in use'), {
+        code: 'EADDRINUSE'
+      })
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      await expect(
+        request({
+          url: 'https://example.com/api/test',
+          numberOfRetry: 1
+        })
+      ).rejects.toThrow('address in use')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('waits with retry noise before retrying retryable errors', async () => {
+      jest.useFakeTimers()
+      mockGetConfig.mockReturnValue({
+        ...defaultConfig,
+        request: {
+          timeoutInMilliseconds: 1000,
+          numberOfRetry: 1,
+          retryNoise: 50,
+          maxResponseSizeInBytes: 1024
+        }
+      })
+      jest.spyOn(Math, 'random').mockReturnValue(0.5)
+      const error = Object.assign(new Error('dns lookup timed out'), {
+        code: 'EAI_AGAIN'
+      })
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test'
+      })
+      await jest.advanceTimersByTimeAsync(1024)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      await jest.advanceTimersByTimeAsync(1)
+
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
     })
   })
 })

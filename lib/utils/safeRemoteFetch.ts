@@ -1,7 +1,7 @@
 import got, { Headers, Method, OptionsInit } from 'got'
 import { lookup } from 'node:dns/promises'
 import net from 'node:net'
-import { Readable } from 'node:stream'
+import type { Readable } from 'node:stream'
 
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS = 3
@@ -14,6 +14,8 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   'proxy-authorization',
   'signature'
 ])
+// Signature covers both request metadata and the signed body digest, so it is
+// stripped on cross-host redirects and on redirects that rewrite the method.
 const BODY_HEADERS = new Set([
   'content-encoding',
   'content-language',
@@ -40,6 +42,7 @@ export type SafeRemoteFetchTransportRequest = {
   method: SafeRemoteFetchMethod
   readTimeoutInMilliseconds: number
   resolvedAddress: ResolvedRemoteAddress
+  resolvedAddresses: ResolvedRemoteAddress[]
   url: URL
 }
 
@@ -117,12 +120,18 @@ const isUnsafeIpv4 = (address: string) => {
   return (
     first === 0 ||
     first === 10 ||
+    (first === 100 && second >= 64 && second <= 127) ||
     first === 127 ||
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 0 && third === 0) ||
+    (first === 192 && second === 0 && third === 2) ||
+    (first === 192 && second === 88 && third === 99) ||
     (first === 192 && second === 168) ||
-    (first >= 224 && first <= 239) ||
-    first >= 240 ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && second === 51 && third === 100) ||
+    (first === 203 && second === 0 && third === 113) ||
+    first >= 224 ||
     (first === 255 && second === 255 && third === 255 && fourth === 255)
   )
 }
@@ -185,23 +194,55 @@ const isIpv4MappedIpv6 = (bytes: number[]) =>
   bytes[10] === 0xff &&
   bytes[11] === 0xff
 
+const hasIpv4CompatibleIpv6Tail = (bytes: number[]) =>
+  bytes.slice(0, 12).every((byte) => byte === 0) &&
+  bytes.slice(12).some((byte) => byte !== 0)
+
 const isUnsafeIpv6 = (address: string) => {
   const bytes = parseIpv6Bytes(address)
   if (!bytes) return true
 
-  if (isIpv4MappedIpv6(bytes)) {
+  if (isIpv4MappedIpv6(bytes) || hasIpv4CompatibleIpv6Tail(bytes)) {
     return isUnsafeIpv4(bytes.slice(12).join('.'))
   }
 
   const isUnspecified = bytes.every((byte) => byte === 0)
   const isLoopback =
     bytes.slice(0, 15).every((byte) => byte === 0) && bytes[15] === 1
+  const isDiscard =
+    bytes[0] === 0x01 &&
+    bytes[1] === 0x00 &&
+    bytes.slice(2, 8).every((byte) => byte === 0)
+  const isIpv4Ipv6Translation =
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    bytes.slice(4, 12).every((byte) => byte === 0)
+  const isOrchidV2 =
+    bytes[0] === 0x20 &&
+    bytes[1] === 0x01 &&
+    bytes[2] === 0x00 &&
+    (bytes[3] & 0xf0) === 0x10
+  const isDocumentation =
+    bytes[0] === 0x20 &&
+    bytes[1] === 0x01 &&
+    bytes[2] === 0x0d &&
+    bytes[3] === 0xb8
   const isUniqueLocal = (bytes[0] & 0xfe) === 0xfc
   const isLinkLocal = bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80
   const isMulticast = bytes[0] === 0xff
 
   return (
-    isUnspecified || isLoopback || isUniqueLocal || isLinkLocal || isMulticast
+    isUnspecified ||
+    isLoopback ||
+    isDiscard ||
+    isIpv4Ipv6Translation ||
+    isOrchidV2 ||
+    isDocumentation ||
+    isUniqueLocal ||
+    isLinkLocal ||
+    isMulticast
   )
 }
 
@@ -264,7 +305,7 @@ const defaultResolveHost: ResolveHost = async (hostname) => {
   }))
 }
 
-const resolveSafeAddress = async ({
+const resolveSafeAddresses = async ({
   resolveHost,
   url
 }: {
@@ -288,14 +329,11 @@ const resolveSafeAddress = async ({
     )
   }
 
-  const firstAddress = addresses[0]
-  if (!firstAddress) throw createUnsafeUrlError('Unable to resolve remote host')
-
-  return firstAddress
+  return addresses
 }
 
 const createFixedDnsLookup = (
-  resolvedAddress: ResolvedRemoteAddress
+  resolvedAddresses: ResolvedRemoteAddress[]
 ): OptionsInit['dnsLookup'] =>
   ((_hostname: string, optionsOrCallback: unknown, maybeCallback: unknown) => {
     const options =
@@ -326,10 +364,17 @@ const createFixedDnsLookup = (
           error: NodeJS.ErrnoException | null,
           addresses: ResolvedRemoteAddress[]
         ) => void
-      )(null, [resolvedAddress])
+      )(null, resolvedAddresses)
       return
     }
 
+    const requestedFamily = (
+      optionsOrCallback as { family?: 0 | 4 | 6 } | undefined
+    )?.family
+    const resolvedAddress =
+      resolvedAddresses.find(({ family }) => family === requestedFamily) ??
+      resolvedAddresses[0]
+    if (!resolvedAddress) return
     ;(
       callback as (
         error: NodeJS.ErrnoException | null,
@@ -345,13 +390,13 @@ const gotTransport: SafeRemoteFetchTransport = async ({
   headers,
   method,
   readTimeoutInMilliseconds,
-  resolvedAddress,
+  resolvedAddresses,
   url
 }) =>
   new Promise((resolve, reject) => {
     const options: OptionsInit = {
       body,
-      dnsLookup: createFixedDnsLookup(resolvedAddress),
+      dnsLookup: createFixedDnsLookup(resolvedAddresses),
       followRedirect: false,
       headers,
       method,
@@ -365,10 +410,12 @@ const gotTransport: SafeRemoteFetchTransport = async ({
       }
     }
     const stream = got.stream(url.toString(), options)
+    const observeStreamError = () => {}
     const rejectBeforeResponse = (error: Error) => {
       reject(error)
     }
 
+    stream.on('error', observeStreamError)
     stream.once('error', rejectBeforeResponse)
     stream.once('response', (response) => {
       stream.off('error', rejectBeforeResponse)
@@ -518,28 +565,33 @@ export const createSafeRemoteFetch = ({
 
     while (true) {
       assertAllowedProtocol(currentUrl)
-      const resolvedAddress = await resolveSafeAddress({
-        resolveHost,
-        url: currentUrl
-      })
       const requestHeaders = buildHeaders({
         headers: currentHeaders,
         methodChanged,
         previousUrl,
         url: currentUrl
       })
+      const resolvedAddresses = await resolveSafeAddresses({
+        resolveHost,
+        url: currentUrl
+      })
+      const firstResolvedAddress = resolvedAddresses[0]
+      if (!firstResolvedAddress) {
+        throw createUnsafeUrlError('Unable to resolve remote host')
+      }
       const response = await transport({
         body: currentBody,
         connectTimeoutInMilliseconds: connectTimeout,
         headers: requestHeaders,
         method: currentMethod,
         readTimeoutInMilliseconds: readTimeout,
-        resolvedAddress,
+        resolvedAddress: firstResolvedAddress,
+        resolvedAddresses,
         url: currentUrl
       })
-      const responseBody = await readResponseBody(response, maxBodyBytes)
       const redirectUrl = getRedirectLocation(response, currentUrl)
       if (!redirectUrl) {
+        const responseBody = await readResponseBody(response, maxBodyBytes)
         return {
           body: responseBody,
           headers: response.headers,
@@ -548,6 +600,7 @@ export const createSafeRemoteFetch = ({
         }
       }
 
+      response.body.destroy()
       if (redirectCount >= effectiveMaxRedirects) {
         throw new SafeRemoteFetchError(
           'Too many redirects',
@@ -558,9 +611,11 @@ export const createSafeRemoteFetch = ({
       previousUrl = currentUrl
       currentUrl = redirectUrl
       redirectCount += 1
-      methodChanged = response.statusCode === 303
+      methodChanged =
+        [301, 302, 303].includes(response.statusCode) &&
+        currentMethod.toUpperCase() !== 'GET'
       if (methodChanged) {
-        currentMethod = 'GET'
+        currentMethod = 'get'
         currentBody = undefined
       }
       currentHeaders = requestHeaders

@@ -98,7 +98,7 @@ jest.mock('got', () => {
 
 jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(async (_hostname, options) => {
-    const address = { address: '203.0.113.10', family: 4 }
+    const address = { address: '93.184.216.34', family: 4 }
     return options?.all ? [address] : address
   })
 }))
