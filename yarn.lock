@@ -1298,6 +1298,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@better-auth/core@npm:1.6.11":
+  version: 1.6.11
+  resolution: "@better-auth/core@npm:1.6.11"
+  dependencies:
+    "@opentelemetry/semantic-conventions": "npm:^1.39.0"
+    "@standard-schema/spec": "npm:^1.1.0"
+    zod: "npm:^4.3.6"
+  peerDependencies:
+    "@better-auth/utils": 0.4.0
+    "@better-fetch/fetch": 1.1.21
+    "@cloudflare/workers-types": ">=4"
+    "@opentelemetry/api": ^1.9.0
+    better-call: 1.3.5
+    jose: ^6.1.0
+    kysely: ^0.28.5
+    nanostores: ^1.0.1
+  peerDependenciesMeta:
+    "@cloudflare/workers-types":
+      optional: true
+    "@opentelemetry/api":
+      optional: true
+  checksum: 10c0/c1ca13a81612123cd3b54968d3ab3fa775fe237c11a83b1a8352a12f23c12291c6a7d0967e7d9f2159c6c2baedbe63c60a1ab011fdcc4b8528876d2b84d6d845
+  languageName: node
+  linkType: hard
+
 "@better-auth/core@npm:1.6.9":
   version: 1.6.9
   resolution: "@better-auth/core@npm:1.6.9"
@@ -5794,7 +5819,7 @@ __metadata:
     "@aws-sdk/s3-presigned-post": "npm:^3.1043.0"
     "@aws-sdk/s3-request-presigner": "npm:^3.1041.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
-    "@better-auth/core": "npm:1.6.9"
+    "@better-auth/core": "npm:1.6.11"
     "@better-auth/oauth-provider": "npm:^1.6.9"
     "@better-auth/passkey": "npm:^1.6.9"
     "@better-auth/utils": "npm:0.4.0"
