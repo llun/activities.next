@@ -26,7 +26,7 @@ describe('apps route', () => {
     })
   })
 
-  test('does not derive registration limits from client-supplied IP headers without trusted proxy config', async () => {
+  test('derives registration limits from the connection IP when available', async () => {
     const req = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {
@@ -40,11 +40,15 @@ describe('apps route', () => {
         redirect_uris: 'https://client.llun.dev/callback'
       })
     })
+    Object.defineProperty(req, 'ip', {
+      value: '203.0.113.5',
+      configurable: true
+    })
 
     await POST(req)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
-      registrationKey: undefined
+      registrationKey: expect.stringMatching(/^ip:[A-Za-z0-9_-]{43}$/)
     })
   })
 
@@ -84,5 +88,29 @@ describe('apps route', () => {
       expect.any(Object),
       { registrationKey: undefined }
     )
+  })
+
+  test('returns too many requests when app registration is throttled', async () => {
+    mockCreateApplication.mockResolvedValue({
+      type: 'error',
+      error: 'Too many application registrations'
+    })
+    const req = new NextRequest('https://llun.test/api/v1/apps', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_name: 'client',
+        redirect_uris: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      status: 'Too Many Requests'
+    })
+    expect(response.status).toBe(429)
   })
 })

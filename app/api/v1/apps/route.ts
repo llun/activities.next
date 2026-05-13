@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
@@ -5,7 +6,9 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import {
   ERROR_422,
+  ERROR_429,
   ERROR_500,
+  HTTP_STATUS,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -18,11 +21,15 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const getAppRegistrationKey = (_req: NextRequest): undefined => {
-  // This route has no configured trusted-proxy boundary, so forwarded IP
-  // headers are treated as client-supplied. createApplication falls back to
-  // a global anonymous registration bucket when this key is undefined.
-  return undefined
+const getAppRegistrationKey = (req: NextRequest): string | undefined => {
+  const connectionIp = (req as NextRequest & { ip?: string }).ip
+  if (!connectionIp) return undefined
+
+  const hash = crypto
+    .createHash('sha256')
+    .update(connectionIp)
+    .digest('base64url')
+  return `ip:${hash}`
 }
 
 export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
@@ -50,8 +57,16 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
     registrationKey: getAppRegistrationKey(req)
   })
 
-  const { type, ...rest } = response
-  if (type === 'error') {
+  if (response.type === 'error') {
+    if (response.error === 'Too many application registrations') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_429,
+        responseStatusCode: HTTP_STATUS.TOO_MANY_REQUESTS
+      })
+    }
+
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -60,5 +75,6 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
     })
   }
 
-  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: rest })
+  const { type: _type, ...data } = response
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
 })

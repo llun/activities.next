@@ -3,19 +3,20 @@ import knex from 'knex'
 import * as migration from '@/migrations/20260513000000_add_oauth_client_registration_metadata'
 
 describe('OAuth client registration metadata migration', () => {
-  const database = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
+  let database: knex.Knex
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    database = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
     await database.schema.createTable('oauthClient', (table) => {
       table.string('clientId').primary()
     })
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     await database.destroy()
   })
 
@@ -32,5 +33,17 @@ describe('OAuth client registration metadata migration', () => {
 
   test('can run after the columns already exist', async () => {
     await expect(migration.up(database)).resolves.toBeUndefined()
+  })
+
+  test('adds an index for app registration rate-limit lookups', async () => {
+    await migration.up(database)
+
+    const indexes = await database.raw("PRAGMA index_list('oauthClient')")
+
+    expect(
+      (indexes as Array<{ name: string }>).some(
+        ({ name }) => name === 'oauth_client_reference_id_idx'
+      )
+    ).toBe(true)
   })
 })

@@ -219,12 +219,12 @@ describe('createApplication', () => {
     expect(rows).toHaveLength(5)
   })
 
-  test('it stores anonymous unauthenticated registrations with a cleanup reference', async () => {
+  test('it stores unrated registrations without a shared rate-limit reference', async () => {
     const response = (await createApplication({
-      redirect_uris: 'https://anonymous.llun.dev/callback',
-      client_name: 'anonymousClient',
+      redirect_uris: 'https://unrated.llun.dev/callback',
+      client_name: 'unratedClient',
       scopes: 'read',
-      website: 'https://anonymous.llun.dev'
+      website: 'https://unrated.llun.dev'
     })) as SuccessResponse
 
     expect(response.type).toBe('success')
@@ -232,12 +232,12 @@ describe('createApplication', () => {
       knexDatabase('oauthClient').where({ id: response.id }).first()
     ).resolves.toEqual(
       expect.objectContaining({
-        referenceId: 'app-registration:anonymous'
+        referenceId: ''
       })
     )
   })
 
-  test('it rate limits anonymous app registrations with the global fallback bucket', async () => {
+  test('it does not rate limit registrations when no source key is available', async () => {
     const now = new Date('2030-05-12T12:00:00.000Z')
     const responses: PostResponse[] = []
 
@@ -255,22 +255,18 @@ describe('createApplication', () => {
       )
     }
 
-    expect(
-      responses.slice(0, 5).every((response) => response.type === 'success')
-    ).toBe(true)
-    expect(responses[5]).toEqual({
-      type: 'error',
-      error: 'Too many application registrations'
-    })
+    expect(responses.every((response) => response.type === 'success')).toBe(
+      true
+    )
 
     const rows = await knexDatabase('oauthClient')
-      .where('referenceId', 'app-registration:anonymous')
+      .where('referenceId', '')
       .where('createdAt', '>=', new Date('2030-05-12T11:50:00.000Z'))
       .select()
-    expect(rows).toHaveLength(5)
+    expect(rows).toHaveLength(6)
 
     await knexDatabase('oauthClient')
-      .where('referenceId', 'app-registration:anonymous')
+      .where('referenceId', '')
       .where('createdAt', '>=', new Date('2030-05-12T11:50:00.000Z'))
       .delete()
   })

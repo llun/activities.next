@@ -48,7 +48,6 @@ type CreateApplicationOptions = {
 }
 
 const APP_REGISTRATION_REFERENCE_PREFIX = 'app-registration:'
-const ANONYMOUS_APP_REGISTRATION_REFERENCE = `${APP_REGISTRATION_REFERENCE_PREFIX}anonymous`
 const APP_REGISTRATION_LIMIT = 5
 const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
 const APP_REGISTRATION_GC_AFTER_MS = 24 * 60 * 60 * 1000
@@ -164,8 +163,7 @@ export const createApplication = async (
         const rateLimitReference = getRegistrationReference(
           options.registrationKey
         )
-        const registrationReference =
-          rateLimitReference ?? ANONYMOUS_APP_REGISTRATION_REFERENCE
+        const registrationReference = rateLimitReference
 
         if (
           await isAppRegistrationRateLimited({
@@ -244,7 +242,7 @@ export const createApplication = async (
           ]),
           responseTypes: JSON.stringify(['code']),
           tokenEndpointAuthMethod: 'client_secret_post',
-          referenceId: registrationReference,
+          referenceId: registrationReference ?? '',
           metadata: JSON.stringify({ registeredUnauthenticated: true }),
           createdAt: now,
           updatedAt: now
