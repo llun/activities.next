@@ -5,7 +5,10 @@ import yauzl from 'yauzl'
 import { createGunzip } from 'zlib'
 
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
-import { readAsyncIterableToBufferWithLimit } from '@/lib/utils/streamLimit'
+import {
+  StreamByteLimitError,
+  readAsyncIterableToBufferWithLimit
+} from '@/lib/utils/streamLimit'
 
 type SupportedFitnessFileType = 'fit' | 'gpx' | 'tcx'
 
@@ -141,11 +144,22 @@ const indexZipEntries = async (
   return new Promise((resolve, reject) => {
     const entries = new Map<string, yauzl.Entry>()
     let entryCount = 0
+    let settled = false
 
     const cleanup = () => {
       zipFile.off('entry', onEntry)
       zipFile.off('end', onEnd)
       zipFile.off('error', onError)
+    }
+
+    const rejectAndClose = (error: unknown) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanup()
+      zipFile.close()
+      reject(error)
     }
 
     const onEntry = (entry: yauzl.Entry) => {
@@ -162,19 +176,21 @@ const indexZipEntries = async (
         entries.set(normalizedPath, entry)
         zipFile.readEntry()
       } catch (error) {
-        cleanup()
-        reject(error)
+        rejectAndClose(error)
       }
     }
 
     const onEnd = () => {
+      if (settled) {
+        return
+      }
+      settled = true
       cleanup()
       resolve(entries)
     }
 
     const onError = (error: Error) => {
-      cleanup()
-      reject(error)
+      rejectAndClose(error)
     }
 
     zipFile.on('entry', onEntry)
@@ -412,7 +428,7 @@ export const toStravaArchiveFitnessFilePayload = async (
         maxGzipOutputBytes,
         'Fitness gzip output'
       ).catch((error) => {
-        if (error instanceof Error) {
+        if (error instanceof StreamByteLimitError) {
           throw new StravaArchiveLimitError(
             `Fitness file ${fitnessFilePath} exceeds gzip output limit`
           )

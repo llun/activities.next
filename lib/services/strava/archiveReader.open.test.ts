@@ -1,7 +1,13 @@
 import { EventEmitter } from 'events'
+import { promisify } from 'util'
 import yauzl from 'yauzl'
+import { gzip as gzipCallback } from 'zlib'
 
-import { StravaArchiveReader } from '@/lib/services/strava/archiveReader'
+import {
+  StravaArchiveLimitError,
+  StravaArchiveReader,
+  toStravaArchiveFitnessFilePayload
+} from '@/lib/services/strava/archiveReader'
 
 jest.mock('yauzl', () => ({
   __esModule: true,
@@ -13,6 +19,7 @@ jest.mock('yauzl', () => ({
 const mockYauzlOpen = yauzl.open as unknown as jest.MockedFunction<
   typeof yauzl.open
 >
+const gzip = promisify(gzipCallback)
 
 describe('StravaArchiveReader.open', () => {
   beforeEach(() => {
@@ -85,6 +92,7 @@ describe('StravaArchiveReader.open', () => {
         limits: { maxEntries: 2 }
       })
     ).rejects.toThrow('exceeds entry limit')
+    expect(zipFile.close).toHaveBeenCalled()
   })
 
   it('rejects 42.zip-style entries with oversized uncompressed data', async () => {
@@ -105,6 +113,7 @@ describe('StravaArchiveReader.open', () => {
         limits: { maxEntryUncompressedBytes: 1024 }
       })
     ).rejects.toThrow('exceeds uncompressed size limit')
+    expect(zipFile.close).toHaveBeenCalled()
   })
 
   it('rejects entries with oversized compressed data', async () => {
@@ -125,6 +134,7 @@ describe('StravaArchiveReader.open', () => {
         limits: { maxEntryCompressedBytes: 1024 }
       })
     ).rejects.toThrow('exceeds compressed size limit')
+    expect(zipFile.close).toHaveBeenCalled()
   })
 
   it('rejects archive entries with parent-directory traversal names', async () => {
@@ -141,5 +151,27 @@ describe('StravaArchiveReader.open', () => {
     await expect(StravaArchiveReader.open('/tmp/export.zip')).rejects.toThrow(
       'Unsafe archive entry path'
     )
+    expect(zipFile.close).toHaveBeenCalled()
+  })
+
+  it('keeps corrupt gzip activity errors distinct from gzip limit errors', async () => {
+    await expect(
+      toStravaArchiveFitnessFilePayload({
+        fitnessFilePath: 'activities/corrupt.fit.gz',
+        buffer: Buffer.from('not gzip data')
+      })
+    ).rejects.not.toBeInstanceOf(StravaArchiveLimitError)
+  })
+
+  it('wraps only gzip byte-limit errors as archive limit errors', async () => {
+    await expect(
+      toStravaArchiveFitnessFilePayload(
+        {
+          fitnessFilePath: 'activities/large.fit.gz',
+          buffer: await gzip(Buffer.alloc(2048))
+        },
+        { maxGzipOutputBytes: 1024 }
+      )
+    ).rejects.toBeInstanceOf(StravaArchiveLimitError)
   })
 })

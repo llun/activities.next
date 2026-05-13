@@ -58,6 +58,7 @@ describe('S3FileStorage presigned upload completion', () => {
           upload: {
             state: 'pending',
             checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
             contentType: 'image/png',
             size: 1024
           }
@@ -78,6 +79,7 @@ describe('S3FileStorage presigned upload completion', () => {
           upload: {
             state: 'verified',
             checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
             contentType: 'image/png',
             size: 1024,
             verifiedAt: 1
@@ -120,5 +122,96 @@ describe('S3FileStorage presigned upload completion', () => {
     ).rejects.toThrow('does not match expected size')
     expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
     expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+  })
+
+  it('uses checksum metadata when S3 checksum fields are unavailable', async () => {
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: 1024,
+          ContentType: 'image/png',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await expect(
+      storage.completePresignedUpload(actor, 'media-1')
+    ).resolves.toMatchObject({ id: 'media-1' })
+    expect(database.markMediaUploadVerified).toHaveBeenCalled()
+    expect(database.deleteMedia).not.toHaveBeenCalled()
+  })
+
+  it('rejects uploads when no S3 checksum or checksum metadata is available', async () => {
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: 1024,
+          ContentType: 'image/png',
+          Metadata: {}
+        }
+      }
+      if (command instanceof DeleteObjectCommand) {
+        return {}
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await expect(
+      storage.completePresignedUpload(actor, 'media-1')
+    ).rejects.toThrow('Uploaded object does not include expected checksum')
+    expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+    expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+  })
+
+  it('does not delete media records for transient verification errors', async () => {
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        throw new Error('S3 timeout')
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await expect(
+      storage.completePresignedUpload(actor, 'media-1')
+    ).rejects.toThrow('S3 timeout')
+    expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+    expect(database.deleteMedia).not.toHaveBeenCalled()
   })
 })

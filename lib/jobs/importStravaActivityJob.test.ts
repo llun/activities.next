@@ -582,7 +582,8 @@ describe('importStravaActivityJob', () => {
       new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
         headers: {
-          'content-type': 'image/jpeg'
+          'content-type': 'image/jpeg',
+          'content-length': '3'
         }
       })
     )

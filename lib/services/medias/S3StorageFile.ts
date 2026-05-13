@@ -50,6 +50,33 @@ const normalizeContentType = (contentType?: string | string[]) => {
 const sha1HexToBase64 = (checksum: string) =>
   Buffer.from(checksum, 'hex').toString('base64')
 
+class PresignedUploadValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'PresignedUploadValidationError'
+  }
+}
+
+const isS3NotFoundError = (error: unknown) => {
+  const nodeError = error as {
+    name?: string
+    $metadata?: { httpStatusCode?: number }
+  }
+  return (
+    nodeError.name === 'NoSuchKey' ||
+    nodeError.name === 'NotFound' ||
+    nodeError.$metadata?.httpStatusCode === 404
+  )
+}
+
+const getObjectMetadataChecksumSha1 = (
+  metadata: Record<string, string> | undefined
+) =>
+  metadata?.checksumsha1 ??
+  metadata?.checksumSha1 ??
+  metadata?.['checksum-sha1'] ??
+  null
+
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
 
@@ -261,13 +288,22 @@ export class S3FileStorage implements MediaStorage {
     }
 
     try {
-      const object = await this._client.send(
-        new HeadObjectCommand({
-          Bucket: this._config.bucket,
-          Key: media.original.path,
-          ChecksumMode: 'ENABLED'
+      const object = await this._client
+        .send(
+          new HeadObjectCommand({
+            Bucket: this._config.bucket,
+            Key: media.original.path,
+            ChecksumMode: 'ENABLED'
+          })
+        )
+        .catch((error) => {
+          if (isS3NotFoundError(error)) {
+            throw new PresignedUploadValidationError(
+              'Uploaded object is missing'
+            )
+          }
+          throw error
         })
-      )
       const expectedSize = upload.size ?? media.original.bytes
       const expectedContentType = normalizeContentType(
         upload.contentType ?? media.original.mimeType
@@ -275,17 +311,37 @@ export class S3FileStorage implements MediaStorage {
       const actualContentType = normalizeContentType(object.ContentType)
 
       if (object.ContentLength !== expectedSize) {
-        throw new Error('Uploaded object does not match expected size')
+        throw new PresignedUploadValidationError(
+          'Uploaded object does not match expected size'
+        )
       }
       if (actualContentType !== expectedContentType) {
-        throw new Error('Uploaded object does not match expected content type')
+        throw new PresignedUploadValidationError(
+          'Uploaded object does not match expected content type'
+        )
       }
+      const metadataChecksumSha1 = getObjectMetadataChecksumSha1(
+        object.Metadata
+      )
       if (
         object.ChecksumSHA1 &&
         upload.checksumSha1Base64 &&
         object.ChecksumSHA1 !== upload.checksumSha1Base64
       ) {
-        throw new Error('Uploaded object does not match expected checksum')
+        throw new PresignedUploadValidationError(
+          'Uploaded object does not match expected checksum'
+        )
+      }
+      if (
+        !object.ChecksumSHA1 &&
+        upload.checksumSha1 &&
+        metadataChecksumSha1 !== upload.checksumSha1
+      ) {
+        throw new PresignedUploadValidationError(
+          metadataChecksumSha1
+            ? 'Uploaded object does not match expected checksum'
+            : 'Uploaded object does not include expected checksum'
+        )
       }
 
       const verifiedMedia = await this._database.markMediaUploadVerified({
@@ -298,8 +354,10 @@ export class S3FileStorage implements MediaStorage {
       }
       return this._getSaveFileOutput(verifiedMedia)
     } catch (error) {
-      await this.deleteFile(media.original.path).catch(() => false)
-      await this._database.deleteMedia({ mediaId }).catch(() => false)
+      if (error instanceof PresignedUploadValidationError) {
+        await this.deleteFile(media.original.path).catch(() => false)
+        await this._database.deleteMedia({ mediaId }).catch(() => false)
+      }
       throw error
     }
   }

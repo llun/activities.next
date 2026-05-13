@@ -38,6 +38,18 @@ import {
 const normalizeContentType = (contentType?: string) =>
   contentType?.split(';')[0]?.trim().toLowerCase() ?? ''
 
+const isS3NotFoundError = (error: unknown) => {
+  const nodeError = error as {
+    name?: string
+    $metadata?: { httpStatusCode?: number }
+  }
+  return (
+    nodeError.name === 'NoSuchKey' ||
+    nodeError.name === 'NotFound' ||
+    nodeError.$metadata?.httpStatusCode === 404
+  )
+}
+
 export class S3FitnessStorage implements FitnessStorage {
   private static _instance: FitnessStorage
   private _config: FitnessStorageS3Config
@@ -291,13 +303,23 @@ export class S3FitnessStorage implements FitnessStorage {
 
     const { bucket, prefix } = this._config
     const key = prefix ? `${prefix}${fitnessFile.path}` : fitnessFile.path
-    const object = await this._client.send(
-      new HeadObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        ChecksumMode: 'ENABLED'
+    const object = await this._client
+      .send(
+        new HeadObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          ChecksumMode: 'ENABLED'
+        })
+      )
+      .catch((error) => {
+        if (isS3NotFoundError(error)) {
+          return null
+        }
+        throw error
       })
-    )
+    if (!object) {
+      return false
+    }
     const contentLength = object.ContentLength
     const contentType = normalizeContentType(object.ContentType)
     const expectedContentType = normalizeContentType(fitnessFile.mimeType)

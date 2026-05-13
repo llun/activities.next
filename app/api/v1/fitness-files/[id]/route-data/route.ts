@@ -21,6 +21,7 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -58,6 +59,7 @@ interface FitnessRouteSegment {
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const MAX_ROUTE_SAMPLE_POINTS = 1_500
 const PUBLIC_ROUTE_DATA_CACHE_TTL_MS = 60_000
+const PUBLIC_ROUTE_DATA_SECURITY_MAP_MAX_ENTRIES = 500
 const PUBLIC_ROUTE_DATA_RATE_LIMIT_WINDOW_MS = 60_000
 const PUBLIC_ROUTE_DATA_RATE_LIMIT_MAX_REQUESTS = 60
 
@@ -82,22 +84,83 @@ export const resetFitnessRouteDataSecurityStateForTests = () => {
   routeDataRateLimit.clear()
 }
 
+export const getFitnessRouteDataSecurityStateForTests = () => ({
+  publicRouteDataCacheSize: publicRouteDataCache.size,
+  routeDataRateLimitSize: routeDataRateLimit.size
+})
+
+const pruneExpiredRouteDataSecurityEntries = (now: number) => {
+  for (const [key, cached] of publicRouteDataCache) {
+    if (cached.expiresAt <= now) {
+      publicRouteDataCache.delete(key)
+    }
+  }
+
+  for (const [key, rateLimit] of routeDataRateLimit) {
+    if (rateLimit.resetAt <= now) {
+      routeDataRateLimit.delete(key)
+    }
+  }
+}
+
+const pruneOldestMapEntries = <T>(map: Map<string, T>, maxEntries: number) => {
+  while (map.size > maxEntries) {
+    const oldestKey = map.keys().next().value
+    if (typeof oldestKey !== 'string') {
+      return
+    }
+    map.delete(oldestKey)
+  }
+}
+
+const setBoundedMapEntry = <T>(map: Map<string, T>, key: string, value: T) => {
+  if (map.has(key)) {
+    map.delete(key)
+  }
+  map.set(key, value)
+  pruneOldestMapEntries(map, PUBLIC_ROUTE_DATA_SECURITY_MAP_MAX_ENTRIES)
+}
+
+export const seedFitnessRouteDataSecurityStateForTests = ({
+  cacheKey,
+  rateLimitKey
+}: {
+  cacheKey: string
+  rateLimitKey: string
+}) => {
+  setBoundedMapEntry(publicRouteDataCache, cacheKey, {
+    expiresAt: Date.now() + PUBLIC_ROUTE_DATA_CACHE_TTL_MS,
+    payload: {
+      samples: [],
+      segments: [],
+      totalDurationSeconds: 0
+    }
+  })
+  setBoundedMapEntry(routeDataRateLimit, rateLimitKey, {
+    resetAt: Date.now() + PUBLIC_ROUTE_DATA_RATE_LIMIT_WINDOW_MS,
+    count: 1
+  })
+}
+
 const getClientRateLimitKey = (req: NextRequest) => {
+  const requestIp = (req as NextRequest & { ip?: string }).ip
   const forwardedFor = req.headers.get('x-forwarded-for')
-  const firstForwarded = forwardedFor?.split(',')[0]?.trim()
+  const rightmostForwarded = forwardedFor?.split(',').at(-1)?.trim()
   return (
-    firstForwarded ||
-    req.headers.get('x-real-ip') ||
+    requestIp ||
     req.headers.get('cf-connecting-ip') ||
+    req.headers.get('x-real-ip') ||
+    rightmostForwarded ||
     'anonymous'
   )
 }
 
 const consumePublicRouteDataRateLimit = (key: string) => {
   const now = Date.now()
+  pruneExpiredRouteDataSecurityEntries(now)
   const existing = routeDataRateLimit.get(key)
   if (!existing || existing.resetAt <= now) {
-    routeDataRateLimit.set(key, {
+    setBoundedMapEntry(routeDataRateLimit, key, {
       resetAt: now + PUBLIC_ROUTE_DATA_RATE_LIMIT_WINDOW_MS,
       count: 1
     })
@@ -107,6 +170,9 @@ const consumePublicRouteDataRateLimit = (key: string) => {
   existing.count += 1
   return existing.count <= PUBLIC_ROUTE_DATA_RATE_LIMIT_MAX_REQUESTS
 }
+
+const getPrivacyLocationsCacheKeyPart = (privacyLocations: unknown) =>
+  getHashFromString(JSON.stringify(privacyLocations ?? []))
 
 const getPublicRouteDataCacheKey = ({
   fileMetadata,
@@ -130,7 +196,7 @@ const getPublicRouteDataCacheKey = ({
     privacySettings?.privacyHomeLatitude ?? '',
     privacySettings?.privacyHomeLongitude ?? '',
     privacySettings?.privacyHideRadiusMeters ?? '',
-    JSON.stringify(privacySettings?.privacyLocations ?? [])
+    getPrivacyLocationsCacheKeyPart(privacySettings?.privacyLocations)
   ].join(':')
 
 const getFetchResponseErrorDetail = async (
@@ -389,6 +455,7 @@ export const GET = traceApiRoute(
       if (publicCacheKey) {
         const cached = publicRouteDataCache.get(publicCacheKey)
         if (cached && cached.expiresAt > Date.now()) {
+          setBoundedMapEntry(publicRouteDataCache, publicCacheKey, cached)
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
@@ -398,6 +465,9 @@ export const GET = traceApiRoute(
               ['X-Route-Data-Cache', 'HIT']
             ]
           })
+        }
+        if (cached) {
+          publicRouteDataCache.delete(publicCacheKey)
         }
       }
 
@@ -457,7 +527,7 @@ export const GET = traceApiRoute(
       }
 
       if (publicCacheKey) {
-        publicRouteDataCache.set(publicCacheKey, {
+        setBoundedMapEntry(publicRouteDataCache, publicCacheKey, {
           expiresAt: Date.now() + PUBLIC_ROUTE_DATA_CACHE_TTL_MS,
           payload
         })

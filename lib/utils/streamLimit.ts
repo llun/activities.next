@@ -45,6 +45,43 @@ export const assertResponseContentLengthWithinLimit = (
   })
 }
 
+const getSafeResponseContentLength = (
+  response: Pick<Response, 'headers'>,
+  maxBytes: number,
+  label: string
+): number | null => {
+  const contentLength = response.headers.get('content-length')
+  if (!contentLength) {
+    return null
+  }
+
+  const parsedLength = Number(contentLength)
+  if (!Number.isFinite(parsedLength) || parsedLength < 0) {
+    return null
+  }
+
+  assertByteLengthWithinLimit({
+    byteLength: parsedLength,
+    maxBytes,
+    label
+  })
+  return parsedLength
+}
+
+const bufferToArrayBuffer = (buffer: Buffer): ArrayBuffer => {
+  if (
+    buffer.byteOffset === 0 &&
+    buffer.byteLength === buffer.buffer.byteLength
+  ) {
+    return buffer.buffer as ArrayBuffer
+  }
+
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  ) as ArrayBuffer
+}
+
 const toBuffer = (chunk: unknown): Buffer => {
   if (Buffer.isBuffer(chunk)) {
     return chunk
@@ -116,19 +153,24 @@ export const readResponseArrayBufferWithLimit = async (
   maxBytes = SAFE_DOWNLOAD_MAX_BYTES,
   label = 'Response body'
 ): Promise<ArrayBuffer> => {
-  assertResponseContentLengthWithinLimit(response, maxBytes, label)
+  const safeContentLength = getSafeResponseContentLength(
+    response,
+    maxBytes,
+    label
+  )
 
   if (!response.body || typeof response.body.getReader !== 'function') {
-    const buffer = Buffer.from(await response.arrayBuffer())
+    if (safeContentLength === null) {
+      throw new Error(`Unable to safely read ${label} without streaming`)
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
     assertByteLengthWithinLimit({
-      byteLength: buffer.byteLength,
+      byteLength: arrayBuffer.byteLength,
       maxBytes,
       label
     })
-    return buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength
-    )
+    return arrayBuffer
   }
 
   const reader = response.body.getReader()
@@ -154,10 +196,7 @@ export const readResponseArrayBufferWithLimit = async (
   }
 
   const buffer = Buffer.concat(chunks, totalBytes)
-  return buffer.buffer.slice(
-    buffer.byteOffset,
-    buffer.byteOffset + buffer.byteLength
-  )
+  return bufferToArrayBuffer(buffer)
 }
 
 export class ByteLimitTransform extends Transform {

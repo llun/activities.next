@@ -281,6 +281,61 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
   })
 
+  it('uses the trusted rightmost forwarded address for anonymous rate limiting', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-rightmost-rate-limit`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-rightmost-rate-limit`,
+      actorId: ACTOR1_ID,
+      text: 'Public route data rightmost rate limit',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-rightmost-rate-limit.fit',
+      fileName: 'public-route-data-rightmost-rate-limit.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    let response: Response | null = null
+    for (let index = 0; index < 61; index += 1) {
+      response = await GET(
+        createRequest({
+          'x-forwarded-for': `198.51.100.${index}, 203.0.113.10`
+        }),
+        {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        }
+      )
+    }
+
+    expect(response?.status).toBe(429)
+  })
+
+  it('keeps route-data security maps bounded', () => {
+    routeModule.resetFitnessRouteDataSecurityStateForTests?.()
+
+    for (let index = 0; index < 1_100; index += 1) {
+      routeModule.seedFitnessRouteDataSecurityStateForTests?.({
+        cacheKey: `cache-${index}`,
+        rateLimitKey: `rate-${index}`
+      })
+    }
+
+    expect(
+      routeModule.getFitnessRouteDataSecurityStateForTests?.()
+    ).toMatchObject({
+      publicRouteDataCacheSize: 500,
+      routeDataRateLimitSize: 500
+    })
+  })
+
   it('returns not found for private status route data without a session', async () => {
     mockGetServerSession.mockResolvedValue(null)
 
