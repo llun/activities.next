@@ -42,14 +42,37 @@ const setBoundedCacheValue = <T>(
   cache.set(key, value)
 }
 
-const getExplicitPort = (value: string): string => {
+const getAuthority = (value: string): string => {
   const withoutScheme = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
-  const authority = withoutScheme.split(/[/?#]/)[0]
+  return withoutScheme.split(/[/?#]/)[0]
+}
+
+const getExplicitPort = (value: string): string => {
+  const authority = getAuthority(value)
   const bracketedPort = authority.match(/^\[[^\]]+\]:(\d+)$/)
   if (bracketedPort) return bracketedPort[1]
 
-  const port = authority.match(/:(\d+)$/)
+  if (authority.startsWith('[') || authority.split(':').length > 2) return ''
+
+  const port = authority.match(/^[^:]+:(\d+)$/)
   return port ? port[1] : ''
+}
+
+const isSocketStyleHost = (value: string) =>
+  value.startsWith('/') ||
+  /^[a-z][a-z0-9+.-]*:(?!\/\/|\d+$)/i.test(value) ||
+  /^[a-z]:\\/i.test(value)
+
+const isLocalHostname = (hostname: string) => {
+  const normalizedHostname = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  return (
+    normalizedHostname === 'localhost' ||
+    normalizedHostname.endsWith('.localhost') ||
+    normalizedHostname === '::1' ||
+    normalizedHostname === '0:0:0:0:0:0:0:1' ||
+    normalizedHostname === '127.0.0.1' ||
+    normalizedHostname.startsWith('127.')
+  )
 }
 
 export const normalizeHost = (
@@ -59,6 +82,8 @@ export const normalizeHost = (
   if (!firstHost || firstHost.startsWith('0.0.0.0')) return null
   const hasWildcard = firstHost.startsWith('*.')
   const hostToParse = hasWildcard ? firstHost.slice(2) : firstHost
+  if (isSocketStyleHost(hostToParse)) return null
+
   const explicitPort = getExplicitPort(hostToParse)
 
   try {
@@ -68,6 +93,8 @@ export const normalizeHost = (
         : `https://${hostToParse}`
     )
     const hostname = url.hostname.replace(/\.$/, '')
+    if (isLocalHostname(hostname)) return null
+
     const normalizedHost = explicitPort
       ? `${hostname}:${explicitPort}`
       : hostname
@@ -180,6 +207,12 @@ const getHeaderValue = (headers: HostHeaders, name: string) => {
     string,
     string | string[] | undefined | null
   >
+  const directValue = getFirstHeaderValue(recordHeaders[name])
+  if (directValue !== undefined) return directValue
+
+  const lowercaseValue = getFirstHeaderValue(recordHeaders[normalizedName])
+  if (lowercaseValue !== undefined) return lowercaseValue
+
   const matchingKey = Object.keys(recordHeaders).find(
     (key) => key.toLowerCase() === normalizedName
   )

@@ -1,8 +1,10 @@
 import {
+  HostHeaders,
   getHostCacheSizesForTests,
   isHostTrustedByRules,
   normalizeHost,
-  resetHostCachesForTests
+  resetHostCachesForTests,
+  selectHeaderHost
 } from './host'
 
 describe('isHostTrustedByRules', () => {
@@ -61,6 +63,50 @@ describe('isHostTrustedByRules', () => {
         '*.edge.example.com:8443'
       ])
     ).toBeTrue()
+  })
+
+  it('normalizes bracketed IPv6 hosts without treating address segments as ports', () => {
+    expect(normalizeHost('[2001:db8::1]')).toBe('[2001:db8::1]')
+    expect(isHostTrustedByRules('[2001:db8::1]', ['[2001:db8::1]'])).toBeTrue()
+  })
+
+  it('normalizes bracketed IPv6 hosts with explicit ports', () => {
+    expect(normalizeHost('[2001:db8::1]:8443')).toBe('[2001:db8::1]:8443')
+    expect(
+      isHostTrustedByRules('[2001:db8::1]:8443', ['[2001:db8::1]:8443'])
+    ).toBeTrue()
+    expect(
+      isHostTrustedByRules('[2001:db8::1]', ['[2001:db8::1]:8443'])
+    ).toBeFalse()
+  })
+
+  it('rejects local and socket-style host values', () => {
+    expect(normalizeHost('localhost')).toBeNull()
+    expect(normalizeHost('localhost:3000')).toBeNull()
+    expect(normalizeHost('::1')).toBeNull()
+    expect(normalizeHost('[::1]:3000')).toBeNull()
+    expect(normalizeHost('/var/run/activities.sock')).toBeNull()
+    expect(normalizeHost('unix:/var/run/activities.sock')).toBeNull()
+  })
+
+  it('uses direct record header lookups before scanning keys', () => {
+    const headers = new Proxy(
+      {
+        'x-activity-next-host': 'test-custom.llun.dev'
+      },
+      {
+        ownKeys: () => {
+          throw new Error('unexpected key scan')
+        }
+      }
+    ) as HostHeaders
+
+    expect(
+      selectHeaderHost(headers, {
+        host: 'test.llun.dev',
+        allowActorDomains: ['test-custom.llun.dev']
+      })
+    ).toBe('test-custom.llun.dev')
   })
 
   it('bounds host parsing caches', () => {
