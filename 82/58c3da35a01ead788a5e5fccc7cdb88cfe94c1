@@ -1,0 +1,33 @@
+app/api/v1/accounts/password/route.ts
+  s_ff363e848fbc15::t_c27c8a85ee9c61 40,42-45,47-53,88
+app/api/v1/settings/fitness/general/route.test.ts
+  s_ff363e848fbc15::t_7dcc89a0f1ff42 553-578
+app/api/v1/accounts/email/route.test.ts
+  s_ff363e848fbc15::t_7dcc89a0f1ff42 106,117-120
+app/api/v1/accounts/email/verify/route.ts
+  s_ff363e848fbc15::t_c27c8a85ee9c61 29,31-34,36-40,42,68
+app/api/v1/accounts/email/route.ts
+  s_ff363e848fbc15::t_c27c8a85ee9c61 32,34-37,39-43,45,123
+app/api/v1/accounts/email/verify/route.test.ts
+  s_ff363e848fbc15::t_7dcc89a0f1ff42 98,112-115
+app/api/v1/accounts/password/route.test.ts
+  s_ff363e848fbc15::t_7dcc89a0f1ff42 8-17,33,71,85-87,107-151
+app/api/v1/settings/fitness/general/route.ts
+  s_ff363e848fbc15::t_c27c8a85ee9c61 220,222-225,227-240,242,275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "8258c3da35a01ead788a5e5fccc7cdb88cfe94c1",
+  "prompts": {},
+  "sessions": {
+    "s_ff363e848fbc15": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20bf-942f-7060-8803-42f725ab9327",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

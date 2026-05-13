@@ -1,0 +1,59 @@
+app/api/v1/settings/fitness/general/route.ts
+  s_8f8c7653879d27::t_bda8b6335f1e82 69-70,72-74
+app/api/v1/notifications/route.test.ts
+  s_a690eb141b7cd1::t_a44606b44281c9 55-75
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_6ed6296c9db3d0::t_c9b343283fbfaf 1-101
+app/api/v1/notifications/route.ts
+  s_a690eb141b7cd1::t_24e34c62c9a6af 26,66,69,72-73,76,85
+  s_a690eb141b7cd1::t_df04535164fa01 70-71,75,78-83
+app/api/v1/apps/createApplication.ts
+  s_a690eb141b7cd1::t_24e34c62c9a6af 65-68,70
+app/api/v1/apps/createApplication.test.ts
+  s_a690eb141b7cd1::t_a44606b44281c9 92-107
+app/api/v1/accounts/password/reset/request/route.ts
+  s_8f8c7653879d27::t_5a08fcf0bc1090 22-29,47,59,83-95,99-102
+app/api/v1/settings/fitness/general/route.test.ts
+  s_6ed6296c9db3d0::t_c9b343283fbfaf 411-453
+app/api/v1/webhooks/strava/[webhookToken]/route.test.ts
+  s_a690eb141b7cd1::t_df04535164fa01 159
+  s_a690eb141b7cd1::t_a44606b44281c9 22-30,152-158,160-195
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  s_a690eb141b7cd1::t_24e34c62c9a6af 10,164,167-175,186
+app/api/v1/accounts/email/route.test.ts
+  s_6ed6296c9db3d0::t_c9b343283fbfaf 1-118
+app/api/v1/accounts/email/route.ts
+  s_8f8c7653879d27::t_064f1624174351 33-39,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6b383474b29dada015b36dfad8470ba289cf8915",
+  "prompts": {},
+  "sessions": {
+    "s_6ed6296c9db3d0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ffa-41d3-78a3-aae6-5c5ba19a59ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a690eb141b7cd1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1fc9-df57-7ef2-bec9-743e6b6605be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

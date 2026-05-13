@@ -1,0 +1,63 @@
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 10-14,168-173,183
+app/api/v1/settings/fitness/strava/archive/presigned/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 65-69
+app/api/v1/accounts/[id]/media/route.test.ts
+  s_6bcbd44692ab8d::t_67a8e3c02ac449 1-37
+app/api/v1/notifications/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 10-15,79-87,98
+app/api/v2/media/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 19-29
+app/api/v1/settings/fitness/general/route.test.ts
+  s_6bcbd44692ab8d::t_67a8e3c02ac449 450-471
+app/api/v1/accounts/email/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 7-11,34-38,116
+app/api/v1/accounts/email/verify/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 4-8,31-35,61
+app/api/v1/accounts/[id]/media/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 11,68-76,78
+app/api/v1/settings/fitness/strava/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 13-17,111-115,160
+app/api/v1/accounts/like/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 33-43,64-74
+  s_6bcbd44692ab8d::t_94103ce86d0b44 12
+app/api/v1/settings/fitness/strava/route.test.ts
+  s_6bcbd44692ab8d::t_9aef5c84da5c3c 257-258,276-277,296-297
+app/api/v1/accounts/like/route.test.ts
+  s_6bcbd44692ab8d::t_67a8e3c02ac449 1-85
+app/api/v1/notifications/route.test.ts
+  s_6bcbd44692ab8d::t_ae1bb1bba87e1f 21
+  s_6bcbd44692ab8d::t_67a8e3c02ac449 1-20,22-55
+app/api/v1/medias/presigned/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 23-32,36
+app/api/v1/apps/createApplication.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 7,38-42,65-72,79,88,91,118,126-127,131
+app/api/v1/accounts/password/reset/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 8-13,40-49,87
+app/api/v1/accounts/profile/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 9,34-37,48
+app/api/v1/settings/fitness/general/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 10-14,64,66-68,74-77,80-83,224-229,270
+app/api/v1/accounts/repost/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 30-40,67-77
+app/api/v1/accounts/password/reset/request/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 11-16,42-51,132
+app/api/v1/accounts/password/route.ts
+  s_6bcbd44692ab8d::t_8375ef5e8f64cc 5-9,42-46,81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "dafd6503ad1436fab335c3d87a44cdbcae4fd73d",
+  "prompts": {},
+  "sessions": {
+    "s_6bcbd44692ab8d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e03-ff04-7e70-98aa-c9894f9503b1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

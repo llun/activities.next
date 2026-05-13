@@ -1,0 +1,19 @@
+app/api/v1/settings/fitness/strava/route.ts
+  s_8d4edf6708e797::t_b32cf3b6a21bd0 113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d53530b38cb2bffe363fe288bc3644f4a15f913b",
+  "prompts": {},
+  "sessions": {
+    "s_8d4edf6708e797": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20f3-715e-7a32-90ff-76f2cacfc361",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

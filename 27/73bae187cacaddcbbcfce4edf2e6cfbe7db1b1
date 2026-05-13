@@ -1,0 +1,39 @@
+app/api/v1/accounts/email/verify/route.ts
+  s_18a3aa811ea013::t_e1a0ae8fcf1ef2 68
+app/api/v1/apps/createApplication.test.ts
+  s_18a3aa811ea013::t_b8a258dac70e93 123-124,129,131-136
+app/api/v1/apps/createApplication.ts
+  s_18a3aa811ea013::t_e1a0ae8fcf1ef2 66-67
+  s_18a3aa811ea013::t_1e8a7845465a2e 65
+app/api/v1/accounts/email/route.test.ts
+  s_18a3aa811ea013::t_b8a258dac70e93 106,108-118,120-121
+  s_18a3aa811ea013::t_e1a0ae8fcf1ef2 107,119
+app/api/v1/accounts/password/route.ts
+  s_18a3aa811ea013::t_e1a0ae8fcf1ef2 82
+app/api/v1/settings/fitness/general/route.ts
+  s_18a3aa811ea013::t_e1a0ae8fcf1ef2 269
+app/api/v1/settings/fitness/general/route.test.ts
+  s_18a3aa811ea013::t_b8a258dac70e93 535-552
+app/api/v1/accounts/email/route.ts
+  s_18a3aa811ea013::t_e1a0ae8fcf1ef2 123
+app/api/v1/accounts/password/route.test.ts
+  s_18a3aa811ea013::t_b8a258dac70e93 1-93
+app/api/v1/accounts/email/verify/route.test.ts
+  s_18a3aa811ea013::t_b8a258dac70e93 97-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2773bae187cacaddcbbcfce4edf2e6cfbe7db1b1",
+  "prompts": {},
+  "sessions": {
+    "s_18a3aa811ea013": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2098-8939-7653-94e1-e6e51d21c202",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
