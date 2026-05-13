@@ -1,8 +1,19 @@
+import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
+
 type HostRuleConfig = {
   host?: string | null
   allowActorDomains?: readonly string[] | null
   trustedHosts?: readonly string[] | null
 }
+
+export type HostHeaders =
+  | Headers
+  | Record<string, string | string[] | undefined | null>
+  | undefined
+  | null
+
+const MAX_HOST_CACHE_ENTRIES = 1024
+const MAX_HOST_RULES_CACHE_ENTRIES = 256
 
 const normalizedRulesCache = new Map<string, string[]>()
 
@@ -13,6 +24,22 @@ type HostParts = {
 }
 
 const hostPartsCache = new Map<string, HostParts>()
+
+const setBoundedCacheValue = <T>(
+  cache: Map<string, T>,
+  key: string,
+  value: T,
+  maxEntries: number
+) => {
+  if (cache.has(key)) {
+    cache.delete(key)
+  } else if (cache.size >= maxEntries) {
+    const oldestKey = cache.keys().next().value
+    if (oldestKey !== undefined) cache.delete(oldestKey)
+  }
+
+  cache.set(key, value)
+}
 
 const getExplicitPort = (value: string): string => {
   const withoutScheme = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
@@ -63,7 +90,12 @@ const getHostParts = (normalizedHost: string) => {
     hostname: url.hostname,
     port: explicitPort
   }
-  hostPartsCache.set(normalizedHost, hostParts)
+  setBoundedCacheValue(
+    hostPartsCache,
+    normalizedHost,
+    hostParts,
+    MAX_HOST_CACHE_ENTRIES
+  )
   return hostParts
 }
 
@@ -76,7 +108,12 @@ export const normalizeHostRules = (rules: readonly string[]) => {
     const normalizedRule = normalizeHost(rule)
     return normalizedRule ? [normalizedRule] : []
   })
-  normalizedRulesCache.set(cacheKey, normalizedRules)
+  setBoundedCacheValue(
+    normalizedRulesCache,
+    cacheKey,
+    normalizedRules,
+    MAX_HOST_RULES_CACHE_ENTRIES
+  )
   return normalizedRules
 }
 
@@ -119,3 +156,59 @@ export const isHostTrustedByRules = (
     hostMatchesRule(normalizedHost, rule)
   )
 }
+
+const getFirstHeaderValue = (value: string | string[] | undefined | null) => {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
+const getHeaderValue = (headers: HostHeaders, name: string) => {
+  if (!headers) return undefined
+
+  if (typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(name)
+  }
+
+  const normalizedName = name.toLowerCase()
+  const recordHeaders = headers as Record<
+    string,
+    string | string[] | undefined | null
+  >
+  const matchingKey = Object.keys(recordHeaders).find(
+    (key) => key.toLowerCase() === normalizedName
+  )
+  return matchingKey
+    ? getFirstHeaderValue(recordHeaders[matchingKey])
+    : undefined
+}
+
+export const selectHeaderHost = (
+  headers: HostHeaders,
+  config: HostRuleConfig
+): string => {
+  const configuredHost = getConfiguredHost(config.host)
+
+  for (const headerName of [ACTIVITIES_HOST, FORWARDED_HOST, 'host']) {
+    const headerHost = getHeaderValue(headers, headerName)
+    if (!headerHost) continue
+
+    const normalizedHost = normalizeHost(headerHost)
+    if (!normalizedHost) continue
+
+    return isHostTrustedByRules(normalizedHost, getTrustedHostRules(config))
+      ? normalizedHost
+      : configuredHost
+  }
+
+  return configuredHost
+}
+
+export const resetHostCachesForTests = () => {
+  normalizedRulesCache.clear()
+  hostPartsCache.clear()
+}
+
+export const getHostCacheSizesForTests = () => ({
+  normalizedRules: normalizedRulesCache.size,
+  hostParts: hostPartsCache.size
+})

@@ -1,6 +1,40 @@
+import fs from 'fs'
 import { NextConfig } from 'next'
+import path from 'path'
+
+const getProxyHostConfigEnv = () => {
+  try {
+    const parsed = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+    )
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+
+    const fileConfig = parsed as {
+      host?: unknown
+      allowActorDomains?: unknown
+      trustedHosts?: unknown
+    }
+
+    return {
+      ACTIVITIES_PROXY_HOST_CONFIG: JSON.stringify({
+        host: typeof fileConfig.host === 'string' ? fileConfig.host : '',
+        allowActorDomains: Array.isArray(fileConfig.allowActorDomains)
+          ? fileConfig.allowActorDomains
+          : [],
+        trustedHosts: Array.isArray(fileConfig.trustedHosts)
+          ? fileConfig.trustedHosts
+          : []
+      })
+    }
+  } catch {
+    return {}
+  }
+}
 
 const nextConfig: NextConfig = {
+  env: getProxyHostConfigEnv(),
   allowedDevOrigins: [process.env.ACTIVITIES_HOST ?? ''],
   reactStrictMode: true,
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,

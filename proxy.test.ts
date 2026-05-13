@@ -1,6 +1,4 @@
-import fs from 'fs'
 import { NextRequest } from 'next/server'
-import path from 'path'
 
 import { resetHostConfigCacheForTests } from '@/lib/config/host'
 
@@ -9,12 +7,14 @@ import { proxy } from './proxy'
 describe('proxy', () => {
   const previousActivitiesHost = process.env.ACTIVITIES_HOST
   const previousAllowActorDomains = process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
+  const previousProxyHostConfig = process.env.ACTIVITIES_PROXY_HOST_CONFIG
   const previousTrustedHosts = process.env.ACTIVITIES_TRUSTED_HOSTS
 
   beforeEach(() => {
     resetHostConfigCacheForTests()
     process.env.ACTIVITIES_HOST = 'public.example.com'
     delete process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
+    delete process.env.ACTIVITIES_PROXY_HOST_CONFIG
     delete process.env.ACTIVITIES_TRUSTED_HOSTS
   })
 
@@ -33,6 +33,12 @@ describe('proxy', () => {
       delete process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
     } else {
       process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS = previousAllowActorDomains
+    }
+
+    if (previousProxyHostConfig === undefined) {
+      delete process.env.ACTIVITIES_PROXY_HOST_CONFIG
+    } else {
+      process.env.ACTIVITIES_PROXY_HOST_CONFIG = previousProxyHostConfig
     }
 
     if (previousTrustedHosts === undefined) {
@@ -98,39 +104,47 @@ describe('proxy', () => {
     )
   })
 
-  it('keeps using the environment host when config.json has no host', async () => {
-    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
-      'edge-public.example.com'
-    ])
-    const configPath = path.resolve(process.cwd(), 'config.json')
-    const previousConfig = fs.existsSync(configPath)
-      ? fs.readFileSync(configPath, 'utf-8')
-      : null
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify({ trustedHosts: ['edge-public.example.com'] })
-    )
+  it('uses injected full app host config for edge proxy host trust', async () => {
+    process.env.ACTIVITIES_HOST = 'env-public.example.com'
+    process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
+      host: 'config-public.example.com',
+      trustedHosts: ['edge-public.example.com']
+    })
 
-    try {
-      const request = new NextRequest('https://internal.example.com/@alice', {
-        method: 'GET',
-        headers: {
-          host: 'internal.example.com',
-          'x-forwarded-host': 'evil.example.com'
-        }
-      })
-
-      const response = await proxy(request)
-
-      expect(response?.headers.get('x-middleware-rewrite')).toBe(
-        'https://internal.example.com/@alice@public.example.com'
-      )
-    } finally {
-      if (previousConfig === null) {
-        fs.unlinkSync(configPath)
-      } else {
-        fs.writeFileSync(configPath, previousConfig)
+    const request = new NextRequest('https://internal.example.com/@alice', {
+      method: 'GET',
+      headers: {
+        host: 'internal.example.com',
+        'x-forwarded-host': 'edge-public.example.com'
       }
-    }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://internal.example.com/@alice@edge-public.example.com'
+    )
+  })
+
+  it('falls back to injected full app host config when headers are untrusted', async () => {
+    process.env.ACTIVITIES_HOST = 'env-public.example.com'
+    process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
+      host: 'config-public.example.com',
+      trustedHosts: ['edge-public.example.com']
+    })
+
+    const request = new NextRequest('https://internal.example.com/@alice', {
+      method: 'GET',
+      headers: {
+        host: 'internal.example.com',
+        'x-forwarded-host': 'evil.example.com'
+      }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://internal.example.com/@alice@config-public.example.com'
+    )
   })
 })

@@ -9,19 +9,56 @@ type EnvironmentListOptions = {
 }
 
 let cachedHostConfig: HostConfig | null = null
+let cachedProxyHostConfig: HostConfig | null = null
 
-const toStringList = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter(Boolean).map(String) : []
+const PROXY_HOST_CONFIG = 'ACTIVITIES_PROXY_HOST_CONFIG'
+
+const toStringList = (
+  value: unknown,
+  key: string,
+  { onInvalidList = 'empty' }: EnvironmentListOptions = {}
+): string[] => {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String)
+
+  if (onInvalidList === 'throw') {
+    throw new Error(`${key} must be a JSON array`)
+  }
+
+  return []
+}
 
 const getEnvironmentList = (
   key: string,
   { onInvalidList = 'empty' }: EnvironmentListOptions = {}
 ): string[] => {
   try {
-    return toStringList(JSON.parse(process.env[key] || '[]'))
+    return toStringList(JSON.parse(process.env[key] || '[]'), key, {
+      onInvalidList
+    })
   } catch (error) {
     if (onInvalidList === 'throw') throw error
     return []
+  }
+}
+
+const getInjectedProxyHostConfig = (): HostConfig | null => {
+  try {
+    const parsed = JSON.parse(process.env[PROXY_HOST_CONFIG] || 'null')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+
+    const config = parsed as Partial<HostConfig>
+    return {
+      host: typeof config.host === 'string' ? config.host : '',
+      allowActorDomains: toStringList(
+        config.allowActorDomains,
+        'allowActorDomains'
+      ),
+      trustedHosts: toStringList(config.trustedHosts, 'trustedHosts')
+    }
+  } catch {
+    return null
   }
 }
 
@@ -43,6 +80,15 @@ export const getHostConfig = (): HostConfig => {
   return cachedHostConfig
 }
 
+export const getProxyHostConfig = (): HostConfig => {
+  if (cachedProxyHostConfig) return cachedProxyHostConfig
+
+  cachedProxyHostConfig =
+    getInjectedProxyHostConfig() ?? getHostConfigFromEnvironment()
+  return cachedProxyHostConfig
+}
+
 export const resetHostConfigCacheForTests = () => {
   cachedHostConfig = null
+  cachedProxyHostConfig = null
 }

@@ -1,6 +1,15 @@
-import { isHostTrustedByRules, normalizeHost } from './host'
+import {
+  getHostCacheSizesForTests,
+  isHostTrustedByRules,
+  normalizeHost,
+  resetHostCachesForTests
+} from './host'
 
 describe('isHostTrustedByRules', () => {
+  afterEach(() => {
+    resetHostCachesForTests()
+  })
+
   it('matches a rule without a port only when the host has no non-default port', () => {
     expect(
       isHostTrustedByRules('edge.example.com', ['edge.example.com'])
@@ -49,5 +58,17 @@ describe('isHostTrustedByRules', () => {
         '*.edge.example.com:8443'
       ])
     ).toBeTrue()
+  })
+
+  it('bounds host parsing caches', () => {
+    for (let index = 0; index < 1200; index += 1) {
+      expect(
+        isHostTrustedByRules(`tenant-${index}.edge.example.com`, [
+          '*.edge.example.com'
+        ])
+      ).toBeTrue()
+    }
+
+    expect(getHostCacheSizesForTests().hostParts).toBeLessThanOrEqual(1024)
   })
 })

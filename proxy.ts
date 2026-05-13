@@ -1,48 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getHostConfig } from '@/lib/config/host'
-import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
+import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
-import {
-  getConfiguredHost,
-  getTrustedHostRules,
-  isHostTrustedByRules,
-  normalizeHost
-} from '@/lib/utils/host'
+import { selectHeaderHost } from '@/lib/utils/host'
 
 export const config = {
   matcher: ['/(@.*)']
 }
 
-const isTrustedHeaderHost = (
-  host: string | undefined | null,
-  config: ReturnType<typeof getHostConfig>
-) => isHostTrustedByRules(host, getTrustedHostRules(config))
-
 const proxyHeaderHost = (headers: Headers): string => {
-  const config = getHostConfig()
-  const configuredHost = getConfiguredHost(config.host)
-
-  const activityHost = headers.get(ACTIVITIES_HOST)
-  if (activityHost) {
-    return isTrustedHeaderHost(activityHost, config)
-      ? (normalizeHost(activityHost) as string)
-      : configuredHost
-  }
-
-  const forwardedHost = headers.get(FORWARDED_HOST)
-  if (forwardedHost) {
-    return isTrustedHeaderHost(forwardedHost, config)
-      ? (normalizeHost(forwardedHost) as string)
-      : configuredHost
-  }
-
-  const host = normalizeHost(headers.get('host'))
-  if (host) {
-    return isTrustedHeaderHost(host, config) ? host : configuredHost
-  }
-
-  return configuredHost
+  return selectHeaderHost(headers, getProxyHostConfig())
 }
 
 export async function proxy(request: NextRequest) {
