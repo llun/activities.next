@@ -26,20 +26,20 @@ export const POST = traceApiRoute(
       })
     }
 
+    let body: unknown
     try {
-      let body: unknown
-      try {
-        body = await req.json()
-      } catch (_error) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
-      }
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
-      const parsed = EmailVerifyRequest.safeParse(body)
-      if (!parsed.success) {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
-      }
-      const { emailChangeCode } = parsed.data
+    const parsed = EmailVerifyRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+    const { emailChangeCode } = parsed.data
 
+    try {
       const updatedAccount = await database.verifyEmailChange({
         accountId: currentActor.account.id,
         emailChangeCode
@@ -65,7 +65,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (_error) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

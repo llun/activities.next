@@ -217,23 +217,29 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const parsed = safeParseFitnessGeneralSettingsRequest(body)
-      if (!parsed.success) {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
-      }
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
-      const normalized = toSettingsPayload(parsed.data)
-      if ('error' in normalized) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: normalized.error },
-          responseStatusCode: 400
-        })
-      }
+    const parsed = safeParseFitnessGeneralSettingsRequest(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
 
+    const normalized = toSettingsPayload(parsed.data)
+    if ('error' in normalized) {
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: normalized.error },
+        responseStatusCode: 400
+      })
+    }
+
+    try {
       const existing = await database.getFitnessSettings({
         actorId: currentActor.id,
         serviceType: 'general'
@@ -266,7 +272,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (_error) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

@@ -95,7 +95,7 @@ describe('POST /api/v1/accounts/email/verify', () => {
     expect(mockDb.verifyEmailChange).not.toHaveBeenCalled()
   })
 
-  it('returns a bad request error when email verification processing fails', async () => {
+  it('returns an internal server error when email verification processing fails', async () => {
     mockDb.verifyEmailChange.mockRejectedValue(new Error('database failed'))
 
     const request = new NextRequest(
@@ -109,7 +109,9 @@ describe('POST /api/v1/accounts/email/verify', () => {
 
     const response = await POST(request, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ status: 'Bad Request' })
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      status: 'Internal Server Error'
+    })
   })
 })

@@ -29,20 +29,20 @@ export const POST = traceApiRoute(
       })
     }
 
+    let body: unknown
     try {
-      let body: unknown
-      try {
-        body = await req.json()
-      } catch (_error) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
-      }
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
-      const parsed = EmailChangeRequest.safeParse(body)
-      if (!parsed.success) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
-      }
-      const { newEmail } = parsed.data
+    const parsed = EmailChangeRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
+    const { newEmail } = parsed.data
 
+    try {
       // Check if email is already in use
       const existingAccount = await database.getAccountFromEmail({
         email: newEmail
@@ -120,7 +120,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (_error) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

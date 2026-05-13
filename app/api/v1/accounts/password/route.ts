@@ -37,14 +37,20 @@ export const POST = traceApiRoute(
       })
     }
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const parsed = PasswordChangeRequest.safeParse(body)
-      if (!parsed.success) {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
-      }
-      const { currentPassword, newPassword } = parsed.data
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
+    const parsed = PasswordChangeRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+    const { currentPassword, newPassword } = parsed.data
+
+    try {
       // Verify current password
       const isPasswordCorrect = await bcrypt.compare(
         currentPassword,
@@ -79,7 +85,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (_error) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

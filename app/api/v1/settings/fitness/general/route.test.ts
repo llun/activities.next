@@ -550,5 +550,31 @@ describe('Fitness General Settings API', () => {
       expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
       expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
     })
+
+    it('returns an internal server error when saving settings fails', async () => {
+      mockDb.createFitnessSettings.mockRejectedValue(
+        new Error('database failed')
+      )
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyHomeLatitude: 13.7563,
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({
+        status: 'Internal Server Error'
+      })
+      expect(mockDb.createFitnessSettings).toHaveBeenCalled()
+    })
   })
 })

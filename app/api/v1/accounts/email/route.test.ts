@@ -103,7 +103,7 @@ describe('POST /api/v1/accounts/email', () => {
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
   })
 
-  it('returns a bad request error when email change processing fails', async () => {
+  it('returns an internal server error when email change processing fails', async () => {
     mockDb.requestEmailChange.mockRejectedValue(new Error('database failed'))
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
@@ -114,8 +114,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const response = await POST(request, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ status: 'Bad Request' })
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      status: 'Internal Server Error'
+    })
     expect(mockDb.requestEmailChange).toHaveBeenCalled()
   })
 
