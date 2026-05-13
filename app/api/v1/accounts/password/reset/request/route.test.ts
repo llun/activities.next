@@ -52,8 +52,17 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     mockDb.requestPasswordReset.mockResolvedValue(true)
   })
 
-  it('returns uniform success and does not rotate reset code when email sending fails', async () => {
+  it('returns uniform success and restores the reset code when email sending fails', async () => {
     mockSendMail.mockRejectedValue(new Error('mail failed'))
+    const previousExpiresAt = Date.now() + 60_000
+    mockDb.getAccountFromEmail.mockResolvedValue({
+      id: 'account-1',
+      email: 'test@llun.test',
+      passwordResetCode: 'existing-reset-code',
+      passwordResetCodeExpiresAt: previousExpiresAt,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
 
     const request = new NextRequest(
       'http://llun.test/api/v1/accounts/password/reset/request',
@@ -73,7 +82,19 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       message:
         'If an account exists for that email, a password reset link has been sent.'
     })
-    expect(mockDb.requestPasswordReset).not.toHaveBeenCalled()
+    expect(mockDb.requestPasswordReset).toHaveBeenCalledTimes(2)
+    expect(mockDb.requestPasswordReset).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        email: 'test@llun.test',
+        passwordResetCode: expect.not.stringMatching('existing-reset-code')
+      })
+    )
+    expect(mockDb.requestPasswordReset).toHaveBeenNthCalledWith(2, {
+      email: 'test@llun.test',
+      passwordResetCode: 'existing-reset-code',
+      expiresAt: previousExpiresAt
+    })
   })
 
   it('returns uniform success for invalid request bodies', async () => {

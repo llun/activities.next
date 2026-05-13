@@ -61,6 +61,21 @@ export const POST = traceApiRoute(
 
         const passwordResetCode = crypto.randomBytes(32).toString('base64url')
         const passwordResetCodeHash = hashPasswordResetCode(passwordResetCode)
+        const previousPasswordResetCode = account.passwordResetCode ?? null
+        const previousPasswordResetCodeExpiresAt =
+          account.passwordResetCodeExpiresAt ?? null
+
+        const saved = await database.requestPasswordReset({
+          email,
+          passwordResetCode: passwordResetCodeHash
+        })
+        if (!saved) {
+          logger.error(
+            { email },
+            'Password reset code persistence failed for existing account'
+          )
+          return passwordResetSuccessResponse(request)
+        }
 
         try {
           await sendMail({
@@ -80,18 +95,20 @@ export const POST = traceApiRoute(
           })
         } catch (_error) {
           logger.error({ email }, 'Failed to send password reset email')
-          return passwordResetSuccessResponse(request)
-        }
-
-        const saved = await database.requestPasswordReset({
-          email,
-          passwordResetCode: passwordResetCodeHash
-        })
-        if (!saved) {
-          logger.error(
-            { email },
-            'Password reset code persistence failed for existing account'
-          )
+          try {
+            await database.requestPasswordReset({
+              email,
+              passwordResetCode: previousPasswordResetCode,
+              ...(previousPasswordResetCodeExpiresAt !== null
+                ? { expiresAt: previousPasswordResetCodeExpiresAt }
+                : null)
+            })
+          } catch (error) {
+            logger.error(
+              { email, error },
+              'Failed to restore previous password reset code'
+            )
+          }
           return passwordResetSuccessResponse(request)
         }
       }

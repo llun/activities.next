@@ -451,6 +451,26 @@ describe('Fitness General Settings API', () => {
       )
     })
 
+    it('rejects invalid privacyLocations instead of falling back to legacy fields', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyLocations: [{ latitude: 13.7563 }],
+            privacyHomeLatitude: 13.7563,
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(422)
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+    })
+
     it('rejects request when only one coordinate is provided', async () => {
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/general',

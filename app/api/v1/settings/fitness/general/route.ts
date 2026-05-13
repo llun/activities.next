@@ -61,6 +61,11 @@ type FitnessGeneralSettingsRequest =
   | z.infer<typeof FitnessGeneralSettingsLegacyRequest>
   | z.infer<typeof FitnessGeneralSettingsListRequest>
 
+const hasPrivacyLocationsPayload = (body: unknown) =>
+  body !== null &&
+  typeof body === 'object' &&
+  Object.prototype.hasOwnProperty.call(body, 'privacyLocations')
+
 const safeParseFitnessGeneralSettingsRequest = (
   body: unknown
 ):
@@ -68,6 +73,7 @@ const safeParseFitnessGeneralSettingsRequest = (
   | { success: false } => {
   const listResult = FitnessGeneralSettingsListRequest.safeParse(body)
   if (listResult.success) return { success: true, data: listResult.data }
+  if (hasPrivacyLocationsPayload(body)) return { success: false }
 
   const legacyResult = FitnessGeneralSettingsLegacyRequest.safeParse(body)
   return legacyResult.success
