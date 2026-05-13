@@ -408,6 +408,69 @@ describe('Fitness General Settings API', () => {
       )
     })
 
+    it('falls back to legacy settings when no privacyLocations payload is sent', async () => {
+      mockDb.createFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 10,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyHomeLatitude: 13.7563,
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: 10
+            }
+          ],
+          privacyHomeLatitude: 13.7563,
+          privacyHomeLongitude: 100.5018,
+          privacyHideRadiusMeters: 10
+        })
+      )
+    })
+
+    it('rejects invalid privacyLocations instead of falling back to legacy fields', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyLocations: [{ latitude: 13.7563 }],
+            privacyHomeLatitude: 13.7563,
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(422)
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+    })
+
     it('rejects request when only one coordinate is provided', async () => {
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/general',
@@ -446,6 +509,72 @@ describe('Fitness General Settings API', () => {
 
       expect(response.status).toBe(400)
       expect(data.error).toContain('home location')
+    })
+
+    it('returns 422 when the settings payload fails schema validation', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyHomeLatitude: '13.7563',
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.status).toBe('Unprocessable entity')
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+    })
+
+    it('returns a bad request error for invalid JSON body', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: 'not-json',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({ status: 'Bad Request' })
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+    })
+
+    it('returns an internal server error when saving settings fails', async () => {
+      mockDb.createFitnessSettings.mockRejectedValue(
+        new Error('database failed')
+      )
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyHomeLatitude: 13.7563,
+            privacyHomeLongitude: 100.5018,
+            privacyHideRadiusMeters: 10
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({
+        status: 'Internal Server Error'
+      })
+      expect(mockDb.createFitnessSettings).toHaveBeenCalled()
     })
   })
 })

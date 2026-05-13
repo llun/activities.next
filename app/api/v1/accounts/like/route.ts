@@ -8,7 +8,9 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
+  ERROR_400,
   ERROR_404,
+  ERROR_422,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -28,8 +30,29 @@ export const POST = traceApiRoute(
   'likeToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
-    const { statusId } = LikeStatusRequest.parse(body)
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
+    const parsed = LikeStatusRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const { statusId } = parsed.data
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status)
       return apiResponse({
@@ -49,8 +72,29 @@ export const DELETE = traceApiRoute(
   'unlikeToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
-    const body = await req.json()
-    const { statusId } = LikeStatusRequest.parse(body)
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
+    const parsed = LikeStatusRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const { statusId } = parsed.data
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status)
       return apiResponse({

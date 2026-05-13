@@ -161,6 +161,19 @@ export const POST = traceApiRoute(
       }
 
       const stravaActivityId = String(body.object_id)
+      const parsedVisibility = Visibility.safeParse(
+        fitnessSettings.defaultVisibility ?? 'private'
+      )
+      const visibility = parsedVisibility.success
+        ? parsedVisibility.data
+        : 'private'
+      if (!parsedVisibility.success) {
+        logger.warn({
+          message: 'Invalid Strava default visibility; falling back to private',
+          actorId: fitnessSettings.actorId,
+          defaultVisibility: fitnessSettings.defaultVisibility
+        })
+      }
 
       await getQueue().publish({
         id: getHashFromString(
@@ -170,9 +183,7 @@ export const POST = traceApiRoute(
         data: {
           actorId: fitnessSettings.actorId,
           stravaActivityId,
-          visibility: Visibility.parse(
-            fitnessSettings.defaultVisibility ?? 'private'
-          )
+          visibility
         }
       })
 

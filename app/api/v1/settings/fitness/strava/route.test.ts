@@ -254,8 +254,8 @@ describe('Strava Settings API', () => {
       const response = await POST(request, { params: Promise.resolve({}) })
       const data = await response.json()
 
-      expect(response.status).toBe(400)
-      expect(data.error).toContain('numeric')
+      expect(response.status).toBe(422)
+      expect(data.status).toBe('Unprocessable entity')
     })
 
     it('rejects empty client secret when creating a connection', async () => {
@@ -273,8 +273,8 @@ describe('Strava Settings API', () => {
       const response = await POST(request, { params: Promise.resolve({}) })
       const data = await response.json()
 
-      expect(response.status).toBe(400)
-      expect(data.error).toBeDefined()
+      expect(response.status).toBe(422)
+      expect(data.status).toBe('Unprocessable entity')
     })
 
     it('rejects invalid visibility values', async () => {
@@ -293,8 +293,28 @@ describe('Strava Settings API', () => {
       const response = await POST(request, { params: Promise.resolve({}) })
       const data = await response.json()
 
+      expect(response.status).toBe(422)
+      expect(data.status).toBe('Unprocessable entity')
+    })
+
+    it('returns a bad request response for malformed JSON bodies', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/strava',
+        {
+          method: 'POST',
+          body: '{',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
       expect(response.status).toBe(400)
-      expect(data.error).toBeDefined()
+      expect(data.status).toBe('Bad Request')
+      expect(mockDb.getFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
     })
   })
 

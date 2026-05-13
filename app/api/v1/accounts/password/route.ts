@@ -2,7 +2,12 @@ import bcrypt from 'bcrypt'
 import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { apiResponse } from '@/lib/utils/response'
+import { logger } from '@/lib/utils/logger'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordChangeRequest = z.object({
@@ -33,10 +38,20 @@ export const POST = traceApiRoute(
       })
     }
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const { currentPassword, newPassword } = PasswordChangeRequest.parse(body)
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
+    const parsed = PasswordChangeRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+    const { currentPassword, newPassword } = parsed.data
+
+    try {
       // Verify current password
       const isPasswordCorrect = await bcrypt.compare(
         currentPassword,
@@ -71,20 +86,12 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: 'Invalid password format' },
-          responseStatusCode: 400
-        })
-      }
-      return apiResponse({
-        req,
-        allowedMethods: [],
-        data: { error: 'Failed to change password' },
-        responseStatusCode: 500
+      logger.error({
+        message: 'Failed to change password',
+        accountId: currentActor.account.id,
+        error
       })
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

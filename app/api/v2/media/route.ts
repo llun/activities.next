@@ -16,8 +16,17 @@ export const POST = traceApiRoute(
     try {
       const { database, currentActor } = context
       const form = await req.formData()
-      const media = MediaSchema.parse(Object.fromEntries(form.entries()))
-      const response = await saveMedia(database, currentActor, media)
+      const media = MediaSchema.safeParse(Object.fromEntries(form.entries()))
+      if (!media.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      const response = await saveMedia(database, currentActor, media.data)
       if (!response) {
         return apiResponse({
           req,

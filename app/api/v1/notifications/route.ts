@@ -7,7 +7,12 @@ import { getMastodonNotification } from '@/lib/services/notifications/getMastodo
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_422,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -18,6 +23,7 @@ const CORS_HEADERS = [
 ]
 const DEFAULT_LIMIT = 40
 const MAX_LIMIT = 80
+const ARRAY_QUERY_PARAMS = new Set(['types', 'exclude_types'])
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -57,21 +63,35 @@ export const GET = traceApiRoute(
     // Handle repeated query params (types[], exclude_types[])
     // Normalize keys by removing [] suffix to match Zod schema
     const queryParams: Record<string, string | string[]> = {}
-    url.searchParams.forEach((value, key) => {
+    for (const key of new Set(url.searchParams.keys())) {
       // Normalize key: types[] -> types, exclude_types[] -> exclude_types
       const normalizedKey = key.replace(/\[\]$/, '')
+      const allValues = url.searchParams.getAll(key)
+      const normalizedValue =
+        ARRAY_QUERY_PARAMS.has(normalizedKey) || allValues.length > 1
+          ? allValues
+          : allValues[0]
       const existing = queryParams[normalizedKey]
-      if (existing) {
-        queryParams[normalizedKey] = Array.isArray(existing)
-          ? [...existing, value]
-          : [existing, value]
+      if (existing === undefined) {
+        queryParams[normalizedKey] = normalizedValue
       } else {
-        // Check if this key appears multiple times
-        const allValues = url.searchParams.getAll(key)
-        queryParams[normalizedKey] = allValues.length > 1 ? allValues : value
+        queryParams[normalizedKey] = [
+          ...(Array.isArray(existing) ? existing : [existing]),
+          ...(Array.isArray(normalizedValue)
+            ? normalizedValue
+            : [normalizedValue])
+        ]
       }
-    })
-    const parsedParams = NotificationQueryParams.parse(queryParams)
+    }
+    const parsedParams = NotificationQueryParams.safeParse(queryParams)
+    if (!parsedParams.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
 
     const {
       limit = DEFAULT_LIMIT,
@@ -82,7 +102,7 @@ export const GET = traceApiRoute(
       exclude_types: excludeTypes,
       account_id: accountId,
       grouped = false
-    } = parsedParams
+    } = parsedParams.data
 
     // Convert Mastodon types to internal types for filtering
     const internalTypes = types?.map((type) => {

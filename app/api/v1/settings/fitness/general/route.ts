@@ -7,7 +7,12 @@ import {
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { apiResponse } from '@/lib/utils/response'
+import { logger } from '@/lib/utils/logger'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PrivacyRadiusSchema = z
@@ -57,18 +62,24 @@ type FitnessGeneralSettingsRequest =
   | z.infer<typeof FitnessGeneralSettingsLegacyRequest>
   | z.infer<typeof FitnessGeneralSettingsListRequest>
 
-const parseFitnessGeneralSettingsRequest = (
-  body: unknown
-): FitnessGeneralSettingsRequest => {
-  if (
-    body &&
-    typeof body === 'object' &&
-    Object.prototype.hasOwnProperty.call(body, 'privacyLocations')
-  ) {
-    return FitnessGeneralSettingsListRequest.parse(body)
-  }
+const hasPrivacyLocationsPayload = (body: unknown) =>
+  body !== null &&
+  typeof body === 'object' &&
+  Object.prototype.hasOwnProperty.call(body, 'privacyLocations')
 
-  return FitnessGeneralSettingsLegacyRequest.parse(body)
+const safeParseFitnessGeneralSettingsRequest = (
+  body: unknown
+):
+  | { success: true; data: FitnessGeneralSettingsRequest }
+  | { success: false } => {
+  const listResult = FitnessGeneralSettingsListRequest.safeParse(body)
+  if (listResult.success) return { success: true, data: listResult.data }
+  if (hasPrivacyLocationsPayload(body)) return { success: false }
+
+  const legacyResult = FitnessGeneralSettingsLegacyRequest.safeParse(body)
+  return legacyResult.success
+    ? { success: true, data: legacyResult.data }
+    : { success: false }
 }
 
 interface FitnessGeneralSettingsResponse {
@@ -207,19 +218,29 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const parsed = parseFitnessGeneralSettingsRequest(body)
-      const normalized = toSettingsPayload(parsed)
-      if ('error' in normalized) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: normalized.error },
-          responseStatusCode: 400
-        })
-      }
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
 
+    const parsed = safeParseFitnessGeneralSettingsRequest(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+
+    const normalized = toSettingsPayload(parsed.data)
+    if ('error' in normalized) {
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: normalized.error },
+        responseStatusCode: 400
+      })
+    }
+
+    try {
       const existing = await database.getFitnessSettings({
         actorId: currentActor.id,
         serviceType: 'general'
@@ -252,23 +273,12 @@ export const POST = traceApiRoute(
         responseStatusCode: 200
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errorMessage =
-          error.issues.length > 0 ? error.issues[0].message : 'Invalid input'
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: errorMessage },
-          responseStatusCode: 400
-        })
-      }
-
-      return apiResponse({
-        req,
-        allowedMethods: [],
-        data: { error: 'Failed to save fitness general settings' },
-        responseStatusCode: 500
+      logger.error({
+        message: 'Failed to save fitness general settings',
+        actorId: currentActor.id,
+        error
       })
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

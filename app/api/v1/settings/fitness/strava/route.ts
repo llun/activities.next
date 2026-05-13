@@ -10,7 +10,11 @@ import {
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const StravaSettingsRequest = z.object({
@@ -102,10 +106,20 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
 
+    let body: unknown
     try {
-      const body = await req.json()
-      const { clientId, clientSecret, defaultVisibility } =
-        StravaSettingsRequest.parse(body)
+      body = await req.json()
+    } catch {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const parsed = StravaSettingsRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+
+    try {
+      const { clientId, clientSecret, defaultVisibility } = parsed.data
 
       const existing = await database.getFitnessSettings({
         actorId: currentActor.id,
@@ -151,11 +165,11 @@ export const POST = traceApiRoute(
 
       return getStravaSettingsSavedResponse(req)
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errorMessage =
-          error.issues.length > 0 ? error.issues[0].message : 'Invalid input'
-        return getValidationErrorResponse(req, errorMessage)
-      }
+      logger.error({
+        message: 'Failed to save Strava settings',
+        actorId: currentActor.id,
+        error
+      })
       return apiResponse({
         req,
         allowedMethods: [],
@@ -229,7 +243,12 @@ export const DELETE = traceApiRoute(
         },
         responseStatusCode: 200
       })
-    } catch (_error) {
+    } catch (error) {
+      logger.error({
+        message: 'Failed to delete Strava settings',
+        actorId: currentActor.id,
+        error
+      })
       return apiResponse({
         req,
         allowedMethods: [],
