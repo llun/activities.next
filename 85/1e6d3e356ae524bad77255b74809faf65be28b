@@ -1,0 +1,74 @@
+lib/database/sql/status.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 931,942-946,805,818
+  s_4c8a4513cc17f6::t_ef9dbe36b4d27f 937
+  s_8f8c7653879d27::t_3d059f057580e0 47,102,134,139
+  s_a64fcbca75c90b::t_c31e071e74f22d 88-91,93-96,98-101,103-106,108,110-111,113-115,123-130,132-133,135-136,138,140-144,146
+  s_a64fcbca75c90b::t_e764d8e4954134 92,97,107,109,112,121,131,145,148,738-739,751-756,806,808-817,819,857-866
+  s_a64fcbca75c90b::t_f448484c277000 116-120,122,137,147
+app/api/users/[username]/outbox/route.test.ts
+  s_a64fcbca75c90b::t_d9883a4c1095d9 104,10,73-74,80,105,109,186-187,201,205
+  s_3c3c605b8f06bf::t_3c752ee1f06f0d 146-148,153-183
+  s_4c8a4513cc17f6::t_e4f026f8770e98 184,55,81,117,152,185,188-200,202-204,206-207,106-108
+  s_4c8a4513cc17f6::t_f3494cebbcae8c 31-54,76,114-116,149-151
+app/api/v1/statuses/[id]/context/route.ts
+  s_3c3c605b8f06bf::t_0fc2d51c4a27a5 3-6,38-42,54-60,67-69
+  s_a64fcbca75c90b::t_22e32d9ed88f82 63-66
+lib/services/statusRouteAccess.test.ts
+  s_a64fcbca75c90b::t_4b7f7b302b74f6 1-70
+lib/services/statusRouteAccess.ts
+  s_3c3c605b8f06bf::t_71c889ab6106c1 1-4,6-42,56,58-63
+  s_a64fcbca75c90b::t_014c2fd3893034 5,43-55,57,64,66-68,70-71
+  s_a64fcbca75c90b::t_e85c3483cbaeb2 65,69
+lib/types/database/operations.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 400-402
+  s_a64fcbca75c90b::t_20c392d77926f0 398,444-447
+lib/database/sql/status.test.ts
+  s_a64fcbca75c90b::t_bdc386fa906c05 327-332,337-368,370,372,377,417-423,425-431,434-441,444-451,454-461,464-474
+  s_8f8c7653879d27::t_05de661ed0abd7 333-336,369,371,373-376
+  s_a64fcbca75c90b::t_97a3832ad8bbd1 424,432-433,442-443,452-453,462-463
+app/api/users/[username]/outbox/route.ts
+  s_3c3c605b8f06bf::t_59c68f6e54f0ba 3
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 15,17-27,53-56
+  s_4c8a4513cc17f6::t_2726a50533af65 16,57-58
+  s_a64fcbca75c90b::t_83ea58f36fc697 36-39,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "851e6d3e356ae524bad77255b74809faf65be28b",
+  "prompts": {},
+  "sessions": {
+    "s_3c3c605b8f06bf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e03-1eaf-76b1-9d25-8d5124e6974d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4c8a4513cc17f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-6421-7f91-b33a-3ec0b5429434",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a64fcbca75c90b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e201c-31ba-76c1-90ec-08acecf005ec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
