@@ -220,11 +220,16 @@ const resolveArchivePath = async (
     label: 'Archive object body'
   })
 
-  await streamBodyToFile({
-    body: object.Body,
-    outputPath: temporaryArchivePath,
-    maxBytes: fitnessStorage.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE
-  })
+  try {
+    await streamBodyToFile({
+      body: object.Body,
+      outputPath: temporaryArchivePath,
+      maxBytes: fitnessStorage.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE
+    })
+  } catch (error) {
+    await fs.unlink(temporaryArchivePath).catch(() => undefined)
+    throw error
+  }
 
   return {
     archiveFilePath: temporaryArchivePath,

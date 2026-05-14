@@ -263,6 +263,7 @@ export const POST = traceApiRoute(
         const importId = crypto.randomUUID()
 
         archiveFileId = fitnessFile.id
+        archiveFileOwned = true
 
         const importState = await database.createStravaArchiveImport({
           id: importId,

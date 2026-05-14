@@ -5,6 +5,7 @@ import {
   getActorStatuses,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
+  startStravaArchiveImport,
   triggerFitnessRouteHeatmap,
   updateNote,
   uploadAttachment
@@ -316,6 +317,35 @@ describe('client uploadAttachment presigned completion', () => {
     expect(fetchMock).toHaveBeenLastCalledWith(
       '/api/v1/accounts/media/media-1',
       expect.objectContaining({ method: 'DELETE' })
+    )
+  })
+})
+
+describe('client startStravaArchiveImport', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+  })
+
+  it('does not fall back to multipart upload when presigned setup is rejected', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ error: 'active import' }), {
+      status: 409
+    })
+
+    await expect(
+      startStravaArchiveImport(
+        new File([Buffer.from('zip-data')], 'export.zip', {
+          type: 'application/zip'
+        }),
+        'private'
+      )
+    ).rejects.toThrow('Failed to get presigned URL for archive')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/settings/fitness/strava/archive/presigned',
+      expect.objectContaining({
+        method: 'POST'
+      })
     )
   })
 })

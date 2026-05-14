@@ -1,3 +1,7 @@
+import fs from 'fs/promises'
+import { Readable } from 'stream'
+
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { importStravaArchiveJob } from '@/lib/jobs/importStravaArchiveJob'
 import {
@@ -16,14 +20,17 @@ import {
 } from '@/lib/services/strava/archiveReader'
 
 const mockQueuePublish = jest.fn()
+const mockS3Send = jest.fn()
+
+jest.mock('@aws-sdk/client-s3', () => ({
+  GetObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  S3Client: jest.fn().mockImplementation(() => ({
+    send: mockS3Send
+  }))
+}))
 
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
-    fitnessStorage: {
-      type: 'fs',
-      path: '/tmp/fitness'
-    }
-  })
+  getConfig: jest.fn()
 }))
 
 jest.mock('@/lib/services/fitness-files', () => ({
@@ -57,6 +64,7 @@ const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
   typeof deleteFitnessFile
 >
 const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
+const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 
 const mockArchiveReaderOpen = StravaArchiveReader.open as jest.MockedFunction<
   typeof StravaArchiveReader.open
@@ -94,6 +102,12 @@ describe('importStravaArchiveJob', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: {
+        type: 'fs',
+        path: '/tmp/fitness'
+      }
+    } as never)
 
     database.getActorFromId.mockResolvedValue({
       id: 'actor-1',
@@ -427,6 +441,53 @@ describe('importStravaArchiveJob', () => {
         id: 'import-1',
         status: 'failed',
         lastError: 'broken zip'
+      })
+    )
+  })
+
+  it('removes temporary object-storage archive copy when streaming fails', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: {
+        type: 's3',
+        bucket: 'fitness-bucket',
+        region: 'us-east-1',
+        prefix: '',
+        maxFileSize: 4
+      }
+    } as never)
+    mockS3Send.mockResolvedValueOnce({
+      Body: Readable.from([Buffer.from('partial-data')]),
+      ContentLength: undefined
+    })
+    const unlinkSpy = jest.spyOn(fs, 'unlink')
+
+    try {
+      await importStravaArchiveJob(database as unknown as Database, {
+        id: 'job-object-stream-fail',
+        name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+        data: {
+          importId: 'import-1',
+          actorId: 'actor-1',
+          archiveId: 'archive-1',
+          archiveFitnessFileId: 'archive-file-1',
+          batchId: 'strava-archive:archive-1',
+          visibility: 'private'
+        }
+      })
+
+      expect(unlinkSpy).toHaveBeenCalledWith(
+        expect.stringContaining('strava-archive-archive-file-1-')
+      )
+    } finally {
+      unlinkSpy.mockRestore()
+    }
+
+    expect(mockArchiveReaderOpen).not.toHaveBeenCalled()
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed',
+        lastError: 'Archive object body exceeds byte limit of 4 bytes'
       })
     )
   })

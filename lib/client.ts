@@ -1178,7 +1178,16 @@ export const createStravaArchivePresignedUrl = async (
     }
   )
   if (response.status === 404) return null
-  if (!response.ok) throw new Error('Failed to get presigned URL for archive')
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to get presigned URL for archive'
+    )
+    throw new ApiRequestError(
+      `Failed to get presigned URL for archive: ${response.status} ${errorDetails}`,
+      response.status
+    )
+  }
   return response.json()
 }
 
@@ -1187,9 +1196,18 @@ export const startStravaArchiveImport = async (
   visibility: MastodonVisibility
 ): Promise<StartStravaArchiveImportResult> => {
   // Try presigned upload first (ObjectStorage/S3 backends)
-  const presignedResult = await createStravaArchivePresignedUrl(archive).catch(
-    () => null
-  )
+  let presignedResult: StravaArchivePresignedResult | null = null
+  try {
+    presignedResult = await createStravaArchivePresignedUrl(archive)
+  } catch (error) {
+    if (
+      error instanceof ApiRequestError &&
+      error.status >= 400 &&
+      error.status < 500
+    ) {
+      throw error
+    }
+  }
 
   if (presignedResult) {
     try {

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import fs from 'fs/promises'
 import { promisify } from 'util'
 import yauzl from 'yauzl'
 import { gzip as gzipCallback } from 'zlib'
@@ -152,6 +153,66 @@ describe('StravaArchiveReader.open', () => {
       'Unsafe archive entry path'
     )
     expect(zipFile.close).toHaveBeenCalled()
+  })
+
+  it('continues reading stored entries after partial fs reads', async () => {
+    const localHeaderOffset = 8
+    const entryData = Buffer.from('DATA')
+    const header = Buffer.alloc(30)
+    header.writeUInt16LE(0, 26)
+    header.writeUInt16LE(0, 28)
+    const zipBytes = Buffer.concat([
+      Buffer.alloc(localHeaderOffset),
+      header,
+      entryData
+    ])
+    const zipFile = mockZipFileWithEntries([
+      makeEntry({
+        fileName: 'activities/stored.fit',
+        compressionMethod: 0,
+        compressedSize: entryData.byteLength,
+        uncompressedSize: entryData.byteLength,
+        relativeOffsetOfLocalHeader: localHeaderOffset
+      })
+    ])
+    const readMock = jest.fn(
+      async (
+        buffer: Buffer,
+        offset: number,
+        length: number,
+        position: number
+      ) => {
+        const bytesRead = Math.min(length, 2, zipBytes.byteLength - position)
+        if (bytesRead <= 0) {
+          return { bytesRead: 0, buffer }
+        }
+        zipBytes.copy(buffer, offset, position, position + bytesRead)
+        return { bytesRead, buffer }
+      }
+    )
+    const closeMock = jest.fn().mockResolvedValue(undefined)
+    const openSpy = jest.spyOn(fs, 'open').mockResolvedValue({
+      read: readMock,
+      close: closeMock
+    } as never)
+
+    mockYauzlOpen.mockImplementation((filePath, options, callback) => {
+      callback(null, zipFile)
+      return undefined as never
+    })
+
+    try {
+      const reader = await StravaArchiveReader.open('/tmp/export.zip')
+
+      await expect(
+        reader.readEntryBuffer('activities/stored.fit')
+      ).resolves.toEqual(entryData)
+      expect(readMock.mock.calls.length).toBeGreaterThan(2)
+
+      reader.close()
+    } finally {
+      openSpy.mockRestore()
+    }
   })
 
   it('keeps corrupt gzip activity errors distinct from gzip limit errors', async () => {

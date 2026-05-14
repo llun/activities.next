@@ -75,7 +75,10 @@ export type MediaStorageGetRedirectOutput = z.infer<
 
 export const PresigedMediaInput = z.object({
   fileName: z.string(),
-  checksum: z.string().regex(/^[a-f0-9]{40}$/i),
+  checksum: z
+    .string()
+    .regex(/^[a-f0-9]{40}$/i)
+    .transform((value) => value.toLowerCase()),
   width: z.number(),
   height: z.number(),
   contentType: z

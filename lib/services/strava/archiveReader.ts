@@ -219,6 +219,39 @@ const openZipEntryStream = async (
   })
 }
 
+const readFileRange = async ({
+  fd,
+  buffer,
+  position,
+  label
+}: {
+  fd: Awaited<ReturnType<typeof fs.open>>
+  buffer: Buffer
+  position: number
+  label: string
+}) => {
+  let offset = 0
+
+  while (offset < buffer.byteLength) {
+    const result = await fd.read(
+      buffer,
+      offset,
+      buffer.byteLength - offset,
+      position + offset
+    )
+    if (result.bytesRead === 0) {
+      break
+    }
+    offset += result.bytesRead
+  }
+
+  if (offset < buffer.byteLength) {
+    throw new Error(
+      `Short read on ${label}: expected ${buffer.byteLength}, got ${offset}`
+    )
+  }
+}
+
 // Read a ZIP entry that uses Stored (no compression) directly via fs.read,
 // bypassing yauzl's openReadStream which can hang on Stored entries in large
 // archives due to an fd-slicer read-queue issue.
@@ -244,33 +277,23 @@ const readStoredEntryDirectly = async (
   const fd = await fs.open(zipFilePath, 'r')
   try {
     const headerBuf = Buffer.allocUnsafe(30)
-    const headerResult = await fd.read(
-      headerBuf,
-      0,
-      30,
-      entry.relativeOffsetOfLocalHeader
-    )
-    if (headerResult.bytesRead < 30) {
-      throw new Error(
-        `Short read on local file header for ${entry.fileName}: expected 30, got ${headerResult.bytesRead}`
-      )
-    }
+    await readFileRange({
+      fd,
+      buffer: headerBuf,
+      position: entry.relativeOffsetOfLocalHeader,
+      label: `local file header for ${entry.fileName}`
+    })
     const fileNameLength = headerBuf.readUInt16LE(26)
     const extraFieldLength = headerBuf.readUInt16LE(28)
     const dataOffset =
       entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength
     const dataBuf = Buffer.allocUnsafe(entry.compressedSize)
-    const dataResult = await fd.read(
-      dataBuf,
-      0,
-      entry.compressedSize,
-      dataOffset
-    )
-    if (dataResult.bytesRead < entry.compressedSize) {
-      throw new Error(
-        `Short read on entry data for ${entry.fileName}: expected ${entry.compressedSize}, got ${dataResult.bytesRead}`
-      )
-    }
+    await readFileRange({
+      fd,
+      buffer: dataBuf,
+      position: dataOffset,
+      label: `entry data for ${entry.fileName}`
+    })
     return dataBuf
   } finally {
     await fd.close()
