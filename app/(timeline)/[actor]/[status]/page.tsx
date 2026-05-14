@@ -10,7 +10,11 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getQueue } from '@/lib/services/queue'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -91,7 +95,7 @@ const Page: FC<Props> = async ({ params }) => {
 
   const statusUrl =
     status.type === StatusType.enum.Announce
-      ? status.originalStatus.url
+      ? getOriginalStatus(status).url
       : status.url
 
   let replies: Status[]
@@ -179,7 +183,9 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   const statusForLayout =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
+    status.type === StatusType.enum.Announce
+      ? getOriginalStatus(status)
+      : status
   const isFitnessDashboard =
     statusForLayout.type === StatusType.enum.Note &&
     statusForLayout.fitness?.processingStatus === 'completed'

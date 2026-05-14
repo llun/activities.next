@@ -1,3 +1,4 @@
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
@@ -5,7 +6,11 @@ import {
   AnnounceAction,
   CreateAction
 } from '@/lib/types/activitypub/activities'
-import { StatusType, toActivityPubObject } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  toActivityPubObject
+} from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
 import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
@@ -15,15 +20,28 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const getPubliclyReadableActorStatuses = async (
   database: Database,
   actorId: string,
-  limit?: number
-) =>
-  (
-    await database.getActorStatuses({
+  limit = PER_PAGE_LIMIT
+) => {
+  const statuses: Status[] = []
+  let maxStatusId: string | undefined
+
+  while (statuses.length < limit) {
+    const batch = await database.getActorStatuses({
       actorId,
-      ...(limit === undefined ? {} : { limit }),
+      limit,
+      ...(maxStatusId ? { maxStatusId } : {}),
       publicOnly: true
     })
-  ).filter(isStatusPubliclyReadable)
+    if (batch.length === 0) break
+
+    statuses.push(...batch.filter(isStatusPubliclyReadable))
+    if (batch.length < limit) break
+
+    maxStatusId = batch[batch.length - 1].id
+  }
+
+  return statuses.slice(0, limit)
+}
 
 export const GET = traceApiRoute(
   'getActorOutbox',

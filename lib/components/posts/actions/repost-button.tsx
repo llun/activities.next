@@ -3,7 +3,11 @@ import { FC, useEffect, useState } from 'react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
 interface RepostButtonProps {
@@ -15,7 +19,9 @@ export const RepostButton: FC<RepostButtonProps> = ({
   status
 }) => {
   const mainStatus =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
+    status.type === StatusType.enum.Announce
+      ? getOriginalStatus(status)
+      : status
 
   const [repostedStatusId, setRepostedStatusId] = useState<string | null>(
     mainStatus.actorAnnounceStatusId

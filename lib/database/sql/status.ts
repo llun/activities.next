@@ -54,6 +54,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -95,17 +96,42 @@ export const StatusSQLDatabaseMixin = (
       .select('statusId')
       .whereIn('recipients.actorId', publicActivityRecipients)
 
+  const publiclyReadableStatusIds = () =>
+    database
+      .withRecursive('publicly_readable_statuses', ['id'], (cte) => {
+        cte
+          .select('statuses.id')
+          .from('statuses')
+          .whereNot('statuses.type', StatusType.enum.Announce)
+          .whereIn('statuses.id', publicRecipientStatusIds())
+          .union((qb) => {
+            qb.select('announces.id')
+              .from('statuses as announces')
+              .innerJoin(
+                'publicly_readable_statuses as readable_statuses',
+                'readable_statuses.id',
+                'announces.content'
+              )
+              .where('announces.type', StatusType.enum.Announce)
+              .whereIn('announces.id', publicRecipientStatusIds())
+          })
+      })
+      .select('id')
+      .from('publicly_readable_statuses')
+
   const applyPublicReadableStatusFilter = (query: Knex.QueryBuilder) =>
-    query.whereIn('statuses.id', publicRecipientStatusIds()).andWhere((qb) => {
-      qb.whereNot('statuses.type', StatusType.enum.Announce).orWhereExists(
-        function () {
-          this.select(database.raw('1'))
-            .from('statuses as original_statuses')
-            .whereRaw('original_statuses.id = statuses.content')
-            .whereIn('original_statuses.id', publicRecipientStatusIds())
-        }
-      )
-    })
+    query.whereIn('statuses.id', publiclyReadableStatusIds())
+
+  const actorSettingsTextExpression = (actorAlias: string, key: string) => {
+    const clientName = String(database.client.config.client)
+    if (clientName.includes('pg')) {
+      return `${actorAlias}.settings::jsonb ->> '${key}'`
+    }
+    if (clientName.includes('mysql')) {
+      return `JSON_UNQUOTE(JSON_EXTRACT(${actorAlias}.settings, '$.${key}'))`
+    }
+    return `json_extract(${actorAlias}.settings, '$.${key}')`
+  }
 
   const applyPotentiallyReadableStatusFilter = ({
     query,
@@ -115,9 +141,13 @@ export const StatusSQLDatabaseMixin = (
     visibleToActorId: string
   }) => {
     const clientName = String(database.client.config.client)
-    const followersAudienceExpression = clientName.includes('mysql')
+    const fallbackFollowersAudienceExpression = clientName.includes('mysql')
       ? "followers_recipients.actorId = CONCAT(statuses.actorId, '/followers')"
       : "followers_recipients.actorId = statuses.actorId || '/followers'"
+    const storedFollowersAudienceExpression = `followers_recipients.actorId = ${actorSettingsTextExpression(
+      'status_actors',
+      'followersUrl'
+    )}`
 
     return query.where((qb) => {
       qb.whereIn(
@@ -133,8 +163,17 @@ export const StatusSQLDatabaseMixin = (
         .orWhereExists(function () {
           this.select(database.raw('1'))
             .from('recipients as followers_recipients')
+            .leftJoin(
+              'actors as status_actors',
+              'status_actors.id',
+              'statuses.actorId'
+            )
             .whereRaw('followers_recipients.statusId = statuses.id')
-            .whereRaw(followersAudienceExpression)
+            .where(function () {
+              this.whereRaw(storedFollowersAudienceExpression).orWhereRaw(
+                fallbackFollowersAudienceExpression
+              )
+            })
             .whereExists(function () {
               this.select(database.raw('1'))
                 .from('follows')
@@ -939,12 +978,20 @@ export const StatusSQLDatabaseMixin = (
       return
     }
 
-    const statusQuery = trx('statuses').where('id', statusId)
-    if (actorId) {
-      statusQuery.where('actorId', actorId)
-    }
-    const status = await statusQuery.first()
+    const status = await trx('statuses').where('id', statusId).first()
     if (!status) return
+
+    if (actorId) {
+      const normalizedStoredActorId = normalizeActorId(status.actorId)
+      const normalizedExpectedActorId = normalizeActorId(actorId)
+      if (
+        !normalizedStoredActorId ||
+        !normalizedExpectedActorId ||
+        normalizedStoredActorId !== normalizedExpectedActorId
+      ) {
+        return
+      }
+    }
 
     const replies = await trx('statuses').where('reply', statusId).select('id')
     await Promise.all(

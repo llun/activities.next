@@ -79,7 +79,10 @@ const extractActivityPubIds = (value: unknown): string[] => {
   if (Array.isArray(value)) return value.flatMap(extractActivityPubIds)
   if (!isRecord(value)) return []
 
-  return typeof value.id === 'string' ? [value.id] : []
+  if (typeof value.id === 'string') return [value.id]
+  if (typeof value.href === 'string') return [value.href]
+  if (typeof value.url === 'string') return [value.url]
+  return []
 }
 
 const createObjectActorMismatch = (

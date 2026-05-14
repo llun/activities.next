@@ -1,6 +1,6 @@
 import _ from 'lodash'
 
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
@@ -11,12 +11,7 @@ import { sanitizeText } from '@/lib/utils/text/sanitizeText'
  * @returns The actual status content
  */
 export const getActualStatus = (status: Status) => {
-  switch (status.type) {
-    case StatusType.enum.Announce:
-      return status.originalStatus
-    default:
-      return status
-  }
+  return getOriginalStatus(status)
 }
 
 /**

@@ -11,6 +11,7 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -375,6 +376,56 @@ describe('StatusDatabase', () => {
         expect(publicStatusIds).not.toContain(privateStatusId)
         expect(publicStatusIds).not.toContain(privateAnnounceId)
       })
+
+      it('excludes nested announces when the boosted original is not publicly readable', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const privateStatusId = `${emptyActorId}/statuses/nested-private-${suffix}`
+        const firstAnnounceId = `${emptyActorId}/statuses/nested-announce-private-${suffix}`
+        const nestedAnnounceId = `${emptyActorId}/statuses/nested-announce-public-${suffix}`
+        const beforePublicCount = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+
+        await database.createNote({
+          id: privateStatusId,
+          url: privateStatusId,
+          actorId: emptyActorId,
+          to: [`${emptyActorId}/followers`],
+          cc: [],
+          text: 'Private nested root status'
+        })
+        await database.createAnnounce({
+          id: firstAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: privateStatusId
+        })
+        await database.createAnnounce({
+          id: nestedAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: firstAnnounceId
+        })
+
+        const count = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+        const statuses = await database.getActorStatuses({
+          actorId: emptyActorId,
+          publicOnly: true,
+          limit: 50
+        })
+        const publicStatusIds = statuses.map((status) => status.id)
+
+        expect(count).toBe(beforePublicCount)
+        expect(publicStatusIds).not.toContain(privateStatusId)
+        expect(publicStatusIds).not.toContain(firstAnnounceId)
+        expect(publicStatusIds).not.toContain(nestedAnnounceId)
+      })
     })
 
     describe('getActorStatuses followers audience fallback', () => {
@@ -472,6 +523,56 @@ describe('StatusDatabase', () => {
           directReplyId,
           publicReplyId
         ])
+      })
+
+      it("includes followers-only replies using the reply author's stored followersUrl", async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const customActorId = `https://remote.test/users/context-author-${suffix}`
+        const customFollowersUrl = `https://remote.test/collections/context-author-${suffix}/followers`
+        const parentStatusId = `${primaryActorId}/statuses/context-custom-followers-parent-${suffix}`
+        const replyStatusId = `${customActorId}/statuses/context-custom-followers-reply`
+
+        await database.createActor({
+          actorId: customActorId,
+          username: `context-author-${suffix}`,
+          domain: 'remote.test',
+          followersUrl: customFollowersUrl,
+          inboxUrl: `${customActorId}/inbox`,
+          sharedInboxUrl: 'https://remote.test/inbox',
+          publicKey: `public-key-${suffix}`,
+          createdAt: Date.now()
+        })
+        await database.createFollow({
+          actorId: extraActorId,
+          targetActorId: customActorId,
+          inbox: `${extraActorId}/inbox`,
+          sharedInbox: `${extraActorId}/inbox`,
+          status: FollowStatus.enum.Accepted
+        })
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Context parent for custom followers reply'
+        })
+        await database.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: customActorId,
+          to: [customFollowersUrl],
+          cc: [],
+          text: 'Custom followers reply',
+          reply: parentStatusId
+        })
+
+        const replies = await database.getStatusReplies({
+          statusId: parentStatusId,
+          visibleToActorId: extraActorId
+        })
+
+        expect(replies.map((status) => status.id)).toEqual([replyStatusId])
       })
     })
 
@@ -1219,6 +1320,42 @@ describe('StatusDatabase', () => {
           })
         ).toBeArrayOfSize(0)
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
+      })
+
+      it('deletes a status when the scoped actor id matches after normalization', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const rawActorId = `https://Remote.Test/users/delete-author-${suffix}#main-key`
+        const normalizedActorId = normalizeActorId(rawActorId)
+        const statusId = `${rawActorId}/statuses/delete-normalized`
+
+        expect(normalizedActorId).toBeString()
+        expect(normalizedActorId).not.toBe(rawActorId)
+
+        await database.createActor({
+          actorId: rawActorId,
+          username: `delete-author-${suffix}`,
+          domain: 'remote.test',
+          followersUrl: `${rawActorId}/followers`,
+          inboxUrl: `${rawActorId}/inbox`,
+          sharedInboxUrl: 'https://remote.test/inbox',
+          publicKey: `public-key-${suffix}`,
+          createdAt: Date.now()
+        })
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: rawActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Delete with normalized actor id'
+        })
+
+        await database.deleteStatus({
+          statusId,
+          actorId: normalizedActorId ?? undefined
+        })
+
+        expect(await database.getStatus({ statusId })).toBeNull()
       })
 
       it('decreases reply counter when deleting a reply', async () => {

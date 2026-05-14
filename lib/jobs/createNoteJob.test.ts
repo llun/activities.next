@@ -61,6 +61,26 @@ describe('createNoteJob', () => {
     expect(status.createdAt).toEqual(new Date(note.published).getTime())
   })
 
+  it('stores normalized actor ids for notes attributed to sender key fragments', async () => {
+    expect(actor1).toBeDefined()
+    const actorId = actor1?.id as string
+    const note = MockMastodonActivityPubNote({
+      id: `${actorId}/statuses/normalized-attribution`,
+      from: `${actorId}#main-key`,
+      content: '<p>Hello normalized actor</p>'
+    })
+    await createNoteJob(database, {
+      id: 'normalized-attribution',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note,
+      verifiedSenderActorId: actorId
+    })
+
+    const status = await database.getStatus({ statusId: note.id })
+
+    expect(status?.actorId).toBe(actorId)
+  })
+
   it('adds litepub note into database and returns note', async () => {
     const note = MockLitepubNote({ content: '<p>Hello</p>' })
     await createNoteJob(database, {

@@ -21,7 +21,10 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
-import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubContent,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
@@ -66,21 +69,22 @@ export const createNoteJob = createJobHandle(
 
     const text = getContent(note)
     const summary = getSummary(note)
+    const actorId = normalizeActorId(note.attributedTo) ?? note.attributedTo
 
     const publishedAt = new Date(note.published).getTime()
 
     await assertActorCanFederate({
-      actorId: note.attributedTo,
+      actorId,
       database
     })
 
     const [, status] = await Promise.all([
-      recordActorIfNeeded({ actorId: note.attributedTo, database }),
+      recordActorIfNeeded({ actorId, database }),
       database.createNote({
         id: note.id,
         url: typeof note.url === 'string' ? note.url : note.id,
 
-        actorId: note.attributedTo,
+        actorId,
 
         text,
         summary,

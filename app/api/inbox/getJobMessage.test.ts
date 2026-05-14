@@ -115,6 +115,31 @@ describe('getJobMessage', () => {
     })
   })
 
+  it('accepts Create Note activities when the object actor is a link object', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-link-actor',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: {
+            type: 'Link',
+            href: verifiedSenderActorId
+          },
+          content: 'Actor link object'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      verifiedSenderActorId
+    })
+  })
+
   it.each([
     ['Update', 'Update', 'https://remote.test/users/alice#main-key'],
     ['Announce', 'Announce', 'https://remote.test/users/alice#main-key'],
@@ -190,6 +215,39 @@ describe('getJobMessage', () => {
         object: 'https://remote.test/users/alice/statuses/1'
       } as never,
       ''
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Delete activities when the activity actor differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/delete-spoofed',
+        type: 'Delete',
+        actor: 'https://remote.test/users/mallory',
+        object: 'https://remote.test/users/alice/statuses/1'
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Undo Announce activities when the activity actor differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/undo-spoofed',
+        type: 'Undo',
+        actor: 'https://remote.test/users/mallory',
+        object: {
+          id: 'https://remote.test/users/alice/statuses/boost-1',
+          type: 'Announce',
+          actor: verifiedSenderActorId,
+          object: 'https://remote.test/users/alice/statuses/1'
+        }
+      } as never,
+      verifiedSenderActorId
     )
 
     expect(result).toBeNull()
