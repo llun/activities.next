@@ -21,12 +21,25 @@ const BASIC_CREDENTIALS_PATTERN = /^basic\s+([A-Za-z0-9+/]+={0,2})$/i
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const normalizeBase64Credentials = (credentials: string): string | null => {
+  const paddingLength = credentials.length % 4
+  if (paddingLength === 0) return credentials
+  if (credentials.includes('=') || paddingLength === 1) return null
+
+  return `${credentials}${'='.repeat(4 - paddingLength)}`
+}
+
 const parseBasicClientId = (authorization: string | null): string | null => {
   const credentials = authorization?.match(BASIC_CREDENTIALS_PATTERN)?.[1]
-  if (!credentials || credentials.length % 4 !== 0) return null
+  if (!credentials) return null
+
+  const normalizedCredentials = normalizeBase64Credentials(credentials)
+  if (!normalizedCredentials) return null
 
   try {
-    const decoded = Buffer.from(credentials, 'base64').toString('utf8')
+    const decoded = Buffer.from(normalizedCredentials, 'base64').toString(
+      'utf8'
+    )
     const delimiterIndex = decoded.indexOf(':')
     if (delimiterIndex < 0) return null
 

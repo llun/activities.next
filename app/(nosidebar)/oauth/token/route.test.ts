@@ -113,6 +113,47 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
 
+  test('proxies authorization-code exchanges with unpadded Basic credentials and no body client_id when PKCE is not required', async () => {
+    mockClients.set('non-pkce-client', {
+      clientId: 'non-pkce-client',
+      requirePKCE: false
+    })
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: 'authorization-code',
+      redirect_uri: 'https://client.llun.dev/callback'
+    })
+    const credentials = Buffer.from('non-pkce-client:client-secret').toString(
+      'base64'
+    )
+    const unpaddedCredentials = credentials.replace(/=+$/, '')
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      expect(request.headers.get('authorization')).toBe(
+        `Basic ${unpaddedCredentials}`
+      )
+      await expect(request.text()).resolves.toBe(body.toString())
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${unpaddedCredentials}`
+      },
+      body
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      access_token: 'issued',
+      created_at: expect.any(Number)
+    })
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
   test('prefers the Basic auth client over a mismatched body client_id for PKCE preflight', async () => {
     mockClients.set('pkce-client', {
       clientId: 'pkce-client',
@@ -218,6 +259,46 @@ describe('OAuth token endpoint', () => {
     })
     expect(response.status).toBe(400)
     expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('falls back to the body client_id when Basic credentials have partial padding', async () => {
+    mockClients.set('pkce-client', {
+      clientId: 'pkce-client',
+      requirePKCE: true
+    })
+    mockClients.set('non-pkce-client', {
+      clientId: 'non-pkce-client',
+      requirePKCE: false
+    })
+    mockAuthHandler.mockResolvedValue(Response.json({ access_token: 'issued' }))
+
+    const partialPaddingCredentials = `${Buffer.from(
+      'pkce-client:client-secret'
+    )
+      .toString('base64')
+      .replace(/=+$/, '')}=`
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${partialPaddingCredentials}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'non-pkce-client',
+        code: 'authorization-code',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      access_token: 'issued',
+      created_at: expect.any(Number)
+    })
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
   })
 
   test('rejects authorization-code exchanges without client credentials before proxying', async () => {
