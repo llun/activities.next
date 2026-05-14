@@ -541,4 +541,39 @@ describe('OAuth token endpoint', () => {
     expect(arrayBufferSpy).not.toHaveBeenCalled()
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
+
+  test('rejects token body streams that yield invalid numeric chunks', async () => {
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: 'client-id',
+        client_secret: 'client-secret'
+      })
+    })
+    Object.defineProperty(req, 'body', {
+      value: {
+        async *[Symbol.asyncIterator]() {
+          yield 256
+        }
+      },
+      configurable: true
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'Unable to read request body'
+    })
+    expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
 })

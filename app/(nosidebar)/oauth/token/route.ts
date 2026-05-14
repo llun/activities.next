@@ -78,7 +78,12 @@ const appendTokenRequestBodyChunk = (
 const toBodyChunk = (value: unknown): Uint8Array => {
   if (value instanceof Uint8Array) return value
   if (value instanceof ArrayBuffer) return new Uint8Array(value)
-  if (typeof value === 'number') return Uint8Array.of(value)
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      throw new TokenRequestBodyUnreadableError()
+    }
+    return Uint8Array.of(value)
+  }
   if (typeof value === 'string') return Buffer.from(value)
   throw new TokenRequestBodyUnreadableError()
 }
