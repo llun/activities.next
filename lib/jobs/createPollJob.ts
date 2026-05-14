@@ -14,6 +14,7 @@ import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_JOB_NAME } from './names'
+import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createPollJob = createJobHandle(
   CREATE_POLL_JOB_NAME,
@@ -25,6 +26,9 @@ export const createPollJob = createJobHandle(
       return
     }
     const question = parseResult.data
+    if (!actorMatchesVerifiedSender(question.attributedTo, message)) {
+      return
+    }
 
     const existingStatus = await database.getStatus({
       statusId: question.id,

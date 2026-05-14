@@ -4,16 +4,18 @@ import {
   getDocumentFromAttachment,
   isFitnessAttachment
 } from '@/lib/types/domain/attachment'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { getMentionFromTag } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 export const getNoteFromStatus = (status: Status): Note | null => {
-  if (status.type === StatusType.enum.Poll) return null
-
-  const actualStatus =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
+  const actualStatus = getOriginalStatus(status)
+  if (actualStatus.type === StatusType.enum.Poll) return null
 
   return Note.parse({
     id: actualStatus.id,

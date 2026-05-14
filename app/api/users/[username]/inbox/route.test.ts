@@ -41,6 +41,7 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
           activityBody: unknown
           database: typeof mockDatabase
           params: Promise<{ username: string }>
+          verifiedSenderActorId: string
         }
       ) => Promise<Response> | Response
     ) =>
@@ -67,7 +68,8 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       return handle(req, {
         activityBody,
         database: mockDatabase,
-        params: context.params
+        params: context.params,
+        verifiedSenderActorId: 'https://remote.test/users/alice'
       })
     }
 }))

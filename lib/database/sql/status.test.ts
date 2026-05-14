@@ -1,3 +1,5 @@
+import knex, { Knex } from 'knex'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -11,8 +13,11 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+
+import { buildPubliclyReadableStatusIdsQuery } from './status'
 
 describe('StatusDatabase', () => {
   const { actors, statuses } = DatabaseSeed
@@ -29,6 +34,50 @@ describe('StatusDatabase', () => {
 
   afterAll(async () => {
     await Promise.all(table.map((item) => item[1].destroy()))
+  })
+
+  describe('public readable status SQL', () => {
+    const createTargetStatusIds = (database: Knex) =>
+      database('statuses')
+        .select('statuses.id')
+        .where('statuses.actorId', primaryActorId)
+
+    it('seeds recursive public readability from the caller target set', async () => {
+      const sqliteDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sql = buildPubliclyReadableStatusIdsQuery({
+        database: sqliteDatabase,
+        targetStatusIds: createTargetStatusIds(sqliteDatabase)
+      })
+        .toSQL()
+        .sql.toLowerCase()
+
+      expect(sql).toContain('with recursive')
+      expect(sql).toContain('actorid')
+      expect(sql.indexOf('actorid')).toBeLessThan(sql.indexOf('union'))
+
+      await sqliteDatabase.destroy()
+    })
+
+    it('does not use recursive CTEs for MySQL-compatible public readability SQL', async () => {
+      const mysqlDatabase = knex({ client: 'mysql2' })
+      const sql = buildPubliclyReadableStatusIdsQuery({
+        database: mysqlDatabase,
+        targetStatusIds: createTargetStatusIds(mysqlDatabase)
+      })
+        .toSQL()
+        .sql.toLowerCase()
+
+      expect(sql).not.toContain('with recursive')
+      expect(sql).toContain('actorid')
+
+      await mysqlDatabase.destroy()
+    })
   })
 
   describe.each(table)('%s', (_, database) => {
@@ -315,6 +364,58 @@ describe('StatusDatabase', () => {
           'This is Actor1 post'
         ])
       })
+
+      it('paginates statuses that share createdAt using id as a tiebreaker', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const createdAt = Date.UTC(2035, 0, 1)
+        const firstStatusId = `${emptyActorId}/statuses/tie-z-${suffix}`
+        const secondStatusId = `${emptyActorId}/statuses/tie-y-${suffix}`
+        const thirdStatusId = `${emptyActorId}/statuses/tie-x-${suffix}`
+
+        await database.createNote({
+          id: firstStatusId,
+          url: firstStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tie ordered status z',
+          createdAt
+        })
+        await database.createNote({
+          id: secondStatusId,
+          url: secondStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tie ordered status y',
+          createdAt
+        })
+        await database.createNote({
+          id: thirdStatusId,
+          url: thirdStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tie ordered status x',
+          createdAt
+        })
+
+        const firstPage = await database.getActorStatuses({
+          actorId: emptyActorId,
+          limit: 2
+        })
+        const secondPage = await database.getActorStatuses({
+          actorId: emptyActorId,
+          maxStatusId: secondStatusId,
+          limit: 2
+        })
+
+        expect(firstPage.map((status) => status.id)).toEqual([
+          firstStatusId,
+          secondStatusId
+        ])
+        expect(secondPage.map((status) => status.id)).toContain(thirdStatusId)
+      })
     })
 
     describe('getActorStatusesCount', () => {
@@ -323,6 +424,107 @@ describe('StatusDatabase', () => {
           actorId: primaryActorId
         })
         expect(count).toBe(3)
+      })
+
+      it('counts only publicly readable actor statuses when requested', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const publicStatusId = `${emptyActorId}/statuses/public-${suffix}`
+        const privateStatusId = `${emptyActorId}/statuses/private-${suffix}`
+        const privateAnnounceId = `${emptyActorId}/statuses/announce-private-${suffix}`
+        const beforePublicCount = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+
+        await database.createNote({
+          id: publicStatusId,
+          url: publicStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Public count status'
+        })
+        await database.createNote({
+          id: privateStatusId,
+          url: privateStatusId,
+          actorId: emptyActorId,
+          to: [`${emptyActorId}/followers`],
+          cc: [],
+          text: 'Private count status'
+        })
+        await database.createAnnounce({
+          id: privateAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: privateStatusId
+        })
+
+        const count = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+        const statuses = await database.getActorStatuses({
+          actorId: emptyActorId,
+          publicOnly: true,
+          limit: 50
+        })
+        const publicStatusIds = statuses.map((status) => status.id)
+
+        expect(count).toBe(beforePublicCount + 1)
+        expect(publicStatusIds).toContain(publicStatusId)
+        expect(publicStatusIds).not.toContain(privateStatusId)
+        expect(publicStatusIds).not.toContain(privateAnnounceId)
+      })
+
+      it('excludes nested announces when the boosted original is not publicly readable', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const privateStatusId = `${emptyActorId}/statuses/nested-private-${suffix}`
+        const firstAnnounceId = `${emptyActorId}/statuses/nested-announce-private-${suffix}`
+        const nestedAnnounceId = `${emptyActorId}/statuses/nested-announce-public-${suffix}`
+        const beforePublicCount = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+
+        await database.createNote({
+          id: privateStatusId,
+          url: privateStatusId,
+          actorId: emptyActorId,
+          to: [`${emptyActorId}/followers`],
+          cc: [],
+          text: 'Private nested root status'
+        })
+        await database.createAnnounce({
+          id: firstAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: privateStatusId
+        })
+        await database.createAnnounce({
+          id: nestedAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: firstAnnounceId
+        })
+
+        const count = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+        const statuses = await database.getActorStatuses({
+          actorId: emptyActorId,
+          publicOnly: true,
+          limit: 50
+        })
+        const publicStatusIds = statuses.map((status) => status.id)
+
+        expect(count).toBe(beforePublicCount)
+        expect(publicStatusIds).not.toContain(privateStatusId)
+        expect(publicStatusIds).not.toContain(firstAnnounceId)
+        expect(publicStatusIds).not.toContain(nestedAnnounceId)
       })
     })
 
@@ -362,6 +564,115 @@ describe('StatusDatabase', () => {
         expect((replies[1] as StatusNote).text).toBe(
           '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> This is Actor1 post</p>'
         )
+      })
+
+      it('filters replies to statuses potentially visible to the current actor', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const parentStatusId = `${primaryActorId}/statuses/context-parent-${suffix}`
+        const publicReplyId = `${replyAuthorId}/statuses/context-public-${suffix}`
+        const directReplyId = `${replyAuthorId}/statuses/context-direct-${suffix}`
+        const hiddenReplyId = `${replyAuthorId}/statuses/context-hidden-${suffix}`
+        const createdAt = Date.now()
+
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Context parent',
+          createdAt
+        })
+        await database.createNote({
+          id: publicReplyId,
+          url: publicReplyId,
+          actorId: replyAuthorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Public context reply',
+          reply: parentStatusId,
+          createdAt: createdAt + 1
+        })
+        await database.createNote({
+          id: directReplyId,
+          url: directReplyId,
+          actorId: replyAuthorId,
+          to: [extraActorId],
+          cc: [],
+          text: 'Direct context reply',
+          reply: parentStatusId,
+          createdAt: createdAt + 2
+        })
+        await database.createNote({
+          id: hiddenReplyId,
+          url: hiddenReplyId,
+          actorId: replyAuthorId,
+          to: [primaryActorId],
+          cc: [],
+          text: 'Hidden context reply',
+          reply: parentStatusId,
+          createdAt: createdAt + 3
+        })
+
+        const replies = await database.getStatusReplies({
+          statusId: parentStatusId,
+          visibleToActorId: extraActorId
+        })
+
+        expect(replies.map((status) => status.id)).toEqual([
+          directReplyId,
+          publicReplyId
+        ])
+      })
+
+      it("includes followers-only replies using the reply author's stored followersUrl", async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const customActorId = `https://remote.test/users/context-author-${suffix}`
+        const customFollowersUrl = `https://remote.test/collections/context-author-${suffix}/followers`
+        const parentStatusId = `${primaryActorId}/statuses/context-custom-followers-parent-${suffix}`
+        const replyStatusId = `${customActorId}/statuses/context-custom-followers-reply`
+
+        await database.createActor({
+          actorId: customActorId,
+          username: `context-author-${suffix}`,
+          domain: 'remote.test',
+          followersUrl: customFollowersUrl,
+          inboxUrl: `${customActorId}/inbox`,
+          sharedInboxUrl: 'https://remote.test/inbox',
+          publicKey: `public-key-${suffix}`,
+          createdAt: Date.now()
+        })
+        await database.createFollow({
+          actorId: extraActorId,
+          targetActorId: customActorId,
+          inbox: `${extraActorId}/inbox`,
+          sharedInbox: `${extraActorId}/inbox`,
+          status: FollowStatus.enum.Accepted
+        })
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Context parent for custom followers reply'
+        })
+        await database.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: customActorId,
+          to: [customFollowersUrl],
+          cc: [],
+          text: 'Custom followers reply',
+          reply: parentStatusId
+        })
+
+        const replies = await database.getStatusReplies({
+          statusId: parentStatusId,
+          visibleToActorId: extraActorId
+        })
+
+        expect(replies.map((status) => status.id)).toEqual([replyStatusId])
       })
     })
 
@@ -1109,6 +1420,42 @@ describe('StatusDatabase', () => {
           })
         ).toBeArrayOfSize(0)
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
+      })
+
+      it('deletes a status when the scoped actor id matches after normalization', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const rawActorId = `https://Remote.Test/users/delete-author-${suffix}#main-key`
+        const normalizedActorId = normalizeActorId(rawActorId)
+        const statusId = `${rawActorId}/statuses/delete-normalized`
+
+        expect(normalizedActorId).toBeString()
+        expect(normalizedActorId).not.toBe(rawActorId)
+
+        await database.createActor({
+          actorId: rawActorId,
+          username: `delete-author-${suffix}`,
+          domain: 'remote.test',
+          followersUrl: `${rawActorId}/followers`,
+          inboxUrl: `${rawActorId}/inbox`,
+          sharedInboxUrl: 'https://remote.test/inbox',
+          publicKey: `public-key-${suffix}`,
+          createdAt: Date.now()
+        })
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: rawActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Delete with normalized actor id'
+        })
+
+        await database.deleteStatus({
+          statusId,
+          actorId: normalizedActorId ?? undefined
+        })
+
+        expect(await database.getStatus({ statusId })).toBeNull()
       })
 
       it('decreases reply counter when deleting a reply', async () => {

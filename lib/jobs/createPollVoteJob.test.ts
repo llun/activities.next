@@ -93,6 +93,26 @@ describe('createPollVoteJob', () => {
     expect(updatedPoll.choices[0].totalVotes).toEqual(1)
   })
 
+  it('ignores inbox poll votes whose attributedTo does not match the verified sender', async () => {
+    const voteNote = createVoteNote({
+      from: VOTER_ACTOR_ID,
+      inReplyTo: pollStatus.id,
+      name: 'Option A'
+    })
+
+    await createPollVoteJob(database, {
+      id: 'id',
+      name: CREATE_POLL_VOTE_JOB_NAME,
+      data: voteNote,
+      verifiedSenderActorId: VOTER2_ACTOR_ID
+    })
+
+    const updatedPoll = (await database.getStatus({
+      statusId: pollStatus.id
+    })) as StatusPoll
+    expect(updatedPoll.choices[0].totalVotes).toEqual(0)
+  })
+
   it('ignores vote with content (not a poll vote)', async () => {
     const noteWithContent = createVoteNote({
       from: VOTER_ACTOR_ID,

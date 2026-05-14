@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -28,7 +29,7 @@ const FavouritedByQueryParams = z.object({
 export const GET = traceApiRoute(
   'getStatusFavouritedBy',
   OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { database, params } = context
+    const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId)
       return apiResponse({
@@ -51,6 +52,20 @@ export const GET = traceApiRoute(
 
     const { limit, offset = 0 } = parsedParams.data
     const statusId = idToUrl(encodedStatusId)
+    const status = await getReadableStatus({
+      database,
+      statusId,
+      currentActor,
+      withReplies: false
+    })
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
+
     const [actors, totalCount] = await Promise.all([
       database.getFavouritedBy({ statusId, limit, offset }),
       database.getLikeCount({ statusId })

@@ -1,7 +1,11 @@
 import { FC } from 'react'
 
 import { PostProps } from '@/lib/components/posts/post'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
@@ -30,7 +34,9 @@ export const Actions: FC<Props> = ({
   if (!currentActor) return null
 
   const actualStatus =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
+    status.type === StatusType.enum.Announce
+      ? getOriginalStatus(status)
+      : status
   const canEdit = editable && status.type !== StatusType.enum.Announce
   const isOwner =
     Boolean(actualStatus.isLocalActor) &&

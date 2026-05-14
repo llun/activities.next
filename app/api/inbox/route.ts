@@ -23,51 +23,56 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = traceApiRoute(
   'sharedInbox',
-  ActivityPubVerifySenderGuard(async (request, { activityBody, database }) => {
-    const body = activityBody
-    const actor = isRecord(body) ? extractActivityPubId(body.actor) : undefined
+  ActivityPubVerifySenderGuard(
+    async (request, { activityBody, database, verifiedSenderActorId }) => {
+      const body = activityBody
+      const actor = isRecord(body)
+        ? extractActivityPubId(body.actor)
+        : undefined
 
-    // The guard enforces signed POST actors; keep route validation before casting unknown JSON.
-    if (
-      !isRecord(body) ||
-      typeof body.id !== 'string' ||
-      typeof body.type !== 'string' ||
-      !actor ||
-      !normalizeActorId(actor)
-    ) {
+      // The guard enforces signed POST actors; keep route validation before casting unknown JSON.
+      if (
+        !isRecord(body) ||
+        typeof body.id !== 'string' ||
+        typeof body.type !== 'string' ||
+        !actor ||
+        !normalizeActorId(actor)
+      ) {
+        return apiResponse({
+          req: request,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const activity = { ...body, actor } as unknown as StatusActivity
+      if (!(await canFederateWithDomain(database, activity.actor))) {
+        return apiResponse({
+          req: request,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_403,
+          responseStatusCode: 403
+        })
+      }
+
+      const jobMessage = getJobMessage(activity, verifiedSenderActorId)
+      if (!jobMessage) {
+        return apiResponse({
+          req: request,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
+      await getQueue().publish(jobMessage)
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: DEFAULT_202,
+        responseStatusCode: 202
       })
-    }
-    const activity = { ...body, actor } as unknown as StatusActivity
-    if (!(await canFederateWithDomain(database, activity.actor))) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_403,
-        responseStatusCode: 403
-      })
-    }
-
-    const jobMessage = getJobMessage(activity)
-    if (!jobMessage) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-    }
-
-    await getQueue().publish(jobMessage)
-    return apiResponse({
-      req: request,
-      allowedMethods: CORS_HEADERS,
-      data: DEFAULT_202,
-      responseStatusCode: 202
-    })
-  }, CORS_HEADERS)
+    },
+    CORS_HEADERS
+  )
 )

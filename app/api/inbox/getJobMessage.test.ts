@@ -1,0 +1,255 @@
+import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+
+import { getJobMessage } from './getJobMessage'
+
+const verifiedSenderActorId = 'https://remote.test/users/alice'
+
+describe('getJobMessage', () => {
+  it('rejects Create Note activities when the verified sender actor id is invalid', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-unverified',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: verifiedSenderActorId,
+          content: 'Unverified sender'
+        }
+      } as never,
+      ''
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Create Note activities without object actor attribution when the sender is verified', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-no-attribution',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          content: 'Missing attribution'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Create Note activities when any nested attribution differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-mixed-attribution',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: [
+            { id: `${verifiedSenderActorId}#main-key` },
+            [{ id: 'https://remote.test/users/mallory' }]
+          ],
+          content: 'Mixed attribution'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('accepts Create Note activities only when every object actor id matches the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-matching-attribution',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: [
+            verifiedSenderActorId,
+            { id: `${verifiedSenderActorId}#main-key` }
+          ],
+          actor: { id: verifiedSenderActorId },
+          content: 'Matching attribution'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      verifiedSenderActorId
+    })
+  })
+
+  it('accepts Create Note activities when the inline actor object id matches the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-inline-actor',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: {
+            id: verifiedSenderActorId,
+            url: 'https://remote.test/@alice'
+          },
+          content: 'Inline actor object'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      verifiedSenderActorId
+    })
+  })
+
+  it('accepts Create Note activities when the object actor is a link object', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-link-actor',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: {
+            type: 'Link',
+            href: verifiedSenderActorId
+          },
+          content: 'Actor link object'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      verifiedSenderActorId
+    })
+  })
+
+  it.each([
+    ['Update', 'Update', 'https://remote.test/users/alice#main-key'],
+    ['Announce', 'Announce', 'https://remote.test/users/alice#main-key'],
+    ['Delete', 'Delete', 'https://remote.test/users/alice#main-key']
+  ])(
+    'attaches the normalized verified sender actor id to %s job messages',
+    (_label, type, senderActorId) => {
+      const object =
+        type === 'Update'
+          ? {
+              id: 'https://remote.test/users/alice/statuses/1',
+              type: 'Note',
+              attributedTo: verifiedSenderActorId,
+              content: 'Updated content'
+            }
+          : 'https://remote.test/users/alice/statuses/1'
+
+      const result = getJobMessage(
+        {
+          id: `https://remote.test/activities/${type.toLowerCase()}-1`,
+          type,
+          actor: verifiedSenderActorId,
+          object
+        } as never,
+        senderActorId
+      )
+
+      expect(result).toMatchObject({
+        verifiedSenderActorId: verifiedSenderActorId.toLowerCase()
+      })
+    }
+  )
+
+  it('rejects Update Note activities when object attribution differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/update-spoofed',
+        type: 'Update',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/mallory/statuses/1',
+          type: 'Note',
+          attributedTo: 'https://remote.test/users/mallory',
+          content: 'Spoofed content'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Announce activities when the activity actor differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/announce-spoofed',
+        type: 'Announce',
+        actor: 'https://remote.test/users/mallory',
+        object: 'https://remote.test/users/alice/statuses/1'
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Announce activities when the verified sender actor id is invalid', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/announce-unverified',
+        type: 'Announce',
+        actor: verifiedSenderActorId,
+        object: 'https://remote.test/users/alice/statuses/1'
+      } as never,
+      ''
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Delete activities when the activity actor differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/delete-spoofed',
+        type: 'Delete',
+        actor: 'https://remote.test/users/mallory',
+        object: 'https://remote.test/users/alice/statuses/1'
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Undo Announce activities when the activity actor differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/undo-spoofed',
+        type: 'Undo',
+        actor: 'https://remote.test/users/mallory',
+        object: {
+          id: 'https://remote.test/users/alice/statuses/boost-1',
+          type: 'Announce',
+          actor: verifiedSenderActorId,
+          object: 'https://remote.test/users/alice/statuses/1'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+})

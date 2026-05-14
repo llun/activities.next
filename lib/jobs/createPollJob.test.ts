@@ -160,6 +160,24 @@ describe('createPollJob', () => {
     ).resolves.toBeNull()
   })
 
+  it('ignores inbox questions whose attributedTo does not match the verified sender', async () => {
+    const question = MockActivityPubQuestion({
+      id: 'https://somewhere.test/actors/pollcreator/questions/spoofed',
+      from: REMOTE_ACTOR_ID
+    })
+
+    await createPollJob(database, {
+      id: 'id',
+      name: CREATE_POLL_JOB_NAME,
+      data: question,
+      verifiedSenderActorId: 'https://somewhere.test/actors/mallory'
+    })
+
+    await expect(
+      database.getStatus({ statusId: question.id })
+    ).resolves.toBeNull()
+  })
+
   it('creates poll with oneOf choices', async () => {
     const question = MockActivityPubQuestion({
       oneOf: [createOption('Option A'), createOption('Option B')]

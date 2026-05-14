@@ -1,6 +1,7 @@
 import { sendUndoLike } from '@/lib/activities'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -34,18 +35,38 @@ export const POST = traceApiRoute(
       })
 
     const statusId = idToUrl(encodedStatusId)
-    const status = await database.getStatus({
+    let status = await getReadableStatus({
+      database,
       statusId,
-      withReplies: false,
-      currentActorId: currentActor.id
+      currentActor,
+      withReplies: false
     })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+    if (!status) {
+      const isActorLikedStatus = await database.isActorLikedStatus({
+        actorId: currentActor.id,
+        statusId
       })
+      if (!isActorLikedStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      status = await database.getStatus({
+        statusId,
+        withReplies: false,
+        currentActorId: currentActor.id
+      })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+    }
 
     await database.deleteLike({ actorId: currentActor.id, statusId })
     await sendUndoLike({ currentActor, status })

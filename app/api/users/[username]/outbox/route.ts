@@ -1,14 +1,47 @@
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import {
   AnnounceAction,
   CreateAction
 } from '@/lib/types/activitypub/activities'
-import { StatusType, toActivityPubObject } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  toActivityPubObject
+} from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
 import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const getPubliclyReadableActorStatuses = async (
+  database: Database,
+  actorId: string,
+  limit = PER_PAGE_LIMIT
+) => {
+  const statuses: Status[] = []
+  let maxStatusId: string | undefined
+
+  while (statuses.length < limit) {
+    const batch = await database.getActorStatuses({
+      actorId,
+      limit,
+      ...(maxStatusId ? { maxStatusId } : {}),
+      publicOnly: true
+    })
+    if (batch.length === 0) break
+
+    statuses.push(...batch.filter(isStatusPubliclyReadable))
+    if (batch.length < limit) break
+
+    maxStatusId = batch[batch.length - 1].id
+  }
+
+  return statuses.slice(0, limit)
+}
 
 export const GET = traceApiRoute(
   'getActorOutbox',
@@ -18,20 +51,29 @@ export const GET = traceApiRoute(
       const pageParam = url.searchParams.get('page')
       if (!pageParam) {
         const outboxId = getLocalActorOutboxId(actor.id)
+        const totalItems = await database.getActorStatusesCount({
+          actorId: actor.id,
+          publicOnly: true
+        })
         return activityPubResponse({
           req,
           data: {
             '@context': ACTIVITY_STREAM_URL,
             id: outboxId,
             type: 'OrderedCollection',
-            totalItems: actor.statusCount,
+            totalItems,
             first: `${outboxId}?page=true`,
             last: `${outboxId}?min_id=0&page=true`
           }
         })
       }
 
-      const statuses = await database.getActorStatuses({ actorId: actor.id })
+      const statuses = await getPubliclyReadableActorStatuses(
+        database,
+        actor.id
+      )
+      // publicOnly checks the Announce recipients in SQL; this second filter
+      // also confirms the boosted original status is publicly readable.
       const items = statuses.map((status) => {
         if (status.type === StatusType.enum.Announce) {
           return {

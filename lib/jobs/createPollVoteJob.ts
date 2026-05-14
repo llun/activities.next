@@ -9,6 +9,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_VOTE_JOB_NAME } from './names'
+import { actorMatchesVerifiedSender } from './verifiedSender'
 
 // Poll vote notes have a 'name' field that's not in the standard Note schema
 interface PollVoteData {
@@ -29,6 +30,10 @@ export const createPollVoteJob = createJobHandle(
     const note = parseResult.data
 
     if (note.type !== ENTITY_TYPE_NOTE) {
+      return
+    }
+
+    if (!actorMatchesVerifiedSender(note.attributedTo, message)) {
       return
     }
 

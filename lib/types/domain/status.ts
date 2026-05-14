@@ -97,14 +97,30 @@ export const StatusPoll = StatusNote.extend({
 })
 export type StatusPoll = z.infer<typeof StatusPoll>
 
-export const StatusAnnounce = StatusBase.extend({
-  type: z.literal(StatusType.enum.Announce),
-  originalStatus: z.union([StatusNote, StatusPoll])
-})
-export type StatusAnnounce = z.infer<typeof StatusAnnounce>
+type StatusBaseData = z.infer<typeof StatusBase>
 
-export const Status = z.union([StatusNote, StatusPoll, StatusAnnounce])
-export type Status = z.infer<typeof Status>
+export type StatusAnnounce = StatusBaseData & {
+  type: 'Announce'
+  originalStatus: Status
+}
+
+export const StatusAnnounce: z.ZodType<StatusAnnounce> = StatusBase.extend({
+  type: z.literal(StatusType.enum.Announce),
+  originalStatus: z.lazy(() => Status)
+})
+
+export type Status = StatusNote | StatusPoll | StatusAnnounce
+export const Status: z.ZodType<Status> = z.lazy(() =>
+  z.union([StatusNote, StatusPoll, StatusAnnounce])
+)
+
+export const getOriginalStatus = (status: Status): StatusNote | StatusPoll => {
+  if (status.type === StatusType.enum.Announce) {
+    return getOriginalStatus(status.originalStatus)
+  }
+
+  return status
+}
 
 export const EditableStatus = z.union([StatusNote, StatusPoll])
 export type EditableStatus = z.infer<typeof EditableStatus>
@@ -307,8 +323,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     })
   }
 
-  const originalStatus =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
+  const originalStatus = getOriginalStatus(status)
   return Note.parse({
     id: originalStatus.id,
     type: originalStatus.type,
