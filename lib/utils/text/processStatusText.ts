@@ -3,7 +3,10 @@ import _ from 'lodash'
 import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
+import {
+  sanitizeText,
+  sanitizeTrustedStatusText
+} from '@/lib/utils/text/sanitizeText'
 
 /**
  * Helper function to get the actual status from a boosted status
@@ -26,8 +29,10 @@ export const processStatusText = (host: string, status: Status) => {
   const actualStatus = getActualStatus(status)
 
   return _.chain(actualStatus.text)
-    .thru(actualStatus.isLocalActor ? convertMarkdownText(host) : sanitizeText)
+    .thru(actualStatus.isLocalActor ? convertMarkdownText(host) : _.identity)
+    .thru(sanitizeText)
     .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
+    .thru(sanitizeTrustedStatusText)
     .thru(_.trim)
     .value()
 }
