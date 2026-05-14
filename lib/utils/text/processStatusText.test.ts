@@ -3,6 +3,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Status } from '@/lib/types/domain/status'
 
 import { getActualStatus, processStatusText } from './processStatusText'
@@ -67,6 +68,38 @@ describe('processStatusText', () => {
       expect(result).toBe('<p>Status with <strong>markdown</strong></p>')
     })
 
+    it('strips unsafe markdown link schemes from local actor statuses', async () => {
+      const localStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/markdown-javascript-link-test`,
+        url: `${ACTOR1_ID}/statuses/markdown-javascript-link-test`,
+        actorId: ACTOR1_ID,
+        text: '[Click me](javascript:alert(1))',
+        to: [],
+        cc: []
+      })
+
+      const result = processStatusText(mockHost, localStatus)
+
+      expect(result).not.toContain('javascript:')
+      expect(result).toContain('>Click me</a>')
+    })
+
+    it('removes raw script tags after local markdown conversion', async () => {
+      const localStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/markdown-script-test`,
+        url: `${ACTOR1_ID}/statuses/markdown-script-test`,
+        actorId: ACTOR1_ID,
+        text: 'Hello <script>alert("xss")</script>',
+        to: [],
+        cc: []
+      })
+
+      const result = processStatusText(mockHost, localStatus)
+
+      expect(result).not.toContain('<script')
+      expect(result).toContain('Hello')
+    })
+
     it('processes actor status with markdown conversion', () => {
       const result = processStatusText(mockHost, noteStatus)
 
@@ -98,8 +131,66 @@ describe('processStatusText', () => {
       const result = processStatusText(mockHost, statusWithTags)
 
       expect(result).toBe(
-        '<p>Status with <img class="emoji" src="https://test.host/emoji.png" alt=":emoji:"></img></p>'
+        '<p>Status with <img class="emoji" src="https://test.host/emoji.png" alt=":emoji:" /></p>'
       )
+    })
+
+    it('sanitizes custom emoji image URLs after emoji injection', async () => {
+      const statusWithEmoji = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/emoji-xss-test`,
+        url: `${ACTOR1_ID}/statuses/emoji-xss-test`,
+        actorId: ACTOR1_ID,
+        text: 'Status with :emoji:',
+        to: [],
+        cc: []
+      })
+
+      await database.createTag({
+        statusId: statusWithEmoji.id,
+        type: 'emoji',
+        name: ':emoji:',
+        value: 'javascript:alert(1)'
+      })
+
+      const statusWithTags = (await database.getStatus({
+        statusId: statusWithEmoji.id,
+        withReplies: false
+      })) as Status
+
+      const result = processStatusText(mockHost, statusWithTags)
+
+      expect(result).not.toContain('javascript:')
+      expect(result).not.toContain('onerror')
+    })
+
+    it('strips untrusted emoji image markup before preserving generated emoji images', async () => {
+      const statusWithEmoji = await database.createNote({
+        id: `${EXTERNAL_ACTOR1}/statuses/emoji-image-spoof-test`,
+        url: `${EXTERNAL_ACTOR1}/statuses/emoji-image-spoof-test`,
+        actorId: EXTERNAL_ACTOR1,
+        text: '<p>Before <img class="emoji" src="https://attacker.test/tracker.png" alt=":emoji:"> :emoji: After</p>',
+        to: [],
+        cc: []
+      })
+
+      await database.createTag({
+        statusId: statusWithEmoji.id,
+        type: 'emoji',
+        name: ':emoji:',
+        value: 'https://test.host/emoji.png'
+      })
+
+      const statusWithTags = (await database.getStatus({
+        statusId: statusWithEmoji.id,
+        withReplies: false
+      })) as Status
+
+      const result = processStatusText(mockHost, statusWithTags)
+
+      expect(result).toBe(
+        '<p>Before  <img class="emoji" src="https://test.host/emoji.png" alt=":emoji:" /> After</p>'
+      )
+      expect(result).not.toContain('https://attacker.test/tracker.png')
     })
 
     it('processes Announce status by using the original status text', () => {

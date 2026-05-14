@@ -23,6 +23,7 @@ import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
 
 const FederationMode = z.enum(['open', 'allowlist'])
+const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
 
 const Config = z.object({
   host: z.string(),
@@ -49,9 +50,26 @@ const Config = z.object({
 })
 export type Config = z.infer<typeof Config>
 
+const shouldValidateProductionRuntimeSecret = () =>
+  process.env.NODE_ENV === 'production' &&
+  process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD
+
+const validateProductionRuntimeSecret = (config: Config) => {
+  if (!shouldValidateProductionRuntimeSecret()) return
+  if (config.secretPhase.trim().length >= MINIMUM_PRODUCTION_SECRET_LENGTH) {
+    return
+  }
+
+  throw new Error(
+    'ACTIVITIES_SECRET_PHASE must be at least 32 characters in production runtime'
+  )
+}
+
 const getConfigFromFile = () => {
+  let config: Config
+
   try {
-    return Config.parse(
+    config = Config.parse(
       JSON.parse(
         fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
       )
@@ -70,15 +88,19 @@ const getConfigFromFile = () => {
     logger.error(nodeError)
     return null
   }
+
+  return config
 }
 
 const getConfigFromEnvironment = () => {
+  let config: Config
+
   try {
     const hostConfig = getHostConfigFromEnvironment({
       onInvalidList: 'throw'
     })
 
-    return Config.parse({
+    config = Config.parse({
       host: hostConfig.host,
       secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
       allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
@@ -108,14 +130,22 @@ const getConfigFromEnvironment = () => {
     logger.error(nodeErr)
     return null
   }
+
+  return config
 }
 
 export const getConfig = memoize((): Config => {
   const fileConfig = getConfigFromFile()
-  if (fileConfig) return fileConfig
+  if (fileConfig) {
+    validateProductionRuntimeSecret(fileConfig)
+    return fileConfig
+  }
 
   const environmentConfig = getConfigFromEnvironment()
-  if (environmentConfig) return environmentConfig
+  if (environmentConfig) {
+    validateProductionRuntimeSecret(environmentConfig)
+    return environmentConfig
+  }
 
   throw new Error('Fail to read Activities.next config')
 })

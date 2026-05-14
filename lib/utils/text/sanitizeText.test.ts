@@ -1,4 +1,8 @@
-import { SANITIZED_OPTION, sanitizeText } from './sanitizeText'
+import {
+  SANITIZED_OPTION,
+  sanitizeText,
+  sanitizeTrustedStatusText
+} from './sanitizeText'
 
 describe('sanitizeText', () => {
   describe('SANITIZED_OPTION', () => {
@@ -25,6 +29,7 @@ describe('sanitizeText', () => {
       expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('href')
       expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('rel')
       expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('class')
+      expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('target')
     })
   })
 
@@ -45,6 +50,22 @@ describe('sanitizeText', () => {
       const input =
         '<a href="https://example.com" rel="nofollow noopener">Link</a>'
       expect(sanitizeText(input)).toContain('rel="nofollow noopener"')
+    })
+
+    it('preserves blank link targets with opener protection', () => {
+      const input = '<a href="https://example.com" target="_blank">Link</a>'
+      expect(sanitizeText(input)).toEqual(
+        '<a href="https://example.com" target="_blank" rel="noopener noreferrer">Link</a>'
+      )
+    })
+
+    it('removes named link targets from untrusted links', () => {
+      const input =
+        '<a href="https://example.com" target="shared-window">Link</a>'
+
+      expect(sanitizeText(input)).toEqual(
+        '<a href="https://example.com">Link</a>'
+      )
     })
 
     it('allows span with class', () => {
@@ -105,9 +126,39 @@ describe('sanitizeText', () => {
       expect(sanitizeText(input)).toEqual('<p>Safe</p>')
     })
 
-    it('removes img tags', () => {
+    it('removes non-emoji img tags', () => {
       const input = '<img src="https://example.com/image.jpg"><p>Text</p>'
       expect(sanitizeText(input)).toEqual('<p>Text</p>')
+    })
+
+    it('removes remote content images that are not custom emoji', () => {
+      const input =
+        '<p>Before<img class="u-photo" src="https://example.com/photo.jpg" alt="photo">After</p>'
+      expect(sanitizeText(input)).toEqual('<p>BeforeAfter</p>')
+    })
+
+    it('removes emoji img tags from untrusted input', () => {
+      const input =
+        '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:">'
+      expect(sanitizeText(input)).toEqual('')
+    })
+
+    it('removes emoji img tags inside untrusted status text', () => {
+      const input =
+        '<p>Status with <img class="emoji" src="https://example.com/emoji.png" alt=":emoji:"> custom emoji</p>'
+      expect(sanitizeText(input)).toEqual('<p>Status with  custom emoji</p>')
+    })
+
+    it('removes http emoji image sources', () => {
+      const input =
+        '<img class="emoji" src="http://example.com/image.jpg" alt=":emoji:">'
+      expect(sanitizeText(input)).toEqual('')
+    })
+
+    it('removes protocol-relative emoji image sources', () => {
+      const input =
+        '<img class="emoji" src="//example.com/image.jpg" alt=":emoji:">'
+      expect(sanitizeText(input)).toEqual('')
     })
 
     it('allows mailto links', () => {
@@ -117,9 +168,9 @@ describe('sanitizeText', () => {
       )
     })
 
-    it('allows tel links', () => {
+    it('removes tel links', () => {
       const input = '<a href="tel:+1234567890">Call</a>'
-      expect(sanitizeText(input)).toEqual('<a href="tel:+1234567890">Call</a>')
+      expect(sanitizeText(input)).toEqual('<a>Call</a>')
     })
 
     it('removes javascript links', () => {
@@ -130,6 +181,24 @@ describe('sanitizeText', () => {
     it('handles br tags', () => {
       const input = 'Line 1<br>Line 2'
       expect(sanitizeText(input)).toEqual('Line 1<br />Line 2')
+    })
+  })
+
+  describe('#sanitizeTrustedStatusText', () => {
+    it('preserves generated emoji img tags with padded class attributes', () => {
+      const input =
+        '<img class=" emoji " src="https://example.com/image.jpg" alt=":emoji:">'
+
+      expect(sanitizeTrustedStatusText(input)).toEqual(
+        '<img class="emoji" src="https://example.com/image.jpg" alt=":emoji:" />'
+      )
+    })
+
+    it('removes trusted img tags without an emoji class', () => {
+      const input =
+        '<img class=" not-emoji " src="https://example.com/image.jpg" alt="image">'
+
+      expect(sanitizeTrustedStatusText(input)).toEqual('')
     })
   })
 })
