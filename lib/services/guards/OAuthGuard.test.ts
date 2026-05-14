@@ -60,7 +60,8 @@ jest.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: [],
     host: 'llun.test',
-    secretPhase: 'secret phases'
+    secretPhase: 'secret phases',
+    trustedHosts: ['trusted.llun.test']
   }),
   getBaseURL: () => 'https://llun.test'
 }))
@@ -121,9 +122,13 @@ describe('#OAuthGuard', () => {
     mockHandler.mockClear()
   })
 
-  const createRequest = (headers: Record<string, string> = {}) => {
-    return new NextRequest('https://llun.test/api/test', {
-      method: 'GET',
+  const createRequest = (
+    headers: Record<string, string> = {},
+    method = 'GET',
+    url = 'https://llun.test/api/test'
+  ) => {
+    return new NextRequest(url, {
+      method,
       headers
     })
   }
@@ -144,6 +149,104 @@ describe('#OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('ignores non-Bearer authorization when a valid session exists', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({ Authorization: 'Basic upstream-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+    })
+
+    test('rejects a cookie-session mutation without same-origin proof', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest({}, 'POST')
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(403)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    test('allows a cookie-session mutation with a same-origin header', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest({ Origin: 'https://llun.test' }, 'POST')
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('allows a cookie-session mutation with an origin from trusted hosts', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest({ Origin: 'https://trusted.llun.test' }, 'POST')
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('rejects a cookie-session mutation when origin only matches the request URL', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest(
+        { Origin: 'https://attacker.test' },
+        'POST',
+        'https://attacker.test/api/test'
+      )
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(403)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    test('does not fall back to cookie session when a bearer token lacks the required scope', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('read-only-opaque-with-session'), {
+        token: hashToken('read-only-opaque-with-session'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest(
+        {
+          Authorization: 'bearer read-only-opaque-with-session',
+          Origin: 'https://llun.test'
+        },
+        'POST'
+      )
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
     })
 
     test('returns 401 when session email has no associated actor', async () => {
@@ -460,6 +563,30 @@ describe('#OAuthGuard', () => {
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({ Authorization: 'Bearer opaque-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+    })
+
+    test('allows request with lowercase bearer opaque token', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('lowercase-opaque-token'), {
+        token: hashToken('lowercase-opaque-token'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({
+        Authorization: 'bearer lowercase-opaque-token'
+      })
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(200)
