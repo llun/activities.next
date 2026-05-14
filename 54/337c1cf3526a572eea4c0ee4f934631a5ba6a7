@@ -1,0 +1,97 @@
+lib/client.test.ts
+  s_137b1f60d30121::t_2ab8408ffbb794 9-10,15-18,171-245
+  s_0ffdd7b5464187::t_5f55e5c43c306a 246-258
+lib/jobs/importStravaArchiveJob.test.ts
+  s_137b1f60d30121::t_5c47c610eebf32 581-655
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_73f7ec2e056d5b::t_eac86de906d93c 14-16,99-100,181,211-240,244-245,247-268,285,287,292-293,298,303,306
+  s_0ffdd7b5464187::t_f93b87315c1c0a 44-45
+  s_73f7ec2e056d5b::t_6d280e88be8d69 95
+  s_7fb2d4963320e6::t_848cf3541831d1 207-209
+  s_882d23e66dbf6c::t_866318ab45ae3b 270-271,273-279,308-314
+  s_4301987c270c49::t_8bfefdd0a076dc 282-283
+  s_0ffdd7b5464187::t_13fc3ea5eac725 685,286,290,294-297,301-302,304-305,315-317,319-320,323,328-330,336-338
+  s_137b1f60d30121::t_5e7bf31d40acb9 318
+lib/services/medias/S3StorageFile.test.ts
+  s_73f7ec2e056d5b::t_2c7ec1cda320ce 1-60,62-81,83-124,250
+  s_882d23e66dbf6c::t_d353d15e0b520f 125,126-132,136-158,192-249,160-164,168-183,185,189-191
+  s_882d23e66dbf6c::t_183f3ab058f44e 61,82
+  s_137b1f60d30121::t_7085c9df96dd79 133-135,159,165-167,184,186-188
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_73f7ec2e056d5b::t_ff9687340cef8f 3,36,65-75,303-305,307-309,104,114,122,143
+  s_73f7ec2e056d5b::t_28aabf84d39723 431-435,519-526,534-535,539,105,115,123,144,176
+  s_73f7ec2e056d5b::t_ca3c70754ae30b 473
+lib/client.ts
+  s_73f7ec2e056d5b::t_e0a1060a86e78f 791
+  s_73f7ec2e056d5b::t_c91b7d713f7260 796-797,802,813-822,824,826-831,893-894,896-897,849
+  s_137b1f60d30121::t_3a9368a085edc4 840-842,843-848,850-855,858-859,861,863-864,866-873,900-901
+  s_7fb2d4963320e6::t_8f2d9c0cbae12f 862
+lib/services/medias/S3StorageFile.ts
+  s_73f7ec2e056d5b::t_29507756c24d8a 4,19-23,40-41,43-51
+  s_73f7ec2e056d5b::t_26941aabf3383c 42,137-138
+  s_73f7ec2e056d5b::t_9ce3fd8b79a1ee 125-130,133-136,139-141
+  s_73f7ec2e056d5b::t_b924e41f4faa65 202,209-213,224-231,260-263
+  s_73f7ec2e056d5b::t_fbf2cc308140ab 268-290,305-312,316-317,321,325-328,344-355,360-363,57,59,64,71,79
+  s_882d23e66dbf6c::t_16218dccd3f48a 329,53-56,58,60-63,65-70,72-78,291-294,296-304,313-315,318-320,322-324,330-343,356-359
+  s_137b1f60d30121::t_f14b69bc4eee33 295
+lib/jobs/importStravaArchiveJob.ts
+  s_73f7ec2e056d5b::t_411db41cb839c8 19,33-37,112-113,117,120-124,138-142,153-172,191-194,217-221,225-226
+  s_73f7ec2e056d5b::t_a53ba0f639d60c 25,278-284,301-306,737,765-784,819-822,286
+  s_137b1f60d30121::t_7e6dccd9c9a4ee 285,287-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "54337c1cf3526a572eea4c0ee4f934631a5ba6a7",
+  "prompts": {},
+  "sessions": {
+    "s_0ffdd7b5464187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20c0-ca9d-7252-ab8d-d53f9c7a8ea4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_137b1f60d30121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e201c-b2c2-7c42-b6ff-9d399e71684e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4301987c270c49": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e209a-bc18-7f62-9a09-4e693b9f82d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_73f7ec2e056d5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e04-5241-7880-b82c-c701d3ac8616",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7fb2d4963320e6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e204d-8d0a-7702-bb34-bea296bd9320",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_882d23e66dbf6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-6467-7201-9341-426ca0739c0c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+docs/setup.md
+  s_26c98ce5d7faa0::t_be425db4ae70b2 257-260
+lib/services/medias/index.ts
+  s_26c98ce5d7faa0::t_be425db4ae70b2 4-7,12
+docs/fitness-file-storage.md
+  s_26c98ce5d7faa0::t_be425db4ae70b2 124
+lib/services/medias/S3StorageFile.ts
+  s_26c98ce5d7faa0::t_be425db4ae70b2 53
+app/api/v1/medias/presigned/route.ts
+  s_26c98ce5d7faa0::t_be425db4ae70b2 115
+  s_26c98ce5d7faa0::t_7a267d515e4b7c 5
+app/api/v1/medias/presigned/route.test.ts
+  s_26c98ce5d7faa0::t_be425db4ae70b2 3-4,17-18,81-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1c5d4ae778e46e41ae2821941c81e8a2ce007770",
+  "prompts": {},
+  "sessions": {
+    "s_26c98ce5d7faa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2711-6d55-76a0-ab48-ab38b9174afb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
