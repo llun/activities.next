@@ -17,18 +17,21 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const MAX_TOKEN_REQUEST_BODY_BYTES = 64 * 1024
 const FORM_URLENCODED_MEDIA_TYPE = 'application/x-www-form-urlencoded'
 const TOKEN_PROXY_EXCLUDED_HEADERS = ['content-length', 'host']
+const BASIC_CREDENTIALS_PATTERN = /^basic\s+([A-Za-z0-9+/]+={0,2})$/i
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const parseBasicClientId = (authorization: string | null): string | null => {
-  const [scheme, credentials] = authorization?.split(/\s+/, 2) ?? []
-  if (scheme?.toLowerCase() !== 'basic' || !credentials) return null
+  const credentials = authorization?.match(BASIC_CREDENTIALS_PATTERN)?.[1]
+  if (!credentials || credentials.length % 4 !== 0) return null
 
   try {
-    const decoded = Buffer.from(credentials, 'base64')
-      .toString('utf8')
-      .split(':')[0]
-    return decoded || null
+    const decoded = Buffer.from(credentials, 'base64').toString('utf8')
+    const delimiterIndex = decoded.indexOf(':')
+    if (delimiterIndex < 0) return null
+
+    const clientId = decoded.slice(0, delimiterIndex)
+    return clientId || null
   } catch {
     return null
   }
@@ -257,7 +260,7 @@ export const POST = async (req: NextRequest) => {
   // Rewrite the URL to better-auth's token endpoint
   const url = new URL('/api/auth/oauth2/token', getBaseURL())
   const proxyReq = new Request(url.toString(), {
-    method: 'post',
+    method: 'POST',
     headers: getTokenProxyHeaders(req.headers),
     body: bodyText ?? ''
   })

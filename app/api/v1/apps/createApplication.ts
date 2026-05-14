@@ -58,6 +58,9 @@ const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
 const APP_REGISTRATION_GC_AFTER_MS = 24 * 60 * 60 * 1000
 const APP_REGISTRATION_GC_INTERVAL_MS = 60 * 60 * 1000
 const APP_REGISTRATION_GC_BATCH_SIZE = 1000
+const REGISTERED_UNAUTHENTICATED_METADATA = JSON.stringify({
+  registeredUnauthenticated: true
+})
 
 let lastAppRegistrationGcAt: number | null = null
 
@@ -68,6 +71,21 @@ export const resetAppRegistrationGcStateForTests = () => {
 const getRegistrationReference = (registrationKey?: string): string | null => {
   if (!registrationKey) return null
   return `${APP_REGISTRATION_REFERENCE_PREFIX}${registrationKey}`
+}
+
+const whereUnauthenticatedAppRegistration = (
+  query: Knex.QueryBuilder
+): void => {
+  query.where(
+    'oauthClient.referenceId',
+    'like',
+    `${APP_REGISTRATION_REFERENCE_PREFIX}%`
+  )
+  query.orWhere((anonymousQuery) => {
+    anonymousQuery
+      .where('oauthClient.referenceId', '')
+      .where('oauthClient.metadata', REGISTERED_UNAUTHENTICATED_METADATA)
+  })
 }
 
 const garbageCollectStaleAppRegistrations = async (db: Knex, now: Date) => {
@@ -84,11 +102,7 @@ const garbageCollectStaleAppRegistrations = async (db: Knex, now: Date) => {
       'oauthClient.clientId'
     )
     .leftJoin('oauthConsent', 'oauthConsent.clientId', 'oauthClient.clientId')
-    .where(
-      'oauthClient.referenceId',
-      'like',
-      `${APP_REGISTRATION_REFERENCE_PREFIX}%`
-    )
+    .where(whereUnauthenticatedAppRegistration)
     .where('oauthClient.createdAt', '<', staleBefore)
     .whereNull('oauthAccessToken.id')
     .whereNull('oauthRefreshToken.id')
@@ -245,7 +259,7 @@ export const createApplication = async (
           responseTypes: JSON.stringify(['code']),
           tokenEndpointAuthMethod: 'client_secret_post',
           referenceId: registrationReference ?? '',
-          metadata: JSON.stringify({ registeredUnauthenticated: true }),
+          metadata: REGISTERED_UNAUTHENTICATED_METADATA,
           createdAt: now,
           updatedAt: now
         })

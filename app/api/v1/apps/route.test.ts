@@ -3,14 +3,25 @@ import { NextRequest } from 'next/server'
 
 import { POST, resetAppRegistrationWarningStateForTests } from './route'
 
+const mockGetConfig = jest.fn(() => ({
+  secretPhase: 'registration-pepper-secret'
+}))
+
 const hashIpRegistrationKey = (ip: string) =>
-  `ip:${crypto.createHash('sha256').update(ip).digest('base64url')}`
+  `ip:${crypto
+    .createHmac('sha256', mockGetConfig().secretPhase)
+    .update(ip)
+    .digest('base64url')}`
 
 const mockCreateApplication = jest.fn()
 const mockLoggerWarn = jest.fn()
 
 jest.mock('@/lib/database', () => ({
   getDatabase: () => ({})
+}))
+
+jest.mock('@/lib/config', () => ({
+  getConfig: () => mockGetConfig()
 }))
 
 jest.mock('@/lib/utils/logger', () => ({
@@ -29,6 +40,7 @@ describe('apps route', () => {
   beforeEach(() => {
     process.env = { ...originalEnv }
     resetAppRegistrationWarningStateForTests()
+    mockGetConfig.mockClear()
     mockCreateApplication.mockReset()
     mockLoggerWarn.mockReset()
     mockCreateApplication.mockResolvedValue({
@@ -90,6 +102,12 @@ describe('apps route', () => {
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
       registrationKey: hashIpRegistrationKey('198.51.100.30')
+    })
+    expect(mockCreateApplication).not.toHaveBeenCalledWith(expect.any(Object), {
+      registrationKey: `ip:${crypto
+        .createHash('sha256')
+        .update('198.51.100.30')
+        .digest('base64url')}`
     })
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })

@@ -150,6 +150,76 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
 
+  test('falls back to the body client_id when Basic credentials omit the delimiter', async () => {
+    mockClients.set('pkce-client', {
+      clientId: 'pkce-client',
+      requirePKCE: true
+    })
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${Buffer.from('malformed-client-id').toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'pkce-client',
+        code: 'authorization-code',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'PKCE is required for this client'
+    })
+    expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('falls back to the body client_id when Basic credentials are not valid base64', async () => {
+    mockClients.set('pkce-client', {
+      clientId: 'pkce-client',
+      requirePKCE: true
+    })
+    mockClients.set('shadow-client', {
+      clientId: 'shadow-client',
+      requirePKCE: false
+    })
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${Buffer.from('shadow-client:client-secret').toString('base64')}!`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'pkce-client',
+        code: 'authorization-code',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'PKCE is required for this client'
+    })
+    expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
   test('rejects authorization-code exchanges without client credentials before proxying', async () => {
     mockAuthHandler.mockResolvedValue(
       Response.json({ access_token: 'should-not-issue' })

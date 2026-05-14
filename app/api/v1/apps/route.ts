@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
@@ -64,7 +65,7 @@ const getAppRegistrationKey = (req: NextRequest): string | undefined => {
   }
 
   const hash = crypto
-    .createHash('sha256')
+    .createHmac('sha256', getConfig().secretPhase)
     .update(connectionIp)
     .digest('base64url')
   return `ip:${hash}`

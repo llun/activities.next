@@ -264,11 +264,6 @@ describe('createApplication', () => {
       .where('createdAt', '>=', new Date('2030-05-12T11:50:00.000Z'))
       .select()
     expect(rows).toHaveLength(6)
-
-    await knexDatabase('oauthClient')
-      .where('referenceId', '')
-      .where('createdAt', '>=', new Date('2030-05-12T11:50:00.000Z'))
-      .delete()
   })
 
   test('it checks the rate limit before garbage collecting stale app registrations', async () => {
@@ -333,6 +328,7 @@ describe('createApplication', () => {
 
   test('it garbage-collects stale unused app registrations without deleting token-backed clients', async () => {
     const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
+    const recentCreatedAt = new Date('2026-05-12T11:30:00.000Z')
     const now = new Date('2026-05-12T12:00:00.000Z')
 
     await knexDatabase('oauthClient').insert([
@@ -371,6 +367,44 @@ describe('createApplication', () => {
         referenceId: 'app-registration:stale-active',
         createdAt: staleCreatedAt,
         updatedAt: staleCreatedAt
+      },
+      {
+        id: 'stale-anonymous-client-id',
+        clientId: 'stale-anonymous-client',
+        clientSecret: 'hashed-secret',
+        name: 'stale-anonymous',
+        scopes: JSON.stringify(['read']),
+        redirectUris: JSON.stringify([
+          'https://stale-anonymous.llun.dev/callback'
+        ]),
+        requirePKCE: true,
+        disabled: false,
+        grantTypes: JSON.stringify(['authorization_code']),
+        responseTypes: JSON.stringify(['code']),
+        tokenEndpointAuthMethod: 'client_secret_post',
+        referenceId: '',
+        metadata: JSON.stringify({ registeredUnauthenticated: true }),
+        createdAt: staleCreatedAt,
+        updatedAt: staleCreatedAt
+      },
+      {
+        id: 'recent-anonymous-client-id',
+        clientId: 'recent-anonymous-client',
+        clientSecret: 'hashed-secret',
+        name: 'recent-anonymous',
+        scopes: JSON.stringify(['read']),
+        redirectUris: JSON.stringify([
+          'https://recent-anonymous.llun.dev/callback'
+        ]),
+        requirePKCE: true,
+        disabled: false,
+        grantTypes: JSON.stringify(['authorization_code']),
+        responseTypes: JSON.stringify(['code']),
+        tokenEndpointAuthMethod: 'client_secret_post',
+        referenceId: '',
+        metadata: JSON.stringify({ registeredUnauthenticated: true }),
+        createdAt: recentCreatedAt,
+        updatedAt: recentCreatedAt
       }
     ])
     await knexDatabase('oauthAccessToken').insert({
@@ -403,6 +437,18 @@ describe('createApplication', () => {
         .first()
     ).resolves.toEqual(
       expect.objectContaining({ clientId: 'stale-active-client' })
+    )
+    await expect(
+      knexDatabase('oauthClient')
+        .where('clientId', 'stale-anonymous-client')
+        .first()
+    ).resolves.toBeUndefined()
+    await expect(
+      knexDatabase('oauthClient')
+        .where('clientId', 'recent-anonymous-client')
+        .first()
+    ).resolves.toEqual(
+      expect.objectContaining({ clientId: 'recent-anonymous-client' })
     )
   })
 
