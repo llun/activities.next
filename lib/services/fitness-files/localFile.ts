@@ -15,6 +15,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { QuotaExceededError } from './errors'
+import { assertFitnessStoragePath, resolveFitnessStoragePath } from './path'
 import {
   FitnessFileUploadSchema,
   FitnessStorage,
@@ -63,7 +64,11 @@ export class LocalFileFitnessStorage implements FitnessStorage {
   }
 
   async getFile(filePath: string) {
-    const fullPath = path.resolve(this._config.path, filePath)
+    const fullPath = resolveFitnessStoragePath(this._config.path, filePath)
+    if (!fullPath) {
+      return null
+    }
+
     const ext = path.extname(fullPath).toLowerCase()
     const contentType =
       mime.contentType(ext) ||
@@ -89,7 +94,11 @@ export class LocalFileFitnessStorage implements FitnessStorage {
 
   async deleteFile(filePath: string): Promise<boolean> {
     try {
-      const fullPath = path.resolve(this._config.path, filePath)
+      const fullPath = resolveFitnessStoragePath(this._config.path, filePath)
+      if (!fullPath) {
+        return false
+      }
+
       await fs.unlink(fullPath)
       return true
     } catch (e) {
@@ -130,7 +139,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const fileName = `${timeDirectory}/${randomPrefix}${ext}`
-    const filePath = path.resolve(this._config.path, fileName)
+    const filePath = assertFitnessStoragePath(this._config.path, fileName)
     await fs.mkdir(path.dirname(filePath), { recursive: true })
 
     // Save file using a stream to avoid buffering large files in memory.
@@ -188,5 +197,9 @@ export class LocalFileFitnessStorage implements FitnessStorage {
     }
   ): Promise<import('./types').PresignedFitnessUrlOutput | null> {
     return null
+  }
+
+  async verifyPresignedUpload(): Promise<boolean> {
+    return false
   }
 }

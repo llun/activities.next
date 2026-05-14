@@ -61,8 +61,9 @@ export const POST = traceApiRoute(
         return apiErrorResponse(HTTP_STATUS.CONFLICT)
       }
 
-      const content = await req.json()
-      const parsed = PresignedArchiveInput.safeParse(content)
+      const parsed = PresignedArchiveInput.safeParse(
+        await req.json().catch(() => null)
+      )
       if (!parsed.success) {
         return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
       }

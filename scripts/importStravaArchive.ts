@@ -197,7 +197,7 @@ async function importStravaArchive(args = process.argv.slice(2)) {
           throw new Error('Fitness activity file is missing from archive')
         }
 
-        const fitnessPayload = toStravaArchiveFitnessFilePayload({
+        const fitnessPayload = await toStravaArchiveFitnessFilePayload({
           fitnessFilePath: activity.fitnessFilePath,
           buffer: fitnessBuffer
         })

@@ -746,6 +746,14 @@ export interface LikeDatabase {
 interface MetaData {
   width: number
   height: number
+  upload?: {
+    state: 'pending' | 'verified'
+    checksumSha1?: string
+    checksumSha1Base64?: string
+    contentType?: string
+    size?: number
+    verifiedAt?: number
+  }
 }
 
 interface BaseMedia {
@@ -829,9 +837,17 @@ export type GetMediaByIdParams = {
   mediaId: string
   accountId: string
 }
+export type MarkMediaUploadVerifiedParams = {
+  mediaId: string
+  accountId: string
+  verifiedAt: number
+}
 
 export interface MediaDatabase {
   createMedia(params: CreateMediaParams): Promise<Media | null>
+  markMediaUploadVerified(
+    params: MarkMediaUploadVerifiedParams
+  ): Promise<Media | null>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>

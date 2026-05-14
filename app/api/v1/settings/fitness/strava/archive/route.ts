@@ -4,7 +4,8 @@ import { z } from 'zod'
 import { IMPORT_STRAVA_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import {
   deleteFitnessFile,
-  saveFitnessFile
+  saveFitnessFile,
+  verifyPresignedFitnessFileUpload
 } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
@@ -244,10 +245,25 @@ export const POST = traceApiRoute(
           })
         }
 
+        const verifiedUpload = await verifyPresignedFitnessFileUpload(
+          database,
+          currentActor,
+          fitnessFile
+        )
+        if (!verifiedUpload) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+
         const batchId = getStravaArchiveImportBatchId(archiveId)
         const importId = crypto.randomUUID()
 
         archiveFileId = fitnessFile.id
+        archiveFileOwned = true
 
         const importState = await database.createStravaArchiveImport({
           id: importId,

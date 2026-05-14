@@ -40,6 +40,10 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import {
+  SAFE_DOWNLOAD_MAX_BYTES,
+  readResponseArrayBufferWithLimit
+} from '@/lib/utils/streamLimit'
 
 import { createJobHandle } from './createJobHandle'
 
@@ -329,7 +333,11 @@ const attachStravaPhotosToStatus = async ({
         continue
       }
 
-      const buffer = await photoResponse.arrayBuffer()
+      const buffer = await readResponseArrayBufferWithLimit(
+        photoResponse,
+        SAFE_DOWNLOAD_MAX_BYTES,
+        'Strava photo'
+      )
       if (buffer.byteLength <= 0) {
         continue
       }

@@ -2,7 +2,13 @@ import fs from 'fs/promises'
 import path from 'path'
 import { Readable } from 'stream'
 import yauzl from 'yauzl'
-import { gunzipSync } from 'zlib'
+import { createGunzip } from 'zlib'
+
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
+import {
+  StreamByteLimitError,
+  readAsyncIterableToBufferWithLimit
+} from '@/lib/utils/streamLimit'
 
 type SupportedFitnessFileType = 'fit' | 'gpx' | 'tcx'
 
@@ -21,6 +27,23 @@ const FITNESS_MIME_TYPES: Record<SupportedFitnessFileType, string> = {
   tcx: 'application/vnd.garmin.tcx+xml'
 }
 
+export const STRAVA_ARCHIVE_DEFAULT_LIMITS = {
+  maxEntries: 20_000,
+  maxEntryCompressedBytes: DEFAULT_FITNESS_MAX_FILE_SIZE,
+  maxEntryUncompressedBytes: DEFAULT_FITNESS_MAX_FILE_SIZE,
+  maxGzipOutputBytes: DEFAULT_FITNESS_MAX_FILE_SIZE,
+  maxCsvRows: 100_000
+}
+
+export type StravaArchiveLimits = Partial<typeof STRAVA_ARCHIVE_DEFAULT_LIMITS>
+
+export class StravaArchiveLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StravaArchiveLimitError'
+  }
+}
+
 export interface StravaArchiveActivity {
   activityId: string
   activityName?: string
@@ -37,6 +60,56 @@ export interface StravaArchiveFitnessFilePayload {
 }
 
 const normalizeArchivePath = (value: string): string => {
+  const normalized = value.replace(/\\/g, '/').trim()
+  if (normalized.startsWith('./')) {
+    return normalized.slice(2)
+  }
+  return normalized
+}
+
+const getArchiveLimits = (limits?: StravaArchiveLimits) => ({
+  ...STRAVA_ARCHIVE_DEFAULT_LIMITS,
+  ...limits
+})
+
+const assertSafeArchivePath = (value: string): string => {
+  const normalized = normalizeArchivePath(value)
+  const parts = normalized.split('/')
+  if (
+    normalized.length === 0 ||
+    normalized.startsWith('/') ||
+    normalized.includes('\0') ||
+    parts.includes('..')
+  ) {
+    throw new StravaArchiveLimitError(
+      `Unsafe archive entry path: ${value || '(empty)'}`
+    )
+  }
+  return normalized
+}
+
+const assertEntryWithinLimits = (
+  entry: yauzl.Entry,
+  limits: ReturnType<typeof getArchiveLimits>
+) => {
+  if (entry.fileName.endsWith('/')) {
+    return
+  }
+
+  if (entry.compressedSize > limits.maxEntryCompressedBytes) {
+    throw new StravaArchiveLimitError(
+      `Archive entry ${entry.fileName} exceeds compressed size limit`
+    )
+  }
+
+  if (entry.uncompressedSize > limits.maxEntryUncompressedBytes) {
+    throw new StravaArchiveLimitError(
+      `Archive entry ${entry.fileName} exceeds uncompressed size limit`
+    )
+  }
+}
+
+const normalizeReferencedArchivePath = (value: string): string => {
   return value
     .replace(/\\/g, '/')
     .replace(/^\.?\//, '')
@@ -65,10 +138,13 @@ const openZipFile = async (filePath: string): Promise<yauzl.ZipFile> => {
 }
 
 const indexZipEntries = async (
-  zipFile: yauzl.ZipFile
+  zipFile: yauzl.ZipFile,
+  limits: ReturnType<typeof getArchiveLimits>
 ): Promise<Map<string, yauzl.Entry>> => {
   return new Promise((resolve, reject) => {
     const entries = new Map<string, yauzl.Entry>()
+    let entryCount = 0
+    let settled = false
 
     const cleanup = () => {
       zipFile.off('entry', onEntry)
@@ -76,19 +152,45 @@ const indexZipEntries = async (
       zipFile.off('error', onError)
     }
 
+    const rejectAndClose = (error: unknown) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanup()
+      zipFile.close()
+      reject(error)
+    }
+
     const onEntry = (entry: yauzl.Entry) => {
-      entries.set(normalizeArchivePath(entry.fileName), entry)
-      zipFile.readEntry()
+      try {
+        entryCount += 1
+        if (entryCount > limits.maxEntries) {
+          throw new StravaArchiveLimitError(
+            `Strava archive exceeds entry limit of ${limits.maxEntries}`
+          )
+        }
+
+        const normalizedPath = assertSafeArchivePath(entry.fileName)
+        assertEntryWithinLimits(entry, limits)
+        entries.set(normalizedPath, entry)
+        zipFile.readEntry()
+      } catch (error) {
+        rejectAndClose(error)
+      }
     }
 
     const onEnd = () => {
+      if (settled) {
+        return
+      }
+      settled = true
       cleanup()
       resolve(entries)
     }
 
     const onError = (error: Error) => {
-      cleanup()
-      reject(error)
+      rejectAndClose(error)
     }
 
     zipFile.on('entry', onEntry)
@@ -117,12 +219,37 @@ const openZipEntryStream = async (
   })
 }
 
-const readStreamToBuffer = async (stream: Readable): Promise<Buffer> => {
-  const chunks: Buffer[] = []
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+const readFileRange = async ({
+  fd,
+  buffer,
+  position,
+  label
+}: {
+  fd: Awaited<ReturnType<typeof fs.open>>
+  buffer: Buffer
+  position: number
+  label: string
+}) => {
+  let offset = 0
+
+  while (offset < buffer.byteLength) {
+    const result = await fd.read(
+      buffer,
+      offset,
+      buffer.byteLength - offset,
+      position + offset
+    )
+    if (result.bytesRead === 0) {
+      break
+    }
+    offset += result.bytesRead
   }
-  return Buffer.concat(chunks)
+
+  if (offset < buffer.byteLength) {
+    throw new Error(
+      `Short read on ${label}: expected ${buffer.byteLength}, got ${offset}`
+    )
+  }
 }
 
 // Read a ZIP entry that uses Stored (no compression) directly via fs.read,
@@ -130,8 +257,10 @@ const readStreamToBuffer = async (stream: Readable): Promise<Buffer> => {
 // archives due to an fd-slicer read-queue issue.
 const readStoredEntryDirectly = async (
   zipFilePath: string,
-  entry: yauzl.Entry
+  entry: yauzl.Entry,
+  limits: ReturnType<typeof getArchiveLimits>
 ): Promise<Buffer> => {
+  assertEntryWithinLimits(entry, limits)
   // Local file header layout (PKWARE spec section 4.3.7):
   //   signature         4 bytes
   //   version needed    2 bytes
@@ -148,44 +277,47 @@ const readStoredEntryDirectly = async (
   const fd = await fs.open(zipFilePath, 'r')
   try {
     const headerBuf = Buffer.allocUnsafe(30)
-    const headerResult = await fd.read(
-      headerBuf,
-      0,
-      30,
-      entry.relativeOffsetOfLocalHeader
-    )
-    if (headerResult.bytesRead < 30) {
-      throw new Error(
-        `Short read on local file header for ${entry.fileName}: expected 30, got ${headerResult.bytesRead}`
-      )
-    }
+    await readFileRange({
+      fd,
+      buffer: headerBuf,
+      position: entry.relativeOffsetOfLocalHeader,
+      label: `local file header for ${entry.fileName}`
+    })
     const fileNameLength = headerBuf.readUInt16LE(26)
     const extraFieldLength = headerBuf.readUInt16LE(28)
     const dataOffset =
       entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength
     const dataBuf = Buffer.allocUnsafe(entry.compressedSize)
-    const dataResult = await fd.read(
-      dataBuf,
-      0,
-      entry.compressedSize,
-      dataOffset
-    )
-    if (dataResult.bytesRead < entry.compressedSize) {
-      throw new Error(
-        `Short read on entry data for ${entry.fileName}: expected ${entry.compressedSize}, got ${dataResult.bytesRead}`
-      )
-    }
+    await readFileRange({
+      fd,
+      buffer: dataBuf,
+      position: dataOffset,
+      label: `entry data for ${entry.fileName}`
+    })
     return dataBuf
   } finally {
     await fd.close()
   }
 }
 
-const parseCsvRows = (csvText: string): string[][] => {
+export const parseStravaArchiveCsvRows = (
+  csvText: string,
+  options: { maxRows?: number } = {}
+): string[][] => {
+  const maxRows = options.maxRows ?? STRAVA_ARCHIVE_DEFAULT_LIMITS.maxCsvRows
   const rows: string[][] = []
   let row: string[] = []
   let field = ''
   let inQuotes = false
+
+  const pushRow = () => {
+    rows.push(row)
+    if (rows.length > maxRows) {
+      throw new StravaArchiveLimitError(
+        `activities.csv exceeds CSV row limit of ${maxRows}`
+      )
+    }
+  }
 
   for (let index = 0; index < csvText.length; index += 1) {
     const character = csvText[index]
@@ -218,7 +350,7 @@ const parseCsvRows = (csvText: string): string[][] => {
 
     if (character === '\n') {
       row.push(field)
-      rows.push(row)
+      pushRow()
       row = []
       field = ''
       continue
@@ -231,7 +363,7 @@ const parseCsvRows = (csvText: string): string[][] => {
 
   if (field.length > 0 || row.length > 0) {
     row.push(field)
-    rows.push(row)
+    pushRow()
   }
 
   return rows
@@ -243,7 +375,7 @@ const getMediaPaths = (value: string): string[] => {
   }
   return value
     .split('|')
-    .map((item) => normalizeArchivePath(item))
+    .map((item) => normalizeReferencedArchivePath(item))
     .filter((item) => item.length > 0)
 }
 
@@ -294,20 +426,38 @@ export const getArchiveMediaMimeType = (
   }
 }
 
-export const toStravaArchiveFitnessFilePayload = ({
-  fitnessFilePath,
-  buffer
-}: {
-  fitnessFilePath: string
-  buffer: Buffer
-}): StravaArchiveFitnessFilePayload => {
+export const toStravaArchiveFitnessFilePayload = async (
+  {
+    fitnessFilePath,
+    buffer
+  }: {
+    fitnessFilePath: string
+    buffer: Buffer
+  },
+  options: { maxGzipOutputBytes?: number } = {}
+): Promise<StravaArchiveFitnessFilePayload> => {
   const fileType = getFitnessFileTypeFromPath(fitnessFilePath)
   if (!fileType) {
     throw new Error(`Unsupported fitness file path: ${fitnessFilePath}`)
   }
 
+  const maxGzipOutputBytes =
+    options.maxGzipOutputBytes ??
+    STRAVA_ARCHIVE_DEFAULT_LIMITS.maxGzipOutputBytes
+
   const fitnessBuffer = shouldGunzipFitnessBuffer(fitnessFilePath)
-    ? gunzipSync(buffer)
+    ? await readAsyncIterableToBufferWithLimit(
+        Readable.from(buffer).pipe(createGunzip()),
+        maxGzipOutputBytes,
+        'Fitness gzip output'
+      ).catch((error) => {
+        if (error instanceof StreamByteLimitError) {
+          throw new StravaArchiveLimitError(
+            `Fitness file ${fitnessFilePath} exceeds gzip output limit`
+          )
+        }
+        throw error
+      })
     : buffer
 
   const baseName = path.basename(fitnessFilePath)
@@ -327,28 +477,37 @@ export class StravaArchiveReader {
   private _filePath: string
   private _zipFile: yauzl.ZipFile
   private _entriesByPath: Map<string, yauzl.Entry>
+  private _limits: ReturnType<typeof getArchiveLimits>
 
   private constructor({
     filePath,
     zipFile,
-    entriesByPath
+    entriesByPath,
+    limits
   }: {
     filePath: string
     zipFile: yauzl.ZipFile
     entriesByPath: Map<string, yauzl.Entry>
+    limits: ReturnType<typeof getArchiveLimits>
   }) {
     this._filePath = filePath
     this._zipFile = zipFile
     this._entriesByPath = entriesByPath
+    this._limits = limits
   }
 
-  static async open(filePath: string): Promise<StravaArchiveReader> {
+  static async open(
+    filePath: string,
+    options: { limits?: StravaArchiveLimits } = {}
+  ): Promise<StravaArchiveReader> {
+    const limits = getArchiveLimits(options.limits)
     const zipFile = await openZipFile(filePath)
-    const entriesByPath = await indexZipEntries(zipFile)
+    const entriesByPath = await indexZipEntries(zipFile, limits)
     return new StravaArchiveReader({
       filePath,
       zipFile,
-      entriesByPath
+      entriesByPath,
+      limits
     })
   }
 
@@ -357,25 +516,30 @@ export class StravaArchiveReader {
   }
 
   async readEntryBuffer(entryPath: string): Promise<Buffer | null> {
-    const normalizedPath = normalizeArchivePath(entryPath)
+    const normalizedPath = normalizeReferencedArchivePath(entryPath)
     const entry = this._entriesByPath.get(normalizedPath)
     if (!entry || entry.fileName.endsWith('/')) {
       return null
     }
+    assertEntryWithinLimits(entry, this._limits)
 
     // Stored entries (compressionMethod=0) can hang in yauzl's openReadStream
     // due to an fd-slicer read-queue issue in large archives.  Read them
     // directly via fs.read to bypass the problem entirely.
     if (entry.compressionMethod === 0) {
-      return readStoredEntryDirectly(this._filePath, entry)
+      return readStoredEntryDirectly(this._filePath, entry, this._limits)
     }
 
     const entryStream = await openZipEntryStream(this._zipFile, entry)
-    return readStreamToBuffer(entryStream)
+    return readAsyncIterableToBufferWithLimit(
+      entryStream,
+      this._limits.maxEntryUncompressedBytes,
+      `Archive entry ${entry.fileName}`
+    )
   }
 
   hasEntry(entryPath: string): boolean {
-    return this._entriesByPath.has(normalizeArchivePath(entryPath))
+    return this._entriesByPath.has(normalizeReferencedArchivePath(entryPath))
   }
 
   async getActivities(): Promise<StravaArchiveActivity[]> {
@@ -384,7 +548,9 @@ export class StravaArchiveReader {
       throw new Error('Strava archive does not contain activities.csv')
     }
 
-    const rows = parseCsvRows(csvBuffer.toString('utf8'))
+    const rows = parseStravaArchiveCsvRows(csvBuffer.toString('utf8'), {
+      maxRows: this._limits.maxCsvRows
+    })
     if (rows.length === 0) {
       return []
     }

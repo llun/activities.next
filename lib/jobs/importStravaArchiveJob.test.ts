@@ -1,3 +1,7 @@
+import fs from 'fs/promises'
+import { Readable } from 'stream'
+
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { importStravaArchiveJob } from '@/lib/jobs/importStravaArchiveJob'
 import {
@@ -11,19 +15,23 @@ import {
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import {
+  StravaArchiveLimitError,
   StravaArchiveReader,
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
 
 const mockQueuePublish = jest.fn()
+const mockS3Send = jest.fn()
+
+jest.mock('@aws-sdk/client-s3', () => ({
+  GetObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  S3Client: jest.fn().mockImplementation(() => ({
+    send: mockS3Send
+  }))
+}))
 
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
-    fitnessStorage: {
-      type: 'fs',
-      path: '/tmp/fitness'
-    }
-  })
+  getConfig: jest.fn()
 }))
 
 jest.mock('@/lib/services/fitness-files', () => ({
@@ -43,6 +51,9 @@ jest.mock('@/lib/services/medias/index', () => ({
 }))
 
 jest.mock('@/lib/services/strava/archiveReader', () => ({
+  StravaArchiveLimitError: jest.requireActual(
+    '@/lib/services/strava/archiveReader'
+  ).StravaArchiveLimitError,
   StravaArchiveReader: {
     open: jest.fn()
   },
@@ -57,6 +68,7 @@ const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
   typeof deleteFitnessFile
 >
 const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
+const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 
 const mockArchiveReaderOpen = StravaArchiveReader.open as jest.MockedFunction<
   typeof StravaArchiveReader.open
@@ -70,6 +82,7 @@ type MockDatabase = Pick<
   Database,
   | 'getActorFromId'
   | 'getFitnessFile'
+  | 'getFitnessFilesByBatchId'
   | 'getFitnessFilesByIds'
   | 'getStravaArchiveImportById'
   | 'updateStravaArchiveImport'
@@ -83,6 +96,7 @@ describe('importStravaArchiveJob', () => {
   const database: jest.Mocked<MockDatabase> = {
     getActorFromId: jest.fn(),
     getFitnessFile: jest.fn(),
+    getFitnessFilesByBatchId: jest.fn(),
     getFitnessFilesByIds: jest.fn(),
     getStravaArchiveImportById: jest.fn(),
     updateStravaArchiveImport: jest.fn(),
@@ -94,6 +108,12 @@ describe('importStravaArchiveJob', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: {
+        type: 'fs',
+        path: '/tmp/fitness'
+      }
+    } as never)
 
     database.getActorFromId.mockResolvedValue({
       id: 'actor-1',
@@ -126,6 +146,7 @@ describe('importStravaArchiveJob', () => {
         importStatus: 'completed'
       } as never
     ])
+    database.getFitnessFilesByBatchId.mockResolvedValue([])
     database.getStravaArchiveImportById.mockResolvedValue({
       id: 'import-1',
       actorId: 'actor-1',
@@ -261,6 +282,49 @@ describe('importStravaArchiveJob', () => {
       expect.objectContaining({
         id: 'archive-file-1'
       })
+    )
+  })
+
+  it('opens archive entries with the configured fitness file size limit', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: {
+        type: 'fs',
+        path: '/tmp/fitness',
+        maxFileSize: 123_456_789
+      }
+    } as never)
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-configured-reader-limit',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockArchiveReaderOpen).toHaveBeenCalledWith(
+      '/tmp/fitness/archive/path.fit',
+      {
+        limits: {
+          maxEntryCompressedBytes: 123_456_789,
+          maxEntryUncompressedBytes: 123_456_789,
+          maxGzipOutputBytes: 123_456_789
+        }
+      }
+    )
+    expect(mockToFitnessPayload).toHaveBeenCalledWith(
+      {
+        fitnessFilePath: 'activities/activity-1.fit',
+        buffer: Buffer.from('fitness-file')
+      },
+      {
+        maxGzipOutputBytes: 123_456_789
+      }
     )
   })
 
@@ -431,6 +495,53 @@ describe('importStravaArchiveJob', () => {
     )
   })
 
+  it('removes temporary object-storage archive copy when streaming fails', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: {
+        type: 's3',
+        bucket: 'fitness-bucket',
+        region: 'us-east-1',
+        prefix: '',
+        maxFileSize: 4
+      }
+    } as never)
+    mockS3Send.mockResolvedValueOnce({
+      Body: Readable.from([Buffer.from('partial-data')]),
+      ContentLength: undefined
+    })
+    const unlinkSpy = jest.spyOn(fs, 'unlink')
+
+    try {
+      await importStravaArchiveJob(database as unknown as Database, {
+        id: 'job-object-stream-fail',
+        name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+        data: {
+          importId: 'import-1',
+          actorId: 'actor-1',
+          archiveId: 'archive-1',
+          archiveFitnessFileId: 'archive-file-1',
+          batchId: 'strava-archive:archive-1',
+          visibility: 'private'
+        }
+      })
+
+      expect(unlinkSpy).toHaveBeenCalledWith(
+        expect.stringContaining('strava-archive-archive-file-1-')
+      )
+    } finally {
+      unlinkSpy.mockRestore()
+    }
+
+    expect(mockArchiveReaderOpen).not.toHaveBeenCalled()
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed',
+        lastError: 'Archive object body exceeds byte limit of 4 bytes'
+      })
+    )
+  })
+
   it('marks fully failed archive imports as failed and keeps source for retry', async () => {
     database.getFitnessFilesByIds.mockResolvedValueOnce([
       {
@@ -574,6 +685,169 @@ describe('importStravaArchiveJob', () => {
         id: 'import-1',
         status: 'failed',
         lastError: 'queue unavailable'
+      })
+    )
+  })
+
+  it('rolls back staged fitness files sequentially when import enqueue fails', async () => {
+    mockArchiveReaderOpen.mockResolvedValueOnce({
+      close: jest.fn(),
+      hasEntry: jest.fn().mockReturnValue(true),
+      getActivities: jest.fn().mockResolvedValue([
+        {
+          activityId: 'activity-1',
+          activityName: 'Morning Ride',
+          fitnessFilePath: 'activities/activity-1.fit',
+          mediaPaths: []
+        },
+        {
+          activityId: 'activity-2',
+          activityName: 'Evening Ride',
+          fitnessFilePath: 'activities/activity-2.fit',
+          mediaPaths: []
+        }
+      ]),
+      readEntryBuffer: jest.fn().mockResolvedValue(Buffer.from('fitness-file'))
+    } as never)
+    mockSaveFitnessFile
+      .mockResolvedValueOnce({
+        id: 'activity-file-1',
+        type: 'fitness',
+        file_type: 'fit',
+        mime_type: 'application/vnd.ant.fit',
+        url: 'https://llun.test/api/v1/fitness-files/activity-file-1',
+        fileName: 'activity-1.fit',
+        size: 16
+      })
+      .mockResolvedValueOnce({
+        id: 'activity-file-2',
+        type: 'fitness',
+        file_type: 'fit',
+        mime_type: 'application/vnd.ant.fit',
+        url: 'https://llun.test/api/v1/fitness-files/activity-file-2',
+        fileName: 'activity-2.fit',
+        size: 16
+      })
+    mockQueuePublish.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    let activeDeletes = 0
+    let maxActiveDeletes = 0
+    mockDeleteFitnessFile.mockImplementation(async () => {
+      activeDeletes += 1
+      maxActiveDeletes = Math.max(maxActiveDeletes, activeDeletes)
+      await Promise.resolve()
+      activeDeletes -= 1
+      return true
+    })
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-queue-fail-sequential-rollback',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-1'
+    )
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-2'
+    )
+    expect(maxActiveDeletes).toBe(1)
+  })
+
+  it('rolls back earlier batch fitness files when a continuation hits an archive limit', async () => {
+    mockArchiveReaderOpen.mockResolvedValueOnce({
+      close: jest.fn(),
+      hasEntry: jest.fn().mockReturnValue(true),
+      getActivities: jest.fn().mockResolvedValue([
+        {
+          activityId: 'activity-1',
+          activityName: 'Earlier Ride',
+          fitnessFilePath: 'activities/activity-1.fit',
+          mediaPaths: []
+        },
+        {
+          activityId: 'activity-2',
+          activityName: 'Current Ride',
+          fitnessFilePath: 'activities/activity-2.fit',
+          mediaPaths: []
+        },
+        {
+          activityId: 'activity-3',
+          activityName: 'Oversized Ride',
+          fitnessFilePath: 'activities/activity-3.fit',
+          mediaPaths: []
+        }
+      ]),
+      readEntryBuffer: jest
+        .fn()
+        .mockResolvedValueOnce(Buffer.from('fitness-file'))
+        .mockRejectedValueOnce(
+          new StravaArchiveLimitError(
+            'Archive entry activities/activity-3.fit exceeds compressed size limit'
+          )
+        )
+    } as never)
+    mockSaveFitnessFile.mockResolvedValueOnce({
+      id: 'activity-file-current',
+      type: 'fitness',
+      file_type: 'fit',
+      mime_type: 'application/vnd.ant.fit',
+      url: 'https://llun.test/api/v1/fitness-files/activity-file-current',
+      fileName: 'activity-2.fit',
+      size: 16
+    })
+    database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'activity-file-previous',
+        actorId: 'actor-1',
+        importBatchId: 'strava-archive:archive-1'
+      } as never
+    ])
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-limit-continuation-rollback',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private',
+        nextActivityIndex: 1,
+        completedActivitiesCount: 1
+      }
+    })
+
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-previous'
+    )
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-current'
+    )
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalledWith(
+      database,
+      'archive-file-1',
+      expect.anything()
+    )
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed',
+        lastError:
+          'Archive entry activities/activity-3.fit exceeds compressed size limit'
       })
     )
   })

@@ -11,18 +11,24 @@ import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { GET } from './route'
+import * as routeModule from './route'
+
+const { GET } = routeModule
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
+const mockGetConfig = jest.fn().mockReturnValue({
+  host: 'llun.test',
+  allowEmails: [],
+  fitnessStorage: {
+    maxFileSize: 4_096
+  }
+})
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
-    host: 'llun.test',
-    allowEmails: []
-  })
+  getConfig: () => mockGetConfig()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
@@ -39,6 +45,12 @@ const mockParseFitnessFile = jest.fn()
 jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
   parseFitnessFile: (...args: unknown[]) => mockParseFitnessFile(...args),
   isParseableFitnessFileType: jest.fn().mockReturnValue(true)
+}))
+
+const mockReadResponseArrayBufferWithLimit = jest.fn()
+jest.mock('@/lib/utils/streamLimit', () => ({
+  readResponseArrayBufferWithLimit: (...args: unknown[]) =>
+    mockReadResponseArrayBufferWithLimit(...args)
 }))
 
 jest.mock('next/headers', () => ({
@@ -62,6 +74,16 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      fitnessStorage: {
+        maxFileSize: 4_096
+      }
+    })
+    mockReadResponseArrayBufferWithLimit.mockResolvedValue(
+      new Uint8Array([1, 2, 3]).buffer
+    )
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',
       contentType: 'application/vnd.ant.fit',
@@ -89,11 +111,12 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
   })
 
-  const createRequest = () =>
+  const createRequest = (headers?: Record<string, string>) =>
     new NextRequest(
       'https://llun.test/api/v1/fitness-files/file-id/route-data',
       {
-        method: 'GET'
+        method: 'GET',
+        headers
       }
     )
 
@@ -174,7 +197,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=60')
 
     const payload = (await response.json()) as {
       samples: Array<{ elapsedSeconds: number; isHiddenByPrivacy: boolean }>
@@ -201,6 +224,113 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       fileType: 'fit',
       buffer: Buffer.from('fit-data')
     })
+  })
+
+  it('keeps authenticated public route data out of shared caches', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/authenticated-public-route-data`,
+      url: `${ACTOR1_ID}/statuses/authenticated-public-route-data`,
+      actorId: ACTOR1_ID,
+      text: 'Authenticated public route data',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/authenticated-public-route-data.fit',
+      fileName: 'authenticated-public-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(mockParseFitnessFile).toHaveBeenCalled()
+  })
+
+  it('does not cache anonymous public route data in process memory', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-cache`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-cache`,
+      actorId: ACTOR1_ID,
+      text: 'Public route data cache',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-cache.fit',
+      fileName: 'public-route-data-cache.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const firstResponse = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const secondResponse = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+
+    expect(firstResponse.status).toBe(200)
+    expect(secondResponse.status).toBe(200)
+    expect(secondResponse.headers.get('X-Route-Data-Cache')).toBeNull()
+    expect(mockGetFitnessFile).toHaveBeenCalledTimes(2)
+    expect(mockParseFitnessFile).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not trust spoofable forwarded headers for anonymous route-data state', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-rate-limit`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-rate-limit`,
+      actorId: ACTOR1_ID,
+      text: 'Public route data rate limit',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-rate-limit.fit',
+      fileName: 'public-route-data-rate-limit.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    let response: Response | null = null
+    for (let index = 0; index < 3; index += 1) {
+      response = await GET(
+        createRequest({
+          'x-forwarded-for': `198.51.100.${index}, 203.0.113.10`
+        }),
+        {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        }
+      )
+    }
+
+    expect(response?.status).toBe(200)
+    expect(mockGetFitnessFile).toHaveBeenCalledTimes(3)
   })
 
   it('returns not found for private status route data without a session', async () => {
@@ -549,5 +679,58 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mockParseFitnessFile).toHaveBeenCalled()
+  })
+
+  it('uses configured fitness size limit for redirect downloads', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      fitnessStorage: {
+        maxFileSize: 123_456
+      }
+    })
+    mockGetFitnessFile.mockResolvedValueOnce({
+      type: 'redirect',
+      redirectUrl: 'https://storage.example/fitness/redirect-route-data.fit'
+    })
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('', {
+        status: 200
+      })
+    )
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/redirect-route-data.fit',
+      fileName: 'redirect-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 75_000_000
+    })
+
+    try {
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+
+      expect(response.status).toBe(200)
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://storage.example/fitness/redirect-route-data.fit'
+      )
+      expect(mockReadResponseArrayBufferWithLimit).toHaveBeenCalledWith(
+        expect.any(Response),
+        123_456,
+        'Fitness redirect body'
+      )
+      expect(mockParseFitnessFile).toHaveBeenCalledWith({
+        fileType: 'fit',
+        buffer: Buffer.from([1, 2, 3])
+      })
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 })
