@@ -1,0 +1,33 @@
+lib/utils/request.test.ts
+  s_458b1907b24b45::t_cd7136f5fdb5a2 89-91,128-129,132,137-141,144
+  s_458b1907b24b45::t_78c110782004eb 5-6
+  s_458b1907b24b45::t_990e36d9ba0c61 287-355
+  s_458b1907b24b45::t_fa4e2c39ea0e59 130-131
+lib/utils/request.ts
+  s_458b1907b24b45::t_cea6661c5b8025 58,63,85-88,123,132
+  s_458b1907b24b45::t_351a0a3a92b63c 13-14,42,69-70,94-103,157
+jest.setup.mjs
+  s_458b1907b24b45::t_90d3b4d8266dcd 101
+lib/utils/safeRemoteFetch.test.ts
+  s_458b1907b24b45::t_79a16b0ffa79cb 4,9-10,36,48,64-91,94,127,142,166-203,219-223,233,268-351
+lib/utils/safeRemoteFetch.ts
+  s_458b1907b24b45::t_ccc94fe3b0f960 223-226
+  s_458b1907b24b45::t_392963f32c1a95 4,17-18,45,123,127-129,131-134,197-200,205,212-222,227-231,237-245,308,332,336,367,371-377,393,399,413,418,574-581,588-589,594,603,618
+  s_458b1907b24b45::t_2a84fdc7d12670 614-616
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "cc98777c53d96ae592d5063004caddba815e9f18",
+  "prompts": {},
+  "sessions": {
+    "s_458b1907b24b45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-64eb-77e2-99f0-ec56360769fd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

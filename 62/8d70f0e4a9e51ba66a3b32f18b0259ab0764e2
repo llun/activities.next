@@ -1,0 +1,40 @@
+lib/config/request.test.ts
+  s_e68370b6eb53dd::t_d0e8814d445835 32,62-68
+lib/utils/request.ts
+  s_e68370b6eb53dd::t_6fc5881b72ccc3 2-7,13-28,36-37,50,55-57,64-67,70-71,76-81,85-95,97,105-106,111-112,114,116-136
+lib/utils/safeRemoteFetch.test.ts
+  s_e68370b6eb53dd::t_d0e8814d445835 1-83,109-136,154-195
+  s_e68370b6eb53dd::t_bfc54402bc0fc2 84-108
+  s_e68370b6eb53dd::t_f4ad9e11109d4a 137-153
+lib/utils/safeRemoteFetch.ts
+  s_e68370b6eb53dd::t_fd7ad66e6b516a 1,3-129,132-203,212-221,231-236,238-256,258-278,284-285,289-366,368-382,384,387-388,391-403,405-407,411-412,414-427,433-445,447-458,460-511,513,518-550,552-573
+  s_e68370b6eb53dd::t_7ad53fbd6e4c68 130,211,514-517,551
+  s_e68370b6eb53dd::t_c087793a756142 131,205-210,222-230,237,279-283,385-386,389-390,410
+  s_e68370b6eb53dd::t_346dcaa808ea71 204,286-288,383,404,408-409,413,428-432,512
+  s_e68370b6eb53dd::t_99a658950ac192 446,459
+  s_e68370b6eb53dd::t_53eacfb3297624 367
+  s_e68370b6eb53dd::t_356bba31a7254b 2,257
+lib/config/request.ts
+  s_e68370b6eb53dd::t_76e27767bb6ad5 7,21-26,30-35,40-47
+jest.setup.mjs
+  s_e68370b6eb53dd::t_d8d4abfa82fcc3 3,38,53-96
+  s_e68370b6eb53dd::t_1fc841339f3913 99-105
+lib/utils/request.test.ts
+  s_e68370b6eb53dd::t_f4def3c8a28e98 117-126,214-216,218-219,222,224-230,233-248,250,252-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "628d70f0e4a9e51ba66a3b32f18b0259ab0764e2",
+  "prompts": {},
+  "sessions": {
+    "s_e68370b6eb53dd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e02-d312-70c2-a2e9-a83156fdf02c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

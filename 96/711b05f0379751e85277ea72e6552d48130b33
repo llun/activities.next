@@ -1,0 +1,29 @@
+lib/utils/safeRemoteFetch.ts
+  s_f26ecf25652330::t_cdb7831604f623 445-447
+  s_f26ecf25652330::t_fa3fd433e5126e 4,190,197-204,207-209,217,221-223,440,444,453-458,460
+lib/utils/request.ts
+  s_f26ecf25652330::t_3f232dbe311894 14,68-72
+  s_f26ecf25652330::t_4e24c067506a92 110
+lib/utils/request.test.ts
+  s_f26ecf25652330::t_34c1579e013116 406,415,418,422-423
+  s_f26ecf25652330::t_b31536eb267309 416,426
+  s_f26ecf25652330::t_ac46158a7a5232 372-405,407-414,417,419-421,424-425,427-428
+lib/utils/safeRemoteFetch.test.ts
+  s_f26ecf25652330::t_80d014f2f7f4e4 189-190,338-351,353-354,356,358-390,393-417,420-422
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "96711b05f0379751e85277ea72e6552d48130b33",
+  "prompts": {},
+  "sessions": {
+    "s_f26ecf25652330": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e204c-d6a2-7962-8311-a3b691fd7add",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

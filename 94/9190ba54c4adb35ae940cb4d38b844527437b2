@@ -1,0 +1,21 @@
+lib/utils/safeRemoteFetch.test.ts
+  s_f71acf8115bf9b::t_44ff428cf43775 20,105-138,372,408-460
+lib/utils/safeRemoteFetch.ts
+  s_f71acf8115bf9b::t_6d02a70f234eb8 5,18-24,524-568,598,616-626,708-714
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "949190ba54c4adb35ae940cb4d38b844527437b2",
+  "prompts": {},
+  "sessions": {
+    "s_f71acf8115bf9b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2099-e9d1-70a1-9572-4022985a4149",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
