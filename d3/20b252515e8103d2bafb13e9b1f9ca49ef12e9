@@ -1,0 +1,21 @@
+app/(nosidebar)/oauth/token/route.test.ts
+  s_0274203527af1b::t_e5fcfdd67ffcf8 545-579
+app/(nosidebar)/oauth/token/route.ts
+  s_0274203527af1b::t_7e1261fd16777f 192,201,203,216,218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d320b252515e8103d2bafb13e9b1f9ca49ef12e9",
+  "prompts": {},
+  "sessions": {
+    "s_0274203527af1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2642-6852-73e2-b950-211b181f8595",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
