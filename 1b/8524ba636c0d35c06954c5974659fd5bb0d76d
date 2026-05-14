@@ -1,0 +1,25 @@
+lib/config/request.test.ts
+  s_db7fae110aed43::t_5e35c009859f43 63-70
+lib/utils/request.ts
+  s_db7fae110aed43::t_3606244972c96e 114-123,129-162,230-237,239
+lib/utils/request.test.ts
+  s_db7fae110aed43::t_b2cfe01c440a7b 362-408
+lib/config/request.ts
+  s_db7fae110aed43::t_45498268d0ed07 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1b8524ba636c0d35c06954c5974659fd5bb0d76d",
+  "prompts": {},
+  "sessions": {
+    "s_db7fae110aed43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e26cd-ca1b-70c0-aa0d-525c3b4f0cf8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
