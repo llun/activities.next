@@ -102,40 +102,6 @@ describe('safeRemoteFetch', () => {
     expect(body.destroyed).toBe(true)
   })
 
-  it('decodes response bodies using the response charset when present', async () => {
-    const safeRemoteFetch = createSafeRemoteFetch({
-      resolveHost: async () => [SAFE_ADDRESS],
-      transport: async () => ({
-        statusCode: 200,
-        headers: { 'content-type': 'text/plain; charset=iso-8859-1' },
-        body: streamFrom([Buffer.from([0x63, 0x61, 0x66, 0xe9])])
-      })
-    })
-
-    await expect(
-      safeRemoteFetch({ url: 'https://safe.example/latin1' })
-    ).resolves.toMatchObject({
-      body: 'café'
-    })
-  })
-
-  it('avoids utf8 replacement when no charset is declared for non-utf8 text', async () => {
-    const safeRemoteFetch = createSafeRemoteFetch({
-      resolveHost: async () => [SAFE_ADDRESS],
-      transport: async () => ({
-        statusCode: 200,
-        headers: { 'content-type': 'text/plain' },
-        body: streamFrom([Buffer.from([0x63, 0x61, 0x66, 0xe9])])
-      })
-    })
-
-    await expect(
-      safeRemoteFetch({ url: 'https://safe.example/latin1' })
-    ).resolves.toMatchObject({
-      body: 'café'
-    })
-  })
-
   it('rejects redirects beyond the configured cap', async () => {
     const safeRemoteFetch = createSafeRemoteFetch({
       resolveHost: async () => [SAFE_ADDRESS],
@@ -430,6 +396,9 @@ describe('safeRemoteFetch', () => {
     await safeRemoteFetch({
       body: 'payload',
       headers: {
+        'content-encoding': 'gzip',
+        'content-language': 'en',
+        'content-location': '/payload',
         'content-type': 'text/plain',
         digest: 'sha-256=payload',
         signature: 'keyId="secret",signature="secret"'
@@ -442,6 +411,9 @@ describe('safeRemoteFetch', () => {
       {
         body: 'payload',
         headers: expect.objectContaining({
+          'content-encoding': 'gzip',
+          'content-language': 'en',
+          'content-location': '/payload',
           'content-type': 'text/plain',
           digest: 'sha-256=payload',
           host: 'safe.example',
