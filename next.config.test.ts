@@ -12,6 +12,46 @@ const loadNextConfig = async () => {
   return import('./next.config')
 }
 
+const withEnv = <T>(
+  values: Record<string, string | undefined>,
+  callback: () => T
+): T => {
+  const previousValues = Object.fromEntries(
+    Object.keys(values).map((key) => [key, process.env[key]])
+  )
+
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) {
+      delete process.env[key]
+    } else {
+      process.env[key] = value
+    }
+  }
+
+  try {
+    return callback()
+  } finally {
+    for (const [key, value] of Object.entries(previousValues)) {
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
+    }
+  }
+}
+
+const getCspDirectiveSources = (directiveName: string) => {
+  const csp = getSecurityHeaders().find(
+    (header) => header.key === 'Content-Security-Policy'
+  )
+  const directive = csp?.value
+    .split('; ')
+    .find((value) => value.startsWith(`${directiveName} `))
+
+  return directive?.split(/\s+/).slice(1) ?? []
+}
+
 describe('getProxyHostConfigEnv', () => {
   const originalCwd = process.cwd()
   const previousActivitiesHost = process.env.ACTIVITIES_HOST
@@ -80,14 +120,13 @@ describe('getProxyHostConfigEnv', () => {
 
 describe('next config security hardening', () => {
   it('sets baseline browser security headers', () => {
-    const originalNodeEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'production'
-
-    try {
+    withEnv({ NODE_ENV: 'production' }, () => {
       const headers = getSecurityHeaders()
       const csp = headers.find(
         (header) => header.key === 'Content-Security-Policy'
       )
+      const connectSources = getCspDirectiveSources('connect-src')
+      const mediaSources = getCspDirectiveSources('media-src')
 
       expect(csp?.value).toContain("default-src 'none'")
       expect(csp?.value).toContain("frame-ancestors 'none'")
@@ -97,13 +136,16 @@ describe('next config security hardening', () => {
       expect(csp?.value).toContain(
         "style-src 'self' 'unsafe-inline' https://api.mapbox.com"
       )
-      expect(csp?.value).toContain(
-        "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com"
-      )
+      expect(connectSources).toEqual([
+        "'self'",
+        'https://api.mapbox.com',
+        'https://events.mapbox.com',
+        'https://*.tiles.mapbox.com'
+      ])
       expect(csp?.value).toContain("manifest-src 'self'")
-      expect(csp?.value).toContain("media-src 'self' https: blob:")
+      expect(mediaSources).toEqual(["'self'", 'https:', 'blob:'])
       expect(csp?.value).not.toContain("'unsafe-eval'")
-      expect(csp?.value).not.toContain('connect-src https:')
+      expect(connectSources).not.toContain('https:')
       expect(headers).toContainEqual({
         key: 'X-Content-Type-Options',
         value: 'nosniff'
@@ -116,37 +158,21 @@ describe('next config security hardening', () => {
         key: 'Permissions-Policy',
         value: 'camera=(), microphone=(), geolocation=(self)'
       })
-    } finally {
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
-      }
-    }
+    })
   })
 
   it('allows development websocket connections for Next and HMR', () => {
-    const originalNodeEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'development'
-
-    try {
+    withEnv({ NODE_ENV: 'development' }, () => {
       const csp = getSecurityHeaders().find(
         (header) => header.key === 'Content-Security-Policy'
       )
+      const connectSources = getCspDirectiveSources('connect-src')
 
       expect(csp?.value).toContain(
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.mapbox.com"
       )
-      expect(csp?.value).toContain(
-        "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com ws: wss:"
-      )
-    } finally {
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
-      }
-    }
+      expect(connectSources).toEqual(expect.arrayContaining(['ws:', 'wss:']))
+    })
   })
 
   it('disables next/image optimization for unbounded federated avatars', () => {
@@ -154,124 +180,166 @@ describe('next config security hardening', () => {
   })
 
   it('allows configured object storage connections without allowing all HTTPS', () => {
-    const originalStorageHostname =
-      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-    process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'uploads.example.com'
+    withEnv(
+      { ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'uploads.example.com' },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
 
-    try {
-      const csp = getSecurityHeaders().find(
-        (header) => header.key === 'Content-Security-Policy'
-      )
-
-      expect(csp?.value).toContain('https://uploads.example.com')
-      expect(csp?.value).not.toContain('connect-src https:')
-    } finally {
-      if (originalStorageHostname === undefined) {
-        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-      } else {
-        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
+        expect(connectSources).toContain('https://uploads.example.com')
+        expect(connectSources).not.toContain('https:')
       }
-    }
+    )
   })
 
   it('allows local object storage connections in development', () => {
-    const originalNodeEnv = process.env.NODE_ENV
-    const originalStorageHostname =
-      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-    process.env.NODE_ENV = 'development'
-    process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'http://localhost:9000'
+    withEnv(
+      {
+        NODE_ENV: 'development',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'http://localhost:9000'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
 
-    try {
-      const csp = getSecurityHeaders().find(
-        (header) => header.key === 'Content-Security-Policy'
-      )
-
-      expect(csp?.value).toContain('http://localhost:9000')
-    } finally {
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
+        expect(connectSources).toContain('http://localhost:9000')
       }
-      if (originalStorageHostname === undefined) {
-        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-      } else {
-        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
-      }
-    }
+    )
   })
 
   it('allows local object storage images in development', () => {
-    const originalNodeEnv = process.env.NODE_ENV
-    const originalStorageHostname =
-      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-    process.env.NODE_ENV = 'development'
-    process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'http://localhost:9000'
+    withEnv(
+      {
+        NODE_ENV: 'development',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'http://localhost:9000'
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
 
-    try {
-      const csp = getSecurityHeaders().find(
-        (header) => header.key === 'Content-Security-Policy'
-      )
-
-      expect(csp?.value).toContain(
-        "img-src 'self' data: blob: https: http://localhost:9000"
-      )
-    } finally {
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
+        expect(imageSources).toEqual([
+          "'self'",
+          'data:',
+          'blob:',
+          'https:',
+          'http://localhost:9000'
+        ])
       }
-      if (originalStorageHostname === undefined) {
-        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-      } else {
-        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
-      }
-    }
+    )
   })
 
   it('allows default S3 presigned upload hosts in connect-src', () => {
-    const originalStorageType = process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
-    const originalStorageBucket = process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
-    const originalStorageRegion = process.env.ACTIVITIES_MEDIA_STORAGE_REGION
-    const originalStorageHostname =
-      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-    process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 's3'
-    process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'media-bucket'
-    process.env.ACTIVITIES_MEDIA_STORAGE_REGION = 'eu-west-1'
-    delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-west-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
 
-    try {
-      const csp = getSecurityHeaders().find(
-        (header) => header.key === 'Content-Security-Policy'
-      )
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://media-bucket.s3.eu-west-1.amazonaws.com',
+            'https://s3.eu-west-1.amazonaws.com'
+          ])
+        )
+      }
+    )
+  })
 
-      expect(csp?.value).toContain(
-        'https://media-bucket.s3.eu-west-1.amazonaws.com'
-      )
-      expect(csp?.value).toContain('https://s3.eu-west-1.amazonaws.com')
-    } finally {
-      if (originalStorageType === undefined) {
-        delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
-      } else {
-        process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = originalStorageType
+  it('allows default S3 presigned upload hosts for object media storage in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-2',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://media-object-bucket.s3.us-east-2.amazonaws.com',
+            'https://s3.us-east-2.amazonaws.com'
+          ])
+        )
       }
-      if (originalStorageBucket === undefined) {
-        delete process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
-      } else {
-        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = originalStorageBucket
+    )
+  })
+
+  it('allows configured fitness object storage connections in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toContain('https://fitness.example.com')
       }
-      if (originalStorageRegion === undefined) {
-        delete process.env.ACTIVITIES_MEDIA_STORAGE_REGION
-      } else {
-        process.env.ACTIVITIES_MEDIA_STORAGE_REGION = originalStorageRegion
+    )
+  })
+
+  it('allows default S3 presigned upload hosts for fitness storage in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'ap-south-1',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://fitness-bucket.s3.ap-south-1.amazonaws.com',
+            'https://s3.ap-south-1.amazonaws.com'
+          ])
+        )
       }
-      if (originalStorageHostname === undefined) {
-        delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-      } else {
-        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = originalStorageHostname
+    )
+  })
+
+  it('allows default S3 presigned upload hosts for object fitness storage in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-object-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'ca-central-1',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://fitness-object-bucket.s3.ca-central-1.amazonaws.com',
+            'https://s3.ca-central-1.amazonaws.com'
+          ])
+        )
       }
-    }
+    )
+  })
+
+  it('allows media and fitness custom storage hostnames in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media.example.com',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://media.example.com',
+            'https://fitness.example.com'
+          ])
+        )
+      }
+    )
   })
 
   it('uses the configured instance host and safe local hosts by default', () => {

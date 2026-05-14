@@ -45,6 +45,10 @@ const MEDIA_STORAGE_HOSTNAME_ENV = 'ACTIVITIES_MEDIA_STORAGE_HOSTNAME'
 const MEDIA_STORAGE_TYPE_ENV = 'ACTIVITIES_MEDIA_STORAGE_TYPE'
 const MEDIA_STORAGE_BUCKET_ENV = 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
 const MEDIA_STORAGE_REGION_ENV = 'ACTIVITIES_MEDIA_STORAGE_REGION'
+const FITNESS_STORAGE_HOSTNAME_ENV = 'ACTIVITIES_FITNESS_STORAGE_HOSTNAME'
+const FITNESS_STORAGE_TYPE_ENV = 'ACTIVITIES_FITNESS_STORAGE_TYPE'
+const FITNESS_STORAGE_BUCKET_ENV = 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
+const FITNESS_STORAGE_REGION_ENV = 'ACTIVITIES_FITNESS_STORAGE_REGION'
 const MAPBOX_CSP_SOURCES = [
   'https://api.mapbox.com',
   'https://events.mapbox.com',
@@ -88,16 +92,27 @@ const getCspSource = (rawSource: string | undefined) => {
   }
 }
 
-const getDefaultS3CspSources = () => {
+const getDefaultS3CspSources = ({
+  storageTypeEnv,
+  hostnameEnv,
+  bucketEnv,
+  regionEnv
+}: {
+  storageTypeEnv: string
+  hostnameEnv: string
+  bucketEnv: string
+  regionEnv: string
+}) => {
+  const storageType = process.env[storageTypeEnv]
   if (
-    process.env[MEDIA_STORAGE_TYPE_ENV] !== 's3' ||
-    process.env[MEDIA_STORAGE_HOSTNAME_ENV]
+    !['s3', 'object'].includes(storageType ?? '') ||
+    process.env[hostnameEnv]
   ) {
     return []
   }
 
-  const bucket = process.env[MEDIA_STORAGE_BUCKET_ENV]?.trim()
-  const region = process.env[MEDIA_STORAGE_REGION_ENV]?.trim()
+  const bucket = process.env[bucketEnv]?.trim()
+  const region = process.env[regionEnv]?.trim()
   if (!bucket || !region) return []
 
   return [
@@ -110,13 +125,30 @@ export const getSecurityHeaders = (): Header[] => {
   const mediaStorageSource = getCspSource(
     process.env[MEDIA_STORAGE_HOSTNAME_ENV]
   )
-  const connectSources = [
-    "'self'",
-    ...MAPBOX_CSP_SOURCES,
-    ...(mediaStorageSource ? [mediaStorageSource] : []),
-    ...getDefaultS3CspSources(),
-    ...(isDevelopment() ? ['ws:', 'wss:'] : [])
-  ].join(' ')
+  const fitnessStorageSource = getCspSource(
+    process.env[FITNESS_STORAGE_HOSTNAME_ENV]
+  )
+  const connectSources = Array.from(
+    new Set([
+      "'self'",
+      ...MAPBOX_CSP_SOURCES,
+      ...(mediaStorageSource ? [mediaStorageSource] : []),
+      ...(fitnessStorageSource ? [fitnessStorageSource] : []),
+      ...getDefaultS3CspSources({
+        storageTypeEnv: MEDIA_STORAGE_TYPE_ENV,
+        hostnameEnv: MEDIA_STORAGE_HOSTNAME_ENV,
+        bucketEnv: MEDIA_STORAGE_BUCKET_ENV,
+        regionEnv: MEDIA_STORAGE_REGION_ENV
+      }),
+      ...getDefaultS3CspSources({
+        storageTypeEnv: FITNESS_STORAGE_TYPE_ENV,
+        hostnameEnv: FITNESS_STORAGE_HOSTNAME_ENV,
+        bucketEnv: FITNESS_STORAGE_BUCKET_ENV,
+        regionEnv: FITNESS_STORAGE_REGION_ENV
+      }),
+      ...(isDevelopment() ? ['ws:', 'wss:'] : [])
+    ])
+  ).join(' ')
   const imageSources = [
     "'self'",
     'data:',
