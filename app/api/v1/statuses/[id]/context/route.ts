@@ -1,5 +1,9 @@
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import {
+  filterReadableStatuses,
+  getReadableStatus
+} from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -31,7 +35,11 @@ export const GET = traceApiRoute(
     const { database, currentActor } = context
     const statusId = idToUrl(encodedStatusId)
 
-    const status = await database.getStatus({ statusId })
+    const status = await getReadableStatus({
+      database,
+      statusId,
+      currentActor
+    })
     if (!status || status.type === StatusType.enum.Announce) {
       return apiResponse({
         req,
@@ -43,16 +51,22 @@ export const GET = traceApiRoute(
 
     const [ancestor, descendants] = await Promise.all([
       status.reply
-        ? database
-            .getStatus({ statusId: status.reply })
-            .then((status) =>
-              status
-                ? getMastodonStatus(database, status, currentActor.id)
-                : null
-            )
+        ? getReadableStatus({
+            database,
+            statusId: status.reply,
+            currentActor
+          }).then((status) =>
+            status ? getMastodonStatus(database, status, currentActor.id) : null
+          )
         : Promise.resolve(null),
       database
-        .getStatusReplies({ statusId })
+        .getStatusReplies({
+          statusId,
+          visibleToActorId: currentActor.id
+        })
+        .then((statuses) =>
+          filterReadableStatuses({ database, statuses, currentActor })
+        )
         .then((statuses) =>
           Promise.all(
             statuses.map((status) =>

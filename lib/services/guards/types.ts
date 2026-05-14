@@ -31,5 +31,6 @@ export type ActivityPubVerifiedSenderHandle<P> = (
     activityBody: unknown
     database: Database
     params: Promise<P>
+    verifiedSenderActorId: string
   }
 ) => Promise<Response> | Response

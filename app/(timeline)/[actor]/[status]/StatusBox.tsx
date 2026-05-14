@@ -8,7 +8,12 @@ import { Post } from '@/lib/components/posts/post'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 import { FitnessStatusDetail } from './FitnessStatusDetail'
@@ -40,7 +45,9 @@ export const StatusBox: FC<Props> = ({
   } | null>(null)
   const [replyTarget, setReplyTarget] = useState<Status | null>(null)
   const actualStatus =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
+    status.type === StatusType.enum.Announce
+      ? getOriginalStatus(status)
+      : status
   const shouldRenderFitnessDetail =
     variant === 'detail' &&
     actualStatus.type === StatusType.enum.Note &&

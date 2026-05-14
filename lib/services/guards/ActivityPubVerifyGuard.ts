@@ -215,11 +215,15 @@ export const ActivityPubVerifySenderGuard =
       return guardErrorResponse(request, 400, allowedMethods)
     }
 
+    const verifiedSenderActorId = normalizeActorId(senderPublicKey.owner)
+    if (!verifiedSenderActorId) {
+      return guardErrorResponse(request, 400, allowedMethods)
+    }
+
     if (activity.actor) {
-      const normalizedOwner = normalizeActorId(senderPublicKey.owner)
       const normalizedActor = normalizeActorId(activity.actor)
 
-      if (!normalizedOwner || normalizedOwner !== normalizedActor) {
+      if (verifiedSenderActorId !== normalizedActor) {
         return guardErrorResponse(request, 403, allowedMethods)
       }
     }
@@ -227,6 +231,7 @@ export const ActivityPubVerifySenderGuard =
     return handle(request, {
       activityBody: activity.body,
       database,
-      params: context.params
+      params: context.params,
+      verifiedSenderActorId
     })
   }

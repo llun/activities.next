@@ -13,6 +13,7 @@ import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
+import { getOriginalStatus } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getTracer } from '@/lib/utils/trace'
@@ -77,10 +78,7 @@ export const userAnnounce = async ({
         .getActorFromId({ id: originalStatus.actorId })
         .catch(() => null)
         .then((targetActor) => {
-          const editableStatus =
-            originalStatus.type === 'Announce'
-              ? originalStatus.originalStatus
-              : originalStatus
+          const editableStatus = getOriginalStatus(originalStatus)
           sendNotificationAlerts({
             database,
             actorId: originalStatus.actorId,

@@ -4,6 +4,7 @@ export interface JobMessage {
   id: string
   name: string
   data: unknown
+  verifiedSenderActorId?: string
 }
 
 export interface Queue {

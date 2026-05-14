@@ -6,6 +6,7 @@ import { DELETE_OBJECT_JOB_NAME } from '@/lib/jobs/names'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 
 enableFetchMocks()
@@ -89,6 +90,34 @@ describe('deleteObjectJob', () => {
     // Verify status is deleted
     status = await database.getStatus({ statusId, withReplies: false })
     expect(status).toBeNull()
+  })
+
+  it('does not delete a status owned by a different verified sender', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    const statusId = `${actor1.id}/statuses/not-owned-by-sender-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Status owned by actor1',
+      createdAt: Date.now()
+    })
+
+    await deleteObjectJob(database, {
+      id: 'job-not-owner',
+      name: DELETE_OBJECT_JOB_NAME,
+      data: {
+        type: 'Tombstone',
+        id: statusId
+      },
+      verifiedSenderActorId: ACTOR2_ID
+    })
+
+    const status = await database.getStatus({ statusId, withReplies: false })
+    expect(status).not.toBeNull()
   })
 
   it('processes Announce data for deletion', async () => {

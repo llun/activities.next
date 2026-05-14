@@ -8,6 +8,7 @@ import {
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { NotificationType } from '@/lib/types/database/operations'
+import { getOriginalStatus } from '@/lib/types/domain/status'
 
 interface LikeRequestParams {
   activity: LikeStatus
@@ -48,8 +49,7 @@ export const likeRequest = async ({
     ])
       .then(([targetActor, sourceActor]) => {
         if (!sourceActor) return
-        const editableStatus =
-          status.type === 'Announce' ? status.originalStatus : status
+        const editableStatus = getOriginalStatus(status)
         sendNotificationAlerts({
           database,
           actorId: status.actorId,
