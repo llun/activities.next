@@ -1,0 +1,62 @@
+lib/components/posts/actions/repost-button.tsx
+  s_23e3cc6270fa65::t_a49c847c1e0a30 22-24
+  s_23e3cc6270fa65::t_c38a76dd0821a6 6-10
+lib/database/sql/status.ts
+  s_23e3cc6270fa65::t_1082f62c3afff0 99-121,123-134,144,147-150,166-170,172-176
+  s_23e3cc6270fa65::t_46a00496eb91c3 57
+  s_23e3cc6270fa65::t_e4603d0e320055 981-983,985-993
+app/api/inbox/getJobMessage.test.ts
+  s_23e3cc6270fa65::t_592fc9ecebd3d4 118-142,222-250
+lib/jobs/createNoteJob.test.ts
+  s_23e3cc6270fa65::t_ec1dd7d99d7f2b 64-83
+lib/components/posts/actions/actions.tsx
+  s_23e3cc6270fa65::t_a49c847c1e0a30 37-39
+  s_23e3cc6270fa65::t_74a92a98bc183c 4-8
+lib/actions/like.ts
+  s_23e3cc6270fa65::t_96b8ebe5a90c5e 11,52
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_23e3cc6270fa65::t_a49c847c1e0a30 48-50
+  s_23e3cc6270fa65::t_ddb0252515faff 11-16
+lib/jobs/createNoteJob.ts
+  s_23e3cc6270fa65::t_d324eebb954e18 24-27,72,77,82,87
+lib/actions/announce.ts
+  s_23e3cc6270fa65::t_f5689d81e4b93d 16,81
+lib/database/sql/status.test.ts
+  s_23e3cc6270fa65::t_4728e7be2fc61e 14
+  s_23e3cc6270fa65::t_3c89b75059df31 527-576
+  s_23e3cc6270fa65::t_94ef6123aede1e 379-428
+  s_23e3cc6270fa65::t_da21c5c6caaacc 1325-1360
+lib/utils/getNoteFromStatus.ts
+  s_23e3cc6270fa65::t_d530c751039a01 7-11,17-18
+app/(timeline)/[actor]/[status]/page.tsx
+  s_23e3cc6270fa65::t_31d2b95201ed31 14-17,98
+  s_23e3cc6270fa65::t_a49c847c1e0a30 186-188
+app/api/inbox/getJobMessage.ts
+  s_23e3cc6270fa65::t_f26d469cc457ee 82-85
+app/api/users/[username]/outbox/route.ts
+  s_23e3cc6270fa65::t_6d322add1cab0e 9-13,25
+  s_23e3cc6270fa65::t_c452309b5ca4f3 1,23-24,26-29,31-32,35-44
+app/api/users/[username]/outbox/route.test.ts
+  s_23e3cc6270fa65::t_e6bbeca57d2c8d 3,57-78,203-204,210-257
+lib/types/domain/status.ts
+  s_23e3cc6270fa65::t_0ef4e3cc68163c 117-123,326
+  s_23e3cc6270fa65::t_6fc5bc5d9bc80e 100-107,109,112-115
+lib/utils/text/processStatusText.ts
+  s_23e3cc6270fa65::t_6aa1462941de24 3,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "9adb3def106f1b7740c04a974e21636d3cec77cd",
+  "prompts": {},
+  "sessions": {
+    "s_23e3cc6270fa65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2303-f3de-7f62-9a82-67036dea01be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
