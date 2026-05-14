@@ -148,7 +148,7 @@ export const getSecurityHeaders = (): Header[] => {
     `connect-src ${connectSources}`,
     "font-src 'self' data:",
     "manifest-src 'self'",
-    "media-src 'self' https:",
+    "media-src 'self' https: blob:",
     "worker-src 'self' blob:"
   ].join('; ')
 
@@ -221,6 +221,33 @@ const getImageRemotePattern = (
   }
 }
 
+const getImageRemotePatternKey = (pattern: ImageRemotePatterns[number]) =>
+  [
+    pattern.protocol ?? '',
+    pattern.hostname,
+    pattern.port ?? '',
+    pattern.pathname ?? ''
+  ].join('\0')
+
+const appendInstanceImageRemotePattern = (
+  patterns: ImageRemotePatterns
+): ImageRemotePatterns => {
+  const host = process.env.ACTIVITIES_HOST?.trim()
+  if (!host) return patterns
+
+  const instancePattern = getImageRemotePattern(host, {
+    allowLocalHttp: isDevelopment()
+  })
+  if (!instancePattern) return patterns
+
+  const patternKeys = new Set(patterns.map(getImageRemotePatternKey))
+  if (patternKeys.has(getImageRemotePatternKey(instancePattern))) {
+    return patterns
+  }
+
+  return [...patterns, instancePattern]
+}
+
 const getDefaultImageRemotePatterns = (): ImageRemotePatterns => {
   const patterns: ImageRemotePatterns = [{ protocol: 'https', hostname: '**' }]
 
@@ -238,10 +265,14 @@ export const getImageRemotePatterns = (
     return getDefaultImageRemotePatterns()
   }
 
-  return parseImageRemoteAllowlist(rawAllowlist).flatMap((entry) => {
-    const pattern = getImageRemotePattern(entry)
-    return pattern ? [pattern] : []
-  })
+  const configuredPatterns = parseImageRemoteAllowlist(rawAllowlist).flatMap(
+    (entry) => {
+      const pattern = getImageRemotePattern(entry)
+      return pattern ? [pattern] : []
+    }
+  )
+
+  return appendInstanceImageRemotePattern(configuredPatterns)
 }
 
 const nextConfig: NextConfig = {

@@ -101,6 +101,7 @@ describe('next config security hardening', () => {
         "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com"
       )
       expect(csp?.value).toContain("manifest-src 'self'")
+      expect(csp?.value).toContain("media-src 'self' https: blob:")
       expect(csp?.value).not.toContain("'unsafe-eval'")
       expect(csp?.value).not.toContain('connect-src https:')
       expect(headers).toContainEqual({
@@ -356,6 +357,48 @@ describe('next config security hardening', () => {
         protocol: 'https',
         hostname: 'media.example.com'
       },
+      {
+        protocol: 'https',
+        hostname: 'cdn.example.com',
+        pathname: '/Images/**'
+      }
+    ])
+  })
+
+  it('keeps the configured instance host with explicit image host patterns', () => {
+    const originalHost = process.env.ACTIVITIES_HOST
+    process.env.ACTIVITIES_HOST = 'social.example.com'
+
+    try {
+      const patterns = getImageRemotePatterns(
+        JSON.stringify(['media.example.com'])
+      )
+
+      expect(patterns).toEqual([
+        {
+          protocol: 'https',
+          hostname: 'media.example.com'
+        },
+        {
+          protocol: 'https',
+          hostname: 'social.example.com'
+        }
+      ])
+    } finally {
+      if (originalHost === undefined) {
+        delete process.env.ACTIVITIES_HOST
+      } else {
+        process.env.ACTIVITIES_HOST = originalHost
+      }
+    }
+  })
+
+  it('normalizes default HTTPS ports in image host patterns', () => {
+    const patterns = getImageRemotePatterns(
+      JSON.stringify(['https://cdn.example.com:443/Images'])
+    )
+
+    expect(patterns).toEqual([
       {
         protocol: 'https',
         hostname: 'cdn.example.com',
