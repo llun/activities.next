@@ -121,3 +121,4 @@ See [Maintenance Scripts](maintenance.md) for general script guidance.
 - Fitness posts default to private visibility in Strava flows unless the user chooses otherwise.
 - Privacy locations hide configured coordinate radii from route maps, route-data responses, and route heatmaps.
 - File type validation and quota enforcement prevent unsupported uploads and storage abuse.
+- Anonymous public route-data responses rely on HTTP caching plus upstream deployment controls for flood protection. Configure a CDN or reverse-proxy rate limiter for `/api/v1/fitness-files/*/route-data` on self-hosted public instances.

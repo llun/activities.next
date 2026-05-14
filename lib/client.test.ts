@@ -5,11 +5,17 @@ import {
   getActorStatuses,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
+  startStravaArchiveImport,
   triggerFitnessRouteHeatmap,
-  updateNote
+  updateNote,
+  uploadAttachment
 } from './client'
 
 enableFetchMocks()
+
+jest.mock('@/lib/utils/getMediaWidthAndHeight', () => ({
+  getMediaWidthAndHeight: jest.fn().mockResolvedValue({ width: 10, height: 20 })
+}))
 
 describe('client updateNote', () => {
   beforeEach(() => {
@@ -159,6 +165,223 @@ describe('fitness route heatmap client calls', () => {
           region: 'netherlands',
           retry: true
         })
+      })
+    )
+  })
+})
+
+describe('client uploadAttachment presigned completion', () => {
+  let setTimeoutSpy: jest.SpyInstance
+
+  const presignedResponse = {
+    presigned: {
+      url: 'https://storage.example/upload',
+      saveFileOutput: {
+        id: 'media-1',
+        type: 'image',
+        mime_type: 'image/png',
+        url: 'https://llun.test/api/v1/files/media-1.png',
+        preview_url: null,
+        text_url: null,
+        remote_url: null,
+        meta: {
+          original: {
+            width: 10,
+            height: 20,
+            size: '10x20',
+            aspect: 0.5
+          }
+        },
+        description: ''
+      },
+      headers: {
+        'x-amz-meta-checksumsha1': 'checksum'
+      }
+    }
+  }
+
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    setTimeoutSpy = jest
+      .spyOn(globalThis, 'setTimeout')
+      .mockImplementation((handler: Parameters<typeof setTimeout>[0]) => {
+        if (typeof handler === 'function') {
+          handler()
+        }
+        return 0 as unknown as ReturnType<typeof setTimeout>
+      })
+  })
+
+  afterEach(() => {
+    setTimeoutSpy.mockRestore()
+  })
+
+  it('retries presigned upload completion after the file PUT succeeds', async () => {
+    fetchMock
+      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce('', { status: 503 })
+      .mockResponseOnce('', { status: 503 })
+      .mockResponseOnce(
+        JSON.stringify({
+          media: presignedResponse.presigned.saveFileOutput
+        }),
+        { status: 200 }
+      )
+
+    await expect(
+      uploadAttachment(
+        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
+      )
+    ).resolves.toMatchObject({
+      id: 'media-1',
+      name: 'photo.png'
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/medias/presigned',
+      expect.objectContaining({ method: 'PATCH' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      '/api/v1/medias/presigned',
+      expect.objectContaining({ method: 'PATCH' })
+    )
+    expect(setTimeoutSpy).toHaveBeenNthCalledWith(1, expect.any(Function), 250)
+    expect(setTimeoutSpy).toHaveBeenNthCalledWith(2, expect.any(Function), 500)
+  })
+
+  it('cleans up pending media when presigned upload completion is exhausted', async () => {
+    fetchMock
+      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce('', { status: 503 })
+      .mockResponseOnce('', { status: 503 })
+      .mockResponseOnce('', { status: 503 })
+      .mockResponseOnce(JSON.stringify({ success: true }), { status: 200 })
+
+    await expect(
+      uploadAttachment(
+        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
+      )
+    ).resolves.toBeNull()
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/v1/accounts/media/media-1',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+  })
+
+  it('does not retry or clean up permanent presigned upload completion failures', async () => {
+    fetchMock
+      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce('', { status: 422 })
+
+    await expect(
+      uploadAttachment(
+        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
+      )
+    ).resolves.toBeNull()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(setTimeoutSpy).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/medias/presigned',
+      expect.objectContaining({ method: 'PATCH' })
+    )
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/v1/accounts/media/media-1',
+      expect.anything()
+    )
+  })
+
+  it('cleans up pending media when presigned upload completion is unauthorized', async () => {
+    fetchMock
+      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce('', { status: 401 })
+      .mockResponseOnce(JSON.stringify({ success: true }), { status: 200 })
+
+    await expect(
+      uploadAttachment(
+        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
+      )
+    ).resolves.toBeNull()
+
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(setTimeoutSpy).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/v1/accounts/media/media-1',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+  })
+})
+
+describe('client startStravaArchiveImport', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+  })
+
+  it('does not fall back to multipart upload when presigned setup is rejected', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ error: 'active import' }), {
+      status: 409
+    })
+
+    await expect(
+      startStravaArchiveImport(
+        new File([Buffer.from('zip-data')], 'export.zip', {
+          type: 'application/zip'
+        }),
+        'private'
+      )
+    ).rejects.toThrow('Failed to get presigned URL for archive')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/settings/fitness/strava/archive/presigned',
+      expect.objectContaining({
+        method: 'POST'
+      })
+    )
+  })
+
+  it('does not fall back to multipart upload when presigned import commit is rejected', async () => {
+    fetchMock
+      .mockResponseOnce(
+        JSON.stringify({
+          presigned: {
+            url: 'https://storage.example/archive.zip',
+            fitnessFileId: 'fitness-file-1',
+            archiveId: 'archive-1'
+          }
+        }),
+        { status: 200 }
+      )
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce(JSON.stringify({ error: 'active import' }), {
+        status: 409
+      })
+
+    await expect(
+      startStravaArchiveImport(
+        new File([Buffer.from('zip-data')], 'export.zip', {
+          type: 'application/zip'
+        }),
+        'private'
+      )
+    ).rejects.toThrow('Failed to start Strava archive import')
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/settings/fitness/strava/archive',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       })
     )
   })

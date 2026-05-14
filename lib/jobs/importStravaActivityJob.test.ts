@@ -582,7 +582,8 @@ describe('importStravaActivityJob', () => {
       new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
         headers: {
-          'content-type': 'image/jpeg'
+          'content-type': 'image/jpeg',
+          'content-length': '3'
         }
       })
     )
@@ -632,6 +633,53 @@ describe('importStravaActivityJob', () => {
           name: 'Strava photo photo-1'
         })
       )
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('skips oversized Strava photos without buffering or storing them', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        status: 200,
+        headers: {
+          'content-type': 'image/jpeg',
+          'content-length': String(10 * 1024 * 1024 + 1)
+        }
+      })
+    )
+
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 126,
+      name: 'Morning Run With Large Photo',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      total_elevation_gain: 120,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce(null)
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([
+      {
+        id: 'large-photo',
+        url: 'https://images.example.com/large-photo.jpg'
+      }
+    ])
+
+    try {
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-no-upload-oversized-photo',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '126'
+        }
+      })
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(mockSaveMedia).not.toHaveBeenCalled()
+      expect(database.createAttachment).not.toHaveBeenCalled()
     } finally {
       fetchSpy.mockRestore()
     }

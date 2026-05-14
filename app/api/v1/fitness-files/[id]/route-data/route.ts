@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -29,6 +31,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface Params {
@@ -53,6 +56,16 @@ interface FitnessRouteSegment {
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const MAX_ROUTE_SAMPLE_POINTS = 1_500
+
+type RouteDataResponsePayload = {
+  samples: FitnessRouteSample[]
+  segments: FitnessRouteSegment[]
+  totalDurationSeconds: number
+  powerSeries?: unknown
+  heartRateSeries?: unknown
+  altitudeSeries?: unknown
+  speedSeries?: unknown
+}
 
 const getFetchResponseErrorDetail = async (
   response: Response
@@ -155,7 +168,15 @@ const getFitnessFileBuffer = async (
     )
   }
 
-  return Buffer.from(await response.arrayBuffer())
+  return Buffer.from(
+    await readResponseArrayBufferWithLimit(
+      response,
+      getConfig().fitnessStorage?.maxFileSize ??
+        fileMetadata.bytes ??
+        DEFAULT_FITNESS_MAX_FILE_SIZE,
+      'Fitness redirect body'
+    )
+  )
 }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -268,6 +289,21 @@ export const GET = traceApiRoute(
         }
       }
 
+      if (!isParseableFitnessFileType(fileMetadata.fileType)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      const privacySettings = await database.getFitnessSettings({
+        actorId: fileMetadata.actorId,
+        serviceType: 'general'
+      })
+      const isAnonymousPublicRequest = isPubliclyAccessible && !currentActor
+
       const fitnessFileBuffer = await getFitnessFileBuffer(
         id,
         fileMetadata,
@@ -285,14 +321,6 @@ export const GET = traceApiRoute(
           responseStatusCode: 404
         })
       }
-      if (!isParseableFitnessFileType(fileMetadata.fileType)) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
-        })
-      }
 
       const activityData = await parseFitnessFile({
         fileType: fileMetadata.fileType,
@@ -302,10 +330,6 @@ export const GET = traceApiRoute(
         activityData.trackPoints,
         activityData.totalDurationSeconds
       )
-      const privacySettings = await database.getFitnessSettings({
-        actorId: fileMetadata.actorId,
-        serviceType: 'general'
-      })
       const privacyLocation = getFitnessPrivacyLocations(privacySettings)
 
       const privacyAwareSamples = annotatePointsWithPrivacy(
@@ -325,24 +349,28 @@ export const GET = traceApiRoute(
       )
       const responseSamples = flattenPrivacySegments(sampledSegments)
       const responseSegments = toResponseSegments(sampledSegments)
+      const payload: RouteDataResponsePayload = {
+        samples: responseSamples,
+        segments: responseSegments,
+        totalDurationSeconds: activityData.totalDurationSeconds,
+        powerSeries: activityData.powerSeries,
+        heartRateSeries: activityData.heartRateSeries,
+        altitudeSeries: activityData.altitudeSeries,
+        speedSeries: activityData.speedSeries
+      }
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          samples: responseSamples,
-          segments: responseSegments,
-          totalDurationSeconds: activityData.totalDurationSeconds,
-          powerSeries: activityData.powerSeries,
-          heartRateSeries: activityData.heartRateSeries,
-          altitudeSeries: activityData.altitudeSeries,
-          speedSeries: activityData.speedSeries
-        },
+        data: payload,
         additionalHeaders: [
           [
             'Cache-Control',
-            isPubliclyAccessible ? 'no-store' : 'private, no-store'
-          ]
+            isAnonymousPublicRequest
+              ? 'public, max-age=60'
+              : 'private, no-store'
+          ],
+          ['Vary', 'Authorization, Cookie']
         ]
       })
     } catch (error) {

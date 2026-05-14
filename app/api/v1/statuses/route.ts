@@ -123,6 +123,9 @@ const getAttachmentsFromMediaIds = async (
   const attachments: PostBoxAttachment[] = []
   for (const media of medias) {
     if (!media) return null
+    if (media.original.metaData.upload?.state === 'pending') {
+      return null
+    }
 
     attachments.push({
       type: 'upload',
