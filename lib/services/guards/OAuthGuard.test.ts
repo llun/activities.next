@@ -60,7 +60,8 @@ jest.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: [],
     host: 'llun.test',
-    secretPhase: 'secret phases'
+    secretPhase: 'secret phases',
+    trustedHosts: ['trusted.llun.test']
   }),
   getBaseURL: () => 'https://llun.test'
 }))
@@ -184,6 +185,19 @@ describe('#OAuthGuard', () => {
 
       const guard = OAuthGuard([Scope.enum.write], mockHandler)
       const req = createRequest({ Origin: 'https://llun.test' }, 'POST')
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('allows a cookie-session mutation with an origin from trusted hosts', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest({ Origin: 'https://trusted.llun.test' }, 'POST')
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(200)

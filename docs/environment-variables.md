@@ -16,9 +16,9 @@ Application configuration can be provided either through environment variables o
 
 ## Proxy Configuration
 
-| Variable                            | Description                                                                                                                                                                                                                                     |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_TRUST_PROXY_IP_HEADERS` | Set to `true` to use proxy-managed client IP headers for unauthenticated app registration throttling. Only enable when all direct app access is blocked and the trusted proxy strips client-supplied forwarding headers before setting its own. |
+| Variable                            | Description                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_TRUST_PROXY_IP_HEADERS` | Set to `true` to use proxy-managed client IP headers for unauthenticated app registration throttling. Only enable when all direct app access is blocked and the trusted proxy overwrites or strips client-supplied forwarding headers before setting its own. Do not enable behind append-only proxies; if the proxy appends to `X-Forwarded-For`, the first element may still be untrusted. |
 
 ## Database
 

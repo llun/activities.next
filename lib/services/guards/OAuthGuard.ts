@@ -18,6 +18,7 @@ import {
   codeMap
 } from '@/lib/utils/response'
 
+import { isTrustedHeaderHost } from './headerHost'
 import {
   AppRouterParams,
   AuthenticatedApiHandle,
@@ -76,16 +77,29 @@ const getOrigin = (value: string | null): string | null => {
   }
 }
 
+const isAllowedOrigin = (value: string | null, baseOrigin: string): boolean => {
+  const origin = getOrigin(value)
+  if (!origin) return false
+  if (origin === baseOrigin) return true
+
+  const originUrl = new URL(origin)
+  const baseUrl = new URL(baseOrigin)
+  return (
+    originUrl.protocol === baseUrl.protocol &&
+    isTrustedHeaderHost(originUrl.host)
+  )
+}
+
 const hasSameOriginProof = (req: NextRequest): boolean => {
   if (!STATE_CHANGING_METHODS.has(req.method)) return true
 
-  const allowedOrigins = new Set([new URL(getBaseURL()).origin])
+  const baseOrigin = new URL(getBaseURL()).origin
 
-  const origin = getOrigin(req.headers.get('Origin'))
-  if (origin) return allowedOrigins.has(origin)
+  const origin = req.headers.get('Origin')
+  if (origin) return isAllowedOrigin(origin, baseOrigin)
 
-  const referer = getOrigin(req.headers.get('Referer'))
-  if (referer) return allowedOrigins.has(referer)
+  const referer = req.headers.get('Referer')
+  if (referer) return isAllowedOrigin(referer, baseOrigin)
 
   return false
 }
