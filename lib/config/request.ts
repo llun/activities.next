@@ -29,7 +29,7 @@ export type RequestConfig = z.infer<typeof RequestConfig>
 
 const getOptionalInteger = (key: string) => {
   const value = process.env[key]
-  if (!value) return undefined
+  if (typeof value === 'undefined' || value === '') return undefined
   return parseInt(value, 10)
 }
 

@@ -111,9 +111,53 @@ const wait = (milliseconds: number) =>
     setTimeout(resolve, milliseconds)
   })
 
+const getHeaderValue = (headers: RequestResult['headers'], key: string) => {
+  const normalizedKey = key.toLowerCase()
+  const matchingKey = Object.keys(headers).find(
+    (headerKey) => headerKey.toLowerCase() === normalizedKey
+  )
+  const value = matchingKey ? headers[matchingKey] : undefined
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
 const getRetryDelay = (attempt: number, retryNoise: number | null) => {
   const noise = retryNoise ? Math.random() * Math.abs(retryNoise) : 0
   return Math.min(2 ** attempt * 1000 + noise, RETRY_BACKOFF_LIMIT)
+}
+
+const getRetryAfterDelay = (headers: RequestResult['headers']) => {
+  const retryAfter = getHeaderValue(headers, 'retry-after')
+  if (!retryAfter) return undefined
+
+  const seconds = Number(retryAfter)
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000)
+  }
+
+  const retryAt = Date.parse(retryAfter)
+  if (!Number.isFinite(retryAt)) return undefined
+
+  return Math.max(1, retryAt - Date.now())
+}
+
+const getStatusRetryDelay = ({
+  attempt,
+  headers,
+  retryNoise,
+  timeoutInMilliseconds
+}: {
+  attempt: number
+  headers: RequestResult['headers']
+  retryNoise: number | null
+  timeoutInMilliseconds: number
+}) => {
+  const retryAfterDelay = getRetryAfterDelay(headers)
+  if (typeof retryAfterDelay === 'number') {
+    return retryAfterDelay > timeoutInMilliseconds ? null : retryAfterDelay
+  }
+
+  return getRetryDelay(attempt, retryNoise)
 }
 
 const isRetryableRequestError = (
@@ -183,8 +227,16 @@ export const request = async ({
         return response
       }
 
+      const retryDelay = getStatusRetryDelay({
+        attempt,
+        headers: response.headers,
+        retryNoise: options.retryNoise,
+        timeoutInMilliseconds: options.timeoutInMilliseconds
+      })
+      if (retryDelay === null) return response
+
       attempt += 1
-      await wait(getRetryDelay(attempt - 1, options.retryNoise))
+      await wait(retryDelay)
     } catch (error) {
       if (
         attempt >= options.numberOfRetry ||

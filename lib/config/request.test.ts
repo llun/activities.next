@@ -60,6 +60,14 @@ describe('Request config', () => {
       expect(config?.request.retryNoise).toBe(100)
     })
 
+    it('preserves zero retry noise when set', () => {
+      process.env.ACTIVITIES_REQUEST_RETRY_NOISE = '0'
+
+      const config = getRequestConfig()
+
+      expect(config?.request.retryNoise).toBe(0)
+    })
+
     it('includes max response size when set', () => {
       process.env.ACTIVITIES_REQUEST_MAX_RESPONSE_SIZE_BYTES = '1024'
 

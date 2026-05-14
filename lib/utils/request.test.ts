@@ -359,6 +359,53 @@ describe('request utility', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
+    it('honors retry-after before retrying transient HTTP status responses', async () => {
+      jest.useFakeTimers()
+      fetchMock.mockResponseOnce('rate limited', {
+        headers: { 'retry-after': '2' },
+        status: 429
+      })
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test',
+        numberOfRetry: 1,
+        retryNoise: null
+      })
+      await jest.advanceTimersByTimeAsync(1000)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      await jest.advanceTimersByTimeAsync(1000)
+
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not retry when retry-after exceeds the request timeout', async () => {
+      fetchMock.mockResponseOnce('rate limited', {
+        headers: { 'retry-after': '60' },
+        status: 429
+      })
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const response = await request({
+        url: 'https://example.com/api/test',
+        numberOfRetry: 1,
+        responseTimeout: 1000,
+        retryNoise: null
+      })
+
+      expect(response).toMatchObject({
+        body: 'rate limited',
+        statusCode: 429
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
     it('does not retry transient HTTP status responses for POST requests', async () => {
       fetchMock.mockResponseOnce('temporary upstream failure', { status: 500 })
       fetchMock.mockResponseOnce('ok', { status: 200 })
