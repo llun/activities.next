@@ -385,6 +385,34 @@ describe('request utility', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
 
+    it('honors retry-after with an HTTP-date header', async () => {
+      jest.useFakeTimers()
+      jest.setSystemTime(new Date('2026-05-14T00:00:00.000Z'))
+      const retryAt = new Date(Date.now() + 2000).toUTCString()
+      fetchMock.mockResponseOnce('rate limited', {
+        headers: { 'retry-after': retryAt },
+        status: 429
+      })
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({
+        url: 'https://example.com/api/test',
+        numberOfRetry: 1,
+        retryNoise: null
+      })
+      await jest.advanceTimersByTimeAsync(1000)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      await jest.advanceTimersByTimeAsync(1000)
+
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
     it('does not retry when retry-after exceeds the request timeout', async () => {
       fetchMock.mockResponseOnce('rate limited', {
         headers: { 'retry-after': '60' },
