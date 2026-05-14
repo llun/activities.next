@@ -768,11 +768,33 @@ export const importStravaArchiveJob = createJobHandle(
         } catch (error) {
           const nodeError = error as Error
           if (nodeError instanceof StravaArchiveLimitError) {
+            const rollbackFitnessFileIds = new Set(
+              savedArchiveActivities.map(({ fitnessFileId }) => fitnessFileId)
+            )
+
+            try {
+              const batchFitnessFiles = await database.getFitnessFilesByBatchId(
+                { batchId }
+              )
+
+              for (const batchFitnessFile of batchFitnessFiles) {
+                rollbackFitnessFileIds.add(batchFitnessFile.id)
+              }
+            } catch (rollbackError) {
+              logger.error({
+                message:
+                  'Failed to load staged Strava archive fitness files for archive limit rollback',
+                actorId,
+                archiveId,
+                importId,
+                batchId,
+                error: (rollbackError as Error).message
+              })
+            }
+
             const rollbackFailures = await rollbackSavedArchiveFitnessFiles({
               database,
-              fitnessFileIds: savedArchiveActivities.map(
-                ({ fitnessFileId }) => fitnessFileId
-              )
+              fitnessFileIds: Array.from(rollbackFitnessFileIds)
             })
             if (rollbackFailures.length > 0) {
               logger.error({

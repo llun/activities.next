@@ -15,6 +15,7 @@ import {
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import {
+  StravaArchiveLimitError,
   StravaArchiveReader,
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
@@ -50,6 +51,9 @@ jest.mock('@/lib/services/medias/index', () => ({
 }))
 
 jest.mock('@/lib/services/strava/archiveReader', () => ({
+  StravaArchiveLimitError: jest.requireActual(
+    '@/lib/services/strava/archiveReader'
+  ).StravaArchiveLimitError,
   StravaArchiveReader: {
     open: jest.fn()
   },
@@ -78,6 +82,7 @@ type MockDatabase = Pick<
   Database,
   | 'getActorFromId'
   | 'getFitnessFile'
+  | 'getFitnessFilesByBatchId'
   | 'getFitnessFilesByIds'
   | 'getStravaArchiveImportById'
   | 'updateStravaArchiveImport'
@@ -91,6 +96,7 @@ describe('importStravaArchiveJob', () => {
   const database: jest.Mocked<MockDatabase> = {
     getActorFromId: jest.fn(),
     getFitnessFile: jest.fn(),
+    getFitnessFilesByBatchId: jest.fn(),
     getFitnessFilesByIds: jest.fn(),
     getStravaArchiveImportById: jest.fn(),
     updateStravaArchiveImport: jest.fn(),
@@ -140,6 +146,7 @@ describe('importStravaArchiveJob', () => {
         importStatus: 'completed'
       } as never
     ])
+    database.getFitnessFilesByBatchId.mockResolvedValue([])
     database.getStravaArchiveImportById.mockResolvedValue({
       id: 'import-1',
       actorId: 'actor-1',
@@ -712,6 +719,94 @@ describe('importStravaArchiveJob', () => {
       'activity-file-2'
     )
     expect(maxActiveDeletes).toBe(1)
+  })
+
+  it('rolls back earlier batch fitness files when a continuation hits an archive limit', async () => {
+    mockArchiveReaderOpen.mockResolvedValueOnce({
+      close: jest.fn(),
+      hasEntry: jest.fn().mockReturnValue(true),
+      getActivities: jest.fn().mockResolvedValue([
+        {
+          activityId: 'activity-1',
+          activityName: 'Earlier Ride',
+          fitnessFilePath: 'activities/activity-1.fit',
+          mediaPaths: []
+        },
+        {
+          activityId: 'activity-2',
+          activityName: 'Current Ride',
+          fitnessFilePath: 'activities/activity-2.fit',
+          mediaPaths: []
+        },
+        {
+          activityId: 'activity-3',
+          activityName: 'Oversized Ride',
+          fitnessFilePath: 'activities/activity-3.fit',
+          mediaPaths: []
+        }
+      ]),
+      readEntryBuffer: jest
+        .fn()
+        .mockResolvedValueOnce(Buffer.from('fitness-file'))
+        .mockRejectedValueOnce(
+          new StravaArchiveLimitError(
+            'Archive entry activities/activity-3.fit exceeds compressed size limit'
+          )
+        )
+    } as never)
+    mockSaveFitnessFile.mockResolvedValueOnce({
+      id: 'activity-file-current',
+      type: 'fitness',
+      file_type: 'fit',
+      mime_type: 'application/vnd.ant.fit',
+      url: 'https://llun.test/api/v1/fitness-files/activity-file-current',
+      fileName: 'activity-2.fit',
+      size: 16
+    })
+    database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'activity-file-previous',
+        actorId: 'actor-1',
+        importBatchId: 'strava-archive:archive-1'
+      } as never
+    ])
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-limit-continuation-rollback',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private',
+        nextActivityIndex: 1,
+        completedActivitiesCount: 1
+      }
+    })
+
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-previous'
+    )
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-current'
+    )
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalledWith(
+      database,
+      'archive-file-1',
+      expect.anything()
+    )
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed',
+        lastError:
+          'Archive entry activities/activity-3.fit exceeds compressed size limit'
+      })
+    )
   })
 
   it('cleans up archive source file when actor no longer exists', async () => {

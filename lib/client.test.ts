@@ -348,4 +348,41 @@ describe('client startStravaArchiveImport', () => {
       })
     )
   })
+
+  it('does not fall back to multipart upload when presigned import commit is rejected', async () => {
+    fetchMock
+      .mockResponseOnce(
+        JSON.stringify({
+          presigned: {
+            url: 'https://storage.example/archive.zip',
+            fitnessFileId: 'fitness-file-1',
+            archiveId: 'archive-1'
+          }
+        }),
+        { status: 200 }
+      )
+      .mockResponseOnce('', { status: 200 })
+      .mockResponseOnce(JSON.stringify({ error: 'active import' }), {
+        status: 409
+      })
+
+    await expect(
+      startStravaArchiveImport(
+        new File([Buffer.from('zip-data')], 'export.zip', {
+          type: 'application/zip'
+        }),
+        'private'
+      )
+    ).rejects.toThrow('Failed to start Strava archive import')
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/settings/fitness/strava/archive',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
+  })
 })

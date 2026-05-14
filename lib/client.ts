@@ -1210,10 +1210,18 @@ export const startStravaArchiveImport = async (
   }
 
   if (presignedResult) {
+    const { url, fitnessFileId, archiveId } = presignedResult.presigned
+
     try {
-      const { url, fitnessFileId, archiveId } = presignedResult.presigned
       // Upload archive directly to ObjectStorage via presigned PUT.
       await uploadFileToPresignedUrl({ presignedUrl: url, media: archive })
+    } catch {
+      // Presigned PUT failed (e.g. CORS not configured on the bucket).
+      // Fall through to the server-side upload path below.
+      presignedResult = null
+    }
+
+    if (presignedResult) {
       // Notify server to create import record and queue the job
       const response = await fetch('/api/v1/settings/fitness/strava/archive', {
         method: 'POST',
@@ -1224,9 +1232,6 @@ export const startStravaArchiveImport = async (
         throw new Error('Failed to start Strava archive import')
       }
       return response.json()
-    } catch {
-      // Presigned PUT failed (e.g. CORS not configured on the bucket).
-      // Fall through to the server-side upload path below.
     }
   }
 
