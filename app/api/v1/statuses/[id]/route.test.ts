@@ -441,7 +441,12 @@ describe('GET /api/v1/statuses/[id]', () => {
         const response = await handler(
           new NextRequest(
             `https://llun.test/api/v1/statuses/${urlToId(statusId)}/${routeName}`,
-            { method }
+            {
+              method,
+              ...(method === 'POST'
+                ? { headers: { Origin: 'https://llun.test' } }
+                : {})
+            }
           ),
           { params: Promise.resolve({ id: urlToId(statusId) }) }
         )
@@ -481,7 +486,10 @@ describe('GET /api/v1/statuses/[id]', () => {
       const response = await unreblogStatus(
         new NextRequest(
           `https://llun.test/api/v1/statuses/${urlToId(originalStatusId)}/unreblog`,
-          { method: 'POST' }
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
         ),
         { params: Promise.resolve({ id: urlToId(originalStatusId) }) }
       )
@@ -516,7 +524,10 @@ describe('GET /api/v1/statuses/[id]', () => {
       const response = await unfavouriteStatus(
         new NextRequest(
           `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unfavourite`,
-          { method: 'POST' }
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
         ),
         { params: Promise.resolve({ id: urlToId(statusId) }) }
       )
@@ -731,7 +742,8 @@ describe('GET /api/v1/statuses/[id]', () => {
               spoiler_text: ''
             }),
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
             }
           }
         ),
@@ -773,7 +785,8 @@ describe('GET /api/v1/statuses/[id]', () => {
               spoiler_text: null
             }),
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
             }
           }
         ),
@@ -815,7 +828,8 @@ describe('GET /api/v1/statuses/[id]', () => {
               spoiler_text: ''
             }),
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
             }
           }
         ),
