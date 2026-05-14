@@ -320,23 +320,43 @@ describe('request utility', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
-    it('retries transient HTTP status responses after reading the body', async () => {
-      jest.useFakeTimers()
-      fetchMock.mockResponseOnce('temporary upstream failure', { status: 500 })
+    it.each([408, 429, 500, 502, 503, 504, 521, 522, 524])(
+      'retries transient HTTP status %s after reading the body',
+      async (status) => {
+        jest.useFakeTimers()
+        fetchMock.mockResponseOnce('temporary upstream failure', { status })
+        fetchMock.mockResponseOnce('ok', { status: 200 })
+
+        const responsePromise = request({
+          url: 'https://example.com/api/test',
+          numberOfRetry: 1,
+          retryNoise: null
+        })
+        await jest.advanceTimersByTimeAsync(1000)
+
+        await expect(responsePromise).resolves.toMatchObject({
+          body: 'ok',
+          statusCode: 200
+        })
+        expect(fetchMock).toHaveBeenCalledTimes(2)
+      }
+    )
+
+    it('does not retry 413 responses', async () => {
+      fetchMock.mockResponseOnce('payload too large', { status: 413 })
       fetchMock.mockResponseOnce('ok', { status: 200 })
 
-      const responsePromise = request({
+      const response = await request({
         url: 'https://example.com/api/test',
         numberOfRetry: 1,
         retryNoise: null
       })
-      await jest.advanceTimersByTimeAsync(1000)
 
-      await expect(responsePromise).resolves.toMatchObject({
-        body: 'ok',
-        statusCode: 200
+      expect(response).toMatchObject({
+        body: 'payload too large',
+        statusCode: 413
       })
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it('does not retry transient HTTP status responses for POST requests', async () => {
