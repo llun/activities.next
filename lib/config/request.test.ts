@@ -29,6 +29,7 @@ describe('Request config', () => {
 
       expect(config.timeoutInMilliseconds).toBe(4000)
       expect(config.numberOfRetry).toBe(1)
+      expect(config.maxResponseSizeInBytes).toBe(2 * 1024 * 1024)
     })
   })
 
@@ -57,6 +58,22 @@ describe('Request config', () => {
       const config = getRequestConfig()
 
       expect(config?.request.retryNoise).toBe(100)
+    })
+
+    it('preserves zero retry noise when set', () => {
+      process.env.ACTIVITIES_REQUEST_RETRY_NOISE = '0'
+
+      const config = getRequestConfig()
+
+      expect(config?.request.retryNoise).toBe(0)
+    })
+
+    it('includes max response size when set', () => {
+      process.env.ACTIVITIES_REQUEST_MAX_RESPONSE_SIZE_BYTES = '1024'
+
+      const config = getRequestConfig()
+
+      expect(config?.request.maxResponseSizeInBytes).toBe(1024)
     })
   })
 })

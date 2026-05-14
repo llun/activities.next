@@ -1,5 +1,6 @@
 /* eslint-disable no-undef */
 import fetchMock from 'jest-fetch-mock'
+import { Readable } from 'node:stream'
 import { TextDecoder, TextEncoder } from 'node:util'
 
 fetchMock.enableMocks()
@@ -34,7 +35,7 @@ if (process.setMaxListeners) {
 }
 
 jest.mock('got', () => {
-  return async (url, options) => {
+  const readResponse = async (url, options) => {
     const response = await fetch(url, {
       method: options.method,
       body: options.body,
@@ -49,7 +50,58 @@ jest.mock('got', () => {
 
     return { statusCode: response.status }
   }
+
+  const gotMock = async (url, options) => readResponse(url, options)
+
+  gotMock.stream = (url, options) => {
+    const stream = new Readable({
+      read() {}
+    })
+
+    void (async () => {
+      try {
+        const response = await fetch(url, {
+          method: options.method,
+          body: options.body,
+          headers: {
+            ...options.headers
+          }
+        })
+        const headers = {}
+        response.headers.forEach((value, key) => {
+          headers[key] = value
+        })
+
+        stream.emit('response', {
+          headers,
+          statusCode: response.status
+        })
+        if (stream.destroyed) return
+
+        const body = await response.text()
+        if (stream.destroyed) return
+
+        stream.push(Buffer.from(body))
+        stream.push(null)
+      } catch (error) {
+        stream.destroy(
+          error instanceof Error ? error : new Error(String(error))
+        )
+      }
+    })()
+
+    return stream
+  }
+
+  return gotMock
 })
+
+jest.mock('node:dns/promises', () => ({
+  lookup: jest.fn(async (_hostname, options) => {
+    const address = { address: '93.184.216.34', family: 4 }
+    return options?.all ? [address] : address
+  })
+}))
 
 jest.mock('@/lib/config', () => {
   const host = jest.requireActual('@/lib/stub/const').TEST_DOMAIN
