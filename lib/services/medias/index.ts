@@ -1,10 +1,15 @@
 import { getConfig } from '@/lib/config'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
+import {
+  PresignedUploadValidationError,
+  S3FileStorage
+} from '@/lib/services/medias/S3StorageFile'
 import { LocalFileStorage } from '@/lib/services/medias/localFile'
 import { MediaSchema, PresigedMediaInput } from '@/lib/services/medias/types'
 import { Actor } from '@/lib/types/domain/actor'
+
+export { PresignedUploadValidationError }
 
 export const saveMedia = async (
   database: Database,

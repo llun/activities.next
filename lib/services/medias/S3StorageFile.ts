@@ -50,7 +50,7 @@ const normalizeContentType = (contentType?: string | string[]) => {
 const sha1HexToBase64 = (checksum: string) =>
   Buffer.from(checksum, 'hex').toString('base64')
 
-class PresignedUploadValidationError extends Error {
+export class PresignedUploadValidationError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'PresignedUploadValidationError'

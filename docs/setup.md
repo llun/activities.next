@@ -254,3 +254,7 @@ For database-specific Docker deployment instructions:
 
 - [SQLite Docker Deployment](sqlite-setup.md#docker-deployment-with-sqlite)
 - [PostgreSQL Docker Deployment](postgresql-setup.md#docker-deployment-with-postgresql)
+
+### Public Endpoint Protection
+
+Public fitness route-data responses are cacheable for 60 seconds when the source status is public or unlisted and the request is anonymous. Self-hosted deployments that expose public fitness route data should put Activity.next behind an upstream cache and rate limiter, such as nginx `limit_req`, Cloudflare, or an equivalent reverse proxy rule for `/api/v1/fitness-files/*/route-data`. The application does not keep process-local anonymous rate-limit buckets for this endpoint because client IP headers are deployment-specific, spoofable unless normalized by a trusted proxy, and not shared across serverless instances.

@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { PresignedUploadValidationError } from '@/lib/services/medias'
+
 import { PATCH } from './route'
 
 const mockCompletePresignedMediaUpload = jest.fn()
@@ -12,7 +14,8 @@ const mockDatabase = {}
 jest.mock('@/lib/services/medias', () => ({
   completePresignedMediaUpload: (...params: unknown[]) =>
     mockCompletePresignedMediaUpload(...params),
-  getPresignedUrl: jest.fn()
+  getPresignedUrl: jest.fn(),
+  PresignedUploadValidationError: class PresignedUploadValidationError extends Error {}
 }))
 
 jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
@@ -75,9 +78,11 @@ describe('PATCH /api/v1/medias/presigned', () => {
   })
 
   it('returns 422 for presigned upload verification failures', async () => {
-    const error = new Error('Uploaded object does not match expected checksum')
-    error.name = 'PresignedUploadValidationError'
-    mockCompletePresignedMediaUpload.mockRejectedValueOnce(error)
+    mockCompletePresignedMediaUpload.mockRejectedValueOnce(
+      new PresignedUploadValidationError(
+        'Uploaded object does not match expected checksum'
+      )
+    )
 
     const response = await PATCH(
       createRequest(JSON.stringify({ mediaId: 'media-1' })),

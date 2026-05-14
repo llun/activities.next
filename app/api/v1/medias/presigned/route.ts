@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
+  PresignedUploadValidationError,
   completePresignedMediaUpload,
   getPresignedUrl
 } from '@/lib/services/medias'
@@ -25,9 +26,6 @@ const CORS_HEADERS = [
 const CompletePresignedUploadInput = z.object({
   mediaId: z.string().min(1)
 })
-
-const isPresignedUploadVerificationError = (error: unknown) =>
-  error instanceof Error && error.name === 'PresignedUploadValidationError'
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -114,7 +112,7 @@ export const PATCH = traceApiRoute(
         data: { media }
       })
     } catch (error) {
-      if (isPresignedUploadVerificationError(error)) {
+      if (error instanceof PresignedUploadValidationError) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
