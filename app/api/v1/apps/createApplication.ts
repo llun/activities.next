@@ -42,6 +42,11 @@ const validationErrorResponse = (): ErrorResponse => ({
   error: 'Failed to validate request'
 })
 
+const rateLimitErrorResponse = (): ErrorResponse => ({
+  type: 'error',
+  error: 'Too many application registrations'
+})
+
 type CreateApplicationOptions = {
   registrationKey?: string
   now?: Date
@@ -172,10 +177,7 @@ export const createApplication = async (
             registrationReference
           })
         ) {
-          return ErrorResponse.parse({
-            type: 'error',
-            error: 'Too many application registrations'
-          })
+          return rateLimitErrorResponse()
         }
 
         // The registration throttle is a best-effort guard: count + insert is
