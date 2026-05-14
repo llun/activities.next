@@ -49,6 +49,7 @@ const FITNESS_STORAGE_HOSTNAME_ENV = 'ACTIVITIES_FITNESS_STORAGE_HOSTNAME'
 const FITNESS_STORAGE_TYPE_ENV = 'ACTIVITIES_FITNESS_STORAGE_TYPE'
 const FITNESS_STORAGE_BUCKET_ENV = 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
 const FITNESS_STORAGE_REGION_ENV = 'ACTIVITIES_FITNESS_STORAGE_REGION'
+const MAPBOX_ACCESS_TOKEN_ENV = 'ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN'
 const MAPBOX_CSP_SOURCES = [
   'https://api.mapbox.com',
   'https://events.mapbox.com',
@@ -72,6 +73,8 @@ const SAFE_LOCAL_IMAGE_REMOTE_PATTERNS: ImageRemotePatterns = [
 const isDevelopment = () => process.env.NODE_ENV !== 'production'
 const isSafeLocalHostname = (hostname: string) =>
   ['localhost', '127.0.0.1', '[::1]'].includes(hostname.toLowerCase())
+const hasPublicMapboxAccessToken = () =>
+  process.env[MAPBOX_ACCESS_TOKEN_ENV]?.trim().startsWith('pk.') ?? false
 
 const getCspSource = (rawSource: string | undefined) => {
   if (!rawSource?.trim()) return null
@@ -128,10 +131,11 @@ export const getSecurityHeaders = (): Header[] => {
   const fitnessStorageSource = getCspSource(
     process.env[FITNESS_STORAGE_HOSTNAME_ENV]
   )
+  const allowMapboxSources = hasPublicMapboxAccessToken()
   const connectSources = Array.from(
     new Set([
       "'self'",
-      ...MAPBOX_CSP_SOURCES,
+      ...(allowMapboxSources ? MAPBOX_CSP_SOURCES : []),
       ...(mediaStorageSource ? [mediaStorageSource] : []),
       ...(fitnessStorageSource ? [fitnessStorageSource] : []),
       ...getDefaultS3CspSources({
@@ -160,7 +164,12 @@ export const getSecurityHeaders = (): Header[] => {
     "'self'",
     "'unsafe-inline'",
     ...(isDevelopment() ? ["'unsafe-eval'"] : []),
-    'https://api.mapbox.com'
+    ...(allowMapboxSources ? ['https://api.mapbox.com'] : [])
+  ].join(' ')
+  const styleSources = [
+    "'self'",
+    "'unsafe-inline'",
+    ...(allowMapboxSources ? ['https://api.mapbox.com'] : [])
   ].join(' ')
 
   const csp = [
@@ -172,7 +181,7 @@ export const getSecurityHeaders = (): Header[] => {
     // Static Next headers cannot attach a per-request nonce to framework
     // hydration scripts, so inline scripts remain allowed but origins do not.
     `script-src ${scriptSources}`,
-    "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
+    `style-src ${styleSources}`,
     // Federated avatars and remote emoji are intentionally unbounded browser
     // image loads. next/image optimization is disabled below so this does not
     // reintroduce arbitrary server-side media fetches.
@@ -203,6 +212,8 @@ export const getSecurityHeaders = (): Header[] => {
     },
     {
       key: 'Permissions-Policy',
+      // The same-origin settings UI uses navigator.geolocation for optional
+      // fitness privacy location setup while denying cross-origin access.
       value: 'camera=(), microphone=(), geolocation=(self)'
     }
   ]

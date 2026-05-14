@@ -120,58 +120,92 @@ describe('getProxyHostConfigEnv', () => {
 
 describe('next config security hardening', () => {
   it('sets baseline browser security headers', () => {
-    withEnv({ NODE_ENV: 'production' }, () => {
-      const headers = getSecurityHeaders()
-      const csp = headers.find(
-        (header) => header.key === 'Content-Security-Policy'
-      )
-      const connectSources = getCspDirectiveSources('connect-src')
-      const mediaSources = getCspDirectiveSources('media-src')
+    withEnv(
+      {
+        NODE_ENV: 'production',
+        ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: undefined
+      },
+      () => {
+        const headers = getSecurityHeaders()
+        const csp = headers.find(
+          (header) => header.key === 'Content-Security-Policy'
+        )
+        const scriptSources = getCspDirectiveSources('script-src')
+        const styleSources = getCspDirectiveSources('style-src')
+        const connectSources = getCspDirectiveSources('connect-src')
+        const mediaSources = getCspDirectiveSources('media-src')
 
-      expect(csp?.value).toContain("default-src 'none'")
-      expect(csp?.value).toContain("frame-ancestors 'none'")
-      expect(csp?.value).toContain(
-        "script-src 'self' 'unsafe-inline' https://api.mapbox.com"
-      )
-      expect(csp?.value).toContain(
-        "style-src 'self' 'unsafe-inline' https://api.mapbox.com"
-      )
-      expect(connectSources).toEqual([
-        "'self'",
-        'https://api.mapbox.com',
-        'https://events.mapbox.com',
-        'https://*.tiles.mapbox.com'
-      ])
-      expect(csp?.value).toContain("manifest-src 'self'")
-      expect(mediaSources).toEqual(["'self'", 'https:', 'blob:'])
-      expect(csp?.value).not.toContain("'unsafe-eval'")
-      expect(connectSources).not.toContain('https:')
-      expect(headers).toContainEqual({
-        key: 'X-Content-Type-Options',
-        value: 'nosniff'
-      })
-      expect(headers).toContainEqual({
-        key: 'Referrer-Policy',
-        value: 'strict-origin-when-cross-origin'
-      })
-      expect(headers).toContainEqual({
-        key: 'Permissions-Policy',
-        value: 'camera=(), microphone=(), geolocation=(self)'
-      })
-    })
+        expect(csp?.value).toContain("default-src 'none'")
+        expect(csp?.value).toContain("frame-ancestors 'none'")
+        expect(scriptSources).toEqual(["'self'", "'unsafe-inline'"])
+        expect(styleSources).toEqual(["'self'", "'unsafe-inline'"])
+        expect(connectSources).toEqual(["'self'"])
+        expect(csp?.value).toContain("manifest-src 'self'")
+        expect(mediaSources).toEqual(["'self'", 'https:', 'blob:'])
+        expect(csp?.value).not.toContain("'unsafe-eval'")
+        expect(csp?.value).not.toContain('mapbox.com')
+        expect(connectSources).not.toContain('https:')
+        expect(headers).toContainEqual({
+          key: 'X-Content-Type-Options',
+          value: 'nosniff'
+        })
+        expect(headers).toContainEqual({
+          key: 'Referrer-Policy',
+          value: 'strict-origin-when-cross-origin'
+        })
+        expect(headers).toContainEqual({
+          key: 'Permissions-Policy',
+          value: 'camera=(), microphone=(), geolocation=(self)'
+        })
+      }
+    )
   })
 
   it('allows development websocket connections for Next and HMR', () => {
-    withEnv({ NODE_ENV: 'development' }, () => {
+    withEnv(
+      {
+        NODE_ENV: 'development',
+        ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: undefined
+      },
+      () => {
+        const scriptSources = getCspDirectiveSources('script-src')
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(scriptSources).toEqual([
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'"
+        ])
+        expect(connectSources).toEqual(expect.arrayContaining(['ws:', 'wss:']))
+      }
+    )
+  })
+
+  it('allows Mapbox browser sources when a public fitness Mapbox token is configured', () => {
+    withEnv({ ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: 'pk.test-token' }, () => {
+      const scriptSources = getCspDirectiveSources('script-src')
+      const styleSources = getCspDirectiveSources('style-src')
+      const connectSources = getCspDirectiveSources('connect-src')
+
+      expect(scriptSources).toContain('https://api.mapbox.com')
+      expect(styleSources).toContain('https://api.mapbox.com')
+      expect(connectSources).toEqual(
+        expect.arrayContaining([
+          'https://api.mapbox.com',
+          'https://events.mapbox.com',
+          'https://*.tiles.mapbox.com'
+        ])
+      )
+    })
+  })
+
+  it('omits Mapbox browser sources for server-only fitness Mapbox tokens', () => {
+    withEnv({ ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: 'sk.test-token' }, () => {
       const csp = getSecurityHeaders().find(
         (header) => header.key === 'Content-Security-Policy'
       )
-      const connectSources = getCspDirectiveSources('connect-src')
 
-      expect(csp?.value).toContain(
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.mapbox.com"
-      )
-      expect(connectSources).toEqual(expect.arrayContaining(['ws:', 'wss:']))
+      expect(csp?.value).not.toContain('mapbox.com')
     })
   })
 

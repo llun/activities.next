@@ -4,6 +4,7 @@ describe('Config', () => {
 
   beforeEach(() => {
     jest.resetModules()
+    jest.unmock('@/lib/config')
     process.env = { ...originalEnv }
     process.chdir(originalCwd)
   })
@@ -14,7 +15,6 @@ describe('Config', () => {
   })
 
   it('rejects an empty production secret phase at runtime', async () => {
-    jest.unmock('@/lib/config')
     const { getConfig } = await import('./index')
 
     Object.defineProperty(process.env, 'NODE_ENV', {
@@ -34,7 +34,6 @@ describe('Config', () => {
   })
 
   it('rejects a short production secret phase from file config at runtime', async () => {
-    jest.unmock('@/lib/config')
     const fs = await import('fs')
     const os = await import('os')
     const path = await import('path')
