@@ -317,6 +317,15 @@ describe('importStravaArchiveJob', () => {
         }
       }
     )
+    expect(mockToFitnessPayload).toHaveBeenCalledWith(
+      {
+        fitnessFilePath: 'activities/activity-1.fit',
+        buffer: Buffer.from('fitness-file')
+      },
+      {
+        maxGzipOutputBytes: 123_456_789
+      }
+    )
   })
 
   it('splits import into continuation when runtime budget is reached', async () => {

@@ -751,10 +751,15 @@ export const importStravaArchiveJob = createJobHandle(
             throw new Error('Fitness activity file is missing from archive')
           }
 
-          const fitnessPayload = await toStravaArchiveFitnessFilePayload({
-            fitnessFilePath: archiveActivity.fitnessFilePath,
-            buffer: fitnessArchiveBuffer
-          })
+          const fitnessPayload = await toStravaArchiveFitnessFilePayload(
+            {
+              fitnessFilePath: archiveActivity.fitnessFilePath,
+              buffer: fitnessArchiveBuffer
+            },
+            {
+              maxGzipOutputBytes: maxFitnessFileBytes
+            }
+          )
 
           const fitnessFile = new File(
             [new Uint8Array(fitnessPayload.buffer)],
