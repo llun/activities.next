@@ -1,0 +1,19 @@
+.github/workflows/version-bump.yml
+  s_a7ba94fe45ef0d::t_db6604959ed866 13-16,18-58,61-62,64-66,82-90,95-104,109-110,115-116,127,133,137-138,148,151-152,192,220,234-242,244,247-249,251-252,254,256-265,269-278,280-288,291-294,297-346,348-349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7e0d53909f71293a71cefcb223da45deb5ba8663",
+  "prompts": {},
+  "sessions": {
+    "s_a7ba94fe45ef0d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e27a2-6b4d-7f00-b3a4-b545fb10c689",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
