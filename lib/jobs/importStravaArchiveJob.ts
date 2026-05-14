@@ -180,11 +180,17 @@ const streamBodyToFile = async ({
 const resolveArchivePath = async (
   archivePath: string,
   archiveFitnessFileId: string
-): Promise<{ archiveFilePath: string; cleanup: () => Promise<void> }> => {
+): Promise<{
+  archiveFilePath: string
+  cleanup: () => Promise<void>
+  maxFitnessFileBytes: number
+}> => {
   const fitnessStorage = getEffectiveFitnessStorageConfig()
   if (!fitnessStorage) {
     throw new Error('Fitness storage is not configured')
   }
+  const maxFitnessFileBytes =
+    fitnessStorage.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE
 
   if (fitnessStorage.type === 'fs') {
     return {
@@ -192,7 +198,8 @@ const resolveArchivePath = async (
         fitnessStorage.path,
         archivePath
       ),
-      cleanup: async () => {}
+      cleanup: async () => {},
+      maxFitnessFileBytes
     }
   }
 
@@ -216,7 +223,7 @@ const resolveArchivePath = async (
   }
   assertByteLengthWithinLimit({
     byteLength: object.ContentLength,
-    maxBytes: fitnessStorage.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE,
+    maxBytes: maxFitnessFileBytes,
     label: 'Archive object body'
   })
 
@@ -224,7 +231,7 @@ const resolveArchivePath = async (
     await streamBodyToFile({
       body: object.Body,
       outputPath: temporaryArchivePath,
-      maxBytes: fitnessStorage.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE
+      maxBytes: maxFitnessFileBytes
     })
   } catch (error) {
     await fs.unlink(temporaryArchivePath).catch(() => undefined)
@@ -233,6 +240,7 @@ const resolveArchivePath = async (
 
   return {
     archiveFilePath: temporaryArchivePath,
+    maxFitnessFileBytes,
     cleanup: async () => {
       await fs.unlink(temporaryArchivePath).catch(() => undefined)
     }
@@ -683,13 +691,17 @@ export const importStravaArchiveJob = createJobHandle(
     }
 
     try {
-      const { archiveFilePath, cleanup } = await resolveArchivePath(
-        archiveFitnessFile.path,
-        archiveFitnessFile.id
-      )
+      const { archiveFilePath, cleanup, maxFitnessFileBytes } =
+        await resolveArchivePath(archiveFitnessFile.path, archiveFitnessFile.id)
       cleanupArchivePath = cleanup
 
-      archiveReader = await StravaArchiveReader.open(archiveFilePath)
+      archiveReader = await StravaArchiveReader.open(archiveFilePath, {
+        limits: {
+          maxEntryCompressedBytes: maxFitnessFileBytes,
+          maxEntryUncompressedBytes: maxFitnessFileBytes,
+          maxGzipOutputBytes: maxFitnessFileBytes
+        }
+      })
       const archiveActivities = await archiveReader.getActivities()
       const targetTotalActivities =
         checkpoint.totalActivitiesCount ?? archiveActivities.length

@@ -285,6 +285,40 @@ describe('importStravaArchiveJob', () => {
     )
   })
 
+  it('opens archive entries with the configured fitness file size limit', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: {
+        type: 'fs',
+        path: '/tmp/fitness',
+        maxFileSize: 123_456_789
+      }
+    } as never)
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-configured-reader-limit',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockArchiveReaderOpen).toHaveBeenCalledWith(
+      '/tmp/fitness/archive/path.fit',
+      {
+        limits: {
+          maxEntryCompressedBytes: 123_456_789,
+          maxEntryUncompressedBytes: 123_456_789,
+          maxGzipOutputBytes: 123_456_789
+        }
+      }
+    )
+  })
+
   it('splits import into continuation when runtime budget is reached', async () => {
     let nowCall = 0
     const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => {
