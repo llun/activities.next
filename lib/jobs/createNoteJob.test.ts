@@ -81,6 +81,54 @@ describe('createNoteJob', () => {
     expect(status?.actorId).toBe(actorId)
   })
 
+  it('stores attachments under the normalized actor id for notes attributed to sender key fragments', async () => {
+    expect(actor1).toBeDefined()
+    const actorId = actor1?.id as string
+    const rawAttributedTo = `${actorId}#main-key`
+    const note = MockMastodonActivityPubNote({
+      id: `${actorId}/statuses/normalized-attribution-attachment`,
+      from: rawAttributedTo,
+      content: '<p>Hello normalized attachment actor</p>',
+      documents: [
+        MockImageDocument({
+          url: 'https://llun.dev/images/normalized-attachment.jpg'
+        })
+      ]
+    })
+
+    await createNoteJob(database, {
+      id: 'normalized-attribution-attachment',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note,
+      verifiedSenderActorId: actorId
+    })
+
+    const normalizedActorAttachments = await database.getAttachmentsForActor({
+      actorId
+    })
+    const rawActorAttachments = await database.getAttachmentsForActor({
+      actorId: rawAttributedTo
+    })
+
+    expect(normalizedActorAttachments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorId,
+          statusId: note.id,
+          url: 'https://llun.dev/images/normalized-attachment.jpg'
+        })
+      ])
+    )
+    expect(rawActorAttachments).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          statusId: note.id,
+          url: 'https://llun.dev/images/normalized-attachment.jpg'
+        })
+      ])
+    )
+  })
+
   it('adds litepub note into database and returns note', async () => {
     const note = MockLitepubNote({ content: '<p>Hello</p>' })
     await createNoteJob(database, {

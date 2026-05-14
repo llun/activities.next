@@ -64,6 +64,11 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
+const PUBLIC_ACTIVITY_RECIPIENTS = [
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+]
+
 const isUniqueConstraintError = (error: unknown) => {
   const { code, errno, message } = error as {
     code?: string
@@ -80,57 +85,117 @@ const isUniqueConstraintError = (error: unknown) => {
   )
 }
 
+const publicRecipientStatusIds = (database: Knex) =>
+  database('recipients')
+    .select('statusId')
+    .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+
+export const buildPubliclyReadableStatusIdsQuery = ({
+  database,
+  targetStatusIds
+}: {
+  database: Knex
+  targetStatusIds: Knex.QueryBuilder
+}) => {
+  const clientName = String(database.client.config.client)
+  const targetStatusIdsQuery = targetStatusIds.clone().as('target_status_ids')
+
+  if (clientName.includes('mysql')) {
+    return database
+      .select('target_statuses.id')
+      .from(targetStatusIdsQuery)
+      .innerJoin(
+        'statuses as target_statuses',
+        'target_statuses.id',
+        'target_status_ids.id'
+      )
+      .whereIn('target_statuses.id', publicRecipientStatusIds(database))
+      .where((qb) => {
+        qb.whereNot(
+          'target_statuses.type',
+          StatusType.enum.Announce
+        ).orWhereExists(function () {
+          this.select(database.raw('1'))
+            .from('statuses as original_statuses')
+            .whereRaw('original_statuses.id = target_statuses.content')
+            .whereNot('original_statuses.type', StatusType.enum.Announce)
+            .whereIn('original_statuses.id', publicRecipientStatusIds(database))
+        })
+      })
+  }
+
+  return database
+    .withRecursive(
+      'publicly_readable_statuses',
+      ['targetId', 'id', 'type', 'content'],
+      (cte) => {
+        cte
+          .select(
+            'target_statuses.id as targetId',
+            'target_statuses.id',
+            'target_statuses.type',
+            'target_statuses.content'
+          )
+          .from(targetStatusIdsQuery)
+          .innerJoin(
+            'statuses as target_statuses',
+            'target_statuses.id',
+            'target_status_ids.id'
+          )
+          .whereIn('target_statuses.id', publicRecipientStatusIds(database))
+          .union((qb) => {
+            qb.select(
+              'readable_statuses.targetId',
+              'original_statuses.id',
+              'original_statuses.type',
+              'original_statuses.content'
+            )
+              .from('statuses as original_statuses')
+              .innerJoin(
+                'publicly_readable_statuses as readable_statuses',
+                'readable_statuses.content',
+                'original_statuses.id'
+              )
+              .where('readable_statuses.type', StatusType.enum.Announce)
+              .whereIn(
+                'original_statuses.id',
+                publicRecipientStatusIds(database)
+              )
+          })
+      }
+    )
+    .select('targetId as id')
+    .from('publicly_readable_statuses')
+    .whereNot('type', StatusType.enum.Announce)
+}
+
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
   likeDatabase: LikeDatabase,
   mediaDatabase: MediaDatabase
 ): StatusDatabase => {
-  const publicActivityRecipients = [
-    ACTIVITY_STREAM_PUBLIC,
-    ACTIVITY_STREAM_PUBLIC_COMPACT
-  ]
+  const applyPublicReadableStatusFilter = ({
+    query,
+    targetStatusIds
+  }: {
+    query: Knex.QueryBuilder
+    targetStatusIds: Knex.QueryBuilder
+  }) =>
+    query.whereIn(
+      'statuses.id',
+      buildPubliclyReadableStatusIdsQuery({ database, targetStatusIds })
+    )
 
-  const publicRecipientStatusIds = () =>
-    database('recipients')
-      .select('statusId')
-      .whereIn('recipients.actorId', publicActivityRecipients)
-
-  const publiclyReadableStatusIds = () =>
-    database
-      .withRecursive('publicly_readable_statuses', ['id'], (cte) => {
-        cte
-          .select('statuses.id')
-          .from('statuses')
-          .whereNot('statuses.type', StatusType.enum.Announce)
-          .whereIn('statuses.id', publicRecipientStatusIds())
-          .union((qb) => {
-            qb.select('announces.id')
-              .from('statuses as announces')
-              .innerJoin(
-                'publicly_readable_statuses as readable_statuses',
-                'readable_statuses.id',
-                'announces.content'
-              )
-              .where('announces.type', StatusType.enum.Announce)
-              .whereIn('announces.id', publicRecipientStatusIds())
-          })
-      })
-      .select('id')
-      .from('publicly_readable_statuses')
-
-  const applyPublicReadableStatusFilter = (query: Knex.QueryBuilder) =>
-    query.whereIn('statuses.id', publiclyReadableStatusIds())
-
-  const actorSettingsTextExpression = (actorAlias: string, key: string) => {
+  const statusActorFollowersUrlExpression = () => {
     const clientName = String(database.client.config.client)
     if (clientName.includes('pg')) {
-      return `${actorAlias}.settings::jsonb ->> '${key}'`
+      return "status_actors.settings::jsonb ->> 'followersUrl'"
     }
     if (clientName.includes('mysql')) {
-      return `JSON_UNQUOTE(JSON_EXTRACT(${actorAlias}.settings, '$.${key}'))`
+      return "JSON_UNQUOTE(JSON_EXTRACT(status_actors.settings, '$.followersUrl'))"
     }
-    return `json_extract(${actorAlias}.settings, '$.${key}')`
+    return "json_extract(status_actors.settings, '$.followersUrl')"
   }
 
   const applyPotentiallyReadableStatusFilter = ({
@@ -144,10 +209,7 @@ export const StatusSQLDatabaseMixin = (
     const fallbackFollowersAudienceExpression = clientName.includes('mysql')
       ? "followers_recipients.actorId = CONCAT(statuses.actorId, '/followers')"
       : "followers_recipients.actorId = statuses.actorId || '/followers'"
-    const storedFollowersAudienceExpression = `followers_recipients.actorId = ${actorSettingsTextExpression(
-      'status_actors',
-      'followersUrl'
-    )}`
+    const storedFollowersAudienceExpression = `followers_recipients.actorId = ${statusActorFollowersUrlExpression()}`
 
     return query.where((qb) => {
       qb.whereIn(
@@ -155,7 +217,7 @@ export const StatusSQLDatabaseMixin = (
         database('recipients')
           .select('statusId')
           .whereIn('recipients.actorId', [
-            ...publicActivityRecipients,
+            ...PUBLIC_ACTIVITY_RECIPIENTS,
             visibleToActorId
           ])
       )
@@ -770,6 +832,25 @@ export const StatusSQLDatabaseMixin = (
     return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
   }
 
+  const getReplyTargetStatusIds = ({
+    statusId,
+    url
+  }: {
+    statusId: string
+    url?: string
+  }) =>
+    database('statuses')
+      .select('statuses.id')
+      .where((builder) => {
+        builder.where('reply', statusId)
+        if (url) {
+          builder.orWhere('reply', url)
+        }
+      })
+
+  const getActorTargetStatusIds = (actorId: string) =>
+    database('statuses').select('statuses.id').where('actorId', actorId)
+
   async function getStatusReplies({
     statusId,
     url,
@@ -787,7 +868,10 @@ export const StatusSQLDatabaseMixin = (
       .orderBy('createdAt', 'desc')
 
     if (publicOnly) {
-      query = applyPublicReadableStatusFilter(query)
+      query = applyPublicReadableStatusFilter({
+        query,
+        targetStatusIds: getReplyTargetStatusIds({ statusId, url })
+      })
     } else if (visibleToActorId) {
       query = applyPotentiallyReadableStatusFilter({
         query,
@@ -845,9 +929,10 @@ export const StatusSQLDatabaseMixin = (
     publicOnly = false
   }: GetActorStatusesCountParams) {
     if (publicOnly) {
-      const result = await applyPublicReadableStatusFilter(
-        database('statuses').where('actorId', actorId)
-      )
+      const result = await applyPublicReadableStatusFilter({
+        query: database('statuses').where('actorId', actorId),
+        targetStatusIds: getActorTargetStatusIds(actorId)
+      })
         .countDistinct<{ count: string | number }>({
           count: 'statuses.id'
         })
@@ -872,11 +957,12 @@ export const StatusSQLDatabaseMixin = (
     let query = database('statuses')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
       .limit(limit)
 
     const recipientActorIds =
       publicOnly || visibleToActorId || includeFollowersOnly
-        ? [ACTIVITY_STREAM_PUBLIC, ACTIVITY_STREAM_PUBLIC_COMPACT]
+        ? [...PUBLIC_ACTIVITY_RECIPIENTS]
         : null
 
     if (recipientActorIds) {
@@ -894,7 +980,10 @@ export const StatusSQLDatabaseMixin = (
       }
 
       if (publicOnly) {
-        query = applyPublicReadableStatusFilter(query)
+        query = applyPublicReadableStatusFilter({
+          query,
+          targetStatusIds: getActorTargetStatusIds(actorId)
+        })
       } else {
         query = query.whereIn(
           'statuses.id',
@@ -910,7 +999,15 @@ export const StatusSQLDatabaseMixin = (
         .where('id', minStatusId)
         .first()
       if (minStatus) {
-        query = query.where('createdAt', '>', minStatus.createdAt)
+        query = query.where((wb) => {
+          wb.where('statuses.createdAt', '>', minStatus.createdAt).orWhere(
+            (sameCreatedAt) => {
+              sameCreatedAt
+                .where('statuses.createdAt', '=', minStatus.createdAt)
+                .where('statuses.id', '>', minStatusId)
+            }
+          )
+        })
       }
     }
 
@@ -919,7 +1016,15 @@ export const StatusSQLDatabaseMixin = (
         .where('id', maxStatusId)
         .first()
       if (maxStatus) {
-        query = query.where('createdAt', '<', maxStatus.createdAt)
+        query = query.where((wb) => {
+          wb.where('statuses.createdAt', '<', maxStatus.createdAt).orWhere(
+            (sameCreatedAt) => {
+              sameCreatedAt
+                .where('statuses.createdAt', '=', maxStatus.createdAt)
+                .where('statuses.id', '<', maxStatusId)
+            }
+          )
+        })
       }
     }
 
@@ -1429,15 +1534,10 @@ export const StatusSQLDatabaseMixin = (
     })
 
     if (publicOnly) {
-      query = query.whereIn(
-        'statuses.id',
-        database('recipients')
-          .select('statusId')
-          .whereIn('recipients.actorId', [
-            ACTIVITY_STREAM_PUBLIC,
-            ACTIVITY_STREAM_PUBLIC_COMPACT
-          ])
-      )
+      query = applyPublicReadableStatusFilter({
+        query,
+        targetStatusIds: getReplyTargetStatusIds({ statusId, url })
+      })
     }
 
     const result = await query

@@ -1,3 +1,5 @@
+import knex, { Knex } from 'knex'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -15,6 +17,8 @@ import { normalizeActorId } from '@/lib/utils/activitypub'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
+import { buildPubliclyReadableStatusIdsQuery } from './status'
+
 describe('StatusDatabase', () => {
   const { actors, statuses } = DatabaseSeed
   const primaryActorId = actors.primary.id
@@ -30,6 +34,50 @@ describe('StatusDatabase', () => {
 
   afterAll(async () => {
     await Promise.all(table.map((item) => item[1].destroy()))
+  })
+
+  describe('public readable status SQL', () => {
+    const createTargetStatusIds = (database: Knex) =>
+      database('statuses')
+        .select('statuses.id')
+        .where('statuses.actorId', primaryActorId)
+
+    it('seeds recursive public readability from the caller target set', async () => {
+      const sqliteDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sql = buildPubliclyReadableStatusIdsQuery({
+        database: sqliteDatabase,
+        targetStatusIds: createTargetStatusIds(sqliteDatabase)
+      })
+        .toSQL()
+        .sql.toLowerCase()
+
+      expect(sql).toContain('with recursive')
+      expect(sql).toContain('actorid')
+      expect(sql.indexOf('actorid')).toBeLessThan(sql.indexOf('union'))
+
+      await sqliteDatabase.destroy()
+    })
+
+    it('does not use recursive CTEs for MySQL-compatible public readability SQL', async () => {
+      const mysqlDatabase = knex({ client: 'mysql2' })
+      const sql = buildPubliclyReadableStatusIdsQuery({
+        database: mysqlDatabase,
+        targetStatusIds: createTargetStatusIds(mysqlDatabase)
+      })
+        .toSQL()
+        .sql.toLowerCase()
+
+      expect(sql).not.toContain('with recursive')
+      expect(sql).toContain('actorid')
+
+      await mysqlDatabase.destroy()
+    })
   })
 
   describe.each(table)('%s', (_, database) => {
@@ -315,6 +363,58 @@ describe('StatusDatabase', () => {
           'This is Actor1 post 2',
           'This is Actor1 post'
         ])
+      })
+
+      it('paginates statuses that share createdAt using id as a tiebreaker', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const createdAt = Date.UTC(2035, 0, 1)
+        const firstStatusId = `${emptyActorId}/statuses/tie-z-${suffix}`
+        const secondStatusId = `${emptyActorId}/statuses/tie-y-${suffix}`
+        const thirdStatusId = `${emptyActorId}/statuses/tie-x-${suffix}`
+
+        await database.createNote({
+          id: firstStatusId,
+          url: firstStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tie ordered status z',
+          createdAt
+        })
+        await database.createNote({
+          id: secondStatusId,
+          url: secondStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tie ordered status y',
+          createdAt
+        })
+        await database.createNote({
+          id: thirdStatusId,
+          url: thirdStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tie ordered status x',
+          createdAt
+        })
+
+        const firstPage = await database.getActorStatuses({
+          actorId: emptyActorId,
+          limit: 2
+        })
+        const secondPage = await database.getActorStatuses({
+          actorId: emptyActorId,
+          maxStatusId: secondStatusId,
+          limit: 2
+        })
+
+        expect(firstPage.map((status) => status.id)).toEqual([
+          firstStatusId,
+          secondStatusId
+        ])
+        expect(secondPage.map((status) => status.id)).toContain(thirdStatusId)
       })
     })
 

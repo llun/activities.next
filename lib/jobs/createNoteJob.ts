@@ -154,7 +154,7 @@ export const createNoteJob = createJobHandle(
       ...attachments.map(async (attachment, index) => {
         if (attachment.type !== 'Document') return
         return database.createAttachment({
-          actorId: note.attributedTo,
+          actorId,
           statusId: note.id,
           mediaType: attachment.mediaType,
           height: attachment.height,
