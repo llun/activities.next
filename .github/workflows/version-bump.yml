@@ -18,8 +18,10 @@ jobs:
   coalesce:
     name: Wait for merge batch
     runs-on: ubuntu-latest
+    concurrency:
+      group: version-bump-coalesce-${{ github.ref }}
+      cancel-in-progress: true
     outputs:
-      latest_sha: ${{ steps.latest-main.outputs.latest_sha }}
       should_run: ${{ steps.latest-main.outputs.should_run }}
     steps:
       - name: Wait for nearby main merges
@@ -39,7 +41,6 @@ jobs:
           git fetch --force origin main '+refs/tags/*:refs/tags/*'
 
           LATEST_SHA=$(git rev-parse origin/main)
-          echo "latest_sha=$LATEST_SHA" >> "$GITHUB_OUTPUT"
 
           if [ "$GITHUB_SHA" != "$LATEST_SHA" ]; then
             echo "Skipping: $GITHUB_SHA is no longer the latest main commit ($LATEST_SHA)."
@@ -253,11 +254,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::PAT_TOKEN is required to push the bump branch and manage the PR."
-            exit 1
-          fi
-
           git fetch --force origin main '+refs/tags/*:refs/tags/*'
           CURRENT_MAIN_SHA=$(git rev-parse origin/main)
 
@@ -265,19 +261,6 @@ jobs:
             echo "Skipping: main moved from $BASE_SHA to $CURRENT_MAIN_SHA before PR creation."
             exit 0
           fi
-
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-
-          gh pr list --state open --base main --json number,headRefName \
-            --jq '.[] | select(.headRefName | test("^version-bump/v[0-9]+")) | .number' |
-            while IFS= read -r pr_number; do
-              if [ -n "$pr_number" ]; then
-                echo "Closing stale version-specific bump PR #$pr_number."
-                gh pr close "$pr_number" \
-                  --comment "Closing this stale version-specific bump PR. Version bumps now use the stable ${VERSION_BUMP_BRANCH} branch." \
-                  --delete-branch || true
-              fi
-            done
 
           git switch -C "$VERSION_BUMP_BRANCH"
           git add package.json
@@ -294,8 +277,33 @@ jobs:
             exit 0
           fi
 
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::PAT_TOKEN is required to push the bump branch and manage the PR."
+            exit 1
+          fi
+
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          gh pr list --state open --base main --json number,headRefName \
+            --jq '.[] | select(.headRefName | test("^version-bump/v[0-9]+")) | .number' |
+            while IFS= read -r pr_number; do
+              if [ -n "$pr_number" ]; then
+                echo "Closing stale version-specific bump PR #$pr_number."
+                gh pr close "$pr_number" \
+                  --comment "Closing this stale version-specific bump PR. Version bumps now use the stable ${VERSION_BUMP_BRANCH} branch." \
+                  --delete-branch || true
+              fi
+            done
+
           git commit -m "Bump version to v${NEW_VERSION}"
-          git push --force-with-lease origin "$VERSION_BUMP_BRANCH"
+
+          if git ls-remote --exit-code --heads origin "$VERSION_BUMP_BRANCH" >/dev/null 2>&1; then
+            git fetch --force origin "refs/heads/${VERSION_BUMP_BRANCH}:refs/remotes/origin/${VERSION_BUMP_BRANCH}"
+            REMOTE_BUMP_SHA=$(git rev-parse "refs/remotes/origin/${VERSION_BUMP_BRANCH}")
+            git push --force-with-lease="refs/heads/${VERSION_BUMP_BRANCH}:${REMOTE_BUMP_SHA}" origin "$VERSION_BUMP_BRANCH"
+          else
+            git push --force-with-lease="refs/heads/${VERSION_BUMP_BRANCH}" origin "$VERSION_BUMP_BRANCH"
+          fi
 
           BODY_FILE=$(mktemp)
           {
@@ -332,8 +340,8 @@ jobs:
             echo "Created PR: $PR_URL"
           fi
 
-          if ! gh pr checks "$PR_URL" --watch --interval 10; then
-            echo "::warning::PR checks did not pass; leaving $PR_URL open."
+          if ! gh pr checks "$PR_URL" --required --watch --interval 10; then
+            echo "::warning::Required PR checks did not pass; leaving $PR_URL open."
             exit 0
           fi
 
@@ -345,5 +353,5 @@ jobs:
             exit 0
           fi
 
-          gh pr merge --squash --delete-branch "$PR_URL"
-          echo "Merged $PR_URL"
+          gh pr merge --auto --squash --delete-branch "$PR_URL"
+          echo "Enabled auto-merge for $PR_URL"
