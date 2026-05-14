@@ -1,0 +1,46 @@
+lib/database/sql/status.test.ts
+  s_23e3cc6270fa65::t_6e766429c1649a 367-418
+  s_b504cb69d1c072::t_7f8be7c3156bb3 45-52,54-55,63-64
+  s_b504cb69d1c072::t_1750f64c49c689 1-2,20-21,39-44,53,56-62,65-80
+lib/jobs/createNoteJob.ts
+  s_933f5081479f09::t_218449c3f68e0b 157
+lib/jobs/createNoteJob.test.ts
+  s_933f5081479f09::t_590d74dcaee074 84-131
+lib/database/sql/status.ts
+  s_23e3cc6270fa65::t_6f97aa9038ad2b 960,1002-1010,1019-1027
+  s_b504cb69d1c072::t_bcd34ee33dec5e 67-71,88-113,124-131,133-145,147-153,156-162,165-170,172-188,190,193,196,198,212,220
+  s_b504cb69d1c072::t_4a46817e9de402 835-853,871-874,932-935,965,983-986,1537-1540
+  s_b504cb69d1c072::t_31be05f0c43274 114-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3b88884ef4c142f63d54a7261cf9a3375b85f5d3",
+  "prompts": {},
+  "sessions": {
+    "s_23e3cc6270fa65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2303-f3de-7f62-9a82-67036dea01be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_933f5081479f09": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e258d-8b9c-7401-a468-ac0dfa5b1bae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b504cb69d1c072": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e258d-5f1b-75c1-8d4d-9fed73bb0c33",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
