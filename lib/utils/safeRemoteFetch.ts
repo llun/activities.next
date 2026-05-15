@@ -24,10 +24,24 @@ const BODY_REDIRECT_HEADERS = new Set([
   'digest',
   'signature'
 ])
+const DYNAMIC_BODY_REDIRECT_HEADERS = new Set(
+  [...BODY_REDIRECT_HEADERS].filter((header) => header !== 'signature')
+)
 const RETRY_DISABLED = { limit: 0 }
 
 export type SafeRemoteFetchMethod = Method
 export type SafeRemoteFetchHeaders = Headers
+export type SafeRemoteFetchHeaderBuilderRequest = {
+  body?: string
+  method: SafeRemoteFetchMethod
+  url: URL
+}
+export type SafeRemoteFetchHeaderBuilder = (
+  request: SafeRemoteFetchHeaderBuilderRequest
+) => SafeRemoteFetchHeaders
+export type SafeRemoteFetchHeaderSource =
+  | SafeRemoteFetchHeaders
+  | SafeRemoteFetchHeaderBuilder
 
 export type ResolvedRemoteAddress = {
   address: string
@@ -58,7 +72,7 @@ export type SafeRemoteFetchTransport = (
 export type SafeRemoteFetchOptions = {
   body?: string
   connectTimeoutInMilliseconds?: number
-  headers?: SafeRemoteFetchHeaders
+  headers?: SafeRemoteFetchHeaderSource
   maxBodyBytes?: number
   maxRedirects?: number
   method?: SafeRemoteFetchMethod
@@ -484,6 +498,20 @@ const compactHeaders = (headers: SafeRemoteFetchHeaders = {}) =>
     )
   )
 
+const stripHeaders = (
+  headers: SafeRemoteFetchHeaders,
+  headersToStrip: Set<string>
+) => {
+  const normalizedHeaders = compactHeaders(headers)
+  for (const key of Object.keys(normalizedHeaders)) {
+    if (headersToStrip.has(key.toLowerCase())) {
+      delete normalizedHeaders[key]
+    }
+  }
+
+  return normalizedHeaders
+}
+
 const buildHeaders = ({
   headers,
   previousUrl,
@@ -508,6 +536,35 @@ const buildHeaders = ({
     ...normalizedHeaders,
     host: url.host
   }
+}
+
+const getRequestHeaders = ({
+  body,
+  headers,
+  headersToStrip,
+  method,
+  previousUrl,
+  url
+}: {
+  body?: string
+  headers: SafeRemoteFetchHeaderSource
+  headersToStrip?: Set<string>
+  method: SafeRemoteFetchMethod
+  previousUrl?: URL
+  url: URL
+}) => {
+  let effectiveHeaders =
+    typeof headers === 'function' ? headers({ body, method, url }) : headers
+
+  if (headersToStrip && headersToStrip.size > 0) {
+    effectiveHeaders = stripHeaders(effectiveHeaders, headersToStrip)
+  }
+
+  return buildHeaders({
+    headers: effectiveHeaders,
+    previousUrl,
+    url
+  })
 }
 
 const getHeaderValue = (
@@ -570,15 +627,20 @@ const getRedirectLocation = (
   return redirectUrl
 }
 
-const stripBodyHeaders = (headers: SafeRemoteFetchHeaders) => {
-  const normalizedHeaders = compactHeaders(headers)
-  for (const key of Object.keys(normalizedHeaders)) {
-    if (BODY_REDIRECT_HEADERS.has(key.toLowerCase())) {
-      delete normalizedHeaders[key]
-    }
-  }
+const stripBodyHeaders = (headers: SafeRemoteFetchHeaders) =>
+  stripHeaders(headers, BODY_REDIRECT_HEADERS)
 
-  return normalizedHeaders
+const getDynamicHeadersToStrip = ({
+  shouldStripBodyHeaders,
+  shouldStripSensitiveHeaders
+}: {
+  shouldStripBodyHeaders: boolean
+  shouldStripSensitiveHeaders: boolean
+}) => {
+  return new Set([
+    ...(shouldStripBodyHeaders ? DYNAMIC_BODY_REDIRECT_HEADERS : []),
+    ...(shouldStripSensitiveHeaders ? SENSITIVE_REDIRECT_HEADERS : [])
+  ])
 }
 
 export const createSafeRemoteFetch = ({
@@ -607,6 +669,8 @@ export const createSafeRemoteFetch = ({
     let currentHeaders = headers
     let currentMethod = method
     let previousUrl: URL | undefined
+    let shouldStripDynamicBodyHeaders = false
+    let shouldStripDynamicSensitiveHeaders = false
     let redirectCount = 0
     const connectTimeout = connectTimeoutInMilliseconds ?? timeoutInMilliseconds
     const readTimeout = readTimeoutInMilliseconds ?? timeoutInMilliseconds
@@ -617,8 +681,17 @@ export const createSafeRemoteFetch = ({
 
     while (true) {
       assertAllowedProtocol(currentUrl)
-      const requestHeaders = buildHeaders({
+      const requestHeaders = getRequestHeaders({
+        body: currentBody,
         headers: currentHeaders,
+        headersToStrip:
+          typeof currentHeaders === 'function'
+            ? getDynamicHeadersToStrip({
+                shouldStripBodyHeaders: shouldStripDynamicBodyHeaders,
+                shouldStripSensitiveHeaders: shouldStripDynamicSensitiveHeaders
+              })
+            : undefined,
+        method: currentMethod,
         previousUrl,
         url: currentUrl
       })
@@ -659,15 +732,27 @@ export const createSafeRemoteFetch = ({
         )
       }
 
+      const isCrossHostRedirect = currentUrl.host !== redirectUrl.host
       previousUrl = currentUrl
       currentUrl = redirectUrl
       redirectCount += 1
       if (response.statusCode === 303) {
         currentBody = undefined
         currentMethod = 'GET'
-        currentHeaders = stripBodyHeaders(requestHeaders)
+      }
+
+      if (typeof currentHeaders === 'function') {
+        if (response.statusCode === 303) {
+          shouldStripDynamicBodyHeaders = true
+        }
+        if (isCrossHostRedirect) {
+          shouldStripDynamicSensitiveHeaders = true
+        }
       } else {
-        currentHeaders = requestHeaders
+        currentHeaders =
+          response.statusCode === 303
+            ? stripBodyHeaders(requestHeaders)
+            : requestHeaders
       }
     }
   }

@@ -25,6 +25,14 @@ const okResponse = (body = 'ok') => ({
   body: streamFrom([body])
 })
 
+const expectSensitiveHeadersStripped = (
+  headers: Record<string, string | string[] | undefined>
+) => {
+  expect(headers).not.toHaveProperty('authorization')
+  expect(headers).not.toHaveProperty('cookie')
+  expect(headers).not.toHaveProperty('signature')
+}
+
 describe('safeRemoteFetch', () => {
   afterEach(() => {
     mockGotStream.mockReset()
@@ -298,14 +306,102 @@ describe('safeRemoteFetch', () => {
       }
     })
 
-    expect(seenRequests[1]).toEqual({
-      url: 'https://other.example/private-key',
-      headers: expect.not.objectContaining({
-        authorization: expect.any(String),
-        cookie: expect.any(String),
-        signature: expect.any(String)
+    expect(seenRequests[1]?.url).toBe('https://other.example/private-key')
+    expectSensitiveHeadersStripped(seenRequests[1].headers)
+  })
+
+  it('strips dynamic credentials and auth headers on cross-host redirects', async () => {
+    const seenRequests: Array<{
+      url: string
+      headers: Record<string, string | string[] | undefined>
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ headers, url }) => {
+        seenRequests.push({ headers, url: url.toString() })
+        if (url.hostname === 'safe.example') {
+          return {
+            statusCode: 302,
+            headers: {
+              location: 'https://other.example/private-key'
+            },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      url: 'https://safe.example/actor',
+      headers: ({ url }) => ({
+        authorization: 'Bearer secret',
+        cookie: 'session=secret',
+        signature: `keyId="${url.toString()}",signature="secret"`
       })
     })
+
+    expect(seenRequests[1]?.url).toBe('https://other.example/private-key')
+    expectSensitiveHeadersStripped(seenRequests[1].headers)
+  })
+
+  it('keeps dynamic credentials stripped after cross-host redirect chains', async () => {
+    const seenRequests: Array<{
+      url: string
+      headers: Record<string, string | string[] | undefined>
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ headers, url }) => {
+        seenRequests.push({ headers, url: url.toString() })
+        if (url.hostname === 'safe.example') {
+          return {
+            statusCode: 302,
+            headers: {
+              location: 'https://other.example/redirected'
+            },
+            body: streamFrom([])
+          }
+        }
+
+        if (url.pathname === '/redirected') {
+          return {
+            statusCode: 302,
+            headers: {
+              location: 'https://other.example/final'
+            },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      url: 'https://safe.example/actor',
+      headers: ({ url }) => ({
+        authorization: 'Bearer secret',
+        cookie: 'session=secret',
+        signature: `keyId="${url.toString()}",signature="secret"`
+      })
+    })
+
+    expect(seenRequests).toHaveLength(3)
+    expect(seenRequests[0]).toEqual({
+      url: 'https://safe.example/actor',
+      headers: expect.objectContaining({
+        authorization: 'Bearer secret',
+        cookie: 'session=secret',
+        host: 'safe.example',
+        signature: 'keyId="https://safe.example/actor",signature="secret"'
+      })
+    })
+    expect(seenRequests[1]?.url).toBe('https://other.example/redirected')
+    expectSensitiveHeadersStripped(seenRequests[1].headers)
+    expect(seenRequests[2]?.url).toBe('https://other.example/final')
+    expectSensitiveHeadersStripped(seenRequests[2].headers)
   })
 
   it('destroys redirect response bodies without buffering them', async () => {
@@ -425,6 +521,87 @@ describe('safeRemoteFetch', () => {
         body: undefined,
         headers: {
           host: 'safe.example'
+        },
+        method: 'GET'
+      }
+    ])
+  })
+
+  it('rebuilds dynamic headers without body headers after 303 redirects', async () => {
+    const headerBuilderRequests: Array<{
+      body?: string
+      method: string
+      url: string
+    }> = []
+    const seenRequests: Array<{
+      body?: string
+      headers: Record<string, string | string[] | undefined>
+      method: string
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ body, headers, method, url }) => {
+        seenRequests.push({ body, headers, method })
+        if (url.pathname === '/from') {
+          return {
+            statusCode: 303,
+            headers: { location: 'https://safe.example/to' },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      body: 'payload',
+      headers: ({ body, method, url }) => {
+        headerBuilderRequests.push({
+          body,
+          method,
+          url: url.toString()
+        })
+
+        return {
+          'content-type': 'text/plain',
+          digest: 'sha-256=payload',
+          signature: `keyId="${url.toString()}",signature="${method}-${body ?? 'none'}"`
+        }
+      },
+      method: 'POST',
+      url: 'https://safe.example/from'
+    })
+
+    expect(headerBuilderRequests).toEqual([
+      {
+        body: 'payload',
+        method: 'POST',
+        url: 'https://safe.example/from'
+      },
+      {
+        body: undefined,
+        method: 'GET',
+        url: 'https://safe.example/to'
+      }
+    ])
+    expect(seenRequests).toEqual([
+      {
+        body: 'payload',
+        headers: expect.objectContaining({
+          'content-type': 'text/plain',
+          digest: 'sha-256=payload',
+          host: 'safe.example',
+          signature:
+            'keyId="https://safe.example/from",signature="POST-payload"'
+        }),
+        method: 'POST'
+      },
+      {
+        body: undefined,
+        headers: {
+          host: 'safe.example',
+          signature: 'keyId="https://safe.example/to",signature="GET-none"'
         },
         method: 'GET'
       }
