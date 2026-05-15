@@ -2,7 +2,10 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import { getTrustProxyIpHeadersConfig } from './trustProxyIpHeaders'
+import {
+  getTrustProxyIpHeadersConfig,
+  resetTrustProxyIpHeadersConfigCacheForTests
+} from './trustProxyIpHeaders'
 
 describe('getTrustProxyIpHeadersConfig', () => {
   const originalCwd = process.cwd()
@@ -14,6 +17,7 @@ describe('getTrustProxyIpHeadersConfig', () => {
   let tempDirectory: string
 
   beforeEach(() => {
+    resetTrustProxyIpHeadersConfigCacheForTests()
     tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'activities-next-'))
     process.chdir(tempDirectory)
     delete process.env.ACTIVITIES_ALLOW_EMAILS
@@ -21,6 +25,7 @@ describe('getTrustProxyIpHeadersConfig', () => {
   })
 
   afterEach(() => {
+    resetTrustProxyIpHeadersConfigCacheForTests()
     process.chdir(originalCwd)
     fs.rmSync(tempDirectory, { force: true, recursive: true })
 
@@ -50,6 +55,22 @@ describe('getTrustProxyIpHeadersConfig', () => {
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
       JSON.stringify({ trustProxyIpHeaders: true })
+    )
+
+    expect(getTrustProxyIpHeadersConfig()).toBe(true)
+  })
+
+  it('caches the resolved setting for repeated app registration requests', () => {
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({ trustProxyIpHeaders: true })
+    )
+
+    expect(getTrustProxyIpHeadersConfig()).toBe(true)
+
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({ trustProxyIpHeaders: false })
     )
 
     expect(getTrustProxyIpHeadersConfig()).toBe(true)

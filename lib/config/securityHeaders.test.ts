@@ -124,6 +124,22 @@ describe('getSecurityHeaderConfig', () => {
     })
   })
 
+  it('uses an explicit empty runtime environment media allowlist over file settings', () => {
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        allowMediaDomains: ['file-images.example.com']
+      })
+    )
+    process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = '[]'
+
+    expect(getSecurityHeaderConfig()).toEqual({
+      allowMediaDomains: [],
+      mediaStorage: {},
+      fitnessStorage: {}
+    })
+  })
+
   it('uses runtime environment settings when the config file has no security header settings', () => {
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),

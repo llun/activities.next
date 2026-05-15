@@ -1,4 +1,10 @@
 import { readRuntimeConfigFile } from './runtimeConfigFile'
+import {
+  getEnvironmentList,
+  getStringValue,
+  isRecord,
+  toStringList
+} from './utils'
 
 export type SecurityHeaderStorageConfig = {
   type?: string
@@ -12,23 +18,6 @@ export type SecurityHeaderConfig = {
   allowMediaDomains: string[]
   mediaStorage: SecurityHeaderStorageConfig
   fitnessStorage: SecurityHeaderStorageConfig
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-const getStringValue = (value: unknown) =>
-  typeof value === 'string' ? value : undefined
-
-const toStringList = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter(Boolean).map(String) : []
-
-const getEnvironmentStringList = (key: string): string[] => {
-  try {
-    return toStringList(JSON.parse(process.env[key] || '[]'))
-  } catch {
-    return []
-  }
 }
 
 const stripUndefinedStorageConfig = (
@@ -70,14 +59,17 @@ const getFileSecurityHeaderConfig = (): SecurityHeaderConfig | null => {
   }
 
   return {
-    allowMediaDomains: toStringList(parsed.allowMediaDomains),
+    allowMediaDomains: toStringList(
+      parsed.allowMediaDomains,
+      'allowMediaDomains'
+    ),
     mediaStorage: getStorageConfig(parsed.mediaStorage),
     fitnessStorage: getStorageConfig(parsed.fitnessStorage)
   }
 }
 
 const getEnvironmentSecurityHeaderConfig = (): SecurityHeaderConfig => ({
-  allowMediaDomains: getEnvironmentStringList('ACTIVITIES_ALLOW_MEDIA_DOMAINS'),
+  allowMediaDomains: getEnvironmentList('ACTIVITIES_ALLOW_MEDIA_DOMAINS'),
   mediaStorage: {
     type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
     bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
@@ -102,9 +94,10 @@ export const getSecurityHeaderConfig = (): SecurityHeaderConfig => {
   const environmentConfig = getEnvironmentSecurityHeaderConfig()
 
   return {
-    allowMediaDomains: environmentConfig.allowMediaDomains.length
-      ? environmentConfig.allowMediaDomains
-      : fileConfig.allowMediaDomains,
+    allowMediaDomains:
+      process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS !== undefined
+        ? environmentConfig.allowMediaDomains
+        : fileConfig.allowMediaDomains,
     mediaStorage: {
       ...fileConfig.mediaStorage,
       ...stripUndefinedStorageConfig(environmentConfig.mediaStorage)

@@ -1,4 +1,10 @@
 import { readRuntimeConfigFile } from './runtimeConfigFile'
+import {
+  type EnvironmentListOptions,
+  getEnvironmentList,
+  isRecord,
+  toStringList
+} from './utils'
 
 export type HostConfig = {
   host: string
@@ -9,43 +15,8 @@ export type AppHostConfig = HostConfig & {
   allowActorDomains: string[]
 }
 
-type EnvironmentListOptions = {
-  onInvalidList?: 'empty' | 'throw'
-}
-
 let cachedHostConfig: AppHostConfig | null = null
 let cachedProxyHostConfig: HostConfig | null = null
-
-const toStringList = (
-  value: unknown,
-  key: string,
-  { onInvalidList = 'empty' }: EnvironmentListOptions = {}
-): string[] => {
-  if (Array.isArray(value)) return value.filter(Boolean).map(String)
-
-  if (onInvalidList === 'throw') {
-    throw new Error(`${key} must be a JSON array`)
-  }
-
-  return []
-}
-
-const getEnvironmentList = (
-  key: string,
-  { onInvalidList = 'empty' }: EnvironmentListOptions = {}
-): string[] => {
-  try {
-    return toStringList(JSON.parse(process.env[key] || '[]'), key, {
-      onInvalidList
-    })
-  } catch (error) {
-    if (onInvalidList === 'throw') throw error
-    return []
-  }
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const getFileProxyHostConfig = (): HostConfig | null => {
   const parsed = readRuntimeConfigFile()
