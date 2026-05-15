@@ -120,6 +120,14 @@ export const getContentSecurityPolicy = () => {
       ...(mediaStorageSource ? [mediaStorageSource] : [])
     ])
   ).join(' ')
+  const mediaSources = Array.from(
+    new Set([
+      "'self'",
+      ...(configuredImageSources.length ? configuredImageSources : ['https:']),
+      ...(mediaStorageSource ? [mediaStorageSource] : []),
+      'blob:'
+    ])
+  ).join(' ')
   const scriptSources = [
     "'self'",
     "'unsafe-inline'",
@@ -150,7 +158,7 @@ export const getContentSecurityPolicy = () => {
     `connect-src ${connectSources}`,
     "font-src 'self' data:",
     "manifest-src 'self'",
-    "media-src 'self' https: blob:",
+    `media-src ${mediaSources}`,
     "worker-src 'self' blob:"
   ].join('; ')
 

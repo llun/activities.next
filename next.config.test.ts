@@ -291,6 +291,7 @@ describe('next config security hardening', () => {
       },
       () => {
         const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
 
         expect(imageSources).toEqual(
           expect.arrayContaining([
@@ -302,6 +303,15 @@ describe('next config security hardening', () => {
           ])
         )
         expect(imageSources).not.toContain('https:')
+        expect(mediaSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'blob:',
+            'https://images.example.com',
+            'https://cdn.example.com'
+          ])
+        )
+        expect(mediaSources).not.toContain('https:')
       }
     )
   })
