@@ -158,10 +158,11 @@ const fetchSenderPublicKey = async (
 ) => {
   const response = await request({
     url: actorId,
-    headers: activityPubRequestHeaders({
-      url: actorId,
-      signingActor
-    })
+    headers: ({ url }) =>
+      activityPubRequestHeaders({
+        url: url.toString(),
+        signingActor
+      })
   })
   if (response.statusCode !== 200) {
     return {
