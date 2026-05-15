@@ -1,0 +1,38 @@
+jest.setup-after-env.ts
+  s_8ca4a458a9cece::t_75b456bd9e2409 1-11
+jest.config.mjs
+  s_8ca4a458a9cece::t_75b456bd9e2409 23-26
+proxy.test.ts
+  s_8ca4a458a9cece::t_75b456bd9e2409 160,164-182
+lib/utils/securityHeaders.ts
+  s_8ca4a458a9cece::t_75b456bd9e2409 84-87
+lib/config/securityHeaders.ts
+  s_8ca4a458a9cece::t_75b456bd9e2409 34-48,52,58,96-117
+proxy.ts
+  s_8ca4a458a9cece::t_75b456bd9e2409 9-11
+next.config.test.ts
+  s_8ca4a458a9cece::t_75b456bd9e2409 524-586
+lib/config/securityHeaders.test.ts
+  s_8ca4a458a9cece::t_75b456bd9e2409 1-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0c000cc1f1cd64efae9d29a49692488013d90f84",
+  "prompts": {},
+  "humans": {
+    "h_e5599db4cf9bba": {
+      "author": "Maythee Anegboonlap"
+    }
+  },
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
