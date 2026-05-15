@@ -1,14 +1,8 @@
-type SecurityHeader = { key: string; value: string }
-
-const MEDIA_STORAGE_HOSTNAME_ENV = 'ACTIVITIES_MEDIA_STORAGE_HOSTNAME'
-const MEDIA_STORAGE_TYPE_ENV = 'ACTIVITIES_MEDIA_STORAGE_TYPE'
-const MEDIA_STORAGE_BUCKET_ENV = 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
-const MEDIA_STORAGE_REGION_ENV = 'ACTIVITIES_MEDIA_STORAGE_REGION'
-const FITNESS_STORAGE_HOSTNAME_ENV = 'ACTIVITIES_FITNESS_STORAGE_HOSTNAME'
-const FITNESS_STORAGE_TYPE_ENV = 'ACTIVITIES_FITNESS_STORAGE_TYPE'
-const FITNESS_STORAGE_BUCKET_ENV = 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
-const FITNESS_STORAGE_REGION_ENV = 'ACTIVITIES_FITNESS_STORAGE_REGION'
-const MAPBOX_ACCESS_TOKEN_ENV = 'ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN'
+import { getSecurityHeaderConfig } from '@/lib/config/securityHeaders'
+import {
+  type SecurityHeader,
+  getStaticSecurityHeaders
+} from '@/lib/utils/staticSecurityHeaders'
 
 const MAPBOX_CSP_SOURCES = [
   'https://api.mapbox.com',
@@ -19,8 +13,6 @@ const MAPBOX_CSP_SOURCES = [
 const isDevelopment = () => process.env.NODE_ENV !== 'production'
 const isSafeLocalHostname = (hostname: string) =>
   ['localhost', '127.0.0.1', '[::1]'].includes(hostname.toLowerCase())
-const hasPublicMapboxAccessToken = () =>
-  process.env[MAPBOX_ACCESS_TOKEN_ENV]?.trim().startsWith('pk.') ?? false
 
 const getCspSource = (rawSource: string | undefined) => {
   if (!rawSource?.trim()) return null
@@ -41,27 +33,39 @@ const getCspSource = (rawSource: string | undefined) => {
   }
 }
 
-const getDefaultS3CspSources = ({
-  storageTypeEnv,
-  hostnameEnv,
-  bucketEnv,
-  regionEnv
-}: {
-  storageTypeEnv: string
-  hostnameEnv: string
-  bucketEnv: string
-  regionEnv: string
-}) => {
-  const storageType = process.env[storageTypeEnv]
-  if (
-    !['s3', 'object'].includes(storageType ?? '') ||
-    process.env[hostnameEnv]
-  ) {
+type S3CompatibleStorage = {
+  type: string
+  bucket: string
+  region: string
+  hostname?: string
+}
+
+const isS3CompatibleStorage = (
+  storage: unknown
+): storage is S3CompatibleStorage => {
+  if (!storage || typeof storage !== 'object') return false
+
+  return (
+    'type' in storage &&
+    'bucket' in storage &&
+    'region' in storage &&
+    typeof storage.type === 'string' &&
+    typeof storage.bucket === 'string' &&
+    typeof storage.region === 'string'
+  )
+}
+
+const getStorageHostname = (storage: { hostname?: string }) => storage.hostname
+
+const getDefaultS3CspSources = (storage: unknown) => {
+  if (!isS3CompatibleStorage(storage)) return []
+
+  if (!['s3', 'object'].includes(storage.type) || storage.hostname?.trim()) {
     return []
   }
 
-  const bucket = process.env[bucketEnv]?.trim()
-  const region = process.env[regionEnv]?.trim()
+  const bucket = storage.bucket.trim()
+  const region = storage.region.trim()
   if (!bucket || !region) return []
 
   return [
@@ -70,32 +74,23 @@ const getDefaultS3CspSources = ({
   ]
 }
 
+const hasPublicMapboxAccessToken = (
+  fitnessStorage: ReturnType<typeof getSecurityHeaderConfig>['fitnessStorage']
+) => fitnessStorage?.mapboxAccessToken?.trim().startsWith('pk.') ?? false
+
 export const getContentSecurityPolicy = () => {
-  const mediaStorageSource = getCspSource(
-    process.env[MEDIA_STORAGE_HOSTNAME_ENV]
-  )
-  const fitnessStorageSource = getCspSource(
-    process.env[FITNESS_STORAGE_HOSTNAME_ENV]
-  )
-  const allowMapboxSources = hasPublicMapboxAccessToken()
+  const { mediaStorage, fitnessStorage } = getSecurityHeaderConfig()
+  const mediaStorageSource = getCspSource(getStorageHostname(mediaStorage))
+  const fitnessStorageSource = getCspSource(getStorageHostname(fitnessStorage))
+  const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
   const connectSources = Array.from(
     new Set([
       "'self'",
       ...(allowMapboxSources ? MAPBOX_CSP_SOURCES : []),
       ...(mediaStorageSource ? [mediaStorageSource] : []),
       ...(fitnessStorageSource ? [fitnessStorageSource] : []),
-      ...getDefaultS3CspSources({
-        storageTypeEnv: MEDIA_STORAGE_TYPE_ENV,
-        hostnameEnv: MEDIA_STORAGE_HOSTNAME_ENV,
-        bucketEnv: MEDIA_STORAGE_BUCKET_ENV,
-        regionEnv: MEDIA_STORAGE_REGION_ENV
-      }),
-      ...getDefaultS3CspSources({
-        storageTypeEnv: FITNESS_STORAGE_TYPE_ENV,
-        hostnameEnv: FITNESS_STORAGE_HOSTNAME_ENV,
-        bucketEnv: FITNESS_STORAGE_BUCKET_ENV,
-        regionEnv: FITNESS_STORAGE_REGION_ENV
-      }),
+      ...getDefaultS3CspSources(mediaStorage),
+      ...getDefaultS3CspSources(fitnessStorage),
       ...(isDevelopment() ? ['ws:', 'wss:'] : [])
     ])
   ).join(' ')
@@ -151,22 +146,5 @@ export const getSecurityHeaders = ({
         }
       ]
     : []),
-  {
-    key: 'X-Content-Type-Options',
-    value: 'nosniff'
-  },
-  {
-    key: 'X-Frame-Options',
-    value: 'DENY'
-  },
-  {
-    key: 'Referrer-Policy',
-    value: 'strict-origin-when-cross-origin'
-  },
-  {
-    key: 'Permissions-Policy',
-    // The same-origin settings UI uses navigator.geolocation for optional
-    // fitness privacy location setup while denying cross-origin access.
-    value: 'camera=(), microphone=(), geolocation=(self)'
-  }
+  ...getStaticSecurityHeaders()
 ]

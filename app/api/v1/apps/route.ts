@@ -30,7 +30,7 @@ export const resetAppRegistrationWarningStateForTests = () => {
 }
 
 const shouldTrustProxyIpHeaders = (): boolean =>
-  process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS === 'true'
+  getConfig().trustProxyIpHeaders === true
 
 const getTrustedClientIp = (req: NextRequest): string | undefined => {
   if (!shouldTrustProxyIpHeaders()) return undefined

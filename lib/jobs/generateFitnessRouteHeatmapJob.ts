@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { getFitnessRouteHeatmapConfig } from '@/lib/config/fitnessRouteHeatmap'
 import { Database } from '@/lib/database/types'
 import {
   type RegionBounds,
@@ -37,34 +38,6 @@ const ROUTE_HEATMAP_JOB_TIME_BUDGET_MS = 20_000
 const ROUTE_HEATMAP_PAGE_SIZE = 100
 const ROUTE_HEATMAP_MAX_FILES = 1_000_000
 const QUEUE_PUBLISH_MAX_ATTEMPTS = 3
-
-const parsePositiveIntegerEnv = (
-  value: string | undefined,
-  fallback: number
-) => {
-  if (!value) {
-    return fallback
-  }
-
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-}
-
-const ROUTE_HEATMAP_MEMORY_BUDGET_BYTES = parsePositiveIntegerEnv(
-  process.env.ACTIVITIES_FITNESS_ROUTE_HEATMAP_MEMORY_BUDGET_BYTES,
-  512 * 1024 * 1024
-)
-const ACCUMULATION_DOWNSAMPLE_POINT_LIMIT = parsePositiveIntegerEnv(
-  process.env.ACTIVITIES_FITNESS_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT,
-  DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 2
-)
-const ROUTE_HEATMAP_FILE_POINT_LIMIT = Math.max(
-  2,
-  parsePositiveIntegerEnv(
-    process.env.ACTIVITIES_FITNESS_ROUTE_HEATMAP_FILE_POINT_LIMIT,
-    DEFAULT_ROUTE_HEATMAP_MAX_POINTS
-  )
-)
 
 const JobData = z.object({
   actorId: z.string(),
@@ -186,9 +159,12 @@ const downsampleRoutePoints = <Point>(points: Point[], maxPoints: number) => {
   })
 }
 
-const shouldReduceAccumulation = (pointCount: number) =>
-  pointCount >= ACCUMULATION_DOWNSAMPLE_POINT_LIMIT ||
-  process.memoryUsage().heapUsed > ROUTE_HEATMAP_MEMORY_BUDGET_BYTES
+const shouldReduceAccumulation = (
+  pointCount: number,
+  routeHeatmapConfig: ReturnType<typeof getFitnessRouteHeatmapConfig>
+) =>
+  pointCount >= routeHeatmapConfig.accumulationPointLimit ||
+  process.memoryUsage().heapUsed > routeHeatmapConfig.memoryBudgetBytes
 
 const shouldCheckpoint = (startedAt: number) =>
   Date.now() - startedAt >= ROUTE_HEATMAP_JOB_TIME_BUDGET_MS
@@ -231,6 +207,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
     } = JobData.parse(message.data)
 
     const startedAt = Date.now()
+    const routeHeatmapConfig = getFitnessRouteHeatmapConfig()
     const normalizedRegion = region?.trim() || ''
     const regionBounds =
       normalizedRegion !== ''
@@ -397,7 +374,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           // Checkpoints are resume state, not final render payloads. Preserve
           // the larger accumulation cap here so later continuations do not
           // repeatedly apply the final browser-render cap.
-          maxPoints: ACCUMULATION_DOWNSAMPLE_POINT_LIMIT
+          maxPoints: routeHeatmapConfig.accumulationPointLimit
         })
 
         await database.updateFitnessRouteHeatmapStatus({
@@ -468,7 +445,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
 
               const routeCoordinates = downsampleRoutePoints(
                 activityData.coordinates,
-                ROUTE_HEATMAP_FILE_POINT_LIMIT
+                routeHeatmapConfig.filePointLimit
               )
 
               // Downsample before privacy/region splitting to keep route-cache
@@ -487,7 +464,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 )
                 const filteredPointCount = countSegmentPoints(filteredSegments)
                 const boundedSegments =
-                  filteredPointCount > ACCUMULATION_DOWNSAMPLE_POINT_LIMIT
+                  filteredPointCount > routeHeatmapConfig.accumulationPointLimit
                     ? downsampleSegmentsForCache(filteredSegments)
                     : filteredSegments
 
@@ -497,7 +474,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                   allSegmentPointCount += countSegmentPoints(boundedSegments)
                 }
 
-                if (shouldReduceAccumulation(allSegmentPointCount)) {
+                if (
+                  shouldReduceAccumulation(
+                    allSegmentPointCount,
+                    routeHeatmapConfig
+                  )
+                ) {
                   // This is a memory guard, not a statistically uniform sampler.
                   // It keeps the QStash worker well below a 1 GB container budget;
                   // the final/checkpoint payload remains capped for browser rendering.
