@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+
 export type HostConfig = {
   host: string
   trustedHosts: string[]
@@ -45,10 +48,10 @@ const getEnvironmentList = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
-const getInjectedProxyHostConfig = (): HostConfig | null => {
+const getFileProxyHostConfig = (): HostConfig | null => {
   try {
     const parsed = JSON.parse(
-      process.env.ACTIVITIES_PROXY_HOST_CONFIG || 'null'
+      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
     )
     if (!isRecord(parsed)) {
       return null
@@ -101,7 +104,7 @@ export const getProxyHostConfig = (): HostConfig => {
 
   cachedProxyHostConfig = hasRuntimeProxyHostConfig()
     ? getProxyHostConfigFromEnvironment()
-    : (getInjectedProxyHostConfig() ?? getProxyHostConfigFromEnvironment())
+    : (getFileProxyHostConfig() ?? getProxyHostConfigFromEnvironment())
   return cachedProxyHostConfig
 }
 

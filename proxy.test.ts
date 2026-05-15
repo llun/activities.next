@@ -1,4 +1,7 @@
+import fs from 'fs'
 import { NextRequest } from 'next/server'
+import os from 'os'
+import path from 'path'
 
 import { resetHostConfigCacheForTests } from '@/lib/config/host'
 
@@ -16,6 +19,7 @@ const getCspDirectiveSources = (
 }
 
 describe('proxy', () => {
+  const originalCwd = process.cwd()
   const previousActivitiesHost = process.env.ACTIVITIES_HOST
   const previousAllowActorDomains = process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
   const previousMediaStorageBucket = process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
@@ -23,10 +27,12 @@ describe('proxy', () => {
     process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
   const previousMediaStorageRegion = process.env.ACTIVITIES_MEDIA_STORAGE_REGION
   const previousMediaStorageType = process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
-  const previousProxyHostConfig = process.env.ACTIVITIES_PROXY_HOST_CONFIG
   const previousTrustedHosts = process.env.ACTIVITIES_TRUSTED_HOSTS
+  let tempDirectory: string
 
   beforeEach(() => {
+    tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'activities-next-'))
+    process.chdir(tempDirectory)
     resetHostConfigCacheForTests()
     process.env.ACTIVITIES_HOST = 'public.example.com'
     delete process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
@@ -34,11 +40,12 @@ describe('proxy', () => {
     delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
     delete process.env.ACTIVITIES_MEDIA_STORAGE_REGION
     delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
-    delete process.env.ACTIVITIES_PROXY_HOST_CONFIG
     delete process.env.ACTIVITIES_TRUSTED_HOSTS
   })
 
   afterEach(() => {
+    process.chdir(originalCwd)
+    fs.rmSync(tempDirectory, { force: true, recursive: true })
     resetHostConfigCacheForTests()
   })
 
@@ -78,12 +85,6 @@ describe('proxy', () => {
       delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
     } else {
       process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = previousMediaStorageType
-    }
-
-    if (previousProxyHostConfig === undefined) {
-      delete process.env.ACTIVITIES_PROXY_HOST_CONFIG
-    } else {
-      process.env.ACTIVITIES_PROXY_HOST_CONFIG = previousProxyHostConfig
     }
 
     if (previousTrustedHosts === undefined) {
@@ -149,15 +150,18 @@ describe('proxy', () => {
     )
   })
 
-  it('uses runtime host config instead of stale injected proxy config', async () => {
+  it('uses runtime host config instead of runtime config file host config', async () => {
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        host: 'file-public.example.com',
+        trustedHosts: ['file-edge.example.com']
+      })
+    )
     process.env.ACTIVITIES_HOST = 'runtime-public.example.com'
     process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
       'runtime-edge.example.com'
     ])
-    process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
-      host: 'build-public.example.com',
-      trustedHosts: ['build-edge.example.com']
-    })
 
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'GET',
@@ -174,21 +178,17 @@ describe('proxy', () => {
     )
   })
 
-  it('falls back to runtime host when stale injected proxy config is present', async () => {
+  it('falls back to runtime host when forwarded host is not trusted', async () => {
     process.env.ACTIVITIES_HOST = 'runtime-public.example.com'
     process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
       'runtime-edge.example.com'
     ])
-    process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
-      host: 'build-public.example.com',
-      trustedHosts: ['build-edge.example.com']
-    })
 
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'GET',
       headers: {
         host: 'internal.example.com',
-        'x-forwarded-host': 'build-edge.example.com'
+        'x-forwarded-host': 'untrusted-edge.example.com'
       }
     })
 
@@ -199,25 +199,28 @@ describe('proxy', () => {
     )
   })
 
-  it('uses injected proxy host config when runtime host config is absent', async () => {
+  it('uses runtime config file host config when runtime environment is absent', async () => {
     delete process.env.ACTIVITIES_HOST
-    process.env.ACTIVITIES_PROXY_HOST_CONFIG = JSON.stringify({
-      host: 'build-public.example.com',
-      trustedHosts: ['build-edge.example.com']
-    })
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        host: 'file-public.example.com',
+        trustedHosts: ['file-edge.example.com']
+      })
+    )
 
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'GET',
       headers: {
         host: 'internal.example.com',
-        'x-forwarded-host': 'build-edge.example.com'
+        'x-forwarded-host': 'file-edge.example.com'
       }
     })
 
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@build-edge.example.com'
+      'https://internal.example.com/@alice@file-edge.example.com'
     )
   })
 

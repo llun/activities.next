@@ -2,10 +2,9 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import nextConfig, {
-  getImageRemotePatterns,
-  getSecurityHeaders
-} from './next.config'
+import { getSecurityHeaders } from '@/lib/utils/securityHeaders'
+
+import nextConfig, { getImageRemotePatterns } from './next.config'
 
 const loadNextConfig = async () => {
   jest.resetModules()
@@ -52,18 +51,29 @@ const getCspDirectiveSources = (directiveName: string) => {
   return directive?.split(/\s+/).slice(1) ?? []
 }
 
-describe('getProxyHostConfigEnv', () => {
+describe('next config runtime isolation', () => {
   const originalCwd = process.cwd()
-  const previousActivitiesHost = process.env.ACTIVITIES_HOST
-  const previousTrustedHosts = process.env.ACTIVITIES_TRUSTED_HOSTS
+  const originalEnv = {
+    ACTIVITIES_ALLOW_MEDIA_DOMAINS: process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS,
+    ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
+    NODE_ENV: process.env.NODE_ENV
+  }
 
   let tempDirectory: string
 
   beforeEach(() => {
     tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'activities-next-'))
     process.chdir(tempDirectory)
-    delete process.env.ACTIVITIES_HOST
-    delete process.env.ACTIVITIES_TRUSTED_HOSTS
+    process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = 'not-json'
+    process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
+    process.env.NODE_ENV = 'production'
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        host: 'file-host-should-not-be-used.example.com',
+        trustedHosts: ['file-edge-should-not-be-used.example.com']
+      })
+    )
   })
 
   afterEach(() => {
@@ -71,50 +81,32 @@ describe('getProxyHostConfigEnv', () => {
     fs.rmSync(tempDirectory, { force: true, recursive: true })
     jest.resetModules()
 
-    if (previousActivitiesHost === undefined) {
-      delete process.env.ACTIVITIES_HOST
-    } else {
-      process.env.ACTIVITIES_HOST = previousActivitiesHost
-    }
-
-    if (previousTrustedHosts === undefined) {
-      delete process.env.ACTIVITIES_TRUSTED_HOSTS
-    } else {
-      process.env.ACTIVITIES_TRUSTED_HOSTS = previousTrustedHosts
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
     }
   })
 
-  it('injects file-based proxy host config without actor domain allowlists', async () => {
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({
-        host: 'file-public.example.com',
-        allowActorDomains: ['external-actor.example.com'],
-        trustedHosts: ['file-edge.example.com']
-      })
-    )
+  it('does not read deployment config while loading next config', async () => {
+    const { default: loadedNextConfig } = await loadNextConfig()
 
-    const { getProxyHostConfigEnv } = await loadNextConfig()
-
-    expect(
-      JSON.parse(getProxyHostConfigEnv().ACTIVITIES_PROXY_HOST_CONFIG)
-    ).toEqual({
-      host: 'file-public.example.com',
-      trustedHosts: ['file-edge.example.com']
-    })
-  })
-
-  it('does not snapshot runtime environment proxy host config at build time', async () => {
-    process.env.ACTIVITIES_HOST = 'env-public.example.com'
-    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
-      'env-edge.example.com'
+    expect(loadedNextConfig.env).toBeUndefined()
+    expect(loadedNextConfig.allowedDevOrigins).toBeUndefined()
+    expect(loadedNextConfig.images?.remotePatterns).toEqual([
+      {
+        protocol: 'https',
+        hostname: '**'
+      }
     ])
+  })
 
-    const { default: nextConfig, getProxyHostConfigEnv } =
-      await loadNextConfig()
-
-    expect(getProxyHostConfigEnv()).toEqual({})
-    expect(nextConfig.env).toBeUndefined()
+  it('does not reference ACTIVITIES runtime variables in next config source', () => {
+    expect(
+      fs.readFileSync(path.join(originalCwd, 'next.config.ts'), 'utf-8')
+    ).not.toContain('ACTIVITIES_')
   })
 })
 
@@ -385,12 +377,28 @@ describe('next config security hardening', () => {
     )
   })
 
-  it('uses the configured instance host and safe local hosts by default', () => {
-    const originalAllowlist = process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
-    const originalHost = process.env.ACTIVITIES_HOST
+  it('uses static HTTPS image patterns in production', () => {
     const originalNodeEnv = process.env.NODE_ENV
-    delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
-    process.env.ACTIVITIES_HOST = 'social.example.com'
+    process.env.NODE_ENV = 'production'
+
+    try {
+      expect(getImageRemotePatterns()).toEqual([
+        {
+          protocol: 'https',
+          hostname: '**'
+        }
+      ])
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
+    }
+  })
+
+  it('allows safe local image hosts in development without app config', () => {
+    const originalNodeEnv = process.env.NODE_ENV
     process.env.NODE_ENV = 'development'
 
     try {
@@ -413,130 +421,11 @@ describe('next config security hardening', () => {
         }
       ])
     } finally {
-      if (originalAllowlist === undefined) {
-        delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
-      } else {
-        process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = originalAllowlist
-      }
-      if (originalHost === undefined) {
-        delete process.env.ACTIVITIES_HOST
-      } else {
-        process.env.ACTIVITIES_HOST = originalHost
-      }
       if (originalNodeEnv === undefined) {
         delete process.env.NODE_ENV
       } else {
         process.env.NODE_ENV = originalNodeEnv
       }
     }
-  })
-
-  it('treats an empty image host allowlist as default config', () => {
-    const originalHost = process.env.ACTIVITIES_HOST
-    const originalNodeEnv = process.env.NODE_ENV
-    process.env.ACTIVITIES_HOST = 'social.example.com'
-    process.env.NODE_ENV = 'production'
-
-    try {
-      expect(getImageRemotePatterns('')).toEqual([
-        {
-          protocol: 'https',
-          hostname: '**'
-        }
-      ])
-    } finally {
-      if (originalHost === undefined) {
-        delete process.env.ACTIVITIES_HOST
-      } else {
-        process.env.ACTIVITIES_HOST = originalHost
-      }
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
-      }
-    }
-  })
-
-  it('builds configured HTTPS image host patterns', () => {
-    const patterns = getImageRemotePatterns(
-      JSON.stringify(['media.example.com', 'https://cdn.example.com/Images'])
-    )
-
-    expect(patterns).toEqual([
-      {
-        protocol: 'https',
-        hostname: 'media.example.com'
-      },
-      {
-        protocol: 'https',
-        hostname: 'cdn.example.com',
-        pathname: '/Images/**'
-      }
-    ])
-  })
-
-  it('keeps the configured instance host with explicit image host patterns', () => {
-    const originalHost = process.env.ACTIVITIES_HOST
-    process.env.ACTIVITIES_HOST = 'social.example.com'
-
-    try {
-      const patterns = getImageRemotePatterns(
-        JSON.stringify(['media.example.com'])
-      )
-
-      expect(patterns).toEqual([
-        {
-          protocol: 'https',
-          hostname: 'media.example.com'
-        },
-        {
-          protocol: 'https',
-          hostname: 'social.example.com'
-        }
-      ])
-    } finally {
-      if (originalHost === undefined) {
-        delete process.env.ACTIVITIES_HOST
-      } else {
-        process.env.ACTIVITIES_HOST = originalHost
-      }
-    }
-  })
-
-  it('normalizes default HTTPS ports in image host patterns', () => {
-    const patterns = getImageRemotePatterns(
-      JSON.stringify(['https://cdn.example.com:443/Images'])
-    )
-
-    expect(patterns).toEqual([
-      {
-        protocol: 'https',
-        hostname: 'cdn.example.com',
-        pathname: '/Images/**'
-      }
-    ])
-  })
-
-  it('rejects wildcard image host configuration', () => {
-    expect(getImageRemotePatterns(JSON.stringify(['**']))).toEqual([])
-    expect(getImageRemotePatterns(JSON.stringify(['*.example.com']))).toEqual(
-      []
-    )
-  })
-
-  it('rejects malformed image host configuration', () => {
-    expect(() => getImageRemotePatterns('{')).toThrow(
-      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
-    )
-  })
-
-  it('rejects non-array image host configuration', () => {
-    expect(() => getImageRemotePatterns(JSON.stringify({}))).toThrow(
-      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
-    )
-    expect(() => getImageRemotePatterns(JSON.stringify('example.com'))).toThrow(
-      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
-    )
   })
 })
