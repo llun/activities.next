@@ -10,11 +10,21 @@ const ROOT_SOURCE_FILES = [
 ]
 
 const RUNTIME_CONFIG_PATTERN =
-  /process\.env(?:\.(?:ACTIVITIES|OTEL_EXPORTER)_|\[['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]\])|['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]/
+  /process\.env(?:\.(?:ACTIVITIES|OTEL_EXPORTER)_|\[['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]\])|=\s*['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]/
+
+const IGNORED_SOURCE_PATH_SEGMENTS = [
+  `${path.sep}__mocks__${path.sep}`,
+  `${path.sep}fixtures${path.sep}`,
+  `${path.sep}stub${path.sep}`
+]
 
 const isSourceFile = (filePath: string) =>
   /\.(ts|tsx|js|mjs)$/.test(filePath) &&
-  !/\.test\.(ts|tsx|js|mjs)$/.test(filePath)
+  !/\.(test|spec)\.(ts|tsx|js|mjs)$/.test(filePath) &&
+  !IGNORED_SOURCE_PATH_SEGMENTS.some((segment) => filePath.includes(segment))
+
+const hasRuntimeConfigAccessViolation = (source: string) =>
+  RUNTIME_CONFIG_PATTERN.test(source)
 
 const collectSourceFiles = (directory: string): string[] => {
   if (!fs.existsSync(directory)) return []
@@ -41,10 +51,50 @@ describe('runtime config access boundaries', () => {
           !filePath.includes(`${path.sep}lib${path.sep}config${path.sep}`)
       )
       .filter((filePath) =>
-        RUNTIME_CONFIG_PATTERN.test(fs.readFileSync(filePath, 'utf-8'))
+        hasRuntimeConfigAccessViolation(fs.readFileSync(filePath, 'utf-8'))
       )
       .map((filePath) => path.relative(rootDirectory, filePath))
 
     expect(violations).toEqual([])
+  })
+
+  it('allows user-facing messages that mention runtime variable names', () => {
+    expect(
+      hasRuntimeConfigAccessViolation(
+        "throw new Error('ACTIVITIES_HOST is required')"
+      )
+    ).toBe(false)
+  })
+
+  it('detects direct runtime environment reads', () => {
+    expect(
+      hasRuntimeConfigAccessViolation(
+        'const host = process.env.ACTIVITIES_HOST'
+      )
+    ).toBe(true)
+    expect(
+      hasRuntimeConfigAccessViolation(
+        "const headers = process.env['OTEL_EXPORTER_OTLP_HEADERS']"
+      )
+    ).toBe(true)
+  })
+
+  it('detects environment variable name constants', () => {
+    expect(
+      hasRuntimeConfigAccessViolation("const HOST_ENV = 'ACTIVITIES_HOST'")
+    ).toBe(true)
+  })
+
+  it('ignores test scaffolding and fixtures', () => {
+    expect(isSourceFile(path.join('lib', 'feature', 'sample.spec.ts'))).toBe(
+      false
+    )
+    expect(
+      isSourceFile(path.join('lib', 'feature', '__mocks__', 'config.ts'))
+    ).toBe(false)
+    expect(
+      isSourceFile(path.join('lib', 'feature', 'fixtures', 'config.ts'))
+    ).toBe(false)
+    expect(isSourceFile(path.join('lib', 'stub', 'config.ts'))).toBe(false)
   })
 })

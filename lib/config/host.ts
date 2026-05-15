@@ -1,5 +1,4 @@
-import fs from 'fs'
-import path from 'path'
+import { readRuntimeConfigFile } from './runtimeConfigFile'
 
 export type HostConfig = {
   host: string
@@ -49,24 +48,18 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const getFileProxyHostConfig = (): HostConfig | null => {
-  try {
-    const parsed = JSON.parse(
-      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
-    )
-    if (!isRecord(parsed)) {
-      return null
-    }
-
-    const hasHostConfig =
-      typeof parsed.host === 'string' || Array.isArray(parsed.trustedHosts)
-    if (!hasHostConfig) return null
-
-    return {
-      host: typeof parsed.host === 'string' ? parsed.host : '',
-      trustedHosts: toStringList(parsed.trustedHosts, 'trustedHosts')
-    }
-  } catch {
+  const parsed = readRuntimeConfigFile()
+  if (!isRecord(parsed)) {
     return null
+  }
+
+  const hasHostConfig =
+    typeof parsed.host === 'string' || Array.isArray(parsed.trustedHosts)
+  if (!hasHostConfig) return null
+
+  return {
+    host: typeof parsed.host === 'string' ? parsed.host : '',
+    trustedHosts: toStringList(parsed.trustedHosts, 'trustedHosts')
   }
 }
 

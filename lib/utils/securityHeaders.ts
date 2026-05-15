@@ -78,11 +78,24 @@ const hasPublicMapboxAccessToken = (
   fitnessStorage: ReturnType<typeof getSecurityHeaderConfig>['fitnessStorage']
 ) => fitnessStorage?.mapboxAccessToken?.trim().startsWith('pk.') ?? false
 
+let cachedContentSecurityPolicy: string | null = null
+
+export const resetContentSecurityPolicyCacheForTests = () => {
+  cachedContentSecurityPolicy = null
+}
+
 export const getContentSecurityPolicy = () => {
-  const { mediaStorage, fitnessStorage } = getSecurityHeaderConfig()
+  if (cachedContentSecurityPolicy) return cachedContentSecurityPolicy
+
+  const { allowMediaDomains, mediaStorage, fitnessStorage } =
+    getSecurityHeaderConfig()
   const mediaStorageSource = getCspSource(getStorageHostname(mediaStorage))
   const fitnessStorageSource = getCspSource(getStorageHostname(fitnessStorage))
   const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
+  const configuredImageSources = allowMediaDomains.flatMap((source) => {
+    const cspSource = getCspSource(source)
+    return cspSource ? [cspSource] : []
+  })
   const connectSources = Array.from(
     new Set([
       "'self'",
@@ -94,13 +107,15 @@ export const getContentSecurityPolicy = () => {
       ...(isDevelopment() ? ['ws:', 'wss:'] : [])
     ])
   ).join(' ')
-  const imageSources = [
-    "'self'",
-    'data:',
-    'blob:',
-    'https:',
-    ...(mediaStorageSource ? [mediaStorageSource] : [])
-  ].join(' ')
+  const imageSources = Array.from(
+    new Set([
+      "'self'",
+      'data:',
+      'blob:',
+      ...(configuredImageSources.length ? configuredImageSources : ['https:']),
+      ...(mediaStorageSource ? [mediaStorageSource] : [])
+    ])
+  ).join(' ')
   const scriptSources = [
     "'self'",
     "'unsafe-inline'",
@@ -113,19 +128,20 @@ export const getContentSecurityPolicy = () => {
     ...(allowMapboxSources ? ['https://api.mapbox.com'] : [])
   ].join(' ')
 
-  return [
+  const csp = [
     "default-src 'none'",
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    // Static Next headers cannot attach a per-request nonce to framework
-    // hydration scripts, so inline scripts remain allowed but origins do not.
+    // Next framework hydration still emits inline script/style content here;
+    // nonce wiring can be added separately from runtime origin generation.
     `script-src ${scriptSources}`,
     `style-src ${styleSources}`,
     // Federated avatars and remote emoji are intentionally unbounded browser
-    // image loads. next/image optimization is disabled so this does not
-    // reintroduce arbitrary server-side media fetches.
+    // image loads unless an operator configures allowMediaDomains.
+    // next/image optimization is disabled so this does not reintroduce
+    // arbitrary server-side media fetches.
     `img-src ${imageSources}`,
     `connect-src ${connectSources}`,
     "font-src 'self' data:",
@@ -133,18 +149,20 @@ export const getContentSecurityPolicy = () => {
     "media-src 'self' https: blob:",
     "worker-src 'self' blob:"
   ].join('; ')
+
+  cachedContentSecurityPolicy = csp
+  return cachedContentSecurityPolicy
 }
 
+export const getContentSecurityPolicyHeader = (): SecurityHeader => ({
+  key: 'Content-Security-Policy',
+  value: getContentSecurityPolicy()
+})
+
 export const getSecurityHeaders = ({
-  includeContentSecurityPolicy = true
+  includeContentSecurityPolicy = true,
+  includeStaticSecurityHeaders = true
 } = {}): SecurityHeader[] => [
-  ...(includeContentSecurityPolicy
-    ? [
-        {
-          key: 'Content-Security-Policy',
-          value: getContentSecurityPolicy()
-        }
-      ]
-    : []),
-  ...getStaticSecurityHeaders()
+  ...(includeContentSecurityPolicy ? [getContentSecurityPolicyHeader()] : []),
+  ...(includeStaticSecurityHeaders ? getStaticSecurityHeaders() : [])
 ]

@@ -4,9 +4,9 @@ import { NextRequest } from 'next/server'
 import { POST, resetAppRegistrationWarningStateForTests } from './route'
 
 const mockGetConfig = jest.fn(() => ({
-  secretPhase: 'registration-pepper-secret',
-  trustProxyIpHeaders: false
+  secretPhase: 'registration-pepper-secret'
 }))
+const mockGetTrustProxyIpHeadersConfig = jest.fn(() => false)
 
 const hashIpRegistrationKey = (ip: string) =>
   `ip:${crypto
@@ -23,6 +23,10 @@ jest.mock('@/lib/database', () => ({
 
 jest.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
+}))
+
+jest.mock('@/lib/config/trustProxyIpHeaders', () => ({
+  getTrustProxyIpHeadersConfig: () => mockGetTrustProxyIpHeadersConfig()
 }))
 
 jest.mock('@/lib/utils/logger', () => ({
@@ -43,9 +47,10 @@ describe('apps route', () => {
     resetAppRegistrationWarningStateForTests()
     mockGetConfig.mockClear()
     mockGetConfig.mockReturnValue({
-      secretPhase: 'registration-pepper-secret',
-      trustProxyIpHeaders: false
+      secretPhase: 'registration-pepper-secret'
     })
+    mockGetTrustProxyIpHeadersConfig.mockClear()
+    mockGetTrustProxyIpHeadersConfig.mockReturnValue(false)
     mockCreateApplication.mockReset()
     mockLoggerWarn.mockReset()
     mockCreateApplication.mockResolvedValue({
@@ -90,10 +95,7 @@ describe('apps route', () => {
   })
 
   test('uses the originating forwarded IP when forwarded IP headers are trusted', async () => {
-    mockGetConfig.mockReturnValue({
-      secretPhase: 'registration-pepper-secret',
-      trustProxyIpHeaders: true
-    })
+    mockGetTrustProxyIpHeadersConfig.mockReturnValue(true)
     const forwardedReq = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
       headers: {

@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
+import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
@@ -29,11 +30,8 @@ export const resetAppRegistrationWarningStateForTests = () => {
   hasWarnedMissingAppRegistrationSource = false
 }
 
-const shouldTrustProxyIpHeaders = (): boolean =>
-  getConfig().trustProxyIpHeaders === true
-
 const getTrustedClientIp = (req: NextRequest): string | undefined => {
-  if (!shouldTrustProxyIpHeaders()) return undefined
+  if (!getTrustProxyIpHeadersConfig()) return undefined
 
   const cfConnectingIp = req.headers.get('cf-connecting-ip')?.trim()
   if (cfConnectingIp) return cfConnectingIp

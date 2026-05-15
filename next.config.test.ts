@@ -3,7 +3,11 @@ import os from 'os'
 import path from 'path'
 
 import { getImageRemotePatterns } from '@/lib/config/nextImageRemotePatterns'
-import { getSecurityHeaders } from '@/lib/utils/securityHeaders'
+import {
+  getContentSecurityPolicy,
+  getSecurityHeaders,
+  resetContentSecurityPolicyCacheForTests
+} from '@/lib/utils/securityHeaders'
 
 import nextConfig from './next.config'
 
@@ -27,10 +31,12 @@ const withEnv = <T>(
       process.env[key] = value
     }
   }
+  resetContentSecurityPolicyCacheForTests()
 
   try {
     return callback()
   } finally {
+    resetContentSecurityPolicyCacheForTests()
     for (const [key, value] of Object.entries(previousValues)) {
       if (value === undefined) {
         delete process.env[key]
@@ -275,6 +281,31 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('uses configured media domains as the runtime image source allowlist', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_MEDIA_DOMAINS: JSON.stringify([
+          'images.example.com',
+          'https://cdn.example.com/assets'
+        ])
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+
+        expect(imageSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'data:',
+            'blob:',
+            'https://images.example.com',
+            'https://cdn.example.com'
+          ])
+        )
+        expect(imageSources).not.toContain('https:')
+      }
+    )
+  })
+
   it('allows default S3 presigned upload hosts in connect-src', () => {
     withEnv(
       {
@@ -292,6 +323,27 @@ describe('next config security hardening', () => {
             'https://s3.eu-west-1.amazonaws.com'
           ])
         )
+      }
+    )
+  })
+
+  it('caches CSP for the process lifetime', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'initial-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-west-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined
+      },
+      () => {
+        const initialPolicy = getContentSecurityPolicy()
+
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'updated-bucket'
+
+        expect(getContentSecurityPolicy()).toBe(initialPolicy)
+
+        resetContentSecurityPolicyCacheForTests()
+        expect(getContentSecurityPolicy()).toContain('updated-bucket')
       }
     )
   })
@@ -441,6 +493,7 @@ describe('next config security hardening', () => {
     )
 
     try {
+      resetContentSecurityPolicyCacheForTests()
       const connectSources = getCspDirectiveSources('connect-src')
 
       expect(connectSources).toEqual(
@@ -454,6 +507,7 @@ describe('next config security hardening', () => {
         ])
       )
     } finally {
+      resetContentSecurityPolicyCacheForTests()
       process.chdir(originalCwd)
       fs.rmSync(tempDirectory, { force: true, recursive: true })
 
@@ -480,6 +534,7 @@ describe('next config security hardening', () => {
     )
 
     try {
+      resetContentSecurityPolicyCacheForTests()
       withEnv(
         {
           ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'env-media.example.com',
@@ -492,6 +547,7 @@ describe('next config security hardening', () => {
         }
       )
     } finally {
+      resetContentSecurityPolicyCacheForTests()
       process.chdir(originalCwd)
       fs.rmSync(tempDirectory, { force: true, recursive: true })
     }

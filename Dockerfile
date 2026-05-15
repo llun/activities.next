@@ -19,15 +19,12 @@ WORKDIR /opt/activities.next
 USER app
 
 FROM base AS build
-# Public Mapbox value (starts with pk.) used by next.config.ts to include
-# Mapbox CSP sources in standalone build response headers.
-ARG MAPBOX_PUBLIC_VALUE=""
 ADD --chown=app:app . /opt/activities.next/
 RUN yarn config set -H enableGlobalCache true
 RUN yarn install --immutable
 RUN yarn dedupe
 RUN ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions
-RUN ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN="${MAPBOX_PUBLIC_VALUE}" ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
+RUN ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
 
 FROM base AS output
 ENV NODE_ENV="production"

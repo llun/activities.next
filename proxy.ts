@@ -3,18 +3,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import { selectHeaderHost } from '@/lib/utils/host'
-import { getSecurityHeaders } from '@/lib/utils/securityHeaders'
+import { getContentSecurityPolicyHeader } from '@/lib/utils/securityHeaders'
 
 export const config = {
-  matcher: ['/:path*']
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|activities/_next).*)']
 }
 
 const proxyHeaderHost = (headers: Headers): string => {
   return selectHeaderHost(headers, getProxyHostConfig())
 }
 
-const withSecurityHeaders = (response: NextResponse) => {
-  for (const header of getSecurityHeaders()) {
+const withContentSecurityPolicy = (response: NextResponse) => {
+  const header = getContentSecurityPolicyHeader()
+  if (!response.headers.has(header.key)) {
     response.headers.set(header.key, header.value)
   }
 
@@ -39,7 +40,7 @@ export async function proxy(request: NextRequest) {
         const matches = pathname.match(/^\/@(?<username>\w+)/)
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
-        return withSecurityHeaders(NextResponse.rewrite(apiUrl))
+        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl))
       }
 
       // Actor status route
@@ -49,7 +50,7 @@ export async function proxy(request: NextRequest) {
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
-        return withSecurityHeaders(NextResponse.rewrite(apiUrl))
+        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl))
       }
     }
 
@@ -59,7 +60,9 @@ export async function proxy(request: NextRequest) {
       const totalAt = pathname
         .split('')
         .reduce((count, char) => (char === '@' ? count + 1 : count), 0)
-      if (totalAt === 2) return NextResponse.next()
+      if (totalAt === 2) {
+        return withContentSecurityPolicy(NextResponse.next())
+      }
 
       const host = proxyHeaderHost(request.headers) || request.nextUrl.host
       const pathItems = pathname.split('/').slice(1)
@@ -67,11 +70,11 @@ export async function proxy(request: NextRequest) {
 
       const cloneUrl = request.nextUrl.clone()
       cloneUrl.pathname = `/${pathItems.join('/')}`
-      return withSecurityHeaders(NextResponse.rewrite(cloneUrl))
+      return withContentSecurityPolicy(NextResponse.rewrite(cloneUrl))
     }
 
-    return withSecurityHeaders(NextResponse.next())
+    return withContentSecurityPolicy(NextResponse.next())
   }
 
-  return withSecurityHeaders(NextResponse.next())
+  return withContentSecurityPolicy(NextResponse.next())
 }
