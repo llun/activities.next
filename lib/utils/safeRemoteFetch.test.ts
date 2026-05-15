@@ -350,6 +350,77 @@ describe('safeRemoteFetch', () => {
     })
   })
 
+  it('keeps dynamic credentials stripped after cross-host redirect chains', async () => {
+    const seenRequests: Array<{
+      url: string
+      headers: Record<string, string | string[] | undefined>
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ headers, url }) => {
+        seenRequests.push({ headers, url: url.toString() })
+        if (url.hostname === 'safe.example') {
+          return {
+            statusCode: 302,
+            headers: {
+              location: 'https://other.example/redirected'
+            },
+            body: streamFrom([])
+          }
+        }
+
+        if (url.pathname === '/redirected') {
+          return {
+            statusCode: 302,
+            headers: {
+              location: 'https://other.example/final'
+            },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      url: 'https://safe.example/actor',
+      headers: ({ url }) => ({
+        authorization: 'Bearer secret',
+        cookie: 'session=secret',
+        signature: `keyId="${url.toString()}",signature="secret"`
+      })
+    })
+
+    expect(seenRequests).toEqual([
+      {
+        url: 'https://safe.example/actor',
+        headers: expect.objectContaining({
+          authorization: 'Bearer secret',
+          cookie: 'session=secret',
+          host: 'safe.example',
+          signature: 'keyId="https://safe.example/actor",signature="secret"'
+        })
+      },
+      {
+        url: 'https://other.example/redirected',
+        headers: expect.not.objectContaining({
+          authorization: expect.any(String),
+          cookie: expect.any(String),
+          signature: expect.any(String)
+        })
+      },
+      {
+        url: 'https://other.example/final',
+        headers: expect.not.objectContaining({
+          authorization: expect.any(String),
+          cookie: expect.any(String),
+          signature: expect.any(String)
+        })
+      }
+    ])
+  })
+
   it('destroys redirect response bodies without buffering them', async () => {
     const redirectBody = streamFrom(['redirect body'])
     const destroy = jest.spyOn(redirectBody, 'destroy')
