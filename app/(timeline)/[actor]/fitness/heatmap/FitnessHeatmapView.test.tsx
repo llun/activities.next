@@ -318,6 +318,25 @@ describe('FitnessHeatmapView', () => {
     })
   })
 
+  it('keeps the route map in a full-width region outside the route cache panel', async () => {
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    const routeMapRegion = await screen.findByRole('region', {
+      name: 'Route heatmap map'
+    })
+    const routeCacheHeading = screen.getByRole('heading', {
+      name: 'Route Cache'
+    })
+
+    expect(routeMapRegion).not.toContainElement(routeCacheHeading)
+    // The cache panel should follow the full-width map region instead of
+    // being nested beside it in the same grid row.
+    expect(
+      routeMapRegion.compareDocumentPosition(routeCacheHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it('clears all route caches without immediately requeueing the current selection', async () => {
     mockClearFitnessRouteHeatmaps.mockResolvedValue(2)
     mockGetFitnessRouteHeatmap

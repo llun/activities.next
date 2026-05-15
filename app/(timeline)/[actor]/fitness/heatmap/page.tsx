@@ -72,6 +72,7 @@ const Page: FC<Props> = async ({ params }) => {
         <Button variant="ghost" size="icon" asChild>
           <Link href={`/@${currentActor.username}@${actorDomain}/fitness`}>
             <ArrowLeft className="h-5 w-5" />
+            <span className="sr-only">Back to fitness</span>
           </Link>
         </Button>
         <div>

@@ -56,9 +56,10 @@ const RetryButton: FC<RetryButtonProps> = ({
   return (
     <span className="inline-flex flex-col gap-0.5">
       <button
+        type="button"
         className={cn(
           'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium',
-          'text-muted-foreground hover:bg-muted hover:text-foreground transition-colors',
+          'text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           isRetrying && 'pointer-events-none opacity-50'
         )}
         disabled={isRetrying}
@@ -79,7 +80,11 @@ const RetryButton: FC<RetryButtonProps> = ({
         <RefreshCw className={cn('size-3', isRetrying && 'animate-spin')} />
         {label}
       </button>
-      {error && <span className="text-destructive text-xs">{error}</span>}
+      {error && (
+        <span aria-live="polite" className="text-destructive text-xs">
+          {error}
+        </span>
+      )}
     </span>
   )
 }
@@ -146,7 +151,8 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
   return (
     <div className="flex items-start gap-2 rounded p-2 hover:bg-muted">
       <button
-        className="flex flex-1 flex-col gap-1 text-left"
+        type="button"
+        className="flex min-w-0 flex-1 flex-col gap-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => onSelect(heatmap)}
       >
         <span className="flex items-center gap-1.5 text-xs">
@@ -156,12 +162,12 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
             {formatRelativeTime(currentTime - heatmap.updatedAt)}
           </span>
         </span>
-        <span className="text-sm">
+        <span className="break-words text-sm">
           {formatActivityType(heatmap.activityType)} ·{' '}
           {formatPeriod(heatmap.periodType, heatmap.periodKey)}
         </span>
         {regionLabel && (
-          <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+          <span className="inline-block max-w-full break-words rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
             {regionLabel}
           </span>
         )}
@@ -229,7 +235,9 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
       {completed.length > 0 && (
         <div className="flex flex-col gap-1">
           <button
-            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            type="button"
+            aria-expanded={isCompletedOpen}
+            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => setIsCompletedOpen((prev) => !prev)}
           >
             {isCompletedOpen ? (
