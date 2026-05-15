@@ -25,6 +25,14 @@ const okResponse = (body = 'ok') => ({
   body: streamFrom([body])
 })
 
+const expectSensitiveHeadersStripped = (
+  headers: Record<string, string | string[] | undefined>
+) => {
+  expect(headers).not.toHaveProperty('authorization')
+  expect(headers).not.toHaveProperty('cookie')
+  expect(headers).not.toHaveProperty('signature')
+}
+
 describe('safeRemoteFetch', () => {
   afterEach(() => {
     mockGotStream.mockReset()
@@ -298,14 +306,8 @@ describe('safeRemoteFetch', () => {
       }
     })
 
-    expect(seenRequests[1]).toEqual({
-      url: 'https://other.example/private-key',
-      headers: expect.not.objectContaining({
-        authorization: expect.any(String),
-        cookie: expect.any(String),
-        signature: expect.any(String)
-      })
-    })
+    expect(seenRequests[1]?.url).toBe('https://other.example/private-key')
+    expectSensitiveHeadersStripped(seenRequests[1].headers)
   })
 
   it('strips dynamic credentials and auth headers on cross-host redirects', async () => {
@@ -340,14 +342,8 @@ describe('safeRemoteFetch', () => {
       })
     })
 
-    expect(seenRequests[1]).toEqual({
-      url: 'https://other.example/private-key',
-      headers: expect.not.objectContaining({
-        authorization: expect.any(String),
-        cookie: expect.any(String),
-        signature: expect.any(String)
-      })
-    })
+    expect(seenRequests[1]?.url).toBe('https://other.example/private-key')
+    expectSensitiveHeadersStripped(seenRequests[1].headers)
   })
 
   it('keeps dynamic credentials stripped after cross-host redirect chains', async () => {
@@ -392,33 +388,20 @@ describe('safeRemoteFetch', () => {
       })
     })
 
-    expect(seenRequests).toEqual([
-      {
-        url: 'https://safe.example/actor',
-        headers: expect.objectContaining({
-          authorization: 'Bearer secret',
-          cookie: 'session=secret',
-          host: 'safe.example',
-          signature: 'keyId="https://safe.example/actor",signature="secret"'
-        })
-      },
-      {
-        url: 'https://other.example/redirected',
-        headers: expect.not.objectContaining({
-          authorization: expect.any(String),
-          cookie: expect.any(String),
-          signature: expect.any(String)
-        })
-      },
-      {
-        url: 'https://other.example/final',
-        headers: expect.not.objectContaining({
-          authorization: expect.any(String),
-          cookie: expect.any(String),
-          signature: expect.any(String)
-        })
-      }
-    ])
+    expect(seenRequests).toHaveLength(3)
+    expect(seenRequests[0]).toEqual({
+      url: 'https://safe.example/actor',
+      headers: expect.objectContaining({
+        authorization: 'Bearer secret',
+        cookie: 'session=secret',
+        host: 'safe.example',
+        signature: 'keyId="https://safe.example/actor",signature="secret"'
+      })
+    })
+    expect(seenRequests[1]?.url).toBe('https://other.example/redirected')
+    expectSensitiveHeadersStripped(seenRequests[1].headers)
+    expect(seenRequests[2]?.url).toBe('https://other.example/final')
+    expectSensitiveHeadersStripped(seenRequests[2].headers)
   })
 
   it('destroys redirect response bodies without buffering them', async () => {
