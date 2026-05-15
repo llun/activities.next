@@ -1,8 +1,10 @@
 import {
   DeleteObjectCommand,
   HeadObjectCommand,
+  PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
@@ -25,6 +27,10 @@ jest.mock('@aws-sdk/client-s3', () => {
   }
 })
 
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: jest.fn().mockResolvedValue('https://storage.example/upload')
+}))
+
 describe('S3FileStorage presigned upload completion', () => {
   const send = jest.fn()
   const actor = {
@@ -35,7 +41,11 @@ describe('S3FileStorage presigned upload completion', () => {
   const checksumBase64 = Buffer.from(checksumHex, 'hex').toString('base64')
 
   const database = {
+    createMedia: jest.fn(),
+    getActorFromId: jest.fn(),
+    getFitnessStorageUsageForAccount: jest.fn(),
     getMediaByIdForAccount: jest.fn(),
+    getStorageUsageForAccount: jest.fn(),
     markMediaUploadVerified: jest.fn(),
     deleteMedia: jest.fn()
   } as unknown as jest.Mocked<Database>
@@ -45,6 +55,23 @@ describe('S3FileStorage presigned upload completion', () => {
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       () => ({ send }) as unknown as S3Client
     )
+    database.createMedia.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: 1024,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+    database.getActorFromId.mockResolvedValue(actor)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
     database.getMediaByIdForAccount.mockResolvedValue({
       id: 'media-1',
       actorId: 'actor-1',
@@ -89,6 +116,47 @@ describe('S3FileStorage presigned upload completion', () => {
       }
     } as never)
     database.deleteMedia.mockResolvedValue(true)
+  })
+
+  it('signs checksum headers required by browser presigned uploads', async () => {
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await storage.getPresigedForSaveFileUrl(actor, {
+      fileName: 'upload.png',
+      checksum: checksumHex,
+      width: 10,
+      height: 10,
+      contentType: 'image/png',
+      size: 1024
+    })
+
+    expect(PutObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ChecksumSHA1: checksumBase64,
+        Metadata: {
+          checksumSha1: checksumHex
+        }
+      })
+    )
+    const presignOptions = (getSignedUrl as jest.Mock).mock.calls[0][2]
+    expect(getSignedUrl).toHaveBeenCalledTimes(1)
+    expect(presignOptions.expiresIn).toBe(600)
+    expect(presignOptions.signableHeaders).toBeUndefined()
+    expect(presignOptions.unhoistableHeaders.has('x-amz-checksum-sha1')).toBe(
+      true
+    )
+    expect(
+      presignOptions.unhoistableHeaders.has('x-amz-meta-checksumsha1')
+    ).toBe(true)
   })
 
   it('rejects oversized presigned uploads before marking media usable', async () => {
