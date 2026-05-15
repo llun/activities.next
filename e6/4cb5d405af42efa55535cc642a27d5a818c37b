@@ -1,0 +1,23 @@
+next.config.test.ts
+  s_8ca4a458a9cece::t_dc2ddb11e7b68d 294,306-314
+lib/utils/securityHeaders.ts
+  s_8ca4a458a9cece::t_dc2ddb11e7b68d 123-130,161
+jest.setup-after-env.ts
+  s_8ca4a458a9cece::t_dc2ddb11e7b68d 4,9,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e64cb5d405af42efa55535cc642a27d5a818c37b",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
