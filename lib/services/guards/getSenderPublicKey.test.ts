@@ -676,7 +676,11 @@ describe('getSenderPublicKey', () => {
     const signingActor = await database.getFederationSigningActor()
     if (!signingActor) fail('Federation signing actor is required')
 
-    const redirectedRequest = fetchMock.mock.calls.at(1)?.[1]
+    const redirectedCall = fetchMock.mock.calls.find(
+      ([url]) => url === redirectTarget
+    )
+    expect(redirectedCall).toBeDefined()
+    const redirectedRequest = redirectedCall?.[1]
     const redirectedHeaders = redirectedRequest?.headers as Record<
       string,
       string
