@@ -37,7 +37,6 @@ jest.mock('@/lib/utils/logger', () => ({
 }))
 
 jest.mock('@/lib/utils/trace', () => ({
-  getSpan: () => mockSpan,
   getTracer: () => ({
     startActiveSpan: mockStartActiveSpan
   })
