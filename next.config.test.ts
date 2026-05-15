@@ -161,6 +161,15 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('leaves CSP to the runtime proxy response headers', async () => {
+    const headers = await nextConfig.headers?.()
+    const staticHeaders = headers?.flatMap((entry) => entry.headers) ?? []
+
+    expect(
+      staticHeaders.some((header) => header.key === 'Content-Security-Policy')
+    ).toBe(false)
+  })
+
   it('allows development websocket connections for Next and HMR', () => {
     withEnv(
       {
