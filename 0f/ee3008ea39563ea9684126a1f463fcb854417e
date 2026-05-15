@@ -1,0 +1,23 @@
+lib/config/envAccess.test.ts
+  s_8ca4a458a9cece::t_f92758a7364723 9,12
+lib/config/securityHeaders.ts
+  s_8ca4a458a9cece::t_68712e439723e0 12-13
+lib/utils/securityHeaders.ts
+  s_8ca4a458a9cece::t_3c45c567eb3f69 75-76,95-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0fee3008ea39563ea9684126a1f463fcb854417e",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

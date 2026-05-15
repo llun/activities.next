@@ -1,0 +1,25 @@
+next.config.test.ts
+  s_8ca4a458a9cece::t_a7a3a400d5d683 258-262,280-283,99
+  s_8ca4a458a9cece::t_306c9942c24f46 377-379,72,75,89,102
+  s_8ca4a458a9cece::t_ceeb982c104010 383-384,386,389,391,397-399,76,104,409,417-418
+lib/config/host.ts
+  s_8ca4a458a9cece::t_723d15bb9f93ed 69
+proxy.test.ts
+  s_8ca4a458a9cece::t_5e36a3bf94832f 7,111-112,248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b60e7d8af67921f030a8d26d5b0e1ced64ba55c0",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

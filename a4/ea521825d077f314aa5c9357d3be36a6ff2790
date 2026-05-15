@@ -1,0 +1,31 @@
+lib/config/envAccess.test.ts
+  s_8ca4a458a9cece::t_f92758a7364723 14,18,10
+  s_8ca4a458a9cece::t_edb4b2304d8429 5-9,16
+lib/config/securityHeaders.ts
+  s_8ca4a458a9cece::t_68712e439723e0 15-25,27-31,33-35,44,50,52-54,69-71
+  s_8ca4a458a9cece::t_723d15bb9f93ed 26,32,36,49,51
+next.config.test.ts
+  s_8ca4a458a9cece::t_a7a3a400d5d683 273-277,295-298,100
+  s_8ca4a458a9cece::t_306c9942c24f46 392-394,73,76,90,103,395,400-417,420-421,427-431,433-438,440,444,446-454,460-464,466
+  s_8ca4a458a9cece::t_ceeb982c104010 503-504,506,509,511,517-519,77,105,529,537-538,396-399,418-419,422-426,432,439,441-443,445,455-459,465,467-499
+knexfile.js
+  s_8ca4a458a9cece::t_68712e439723e0 3,5,8-10
+lib/config/knexfile.js
+  s_8ca4a458a9cece::t_68712e439723e0 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a4ea521825d077f314aa5c9357d3be36a6ff2790",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
