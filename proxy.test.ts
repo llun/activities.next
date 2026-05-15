@@ -157,8 +157,29 @@ describe('proxy', () => {
 
   it('does not run the proxy on static asset paths', () => {
     expect(proxyConfig.matcher).toEqual([
-      '/((?!_next/static|_next/image|favicon\\.ico|activities/_next).*)'
+      '/((?!(?:_next/static|_next/image)(?:/|$)|favicon\\.ico$|activities/_next(?:/|$)).*)'
     ])
+  })
+
+  it('matches static asset paths with path segment boundaries', () => {
+    const matcher = new RegExp(`^${proxyConfig.matcher[0]}$`)
+
+    for (const pathname of [
+      '/activities/_next',
+      '/activities/_next/',
+      '/activities/_next/static/chunk.js'
+    ]) {
+      expect(matcher.test(pathname)).toBe(false)
+    }
+
+    for (const pathname of [
+      '/activities',
+      '/activities/',
+      '/activities/_nextish',
+      '/@alice'
+    ]) {
+      expect(matcher.test(pathname)).toBe(true)
+    }
   })
 
   it('uses trusted forwarded host from environment config', async () => {

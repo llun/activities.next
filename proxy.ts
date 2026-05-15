@@ -6,7 +6,9 @@ import { selectHeaderHost } from '@/lib/utils/host'
 import { getContentSecurityPolicyHeader } from '@/lib/utils/securityHeaders'
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|activities/_next).*)']
+  matcher: [
+    '/((?!(?:_next/static|_next/image)(?:/|$)|favicon\\.ico$|activities/_next(?:/|$)).*)'
+  ]
 }
 
 const proxyHeaderHost = (headers: Headers): string => {

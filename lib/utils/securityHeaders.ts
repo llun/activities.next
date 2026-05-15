@@ -81,6 +81,10 @@ const hasPublicMapboxAccessToken = (
 let cachedContentSecurityPolicy: string | null = null
 
 export const resetContentSecurityPolicyCacheForTests = () => {
+  if (!process.env.JEST_WORKER_ID) {
+    throw new Error('resetContentSecurityPolicyCacheForTests is test-only')
+  }
+
   cachedContentSecurityPolicy = null
 }
 

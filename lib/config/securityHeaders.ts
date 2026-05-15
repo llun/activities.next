@@ -31,16 +31,31 @@ const getEnvironmentStringList = (key: string): string[] => {
   }
 }
 
+const stripUndefinedStorageConfig = (
+  config: SecurityHeaderStorageConfig
+): SecurityHeaderStorageConfig => {
+  const nextConfig: SecurityHeaderStorageConfig = {}
+  if (config.type !== undefined) nextConfig.type = config.type
+  if (config.bucket !== undefined) nextConfig.bucket = config.bucket
+  if (config.region !== undefined) nextConfig.region = config.region
+  if (config.hostname !== undefined) nextConfig.hostname = config.hostname
+  if (config.mapboxAccessToken !== undefined) {
+    nextConfig.mapboxAccessToken = config.mapboxAccessToken
+  }
+
+  return nextConfig
+}
+
 const getStorageConfig = (value: unknown): SecurityHeaderStorageConfig => {
   if (!isRecord(value)) return {}
 
-  return {
+  return stripUndefinedStorageConfig({
     type: getStringValue(value.type),
     bucket: getStringValue(value.bucket),
     region: getStringValue(value.region),
     hostname: getStringValue(value.hostname),
     mapboxAccessToken: getStringValue(value.mapboxAccessToken)
-  }
+  })
 }
 
 const getFileSecurityHeaderConfig = (): SecurityHeaderConfig | null => {
@@ -78,5 +93,25 @@ const getEnvironmentSecurityHeaderConfig = (): SecurityHeaderConfig => ({
   }
 })
 
-export const getSecurityHeaderConfig = (): SecurityHeaderConfig =>
-  getFileSecurityHeaderConfig() ?? getEnvironmentSecurityHeaderConfig()
+export const getSecurityHeaderConfig = (): SecurityHeaderConfig => {
+  const fileConfig = getFileSecurityHeaderConfig() ?? {
+    allowMediaDomains: [],
+    mediaStorage: {},
+    fitnessStorage: {}
+  }
+  const environmentConfig = getEnvironmentSecurityHeaderConfig()
+
+  return {
+    allowMediaDomains: environmentConfig.allowMediaDomains.length
+      ? environmentConfig.allowMediaDomains
+      : fileConfig.allowMediaDomains,
+    mediaStorage: {
+      ...fileConfig.mediaStorage,
+      ...stripUndefinedStorageConfig(environmentConfig.mediaStorage)
+    },
+    fitnessStorage: {
+      ...fileConfig.fitnessStorage,
+      ...stripUndefinedStorageConfig(environmentConfig.fitnessStorage)
+    }
+  }
+}

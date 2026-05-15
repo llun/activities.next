@@ -521,6 +521,69 @@ describe('next config security hardening', () => {
     }
   })
 
+  it('layers environment storage origins over runtime config file storage origins in connect-src', () => {
+    const originalCwd = process.cwd()
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'activities-next-')
+    )
+    const originalEnv = {
+      ACTIVITIES_MEDIA_STORAGE_TYPE: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
+      ACTIVITIES_MEDIA_STORAGE_BUCKET:
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
+      ACTIVITIES_MEDIA_STORAGE_REGION:
+        process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
+      ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    }
+
+    for (const key of Object.keys(originalEnv)) {
+      delete process.env[key]
+    }
+
+    process.chdir(tempDirectory)
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        mediaStorage: {
+          type: 's3',
+          bucket: 'file-media-bucket',
+          region: 'eu-central-1'
+        }
+      })
+    )
+
+    try {
+      withEnv(
+        {
+          ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'env-media.example.com'
+        },
+        () => {
+          const connectSources = getCspDirectiveSources('connect-src')
+
+          expect(connectSources).toContain('https://env-media.example.com')
+          expect(connectSources).not.toContain(
+            'https://file-media-bucket.s3.eu-central-1.amazonaws.com'
+          )
+          expect(connectSources).not.toContain(
+            'https://s3.eu-central-1.amazonaws.com'
+          )
+        }
+      )
+    } finally {
+      resetContentSecurityPolicyCacheForTests()
+      process.chdir(originalCwd)
+      fs.rmSync(tempDirectory, { force: true, recursive: true })
+
+      for (const [key, value] of Object.entries(originalEnv)) {
+        if (value === undefined) {
+          delete process.env[key]
+        } else {
+          process.env[key] = value
+        }
+      }
+    }
+  })
+
   it('falls back to environment storage origins when config file has no storage settings', () => {
     const originalCwd = process.cwd()
     const tempDirectory = fs.mkdtempSync(
