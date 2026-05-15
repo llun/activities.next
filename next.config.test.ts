@@ -2,9 +2,10 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
+import { getImageRemotePatterns } from '@/lib/config/nextImageRemotePatterns'
 import { getSecurityHeaders } from '@/lib/utils/securityHeaders'
 
-import nextConfig, { getImageRemotePatterns } from './next.config'
+import nextConfig from './next.config'
 
 const loadNextConfig = async () => {
   jest.resetModules()
@@ -107,6 +108,20 @@ describe('next config runtime isolation', () => {
     expect(
       fs.readFileSync(path.join(originalCwd, 'next.config.ts'), 'utf-8')
     ).not.toContain('ACTIVITIES_')
+  })
+
+  it('keeps utility declarations out of next config source', () => {
+    const source = fs.readFileSync(
+      path.join(originalCwd, 'next.config.ts'),
+      'utf-8'
+    )
+    const topLevelConstNames = Array.from(
+      source.matchAll(/^const\s+([A-Za-z0-9_]+)/gm)
+    ).map((match) => match[1])
+
+    expect(topLevelConstNames).toEqual(['nextConfig'])
+    expect(source).not.toMatch(/^export\s+const\s+/m)
+    expect(source).not.toMatch(/^type\s+/m)
   })
 })
 
