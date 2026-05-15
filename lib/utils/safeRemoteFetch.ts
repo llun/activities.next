@@ -631,15 +631,15 @@ const stripBodyHeaders = (headers: SafeRemoteFetchHeaders) =>
   stripHeaders(headers, BODY_REDIRECT_HEADERS)
 
 const getDynamicHeadersToStrip = ({
-  stripBodyHeaders,
-  stripSensitiveHeaders
+  shouldStripBodyHeaders,
+  shouldStripSensitiveHeaders
 }: {
-  stripBodyHeaders: boolean
-  stripSensitiveHeaders: boolean
+  shouldStripBodyHeaders: boolean
+  shouldStripSensitiveHeaders: boolean
 }) => {
   return new Set([
-    ...(stripBodyHeaders ? DYNAMIC_BODY_REDIRECT_HEADERS : []),
-    ...(stripSensitiveHeaders ? SENSITIVE_REDIRECT_HEADERS : [])
+    ...(shouldStripBodyHeaders ? DYNAMIC_BODY_REDIRECT_HEADERS : []),
+    ...(shouldStripSensitiveHeaders ? SENSITIVE_REDIRECT_HEADERS : [])
   ])
 }
 
@@ -687,8 +687,8 @@ export const createSafeRemoteFetch = ({
         headersToStrip:
           typeof currentHeaders === 'function'
             ? getDynamicHeadersToStrip({
-                stripBodyHeaders: shouldStripDynamicBodyHeaders,
-                stripSensitiveHeaders: shouldStripDynamicSensitiveHeaders
+                shouldStripBodyHeaders: shouldStripDynamicBodyHeaders,
+                shouldStripSensitiveHeaders: shouldStripDynamicSensitiveHeaders
               })
             : undefined,
         method: currentMethod,
