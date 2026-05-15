@@ -1,0 +1,31 @@
+lib/utils/safeRemoteFetch.ts
+  s_fc565d1881ed48::t_3b2a1289a4af72 537
+  s_fc565d1881ed48::t_d2e3973c5d286a 31-38,69,521-536,538-548,656-657,659,706-709,711-712
+lib/utils/safeRemoteFetch.test.ts
+  s_fc565d1881ed48::t_b89aac636f816c 311-352
+lib/services/guards/getSenderPublicKey.ts
+  s_fc565d1881ed48::t_73b9fb999e8375 161-165
+lib/services/guards/getSenderPublicKey.test.ts
+  s_fc565d1881ed48::t_5f0c654d7a4933 40
+  s_fc565d1881ed48::t_d15a3a6c9edba1 644-689,695
+  s_fc565d1881ed48::t_36ef1ec5e600bb 2,14,69-93,690-694
+lib/utils/request.ts
+  s_fc565d1881ed48::t_f0b07301b68a54 4,95
+  s_fc565d1881ed48::t_bd4b403aa1f4b4 5,50,93-94,96-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "cd4a28eb6b87907ca72c1c8c7d914d2391017a7b",
+  "prompts": {},
+  "sessions": {
+    "s_fc565d1881ed48": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2a6e-7a3c-7ee3-9787-a0a0507d4b55",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
