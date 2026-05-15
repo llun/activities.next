@@ -1,7 +1,8 @@
 import { getConfig } from '@/lib/config'
 import {
   DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES,
-  SafeRemoteFetchHeaders,
+  SafeRemoteFetchHeaderBuilderRequest,
+  SafeRemoteFetchHeaderSource,
   SafeRemoteFetchMethod,
   safeRemoteFetch
 } from '@/lib/utils/safeRemoteFetch'
@@ -46,7 +47,7 @@ const SHARED_HEADERS = {
 export interface RequestOptions {
   url: string
   method?: SafeRemoteFetchMethod
-  headers?: SafeRemoteFetchHeaders
+  headers?: SafeRemoteFetchHeaderSource
   body?: string
   responseTimeout?: number
   numberOfRetry?: number
@@ -89,10 +90,16 @@ const getRequestOptions = ({
   return {
     body,
     connectTimeoutInMilliseconds: defaultResponseTimeout,
-    headers: {
-      ...SHARED_HEADERS,
-      ...headers
-    },
+    headers:
+      typeof headers === 'function'
+        ? (request: SafeRemoteFetchHeaderBuilderRequest) => ({
+            ...SHARED_HEADERS,
+            ...headers(request)
+          })
+        : {
+            ...SHARED_HEADERS,
+            ...headers
+          },
     maxBodyBytes,
     method,
     numberOfRetry:

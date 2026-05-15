@@ -1,4 +1,5 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+import crypto from 'node:crypto'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
@@ -10,6 +11,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { logger } from '@/lib/utils/logger'
+import { parse } from '@/lib/utils/signature'
 
 enableFetchMocks()
 
@@ -35,6 +37,7 @@ jest.mock('@/lib/utils/logger', () => ({
 }))
 
 jest.mock('@/lib/utils/trace', () => ({
+  getSpan: () => mockSpan,
   getTracer: () => ({
     startActiveSpan: mockStartActiveSpan
   })
@@ -62,6 +65,31 @@ const createActorDocument = ({
     publicKeyPem
   }
 })
+
+const verifySignedRequestTarget = async ({
+  headers,
+  publicKey,
+  requestTarget
+}: {
+  headers: Record<string, string>
+  publicKey: string
+  requestTarget: string
+}) => {
+  const parsedSignature = await parse(headers.signature)
+  const signedString = (parsedSignature.headers ?? '')
+    .split(' ')
+    .map((header) => {
+      if (header === '(request-target)') {
+        return `(request-target): ${requestTarget}`
+      }
+
+      return `${header}: ${headers[header]}`
+    })
+    .join('\n')
+  const verifier = crypto.createVerify(parsedSignature.algorithm)
+  verifier.update(signedString)
+  return verifier.verify(publicKey, parsedSignature.signature, 'base64')
+}
 
 describe('getSenderPublicKey', () => {
   const database = getTestSQLDatabase()
@@ -611,6 +639,60 @@ describe('getSenderPublicKey', () => {
       host: 'remote.test',
       signature: expect.stringContaining('headers="(request-target) host date"')
     })
+  })
+
+  it('signs redirected remote public key fetches for the redirect target', async () => {
+    const actorId = 'https://remote.test/users/redirected-key'
+    const keyId = `${actorId}#main-key`
+    const redirectTarget = 'https://remote.test/@redirected-key'
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (request) => {
+      const url = new URL(request.url)
+
+      if (url.pathname === '/users/redirected-key') {
+        return {
+          headers: { location: redirectTarget },
+          status: 302
+        }
+      }
+
+      if (url.pathname === '/@redirected-key') {
+        return {
+          body: JSON.stringify(
+            createActorDocument({
+              id: actorId,
+              publicKeyId: keyId,
+              publicKeyPem: 'redirected-public-key'
+            })
+          ),
+          status: 200
+        }
+      }
+
+      return { status: 404 }
+    })
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+    const signingActor = await database.getFederationSigningActor()
+    if (!signingActor) fail('Federation signing actor is required')
+
+    const redirectedRequest = fetchMock.mock.calls.at(1)?.[1]
+    const redirectedHeaders = redirectedRequest?.headers as Record<
+      string,
+      string
+    >
+
+    expect(publicKey).toEqual({
+      owner: actorId,
+      publicKey: 'redirected-public-key'
+    })
+    expect(
+      await verifySignedRequestTarget({
+        headers: redirectedHeaders,
+        publicKey: signingActor.publicKey,
+        requestTarget: 'get /@redirected-key'
+      })
+    ).toBe(true)
   })
 
   it('returns empty string when remote actor not found', async () => {

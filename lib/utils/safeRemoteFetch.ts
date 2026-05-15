@@ -28,6 +28,14 @@ const RETRY_DISABLED = { limit: 0 }
 
 export type SafeRemoteFetchMethod = Method
 export type SafeRemoteFetchHeaders = Headers
+export type SafeRemoteFetchHeaderBuilderRequest = {
+  body?: string
+  method: SafeRemoteFetchMethod
+  url: URL
+}
+export type SafeRemoteFetchHeaderSource =
+  | SafeRemoteFetchHeaders
+  | ((request: SafeRemoteFetchHeaderBuilderRequest) => SafeRemoteFetchHeaders)
 
 export type ResolvedRemoteAddress = {
   address: string
@@ -58,7 +66,7 @@ export type SafeRemoteFetchTransport = (
 export type SafeRemoteFetchOptions = {
   body?: string
   connectTimeoutInMilliseconds?: number
-  headers?: SafeRemoteFetchHeaders
+  headers?: SafeRemoteFetchHeaderSource
   maxBodyBytes?: number
   maxRedirects?: number
   method?: SafeRemoteFetchMethod
@@ -510,6 +518,34 @@ const buildHeaders = ({
   }
 }
 
+const getRequestHeaders = ({
+  body,
+  headers,
+  method,
+  previousUrl,
+  url
+}: {
+  body?: string
+  headers: SafeRemoteFetchHeaderSource
+  method: SafeRemoteFetchMethod
+  previousUrl?: URL
+  url: URL
+}) => {
+  if (typeof headers === 'function') {
+    return buildHeaders({
+      headers: headers({ body, method, url }),
+      previousUrl,
+      url
+    })
+  }
+
+  return buildHeaders({
+    headers,
+    previousUrl,
+    url
+  })
+}
+
 const getHeaderValue = (
   headers: Record<string, string | string[] | undefined>,
   key: string
@@ -617,8 +653,10 @@ export const createSafeRemoteFetch = ({
 
     while (true) {
       assertAllowedProtocol(currentUrl)
-      const requestHeaders = buildHeaders({
+      const requestHeaders = getRequestHeaders({
+        body: currentBody,
         headers: currentHeaders,
+        method: currentMethod,
         previousUrl,
         url: currentUrl
       })
@@ -665,9 +703,13 @@ export const createSafeRemoteFetch = ({
       if (response.statusCode === 303) {
         currentBody = undefined
         currentMethod = 'GET'
-        currentHeaders = stripBodyHeaders(requestHeaders)
+        currentHeaders =
+          typeof currentHeaders === 'function'
+            ? currentHeaders
+            : stripBodyHeaders(requestHeaders)
       } else {
-        currentHeaders = requestHeaders
+        currentHeaders =
+          typeof currentHeaders === 'function' ? currentHeaders : requestHeaders
       }
     }
   }

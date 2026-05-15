@@ -308,6 +308,48 @@ describe('safeRemoteFetch', () => {
     })
   })
 
+  it('strips dynamic credentials and auth headers on cross-host redirects', async () => {
+    const seenRequests: Array<{
+      url: string
+      headers: Record<string, string | string[] | undefined>
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ headers, url }) => {
+        seenRequests.push({ headers, url: url.toString() })
+        if (url.hostname === 'safe.example') {
+          return {
+            statusCode: 302,
+            headers: {
+              location: 'https://other.example/private-key'
+            },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      url: 'https://safe.example/actor',
+      headers: ({ url }) => ({
+        authorization: 'Bearer secret',
+        cookie: 'session=secret',
+        signature: `keyId="${url.toString()}",signature="secret"`
+      })
+    })
+
+    expect(seenRequests[1]).toEqual({
+      url: 'https://other.example/private-key',
+      headers: expect.not.objectContaining({
+        authorization: expect.any(String),
+        cookie: expect.any(String),
+        signature: expect.any(String)
+      })
+    })
+  })
+
   it('destroys redirect response bodies without buffering them', async () => {
     const redirectBody = streamFrom(['redirect body'])
     const destroy = jest.spyOn(redirectBody, 'destroy')
