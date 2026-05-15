@@ -449,7 +449,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
           ROUTE_HEATMAP_MAP_HEIGHT_CLASS
         )}
       >
-        <div ref={containerRef} className="absolute inset-0" />
+        <div ref={containerRef} className="h-full w-full" />
         <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           Mapbox
         </div>
@@ -951,6 +951,14 @@ export const FitnessHeatmapView: FC<Props> = ({
     Boolean(heatmapData) || heatmaps.length > 0 || generationPending
   const canRefreshRouteCache =
     !isLoading && !generationPending && !isRouteHeatmapInFlight(heatmapData)
+  const routeStatusOverlay =
+    heatmapData?.status === 'failed'
+      ? 'failed'
+      : pollingStalled && !hasCompletedRoutes
+        ? 'polling-stalled'
+        : !isLoading && generationPending && !hasCompletedRoutes
+          ? 'generation-pending'
+          : null
 
   return (
     <div className="flex min-h-[720px] flex-col bg-background">
@@ -1034,82 +1042,108 @@ export const FitnessHeatmapView: FC<Props> = ({
         </div>
       )}
 
+      <section aria-label="Route heatmap map" className="min-w-0 border-b">
+        <div className="border-b px-3 py-2">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <Map className="size-4" />
+              {formatActivityType(selectedActivityType)}
+            </span>
+            <span className="text-muted-foreground">
+              {periodType === 'all_time' ? 'All time' : effectivePeriodKey}
+            </span>
+            <span className="text-muted-foreground">
+              {selectedRegionIds.length > 0
+                ? `${selectedRegionIds.length} regions`
+                : 'World'}
+            </span>
+            {isLoading && (
+              <span
+                role="status"
+                className="inline-flex items-center gap-1.5 text-muted-foreground"
+              >
+                <Loader2 className="size-3 animate-spin" />
+                Loading…
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden">
+          <RouteHeatmapMap
+            heatmap={heatmapData}
+            mapboxAccessToken={mapboxAccessToken}
+          />
+          {routeStatusOverlay === 'generation-pending' && (
+            <div
+              className="absolute inset-x-3 bottom-3 rounded border bg-background/95 px-3 py-2 text-sm text-muted-foreground shadow-sm"
+              aria-live="polite"
+            >
+              Route cache queued
+            </div>
+          )}
+          {routeStatusOverlay === 'polling-stalled' && (
+            <div
+              className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded border bg-background/95 px-3 py-2 text-sm shadow-sm"
+              aria-live="polite"
+            >
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                <AlertCircle className="size-4" />
+                Route cache is taking longer than expected
+              </span>
+              <Button
+                type="button"
+                onClick={retryCurrent}
+                disabled={isRetrying}
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+              >
+                <RefreshCw
+                  className={cn('size-3', isRetrying && 'animate-spin')}
+                />
+                Retry
+              </Button>
+            </div>
+          )}
+          {routeStatusOverlay === 'failed' && (
+            <div
+              className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded border bg-background/95 px-3 py-2 text-sm shadow-sm"
+              aria-live="assertive"
+            >
+              <span className="inline-flex items-center gap-2 text-destructive">
+                <AlertCircle className="size-4" />
+                Route cache failed
+              </span>
+              <Button
+                type="button"
+                onClick={retryCurrent}
+                disabled={isRetrying}
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+              >
+                <RefreshCw
+                  className={cn('size-3', isRetrying && 'animate-spin')}
+                />
+                Retry
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
+
       <div className="grid flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
         <main className="min-w-0">
-          <div className="border-b px-3 py-2">
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <span className="inline-flex items-center gap-1.5 font-medium">
-                <Map className="size-4" />
-                {formatActivityType(selectedActivityType)}
-              </span>
-              <span className="text-muted-foreground">
-                {periodType === 'all_time' ? 'All time' : effectivePeriodKey}
-              </span>
-              <span className="text-muted-foreground">
-                {selectedRegionIds.length > 0
-                  ? `${selectedRegionIds.length} regions`
-                  : 'World'}
-              </span>
-              {isLoading && (
-                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                  <Loader2 className="size-3 animate-spin" />
-                  Loading
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden border-b">
-            <RouteHeatmapMap
-              heatmap={heatmapData}
-              mapboxAccessToken={mapboxAccessToken}
-            />
-            {!isLoading && generationPending && !hasCompletedRoutes && (
-              <div className="absolute inset-x-3 bottom-3 rounded border bg-background/95 px-3 py-2 text-sm text-muted-foreground shadow-sm">
-                Route cache queued
-              </div>
-            )}
-            {pollingStalled && !hasCompletedRoutes && (
-              <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded border bg-background/95 px-3 py-2 text-sm shadow-sm">
-                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <AlertCircle className="size-4" />
-                  Route cache is taking longer than expected
-                </span>
-                <button
-                  onClick={retryCurrent}
-                  disabled={isRetrying}
-                  className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={cn('size-3', isRetrying && 'animate-spin')}
-                  />
-                  Retry
-                </button>
-              </div>
-            )}
-            {heatmapData?.status === 'failed' && (
-              <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded border bg-background/95 px-3 py-2 text-sm shadow-sm">
-                <span className="inline-flex items-center gap-2 text-destructive">
-                  <AlertCircle className="size-4" />
-                  Route cache failed
-                </span>
-                <button
-                  onClick={retryCurrent}
-                  disabled={isRetrying}
-                  className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={cn('size-3', isRetrying && 'animate-spin')}
-                  />
-                  Retry
-                </button>
-              </div>
-            )}
-          </div>
-
-          <section className="space-y-3 px-3 py-4">
+          <section
+            aria-labelledby="activity-calendar-heading"
+            className="space-y-3 px-3 py-4"
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="inline-flex items-center gap-2 text-base font-medium">
+              <h2
+                id="activity-calendar-heading"
+                className="inline-flex items-center gap-2 text-base font-medium"
+              >
                 <CalendarDays className="size-4" />
                 Activity Calendar
               </h2>
@@ -1117,9 +1151,11 @@ export const FitnessHeatmapView: FC<Props> = ({
                 {METRIC_OPTIONS.map(([key, label]) => (
                   <button
                     key={key}
+                    type="button"
+                    aria-pressed={calendarMetric === key}
                     onClick={() => setCalendarMetric(key)}
                     className={cn(
-                      'rounded px-2 py-1 text-xs transition-colors',
+                      'rounded px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       calendarMetric === key
                         ? 'bg-foreground text-background'
                         : 'text-muted-foreground hover:text-foreground'
@@ -1174,9 +1210,11 @@ export const FitnessHeatmapView: FC<Props> = ({
                 <div className="flex items-center gap-1.5">
                   {hasRouteCache && (
                     <button
+                      type="button"
                       onClick={() => setClearCacheDialogOpen(true)}
                       disabled={isClearingCache || isRetrying}
-                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                      aria-haspopup="dialog"
+                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                     >
                       <Trash2
                         className={cn(
@@ -1189,9 +1227,10 @@ export const FitnessHeatmapView: FC<Props> = ({
                   )}
                   {canRefreshRouteCache && (
                     <button
+                      type="button"
                       onClick={retryCurrent}
                       disabled={isRetrying || isClearingCache}
-                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                     >
                       <RefreshCw
                         className={cn('size-3', isRetrying && 'animate-spin')}
@@ -1251,7 +1290,7 @@ export const FitnessHeatmapView: FC<Props> = ({
               <Trash2
                 className={isClearingCache ? 'animate-pulse' : undefined}
               />
-              {isClearingCache ? 'Clearing...' : 'Clear route caches'}
+              {isClearingCache ? 'Clearing…' : 'Clear route caches'}
             </Button>
           </DialogFooter>
         </DialogContent>
