@@ -1,0 +1,29 @@
+lib/services/medias/S3StorageFile.ts
+  s_e6e7eab375b744::t_50f9413c0e9636 80,222
+lib/services/medias/S3StorageFile.test.ts
+  s_8fcd643d28be5c::t_5b03f36136f5d1 133,151,159-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ccec06937f0c7d6054f88a026a4009540289e1ae",
+  "prompts": {},
+  "sessions": {
+    "s_8fcd643d28be5c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2a95-2137-73b2-b015-bb45d5bad013",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e6e7eab375b744": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2a94-f989-77e3-8ed9-72686bb3d089",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
