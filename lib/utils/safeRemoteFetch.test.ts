@@ -473,6 +473,87 @@ describe('safeRemoteFetch', () => {
     ])
   })
 
+  it('rebuilds dynamic headers without body headers after 303 redirects', async () => {
+    const headerBuilderRequests: Array<{
+      body?: string
+      method: string
+      url: string
+    }> = []
+    const seenRequests: Array<{
+      body?: string
+      headers: Record<string, string | string[] | undefined>
+      method: string
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ body, headers, method, url }) => {
+        seenRequests.push({ body, headers, method })
+        if (url.pathname === '/from') {
+          return {
+            statusCode: 303,
+            headers: { location: 'https://safe.example/to' },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      body: 'payload',
+      headers: ({ body, method, url }) => {
+        headerBuilderRequests.push({
+          body,
+          method,
+          url: url.toString()
+        })
+
+        return {
+          'content-type': 'text/plain',
+          digest: 'sha-256=payload',
+          signature: `keyId="${url.toString()}",signature="${method}-${body ?? 'none'}"`
+        }
+      },
+      method: 'POST',
+      url: 'https://safe.example/from'
+    })
+
+    expect(headerBuilderRequests).toEqual([
+      {
+        body: 'payload',
+        method: 'POST',
+        url: 'https://safe.example/from'
+      },
+      {
+        body: undefined,
+        method: 'GET',
+        url: 'https://safe.example/to'
+      }
+    ])
+    expect(seenRequests).toEqual([
+      {
+        body: 'payload',
+        headers: expect.objectContaining({
+          'content-type': 'text/plain',
+          digest: 'sha-256=payload',
+          host: 'safe.example',
+          signature:
+            'keyId="https://safe.example/from",signature="POST-payload"'
+        }),
+        method: 'POST'
+      },
+      {
+        body: undefined,
+        headers: {
+          host: 'safe.example',
+          signature: 'keyId="https://safe.example/to",signature="GET-none"'
+        },
+        method: 'GET'
+      }
+    ])
+  })
+
   it('does not leave got stream error listeners after reading the body', async () => {
     const stream = new Readable({
       read() {}

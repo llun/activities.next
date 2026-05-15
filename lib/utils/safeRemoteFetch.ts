@@ -24,6 +24,15 @@ const BODY_REDIRECT_HEADERS = new Set([
   'digest',
   'signature'
 ])
+const DYNAMIC_BODY_REDIRECT_HEADERS = new Set([
+  'content-digest',
+  'content-encoding',
+  'content-language',
+  'content-length',
+  'content-location',
+  'content-type',
+  'digest'
+])
 const RETRY_DISABLED = { limit: 0 }
 
 export type SafeRemoteFetchMethod = Method
@@ -33,9 +42,12 @@ export type SafeRemoteFetchHeaderBuilderRequest = {
   method: SafeRemoteFetchMethod
   url: URL
 }
+export type SafeRemoteFetchHeaderBuilder = (
+  request: SafeRemoteFetchHeaderBuilderRequest
+) => SafeRemoteFetchHeaders
 export type SafeRemoteFetchHeaderSource =
   | SafeRemoteFetchHeaders
-  | ((request: SafeRemoteFetchHeaderBuilderRequest) => SafeRemoteFetchHeaders)
+  | SafeRemoteFetchHeaderBuilder
 
 export type ResolvedRemoteAddress = {
   address: string
@@ -606,15 +618,28 @@ const getRedirectLocation = (
   return redirectUrl
 }
 
-const stripBodyHeaders = (headers: SafeRemoteFetchHeaders) => {
+const stripHeaders = (
+  headers: SafeRemoteFetchHeaders,
+  headersToStrip: Set<string>
+) => {
   const normalizedHeaders = compactHeaders(headers)
   for (const key of Object.keys(normalizedHeaders)) {
-    if (BODY_REDIRECT_HEADERS.has(key.toLowerCase())) {
+    if (headersToStrip.has(key.toLowerCase())) {
       delete normalizedHeaders[key]
     }
   }
 
   return normalizedHeaders
+}
+
+const stripBodyHeaders = (headers: SafeRemoteFetchHeaders) =>
+  stripHeaders(headers, BODY_REDIRECT_HEADERS)
+
+const stripDynamicBodyHeaders = (
+  headerBuilder: SafeRemoteFetchHeaderBuilder
+): SafeRemoteFetchHeaderBuilder => {
+  return (request) =>
+    stripHeaders(headerBuilder(request), DYNAMIC_BODY_REDIRECT_HEADERS)
 }
 
 export const createSafeRemoteFetch = ({
@@ -703,13 +728,17 @@ export const createSafeRemoteFetch = ({
       if (response.statusCode === 303) {
         currentBody = undefined
         currentMethod = 'GET'
-        currentHeaders =
-          typeof currentHeaders === 'function'
-            ? currentHeaders
-            : stripBodyHeaders(requestHeaders)
+      }
+
+      if (typeof currentHeaders === 'function') {
+        if (response.statusCode === 303) {
+          currentHeaders = stripDynamicBodyHeaders(currentHeaders)
+        }
       } else {
         currentHeaders =
-          typeof currentHeaders === 'function' ? currentHeaders : requestHeaders
+          response.statusCode === 303
+            ? stripBodyHeaders(requestHeaders)
+            : requestHeaders
       }
     }
   }
