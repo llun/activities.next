@@ -3,13 +3,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import { selectHeaderHost } from '@/lib/utils/host'
+import { getSecurityHeaders } from '@/lib/utils/securityHeaders'
 
 export const config = {
-  matcher: ['/(@.*)']
+  matcher: ['/:path*']
 }
 
 const proxyHeaderHost = (headers: Headers): string => {
   return selectHeaderHost(headers, getProxyHostConfig())
+}
+
+const withSecurityHeaders = (response: NextResponse) => {
+  for (const header of getSecurityHeaders()) {
+    response.headers.set(header.key, header.value)
+  }
+
+  return response
 }
 
 export async function proxy(request: NextRequest) {
@@ -30,7 +39,7 @@ export async function proxy(request: NextRequest) {
         const matches = pathname.match(/^\/@(?<username>\w+)/)
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
-        return NextResponse.rewrite(apiUrl)
+        return withSecurityHeaders(NextResponse.rewrite(apiUrl))
       }
 
       // Actor status route
@@ -40,7 +49,7 @@ export async function proxy(request: NextRequest) {
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
-        return NextResponse.rewrite(apiUrl)
+        return withSecurityHeaders(NextResponse.rewrite(apiUrl))
       }
     }
 
@@ -58,9 +67,11 @@ export async function proxy(request: NextRequest) {
 
       const cloneUrl = request.nextUrl.clone()
       cloneUrl.pathname = `/${pathItems.join('/')}`
-      return NextResponse.rewrite(cloneUrl)
+      return withSecurityHeaders(NextResponse.rewrite(cloneUrl))
     }
 
-    return NextResponse.next()
+    return withSecurityHeaders(NextResponse.next())
   }
+
+  return withSecurityHeaders(NextResponse.next())
 }

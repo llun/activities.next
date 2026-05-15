@@ -4,9 +4,25 @@ import { resetHostConfigCacheForTests } from '@/lib/config/host'
 
 import { proxy } from './proxy'
 
+const getCspDirectiveSources = (
+  csp: string | null,
+  directiveName: string
+): string[] => {
+  const directive = csp
+    ?.split('; ')
+    .find((value) => value.startsWith(`${directiveName} `))
+
+  return directive?.split(/\s+/).slice(1) ?? []
+}
+
 describe('proxy', () => {
   const previousActivitiesHost = process.env.ACTIVITIES_HOST
   const previousAllowActorDomains = process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
+  const previousMediaStorageBucket = process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+  const previousMediaStorageHostname =
+    process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+  const previousMediaStorageRegion = process.env.ACTIVITIES_MEDIA_STORAGE_REGION
+  const previousMediaStorageType = process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
   const previousProxyHostConfig = process.env.ACTIVITIES_PROXY_HOST_CONFIG
   const previousTrustedHosts = process.env.ACTIVITIES_TRUSTED_HOSTS
 
@@ -14,6 +30,10 @@ describe('proxy', () => {
     resetHostConfigCacheForTests()
     process.env.ACTIVITIES_HOST = 'public.example.com'
     delete process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
+    delete process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+    delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    delete process.env.ACTIVITIES_MEDIA_STORAGE_REGION
+    delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
     delete process.env.ACTIVITIES_PROXY_HOST_CONFIG
     delete process.env.ACTIVITIES_TRUSTED_HOSTS
   })
@@ -33,6 +53,31 @@ describe('proxy', () => {
       delete process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
     } else {
       process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS = previousAllowActorDomains
+    }
+
+    if (previousMediaStorageBucket === undefined) {
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+    } else {
+      process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = previousMediaStorageBucket
+    }
+
+    if (previousMediaStorageHostname === undefined) {
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    } else {
+      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME =
+        previousMediaStorageHostname
+    }
+
+    if (previousMediaStorageRegion === undefined) {
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_REGION
+    } else {
+      process.env.ACTIVITIES_MEDIA_STORAGE_REGION = previousMediaStorageRegion
+    }
+
+    if (previousMediaStorageType === undefined) {
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
+    } else {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = previousMediaStorageType
     }
 
     if (previousProxyHostConfig === undefined) {
@@ -173,6 +218,30 @@ describe('proxy', () => {
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
       'https://internal.example.com/@alice@build-edge.example.com'
+    )
+  })
+
+  it('sets CSP from runtime media storage environment on ordinary app requests', async () => {
+    process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 's3'
+    process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'static.llun.social'
+    process.env.ACTIVITIES_MEDIA_STORAGE_REGION = 'eu-central-1'
+
+    const request = new NextRequest('https://llun.social/', {
+      method: 'GET'
+    })
+
+    const response = await proxy(request)
+    const connectSources = getCspDirectiveSources(
+      response?.headers.get('Content-Security-Policy') ?? null,
+      'connect-src'
+    )
+
+    expect(connectSources).toEqual(
+      expect.arrayContaining([
+        "'self'",
+        'https://static.llun.social.s3.eu-central-1.amazonaws.com',
+        'https://s3.eu-central-1.amazonaws.com'
+      ])
     )
   })
 })
