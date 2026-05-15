@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 import { getImageRemotePatterns } from '@/lib/config/nextImageRemotePatterns'
-import { getSecurityHeaders as getRuntimeSecurityHeaders } from '@/lib/utils/securityHeaders'
+import { getStaticSecurityHeaders } from '@/lib/utils/staticSecurityHeaders'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -39,9 +39,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/:path*',
-        headers: getRuntimeSecurityHeaders({
-          includeContentSecurityPolicy: false
-        })
+        headers: getStaticSecurityHeaders()
       }
     ]
   },
