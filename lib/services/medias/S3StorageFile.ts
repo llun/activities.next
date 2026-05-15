@@ -77,7 +77,7 @@ const getObjectMetadataChecksumSha1 = (
   metadata?.['checksum-sha1'] ??
   null
 
-const PRESIGNED_UPLOAD_SIGNED_AMZ_HEADERS = new Set([
+const PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS = new Set([
   'x-amz-checksum-sha1',
   'x-amz-meta-checksumsha1'
 ])
@@ -219,7 +219,7 @@ export class S3FileStorage implements MediaStorage {
     })
     const url = await getSignedUrl(this._client, command, {
       expiresIn: 600,
-      unhoistableHeaders: PRESIGNED_UPLOAD_SIGNED_AMZ_HEADERS
+      unhoistableHeaders: PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS
     })
     const storedMedia = await this._database.createMedia({
       actorId: actor.id,

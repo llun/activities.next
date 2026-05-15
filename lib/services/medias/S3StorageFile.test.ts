@@ -130,7 +130,7 @@ describe('S3FileStorage presigned upload completion', () => {
       database
     )
 
-    await storage.getPresigedForSaveFileUrl(actor, {
+    const result = await storage.getPresigedForSaveFileUrl(actor, {
       fileName: 'upload.png',
       checksum: checksumHex,
       width: 10,
@@ -147,16 +147,22 @@ describe('S3FileStorage presigned upload completion', () => {
         }
       })
     )
-    const presignOptions = (getSignedUrl as jest.Mock).mock.calls[0][2]
     expect(getSignedUrl).toHaveBeenCalledTimes(1)
+    const presignOptions = (getSignedUrl as jest.Mock).mock.calls[0][2]
     expect(presignOptions.expiresIn).toBe(600)
-    expect(presignOptions.signableHeaders).toBeUndefined()
     expect(presignOptions.unhoistableHeaders.has('x-amz-checksum-sha1')).toBe(
       true
     )
     expect(
       presignOptions.unhoistableHeaders.has('x-amz-meta-checksumsha1')
     ).toBe(true)
+    expect(result).toMatchObject({
+      url: 'https://storage.example/upload',
+      headers: {
+        'x-amz-checksum-sha1': checksumBase64,
+        'x-amz-meta-checksumsha1': checksumHex
+      }
+    })
   })
 
   it('rejects oversized presigned uploads before marking media usable', async () => {
