@@ -392,6 +392,111 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('allows runtime config file storage origins in connect-src', () => {
+    const originalCwd = process.cwd()
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'activities-next-')
+    )
+    const originalEnv = {
+      ACTIVITIES_MEDIA_STORAGE_TYPE: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
+      ACTIVITIES_MEDIA_STORAGE_BUCKET:
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
+      ACTIVITIES_MEDIA_STORAGE_REGION:
+        process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
+      ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME,
+      ACTIVITIES_FITNESS_STORAGE_TYPE:
+        process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
+      ACTIVITIES_FITNESS_STORAGE_BUCKET:
+        process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET,
+      ACTIVITIES_FITNESS_STORAGE_REGION:
+        process.env.ACTIVITIES_FITNESS_STORAGE_REGION,
+      ACTIVITIES_FITNESS_STORAGE_HOSTNAME:
+        process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME,
+      ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN:
+        process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
+    }
+
+    for (const key of Object.keys(originalEnv)) {
+      delete process.env[key]
+    }
+
+    process.chdir(tempDirectory)
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        mediaStorage: {
+          type: 's3',
+          bucket: 'file-media-bucket',
+          region: 'eu-central-1'
+        },
+        fitnessStorage: {
+          type: 'object',
+          bucket: 'file-fitness-bucket',
+          region: 'us-east-1',
+          hostname: 'fitness-file.example.com',
+          mapboxAccessToken: 'pk.file-mapbox'
+        }
+      })
+    )
+
+    try {
+      const connectSources = getCspDirectiveSources('connect-src')
+
+      expect(connectSources).toEqual(
+        expect.arrayContaining([
+          'https://file-media-bucket.s3.eu-central-1.amazonaws.com',
+          'https://s3.eu-central-1.amazonaws.com',
+          'https://fitness-file.example.com',
+          'https://api.mapbox.com',
+          'https://events.mapbox.com',
+          'https://*.tiles.mapbox.com'
+        ])
+      )
+    } finally {
+      process.chdir(originalCwd)
+      fs.rmSync(tempDirectory, { force: true, recursive: true })
+
+      for (const [key, value] of Object.entries(originalEnv)) {
+        if (value === undefined) {
+          delete process.env[key]
+        } else {
+          process.env[key] = value
+        }
+      }
+    }
+  })
+
+  it('falls back to environment storage origins when config file has no storage settings', () => {
+    const originalCwd = process.cwd()
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'activities-next-')
+    )
+
+    process.chdir(tempDirectory)
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({ host: 'example.com' })
+    )
+
+    try {
+      withEnv(
+        {
+          ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'env-media.example.com',
+          ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
+        },
+        () => {
+          const connectSources = getCspDirectiveSources('connect-src')
+
+          expect(connectSources).toContain('https://env-media.example.com')
+        }
+      )
+    } finally {
+      process.chdir(originalCwd)
+      fs.rmSync(tempDirectory, { force: true, recursive: true })
+    }
+  })
+
   it('uses static HTTPS image patterns in production', () => {
     const originalNodeEnv = process.env.NODE_ENV
     process.env.NODE_ENV = 'production'

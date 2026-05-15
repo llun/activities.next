@@ -2,13 +2,19 @@ import fs from 'fs'
 import path from 'path'
 
 const SOURCE_ROOTS = ['app', 'lib']
-const ROOT_SOURCE_FILES = ['next.config.ts', 'proxy.ts', 'instrumentation.ts']
+const ROOT_SOURCE_FILES = [
+  'next.config.ts',
+  'proxy.ts',
+  'instrumentation.ts',
+  'knexfile.js'
+]
 
 const RUNTIME_CONFIG_PATTERN =
   /process\.env(?:\.(?:ACTIVITIES|OTEL_EXPORTER)_|\[['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]\])|['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]/
 
 const isSourceFile = (filePath: string) =>
-  /\.(ts|tsx)$/.test(filePath) && !/\.test\.(ts|tsx)$/.test(filePath)
+  /\.(ts|tsx|js|mjs)$/.test(filePath) &&
+  !/\.test\.(ts|tsx|js|mjs)$/.test(filePath)
 
 const collectSourceFiles = (directory: string): string[] => {
   if (!fs.existsSync(directory)) return []
