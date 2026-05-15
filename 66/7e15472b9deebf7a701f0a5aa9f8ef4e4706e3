@@ -1,0 +1,29 @@
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  s_7141fcbc7c5178::t_50e063e6d11d0f 1038-1055,1057-1075,1077-1094,1096-1106,1108-1110,1112-1113,1124-1125,1128,1183,1186,1199,1202,1262
+  s_7141fcbc7c5178::t_d5082b74f257c1 452
+  s_7141fcbc7c5178::t_eb5639139e6439 1037
+Dockerfile
+  s_7141fcbc7c5178::t_09dd4da6b30d24 22,28
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_7141fcbc7c5178::t_d660b2224f9a7b 321-337
+app/(timeline)/[actor]/fitness/heatmap/page.tsx
+  s_7141fcbc7c5178::t_6eacf06b722b8d 75
+lib/components/fitness/FitnessHeatmapList.tsx
+  s_7141fcbc7c5178::t_4f345e07f5f929 59,62,83-87,154-155,165,170,238-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "667e15472b9deebf7a701f0a5aa9f8ef4e4706e3",
+  "prompts": {},
+  "sessions": {
+    "s_7141fcbc7c5178": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2c72-928f-76a3-b3cd-a418ecb97624",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
