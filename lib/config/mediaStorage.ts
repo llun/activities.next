@@ -28,7 +28,8 @@ export const MediaStorageS3Config = BaseStorageConfig.extend({
   ]),
   bucket: z.string(),
   region: z.string(),
-  hostname: z.string().optional()
+  hostname: z.string().optional(),
+  endpoint: z.string().optional()
 })
 export type MediaStorageS3Config = z.infer<typeof MediaStorageS3Config>
 
@@ -73,8 +74,8 @@ export const getMediaStorageConfig = (): {
           type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
           bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
           region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
-          hostname:
-            (process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME as string) ?? '',
+          hostname: process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
+          endpoint: process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT || undefined,
           maxFileSize:
             (process.env.ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE &&
               parseInt(

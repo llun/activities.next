@@ -58,11 +58,13 @@ describe('MediaStorage config', () => {
         type: 'object',
         bucket: 'my-bucket',
         region: 'auto',
-        hostname: 'custom.endpoint.com'
+        hostname: 'media-cdn.example.com',
+        endpoint: 'https://custom.endpoint.com'
       })
 
       expect(config.type).toBe('object')
-      expect(config.hostname).toBe('custom.endpoint.com')
+      expect(config.hostname).toBe('media-cdn.example.com')
+      expect(config.endpoint).toBe('https://custom.endpoint.com')
     })
   })
 
@@ -119,17 +121,22 @@ describe('MediaStorage config', () => {
       )
     })
 
-    it('builds object storage config with hostname', () => {
+    it('builds object storage config with public hostname and endpoint', () => {
       process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'object'
       process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'bucket'
       process.env.ACTIVITIES_MEDIA_STORAGE_REGION = 'auto'
-      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'storage.example.com'
+      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'media-cdn.example.com'
+      process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT =
+        'https://storage.example.com'
 
       const config = getMediaStorageConfig()
 
       expect(config?.mediaStorage.type).toBe(MediaStorageType.ObjectStorage)
       expect((config?.mediaStorage as { hostname: string }).hostname).toBe(
-        'storage.example.com'
+        'media-cdn.example.com'
+      )
+      expect((config?.mediaStorage as { endpoint: string }).endpoint).toBe(
+        'https://storage.example.com'
       )
     })
 

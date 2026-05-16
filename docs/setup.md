@@ -92,8 +92,10 @@ ACTIVITIES_MEDIA_STORAGE_PATH=./uploads
 ACTIVITIES_MEDIA_STORAGE_TYPE=s3          # or 'object' for S3-compatible
 ACTIVITIES_MEDIA_STORAGE_BUCKET=my-bucket
 ACTIVITIES_MEDIA_STORAGE_REGION=us-east-1
-# Optional: for S3-compatible services (MinIO, DigitalOcean Spaces, etc.)
-ACTIVITIES_MEDIA_STORAGE_HOSTNAME=s3.example.com
+# Optional: public CDN/custom domain used to serve media files
+ACTIVITIES_MEDIA_STORAGE_HOSTNAME=media.example.com
+# Optional: S3-compatible API endpoint for uploads/storage operations
+ACTIVITIES_MEDIA_STORAGE_ENDPOINT=https://s3.example.com
 ```
 
 Optional storage limits:

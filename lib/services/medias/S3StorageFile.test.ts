@@ -118,6 +118,26 @@ describe('S3FileStorage presigned upload completion', () => {
     database.deleteMedia.mockResolvedValue(true)
   })
 
+  it('uses the configured endpoint for the S3 client without treating hostname as the endpoint', () => {
+    new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'auto',
+        hostname: 'static.llun.social',
+        endpoint: 'https://account.r2.cloudflarestorage.com'
+      },
+      'llun.test',
+      database
+    )
+
+    expect(S3Client).toHaveBeenCalledWith({
+      region: 'auto',
+      endpoint: 'https://account.r2.cloudflarestorage.com',
+      forcePathStyle: true
+    })
+  })
+
   it('signs checksum headers required by browser presigned uploads', async () => {
     const storage = new S3FileStorage(
       {

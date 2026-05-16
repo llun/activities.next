@@ -30,6 +30,7 @@ export const getEffectiveFitnessStorageConfig =
         bucket: mediaStorage.bucket,
         region: mediaStorage.region,
         hostname: mediaStorage.hostname,
+        endpoint: mediaStorage.endpoint,
         prefix: 'fitness/'
       }
     }

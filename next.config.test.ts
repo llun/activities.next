@@ -337,6 +337,28 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('allows default S3 presigned upload hosts alongside a custom media hostname in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'static.llun.social',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-central-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'static.llun.social'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://static.llun.social',
+            'https://static.llun.social.s3.eu-central-1.amazonaws.com',
+            'https://s3.eu-central-1.amazonaws.com'
+          ])
+        )
+      }
+    )
+  })
+
   it('caches CSP for the process lifetime', () => {
     withEnv(
       {
@@ -379,6 +401,80 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('allows object storage endpoints separately from public media hostnames in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://media-cdn.example.com',
+            'https://storage.example.com'
+          ])
+        )
+        expect(connectSources).not.toContain(
+          'https://media-object-bucket.s3.auto.amazonaws.com'
+        )
+        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
+      }
+    )
+  })
+
+  it('allows S3 storage endpoints separately from public media hostnames in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://media-cdn.example.com',
+            'https://storage.example.com'
+          ])
+        )
+        expect(connectSources).not.toContain(
+          'https://media-bucket.s3.us-east-1.amazonaws.com'
+        )
+        expect(connectSources).not.toContain(
+          'https://s3.us-east-1.amazonaws.com'
+        )
+      }
+    )
+  })
+
+  it('does not allow default AWS S3 sources for auto-region object storage without an endpoint', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined,
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: undefined
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).not.toContain(
+          'https://media-object-bucket.s3.auto.amazonaws.com'
+        )
+        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
+      }
+    )
+  })
+
   it('allows configured fitness object storage connections in connect-src', () => {
     withEnv(
       {
@@ -410,6 +506,55 @@ describe('next config security hardening', () => {
             'https://s3.ap-south-1.amazonaws.com'
           ])
         )
+      }
+    )
+  })
+
+  it('allows default S3 presigned upload hosts alongside a custom fitness hostname in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-cdn-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'eu-central-1',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://fitness-cdn.example.com',
+            'https://fitness-cdn-bucket.s3.eu-central-1.amazonaws.com',
+            'https://s3.eu-central-1.amazonaws.com'
+          ])
+        )
+      }
+    )
+  })
+
+  it('allows fitness object storage endpoints separately from public fitness hostnames in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-object-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'auto',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com',
+        ACTIVITIES_FITNESS_STORAGE_ENDPOINT:
+          'https://fitness-storage.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://fitness-cdn.example.com',
+            'https://fitness-storage.example.com'
+          ])
+        )
+        expect(connectSources).not.toContain(
+          'https://fitness-object-bucket.s3.auto.amazonaws.com'
+        )
+        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
       }
     )
   })
@@ -467,6 +612,8 @@ describe('next config security hardening', () => {
         process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
       ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
         process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME,
+      ACTIVITIES_MEDIA_STORAGE_ENDPOINT:
+        process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT,
       ACTIVITIES_FITNESS_STORAGE_TYPE:
         process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
       ACTIVITIES_FITNESS_STORAGE_BUCKET:
@@ -475,6 +622,8 @@ describe('next config security hardening', () => {
         process.env.ACTIVITIES_FITNESS_STORAGE_REGION,
       ACTIVITIES_FITNESS_STORAGE_HOSTNAME:
         process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME,
+      ACTIVITIES_FITNESS_STORAGE_ENDPOINT:
+        process.env.ACTIVITIES_FITNESS_STORAGE_ENDPOINT,
       ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN:
         process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
     }
@@ -543,7 +692,9 @@ describe('next config security hardening', () => {
       ACTIVITIES_MEDIA_STORAGE_REGION:
         process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
       ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
-        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME,
+      ACTIVITIES_MEDIA_STORAGE_ENDPOINT:
+        process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT
     }
 
     for (const key of Object.keys(originalEnv)) {

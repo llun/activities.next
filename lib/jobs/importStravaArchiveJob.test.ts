@@ -1,3 +1,4 @@
+import { S3Client } from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
 import { Readable } from 'stream'
 
@@ -326,6 +327,41 @@ describe('importStravaArchiveJob', () => {
         maxGzipOutputBytes: 123_456_789
       }
     )
+  })
+
+  it('uses the configured fitness storage endpoint when reading object-storage archives', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: {
+        type: 'object',
+        bucket: 'fitness-bucket',
+        region: 'auto',
+        endpoint: 'https://storage.example.com',
+        prefix: ''
+      }
+    } as never)
+    mockS3Send.mockResolvedValueOnce({
+      Body: Readable.from([Buffer.from('zip-file')]),
+      ContentLength: 8
+    })
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-object-endpoint',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(S3Client).toHaveBeenCalledWith({
+      region: 'auto',
+      endpoint: 'https://storage.example.com',
+      forcePathStyle: true
+    })
   })
 
   it('splits import into continuation when runtime budget is reached', async () => {

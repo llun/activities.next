@@ -10,10 +10,12 @@ const SECURITY_HEADER_ENV_KEYS = [
   'ACTIVITIES_MEDIA_STORAGE_BUCKET',
   'ACTIVITIES_MEDIA_STORAGE_REGION',
   'ACTIVITIES_MEDIA_STORAGE_HOSTNAME',
+  'ACTIVITIES_MEDIA_STORAGE_ENDPOINT',
   'ACTIVITIES_FITNESS_STORAGE_TYPE',
   'ACTIVITIES_FITNESS_STORAGE_BUCKET',
   'ACTIVITIES_FITNESS_STORAGE_REGION',
   'ACTIVITIES_FITNESS_STORAGE_HOSTNAME',
+  'ACTIVITIES_FITNESS_STORAGE_ENDPOINT',
   'ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN'
 ]
 
@@ -63,22 +65,28 @@ describe('getSecurityHeaderConfig', () => {
       'env-images.example.com'
     ])
     process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'env-media.example.com'
+    process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT =
+      'https://env-media-storage.example.com'
     process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'object'
     process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET = 'env-fitness-bucket'
     process.env.ACTIVITIES_FITNESS_STORAGE_REGION = 'us-east-1'
     process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME = 'env-fitness.example.com'
+    process.env.ACTIVITIES_FITNESS_STORAGE_ENDPOINT =
+      'https://env-fitness-storage.example.com'
     process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN = 'pk.env-mapbox'
 
     expect(getSecurityHeaderConfig()).toEqual({
       allowMediaDomains: ['env-images.example.com'],
       mediaStorage: {
-        hostname: 'env-media.example.com'
+        hostname: 'env-media.example.com',
+        endpoint: 'https://env-media-storage.example.com'
       },
       fitnessStorage: {
         type: 'object',
         bucket: 'env-fitness-bucket',
         region: 'us-east-1',
         hostname: 'env-fitness.example.com',
+        endpoint: 'https://env-fitness-storage.example.com',
         mapboxAccessToken: 'pk.env-mapbox'
       }
     })

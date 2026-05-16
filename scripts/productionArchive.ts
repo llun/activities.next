@@ -80,6 +80,8 @@ export type StorageSource =
     }
   | {
       bucket: string
+      endpoint?: string
+      endpointFallback?: string
       hostname?: string
       kind: 's3'
       prefix?: string
@@ -530,10 +532,23 @@ const storageSourceFromMediaConfig = (
         kind: 'local',
         path: storage.path
       }
-    case MediaStorageType.ObjectStorage:
     case MediaStorageType.S3Storage:
       return {
         bucket: storage.bucket,
+        ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
+        ...(storage.hostname ? { hostname: storage.hostname } : null),
+        kind: 's3',
+        prefix: undefined,
+        region: storage.region
+      }
+    case MediaStorageType.ObjectStorage:
+      return {
+        bucket: storage.bucket,
+        ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
+        // Archive-only compatibility for old object-storage configs that used hostname as the API endpoint.
+        ...(!storage.endpoint && storage.hostname
+          ? { endpointFallback: storage.hostname }
+          : null),
         ...(storage.hostname ? { hostname: storage.hostname } : null),
         kind: 's3',
         prefix: undefined,
@@ -551,10 +566,23 @@ const storageSourceFromFitnessConfig = (
         kind: 'local',
         path: storage.path
       }
-    case FitnessStorageType.ObjectStorage:
     case FitnessStorageType.S3Storage:
       return {
         bucket: storage.bucket,
+        ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
+        ...(storage.hostname ? { hostname: storage.hostname } : null),
+        kind: 's3',
+        prefix: storage.prefix,
+        region: storage.region
+      }
+    case FitnessStorageType.ObjectStorage:
+      return {
+        bucket: storage.bucket,
+        ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
+        // Archive-only compatibility for old object-storage configs that used hostname as the API endpoint.
+        ...(!storage.endpoint && storage.hostname
+          ? { endpointFallback: storage.hostname }
+          : null),
         ...(storage.hostname ? { hostname: storage.hostname } : null),
         kind: 's3',
         prefix: storage.prefix,
@@ -574,10 +602,20 @@ const getSharedS3FitnessPrefix = (
 
   if (mediaStorage.bucket !== fitnessStorage.bucket) return null
   if (mediaStorage.region !== fitnessStorage.region) return null
-  if (
-    getStorageEndpointIdentity(mediaStorage.hostname) !==
-    getStorageEndpointIdentity(fitnessStorage.hostname)
-  ) {
+  const mediaStorageEndpointIdentity = getStorageEndpointIdentity(
+    mediaStorage.endpoint ??
+      (mediaStorage.type === MediaStorageType.ObjectStorage
+        ? mediaStorage.hostname
+        : undefined)
+  )
+  const fitnessStorageEndpointIdentity = getStorageEndpointIdentity(
+    fitnessStorage.endpoint ??
+      (fitnessStorage.type === FitnessStorageType.ObjectStorage
+        ? fitnessStorage.hostname
+        : undefined)
+  )
+
+  if (mediaStorageEndpointIdentity !== fitnessStorageEndpointIdentity) {
     return null
   }
   return fitnessStorage.prefix || null
@@ -1135,23 +1173,26 @@ export const getStorageEndpoint = (hostname: string) => {
   return `https://${trimmedHostname}`
 }
 
-const getStorageEndpointIdentity = (hostname: string | undefined) => {
-  if (!hostname?.trim()) return ''
-  return getStorageEndpoint(hostname)
+const getStorageEndpointIdentity = (endpoint: string | undefined) => {
+  if (!endpoint?.trim()) return ''
+  return getStorageEndpoint(endpoint)
 }
 
 export const createS3Client = (
   source: Extract<StorageSource, { kind: 's3' }>
-) =>
-  new S3Client({
+) => {
+  const endpoint = source.endpoint ?? source.endpointFallback
+
+  return new S3Client({
     region: source.region,
-    ...(source.hostname
+    ...(endpoint
       ? {
-          endpoint: getStorageEndpoint(source.hostname),
+          endpoint: getStorageEndpoint(endpoint),
           forcePathStyle: true
         }
       : null)
   })
+}
 
 const listS3Files = async (
   source: Extract<StorageSource, { kind: 's3' }>,
