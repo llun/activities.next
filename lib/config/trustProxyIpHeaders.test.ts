@@ -51,13 +51,13 @@ describe('getTrustProxyIpHeadersConfig', () => {
     expect(getTrustProxyIpHeadersConfig()).toBe(true)
   })
 
-  it('uses runtime config file settings when the environment flag is absent', () => {
+  it('ignores runtime config file settings when the environment flag is absent', () => {
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
       JSON.stringify({ trustProxyIpHeaders: true })
     )
 
-    expect(getTrustProxyIpHeadersConfig()).toBe(true)
+    expect(getTrustProxyIpHeadersConfig()).toBe(false)
   })
 
   it('caches the resolved setting for repeated app registration requests', () => {
@@ -66,13 +66,13 @@ describe('getTrustProxyIpHeadersConfig', () => {
       JSON.stringify({ trustProxyIpHeaders: true })
     )
 
-    expect(getTrustProxyIpHeadersConfig()).toBe(true)
+    expect(getTrustProxyIpHeadersConfig()).toBe(false)
 
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
-      JSON.stringify({ trustProxyIpHeaders: false })
+      JSON.stringify({ trustProxyIpHeaders: true })
     )
 
-    expect(getTrustProxyIpHeadersConfig()).toBe(true)
+    expect(getTrustProxyIpHeadersConfig()).toBe(false)
   })
 })

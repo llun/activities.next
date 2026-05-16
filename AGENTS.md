@@ -7,7 +7,7 @@
 - `migrations/` holds Knex migration files used for SQL backends.
 - `public/` serves static assets; `uploads/` and `data/` are used for local storage in some deployments.
 - `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities.
-- Configuration files live at the repo root (for example `config.json`, `.env.example`, `knexfile.js`, and framework/tooling configs).
+- Configuration files live at the repo root (for example `.env.example`, `knexfile.js`, and framework/tooling configs).
 
 ## Build, Test, and Development Commands
 
@@ -21,7 +21,7 @@
 
 ## Runtime Configuration Guidelines
 
-- Deployment and instance configuration must be read at runtime, not at build time. Treat `ACTIVITIES_*`, `OTEL_EXPORTER_*`, secrets, database settings, storage settings, host settings, auth settings, and `config.json` as runtime-only inputs.
+- Deployment and instance configuration must be read at runtime, not at build time. Treat `ACTIVITIES_*`, `OTEL_EXPORTER_*`, secrets, database settings, storage settings, host settings, and auth settings as runtime-only inputs.
 - Do not read runtime deployment config in `next.config.ts`, static Next headers, `images.remotePatterns`, `allowedDevOrigins`, webpack config, `generateBuildId`, or other build-time/module-level Next configuration. Production/Docker builds must succeed when `ACTIVITIES_*` variables are missing or contain invalid placeholder values.
 - `next.config.ts` may read build-only flags such as `NODE_ENV`, `BUILD_STANDALONE`, and `NEXT_TELEMETRY_DISABLED`, but it must not derive app behavior from runtime deployment config.
 - Keep `next.config.ts` as a thin Next configuration entrypoint. Do not define reusable utility functions, parsing helpers, or shared constants there; move helper logic into an appropriate `lib/` module and import it.
@@ -206,7 +206,7 @@ chore: update dependencies                            ← patch
 
 ## Security & Configuration Tips
 
-- Store secrets and instance settings in `config.json` or environment variables; avoid committing secrets.
+- Store secrets and instance settings in environment variables; avoid committing secrets.
 - Review `docs/setup.md` and the database setup guides before changing auth, host, or database settings.
 
 ## Database Backends & Local Setup

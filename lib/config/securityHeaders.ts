@@ -1,10 +1,4 @@
-import { readRuntimeConfigFile } from './runtimeConfigFile'
-import {
-  getEnvironmentList,
-  getStringValue,
-  isRecord,
-  toStringList
-} from './utils'
+import { getEnvironmentList } from './utils'
 
 export type SecurityHeaderStorageConfig = {
   type?: string
@@ -35,39 +29,6 @@ const stripUndefinedStorageConfig = (
   return nextConfig
 }
 
-const getStorageConfig = (value: unknown): SecurityHeaderStorageConfig => {
-  if (!isRecord(value)) return {}
-
-  return stripUndefinedStorageConfig({
-    type: getStringValue(value.type),
-    bucket: getStringValue(value.bucket),
-    region: getStringValue(value.region),
-    hostname: getStringValue(value.hostname),
-    mapboxAccessToken: getStringValue(value.mapboxAccessToken)
-  })
-}
-
-const getFileSecurityHeaderConfig = (): SecurityHeaderConfig | null => {
-  const parsed = readRuntimeConfigFile()
-  if (!isRecord(parsed)) return null
-  if (
-    !Array.isArray(parsed.allowMediaDomains) &&
-    !isRecord(parsed.mediaStorage) &&
-    !isRecord(parsed.fitnessStorage)
-  ) {
-    return null
-  }
-
-  return {
-    allowMediaDomains: toStringList(
-      parsed.allowMediaDomains,
-      'allowMediaDomains'
-    ),
-    mediaStorage: getStorageConfig(parsed.mediaStorage),
-    fitnessStorage: getStorageConfig(parsed.fitnessStorage)
-  }
-}
-
 const getEnvironmentSecurityHeaderConfig = (): SecurityHeaderConfig => ({
   allowMediaDomains: getEnvironmentList('ACTIVITIES_ALLOW_MEDIA_DOMAINS'),
   mediaStorage: {
@@ -86,25 +47,13 @@ const getEnvironmentSecurityHeaderConfig = (): SecurityHeaderConfig => ({
 })
 
 export const getSecurityHeaderConfig = (): SecurityHeaderConfig => {
-  const fileConfig = getFileSecurityHeaderConfig() ?? {
-    allowMediaDomains: [],
-    mediaStorage: {},
-    fitnessStorage: {}
-  }
   const environmentConfig = getEnvironmentSecurityHeaderConfig()
 
   return {
-    allowMediaDomains:
-      process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS !== undefined
-        ? environmentConfig.allowMediaDomains
-        : fileConfig.allowMediaDomains,
-    mediaStorage: {
-      ...fileConfig.mediaStorage,
-      ...stripUndefinedStorageConfig(environmentConfig.mediaStorage)
-    },
-    fitnessStorage: {
-      ...fileConfig.fitnessStorage,
-      ...stripUndefinedStorageConfig(environmentConfig.fitnessStorage)
-    }
+    allowMediaDomains: environmentConfig.allowMediaDomains,
+    mediaStorage: stripUndefinedStorageConfig(environmentConfig.mediaStorage),
+    fitnessStorage: stripUndefinedStorageConfig(
+      environmentConfig.fitnessStorage
+    )
   }
 }

@@ -22,21 +22,6 @@ This guide will help you set up Activity.next using SQLite as your database back
 }
 ```
 
-You can also add this configuration to a `config.json` file in the root directory:
-
-```json
-{
-  "database": {
-    "type": "sql",
-    "client": "better-sqlite3",
-    "useNullAsDefault": true,
-    "connection": {
-      "filename": "./dev.sqlite3"
-    }
-  }
-}
-```
-
 2. Run database migrations to set up the schema:
 
 ```bash
@@ -63,22 +48,12 @@ yarn install
 
 3. Configure the environment (in addition to database settings above):
 
-Create a `config.json` file with the following content:
-
-```json
-{
-  "host": "your-domain.tld",
-  "secretPhase": "your-random-secret-for-sessions",
-  "allowEmails": ["your-email@example.com"],
-  "database": {
-    "type": "sql",
-    "client": "better-sqlite3",
-    "useNullAsDefault": true,
-    "connection": {
-      "filename": "./dev.sqlite3"
-    }
-  }
-}
+```bash
+ACTIVITIES_HOST=your-domain.tld
+ACTIVITIES_SECRET_PHASE=your-random-secret-for-sessions
+ACTIVITIES_ALLOW_EMAILS='["your-email@example.com"]'
+ACTIVITIES_DATABASE_CLIENT=better-sqlite3
+ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
 ```
 
 4. Run migrations and start the development server:
@@ -94,7 +69,7 @@ To run Activity.next locally and communicate with other federated servers, you'l
 
 1. Set up a tunnel service like [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) or [ngrok](https://ngrok.com/)
 2. Point the tunnel to localhost:3000
-3. Use your tunnel's domain as the `host` in your configuration
+3. Use your tunnel's domain as `ACTIVITIES_HOST`
 
 ## Production Deployment with SQLite
 

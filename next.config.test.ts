@@ -454,7 +454,7 @@ describe('next config security hardening', () => {
     )
   })
 
-  it('allows runtime config file storage origins in connect-src', () => {
+  it('ignores runtime config file storage origins in connect-src', () => {
     const originalCwd = process.cwd()
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), 'activities-next-')
@@ -506,16 +506,16 @@ describe('next config security hardening', () => {
       resetContentSecurityPolicyCacheForTests()
       const connectSources = getCspDirectiveSources('connect-src')
 
-      expect(connectSources).toEqual(
-        expect.arrayContaining([
-          'https://file-media-bucket.s3.eu-central-1.amazonaws.com',
-          'https://s3.eu-central-1.amazonaws.com',
-          'https://fitness-file.example.com',
-          'https://api.mapbox.com',
-          'https://events.mapbox.com',
-          'https://*.tiles.mapbox.com'
-        ])
+      expect(connectSources).not.toContain(
+        'https://file-media-bucket.s3.eu-central-1.amazonaws.com'
       )
+      expect(connectSources).not.toContain(
+        'https://s3.eu-central-1.amazonaws.com'
+      )
+      expect(connectSources).not.toContain('https://fitness-file.example.com')
+      expect(connectSources).not.toContain('https://api.mapbox.com')
+      expect(connectSources).not.toContain('https://events.mapbox.com')
+      expect(connectSources).not.toContain('https://*.tiles.mapbox.com')
     } finally {
       resetContentSecurityPolicyCacheForTests()
       process.chdir(originalCwd)

@@ -1,5 +1,3 @@
-import { readRuntimeConfigFile } from './runtimeConfigFile'
-
 let cachedTrustProxyIpHeadersConfig: boolean | null = null
 
 export const getTrustProxyIpHeadersConfig = (): boolean => {
@@ -13,8 +11,7 @@ export const getTrustProxyIpHeadersConfig = (): boolean => {
     return cachedTrustProxyIpHeadersConfig
   }
 
-  const fileConfig = readRuntimeConfigFile()
-  cachedTrustProxyIpHeadersConfig = fileConfig?.trustProxyIpHeaders === true
+  cachedTrustProxyIpHeadersConfig = false
   return cachedTrustProxyIpHeadersConfig
 }
 

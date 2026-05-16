@@ -271,7 +271,7 @@ describe('proxy', () => {
     )
   })
 
-  it('uses runtime config file host config when runtime environment is absent', async () => {
+  it('ignores runtime config file host config when runtime environment is absent', async () => {
     delete process.env.ACTIVITIES_HOST
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
@@ -292,7 +292,7 @@ describe('proxy', () => {
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@file-edge.example.com'
+      'https://internal.example.com/@alice@internal.example.com'
     )
   })
 

@@ -33,7 +33,7 @@ describe('Config', () => {
     )
   })
 
-  it('rejects a short production secret phase from file config at runtime', async () => {
+  it('ignores root config.json and reads runtime environment config', async () => {
     const fs = await import('fs')
     const os = await import('os')
     const path = await import('path')
@@ -42,32 +42,39 @@ describe('Config', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'config.json'),
       JSON.stringify({
-        host: 'example.com',
-        secretPhase: 'short',
+        host: 'file.example.com',
+        secretPhase: 'file-secret',
         allowEmails: [],
         database: {
           client: 'better-sqlite3',
           connection: {
-            filename: ':memory:'
+            filename: 'file.sqlite'
           },
           useNullAsDefault: true
         }
       })
     )
 
-    Object.defineProperty(process.env, 'NODE_ENV', {
-      value: 'production',
-      configurable: true
-    })
-    delete process.env.NEXT_PHASE
+    process.env.ACTIVITIES_HOST = 'env.example.com'
+    process.env.ACTIVITIES_SECRET_PHASE = 'env-secret'
+    process.env.ACTIVITIES_ALLOW_EMAILS = '[]'
+    process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+    process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
     process.chdir(tmpDir)
 
     try {
       const { getConfig } = await import('./index')
 
-      expect(() => getConfig()).toThrow(
-        'ACTIVITIES_SECRET_PHASE must be at least 32 characters in production runtime'
-      )
+      expect(getConfig()).toMatchObject({
+        host: 'env.example.com',
+        secretPhase: 'env-secret',
+        database: {
+          client: 'better-sqlite3',
+          connection: {
+            filename: ':memory:'
+          }
+        }
+      })
     } finally {
       process.chdir(originalCwd)
       fs.rmSync(tmpDir, { force: true, recursive: true })

@@ -1,8 +1,6 @@
-import fs from 'fs'
 import { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import { PHASE_PRODUCTION_BUILD } from 'next/dist/shared/lib/constants'
-import path from 'path'
 import { z } from 'zod'
 
 import { LambdaConfig } from '@/lib/services/email/lambda'
@@ -66,33 +64,6 @@ const validateProductionRuntimeSecret = (config: Config) => {
   )
 }
 
-const getConfigFromFile = () => {
-  let config: Config
-
-  try {
-    config = Config.parse(
-      JSON.parse(
-        fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
-      )
-    )
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-    if (nodeError.code === 'ENOENT') {
-      return null
-    }
-
-    if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
-      return null
-    }
-
-    logger.error('Invalid file config')
-    logger.error(nodeError)
-    return null
-  }
-
-  return config
-}
-
 const getConfigFromEnvironment = () => {
   let config: Config
 
@@ -138,12 +109,6 @@ const getConfigFromEnvironment = () => {
 }
 
 export const getConfig = memoize((): Config => {
-  const fileConfig = getConfigFromFile()
-  if (fileConfig) {
-    validateProductionRuntimeSecret(fileConfig)
-    return fileConfig
-  }
-
   const environmentConfig = getConfigFromEnvironment()
   if (environmentConfig) {
     validateProductionRuntimeSecret(environmentConfig)
