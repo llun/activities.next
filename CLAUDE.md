@@ -7,7 +7,7 @@ Follow `AGENTS.md` for all project rules. If an `AGENTS.override.md` file is pre
 - Always use **Node.js 24** for all node/yarn commands.
 - Always use **`yarn`** for package management. Never use `npm install` or any other `npm` commands.
 - Always create a **new branch** for changes; commit to that branch.
-- Treat `ACTIVITIES_*`, `OTEL_EXPORTER_*`, secrets, host/database/storage/auth settings, and `config.json` as runtime-only deployment config. Do not read them in `next.config.ts` or other build-time Next config; builds must work without real deployment environment variables.
+- Treat `ACTIVITIES_*`, `OTEL_EXPORTER_*`, secrets, and host/database/storage/auth settings as runtime-only deployment config. Do not read them in `next.config.ts` or other build-time Next config; builds must work without real deployment environment variables.
 - Keep `next.config.ts` as a thin Next configuration entrypoint. Do not define reusable utility functions, parsing helpers, or shared constants there; move helper logic into an appropriate `lib/` module and import it.
 - Do not read `ACTIVITIES_*` or `OTEL_EXPORTER_*` variables directly, and do not define environment variable name constants, outside `lib/config/`. Add or reuse a config utility and import that instead.
 - Before committing, run in order:

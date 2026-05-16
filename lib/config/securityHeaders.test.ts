@@ -46,7 +46,7 @@ describe('getSecurityHeaderConfig', () => {
     }
   })
 
-  it('layers runtime environment settings over runtime config file settings', () => {
+  it('uses runtime environment settings and ignores runtime config file settings', () => {
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
       JSON.stringify({
@@ -72,9 +72,6 @@ describe('getSecurityHeaderConfig', () => {
     expect(getSecurityHeaderConfig()).toEqual({
       allowMediaDomains: ['env-images.example.com'],
       mediaStorage: {
-        type: 's3',
-        bucket: 'file-media-bucket',
-        region: 'eu-central-1',
         hostname: 'env-media.example.com'
       },
       fitnessStorage: {
@@ -87,50 +84,15 @@ describe('getSecurityHeaderConfig', () => {
     })
   })
 
-  it('uses runtime config file settings when scoped environment settings are absent', () => {
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({
-        allowMediaDomains: ['file-images.example.com'],
-        mediaStorage: {
-          type: 's3',
-          bucket: 'file-media-bucket',
-          region: 'eu-central-1'
-        },
-        fitnessStorage: {
-          type: 'object',
-          bucket: 'file-fitness-bucket',
-          region: 'us-east-1',
-          hostname: 'file-fitness.example.com',
-          mapboxAccessToken: 'pk.file-mapbox'
-        }
-      })
-    )
-
+  it('uses empty settings when scoped environment settings are absent', () => {
     expect(getSecurityHeaderConfig()).toEqual({
-      allowMediaDomains: ['file-images.example.com'],
-      mediaStorage: {
-        type: 's3',
-        bucket: 'file-media-bucket',
-        region: 'eu-central-1'
-      },
-      fitnessStorage: {
-        type: 'object',
-        bucket: 'file-fitness-bucket',
-        region: 'us-east-1',
-        hostname: 'file-fitness.example.com',
-        mapboxAccessToken: 'pk.file-mapbox'
-      }
+      allowMediaDomains: [],
+      mediaStorage: {},
+      fitnessStorage: {}
     })
   })
 
-  it('uses an explicit empty runtime environment media allowlist over file settings', () => {
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({
-        allowMediaDomains: ['file-images.example.com']
-      })
-    )
+  it('keeps an explicit empty runtime environment media allowlist', () => {
     process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = '[]'
 
     expect(getSecurityHeaderConfig()).toEqual({
@@ -140,11 +102,7 @@ describe('getSecurityHeaderConfig', () => {
     })
   })
 
-  it('uses runtime environment settings when the config file has no security header settings', () => {
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({ host: 'file-host.example.com' })
-    )
+  it('uses runtime environment media storage settings', () => {
     process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'env-media.example.com'
 
     expect(getSecurityHeaderConfig()).toEqual({

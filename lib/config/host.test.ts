@@ -108,7 +108,7 @@ describe('getProxyHostConfig', () => {
     })
   })
 
-  it('uses runtime config file proxy host settings when runtime environment is absent', () => {
+  it('ignores runtime config file proxy host settings when runtime environment is absent', () => {
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
       JSON.stringify({
@@ -119,8 +119,8 @@ describe('getProxyHostConfig', () => {
     )
 
     expect(getProxyHostConfig()).toEqual({
-      host: 'file.example.com',
-      trustedHosts: ['file-edge.example.com']
+      host: '',
+      trustedHosts: []
     })
   })
 })

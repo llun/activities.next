@@ -33,23 +33,6 @@ GRANT ALL PRIVILEGES ON DATABASE activitynext TO activitynext;
 }
 ```
 
-You can also add this configuration to a `config.json` file in the root directory:
-
-```json
-{
-  "database": {
-    "type": "sql",
-    "client": "pg",
-    "connection": {
-      "host": "localhost",
-      "user": "activitynext",
-      "password": "your_strong_password",
-      "database": "activitynext"
-    }
-  }
-}
-```
-
 3. Run database migrations to set up the schema:
 
 ```bash
@@ -76,24 +59,15 @@ yarn install
 
 3. Configure the environment (in addition to database settings above):
 
-Create a `config.json` file with the following content:
-
-```json
-{
-  "host": "your-domain.tld",
-  "secretPhase": "your-random-secret-for-sessions",
-  "allowEmails": ["your-email@example.com"],
-  "database": {
-    "type": "sql",
-    "client": "pg",
-    "connection": {
-      "host": "localhost",
-      "user": "activitynext",
-      "password": "your_strong_password",
-      "database": "activitynext"
-    }
-  }
-}
+```bash
+ACTIVITIES_HOST=your-domain.tld
+ACTIVITIES_SECRET_PHASE=your-random-secret-for-sessions
+ACTIVITIES_ALLOW_EMAILS='["your-email@example.com"]'
+ACTIVITIES_DATABASE_CLIENT=pg
+ACTIVITIES_DATABASE_PG_HOST=localhost
+ACTIVITIES_DATABASE_PG_USER=activitynext
+ACTIVITIES_DATABASE_PG_PASSWORD=your_strong_password
+ACTIVITIES_DATABASE_PG_DATABASE=activitynext
 ```
 
 4. Run migrations and start the development server:
