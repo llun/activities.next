@@ -76,11 +76,13 @@ export const Actions: FC<Props> = ({
             statusActionGridColumns
           )}
         >
-          <EditHistoryButton
-            status={actualStatus}
-            host={host}
-            onShowEdits={onShowEdits}
-          />
+          {hasEditHistory && (
+            <EditHistoryButton
+              status={actualStatus}
+              host={host}
+              onShowEdits={onShowEdits}
+            />
+          )}
           {isOwner && <VisibilityButton status={actualStatus} />}
           {canEdit && (
             <>

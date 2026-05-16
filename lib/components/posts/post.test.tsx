@@ -445,4 +445,27 @@ describe('Post', () => {
       screen.queryByRole('group', { name: 'Post status actions' })
     ).not.toBeInTheDocument()
   })
+
+  it('does not render edit history action when status has no edits', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        editable
+        showActions
+        status={status}
+        onEdit={jest.fn()}
+        onPostDeleted={jest.fn()}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('group', { name: 'Post status actions' })
+    ).toHaveClass('grid-cols-3')
+    expect(
+      screen.queryByRole('button', { name: 'Show edit history' })
+    ).not.toBeInTheDocument()
+  })
 })
