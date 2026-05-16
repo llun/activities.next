@@ -1,0 +1,47 @@
+lib/actions/updateNote.test.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 152-232
+app/api/v1/statuses/route.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 7,124,128
+lib/actions/updateNote.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 6,16,27,44,49-69
+lib/client.test.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 50-65
+lib/database/sql/status.test.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 938-1018
+lib/services/mastodon/mediaIds.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 1-57
+lib/client.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 72,77-78,83-88,98-99
+lib/types/domain/attachment.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 39
+app/api/v1/statuses/[id]/route.test.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 806-888
+lib/database/sql/media.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 27-28,258,272,279-322,333-336,374-377,417-420
+lib/types/database/operations.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 803-812,863-865
+lib/components/post-box/post-box.test.tsx
+  s_ec79fc0636dda8::t_ef1fb94782cafe 1-124
+app/(timeline)/MainPageTimeline.tsx
+  s_ec79fc0636dda8::t_ef1fb94782cafe 20,79-91,265-269,273-276
+app/api/v1/statuses/[id]/route.ts
+  s_ec79fc0636dda8::t_ef1fb94782cafe 10,12,105,140-144,147-162,185-201,207,220,226
+lib/components/post-box/post-box.tsx
+  s_ec79fc0636dda8::t_ef1fb94782cafe 38,118-168,187-245,284-299,303-304,309-328,363,397-404,473-474,477-478,488,497,560-561,567,745-754,816-818,823-828
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b8f5cb126b3a55a239d85a02504cc53f09f8bac3",
+  "prompts": {},
+  "sessions": {
+    "s_ec79fc0636dda8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3180-dfd6-7d32-a1c6-78a03a8c1878",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
