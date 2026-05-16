@@ -545,6 +545,7 @@ const storageSourceFromMediaConfig = (
       return {
         bucket: storage.bucket,
         ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
+        // Archive-only compatibility for old object-storage configs that used hostname as the API endpoint.
         ...(!storage.endpoint && storage.hostname
           ? { endpointFallback: storage.hostname }
           : null),
@@ -578,6 +579,7 @@ const storageSourceFromFitnessConfig = (
       return {
         bucket: storage.bucket,
         ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
+        // Archive-only compatibility for old object-storage configs that used hostname as the API endpoint.
         ...(!storage.endpoint && storage.hostname
           ? { endpointFallback: storage.hostname }
           : null),

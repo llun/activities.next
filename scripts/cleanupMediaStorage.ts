@@ -7,7 +7,11 @@
  *   --dry-run   Show what would be deleted without actually deleting
  *   --yes       Skip confirmation prompt and delete immediately
  */
-import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+  type S3Client
+} from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
 import knex from 'knex'
 import path from 'path'
@@ -89,28 +93,32 @@ async function listS3Files(
   const client = createStorageS3Client({ region, endpoint })
   const files: string[] = []
 
-  let continuationToken: string | undefined
+  try {
+    let continuationToken: string | undefined
 
-  do {
-    const command = new ListObjectsV2Command({
-      Bucket: bucket,
-      ContinuationToken: continuationToken
-    })
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: bucket,
+        ContinuationToken: continuationToken
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    if (response.Contents) {
-      for (const object of response.Contents) {
-        if (object.Key) {
-          files.push(object.Key)
+      if (response.Contents) {
+        for (const object of response.Contents) {
+          if (object.Key) {
+            files.push(object.Key)
+          }
         }
       }
-    }
 
-    continuationToken = response.NextContinuationToken
-  } while (continuationToken)
+      continuationToken = response.NextContinuationToken
+    } while (continuationToken)
 
-  return files
+    return files
+  } finally {
+    client.destroy()
+  }
 }
 
 async function deleteLocalFile(basePath: string, filePath: string) {
@@ -123,12 +131,10 @@ async function deleteLocalFile(basePath: string, filePath: string) {
 }
 
 async function deleteS3File(
+  client: S3Client,
   bucket: string,
-  region: string,
-  filePath: string,
-  endpoint?: string
+  filePath: string
 ) {
-  const client = createStorageS3Client({ region, endpoint })
   const command = new DeleteObjectCommand({
     Bucket: bucket,
     Key: filePath
@@ -323,38 +329,48 @@ async function cleanupMediaStorage() {
 
   let deletedCount = 0
   let errorCount = 0
+  const deleteS3Client =
+    config.mediaStorage.type === MediaStorageType.S3Storage ||
+    config.mediaStorage.type === MediaStorageType.ObjectStorage
+      ? createStorageS3Client({
+          region: config.mediaStorage.region,
+          endpoint: config.mediaStorage.endpoint
+        })
+      : undefined
 
-  for (const file of orphanedFiles) {
-    try {
-      switch (config.mediaStorage.type) {
-        case MediaStorageType.LocalFile:
-          // basePath is guaranteed to be defined for LocalFile storage type
-          if (!basePath) {
-            throw new Error('Base path is not defined for local file storage')
-          }
-          await deleteLocalFile(basePath, file)
-          break
-        case MediaStorageType.S3Storage:
-        case MediaStorageType.ObjectStorage:
-          await deleteS3File(
-            config.mediaStorage.bucket,
-            config.mediaStorage.region,
-            file,
-            config.mediaStorage.endpoint
+  try {
+    for (const file of orphanedFiles) {
+      try {
+        switch (config.mediaStorage.type) {
+          case MediaStorageType.LocalFile:
+            // basePath is guaranteed to be defined for LocalFile storage type
+            if (!basePath) {
+              throw new Error('Base path is not defined for local file storage')
+            }
+            await deleteLocalFile(basePath, file)
+            break
+          case MediaStorageType.S3Storage:
+          case MediaStorageType.ObjectStorage:
+            if (!deleteS3Client) {
+              throw new Error('S3 client is not defined for S3 storage')
+            }
+            await deleteS3File(deleteS3Client, config.mediaStorage.bucket, file)
+            break
+        }
+        deletedCount++
+        if (deletedCount % 10 === 0) {
+          console.log(
+            `   Deleted ${deletedCount}/${orphanedFiles.length} files...`
           )
-          break
+        }
+      } catch (error) {
+        const err = error as Error
+        console.error(`   Failed to delete ${file}: ${err.message}`)
+        errorCount++
       }
-      deletedCount++
-      if (deletedCount % 10 === 0) {
-        console.log(
-          `   Deleted ${deletedCount}/${orphanedFiles.length} files...`
-        )
-      }
-    } catch (error) {
-      const err = error as Error
-      console.error(`   Failed to delete ${file}: ${err.message}`)
-      errorCount++
     }
+  } finally {
+    deleteS3Client?.destroy()
   }
 
   console.log('\n✅ Cleanup complete!')

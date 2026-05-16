@@ -427,6 +427,54 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('allows S3 storage endpoints separately from public media hostnames in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://media-cdn.example.com',
+            'https://storage.example.com'
+          ])
+        )
+        expect(connectSources).not.toContain(
+          'https://media-bucket.s3.us-east-1.amazonaws.com'
+        )
+        expect(connectSources).not.toContain(
+          'https://s3.us-east-1.amazonaws.com'
+        )
+      }
+    )
+  })
+
+  it('does not allow default AWS S3 sources for auto-region object storage without an endpoint', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined,
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: undefined
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).not.toContain(
+          'https://media-object-bucket.s3.auto.amazonaws.com'
+        )
+        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
+      }
+    )
+  })
+
   it('allows configured fitness object storage connections in connect-src', () => {
     withEnv(
       {

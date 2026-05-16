@@ -72,7 +72,7 @@ const getDefaultS3CspSources = (storage: unknown) => {
 
   const bucket = storage.bucket.trim()
   const region = storage.region.trim()
-  if (!bucket || !region) return []
+  if (!bucket || !region || region.toLowerCase() === 'auto') return []
 
   return [
     `https://${bucket}.s3.${region}.amazonaws.com`,
