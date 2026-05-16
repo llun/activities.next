@@ -1,0 +1,31 @@
+CLAUDE.md
+  s_97ecf87d425589::t_c00997ae99fe3a 10
+lib/config/securityHeaders.ts
+  s_97ecf87d425589::t_cb1c2831eb1cb3 32,34,39-40,46
+lib/config/index.test.ts
+  s_97ecf87d425589::t_b3be4b6a68a5fd 67,69,79-82
+lib/config/utils.ts
+  s_97ecf87d425589::t_4414a8d41d69ba 8
+lib/config/trustProxyIpHeaders.ts
+  s_97ecf87d425589::t_c9b3ea9e4d0583 8-9
+lib/config/trustProxyIpHeaders.test.ts
+  s_97ecf87d425589::t_45a828d6ad5e62 64-65,67-68
+lib/config/host.ts
+  s_97ecf87d425589::t_a6e82cdeb034de 36-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "40a326085c470d1da288c47f7bcda515e3131ced",
+  "prompts": {},
+  "sessions": {
+    "s_97ecf87d425589": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2f75-b272-75c0-8922-1a6a96eb8ddd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
