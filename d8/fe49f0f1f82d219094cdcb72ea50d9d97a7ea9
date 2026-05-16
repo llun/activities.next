@@ -1,0 +1,27 @@
+lib/components/post-box/post-box.test.tsx
+  s_c0d2e9b98758c5::t_f361f22c589a31 517-526,528-533
+  s_c0d2e9b98758c5::t_bd21cd024b9eac 7,43,158-288,473-516,527
+lib/client.test.ts
+  s_c0d2e9b98758c5::t_aa5518b5b4f887 52-90
+lib/components/post-box/post-box.tsx
+  s_c0d2e9b98758c5::t_3ee16da5494907 125-132,446-455,461,570,572,583,587,646,953,955
+  s_c0d2e9b98758c5::t_37e3d45473fd9e 588
+lib/client.ts
+  s_c0d2e9b98758c5::t_3ee16da5494907 100,104,120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d8fe49f0f1f82d219094cdcb72ea50d9d97a7ea9",
+  "prompts": {},
+  "sessions": {
+    "s_c0d2e9b98758c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cd-9f4b-7d51-92ab-bc9164cbe225",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
