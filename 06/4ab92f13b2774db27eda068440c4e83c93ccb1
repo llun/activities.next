@@ -1,0 +1,21 @@
+lib/components/posts/actions/edit-history-button.tsx
+  s_30b9662e70826b::t_57ede2afe8b8f7 38
+lib/components/posts/post.test.tsx
+  s_30b9662e70826b::t_01e821be715f45 5,386-392,394,397,400,403-405,408,411,414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "064ab92f13b2774db27eda068440c4e83c93ccb1",
+  "prompts": {},
+  "sessions": {
+    "s_30b9662e70826b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cb-e738-7883-98ff-e5d288fd8468",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
