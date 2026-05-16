@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
@@ -20,6 +20,7 @@ import { assertFitnessStoragePath } from '@/lib/services/fitness-files/path'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
+import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import {
   StravaArchiveActivity,
   StravaArchiveLimitError,
@@ -211,7 +212,7 @@ const resolveArchivePath = async (
     `strava-archive-${archiveFitnessFileId}-${Date.now()}.zip`
   )
 
-  const client = new S3Client({ region: fitnessStorage.region })
+  const client = createStorageS3Client(fitnessStorage)
   const object = await client.send(
     new GetObjectCommand({
       Bucket: fitnessStorage.bucket,

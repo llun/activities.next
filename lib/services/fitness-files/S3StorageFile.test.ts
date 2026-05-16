@@ -45,6 +45,27 @@ describe('S3FitnessStorage presigned upload verification', () => {
     )
   })
 
+  it('uses the configured endpoint for the S3 client without treating hostname as the endpoint', () => {
+    new S3FitnessStorage(
+      {
+        type: FitnessStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'auto',
+        hostname: 'fitness-cdn.example.com',
+        endpoint: 'https://account.r2.cloudflarestorage.com',
+        prefix: ''
+      },
+      'llun.test',
+      database
+    )
+
+    expect(S3Client).toHaveBeenCalledWith({
+      region: 'auto',
+      endpoint: 'https://account.r2.cloudflarestorage.com',
+      forcePathStyle: true
+    })
+  })
+
   it('returns false for missing S3 objects instead of throwing', async () => {
     send.mockImplementation(async (command) => {
       if (command instanceof HeadObjectCommand) {

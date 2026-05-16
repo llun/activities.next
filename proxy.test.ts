@@ -66,6 +66,8 @@ describe('proxy', () => {
   const previousActivitiesHost = process.env.ACTIVITIES_HOST
   const previousAllowActorDomains = process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
   const previousMediaStorageBucket = process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+  const previousMediaStorageEndpoint =
+    process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT
   const previousMediaStorageHostname =
     process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
   const previousMediaStorageRegion = process.env.ACTIVITIES_MEDIA_STORAGE_REGION
@@ -81,6 +83,7 @@ describe('proxy', () => {
     process.env.ACTIVITIES_HOST = 'public.example.com'
     delete process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS
     delete process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+    delete process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT
     delete process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
     delete process.env.ACTIVITIES_MEDIA_STORAGE_REGION
     delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
@@ -111,6 +114,13 @@ describe('proxy', () => {
       delete process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
     } else {
       process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = previousMediaStorageBucket
+    }
+
+    if (previousMediaStorageEndpoint === undefined) {
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT
+    } else {
+      process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT =
+        previousMediaStorageEndpoint
     }
 
     if (previousMediaStorageHostname === undefined) {

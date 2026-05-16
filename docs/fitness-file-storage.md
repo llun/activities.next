@@ -16,7 +16,8 @@ Fitness storage is configured in `lib/config/fitnessStorage.ts`.
 - `ACTIVITIES_FITNESS_STORAGE_PATH` - Local filesystem path
 - `ACTIVITIES_FITNESS_STORAGE_BUCKET` - S3 bucket name
 - `ACTIVITIES_FITNESS_STORAGE_REGION` - S3 region
-- `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` - Optional S3-compatible endpoint hostname
+- `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` - Optional public hostname/CDN used to serve fitness files
+- `ACTIVITIES_FITNESS_STORAGE_ENDPOINT` - Optional S3-compatible API endpoint for storage operations and presigned uploads
 - `ACTIVITIES_FITNESS_STORAGE_PREFIX` - S3 key prefix, default `fitness/`
 - `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE` - Max file size, default 50 MiB
 - `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT` - Account quota override shared by media and fitness files

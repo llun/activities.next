@@ -3,7 +3,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
-  S3Client
+  type S3Client
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import crypto from 'crypto'
@@ -17,6 +17,7 @@ import {
 } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
+import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
@@ -76,7 +77,7 @@ export class S3FitnessStorage implements FitnessStorage {
     this._config = config
     this._host = host
     this._database = database
-    this._client = new S3Client({ region: config.region })
+    this._client = createStorageS3Client(config)
   }
 
   async getFile(filePath: string) {

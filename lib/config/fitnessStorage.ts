@@ -30,6 +30,7 @@ export const FitnessStorageS3Config = BaseFitnessStorageConfig.extend({
   bucket: z.string(),
   region: z.string(),
   hostname: z.string().optional(),
+  endpoint: z.string().optional(),
   prefix: z.string()
 })
 export type FitnessStorageS3Config = z.infer<typeof FitnessStorageS3Config>
@@ -98,6 +99,8 @@ export const getFitnessStorageConfig = (): {
             region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
             hostname:
               process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
+            endpoint:
+              process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT || undefined,
             prefix: 'fitness/',
             maxFileSize: getFitnessMaxFileSize(),
             quotaPerAccount: getMediaQuotaPerAccount(),
@@ -130,6 +133,8 @@ export const getFitnessStorageConfig = (): {
           region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION as string,
           hostname:
             process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
+          endpoint:
+            process.env.ACTIVITIES_FITNESS_STORAGE_ENDPOINT || undefined,
           prefix: process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX || 'fitness/',
           maxFileSize: getFitnessMaxFileSize(),
           quotaPerAccount: getFitnessQuotaPerAccount(),

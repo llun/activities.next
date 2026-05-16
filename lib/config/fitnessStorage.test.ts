@@ -43,6 +43,9 @@ describe('FitnessStorage config', () => {
       process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'object'
       process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'bucket'
       process.env.ACTIVITIES_MEDIA_STORAGE_REGION = 'auto'
+      process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'media-cdn.example.com'
+      process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT =
+        'https://storage.example.com'
       process.env.ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT = '2000000'
 
       const config = getFitnessStorageConfig()
@@ -51,8 +54,34 @@ describe('FitnessStorage config', () => {
       expect((config?.fitnessStorage as { prefix: string }).prefix).toBe(
         'fitness/'
       )
+      expect((config?.fitnessStorage as { hostname: string }).hostname).toBe(
+        'media-cdn.example.com'
+      )
+      expect((config?.fitnessStorage as { endpoint: string }).endpoint).toBe(
+        'https://storage.example.com'
+      )
       expect(config?.fitnessStorage.maxFileSize).toBe(
         DEFAULT_FITNESS_MAX_FILE_SIZE
+      )
+    })
+
+    it('uses explicit fitness object storage endpoint separately from public hostname', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'object'
+      process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET = 'fitness-bucket'
+      process.env.ACTIVITIES_FITNESS_STORAGE_REGION = 'auto'
+      process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME =
+        'fitness-cdn.example.com'
+      process.env.ACTIVITIES_FITNESS_STORAGE_ENDPOINT =
+        'https://fitness-storage.example.com'
+
+      const config = getFitnessStorageConfig()
+
+      expect(config?.fitnessStorage.type).toBe(FitnessStorageType.ObjectStorage)
+      expect((config?.fitnessStorage as { hostname: string }).hostname).toBe(
+        'fitness-cdn.example.com'
+      )
+      expect((config?.fitnessStorage as { endpoint: string }).endpoint).toBe(
+        'https://fitness-storage.example.com'
       )
     })
 
