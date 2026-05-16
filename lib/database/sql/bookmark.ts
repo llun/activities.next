@@ -32,8 +32,6 @@ const isUniqueConstraintError = (error: unknown) => {
     errorCode === 'ER_DUP_ENTRY' ||
     errorCode === 'SQLITE_CONSTRAINT_UNIQUE' ||
     errorNumber === 1062 ||
-    (errorCode === 'SQLITE_CONSTRAINT' &&
-      Boolean(errorMessage?.includes('UNIQUE constraint failed'))) ||
     Boolean(errorMessage?.includes('UNIQUE constraint failed'))
   )
 }
