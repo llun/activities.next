@@ -1,4 +1,4 @@
-import { FC } from 'react'
+import { FC, ReactNode } from 'react'
 
 import { PostProps } from '@/lib/components/posts/post'
 import {
@@ -43,15 +43,43 @@ export const Actions: FC<Props> = ({
     Boolean(actualStatus.isLocalActor) &&
     currentActor.id === actualStatus.actorId
   const hasEditHistory = actualStatus.edits.length > 0
-  const hasStatusActions = hasEditHistory || isOwner || canEdit
-  const statusActionCount =
-    (hasEditHistory ? 1 : 0) + (isOwner ? 1 : 0) + (canEdit ? 2 : 0)
+  const statusActions: ReactNode[] = []
+
+  if (hasEditHistory) {
+    statusActions.push(
+      <EditHistoryButton
+        key="edit-history"
+        status={actualStatus}
+        host={host}
+        onShowEdits={onShowEdits}
+      />
+    )
+  }
+
+  if (isOwner) {
+    statusActions.push(
+      <VisibilityButton key="visibility" status={actualStatus} />
+    )
+  }
+
+  if (canEdit) {
+    statusActions.push(
+      <EditButton key="edit" status={actualStatus} onEdit={onEdit} />,
+      <DeleteButton
+        key="delete"
+        status={actualStatus}
+        onPostDeleted={onPostDeleted}
+      />
+    )
+  }
+
+  const hasStatusActions = statusActions.length > 0
   const statusActionGridColumns =
-    statusActionCount === 4
+    statusActions.length === 4
       ? 'grid-cols-4'
-      : statusActionCount === 3
+      : statusActions.length === 3
         ? 'grid-cols-3'
-        : statusActionCount === 2
+        : statusActions.length === 2
           ? 'grid-cols-2'
           : 'grid-cols-1'
 
@@ -76,23 +104,7 @@ export const Actions: FC<Props> = ({
             statusActionGridColumns
           )}
         >
-          {hasEditHistory && (
-            <EditHistoryButton
-              status={actualStatus}
-              host={host}
-              onShowEdits={onShowEdits}
-            />
-          )}
-          {isOwner && <VisibilityButton status={actualStatus} />}
-          {canEdit && (
-            <>
-              <EditButton status={actualStatus} onEdit={onEdit} />
-              <DeleteButton
-                status={actualStatus}
-                onPostDeleted={onPostDeleted}
-              />
-            </>
-          )}
+          {statusActions}
         </div>
       )}
     </div>
