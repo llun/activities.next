@@ -77,6 +77,14 @@ const existingAttachment: Attachment = {
   mediaId: 'existing-media'
 }
 
+const legacyAttachmentWithoutMediaId: Attachment = {
+  ...existingAttachment,
+  id: 'legacy-attachment',
+  url: 'https://activities.local/api/v1/files/legacy.jpg',
+  name: 'legacy.jpg',
+  mediaId: null
+}
+
 const editStatus: EditableStatus = {
   id: 'https://activities.local/users/llun/statuses/post-1',
   actorId: profile.id,
@@ -145,6 +153,188 @@ describe('PostBox edit media', () => {
         updatedAt: updatedTime,
         reply: ''
       }
+    })
+  })
+
+  it('initializes and submits edit text without escaping source text characters', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={{
+          ...editStatus,
+          text: 'a & b < c > d'
+        }}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    expect(screen.getByPlaceholderText("What's on your mind?")).toHaveValue(
+      'a & b < c > d'
+    )
+    expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
+
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: 'a & b < c > d!' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(updateNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'a & b < c > d!'
+        })
+      )
+    })
+  })
+
+  it('does not send legacy attachment ids as media ids', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={{
+          ...editStatus,
+          attachments: [legacyAttachmentWithoutMediaId]
+        }}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Remove media legacy.jpg' })
+    ).not.toBeInTheDocument()
+
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(updateNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachments: [
+            expect.objectContaining({
+              id: 'uploaded-media'
+            })
+          ]
+        })
+      )
+    })
+    expect(updateNoteMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'legacy-attachment'
+          })
+        ])
+      })
+    )
+  })
+
+  it('uses concrete media types when reconciling unmatched server attachments', async () => {
+    const onPostUpdated = jest.fn()
+    updateNoteMock.mockResolvedValueOnce({
+      content: '<p>Updated post text</p>',
+      spoilerText: '',
+      mediaAttachments: [
+        {
+          id: 'server-video-attachment',
+          type: 'video',
+          url: 'https://activities.local/api/v1/files/video.mp4',
+          preview_url: null,
+          remote_url: null,
+          description: 'video.mp4',
+          blurhash: null,
+          meta: {
+            width: 1280,
+            height: 720,
+            size: '1280x720',
+            aspect: 1.7777777777777777,
+            duration: 12,
+            fps: 30,
+            audio_encode: 'aac',
+            audio_bitrate: '128000',
+            audio_channels: '2',
+            original: {
+              width: 1280,
+              height: 720,
+              size: '1280x720',
+              aspect: 1.7777777777777777,
+              duration: 12,
+              frame_rate: '30/1',
+              bitrate: 1000000
+            },
+            small: {
+              width: 640,
+              height: 360,
+              size: '640x360',
+              aspect: 1.7777777777777777
+            }
+          }
+        }
+      ],
+      status: {
+        id: editStatus.id,
+        text: 'Updated post text',
+        createdAt: currentTime,
+        updatedAt: updatedTime,
+        reply: ''
+      }
+    })
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={{
+          ...editStatus,
+          attachments: []
+        }}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={onPostUpdated}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: 'Updated post text' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(onPostUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachments: [
+            expect.objectContaining({
+              id: 'server-video-attachment',
+              mediaType: 'video/mp4'
+            })
+          ]
+        })
+      )
     })
   })
 

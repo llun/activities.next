@@ -12,7 +12,6 @@ import {
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkBreaks from 'remark-breaks'
-import sanitizeHtml from 'sanitize-html'
 
 import {
   createNote,
@@ -35,7 +34,11 @@ import {
   getMention,
   getMentionFromActorID
 } from '@/lib/types/domain/actor'
-import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
+import {
+  Attachment,
+  PostBoxAttachment,
+  isFitnessAttachment
+} from '@/lib/types/domain/attachment'
 import {
   EditableStatus,
   Status,
@@ -84,21 +87,27 @@ interface Props {
   onDiscardEdit: () => void
 }
 
-const getEditableStatusText = (status: EditableStatus) =>
-  sanitizeHtml(status.text, { allowedTags: [] })
+const getEditableStatusText = (status: EditableStatus) => status.text
 
 const getEditableStatusAttachments = (
   status: EditableStatus
 ): PostBoxAttachment[] =>
-  status.attachments.map((attachment) => ({
-    type: 'upload',
-    id: attachment.mediaId ?? attachment.id,
-    mediaType: attachment.mediaType,
-    url: attachment.url,
-    width: attachment.width ?? 0,
-    height: attachment.height ?? 0,
-    name: attachment.name
-  }))
+  status.attachments.flatMap((attachment) => {
+    const mediaId = attachment.mediaId
+    if (!mediaId || isFitnessAttachment(attachment)) return []
+
+    return [
+      {
+        type: 'upload',
+        id: mediaId,
+        mediaType: attachment.mediaType,
+        url: attachment.url,
+        width: attachment.width ?? 0,
+        height: attachment.height ?? 0,
+        name: attachment.name
+      }
+    ]
+  })
 
 const getAttachmentIds = (attachments: Pick<PostBoxAttachment, 'id'>[]) =>
   attachments.map((attachment) => attachment.id)
@@ -155,12 +164,12 @@ const getMediaTypeFromMastodonAttachment = (
 ) => {
   switch (attachment.type) {
     case 'image':
-      return 'image/*'
+      return 'image/jpeg'
     case 'gifv':
     case 'video':
-      return 'video/*'
+      return 'video/mp4'
     case 'audio':
-      return 'audio/*'
+      return 'audio/mpeg'
     default:
       return 'application/octet-stream'
   }
