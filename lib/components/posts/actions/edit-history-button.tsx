@@ -23,19 +23,24 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
   }`
 
   return (
-    <button
-      className="relative flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
-      onClick={(e) => {
-        e.stopPropagation()
-        onShowEdits?.(status)
-        setShowHistory((value) => !value)
-      }}
-      title={editCountLabel}
-      aria-label={`Show edit history, ${editCountLabel}`}
-    >
-      <History className="h-4 w-4" />
+    <div className="relative inline-flex">
+      <button
+        className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
+        onClick={(e) => {
+          e.stopPropagation()
+          onShowEdits?.(status)
+          setShowHistory((value) => !value)
+        }}
+        title={editCountLabel}
+        aria-label={`Show edit history, ${editCountLabel}`}
+      >
+        <History className="h-4 w-4" />
+      </button>
       {showHistory && (
-        <div className="absolute bottom-full left-0 mb-2 w-[25rem] z-20 max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:w-auto">
+        <div
+          className="absolute bottom-full left-0 mb-2 w-[25rem] z-20 max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:w-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
           <ul className="divide-y divide-border rounded-lg border bg-background shadow-lg">
             {status.edits.reverse().map((edit, index) => {
               return (
@@ -59,6 +64,6 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
           </ul>
         </div>
       )}
-    </button>
+    </div>
   )
 }

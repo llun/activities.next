@@ -415,6 +415,39 @@ describe('Post', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps edit history panel open when interacting with panel content', () => {
+    const onShowEdits = jest.fn()
+
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
+        }}
+        onShowAttachment={jest.fn()}
+        onShowEdits={onShowEdits}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show edit history, 1 edit' })
+    )
+
+    const editHistoryContent = screen.getByText('Previous content')
+
+    expect(editHistoryContent).toBeInTheDocument()
+    expect(onShowEdits).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(editHistoryContent)
+
+    expect(screen.getByText('Previous content')).toBeInTheDocument()
+    expect(onShowEdits).toHaveBeenCalledTimes(1)
+  })
+
   it('does not render an empty status action group', () => {
     render(
       <Post
