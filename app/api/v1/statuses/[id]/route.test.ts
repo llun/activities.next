@@ -650,6 +650,48 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
     })
 
+    it('returns 500 when a readable unbookmark target cannot be reloaded after deletion', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-unbookmark-reload-missing`
+      const status = await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Readable unbookmark target that disappears before reload',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId })
+
+      const getStatusSpy = jest.spyOn(database, 'getStatus')
+      getStatusSpy.mockResolvedValueOnce(status)
+      getStatusSpy.mockResolvedValueOnce(null)
+
+      try {
+        const response = await unbookmarkStatus(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unbookmark`,
+            {
+              method: 'POST',
+              headers: { Origin: 'https://llun.test' }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+        expect(response.status).toBe(500)
+      } finally {
+        getStatusSpy.mockRestore()
+      }
+
+      await expect(
+        database.isActorBookmarkedStatus({ actorId: ACTOR2_ID, statusId })
+      ).resolves.toBe(false)
+    })
+
     it('allows actors to unbookmark when the original status is no longer readable', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor3.email }

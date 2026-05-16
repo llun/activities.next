@@ -41,15 +41,20 @@ const getOriginalStatusIdFromAnnounceContent = (content: unknown) => {
   return null
 }
 
+const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
+
 const resolveBookmarkStatusId = async ({
   database,
   statusId,
-  statusType
+  statusType,
+  depth = 0
 }: {
   database: Knex | Knex.Transaction
   statusId: string
   statusType?: string
+  depth?: number
 }): Promise<string | null> => {
+  if (depth > MAX_ANNOUNCE_RESOLUTION_DEPTH) return statusId
   if (statusType && statusType !== StatusType.enum.Announce) return statusId
 
   const status = await database('statuses').where('id', statusId).first<{
@@ -69,7 +74,8 @@ const resolveBookmarkStatusId = async ({
   return (
     (await resolveBookmarkStatusId({
       database,
-      statusId: originalStatusId
+      statusId: originalStatusId,
+      depth: depth + 1
     })) ?? originalStatusId
   )
 }

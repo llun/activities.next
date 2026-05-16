@@ -69,12 +69,19 @@ export const POST = traceApiRoute(
 
       await database.deleteBookmark({ actorId: currentActor.id, statusId })
 
-      const updatedStatus =
-        (await database.getStatus({
-          statusId,
-          withReplies: false,
-          currentActorId: currentActor.id
-        })) ?? status
+      const updatedStatus = await database.getStatus({
+        statusId,
+        withReplies: false,
+        currentActorId: currentActor.id
+      })
+      if (!updatedStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+
       const mastodonStatus = await getMastodonStatus(
         database,
         updatedStatus,
