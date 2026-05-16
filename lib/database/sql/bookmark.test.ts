@@ -116,6 +116,62 @@ describe('BookmarkDatabase', () => {
       ).toHaveLength(0)
     })
 
+    it('normalizes nested announce bookmarks to the root original status', async () => {
+      const original = await createStatus('nested-announce-original', ACTOR1_ID)
+      const firstAnnounce = await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/bookmark-nested-announce-one-${randomUUID()}`,
+        actorId: ACTOR2_ID,
+        originalStatusId: original.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const secondAnnounce = await database.createAnnounce({
+        id: `${ACTOR3_ID}/statuses/bookmark-nested-announce-two-${randomUUID()}`,
+        actorId: ACTOR3_ID,
+        originalStatusId: firstAnnounce.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createBookmark({
+        actorId: ACTOR2_ID,
+        statusId: secondAnnounce.id
+      })
+
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR2_ID,
+          statusId: original.id
+        })
+      ).resolves.toBe(true)
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR2_ID,
+          statusId: firstAnnounce.id
+        })
+      ).resolves.toBe(true)
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR2_ID,
+          statusId: secondAnnounce.id
+        })
+      ).resolves.toBe(true)
+
+      const bookmarks = await database.getBookmarks({
+        actorId: ACTOR2_ID,
+        limit: 20
+      })
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === original.id)
+      ).toHaveLength(1)
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === firstAnnounce.id)
+      ).toHaveLength(0)
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === secondAnnounce.id)
+      ).toHaveLength(0)
+    })
+
     it('paginates bookmarks by private bookmark ids', async () => {
       const actorId = `${ACTOR3_ID}/bookmark-pagination-${randomUUID()}`
       const statuses = await Promise.all([
@@ -143,6 +199,64 @@ describe('BookmarkDatabase', () => {
       expect(secondPage.map((bookmark) => bookmark.id)).not.toContain(
         firstPage[1].id
       )
+    })
+
+    it('applies max_id and min_id as a bounded bookmark window', async () => {
+      const actorId = `${ACTOR3_ID}/bookmark-window-${randomUUID()}`
+      const statuses = await Promise.all([
+        createStatus('window-1'),
+        createStatus('window-2'),
+        createStatus('window-3'),
+        createStatus('window-4'),
+        createStatus('window-5')
+      ])
+      for (const status of statuses) {
+        await database.createBookmark({ actorId, statusId: status.id })
+      }
+
+      const allBookmarks = await database.getBookmarks({ actorId, limit: 10 })
+      expect(allBookmarks).toHaveLength(5)
+
+      const boundedBookmarks = await database.getBookmarks({
+        actorId,
+        limit: 10,
+        maxId: allBookmarks[0].id,
+        minId: allBookmarks[3].id
+      })
+
+      expect(boundedBookmarks.map((bookmark) => bookmark.id)).toEqual([
+        allBookmarks[1].id,
+        allBookmarks[2].id
+      ])
+    })
+
+    it('applies max_id and since_id as a bounded bookmark window', async () => {
+      const actorId = `${ACTOR3_ID}/bookmark-since-window-${randomUUID()}`
+      const statuses = await Promise.all([
+        createStatus('since-window-1'),
+        createStatus('since-window-2'),
+        createStatus('since-window-3'),
+        createStatus('since-window-4'),
+        createStatus('since-window-5')
+      ])
+      for (const status of statuses) {
+        await database.createBookmark({ actorId, statusId: status.id })
+      }
+
+      const allBookmarks = await database.getBookmarks({ actorId, limit: 10 })
+      expect(allBookmarks).toHaveLength(5)
+
+      const boundedBookmarks = await database.getBookmarks({
+        actorId,
+        limit: 10,
+        maxId: allBookmarks[0].id,
+        sinceId: allBookmarks[3].id
+      })
+
+      expect(boundedBookmarks.map((bookmark) => bookmark.id)).toEqual([
+        allBookmarks[1].id,
+        allBookmarks[2].id
+      ])
     })
 
     it('removes bookmarks when a bookmarked status is deleted', async () => {

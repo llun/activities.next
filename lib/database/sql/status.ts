@@ -1464,7 +1464,8 @@ export const StatusSQLDatabaseMixin = (
       currentActorId
         ? bookmarkDatabase.isActorBookmarkedStatus({
             statusId: data.id,
-            actorId: currentActorId
+            actorId: currentActorId,
+            statusType: data.type
           })
         : false,
       currentActorId

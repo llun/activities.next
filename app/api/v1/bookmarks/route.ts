@@ -4,6 +4,7 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
+import type { Status } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -41,9 +42,15 @@ export const GET = traceApiRoute(
         currentActorId: currentActor.id,
         withReplies: false
       })
+      const statusMap = new Map<string, Status>(
+        statuses.map((status) => [status.id, status])
+      )
+      const orderedStatuses = bookmarks
+        .map((bookmark) => statusMap.get(bookmark.statusId))
+        .filter((status): status is Status => Boolean(status))
       const readableStatuses = await filterReadableStatuses({
         database,
-        statuses,
+        statuses: orderedStatuses,
         currentActor
       })
       const mastodonStatuses = (

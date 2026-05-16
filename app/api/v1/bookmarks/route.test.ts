@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -101,6 +101,50 @@ describe('GET /api/v1/bookmarks', () => {
         bookmarked: true
       })
     )
+  })
+
+  it('returns bookmarked statuses in bookmark order', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    const olderStatusId = `${ACTOR1_ID}/statuses/bookmark-route-order-older`
+    const newerStatusId = `${ACTOR1_ID}/statuses/bookmark-route-order-newer`
+    await database.createNote({
+      id: newerStatusId,
+      url: newerStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Created first but bookmarked second',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createNote({
+      id: olderStatusId,
+      url: olderStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Created second but bookmarked first',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createBookmark({
+      actorId: ACTOR2_ID,
+      statusId: olderStatusId
+    })
+    await database.createBookmark({
+      actorId: ACTOR2_ID,
+      statusId: newerStatusId
+    })
+
+    const response = await GET(createRequest('?limit=2'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.map((status: { id: string }) => status.id)).toEqual([
+      urlToId(newerStatusId),
+      urlToId(olderStatusId)
+    ])
   })
 
   it('paginates with Mastodon Link headers using bookmark ids', async () => {

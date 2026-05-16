@@ -11,8 +11,6 @@ import {
 import { Bookmark } from '@/lib/types/domain/bookmark'
 import { StatusType } from '@/lib/types/domain/status'
 
-import { getCompatibleJSON } from './utils/getCompatibleJSON'
-
 const fixBookmarkDataDate = (data: Bookmark): Bookmark =>
   Bookmark.parse({
     ...data,
@@ -40,45 +38,22 @@ const isUniqueConstraintError = (error: unknown) => {
   )
 }
 
-const parseStatusContent = (
-  content: unknown
-):
-  | string
-  | {
-      url?: string
-    }
-  | null => {
-  if (!content) return null
-  if (typeof content === 'string') {
-    try {
-      return getCompatibleJSON(content)
-    } catch {
-      return content
-    }
-  }
-  if (typeof content === 'object') {
-    return content as { url?: string }
-  }
-  return null
-}
-
 const getOriginalStatusIdFromAnnounceContent = (content: unknown) => {
-  const parsed = parseStatusContent(content)
-  if (!parsed) return null
-  if (typeof parsed === 'string') return parsed
-  if (typeof parsed.url === 'string' && parsed.url.length > 0) {
-    return parsed.url
-  }
+  if (typeof content === 'string' && content.length > 0) return content
   return null
 }
 
 const resolveBookmarkStatusId = async ({
   database,
-  statusId
+  statusId,
+  statusType
 }: {
   database: Knex | Knex.Transaction
   statusId: string
+  statusType?: string
 }): Promise<string | null> => {
+  if (statusType && statusType !== StatusType.enum.Announce) return statusId
+
   const status = await database('statuses').where('id', statusId).first<{
     id: string
     type: string
@@ -88,7 +63,17 @@ const resolveBookmarkStatusId = async ({
 
   if (status.type !== StatusType.enum.Announce) return status.id
 
-  return getOriginalStatusIdFromAnnounceContent(status.content)
+  const originalStatusId = getOriginalStatusIdFromAnnounceContent(
+    status.content
+  )
+  if (!originalStatusId || originalStatusId === status.id) return status.id
+
+  return (
+    (await resolveBookmarkStatusId({
+      database,
+      statusId: originalStatusId
+    })) ?? originalStatusId
+  )
 }
 
 const applyCursor = (
@@ -153,10 +138,12 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
 
   async isActorBookmarkedStatus({
     actorId,
-    statusId
+    statusId,
+    statusType
   }: IsActorBookmarkedStatusParams) {
     const bookmarkStatusId =
-      (await resolveBookmarkStatusId({ database, statusId })) ?? statusId
+      (await resolveBookmarkStatusId({ database, statusId, statusType })) ??
+      statusId
     const bookmark = await database('bookmarks')
       .where({ actorId, statusId: bookmarkStatusId })
       .first('id')
@@ -174,14 +161,23 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
       .where('actorId', actorId)
       .limit(limit)
 
-    const cursorId = maxId || minId || sinceId
+    const olderCursorId = maxId
+    const newerCursorId = minId || sinceId
 
-    if (cursorId) {
+    if (olderCursorId) {
       const cursor = await database<Bookmark>('bookmarks')
-        .where({ actorId, id: cursorId })
+        .where({ actorId, id: olderCursorId })
         .first()
       if (!cursor) return []
-      applyCursor(query, cursor, maxId ? 'older' : 'newer')
+      applyCursor(query, cursor, 'older')
+    }
+
+    if (newerCursorId) {
+      const cursor = await database<Bookmark>('bookmarks')
+        .where({ actorId, id: newerCursorId })
+        .first()
+      if (!cursor) return []
+      applyCursor(query, cursor, 'newer')
     }
 
     if (minId) {

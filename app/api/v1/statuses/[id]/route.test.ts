@@ -683,6 +683,10 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
 
       expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        id: urlToId(statusId),
+        bookmarked: false
+      })
       await expect(
         database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
       ).resolves.toBe(false)

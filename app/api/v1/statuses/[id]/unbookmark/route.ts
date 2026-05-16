@@ -36,7 +36,7 @@ export const POST = traceApiRoute(
         })
 
       const statusId = idToUrl(encodedStatusId)
-      let status = await getReadableStatus({
+      const status = await getReadableStatus({
         database,
         statusId,
         currentActor,
@@ -55,18 +55,16 @@ export const POST = traceApiRoute(
             responseStatusCode: 404
           })
 
-        status = await database.getStatus({
-          statusId,
-          withReplies: false,
-          currentActorId: currentActor.id
+        await database.deleteBookmark({ actorId: currentActor.id, statusId })
+
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            id: encodedStatusId,
+            bookmarked: false
+          }
         })
-        if (!status)
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: ERROR_404,
-            responseStatusCode: 404
-          })
       }
 
       await database.deleteBookmark({ actorId: currentActor.id, statusId })
