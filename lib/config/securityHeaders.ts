@@ -29,31 +29,19 @@ const stripUndefinedStorageConfig = (
   return nextConfig
 }
 
-const getEnvironmentSecurityHeaderConfig = (): SecurityHeaderConfig => ({
+export const getSecurityHeaderConfig = (): SecurityHeaderConfig => ({
   allowMediaDomains: getEnvironmentList('ACTIVITIES_ALLOW_MEDIA_DOMAINS'),
-  mediaStorage: {
+  mediaStorage: stripUndefinedStorageConfig({
     type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
     bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
     region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
     hostname: process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
-  },
-  fitnessStorage: {
+  }),
+  fitnessStorage: stripUndefinedStorageConfig({
     type: process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
     bucket: process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET,
     region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION,
     hostname: process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME,
     mapboxAccessToken: process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
-  }
+  })
 })
-
-export const getSecurityHeaderConfig = (): SecurityHeaderConfig => {
-  const environmentConfig = getEnvironmentSecurityHeaderConfig()
-
-  return {
-    allowMediaDomains: environmentConfig.allowMediaDomains,
-    mediaStorage: stripUndefinedStorageConfig(environmentConfig.mediaStorage),
-    fitnessStorage: stripUndefinedStorageConfig(
-      environmentConfig.fitnessStorage
-    )
-  }
-}

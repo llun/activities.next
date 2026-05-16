@@ -23,11 +23,6 @@ export const getHostConfigFromEnvironment = (
   trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
 })
 
-const getProxyHostConfigFromEnvironment = (): HostConfig => ({
-  host: process.env.ACTIVITIES_HOST || '',
-  trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
-})
-
 export const getHostConfig = (): AppHostConfig => {
   if (cachedHostConfig) return cachedHostConfig
 
@@ -38,7 +33,10 @@ export const getHostConfig = (): AppHostConfig => {
 export const getProxyHostConfig = (): HostConfig => {
   if (cachedProxyHostConfig) return cachedProxyHostConfig
 
-  cachedProxyHostConfig = getProxyHostConfigFromEnvironment()
+  cachedProxyHostConfig = {
+    host: process.env.ACTIVITIES_HOST || '',
+    trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
+  }
   return cachedProxyHostConfig
 }
 

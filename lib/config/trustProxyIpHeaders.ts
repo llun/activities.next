@@ -5,13 +5,8 @@ export const getTrustProxyIpHeadersConfig = (): boolean => {
     return cachedTrustProxyIpHeadersConfig
   }
 
-  const environmentValue = process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
-  if (environmentValue !== undefined) {
-    cachedTrustProxyIpHeadersConfig = environmentValue === 'true'
-    return cachedTrustProxyIpHeadersConfig
-  }
-
-  cachedTrustProxyIpHeadersConfig = false
+  cachedTrustProxyIpHeadersConfig =
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS === 'true'
   return cachedTrustProxyIpHeadersConfig
 }
 

@@ -64,8 +64,9 @@ describe('Config', () => {
 
     try {
       const { getConfig } = await import('./index')
+      const config = getConfig()
 
-      expect(getConfig()).toMatchObject({
+      expect(config).toMatchObject({
         host: 'env.example.com',
         secretPhase: 'env-secret',
         database: {
@@ -74,6 +75,11 @@ describe('Config', () => {
             filename: ':memory:'
           }
         }
+      })
+      expect(config.host).not.toBe('file.example.com')
+      expect(config.secretPhase).not.toBe('file-secret')
+      expect(config.database.connection).not.toMatchObject({
+        filename: 'file.sqlite'
       })
     } finally {
       process.chdir(originalCwd)

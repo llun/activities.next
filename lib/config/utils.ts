@@ -5,13 +5,7 @@ export type EnvironmentListOptions = {
 export const matcher = (prefix: string) =>
   Object.keys(process.env).some((key: string) => key.startsWith(prefix))
 
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-export const getStringValue = (value: unknown) =>
-  typeof value === 'string' ? value : undefined
-
-export const toStringList = (
+const toStringList = (
   value: unknown,
   key: string,
   { onInvalidList = 'empty' }: EnvironmentListOptions = {}

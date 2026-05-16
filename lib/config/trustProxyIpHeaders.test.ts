@@ -61,18 +61,10 @@ describe('getTrustProxyIpHeadersConfig', () => {
   })
 
   it('caches the resolved setting for repeated app registration requests', () => {
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({ trustProxyIpHeaders: true })
-    )
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    expect(getTrustProxyIpHeadersConfig()).toBe(true)
 
-    expect(getTrustProxyIpHeadersConfig()).toBe(false)
-
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({ trustProxyIpHeaders: true })
-    )
-
-    expect(getTrustProxyIpHeadersConfig()).toBe(false)
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    expect(getTrustProxyIpHeadersConfig()).toBe(true)
   })
 })
