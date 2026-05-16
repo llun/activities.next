@@ -447,17 +447,17 @@ describe('Post', () => {
     fireEvent.click(editHistoryButton)
 
     const editHistoryContent = screen.getByText('Previous content')
-    const editHistoryDialog = screen.getByRole('dialog', {
+    const editHistoryRegion = screen.getByRole('region', {
       name: 'Edit history'
     })
 
     expect(editHistoryContent).toBeInTheDocument()
     expect(onShowEdits).toHaveBeenCalledTimes(1)
-    expect(editHistoryDialog).toBeInTheDocument()
+    expect(editHistoryRegion).toBeInTheDocument()
     expect(editHistoryButton).toHaveAttribute('aria-expanded', 'true')
     expect(editHistoryButton).toHaveAttribute(
       'aria-controls',
-      editHistoryDialog.id
+      editHistoryRegion.id
     )
 
     fireEvent.click(editHistoryContent)
@@ -468,6 +468,7 @@ describe('Post', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close edit history' }))
 
     expect(screen.queryByText('Previous content')).not.toBeInTheDocument()
+    expect(editHistoryButton).toHaveFocus()
   })
 
   it('does not render an empty status action group', () => {
@@ -509,9 +510,26 @@ describe('Post', () => {
       />
     )
 
+    const primaryActions = screen.getByRole('group', {
+      name: 'Post primary actions'
+    })
+    const secondaryActions = screen.getByRole('group', {
+      name: 'Post secondary actions'
+    })
+
+    expect(primaryActions).toHaveClass('grid-cols-3')
+    expect(primaryActions).not.toHaveClass('grid-cols-4')
     expect(
-      screen.getByRole('group', { name: 'Post secondary actions' })
-    ).toBeInTheDocument()
+      within(primaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Reply to post', 'Repost', 'Like'])
+    expect(secondaryActions).toHaveClass('grid-cols-4')
+    expect(
+      within(secondaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Visibility: Direct', 'Edit post', 'Delete post'])
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()

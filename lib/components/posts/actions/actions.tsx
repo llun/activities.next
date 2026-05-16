@@ -6,6 +6,7 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
@@ -20,7 +21,7 @@ interface Props extends PostProps {
 }
 
 const actionRowClassName =
-  'grid w-full grid-cols-4 items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6'
+  'grid w-full items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6'
 
 export const Actions: FC<Props> = ({
   host,
@@ -91,7 +92,10 @@ export const Actions: FC<Props> = ({
       <div
         role="group"
         aria-label="Post primary actions"
-        className={actionRowClassName}
+        className={cn(
+          actionRowClassName,
+          hasEditHistory ? 'grid-cols-4' : 'grid-cols-3'
+        )}
       >
         {primaryActions}
       </div>
@@ -100,7 +104,7 @@ export const Actions: FC<Props> = ({
         <div
           role="group"
           aria-label="Post secondary actions"
-          className={actionRowClassName}
+          className={cn(actionRowClassName, 'grid-cols-4')}
         >
           {secondaryActions}
         </div>

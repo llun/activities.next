@@ -1,6 +1,6 @@
 import { formatDistance } from 'date-fns'
 import { History, X } from 'lucide-react'
-import { FC, useId, useState } from 'react'
+import { FC, useId, useRef, useState } from 'react'
 
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
@@ -16,16 +16,22 @@ interface Props {
 export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
   const [showHistory, setShowHistory] = useState<boolean>(false)
   const editHistoryId = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   if (status.edits.length === 0) return null
 
   const editCountLabel = `${status.edits.length} ${
     status.edits.length === 1 ? 'edit' : 'edits'
   }`
+  const closeHistory = () => {
+    setShowHistory(false)
+    triggerRef.current?.focus()
+  }
 
   return (
     <div className="relative inline-flex">
       <button
+        ref={triggerRef}
         className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
         onClick={(e) => {
           e.stopPropagation()
@@ -42,7 +48,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
       {showHistory && (
         <div
           id={editHistoryId}
-          role="dialog"
+          role="region"
           aria-label="Edit history"
           className="absolute bottom-full left-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
           onClick={(e) => e.stopPropagation()}
@@ -57,7 +63,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
               aria-label="Close edit history"
               onClick={(e) => {
                 e.stopPropagation()
-                setShowHistory(false)
+                closeHistory()
               }}
             >
               <X className="h-4 w-4" />
