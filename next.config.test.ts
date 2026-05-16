@@ -337,6 +337,28 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('allows default S3 presigned upload hosts alongside a custom media hostname in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'static.llun.social',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-central-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'static.llun.social'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://static.llun.social',
+            'https://static.llun.social.s3.eu-central-1.amazonaws.com',
+            'https://s3.eu-central-1.amazonaws.com'
+          ])
+        )
+      }
+    )
+  })
+
   it('caches CSP for the process lifetime', () => {
     withEnv(
       {

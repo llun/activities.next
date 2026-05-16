@@ -60,7 +60,11 @@ const getStorageHostname = (storage: { hostname?: string }) => storage.hostname
 const getDefaultS3CspSources = (storage: unknown) => {
   if (!isS3CompatibleStorage(storage)) return []
 
-  if (!['s3', 'object'].includes(storage.type) || storage.hostname?.trim()) {
+  const hasCustomHostname = Boolean(storage.hostname?.trim())
+  const allowsDefaultS3Sources =
+    storage.type === 's3' || (storage.type === 'object' && !hasCustomHostname)
+
+  if (!allowsDefaultS3Sources) {
     return []
   }
 
