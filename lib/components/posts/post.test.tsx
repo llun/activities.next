@@ -499,4 +499,28 @@ describe('Post', () => {
       screen.getByRole('button', { name: 'Like, 3 likes' })
     ).toBeInTheDocument()
   })
+
+  it('labels repost action as undo when post is already reposted', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          actorAnnounceStatusId: 'https://activities.local/announces/1'
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Undo repost' })
+    ).toBeInTheDocument()
+  })
 })

@@ -33,11 +33,13 @@ export const RepostButton: FC<RepostButtonProps> = ({
   }, [mainStatus.actorAnnounceStatusId])
 
   if (!currentActor) return null
+  const repostLabel = repostedStatusId ? 'Undo repost' : 'Repost'
+
   return (
     <button
       disabled={isLoading}
-      title="Repost"
-      aria-label="Repost"
+      title={repostLabel}
+      aria-label={repostLabel}
       className={cn(
         'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',
         repostedStatusId !== null ? 'text-green-500' : 'hover:text-green-500'
