@@ -212,6 +212,7 @@ export const getMastodonStatus = async (
 
     favourites_count: status.totalLikes || 0,
     favourited: status.isActorLiked ?? false,
+    bookmarked: status.isActorBookmarked ?? false,
 
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
 

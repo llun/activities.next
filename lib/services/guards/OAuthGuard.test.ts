@@ -544,6 +544,41 @@ describe('#OAuthGuard', () => {
       expect(response.status).toBe(401)
       expect(mockHandler).not.toHaveBeenCalled()
     })
+
+    test('allows broad write JWT scope for write:bookmarks routes', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const token = jwtToken('write-bookmarks-compatible')
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockVerifyAccessToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'write',
+        actorId: primaryActor?.id
+      })
+      mockStoredTokens.set(hashToken(token), {
+        token: hashToken(token),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['write'])
+      })
+
+      const guard = OAuthGuard([Scope.enum['write:bookmarks']], mockHandler)
+      const req = createRequest({ Authorization: `Bearer ${token}` })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).toHaveBeenCalledWith(token, {
+        jwksUrl: 'https://llun.test/api/auth/jwks',
+        scopes: [],
+        verifyOptions: {
+          issuer: 'https://llun.test',
+          audience: 'https://llun.test'
+        }
+      })
+    })
   })
 
   describe('opaque token authentication', () => {
@@ -634,6 +669,29 @@ describe('#OAuthGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
+    })
+
+    test('allows exact read:bookmarks opaque token for read:bookmarks routes', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('read-bookmarks-opaque'), {
+        token: hashToken('read-bookmarks-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read:bookmarks'])
+      })
+
+      const guard = OAuthGuard([Scope.enum['read:bookmarks']], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer read-bookmarks-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
     })
 
     test('returns 401 when opaque token has no referenceId', async () => {

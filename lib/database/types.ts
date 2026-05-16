@@ -8,6 +8,7 @@ import {
   AdminDatabase,
   BaseDatabase,
   BlockDatabase,
+  BookmarkDatabase,
   FollowDatabase,
   LikeDatabase,
   MediaDatabase,
@@ -25,6 +26,7 @@ export type Database = AccountDatabase &
   FitnessRouteHeatmapDatabase &
   FitnessSettingsDatabase &
   StravaArchiveImportDatabase &
+  BookmarkDatabase &
   BlockDatabase &
   FollowDatabase &
   LikeDatabase &

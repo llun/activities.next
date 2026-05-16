@@ -197,6 +197,35 @@ describe('#getMastodonStatus', () => {
     })
   })
 
+  it('returns bookmarked=true when the current actor has bookmarked the status', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/mastodon-bookmarked-test`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Bookmarked status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createBookmark({
+      actorId: ACTOR2_ID,
+      statusId
+    })
+
+    const status = (await database.getStatus({
+      statusId,
+      currentActorId: ACTOR2_ID,
+      withReplies: false
+    })) as Status
+
+    const mastodonStatus = await getMastodonStatus(database, status, ACTOR2_ID)
+
+    expect(mastodonStatus).toMatchObject({
+      id: urlToId(statusId),
+      bookmarked: true
+    })
+  })
+
   it('returns mastodon announce status', async () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR2_ID}/statuses/post-3`

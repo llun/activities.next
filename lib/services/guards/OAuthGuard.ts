@@ -106,6 +106,29 @@ const hasSameOriginProof = (req: NextRequest): boolean => {
 
 type ScopeMatchMode = 'all' | 'any'
 
+const grantedScopeSatisfies = (
+  grantedScope: string,
+  requiredScope: Scope
+): boolean => {
+  if (grantedScope === requiredScope) return true
+  if (requiredScope.startsWith('read:')) return grantedScope === Scope.enum.read
+  if (requiredScope.startsWith('write:')) {
+    return grantedScope === Scope.enum.write
+  }
+  return false
+}
+
+const hasGrantedScope = (
+  grantedScopes: string[],
+  requiredScope: Scope
+): boolean =>
+  grantedScopes.some((grantedScope) =>
+    grantedScopeSatisfies(grantedScope, requiredScope)
+  )
+
+const canVerifyScopesDirectly = (scopes: Scope[]): boolean =>
+  scopes.every((scope) => !scope.includes(':'))
+
 type GuardContext<P> = {
   currentActor: Actor
   database: NonNullable<ReturnType<typeof getDatabase>>
@@ -153,9 +176,12 @@ const resolveAuthenticatedContext = async <P>({
         try {
           jwtPayload = (await verifyAccessToken(token, {
             jwksUrl,
-            // For 'any' mode, skip scope checking in verifyAccessToken
-            // and do it manually below
-            scopes: matchMode === 'all' ? scopes : [],
+            // For 'any' mode and hierarchical scopes like write:bookmarks,
+            // skip library scope checking and apply our compatibility rules below.
+            scopes:
+              matchMode === 'all' && canVerifyScopesDirectly(scopes)
+                ? scopes
+                : [],
             verifyOptions: {
               issuer: baseURL,
               audience: baseURL
@@ -175,13 +201,15 @@ const resolveAuthenticatedContext = async <P>({
           // Defense-in-depth: explicitly verify JWT scope claims in case
           // verifyAccessToken's scope checking changes in a future version
           for (const scope of scopes) {
-            if (!jwtScopes.includes(scope)) {
+            if (!hasGrantedScope(jwtScopes, scope)) {
               return { authenticated: false, response: apiErrorResponse(401) }
             }
           }
         } else {
           // 'any' mode: at least one required scope must be present
-          const hasAny = scopes.some((scope) => jwtScopes.includes(scope))
+          const hasAny = scopes.some((scope) =>
+            hasGrantedScope(jwtScopes, scope)
+          )
           if (!hasAny) {
             return { authenticated: false, response: apiErrorResponse(401) }
           }
@@ -213,12 +241,14 @@ const resolveAuthenticatedContext = async <P>({
 
         if (matchMode === 'all') {
           for (const scope of scopes) {
-            if (!storedScopes.includes(scope)) {
+            if (!hasGrantedScope(storedScopes, scope)) {
               return { authenticated: false, response: apiErrorResponse(401) }
             }
           }
         } else {
-          const hasAny = scopes.some((scope) => storedScopes.includes(scope))
+          const hasAny = scopes.some((scope) =>
+            hasGrantedScope(storedScopes, scope)
+          )
           if (!hasAny) {
             return { authenticated: false, response: apiErrorResponse(401) }
           }

@@ -22,7 +22,7 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unbookmarkStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+  OAuthGuard<Params>([Scope.enum['write:bookmarks']], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId)
@@ -34,26 +34,57 @@ export const POST = traceApiRoute(
       })
 
     const statusId = idToUrl(encodedStatusId)
-    const status = await getReadableStatus({
+    let status = await getReadableStatus({
       database,
       statusId,
       currentActor,
       withReplies: false
     })
-    if (!status)
+    if (!status) {
+      const isActorBookmarkedStatus = await database.isActorBookmarkedStatus({
+        actorId: currentActor.id,
+        statusId
+      })
+      if (!isActorBookmarkedStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      status = await database.getStatus({
+        statusId,
+        withReplies: false,
+        currentActorId: currentActor.id
+      })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+    }
+
+    await database.deleteBookmark({ actorId: currentActor.id, statusId })
+
+    const updatedStatus = await database.getStatus({
+      statusId,
+      withReplies: false,
+      currentActorId: currentActor.id
+    })
+    if (!updatedStatus)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: ERROR_500,
+        responseStatusCode: 500
       })
-
-    // Unbookmarking not yet implemented
-    // TODO: Implement bookmarking functionality with database table
 
     const mastodonStatus = await getMastodonStatus(
       database,
-      status,
+      updatedStatus,
       currentActor.id
     )
     if (!mastodonStatus)

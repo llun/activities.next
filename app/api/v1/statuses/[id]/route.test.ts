@@ -537,6 +537,119 @@ describe('GET /api/v1/statuses/[id]', () => {
         database.isActorLikedStatus({ actorId: ACTOR3_ID, statusId })
       ).resolves.toBe(false)
     })
+
+    it('bookmarks a readable status and returns bookmarked=true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-bookmark-public`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public bookmark target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await bookmarkStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/bookmark`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data).toMatchObject({
+        id: urlToId(statusId),
+        bookmarked: true
+      })
+      await expect(
+        database.isActorBookmarkedStatus({ actorId: ACTOR2_ID, statusId })
+      ).resolves.toBe(true)
+    })
+
+    it('unbookmarks a readable status and returns bookmarked=false', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-unbookmark-public`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public unbookmark target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId })
+
+      const response = await unbookmarkStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unbookmark`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data).toMatchObject({
+        id: urlToId(statusId),
+        bookmarked: false
+      })
+      await expect(
+        database.isActorBookmarkedStatus({ actorId: ACTOR2_ID, statusId })
+      ).resolves.toBe(false)
+    })
+
+    it('allows actors to unbookmark when the original status is no longer readable', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-unbookmark-after-access-change`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Original status that becomes private after a bookmark',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createBookmark({ actorId: ACTOR3_ID, statusId })
+      await database.updateNoteVisibility({
+        statusId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      const response = await unbookmarkStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unbookmark`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
+      ).resolves.toBe(false)
+    })
   })
 
   describe('status visibility derivation', () => {

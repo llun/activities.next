@@ -22,7 +22,7 @@ interface Params {
 
 export const POST = traceApiRoute(
   'bookmarkStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+  OAuthGuard<Params>([Scope.enum['write:bookmarks']], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId)
@@ -48,12 +48,24 @@ export const POST = traceApiRoute(
         responseStatusCode: 404
       })
 
-    // Bookmarking not yet implemented
-    // TODO: Implement bookmarking functionality with database table
+    await database.createBookmark({ actorId: currentActor.id, statusId })
+
+    const updatedStatus = await database.getStatus({
+      statusId,
+      withReplies: false,
+      currentActorId: currentActor.id
+    })
+    if (!updatedStatus)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
 
     const mastodonStatus = await getMastodonStatus(
       database,
-      status,
+      updatedStatus,
       currentActor.id
     )
     if (!mastodonStatus)
