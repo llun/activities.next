@@ -22,7 +22,10 @@ const hydrateDateFields = <T>(row: T): T => {
       continue
     }
 
-    hydrated[key] = new Date(value as string | number)
+    const date = new Date(value as string | number)
+    if (Number.isNaN(date.getTime())) continue
+
+    hydrated[key] = date
   }
 
   return hydrated as T

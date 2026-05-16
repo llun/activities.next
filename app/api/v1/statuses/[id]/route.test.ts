@@ -880,6 +880,139 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
     })
 
+    it('rejects clearing media from a media-only note without partial mutation', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-reject-clear-media-only`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: '',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-reject-clear-media-only.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-reject-clear-media-only.jpg'
+        },
+        description: 'Only media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-clear-media-only.webp',
+        width: 320,
+        height: 240,
+        name: 'Only media',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_ids: []
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      const updatedStatus = await database.getStatus({ statusId })
+      const attachments = await database.getAttachments({ statusId })
+
+      expect(response.status).toBe(422)
+      expect(updatedStatus?.text).toBe('')
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-clear-media-only.webp',
+        name: 'Only media'
+      })
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('rejects blank status with empty media ids without partial mutation', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-reject-blank-clear-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Original text before rejected edit',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-reject-blank-clear-media.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-reject-blank-clear-media.jpg'
+        },
+        description: 'Preserved media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-blank-clear-media.webp',
+        width: 320,
+        height: 240,
+        name: 'Preserved media',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: '   ',
+              media_ids: []
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      const updatedStatus = await database.getStatus({ statusId })
+      const attachments = await database.getAttachments({ statusId })
+
+      expect(response.status).toBe(422)
+      expect(updatedStatus?.text).toBe('Original text before rejected edit')
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-blank-clear-media.webp',
+        name: 'Preserved media'
+      })
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
     it('does not partially apply text changes when media ids are forbidden', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-forbidden-media`
       await database.createNote({

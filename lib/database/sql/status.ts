@@ -552,7 +552,6 @@ export const StatusSQLDatabaseMixin = (
 
             return trx('attachments').insert({
               ...data,
-              mediaId: attachment.id,
               createdAt: attachmentCreatedAt,
               updatedAt: attachmentCreatedAt
             })

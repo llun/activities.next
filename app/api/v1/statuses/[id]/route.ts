@@ -12,6 +12,7 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { Scope } from '@/lib/types/database/operations'
+import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -190,6 +191,34 @@ export const PUT = traceApiRoute(
           data: ERROR_422,
           responseStatusCode: 422
         })
+      }
+      const changesTextOrMedia =
+        changes.status !== undefined || mediaIds !== undefined
+      if (changesTextOrMedia) {
+        const effectiveText =
+          changes.status === undefined ? existingStatus.text : changes.status
+        const effectiveAttachments = (
+          attachments === undefined ? existingStatus.attachments : attachments
+        ).filter(
+          (attachment) =>
+            !isFitnessAttachment({
+              mediaType: attachment.mediaType,
+              url: attachment.url,
+              name: attachment.name ?? ''
+            })
+        )
+
+        if (
+          effectiveText.trim().length === 0 &&
+          effectiveAttachments.length === 0
+        ) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
       }
 
       if (visibility !== undefined) {

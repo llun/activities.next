@@ -173,6 +173,28 @@ describe('knexAdapter', () => {
       expect(result.expireAt).toBeInstanceOf(Date)
       expect(result.expireAt.getTime()).toBe(expireAt)
     })
+
+    it('leaves invalid date-like fields unchanged while hydrating valid fields', async () => {
+      const expireAt = new Date('2026-05-17T10:00:00.000Z').getTime()
+      await db('sessions').insert({
+        id: 's-invalid-date',
+        user_id: 'u1',
+        token: 'token-invalid-date',
+        createdAt: 'not-a-date',
+        expireAt
+      })
+
+      const result = await adapter.findOne({
+        model: 'sessions',
+        where: [
+          { field: 'id', value: 's-invalid-date', operator: 'eq' as const }
+        ]
+      })
+
+      expect(result.createdAt).toBe('not-a-date')
+      expect(result.expireAt).toBeInstanceOf(Date)
+      expect(result.expireAt.getTime()).toBe(expireAt)
+    })
   })
 
   describe('findMany', () => {
