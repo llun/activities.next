@@ -462,6 +462,55 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('allows default S3 presigned upload hosts alongside a custom fitness hostname in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-cdn-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'eu-central-1',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://fitness-cdn.example.com',
+            'https://fitness-cdn-bucket.s3.eu-central-1.amazonaws.com',
+            'https://s3.eu-central-1.amazonaws.com'
+          ])
+        )
+      }
+    )
+  })
+
+  it('allows fitness object storage endpoints separately from public fitness hostnames in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-object-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'auto',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com',
+        ACTIVITIES_FITNESS_STORAGE_ENDPOINT:
+          'https://fitness-storage.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://fitness-cdn.example.com',
+            'https://fitness-storage.example.com'
+          ])
+        )
+        expect(connectSources).not.toContain(
+          'https://fitness-object-bucket.s3.auto.amazonaws.com'
+        )
+        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
+      }
+    )
+  })
+
   it('allows default S3 presigned upload hosts for object fitness storage in connect-src', () => {
     withEnv(
       {
