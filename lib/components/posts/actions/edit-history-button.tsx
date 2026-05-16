@@ -35,7 +35,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
     >
       <History className="h-4 w-4" />
       {showHistory && (
-        <div className="absolute bottom-full left-0 mb-2 w-[25rem] max-md:left-0 max-md:w-[18rem] z-20">
+        <div className="absolute bottom-full left-0 mb-2 w-[25rem] z-20 max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:w-auto">
           <ul className="divide-y divide-border rounded-lg border bg-background shadow-lg">
             {status.edits.reverse().map((edit, index) => {
               return (

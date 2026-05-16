@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import {
@@ -383,33 +383,35 @@ describe('Post', () => {
       />
     )
 
-    expect(
-      screen.getByRole('group', {
-        name: 'Post social actions'
-      })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('group', {
-        name: 'Post status actions'
-      })
-    ).toBeInTheDocument()
+    const socialActions = screen.getByRole('group', {
+      name: 'Post social actions'
+    })
+    const statusActions = screen.getByRole('group', {
+      name: 'Post status actions'
+    })
 
     expect(
-      screen.getByRole('button', { name: 'Reply to post' })
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Repost' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Like' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Show edit history, 1 edit' })
+      within(socialActions).getByRole('button', { name: 'Reply to post' })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Visibility: Direct' })
+      within(socialActions).getByRole('button', { name: 'Repost' })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Edit post' })
+      within(socialActions).getByRole('button', { name: 'Like' })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Delete post' })
+      within(statusActions).getByRole('button', {
+        name: 'Show edit history, 1 edit'
+      })
+    ).toBeInTheDocument()
+    expect(
+      within(statusActions).getByRole('button', { name: 'Visibility: Direct' })
+    ).toBeInTheDocument()
+    expect(
+      within(statusActions).getByRole('button', { name: 'Edit post' })
+    ).toBeInTheDocument()
+    expect(
+      within(statusActions).getByRole('button', { name: 'Delete post' })
     ).toBeInTheDocument()
   })
 
