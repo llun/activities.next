@@ -38,6 +38,7 @@ type S3CompatibleStorage = {
   bucket: string
   region: string
   hostname?: string
+  endpoint?: string
 }
 
 const isS3CompatibleStorage = (
@@ -56,13 +57,14 @@ const isS3CompatibleStorage = (
 }
 
 const getStorageHostname = (storage: { hostname?: string }) => storage.hostname
+const getStorageEndpoint = (storage: { endpoint?: string }) => storage.endpoint
 
 const getDefaultS3CspSources = (storage: unknown) => {
   if (!isS3CompatibleStorage(storage)) return []
 
-  const hasCustomHostname = Boolean(storage.hostname?.trim())
+  const hasCustomEndpoint = Boolean(storage.endpoint?.trim())
   const allowsDefaultS3Sources =
-    storage.type === 's3' || (storage.type === 'object' && !hasCustomHostname)
+    ['s3', 'object'].includes(storage.type) && !hasCustomEndpoint
 
   if (!allowsDefaultS3Sources) {
     return []
@@ -99,6 +101,12 @@ export const getContentSecurityPolicy = () => {
     getSecurityHeaderConfig()
   const mediaStorageSource = getCspSource(getStorageHostname(mediaStorage))
   const fitnessStorageSource = getCspSource(getStorageHostname(fitnessStorage))
+  const mediaStorageEndpointSource = getCspSource(
+    getStorageEndpoint(mediaStorage)
+  )
+  const fitnessStorageEndpointSource = getCspSource(
+    getStorageEndpoint(fitnessStorage)
+  )
   const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
   const configuredImageSources = allowMediaDomains.flatMap((source) => {
     const cspSource = getCspSource(source)
@@ -110,6 +118,8 @@ export const getContentSecurityPolicy = () => {
       ...(allowMapboxSources ? MAPBOX_CSP_SOURCES : []),
       ...(mediaStorageSource ? [mediaStorageSource] : []),
       ...(fitnessStorageSource ? [fitnessStorageSource] : []),
+      ...(mediaStorageEndpointSource ? [mediaStorageEndpointSource] : []),
+      ...(fitnessStorageEndpointSource ? [fitnessStorageEndpointSource] : []),
       ...getDefaultS3CspSources(mediaStorage),
       ...getDefaultS3CspSources(fitnessStorage),
       ...(isDevelopment() ? ['ws:', 'wss:'] : [])

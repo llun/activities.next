@@ -395,7 +395,7 @@ describe('production archive scripts', () => {
       ])
     })
 
-    it('preserves object storage hostnames for S3-compatible clients', () => {
+    it('preserves public hostnames and endpoints for S3-compatible clients', () => {
       const plan = buildStoragePlan({
         fitnessFilePaths: ['2026-01-01/activity.fit'],
         mediaFilePaths: ['medias/image.webp'],
@@ -404,26 +404,30 @@ describe('production archive scripts', () => {
           type: MediaStorageType.ObjectStorage,
           bucket: 'activitynext',
           hostname: 'media-storage.example.com',
+          endpoint: 'https://media-api.example.com',
           region: 'auto'
         },
         fitnessStorage: {
           type: FitnessStorageType.ObjectStorage,
           bucket: 'activitynext',
           hostname: 'fitness-storage.example.com',
+          endpoint: 'https://fitness-api.example.com',
           prefix: 'fitness/',
           region: 'auto'
         }
       })
 
       expect(plan[0].source).toMatchObject({
-        hostname: 'media-storage.example.com'
+        hostname: 'media-storage.example.com',
+        endpoint: 'https://media-api.example.com'
       })
       expect(plan[1].source).toMatchObject({
-        hostname: 'fitness-storage.example.com'
+        hostname: 'fitness-storage.example.com',
+        endpoint: 'https://fitness-api.example.com'
       })
     })
 
-    it('does not deduplicate S3 fitness files from a different hostname', () => {
+    it('does not deduplicate S3 fitness files from a different endpoint', () => {
       const plan = buildStoragePlan({
         fitnessFilePaths: ['2026-01-01/activity.fit'],
         mediaFilePaths: ['medias/image.webp', 'fitness/legacy.fit'],
@@ -432,12 +436,14 @@ describe('production archive scripts', () => {
           type: MediaStorageType.ObjectStorage,
           bucket: 'activitynext',
           hostname: 'media-storage.example.com',
+          endpoint: 'https://media-api.example.com',
           region: 'auto'
         },
         fitnessStorage: {
           type: FitnessStorageType.ObjectStorage,
           bucket: 'activitynext',
           hostname: 'fitness-storage.example.com',
+          endpoint: 'https://fitness-api.example.com',
           prefix: 'fitness/',
           region: 'auto'
         }
@@ -457,13 +463,13 @@ describe('production archive scripts', () => {
         mediaStorage: {
           type: MediaStorageType.ObjectStorage,
           bucket: 'activitynext',
-          hostname: 'http://storage.example.com',
+          endpoint: 'http://storage.example.com',
           region: 'auto'
         },
         fitnessStorage: {
           type: FitnessStorageType.ObjectStorage,
           bucket: 'activitynext',
-          hostname: 'https://storage.example.com',
+          endpoint: 'https://storage.example.com',
           prefix: 'fitness/',
           region: 'auto'
         }
@@ -475,7 +481,7 @@ describe('production archive scripts', () => {
       })
     })
 
-    it('deduplicates S3 fitness files when hostnames normalize to the same endpoint', () => {
+    it('deduplicates S3 fitness files when endpoints normalize to the same endpoint', () => {
       const plan = buildStoragePlan({
         fitnessFilePaths: ['2026-01-01/activity.fit'],
         mediaFilePaths: ['medias/image.webp', 'fitness/legacy.fit'],
@@ -483,13 +489,13 @@ describe('production archive scripts', () => {
         mediaStorage: {
           type: MediaStorageType.ObjectStorage,
           bucket: 'activitynext',
-          hostname: 'https://storage.example.com/',
+          endpoint: 'https://storage.example.com/',
           region: 'auto'
         },
         fitnessStorage: {
           type: FitnessStorageType.ObjectStorage,
           bucket: 'activitynext',
-          hostname: 'storage.example.com',
+          endpoint: 'storage.example.com',
           prefix: 'fitness/',
           region: 'auto'
         }
@@ -886,7 +892,7 @@ describe('production archive scripts', () => {
   })
 
   describe('createS3Client', () => {
-    it('uses the configured hostname as the S3-compatible endpoint', async () => {
+    it('uses the configured endpoint as the S3-compatible endpoint', async () => {
       expect(normalizeStorageHostname('https://storage.example.com/')).toBe(
         'storage.example.com'
       )
@@ -896,7 +902,8 @@ describe('production archive scripts', () => {
 
       const client = createS3Client({
         bucket: 'bucket',
-        hostname: 'http://storage.example.com/',
+        endpoint: 'http://storage.example.com/',
+        hostname: 'public-storage.example.com',
         kind: 's3',
         region: 'auto'
       })

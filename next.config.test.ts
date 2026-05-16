@@ -401,6 +401,32 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('allows object storage endpoints separately from public media hostnames in connect-src', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
+      },
+      () => {
+        const connectSources = getCspDirectiveSources('connect-src')
+
+        expect(connectSources).toEqual(
+          expect.arrayContaining([
+            'https://media-cdn.example.com',
+            'https://storage.example.com'
+          ])
+        )
+        expect(connectSources).not.toContain(
+          'https://media-object-bucket.s3.auto.amazonaws.com'
+        )
+        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
+      }
+    )
+  })
+
   it('allows configured fitness object storage connections in connect-src', () => {
     withEnv(
       {
@@ -489,6 +515,8 @@ describe('next config security hardening', () => {
         process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
       ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
         process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME,
+      ACTIVITIES_MEDIA_STORAGE_ENDPOINT:
+        process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT,
       ACTIVITIES_FITNESS_STORAGE_TYPE:
         process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
       ACTIVITIES_FITNESS_STORAGE_BUCKET:
@@ -497,6 +525,8 @@ describe('next config security hardening', () => {
         process.env.ACTIVITIES_FITNESS_STORAGE_REGION,
       ACTIVITIES_FITNESS_STORAGE_HOSTNAME:
         process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME,
+      ACTIVITIES_FITNESS_STORAGE_ENDPOINT:
+        process.env.ACTIVITIES_FITNESS_STORAGE_ENDPOINT,
       ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN:
         process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
     }
@@ -565,7 +595,9 @@ describe('next config security hardening', () => {
       ACTIVITIES_MEDIA_STORAGE_REGION:
         process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
       ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
-        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME,
+      ACTIVITIES_MEDIA_STORAGE_ENDPOINT:
+        process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT
     }
 
     for (const key of Object.keys(originalEnv)) {

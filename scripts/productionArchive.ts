@@ -80,6 +80,7 @@ export type StorageSource =
     }
   | {
       bucket: string
+      endpoint?: string
       hostname?: string
       kind: 's3'
       prefix?: string
@@ -534,6 +535,7 @@ const storageSourceFromMediaConfig = (
     case MediaStorageType.S3Storage:
       return {
         bucket: storage.bucket,
+        ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
         ...(storage.hostname ? { hostname: storage.hostname } : null),
         kind: 's3',
         prefix: undefined,
@@ -555,6 +557,7 @@ const storageSourceFromFitnessConfig = (
     case FitnessStorageType.S3Storage:
       return {
         bucket: storage.bucket,
+        ...(storage.endpoint ? { endpoint: storage.endpoint } : null),
         ...(storage.hostname ? { hostname: storage.hostname } : null),
         kind: 's3',
         prefix: storage.prefix,
@@ -575,8 +578,8 @@ const getSharedS3FitnessPrefix = (
   if (mediaStorage.bucket !== fitnessStorage.bucket) return null
   if (mediaStorage.region !== fitnessStorage.region) return null
   if (
-    getStorageEndpointIdentity(mediaStorage.hostname) !==
-    getStorageEndpointIdentity(fitnessStorage.hostname)
+    getStorageEndpointIdentity(mediaStorage.endpoint) !==
+    getStorageEndpointIdentity(fitnessStorage.endpoint)
   ) {
     return null
   }
@@ -1135,9 +1138,9 @@ export const getStorageEndpoint = (hostname: string) => {
   return `https://${trimmedHostname}`
 }
 
-const getStorageEndpointIdentity = (hostname: string | undefined) => {
-  if (!hostname?.trim()) return ''
-  return getStorageEndpoint(hostname)
+const getStorageEndpointIdentity = (endpoint: string | undefined) => {
+  if (!endpoint?.trim()) return ''
+  return getStorageEndpoint(endpoint)
 }
 
 export const createS3Client = (
@@ -1145,9 +1148,9 @@ export const createS3Client = (
 ) =>
   new S3Client({
     region: source.region,
-    ...(source.hostname
+    ...(source.endpoint
       ? {
-          endpoint: getStorageEndpoint(source.hostname),
+          endpoint: getStorageEndpoint(source.endpoint),
           forcePathStyle: true
         }
       : null)

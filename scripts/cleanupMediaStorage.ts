@@ -7,17 +7,14 @@
  *   --dry-run   Show what would be deleted without actually deleting
  *   --yes       Skip confirmation prompt and delete immediately
  */
-import {
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-  S3Client
-} from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
 import knex from 'knex'
 import path from 'path'
 
 import { getConfig } from '@/lib/config'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
 async function getAllMediaPathsFromDatabase(
   basePath?: string
@@ -84,8 +81,12 @@ async function listLocalFiles(basePath: string): Promise<string[]> {
   return files
 }
 
-async function listS3Files(bucket: string, region: string): Promise<string[]> {
-  const client = new S3Client({ region })
+async function listS3Files(
+  bucket: string,
+  region: string,
+  endpoint?: string
+): Promise<string[]> {
+  const client = createStorageS3Client({ region, endpoint })
   const files: string[] = []
 
   let continuationToken: string | undefined
@@ -121,8 +122,13 @@ async function deleteLocalFile(basePath: string, filePath: string) {
   await fs.unlink(fullPath)
 }
 
-async function deleteS3File(bucket: string, region: string, filePath: string) {
-  const client = new S3Client({ region })
+async function deleteS3File(
+  bucket: string,
+  region: string,
+  filePath: string,
+  endpoint?: string
+) {
+  const client = createStorageS3Client({ region, endpoint })
   const command = new DeleteObjectCommand({
     Bucket: bucket,
     Key: filePath
@@ -256,7 +262,8 @@ async function cleanupMediaStorage() {
       console.log(`   Region: ${config.mediaStorage.region}`)
       storageFiles = await listS3Files(
         config.mediaStorage.bucket,
-        config.mediaStorage.region
+        config.mediaStorage.region,
+        config.mediaStorage.endpoint
       )
       break
     }
@@ -332,7 +339,8 @@ async function cleanupMediaStorage() {
           await deleteS3File(
             config.mediaStorage.bucket,
             config.mediaStorage.region,
-            file
+            file,
+            config.mediaStorage.endpoint
           )
           break
       }

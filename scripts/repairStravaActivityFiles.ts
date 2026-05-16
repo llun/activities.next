@@ -24,7 +24,7 @@
 import {
   DeleteObjectCommand,
   PutObjectCommand,
-  S3Client
+  type S3Client
 } from '@aws-sdk/client-s3'
 import { loadEnvConfig } from '@next/env'
 import knex from 'knex'
@@ -34,6 +34,7 @@ import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
+import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import {
   buildGpxFromStravaStreams,
   buildTcxFromStravaStreams,
@@ -127,7 +128,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
     return 1
   }
 
-  const s3Client = new S3Client({ region: fitnessStorage.region })
+  const s3Client = createStorageS3Client(fitnessStorage)
   const { bucket, prefix } = fitnessStorage
 
   // Use a raw knex instance to query/update with a LIKE filter (not in the database abstraction)
