@@ -1,10 +1,4 @@
-import { readRuntimeConfigFile } from './runtimeConfigFile'
-import {
-  type EnvironmentListOptions,
-  getEnvironmentList,
-  isRecord,
-  toStringList
-} from './utils'
+import { type EnvironmentListOptions, getEnvironmentList } from './utils'
 
 export type HostConfig = {
   host: string
@@ -18,22 +12,6 @@ export type AppHostConfig = HostConfig & {
 let cachedHostConfig: AppHostConfig | null = null
 let cachedProxyHostConfig: HostConfig | null = null
 
-const getFileProxyHostConfig = (): HostConfig | null => {
-  const parsed = readRuntimeConfigFile()
-  if (!isRecord(parsed)) {
-    return null
-  }
-
-  const hasHostConfig =
-    typeof parsed.host === 'string' || Array.isArray(parsed.trustedHosts)
-  if (!hasHostConfig) return null
-
-  return {
-    host: typeof parsed.host === 'string' ? parsed.host : '',
-    trustedHosts: toStringList(parsed.trustedHosts, 'trustedHosts')
-  }
-}
-
 export const getHostConfigFromEnvironment = (
   options?: EnvironmentListOptions
 ): AppHostConfig => ({
@@ -45,17 +23,6 @@ export const getHostConfigFromEnvironment = (
   trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
 })
 
-const getProxyHostConfigFromEnvironment = (
-  options?: EnvironmentListOptions
-): HostConfig => ({
-  host: process.env.ACTIVITIES_HOST || '',
-  trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
-})
-
-const hasRuntimeProxyHostConfig = () =>
-  process.env.ACTIVITIES_HOST !== undefined ||
-  process.env.ACTIVITIES_TRUSTED_HOSTS !== undefined
-
 export const getHostConfig = (): AppHostConfig => {
   if (cachedHostConfig) return cachedHostConfig
 
@@ -66,9 +33,10 @@ export const getHostConfig = (): AppHostConfig => {
 export const getProxyHostConfig = (): HostConfig => {
   if (cachedProxyHostConfig) return cachedProxyHostConfig
 
-  cachedProxyHostConfig = hasRuntimeProxyHostConfig()
-    ? getProxyHostConfigFromEnvironment()
-    : (getFileProxyHostConfig() ?? getProxyHostConfigFromEnvironment())
+  cachedProxyHostConfig = {
+    host: process.env.ACTIVITIES_HOST || '',
+    trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
+  }
   return cachedProxyHostConfig
 }
 

@@ -19,7 +19,7 @@ Activity.next supports multiple SQL database backends. Choose the one that best 
 
 ## General Configuration
 
-Activity.next can be configured through a `config.json` file in the project root or through environment variables prefixed with `ACTIVITIES_`. Top-level options use `ACTIVITIES_<KEY>` (e.g., `ACTIVITIES_HOST`); nested options use `ACTIVITIES_<SECTION>_<KEY>` (e.g., `ACTIVITIES_AUTH_GITHUB_ID`).
+Activity.next is configured through environment variables prefixed with `ACTIVITIES_`. Top-level options use `ACTIVITIES_<KEY>` (e.g., `ACTIVITIES_HOST`); nested options use `ACTIVITIES_<SECTION>_<KEY>` (e.g., `ACTIVITIES_AUTH_GITHUB_ID`).
 
 For a complete reference of all configuration options, see the [Environment Variables Guide](environment-variables.md).
 
@@ -31,14 +31,6 @@ At minimum, you need to configure these settings:
 
 Set your instance's domain name (without protocol or trailing slash):
 
-```json
-{
-  "host": "your-domain.tld"
-}
-```
-
-Or via environment variable:
-
 ```bash
 ACTIVITIES_HOST=your-domain.tld
 ```
@@ -46,14 +38,6 @@ ACTIVITIES_HOST=your-domain.tld
 #### Authentication Secret
 
 Set a secret phrase for signing cookies and tokens:
-
-```json
-{
-  "secretPhase": "your-random-secret-for-sessions"
-}
-```
-
-Or via environment variable:
 
 ```bash
 # Generate with: openssl rand -base64 32
@@ -63,14 +47,6 @@ ACTIVITIES_SECRET_PHASE=your-random-secret-for-sessions
 ### Access Control
 
 Restrict who can sign up to your instance by specifying allowed email addresses:
-
-```json
-{
-  "allowEmails": ["your_email@example.com"]
-}
-```
-
-Or via environment variable (JSON array):
 
 ```bash
 ACTIVITIES_ALLOW_EMAILS='["your_email@example.com"]'
@@ -92,20 +68,7 @@ To enable GitHub sign-in:
 
 2. Set the callback URL to `https://your-domain.tld/api/auth/callback/github`
 
-3. Add the credentials to your config:
-
-```json
-{
-  "auth": {
-    "github": {
-      "id": "github-app-client-id",
-      "secret": "github-app-secret"
-    }
-  }
-}
-```
-
-Or via environment variables:
+3. Add the credentials via environment variables:
 
 ```bash
 ACTIVITIES_AUTH_GITHUB_ID=github-app-client-id

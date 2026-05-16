@@ -1,5 +1,3 @@
-import { readRuntimeConfigFile } from './runtimeConfigFile'
-
 let cachedTrustProxyIpHeadersConfig: boolean | null = null
 
 export const getTrustProxyIpHeadersConfig = (): boolean => {
@@ -7,14 +5,8 @@ export const getTrustProxyIpHeadersConfig = (): boolean => {
     return cachedTrustProxyIpHeadersConfig
   }
 
-  const environmentValue = process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
-  if (environmentValue !== undefined) {
-    cachedTrustProxyIpHeadersConfig = environmentValue === 'true'
-    return cachedTrustProxyIpHeadersConfig
-  }
-
-  const fileConfig = readRuntimeConfigFile()
-  cachedTrustProxyIpHeadersConfig = fileConfig?.trustProxyIpHeaders === true
+  cachedTrustProxyIpHeadersConfig =
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS === 'true'
   return cachedTrustProxyIpHeadersConfig
 }
 

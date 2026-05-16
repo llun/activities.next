@@ -2,17 +2,20 @@
 
 This document lists all environment variables supported by Activity.next.
 
-Application configuration can be provided either through environment variables or a `config.json` file in the project root. When a valid `config.json` is present, it supplies the application config instead of `ACTIVITIES_*` app configuration variables, and the two sources are **not** merged. OpenTelemetry app config from `OTEL_EXPORTER_*` variables is also not merged into `config.json`; set the `openTelemetry` object in `config.json` instead. Application config is read at runtime, so Docker/standalone builds do not need real `ACTIVITIES_*` or `OTEL_EXPORTER_*` values at build time. Environment variables read outside app config, such as `NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`, and `LOG_LEVEL`, still apply.
+Application configuration is provided through environment variables. Root-level `config.json` files are ignored; migrate any previous file settings to the corresponding `ACTIVITIES_*` or `OTEL_EXPORTER_*` variables listed below. Application config is read at runtime, so Docker/standalone builds do not need real `ACTIVITIES_*` or `OTEL_EXPORTER_*` values at build time. Environment variables read outside app config, such as `NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`, and `LOG_LEVEL`, still apply.
 
 ## Core Configuration
 
-| Variable                   | Required | Description                                                                                                           |
-| -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_HOST`          | **Yes**  | Domain name for your instance (e.g., `social.example.com`). No protocol, no trailing slash.                           |
-| `ACTIVITIES_SECRET_PHASE`  | **Yes**  | Secret string for signing cookies and tokens. Generate with `openssl rand -base64 32`.                                |
-| `ACTIVITIES_ALLOW_EMAILS`  | No       | JSON array of email addresses allowed to register (e.g., `["user@example.com"]`). If unset, registration may be open. |
-| `ACTIVITIES_TRUSTED_HOSTS` | No       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`.                    |
-| `ACTIVITIES_INSECURE_AUTH` | No       | Set to `true` to allow HTTP (non-HTTPS) authentication. Only for local development.                                   |
+| Variable                         | Required | Description                                                                                                           |
+| -------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_HOST`                | **Yes**  | Domain name for your instance (e.g., `social.example.com`). No protocol, no trailing slash.                           |
+| `ACTIVITIES_SECRET_PHASE`        | **Yes**  | Secret string for signing cookies and tokens. Generate with `openssl rand -base64 32`.                                |
+| `ACTIVITIES_SERVICE_NAME`        | No       | Public instance display name used by instance metadata, auth display, and WebAuthn issuer labels.                     |
+| `ACTIVITIES_SERVICE_DESCRIPTION` | No       | Public instance description used by instance metadata endpoints.                                                      |
+| `ACTIVITIES_LANGUAGES`           | No       | JSON array of supported instance languages (e.g., `["en","nl"]`). Defaults to `["en"]`.                               |
+| `ACTIVITIES_ALLOW_EMAILS`        | No       | JSON array of email addresses allowed to register (e.g., `["user@example.com"]`). If unset, registration may be open. |
+| `ACTIVITIES_TRUSTED_HOSTS`       | No       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`.                    |
+| `ACTIVITIES_INSECURE_AUTH`       | No       | Set to `true` to allow HTTP (non-HTTPS) authentication. Only for local development.                                   |
 
 ## Proxy Configuration
 
@@ -204,57 +207,3 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 | `NODE_ENV`                | Node.js environment (`development` or `production`).                 |
 | `BUILD_STANDALONE`        | Set to `true` to build a standalone Next.js output (used in Docker). |
 | `NEXT_TELEMETRY_DISABLED` | Set to `1` to disable Next.js telemetry.                             |
-
-## config.json Format
-
-Most `ACTIVITIES_*` application settings can alternatively be set in a `config.json` file. When `config.json` is present, `OTEL_EXPORTER_*` variables are not merged into app config; use the `openTelemetry` object for OpenTelemetry app config. Build/runtime flags such as `NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`, and logger settings remain environment-only. Here is a complete example:
-
-```json
-{
-  "host": "social.example.com",
-  "trustedHosts": ["social-alias.example.com"],
-  "secretPhase": "your-random-secret",
-  "allowEmails": ["admin@example.com"],
-  "database": {
-    "type": "sql",
-    "client": "pg",
-    "connection": {
-      "host": "localhost",
-      "port": 5432,
-      "user": "activitynext",
-      "password": "your_password",
-      "database": "activitynext"
-    },
-    "pool": {
-      "min": 2,
-      "max": 10
-    }
-  },
-  "auth": {
-    "github": {
-      "id": "github-client-id",
-      "secret": "github-client-secret"
-    }
-  },
-  "email": {
-    "type": "smtp",
-    "serviceFromAddress": "noreply@social.example.com",
-    "host": "smtp.example.com",
-    "port": 587,
-    "auth": {
-      "user": "username",
-      "pass": "password"
-    },
-    "secure": false
-  },
-  "mediaStorage": {
-    "type": "s3",
-    "bucket": "my-media-bucket",
-    "region": "us-east-1"
-  },
-  "openTelemetry": {
-    "endpoint": "https://otel.example.com",
-    "protocol": "http/protobuf"
-  }
-}
-```
