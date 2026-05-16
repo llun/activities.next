@@ -3,6 +3,7 @@ import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor } from '@/lib/types/domain/actor'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getSpan } from '@/lib/utils/trace'
@@ -12,6 +13,7 @@ interface UpdateNoteFromUserInput {
   currentActor: Actor
   text?: string
   summary?: string | null
+  attachments?: PostBoxAttachment[]
   publish?: boolean
   status?: StatusNote
   database: Database
@@ -22,6 +24,7 @@ export const updateNoteFromUserInput = async ({
   currentActor,
   text,
   summary,
+  attachments,
   publish = true,
   status: preloadedStatus,
   database
@@ -38,11 +41,32 @@ export const updateNoteFromUserInput = async ({
     return null
   }
 
-  const updatedStatus = await database.updateNote({
+  const contentUpdatedStatus = await database.updateNote({
     statusId,
     summary: summary === undefined ? status.summary : summary?.trim() || null,
     text: text ?? status.text
   })
+  if (!contentUpdatedStatus) {
+    span.end()
+    return null
+  }
+
+  if (attachments !== undefined) {
+    await database.replaceStatusAttachments({
+      actorId: currentActor.id,
+      statusId,
+      attachments: attachments.map((attachment) => ({
+        mediaType: attachment.mediaType,
+        url: attachment.url,
+        width: attachment.width,
+        height: attachment.height,
+        name: attachment.name,
+        mediaId: attachment.id
+      }))
+    })
+  }
+
+  const updatedStatus = await database.getStatus({ statusId })
   if (!updatedStatus) {
     span.end()
     return null

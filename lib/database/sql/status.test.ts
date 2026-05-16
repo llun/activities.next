@@ -935,6 +935,88 @@ describe('StatusDatabase', () => {
           createdAt: expect.toBeNumber()
         })
       })
+
+      it('replaces note attachments without deleting underlying media', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-attachments`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original note attachments'
+        })
+        const actor = await database.getActorFromId({ id: emptyActorId })
+        if (!actor?.account) fail('Actor account is required')
+        const oldMedia = await database.createMedia({
+          actorId: emptyActorId,
+          original: {
+            path: 'medias/sql-old.webp',
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 },
+            fileName: 'sql-old.jpg'
+          }
+        })
+        const newMedia = await database.createMedia({
+          actorId: emptyActorId,
+          original: {
+            path: 'medias/sql-new.webp',
+            bytes: 2048,
+            mimeType: 'image/png',
+            metaData: { width: 300, height: 200 },
+            fileName: 'sql-new.png'
+          }
+        })
+        expect(oldMedia).not.toBeNull()
+        expect(newMedia).not.toBeNull()
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: oldMedia!.original.mimeType,
+          url: 'https://llun.test/api/v1/files/medias/sql-old.webp',
+          width: 100,
+          height: 100,
+          name: 'sql-old.jpg',
+          mediaId: oldMedia!.id
+        })
+
+        const attachments = await database.replaceStatusAttachments({
+          actorId: emptyActorId,
+          statusId,
+          attachments: [
+            {
+              mediaType: newMedia!.original.mimeType,
+              url: 'https://llun.test/api/v1/files/medias/sql-new.webp',
+              width: 300,
+              height: 200,
+              name: 'sql-new.png',
+              mediaId: newMedia!.id
+            }
+          ]
+        })
+
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0]).toMatchObject({
+          statusId,
+          actorId: emptyActorId,
+          mediaId: String(newMedia!.id),
+          url: 'https://llun.test/api/v1/files/medias/sql-new.webp'
+        })
+        expect(
+          await database.getAttachmentsWithMedia({ statusId })
+        ).toMatchObject([
+          expect.objectContaining({
+            mediaId: String(newMedia!.id)
+          })
+        ])
+        expect(
+          await database.getMediaByIdForAccount({
+            mediaId: oldMedia!.id,
+            accountId: actor.account.id
+          })
+        ).not.toBeNull()
+      })
     })
 
     describe('updateNoteVisibility', () => {

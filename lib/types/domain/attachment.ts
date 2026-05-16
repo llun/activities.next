@@ -36,6 +36,7 @@ export type PostBoxAttachment = z.infer<typeof PostBoxAttachment>
 
 export const Attachment = z.object({
   id: z.string(),
+  mediaId: z.string().nullish(),
   actorId: z.string(),
   statusId: z.string(),
   type: z.literal('Document'),

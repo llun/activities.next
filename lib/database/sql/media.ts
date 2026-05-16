@@ -24,7 +24,8 @@ import {
   MarkMediaUploadVerifiedParams,
   Media,
   MediaDatabase,
-  PaginatedMediaWithStatus
+  PaginatedMediaWithStatus,
+  ReplaceStatusAttachmentsParams
 } from '@/lib/types/database/operations'
 import { Attachment } from '@/lib/types/domain/attachment'
 
@@ -254,6 +255,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       typeof createdAt === 'number' ? new Date(createdAt) : new Date()
     const data = Attachment.parse({
       id: crypto.randomUUID(),
+      mediaId: mediaId === undefined ? null : String(mediaId),
       actorId,
       statusId,
       type: 'Document',
@@ -267,11 +269,55 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     })
     await database('attachments').insert({
       ...data,
-      mediaId,
+      mediaId: data.mediaId,
       createdAt: currentTime,
       updatedAt: currentTime
     })
     return data
+  },
+
+  async replaceStatusAttachments({
+    actorId,
+    statusId,
+    attachments
+  }: ReplaceStatusAttachmentsParams): Promise<Attachment[]> {
+    const baseTime = Date.now()
+    const rows = attachments.map((attachment, index) => {
+      const currentTime = new Date(baseTime + index)
+      const data = Attachment.parse({
+        id: crypto.randomUUID(),
+        mediaId:
+          attachment.mediaId === undefined ? null : String(attachment.mediaId),
+        actorId,
+        statusId,
+        type: 'Document',
+        mediaType: attachment.mediaType,
+        url: attachment.url,
+        width: attachment.width,
+        height: attachment.height,
+        name: attachment.name ?? '',
+        createdAt: currentTime.getTime(),
+        updatedAt: currentTime.getTime()
+      })
+
+      return {
+        data,
+        row: {
+          ...data,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        }
+      }
+    })
+
+    await database.transaction(async (trx) => {
+      await trx('attachments').where('statusId', statusId).delete()
+      if (rows.length > 0) {
+        await trx('attachments').insert(rows.map((item) => item.row))
+      }
+    })
+
+    return rows.map((item) => item.data)
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
@@ -284,6 +330,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         if (!item.actorId) return null
         return Attachment.parse({
           ...item,
+          mediaId:
+            item.mediaId === null || item.mediaId === undefined
+              ? null
+              : String(item.mediaId),
           width: item.width ?? undefined,
           height: item.height ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
@@ -321,6 +371,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
         const attachment = Attachment.parse({
           ...item,
+          mediaId:
+            item.mediaId === null || item.mediaId === undefined
+              ? null
+              : String(item.mediaId),
           width: item.width ?? undefined,
           height: item.height ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
@@ -360,6 +414,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         if (!item.actorId) return null
         return Attachment.parse({
           ...item,
+          mediaId:
+            item.mediaId === null || item.mediaId === undefined
+              ? null
+              : String(item.mediaId),
           width: item.width ?? undefined,
           height: item.height ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),

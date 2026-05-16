@@ -803,6 +803,89 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedStatus?.summary).toBeNull()
     })
 
+    it('replaces media attachments without changing status text', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-only`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Media edit target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+      const oldMedia = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-old.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 },
+          fileName: 'api-edit-old.jpg'
+        }
+      })
+      const newMedia = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-new.webp',
+          bytes: 2048,
+          mimeType: 'image/png',
+          metaData: { width: 640, height: 480 },
+          fileName: 'api-edit-new.png'
+        },
+        description: 'Replacement image'
+      })
+      expect(oldMedia).not.toBeNull()
+      expect(newMedia).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: oldMedia!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-old.webp',
+        width: 100,
+        height: 100,
+        name: 'api-edit-old.jpg',
+        mediaId: oldMedia!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_ids: [newMedia!.id]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.content).toContain('Media edit target')
+      expect(data.media_attachments).toHaveLength(1)
+      expect(data.media_attachments[0]).toMatchObject({
+        type: 'image',
+        url: 'https://llun.test/api/v1/files/medias/api-edit-new.webp',
+        description: 'Replacement image'
+      })
+
+      const attachments = await database.getAttachmentsWithMedia({ statusId })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        mediaId: String(newMedia!.id),
+        url: 'https://llun.test/api/v1/files/medias/api-edit-new.webp',
+        name: 'Replacement image'
+      })
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
     it('does not partially apply visibility when content update is forbidden', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }

@@ -800,6 +800,16 @@ export type CreateAttachmentParams = {
   mediaId?: string
   createdAt?: number
 }
+export type ReplaceStatusAttachmentsParams = {
+  actorId: string
+  statusId: string
+  attachments: Array<
+    Pick<
+      CreateAttachmentParams,
+      'mediaType' | 'url' | 'width' | 'height' | 'name' | 'mediaId'
+    >
+  >
+}
 export type GetAttachmentsParams = {
   statusId: string
 }
@@ -850,6 +860,9 @@ export interface MediaDatabase {
   ): Promise<Media | null>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
+  replaceStatusAttachments(
+    params: ReplaceStatusAttachmentsParams
+  ): Promise<Attachment[]>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
   getAttachmentsWithMedia(
     params: GetAttachmentsWithMediaParams

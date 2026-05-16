@@ -17,6 +17,7 @@ import {
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
@@ -75,8 +76,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     window.scrollTo({ top: 0 })
   }
 
-  const onReplyCreated = (status: Status) => {
-    setCurrentStatuses((previousValue) => [status, ...previousValue])
+  const withAttachments = (status: Status, attachments: Attachment[]) => {
+    if (status.type === 'Announce') return status
+    return {
+      ...status,
+      attachments
+    }
+  }
+
+  const onReplyCreated = (status: Status, attachments: Attachment[]) => {
+    setCurrentStatuses((previousValue) => [
+      withAttachments(status, attachments),
+      ...previousValue
+    ])
   }
 
   const onPostDeleted = (status: Status) => {
@@ -250,19 +262,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             isMediaUploadEnabled={isMediaUploadEnabled}
             onDiscardReply={() => dispatchStatusAction(clearAction())}
             onDiscardEdit={() => dispatchStatusAction(clearAction())}
-            onPostCreated={(status: Status) => {
-              setCurrentStatuses((previousValue) => [status, ...previousValue])
+            onPostCreated={(status: Status, attachments: Attachment[]) => {
+              setCurrentStatuses((previousValue) => [
+                withAttachments(status, attachments),
+                ...previousValue
+              ])
               dispatchStatusAction(clearAction())
             }}
             onPostUpdated={(updatedStatus: Status) => {
-              const index = currentStatuses.findIndex(
-                (status) => status.id === updatedStatus.id
+              setCurrentStatuses((previousValue) =>
+                previousValue.map((status) =>
+                  status.id === updatedStatus.id ? updatedStatus : status
+                )
               )
-              // TODO: Update status in Timeline somehow.
-              if (index >= 0) {
-                currentStatuses[index] = updatedStatus
-                setCurrentStatuses(() => currentStatuses)
-              }
               dispatchStatusAction(clearAction())
             }}
           />

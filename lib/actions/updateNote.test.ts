@@ -149,5 +149,86 @@ describe('Update note action', () => {
       )
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
+
+    it('replaces attachments without changing note text', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/update-note-attachments`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        text: 'Original note with media',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const oldMedia = await database.createMedia({
+        actorId: actor1.id,
+        original: {
+          path: 'medias/action-old.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 },
+          fileName: 'action-old.jpg'
+        }
+      })
+      const newMedia = await database.createMedia({
+        actorId: actor1.id,
+        original: {
+          path: 'medias/action-new.webp',
+          bytes: 2048,
+          mimeType: 'image/png',
+          metaData: { width: 300, height: 200 },
+          fileName: 'action-new.png'
+        }
+      })
+      expect(oldMedia).not.toBeNull()
+      expect(newMedia).not.toBeNull()
+      await database.createAttachment({
+        actorId: actor1.id,
+        statusId,
+        mediaType: oldMedia!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/action-old.webp',
+        width: 100,
+        height: 100,
+        name: 'action-old.jpg',
+        mediaId: oldMedia!.id
+      })
+
+      const status = await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        attachments: [
+          {
+            type: 'upload',
+            id: newMedia!.id,
+            mediaType: newMedia!.original.mimeType,
+            url: 'https://llun.test/api/v1/files/medias/action-new.webp',
+            width: 300,
+            height: 200,
+            name: 'action-new.png'
+          }
+        ]
+      })
+
+      if (!status || status.type !== 'Note') fail('Updated note is required')
+      expect(status).toMatchObject({
+        text: 'Original note with media',
+        attachments: [
+          expect.objectContaining({
+            mediaId: String(newMedia!.id),
+            url: 'https://llun.test/api/v1/files/medias/action-new.webp'
+          })
+        ]
+      })
+      expect(status.attachments).toHaveLength(1)
+      expect(
+        await database.getMediaByIdForAccount({
+          mediaId: oldMedia!.id,
+          accountId: actor1.account!.id
+        })
+      ).not.toBeNull()
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
   })
 })

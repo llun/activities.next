@@ -69,17 +69,23 @@ export interface UpdateNoteParams {
   statusId: string
   message?: string
   contentWarning?: string
+  mediaIds?: string[]
 }
 export const updateNote = async ({
   statusId,
   message,
-  contentWarning
+  contentWarning,
+  mediaIds
 }: UpdateNoteParams) => {
   const normalizedMessage =
     message !== undefined && message.trim().length > 0 ? message : undefined
 
-  if (normalizedMessage === undefined && contentWarning === undefined) {
-    throw new Error('Message or content warning must be provided')
+  if (
+    normalizedMessage === undefined &&
+    contentWarning === undefined &&
+    mediaIds === undefined
+  ) {
+    throw new Error('Message, content warning, or media must be provided')
   }
 
   const response = await fetch(`/api/v1/statuses/${statusId}`, {
@@ -89,7 +95,8 @@ export const updateNote = async ({
     },
     body: JSON.stringify({
       ...(normalizedMessage !== undefined ? { status: normalizedMessage } : {}),
-      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {})
+      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
+      ...(mediaIds !== undefined ? { media_ids: mediaIds } : {})
     })
   })
   if (response.status !== 200) {

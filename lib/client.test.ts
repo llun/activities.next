@@ -47,6 +47,22 @@ describe('client updateNote', () => {
       })
     )
   })
+
+  it('sends media_ids for attachment-only edits', async () => {
+    await updateNote({
+      statusId: '123',
+      mediaIds: ['media-2']
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          media_ids: ['media-2']
+        })
+      })
+    )
+  })
 })
 
 describe('client getActorStatuses', () => {

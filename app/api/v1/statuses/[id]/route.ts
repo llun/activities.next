@@ -7,7 +7,9 @@ import {
   OAuthGuard,
   OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
+import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getAttachmentsFromMediaIds } from '@/lib/services/mastodon/mediaIds'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
@@ -100,6 +102,7 @@ export const GET = traceApiRoute(
 const EditNoteSchema = z.object({
   status: z.string().optional(),
   spoiler_text: z.string().nullish(),
+  media_ids: z.array(z.coerce.string()).optional(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
 
@@ -134,9 +137,29 @@ export const PUT = traceApiRoute(
 
       const shouldUpdateContent =
         changes.status !== undefined || changes.spoiler_text !== undefined
+      const mediaIds =
+        changes.media_ids !== undefined
+          ? [...new Set(changes.media_ids)]
+          : undefined
+      const shouldUpdateMedia = mediaIds !== undefined
       const visibility = changes.visibility
 
-      if (!shouldUpdateContent && visibility === undefined) {
+      if (
+        !shouldUpdateContent &&
+        !shouldUpdateMedia &&
+        visibility === undefined
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+      if (
+        mediaIds !== undefined &&
+        mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS
+      ) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -159,12 +182,29 @@ export const PUT = traceApiRoute(
         })
       }
 
+      const attachments =
+        mediaIds !== undefined
+          ? await getAttachmentsFromMediaIds({
+              database,
+              currentActor,
+              mediaIds
+            })
+          : undefined
+      if (attachments === null) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
       if (visibility !== undefined) {
         updatedNote = await updateNoteVisibilityFromUserInput({
           statusId,
           currentActor,
           visibility,
-          publish: !shouldUpdateContent,
+          publish: !shouldUpdateContent && !shouldUpdateMedia,
           status: existingStatus,
           database
         })
@@ -177,12 +217,13 @@ export const PUT = traceApiRoute(
           })
       }
 
-      if (shouldUpdateContent) {
+      if (shouldUpdateContent || shouldUpdateMedia) {
         updatedNote = await updateNoteFromUserInput({
           statusId,
           currentActor,
           text: changes.status,
           summary: changes.spoiler_text,
+          attachments,
           publish: true,
           status:
             updatedNote?.type === StatusType.enum.Note
