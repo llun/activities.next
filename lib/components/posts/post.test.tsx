@@ -390,8 +390,18 @@ describe('Post', () => {
       name: 'Post status actions'
     })
 
-    expect(socialActions).toHaveClass('w-full', 'justify-between')
-    expect(statusActions).toHaveClass('w-full', 'justify-end')
+    expect(socialActions).toHaveClass(
+      'grid',
+      'w-full',
+      'grid-cols-3',
+      'justify-items-center'
+    )
+    expect(statusActions).toHaveClass(
+      'grid',
+      'w-full',
+      'grid-cols-4',
+      'justify-items-center'
+    )
 
     expect(
       screen.getByRole('button', { name: 'Reply to post' })

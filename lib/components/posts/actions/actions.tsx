@@ -6,6 +6,7 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
@@ -43,13 +44,23 @@ export const Actions: FC<Props> = ({
     currentActor.id === actualStatus.actorId
   const hasEditHistory = actualStatus.edits.length > 0
   const hasStatusActions = hasEditHistory || isOwner || canEdit
+  const statusActionCount =
+    (hasEditHistory ? 1 : 0) + (isOwner ? 1 : 0) + (canEdit ? 2 : 0)
+  const statusActionGridColumns =
+    statusActionCount === 4
+      ? 'grid-cols-4'
+      : statusActionCount === 3
+        ? 'grid-cols-3'
+        : statusActionCount === 2
+          ? 'grid-cols-2'
+          : 'grid-cols-1'
 
   return (
     <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
       <div
         role="group"
         aria-label="Post social actions"
-        className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start sm:gap-6"
+        className="grid w-full grid-cols-3 items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6"
       >
         <ReplyButton status={actualStatus} onReply={onReply} />
         <RepostButton currentActor={currentActor} status={actualStatus} />
@@ -60,7 +71,10 @@ export const Actions: FC<Props> = ({
         <div
           role="group"
           aria-label="Post status actions"
-          className="flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start sm:gap-6"
+          className={cn(
+            'grid w-full items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6',
+            statusActionGridColumns
+          )}
         >
           <EditHistoryButton
             status={actualStatus}
