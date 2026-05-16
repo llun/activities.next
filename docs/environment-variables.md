@@ -6,13 +6,16 @@ Application configuration is provided through environment variables. Root-level 
 
 ## Core Configuration
 
-| Variable                   | Required | Description                                                                                                           |
-| -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_HOST`          | **Yes**  | Domain name for your instance (e.g., `social.example.com`). No protocol, no trailing slash.                           |
-| `ACTIVITIES_SECRET_PHASE`  | **Yes**  | Secret string for signing cookies and tokens. Generate with `openssl rand -base64 32`.                                |
-| `ACTIVITIES_ALLOW_EMAILS`  | No       | JSON array of email addresses allowed to register (e.g., `["user@example.com"]`). If unset, registration may be open. |
-| `ACTIVITIES_TRUSTED_HOSTS` | No       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`.                    |
-| `ACTIVITIES_INSECURE_AUTH` | No       | Set to `true` to allow HTTP (non-HTTPS) authentication. Only for local development.                                   |
+| Variable                         | Required | Description                                                                                                           |
+| -------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_HOST`                | **Yes**  | Domain name for your instance (e.g., `social.example.com`). No protocol, no trailing slash.                           |
+| `ACTIVITIES_SECRET_PHASE`        | **Yes**  | Secret string for signing cookies and tokens. Generate with `openssl rand -base64 32`.                                |
+| `ACTIVITIES_SERVICE_NAME`        | No       | Public instance display name used by instance metadata, auth display, and WebAuthn issuer labels.                     |
+| `ACTIVITIES_SERVICE_DESCRIPTION` | No       | Public instance description used by instance metadata endpoints.                                                      |
+| `ACTIVITIES_LANGUAGES`           | No       | JSON array of supported instance languages (e.g., `["en","nl"]`). Defaults to `["en"]`.                               |
+| `ACTIVITIES_ALLOW_EMAILS`        | No       | JSON array of email addresses allowed to register (e.g., `["user@example.com"]`). If unset, registration may be open. |
+| `ACTIVITIES_TRUSTED_HOSTS`       | No       | JSON array of additional public hosts accepted from `X-Forwarded-Host` and `X-Activity-Next-Host`.                    |
+| `ACTIVITIES_INSECURE_AUTH`       | No       | Set to `true` to allow HTTP (non-HTTPS) authentication. Only for local development.                                   |
 
 ## Proxy Configuration
 

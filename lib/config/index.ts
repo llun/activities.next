@@ -1,6 +1,8 @@
+import fs from 'fs'
 import { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import { PHASE_PRODUCTION_BUILD } from 'next/dist/shared/lib/constants'
+import path from 'path'
 import { z } from 'zod'
 
 import { LambdaConfig } from '@/lib/services/email/lambda'
@@ -19,9 +21,11 @@ import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 import { PushConfig, getPushConfig } from './push'
 import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
+import { getEnvironmentList } from './utils'
 
 const FederationMode = z.enum(['open', 'allowlist'])
 const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
+const IGNORED_CONFIG_FILE_NAME = 'config.json'
 
 const Config = z.object({
   host: z.string(),
@@ -49,6 +53,8 @@ const Config = z.object({
 })
 export type Config = z.infer<typeof Config>
 
+let didWarnAboutIgnoredConfigFile = false
+
 const shouldValidateProductionRuntimeSecret = () =>
   process.env.NODE_ENV === 'production' &&
   process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD
@@ -64,6 +70,32 @@ const validateProductionRuntimeSecret = (config: Config) => {
   )
 }
 
+const warnIfIgnoredConfigFileExists = () => {
+  if (
+    didWarnAboutIgnoredConfigFile ||
+    process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
+  ) {
+    return
+  }
+
+  didWarnAboutIgnoredConfigFile = true
+  const configPath = path.join(process.cwd(), IGNORED_CONFIG_FILE_NAME)
+  if (!fs.existsSync(configPath)) return
+
+  logger.warn(
+    { configPath },
+    'Root config.json is no longer supported and will be ignored; migrate settings to ACTIVITIES_* environment variables.'
+  )
+}
+
+const getLanguagesConfig = () => {
+  if (process.env.ACTIVITIES_LANGUAGES === undefined) return undefined
+
+  return getEnvironmentList('ACTIVITIES_LANGUAGES', {
+    onInvalidList: 'throw'
+  })
+}
+
 const getConfigFromEnvironment = () => {
   let config: Config
 
@@ -74,6 +106,9 @@ const getConfigFromEnvironment = () => {
 
     config = Config.parse({
       host: hostConfig.host,
+      serviceName: process.env.ACTIVITIES_SERVICE_NAME,
+      serviceDescription: process.env.ACTIVITIES_SERVICE_DESCRIPTION,
+      languages: getLanguagesConfig(),
       secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
       allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
       allowMediaDomains: JSON.parse(
@@ -109,6 +144,8 @@ const getConfigFromEnvironment = () => {
 }
 
 export const getConfig = memoize((): Config => {
+  warnIfIgnoredConfigFileExists()
+
   const environmentConfig = getConfigFromEnvironment()
   if (environmentConfig) {
     validateProductionRuntimeSecret(environmentConfig)
