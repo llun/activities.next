@@ -20,6 +20,13 @@ interface Props extends PostProps {
   onShowEdits?: (status: Status) => void
 }
 
+const statusActionGridColumnsByCount: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4'
+}
+
 export const Actions: FC<Props> = ({
   host,
   currentActor,
@@ -75,13 +82,7 @@ export const Actions: FC<Props> = ({
 
   const hasStatusActions = statusActions.length > 0
   const statusActionGridColumns =
-    statusActions.length === 4
-      ? 'grid-cols-4'
-      : statusActions.length === 3
-        ? 'grid-cols-3'
-        : statusActions.length === 2
-          ? 'grid-cols-2'
-          : 'grid-cols-1'
+    statusActionGridColumnsByCount[statusActions.length] ?? 'grid-cols-1'
 
   return (
     <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
