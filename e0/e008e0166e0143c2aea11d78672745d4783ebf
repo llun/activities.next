@@ -1,0 +1,37 @@
+lib/database/sql/status.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 12,1717-1718
+lib/database/sql/block.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 10
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 63-64
+app/api/v1/statuses/[id]/route.test.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 694,726-727
+lib/database/sql/bookmark.test.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 262-277
+lib/database/sql/utils/isUniqueConstraintError.test.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 1-33
+lib/database/sql/utils/isUniqueConstraintError.ts
+  s_a3a57c3e535ceb::t_02bb21d5641b0c 1-16
+lib/database/sql/status.test.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 720-739
+lib/database/sql/bookmark.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 4,29-31,158-162
+app/api/v1/bookmarks/route.test.ts
+  s_a3a57c3e535ceb::t_9f86e1c2c5a369 179-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e0e008e0166e0143c2aea11d78672745d4783ebf",
+  "prompts": {},
+  "sessions": {
+    "s_a3a57c3e535ceb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cc-9ba2-72d2-b9c8-69a141404fcb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
