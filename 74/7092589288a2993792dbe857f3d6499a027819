@@ -1,0 +1,75 @@
+lib/components/post-box/post-box.tsx
+  s_c0d2e9b98758c5::t_be97f96cd87fa8 211-212,214,221-230,247-252,260-269
+  s_c0d2e9b98758c5::t_ef6669322ee98f 517-521,524-525,535-542,550-555
+  s_c0d2e9b98758c5::t_71ead8bfbb9fb2 615-626,629,633-635
+  s_c0d2e9b98758c5::t_c2e09be48bae49 210,213,215-220,232-246,253-259,271-289
+  s_c0d2e9b98758c5::t_8c1be294151a52 38,231,270
+  s_c0d2e9b98758c5::t_0db6f31e519af2 812-823,825-827
+  s_c0d2e9b98758c5::t_482a872264032b 886-888,901
+  s_c0d2e9b98758c5::t_f8d023b975d852 88-141
+  s_c0d2e9b98758c5::t_00c0f795d3b88d 181-199
+  s_c0d2e9b98758c5::t_a4ad5f79473763 435-447
+  s_c0d2e9b98758c5::t_e15574635e6f62 328-343,347-348,350,354-366,401
+lib/utils/urlToId.ts
+  s_c0d2e9b98758c5::t_8dce613da832a7 3-11,13-14,18,21,25-27,30
+  s_c0d2e9b98758c5::t_282c555b0e340a 15-17
+  s_c0d2e9b98758c5::t_29739e70157b6c 47
+lib/database/sql/media.ts
+  s_c0d2e9b98758c5::t_4f48a2a0d0d966 289-292,330-333,373-376
+lib/services/auth/knexAdapter.test.ts
+  s_c0d2e9b98758c5::t_1f55a790d4296c 55-56,154-174
+app/(timeline)/MainPageTimeline.tsx
+  s_c0d2e9b98758c5::t_f7866cb564bae6 258-261
+lib/database/sql/status.ts
+  s_c0d2e9b98758c5::t_8c1be294151a52 47,537
+  s_c0d2e9b98758c5::t_82915b84f9d5ee 491-492,523-536,538-561
+lib/actions/updateNote.ts
+  s_c0d2e9b98758c5::t_1eb29ebf89c290 6,16,27,47-48
+lib/client.test.ts
+  s_c0d2e9b98758c5::t_26921e9f2ef1e4 3-4,91-106
+  s_c0d2e9b98758c5::t_e0e286f9af9053 52-90,107-109
+lib/database/sql/status.test.ts
+  s_c0d2e9b98758c5::t_e0e286f9af9053 938-1002
+lib/types/domain/attachment.ts
+  s_c0d2e9b98758c5::t_8572c8444b00b6 47
+lib/client.ts
+  s_c0d2e9b98758c5::t_a4d1442e87988a 92-95
+  s_c0d2e9b98758c5::t_e91ad306993b28 72,77-78,82,84-89,102-105
+lib/types/database/operations.ts
+  s_c0d2e9b98758c5::t_8572c8444b00b6 9,366-368
+app/api/v1/statuses/[id]/route.test.ts
+  s_c0d2e9b98758c5::t_e0e286f9af9053 14,724-932
+app/api/v1/statuses/[id]/route.ts
+  s_c0d2e9b98758c5::t_20fdfa610fd94f 10,13,105,135-149,154-156,182-194,219
+lib/utils/urlToId.test.ts
+  s_c0d2e9b98758c5::t_a722f6afaff2e3 47-52
+lib/services/statuses/mediaIds.ts
+  s_c0d2e9b98758c5::t_8572c8444b00b6 1-51
+lib/services/auth/knexAdapter.ts
+  s_c0d2e9b98758c5::t_ba56e04a886874 143,185,191
+  s_c0d2e9b98758c5::t_66d3210b36aa83 13-30,127,165
+lib/components/post-box/post-box.test.tsx
+  s_c0d2e9b98758c5::t_64de6085ef3baf 166-168
+  s_c0d2e9b98758c5::t_e0e286f9af9053 1-22,38-149,156-157,161-165,169-178,180-190
+  s_c0d2e9b98758c5::t_1358c198674e55 153-155
+  s_c0d2e9b98758c5::t_44d8d8c7e47b81 179
+  s_c0d2e9b98758c5::t_5880bb6e53f45e 23-37,150-152,158-160
+app/api/v1/statuses/route.ts
+  s_c0d2e9b98758c5::t_bf21e64ec595ce 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "747092589288a2993792dbe857f3d6499a027819",
+  "prompts": {},
+  "sessions": {
+    "s_c0d2e9b98758c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cd-9f4b-7d51-92ab-bc9164cbe225",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
