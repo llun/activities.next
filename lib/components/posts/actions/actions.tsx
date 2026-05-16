@@ -6,7 +6,6 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
-import { cn } from '@/lib/utils'
 
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
@@ -20,12 +19,8 @@ interface Props extends PostProps {
   onShowEdits?: (status: Status) => void
 }
 
-const statusActionGridColumnsByCount: Record<number, string> = {
-  1: 'grid-cols-1',
-  2: 'grid-cols-2',
-  3: 'grid-cols-3',
-  4: 'grid-cols-4'
-}
+const actionRowClassName =
+  'grid w-full grid-cols-4 items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6'
 
 export const Actions: FC<Props> = ({
   host,
@@ -50,10 +45,19 @@ export const Actions: FC<Props> = ({
     Boolean(actualStatus.isLocalActor) &&
     currentActor.id === actualStatus.actorId
   const hasEditHistory = actualStatus.edits.length > 0
-  const statusActions: ReactNode[] = []
+  const primaryActions: ReactNode[] = [
+    <ReplyButton key="reply" status={actualStatus} onReply={onReply} />,
+    <RepostButton
+      key="repost"
+      currentActor={currentActor}
+      status={actualStatus}
+    />,
+    <LikeButton key="like" currentActor={currentActor} status={actualStatus} />
+  ]
+  const secondaryActions: ReactNode[] = []
 
   if (hasEditHistory) {
-    statusActions.push(
+    primaryActions.push(
       <EditHistoryButton
         key="edit-history"
         status={actualStatus}
@@ -64,13 +68,13 @@ export const Actions: FC<Props> = ({
   }
 
   if (isOwner) {
-    statusActions.push(
+    secondaryActions.push(
       <VisibilityButton key="visibility" status={actualStatus} />
     )
   }
 
   if (canEdit) {
-    statusActions.push(
+    secondaryActions.push(
       <EditButton key="edit" status={actualStatus} onEdit={onEdit} />,
       <DeleteButton
         key="delete"
@@ -80,32 +84,25 @@ export const Actions: FC<Props> = ({
     )
   }
 
-  const hasStatusActions = statusActions.length > 0
-  const statusActionGridColumns =
-    statusActionGridColumnsByCount[statusActions.length] ?? 'grid-cols-1'
+  const hasSecondaryActions = secondaryActions.length > 0
 
   return (
     <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
       <div
         role="group"
-        aria-label="Post social actions"
-        className="grid w-full grid-cols-3 items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6"
+        aria-label="Post primary actions"
+        className={actionRowClassName}
       >
-        <ReplyButton status={actualStatus} onReply={onReply} />
-        <RepostButton currentActor={currentActor} status={actualStatus} />
-        <LikeButton currentActor={currentActor} status={actualStatus} />
+        {primaryActions}
       </div>
 
-      {hasStatusActions && (
+      {hasSecondaryActions && (
         <div
           role="group"
-          aria-label="Post status actions"
-          className={cn(
-            'grid w-full items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6',
-            statusActionGridColumns
-          )}
+          aria-label="Post secondary actions"
+          className={actionRowClassName}
         >
-          {statusActions}
+          {secondaryActions}
         </div>
       )}
     </div>

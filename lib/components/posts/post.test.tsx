@@ -364,7 +364,7 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('splits owner actions into mobile-safe social and status action groups', () => {
+  it('splits owner actions into a four-item primary row and left-aligned secondary row', () => {
     render(
       <Post
         host="activities.local"
@@ -383,36 +383,41 @@ describe('Post', () => {
       />
     )
 
-    const socialActions = screen.getByRole('group', {
-      name: 'Post social actions'
+    const primaryActions = screen.getByRole('group', {
+      name: 'Post primary actions'
     })
-    const statusActions = screen.getByRole('group', {
-      name: 'Post status actions'
+    const secondaryActions = screen.getByRole('group', {
+      name: 'Post secondary actions'
     })
 
+    expect(primaryActions).toHaveClass(
+      'grid',
+      'w-full',
+      'grid-cols-4',
+      'justify-items-center',
+      'sm:flex',
+      'sm:w-auto',
+      'sm:justify-start'
+    )
+    expect(secondaryActions).toHaveClass(
+      'grid',
+      'w-full',
+      'grid-cols-4',
+      'justify-items-center',
+      'sm:flex',
+      'sm:w-auto',
+      'sm:justify-start'
+    )
     expect(
-      within(socialActions).getByRole('button', { name: 'Reply to post' })
-    ).toBeInTheDocument()
+      within(primaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Reply to post', 'Repost', 'Like', 'Show edit history, 1 edit'])
     expect(
-      within(socialActions).getByRole('button', { name: 'Repost' })
-    ).toBeInTheDocument()
-    expect(
-      within(socialActions).getByRole('button', { name: 'Like' })
-    ).toBeInTheDocument()
-    expect(
-      within(statusActions).getByRole('button', {
-        name: 'Show edit history, 1 edit'
-      })
-    ).toBeInTheDocument()
-    expect(
-      within(statusActions).getByRole('button', { name: 'Visibility: Direct' })
-    ).toBeInTheDocument()
-    expect(
-      within(statusActions).getByRole('button', { name: 'Edit post' })
-    ).toBeInTheDocument()
-    expect(
-      within(statusActions).getByRole('button', { name: 'Delete post' })
-    ).toBeInTheDocument()
+      within(secondaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Visibility: Direct', 'Edit post', 'Delete post'])
   })
 
   it('keeps edit history panel open when interacting with panel content', () => {
@@ -433,19 +438,36 @@ describe('Post', () => {
       />
     )
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show edit history, 1 edit' })
-    )
+    const editHistoryButton = screen.getByRole('button', {
+      name: 'Show edit history, 1 edit'
+    })
+
+    expect(editHistoryButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(editHistoryButton)
 
     const editHistoryContent = screen.getByText('Previous content')
+    const editHistoryDialog = screen.getByRole('dialog', {
+      name: 'Edit history'
+    })
 
     expect(editHistoryContent).toBeInTheDocument()
     expect(onShowEdits).toHaveBeenCalledTimes(1)
+    expect(editHistoryDialog).toBeInTheDocument()
+    expect(editHistoryButton).toHaveAttribute('aria-expanded', 'true')
+    expect(editHistoryButton).toHaveAttribute(
+      'aria-controls',
+      editHistoryDialog.id
+    )
 
     fireEvent.click(editHistoryContent)
 
     expect(screen.getByText('Previous content')).toBeInTheDocument()
     expect(onShowEdits).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close edit history' }))
+
+    expect(screen.queryByText('Previous content')).not.toBeInTheDocument()
   })
 
   it('does not render an empty status action group', () => {
@@ -465,10 +487,10 @@ describe('Post', () => {
     )
 
     expect(
-      screen.getByRole('group', { name: 'Post social actions' })
+      screen.getByRole('group', { name: 'Post primary actions' })
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('group', { name: 'Post status actions' })
+      screen.queryByRole('group', { name: 'Post secondary actions' })
     ).not.toBeInTheDocument()
   })
 
@@ -488,7 +510,7 @@ describe('Post', () => {
     )
 
     expect(
-      screen.getByRole('group', { name: 'Post status actions' })
+      screen.getByRole('group', { name: 'Post secondary actions' })
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
