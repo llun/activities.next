@@ -45,7 +45,6 @@ import {
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
-import { urlToId } from '@/lib/utils/urlToId'
 
 import { Duration, PollChoices } from './poll-choices'
 import {
@@ -104,7 +103,7 @@ const getEditableStatusAttachments = (
 const getAttachmentIds = (attachments: Pick<PostBoxAttachment, 'id'>[]) =>
   attachments.map((attachment) => attachment.id)
 
-const areAttachmentIdsEqual = (
+const areAttachmentIdsEqualInOrder = (
   current: Pick<PostBoxAttachment, 'id'>[],
   baseline: Pick<PostBoxAttachment, 'id'>[]
 ) => {
@@ -114,31 +113,115 @@ const areAttachmentIdsEqual = (
   return currentIds.every((id, index) => id === baselineIds[index])
 }
 
-const getStatusAttachmentsFromPostBoxAttachments = ({
+type UpdateNoteResponse = Awaited<ReturnType<typeof updateNote>>
+type UpdateNoteMediaAttachment = UpdateNoteResponse['mediaAttachments'][number]
+
+const getTimestamp = (value: unknown, fallback: number) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const timestamp = Date.parse(value)
+    return Number.isNaN(timestamp) ? fallback : timestamp
+  }
+  if (value instanceof Date) {
+    const timestamp = value.getTime()
+    return Number.isNaN(timestamp) ? fallback : timestamp
+  }
+  return fallback
+}
+
+const getMediaAttachmentDimensions = (
+  mediaAttachment: UpdateNoteMediaAttachment,
+  fallback?: PostBoxAttachment
+) => {
+  const meta = (
+    'meta' in mediaAttachment ? mediaAttachment.meta : undefined
+  ) as
+    | {
+        original?: { width?: number; height?: number }
+        width?: number
+        height?: number
+      }
+    | null
+    | undefined
+
+  return {
+    width: meta?.original?.width ?? meta?.width ?? fallback?.width,
+    height: meta?.original?.height ?? meta?.height ?? fallback?.height
+  }
+}
+
+const getMediaTypeFromMastodonAttachment = (
+  attachment: UpdateNoteMediaAttachment
+) => {
+  switch (attachment.type) {
+    case 'image':
+      return 'image/*'
+    case 'gifv':
+    case 'video':
+      return 'video/*'
+    case 'audio':
+      return 'audio/*'
+    default:
+      return 'application/octet-stream'
+  }
+}
+
+const getStatusAttachmentsFromUpdateResponse = ({
   actorId,
-  attachments,
+  existingAttachments,
+  mediaAttachments,
   statusId,
-  timestamp
+  uploadedAttachments,
+  updatedAt
 }: {
   actorId: string
-  attachments: PostBoxAttachment[]
+  existingAttachments: Attachment[]
+  mediaAttachments: UpdateNoteMediaAttachment[]
   statusId: string
-  timestamp: number
+  uploadedAttachments: PostBoxAttachment[]
+  updatedAt: number
 }): Attachment[] =>
-  attachments.map((attachment, index) => ({
-    id: attachment.id,
-    actorId,
-    statusId,
-    type: 'Document',
-    mediaType: attachment.mediaType,
-    url: attachment.url,
-    width: attachment.width,
-    height: attachment.height,
-    name: attachment.name ?? '',
-    mediaId: attachment.id,
-    createdAt: timestamp + index,
-    updatedAt: timestamp + index
-  }))
+  mediaAttachments.map((mediaAttachment, index) => {
+    // Mastodon returns media attachments in the submitted order; keep this
+    // order-sensitive pairing so Attachment.id comes from the server while
+    // mediaId and fallback metadata come from the uploaded media ids.
+    const uploadedAttachment = uploadedAttachments[index]
+    const existingAttachment = existingAttachments.find(
+      (attachment) =>
+        attachment.id === mediaAttachment.id ||
+        attachment.mediaId === uploadedAttachment?.id ||
+        attachment.url === mediaAttachment.url
+    )
+    const dimensions = getMediaAttachmentDimensions(
+      mediaAttachment,
+      uploadedAttachment
+    )
+    const attachmentCreatedAt = existingAttachment?.createdAt ?? updatedAt
+
+    return {
+      id: mediaAttachment.id,
+      actorId,
+      statusId,
+      type: 'Document',
+      mediaType:
+        existingAttachment?.mediaType ??
+        uploadedAttachment?.mediaType ??
+        getMediaTypeFromMastodonAttachment(mediaAttachment),
+      url: mediaAttachment.url,
+      width: dimensions.width ?? existingAttachment?.width,
+      height: dimensions.height ?? existingAttachment?.height,
+      name:
+        mediaAttachment.description ??
+        existingAttachment?.name ??
+        uploadedAttachment?.name ??
+        '',
+      mediaId: existingAttachment
+        ? (existingAttachment.mediaId ?? null)
+        : (uploadedAttachment?.id ?? null),
+      createdAt: attachmentCreatedAt,
+      updatedAt
+    }
+  })
 
 export const PostBox: FC<Props> = ({
   host,
@@ -159,6 +242,7 @@ export const PostBox: FC<Props> = ({
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
+  const submitInFlightRef = useRef(false)
   const fitnessCleanupInFlightRef = useRef<{
     uploadedId: string
     promise: Promise<boolean>
@@ -190,7 +274,7 @@ export const PostBox: FC<Props> = ({
     return (
       value !== getEditableStatusText(editStatus) ||
       contentWarning !== (editStatus.summary ?? '') ||
-      !areAttachmentIdsEqual(
+      !areAttachmentIdsEqualInOrder(
         extension.attachments,
         getEditableStatusAttachments(editStatus)
       )
@@ -289,6 +373,8 @@ export const PostBox: FC<Props> = ({
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
+    if (submitInFlightRef.current) return
+    submitInFlightRef.current = true
 
     setAllowPost(false)
     setIsPosting(true)
@@ -331,7 +417,7 @@ export const PostBox: FC<Props> = ({
         const currentContentWarning = postExtension.contentWarningVisible
           ? postExtension.contentWarning
           : ''
-        const attachmentsChanged = !areAttachmentIdsEqual(
+        const attachmentsChanged = !areAttachmentIdsEqualInOrder(
           attachments,
           getEditableStatusAttachments(editStatus)
         )
@@ -341,29 +427,37 @@ export const PostBox: FC<Props> = ({
             ? currentContentWarning
             : undefined
 
-        await updateNote({
-          statusId: urlToId(editStatus.id),
+        const updateResponse = await updateNote({
+          statusId: editStatus.id,
           message: updateMessage,
           contentWarning: updateContentWarning,
           attachments: attachmentsChanged ? attachments : undefined
         })
-        const updateTime = Date.now()
+        const responseStatus = updateResponse.status
+        const responseCreatedAt = getTimestamp(
+          responseStatus.createdAt,
+          editStatus.createdAt
+        )
+        const responseUpdatedAt = getTimestamp(
+          responseStatus.updatedAt,
+          Date.now()
+        )
+        const responseStatusId = responseStatus.id || editStatus.id
         onPostUpdated({
           ...editStatus,
-          text: updateMessage ?? editStatus.text,
-          summary:
-            updateContentWarning === undefined
-              ? editStatus.summary
-              : updateContentWarning.trim() || null,
-          attachments: attachmentsChanged
-            ? getStatusAttachmentsFromPostBoxAttachments({
-                actorId: editStatus.actorId,
-                attachments,
-                statusId: editStatus.id,
-                timestamp: updateTime
-              })
-            : editStatus.attachments,
-          updatedAt: updateTime
+          id: responseStatusId,
+          text: responseStatus.text ?? message,
+          summary: updateResponse.spoilerText.trim() || null,
+          attachments: getStatusAttachmentsFromUpdateResponse({
+            actorId: editStatus.actorId,
+            existingAttachments: editStatus.attachments,
+            mediaAttachments: updateResponse.mediaAttachments,
+            uploadedAttachments: attachments,
+            statusId: responseStatusId,
+            updatedAt: responseUpdatedAt
+          }),
+          createdAt: responseCreatedAt,
+          updatedAt: responseUpdatedAt
         })
         dispatch(resetExtension())
 
@@ -419,6 +513,8 @@ export const PostBox: FC<Props> = ({
       setIsPosting(false)
       setAllowPost(true)
       alert('Fail to create a post')
+    } finally {
+      submitInFlightRef.current = false
     }
   }
 

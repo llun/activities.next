@@ -10,6 +10,7 @@ import {
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
+import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
@@ -71,12 +72,31 @@ export interface UpdateNoteParams {
   contentWarning?: string
   attachments?: PostBoxAttachment[]
 }
+export interface UpdateNoteResult {
+  content: string
+  spoilerText: string
+  mediaAttachments: MediaAttachment[]
+  status: {
+    id: string
+    text: string | null
+    createdAt: number
+    updatedAt?: number
+    reply: string
+  }
+}
+
+const parseTimestamp = (value: unknown, fallback: number) => {
+  if (typeof value !== 'string') return fallback
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? fallback : timestamp
+}
+
 export const updateNote = async ({
   statusId,
   message,
   contentWarning,
   attachments
-}: UpdateNoteParams) => {
+}: UpdateNoteParams): Promise<UpdateNoteResult> => {
   const normalizedMessage =
     message !== undefined && message.trim().length > 0 ? message : undefined
   const hasAttachmentChanges = attachments !== undefined
@@ -110,14 +130,19 @@ export const updateNote = async ({
   }
 
   const mastodonStatus = await response.json()
+  const createdAt = parseTimestamp(mastodonStatus.created_at, Date.now())
   return {
     content: mastodonStatus.content,
+    spoilerText: mastodonStatus.spoiler_text ?? '',
+    mediaAttachments: Array.isArray(mastodonStatus.media_attachments)
+      ? mastodonStatus.media_attachments
+      : [],
     status: {
-      id: mastodonStatus.id,
-      text: mastodonStatus.content,
-      createdAt: new Date(mastodonStatus.created_at),
+      id: mastodonStatus.uri ?? mastodonStatus.id,
+      text: mastodonStatus.text ?? null,
+      createdAt,
       updatedAt: mastodonStatus.edited_at
-        ? new Date(mastodonStatus.edited_at)
+        ? parseTimestamp(mastodonStatus.edited_at, createdAt)
         : undefined,
       reply: mastodonStatus.in_reply_to_id || ''
     }

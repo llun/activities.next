@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { updateNote, uploadAttachment } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -45,6 +45,7 @@ const uploadAttachmentMock = uploadAttachment as jest.MockedFunction<
 >
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
+const updatedTime = new Date('2026-04-26T11:00:00.000Z').getTime()
 
 const profile: ActorProfile = {
   id: 'https://activities.local/users/llun',
@@ -117,17 +118,39 @@ describe('PostBox edit media', () => {
     })
     updateNoteMock.mockResolvedValue({
       content: '<p>Original post text</p>',
+      spoilerText: '',
+      mediaAttachments: [
+        {
+          id: 'server-attachment',
+          type: 'image',
+          url: 'https://activities.local/api/v1/files/uploaded.png',
+          preview_url: null,
+          remote_url: null,
+          description: 'replacement.png',
+          blurhash: null,
+          meta: {
+            original: {
+              width: 800,
+              height: 600,
+              size: '800x600',
+              aspect: 1.3333333333333333
+            }
+          }
+        }
+      ],
       status: {
         id: editStatus.id,
-        text: '<p>Original post text</p>',
-        createdAt: new Date(currentTime),
-        updatedAt: new Date(currentTime),
+        text: 'Original post text',
+        createdAt: currentTime,
+        updatedAt: updatedTime,
         reply: ''
       }
     })
   })
 
   it('enables update and uploads media when only edit attachments change', async () => {
+    const onPostUpdated = jest.fn()
+
     render(
       <PostBox
         host="activities.local"
@@ -136,7 +159,7 @@ describe('PostBox edit media', () => {
         isMediaUploadEnabled
         onDiscardReply={jest.fn()}
         onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
+        onPostUpdated={onPostUpdated}
         onDiscardEdit={jest.fn()}
       />
     )
@@ -176,7 +199,7 @@ describe('PostBox edit media', () => {
       )
       expect(updateNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          statusId: 'activities.local:users:llun:statuses:post-1',
+          statusId: editStatus.id,
           attachments: [
             expect.objectContaining({
               id: 'uploaded-media',
@@ -185,6 +208,88 @@ describe('PostBox edit media', () => {
           ]
         })
       )
+    })
+
+    expect(onPostUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'Original post text',
+        summary: null,
+        updatedAt: updatedTime,
+        attachments: [
+          expect.objectContaining({
+            id: 'server-attachment',
+            mediaId: 'uploaded-media',
+            width: 800,
+            height: 600,
+            createdAt: updatedTime,
+            updatedAt: updatedTime
+          })
+        ]
+      })
+    )
+  })
+
+  it('ignores reentrant submits while edit media upload is in flight', async () => {
+    let resolveUpdate: (value: Awaited<ReturnType<typeof updateNote>>) => void
+    updateNoteMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
+
+    const { container } = render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove media existing.jpg' })
+    )
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+    })
+
+    const form = container.querySelector('form')!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    await waitFor(() => {
+      expect(uploadAttachmentMock).toHaveBeenCalledTimes(1)
+      expect(updateNoteMock).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      resolveUpdate!({
+        content: '<p>Original post text</p>',
+        spoilerText: '',
+        mediaAttachments: [],
+        status: {
+          id: editStatus.id,
+          text: 'Original post text',
+          createdAt: currentTime,
+          updatedAt: updatedTime,
+          reply: ''
+        }
+      })
     })
   })
 })

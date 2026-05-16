@@ -107,6 +107,62 @@ describe('client updateNote', () => {
       })
     )
   })
+
+  it('returns server edit metadata for local timeline reconciliation', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: 'localhost:users:test1:statuses:post-1',
+        uri: 'https://localhost/users/test1/statuses/post-1',
+        content: '<p>Updated status</p>',
+        text: 'Updated status',
+        spoiler_text: '',
+        created_at: '2026-04-26T10:00:00.000Z',
+        edited_at: '2026-04-26T11:00:00.000Z',
+        in_reply_to_id: null,
+        media_attachments: [
+          {
+            id: 'server-attachment',
+            type: 'image',
+            url: 'https://localhost/api/v1/files/image.jpg',
+            preview_url: null,
+            remote_url: null,
+            description: 'image.jpg',
+            blurhash: null,
+            meta: {
+              original: {
+                width: 640,
+                height: 480,
+                size: '640x480',
+                aspect: 1.3333333333333333
+              }
+            }
+          }
+        ]
+      })
+    )
+
+    await expect(
+      updateNote({
+        statusId: 'https://localhost/users/test1/statuses/post-1',
+        message: 'Updated status'
+      })
+    ).resolves.toMatchObject({
+      content: '<p>Updated status</p>',
+      spoilerText: '',
+      mediaAttachments: [
+        expect.objectContaining({
+          id: 'server-attachment'
+        })
+      ],
+      status: {
+        id: 'https://localhost/users/test1/statuses/post-1',
+        text: 'Updated status',
+        createdAt: new Date('2026-04-26T10:00:00.000Z').getTime(),
+        updatedAt: new Date('2026-04-26T11:00:00.000Z').getTime(),
+        reply: ''
+      }
+    })
+  })
 })
 
 describe('client getActorStatuses', () => {
