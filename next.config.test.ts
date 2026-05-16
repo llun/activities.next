@@ -2,10 +2,14 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import nextConfig, {
-  getImageRemotePatterns,
-  getSecurityHeaders
-} from './next.config'
+import { getImageRemotePatterns } from '@/lib/config/nextImageRemotePatterns'
+import {
+  getContentSecurityPolicy,
+  getSecurityHeaders,
+  resetContentSecurityPolicyCacheForTests
+} from '@/lib/utils/securityHeaders'
+
+import nextConfig from './next.config'
 
 const loadNextConfig = async () => {
   jest.resetModules()
@@ -27,10 +31,12 @@ const withEnv = <T>(
       process.env[key] = value
     }
   }
+  resetContentSecurityPolicyCacheForTests()
 
   try {
     return callback()
   } finally {
+    resetContentSecurityPolicyCacheForTests()
     for (const [key, value] of Object.entries(previousValues)) {
       if (value === undefined) {
         delete process.env[key]
@@ -52,18 +58,29 @@ const getCspDirectiveSources = (directiveName: string) => {
   return directive?.split(/\s+/).slice(1) ?? []
 }
 
-describe('getProxyHostConfigEnv', () => {
+describe('next config runtime isolation', () => {
   const originalCwd = process.cwd()
-  const previousActivitiesHost = process.env.ACTIVITIES_HOST
-  const previousTrustedHosts = process.env.ACTIVITIES_TRUSTED_HOSTS
+  const originalEnv = {
+    ACTIVITIES_ALLOW_MEDIA_DOMAINS: process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS,
+    ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
+    NODE_ENV: process.env.NODE_ENV
+  }
 
   let tempDirectory: string
 
   beforeEach(() => {
     tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'activities-next-'))
     process.chdir(tempDirectory)
-    delete process.env.ACTIVITIES_HOST
-    delete process.env.ACTIVITIES_TRUSTED_HOSTS
+    process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = 'not-json'
+    process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
+    process.env.NODE_ENV = 'production'
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        host: 'file-host-should-not-be-used.example.com',
+        trustedHosts: ['file-edge-should-not-be-used.example.com']
+      })
+    )
   })
 
   afterEach(() => {
@@ -71,50 +88,46 @@ describe('getProxyHostConfigEnv', () => {
     fs.rmSync(tempDirectory, { force: true, recursive: true })
     jest.resetModules()
 
-    if (previousActivitiesHost === undefined) {
-      delete process.env.ACTIVITIES_HOST
-    } else {
-      process.env.ACTIVITIES_HOST = previousActivitiesHost
-    }
-
-    if (previousTrustedHosts === undefined) {
-      delete process.env.ACTIVITIES_TRUSTED_HOSTS
-    } else {
-      process.env.ACTIVITIES_TRUSTED_HOSTS = previousTrustedHosts
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
     }
   })
 
-  it('injects file-based proxy host config without actor domain allowlists', async () => {
-    fs.writeFileSync(
-      path.join(tempDirectory, 'config.json'),
-      JSON.stringify({
-        host: 'file-public.example.com',
-        allowActorDomains: ['external-actor.example.com'],
-        trustedHosts: ['file-edge.example.com']
-      })
-    )
+  it('does not read deployment config while loading next config', async () => {
+    const { default: loadedNextConfig } = await loadNextConfig()
 
-    const { getProxyHostConfigEnv } = await loadNextConfig()
-
-    expect(
-      JSON.parse(getProxyHostConfigEnv().ACTIVITIES_PROXY_HOST_CONFIG)
-    ).toEqual({
-      host: 'file-public.example.com',
-      trustedHosts: ['file-edge.example.com']
-    })
-  })
-
-  it('does not snapshot runtime environment proxy host config at build time', async () => {
-    process.env.ACTIVITIES_HOST = 'env-public.example.com'
-    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
-      'env-edge.example.com'
+    expect(loadedNextConfig.env).toBeUndefined()
+    expect(loadedNextConfig.allowedDevOrigins).toBeUndefined()
+    expect(loadedNextConfig.images?.remotePatterns).toEqual([
+      {
+        protocol: 'https',
+        hostname: '**'
+      }
     ])
+  })
 
-    const { default: nextConfig, getProxyHostConfigEnv } =
-      await loadNextConfig()
+  it('does not reference ACTIVITIES runtime variables in next config source', () => {
+    expect(
+      fs.readFileSync(path.join(originalCwd, 'next.config.ts'), 'utf-8')
+    ).not.toContain('ACTIVITIES_')
+  })
 
-    expect(getProxyHostConfigEnv()).toEqual({})
-    expect(nextConfig.env).toBeUndefined()
+  it('keeps utility declarations out of next config source', () => {
+    const source = fs.readFileSync(
+      path.join(originalCwd, 'next.config.ts'),
+      'utf-8'
+    )
+    const topLevelConstNames = Array.from(
+      source.matchAll(/^const\s+([A-Za-z0-9_]+)/gm)
+    ).map((match) => match[1])
+
+    expect(topLevelConstNames).toEqual(['nextConfig'])
+    expect(source).not.toMatch(/^export\s+const\s+/m)
+    expect(source).not.toMatch(/^type\s+/m)
   })
 })
 
@@ -159,6 +172,15 @@ describe('next config security hardening', () => {
         })
       }
     )
+  })
+
+  it('leaves CSP to the runtime proxy response headers', async () => {
+    const headers = await nextConfig.headers?.()
+    const staticHeaders = headers?.flatMap((entry) => entry.headers) ?? []
+
+    expect(
+      staticHeaders.some((header) => header.key === 'Content-Security-Policy')
+    ).toBe(false)
   })
 
   it('allows development websocket connections for Next and HMR', () => {
@@ -259,6 +281,41 @@ describe('next config security hardening', () => {
     )
   })
 
+  it('uses configured media domains as the runtime image source allowlist', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_MEDIA_DOMAINS: JSON.stringify([
+          'images.example.com',
+          'https://cdn.example.com/assets'
+        ])
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'data:',
+            'blob:',
+            'https://images.example.com',
+            'https://cdn.example.com'
+          ])
+        )
+        expect(imageSources).not.toContain('https:')
+        expect(mediaSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'blob:',
+            'https://images.example.com',
+            'https://cdn.example.com'
+          ])
+        )
+        expect(mediaSources).not.toContain('https:')
+      }
+    )
+  })
+
   it('allows default S3 presigned upload hosts in connect-src', () => {
     withEnv(
       {
@@ -276,6 +333,27 @@ describe('next config security hardening', () => {
             'https://s3.eu-west-1.amazonaws.com'
           ])
         )
+      }
+    )
+  })
+
+  it('caches CSP for the process lifetime', () => {
+    withEnv(
+      {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'initial-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-west-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined
+      },
+      () => {
+        const initialPolicy = getContentSecurityPolicy()
+
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'updated-bucket'
+
+        expect(getContentSecurityPolicy()).toBe(initialPolicy)
+
+        resetContentSecurityPolicyCacheForTests()
+        expect(getContentSecurityPolicy()).toContain('updated-bucket')
       }
     )
   })
@@ -376,12 +454,200 @@ describe('next config security hardening', () => {
     )
   })
 
-  it('uses the configured instance host and safe local hosts by default', () => {
-    const originalAllowlist = process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
-    const originalHost = process.env.ACTIVITIES_HOST
+  it('allows runtime config file storage origins in connect-src', () => {
+    const originalCwd = process.cwd()
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'activities-next-')
+    )
+    const originalEnv = {
+      ACTIVITIES_MEDIA_STORAGE_TYPE: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
+      ACTIVITIES_MEDIA_STORAGE_BUCKET:
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
+      ACTIVITIES_MEDIA_STORAGE_REGION:
+        process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
+      ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME,
+      ACTIVITIES_FITNESS_STORAGE_TYPE:
+        process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
+      ACTIVITIES_FITNESS_STORAGE_BUCKET:
+        process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET,
+      ACTIVITIES_FITNESS_STORAGE_REGION:
+        process.env.ACTIVITIES_FITNESS_STORAGE_REGION,
+      ACTIVITIES_FITNESS_STORAGE_HOSTNAME:
+        process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME,
+      ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN:
+        process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
+    }
+
+    for (const key of Object.keys(originalEnv)) {
+      delete process.env[key]
+    }
+
+    process.chdir(tempDirectory)
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        mediaStorage: {
+          type: 's3',
+          bucket: 'file-media-bucket',
+          region: 'eu-central-1'
+        },
+        fitnessStorage: {
+          type: 'object',
+          bucket: 'file-fitness-bucket',
+          region: 'us-east-1',
+          hostname: 'fitness-file.example.com',
+          mapboxAccessToken: 'pk.file-mapbox'
+        }
+      })
+    )
+
+    try {
+      resetContentSecurityPolicyCacheForTests()
+      const connectSources = getCspDirectiveSources('connect-src')
+
+      expect(connectSources).toEqual(
+        expect.arrayContaining([
+          'https://file-media-bucket.s3.eu-central-1.amazonaws.com',
+          'https://s3.eu-central-1.amazonaws.com',
+          'https://fitness-file.example.com',
+          'https://api.mapbox.com',
+          'https://events.mapbox.com',
+          'https://*.tiles.mapbox.com'
+        ])
+      )
+    } finally {
+      resetContentSecurityPolicyCacheForTests()
+      process.chdir(originalCwd)
+      fs.rmSync(tempDirectory, { force: true, recursive: true })
+
+      for (const [key, value] of Object.entries(originalEnv)) {
+        if (value === undefined) {
+          delete process.env[key]
+        } else {
+          process.env[key] = value
+        }
+      }
+    }
+  })
+
+  it('layers environment storage origins over runtime config file storage origins in connect-src', () => {
+    const originalCwd = process.cwd()
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'activities-next-')
+    )
+    const originalEnv = {
+      ACTIVITIES_MEDIA_STORAGE_TYPE: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
+      ACTIVITIES_MEDIA_STORAGE_BUCKET:
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
+      ACTIVITIES_MEDIA_STORAGE_REGION:
+        process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
+      ACTIVITIES_MEDIA_STORAGE_HOSTNAME:
+        process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME
+    }
+
+    for (const key of Object.keys(originalEnv)) {
+      delete process.env[key]
+    }
+
+    process.chdir(tempDirectory)
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({
+        mediaStorage: {
+          type: 's3',
+          bucket: 'file-media-bucket',
+          region: 'eu-central-1'
+        }
+      })
+    )
+
+    try {
+      withEnv(
+        {
+          ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'env-media.example.com'
+        },
+        () => {
+          const connectSources = getCspDirectiveSources('connect-src')
+
+          expect(connectSources).toContain('https://env-media.example.com')
+          expect(connectSources).not.toContain(
+            'https://file-media-bucket.s3.eu-central-1.amazonaws.com'
+          )
+          expect(connectSources).not.toContain(
+            'https://s3.eu-central-1.amazonaws.com'
+          )
+        }
+      )
+    } finally {
+      resetContentSecurityPolicyCacheForTests()
+      process.chdir(originalCwd)
+      fs.rmSync(tempDirectory, { force: true, recursive: true })
+
+      for (const [key, value] of Object.entries(originalEnv)) {
+        if (value === undefined) {
+          delete process.env[key]
+        } else {
+          process.env[key] = value
+        }
+      }
+    }
+  })
+
+  it('falls back to environment storage origins when config file has no storage settings', () => {
+    const originalCwd = process.cwd()
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'activities-next-')
+    )
+
+    process.chdir(tempDirectory)
+    fs.writeFileSync(
+      path.join(tempDirectory, 'config.json'),
+      JSON.stringify({ host: 'example.com' })
+    )
+
+    try {
+      resetContentSecurityPolicyCacheForTests()
+      withEnv(
+        {
+          ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'env-media.example.com',
+          ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
+        },
+        () => {
+          const connectSources = getCspDirectiveSources('connect-src')
+
+          expect(connectSources).toContain('https://env-media.example.com')
+        }
+      )
+    } finally {
+      resetContentSecurityPolicyCacheForTests()
+      process.chdir(originalCwd)
+      fs.rmSync(tempDirectory, { force: true, recursive: true })
+    }
+  })
+
+  it('uses static HTTPS image patterns in production', () => {
     const originalNodeEnv = process.env.NODE_ENV
-    delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
-    process.env.ACTIVITIES_HOST = 'social.example.com'
+    process.env.NODE_ENV = 'production'
+
+    try {
+      expect(getImageRemotePatterns()).toEqual([
+        {
+          protocol: 'https',
+          hostname: '**'
+        }
+      ])
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
+    }
+  })
+
+  it('allows safe local image hosts in development without app config', () => {
+    const originalNodeEnv = process.env.NODE_ENV
     process.env.NODE_ENV = 'development'
 
     try {
@@ -404,130 +670,11 @@ describe('next config security hardening', () => {
         }
       ])
     } finally {
-      if (originalAllowlist === undefined) {
-        delete process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS
-      } else {
-        process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = originalAllowlist
-      }
-      if (originalHost === undefined) {
-        delete process.env.ACTIVITIES_HOST
-      } else {
-        process.env.ACTIVITIES_HOST = originalHost
-      }
       if (originalNodeEnv === undefined) {
         delete process.env.NODE_ENV
       } else {
         process.env.NODE_ENV = originalNodeEnv
       }
     }
-  })
-
-  it('treats an empty image host allowlist as default config', () => {
-    const originalHost = process.env.ACTIVITIES_HOST
-    const originalNodeEnv = process.env.NODE_ENV
-    process.env.ACTIVITIES_HOST = 'social.example.com'
-    process.env.NODE_ENV = 'production'
-
-    try {
-      expect(getImageRemotePatterns('')).toEqual([
-        {
-          protocol: 'https',
-          hostname: '**'
-        }
-      ])
-    } finally {
-      if (originalHost === undefined) {
-        delete process.env.ACTIVITIES_HOST
-      } else {
-        process.env.ACTIVITIES_HOST = originalHost
-      }
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
-      }
-    }
-  })
-
-  it('builds configured HTTPS image host patterns', () => {
-    const patterns = getImageRemotePatterns(
-      JSON.stringify(['media.example.com', 'https://cdn.example.com/Images'])
-    )
-
-    expect(patterns).toEqual([
-      {
-        protocol: 'https',
-        hostname: 'media.example.com'
-      },
-      {
-        protocol: 'https',
-        hostname: 'cdn.example.com',
-        pathname: '/Images/**'
-      }
-    ])
-  })
-
-  it('keeps the configured instance host with explicit image host patterns', () => {
-    const originalHost = process.env.ACTIVITIES_HOST
-    process.env.ACTIVITIES_HOST = 'social.example.com'
-
-    try {
-      const patterns = getImageRemotePatterns(
-        JSON.stringify(['media.example.com'])
-      )
-
-      expect(patterns).toEqual([
-        {
-          protocol: 'https',
-          hostname: 'media.example.com'
-        },
-        {
-          protocol: 'https',
-          hostname: 'social.example.com'
-        }
-      ])
-    } finally {
-      if (originalHost === undefined) {
-        delete process.env.ACTIVITIES_HOST
-      } else {
-        process.env.ACTIVITIES_HOST = originalHost
-      }
-    }
-  })
-
-  it('normalizes default HTTPS ports in image host patterns', () => {
-    const patterns = getImageRemotePatterns(
-      JSON.stringify(['https://cdn.example.com:443/Images'])
-    )
-
-    expect(patterns).toEqual([
-      {
-        protocol: 'https',
-        hostname: 'cdn.example.com',
-        pathname: '/Images/**'
-      }
-    ])
-  })
-
-  it('rejects wildcard image host configuration', () => {
-    expect(getImageRemotePatterns(JSON.stringify(['**']))).toEqual([])
-    expect(getImageRemotePatterns(JSON.stringify(['*.example.com']))).toEqual(
-      []
-    )
-  })
-
-  it('rejects malformed image host configuration', () => {
-    expect(() => getImageRemotePatterns('{')).toThrow(
-      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
-    )
-  })
-
-  it('rejects non-array image host configuration', () => {
-    expect(() => getImageRemotePatterns(JSON.stringify({}))).toThrow(
-      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
-    )
-    expect(() => getImageRemotePatterns(JSON.stringify('example.com'))).toThrow(
-      'ACTIVITIES_ALLOW_MEDIA_DOMAINS must be a JSON array'
-    )
   })
 })
