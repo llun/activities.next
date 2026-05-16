@@ -455,6 +455,32 @@ describe('production archive scripts', () => {
       })
     })
 
+    it('does not deduplicate S3 fitness files from a different legacy hostname endpoint', () => {
+      const plan = buildStoragePlan({
+        fitnessFilePaths: ['2026-01-01/activity.fit'],
+        mediaFilePaths: ['medias/image.webp', 'fitness/legacy.fit'],
+        scope: 'referenced',
+        mediaStorage: {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'media-storage.example.com',
+          region: 'auto'
+        },
+        fitnessStorage: {
+          type: FitnessStorageType.ObjectStorage,
+          bucket: 'activitynext',
+          hostname: 'fitness-storage.example.com',
+          prefix: 'fitness/',
+          region: 'auto'
+        }
+      })
+
+      expect(plan[0]).toMatchObject({
+        destination: 'media',
+        files: ['fitness/legacy.fit', 'medias/image.webp']
+      })
+    })
+
     it('does not deduplicate S3 fitness files from a different endpoint scheme', () => {
       const plan = buildStoragePlan({
         fitnessFilePaths: ['2026-01-01/activity.fit'],
@@ -912,6 +938,55 @@ describe('production archive scripts', () => {
         const endpoint = await client.config.endpoint!()
         expect(endpoint.hostname).toBe('storage.example.com')
         expect(endpoint.protocol).toBe('http:')
+      } finally {
+        client.destroy()
+      }
+    })
+
+    it('falls back to hostname as the S3-compatible endpoint for legacy archive configs', async () => {
+      const [entry] = buildStoragePlan({
+        fitnessFilePaths: [],
+        mediaFilePaths: ['medias/image.webp'],
+        scope: 'referenced',
+        mediaStorage: {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'bucket',
+          hostname: 'legacy-storage.example.com',
+          region: 'auto'
+        }
+      })
+
+      expect(entry.source).toMatchObject({
+        endpointFallback: 'legacy-storage.example.com',
+        hostname: 'legacy-storage.example.com',
+        kind: 's3'
+      })
+
+      if (entry.source.kind !== 's3') {
+        throw new Error('Expected S3 storage source')
+      }
+
+      const client = createS3Client(entry.source)
+
+      try {
+        const endpoint = await client.config.endpoint!()
+        expect(endpoint.hostname).toBe('legacy-storage.example.com')
+        expect(endpoint.protocol).toBe('https:')
+      } finally {
+        client.destroy()
+      }
+    })
+
+    it('does not treat public S3 hostnames as S3-compatible endpoints', () => {
+      const client = createS3Client({
+        bucket: 'bucket',
+        hostname: 'public-cdn.example.com',
+        kind: 's3',
+        region: 'eu-central-1'
+      })
+
+      try {
+        expect(client.config.endpoint).toBeUndefined()
       } finally {
         client.destroy()
       }

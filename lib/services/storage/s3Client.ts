@@ -12,8 +12,9 @@ export const normalizeStorageEndpoint = (endpoint: string) => {
       ? trimmedEndpoint
       : `https://${trimmedEndpoint}`
   )
+  const normalizedPathname = url.pathname.replace(/\/+$/, '')
 
-  return `${url.protocol}//${url.host}`
+  return `${url.protocol}//${url.host}${normalizedPathname}`
 }
 
 export const createStorageS3Client = ({
