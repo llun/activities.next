@@ -55,7 +55,7 @@ This document tracks the implemented and planned features for Activity.next.
 ### API Compatibility
 
 - ✅ **Mastodon API v1/v2** — Compatible with Mastodon client applications
-- ✅ **Mastodon-compatible status actions** — Favourite, reblog, pin, context, history, and relationship endpoints
+- ✅ **Mastodon-compatible status actions** — Favourite, reblog, bookmark, pin, context, history, and relationship endpoints
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`
 - ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo`
 - ✅ **OAuth Authorization Server metadata** — At `/.well-known/oauth-authorization-server`
@@ -70,7 +70,7 @@ This document tracks the implemented and planned features for Activity.next.
 
 ## In Progress
 
-- 🚧 **Mastodon compatibility gaps** — Lists, followed tags, bookmarks, mutes, and search endpoints exist but are not fully implemented
+- 🚧 **Mastodon compatibility gaps** — Lists, followed tags, mutes, and search endpoints exist but are not fully implemented
 - 🚧 **Fitness import hardening** — Repair and resume scripts cover interrupted or legacy Strava imports while the importer continues to mature
 
 ## Planned Features

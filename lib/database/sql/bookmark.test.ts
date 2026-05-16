@@ -1,0 +1,162 @@
+import { randomUUID } from 'node:crypto'
+
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+describe('BookmarkDatabase', () => {
+  const table = getTestDatabaseTable()
+
+  beforeAll(async () => {
+    await databaseBeforeAll(table)
+  })
+
+  afterAll(async () => {
+    await Promise.all(table.map((item) => item[1].destroy()))
+  })
+
+  describe.each(table)('%s', (_, database) => {
+    beforeAll(async () => {
+      await seedDatabase(database as Database)
+    })
+
+    const createStatus = async (name: string, actorId = ACTOR1_ID) => {
+      const statusId = `${actorId}/statuses/bookmark-${name}-${randomUUID()}`
+      return database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        text: `Bookmark ${name}`,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    }
+
+    it('creates bookmarks idempotently for an actor and status', async () => {
+      const status = await createStatus('idempotent')
+
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId: status.id })
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId: status.id })
+
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR2_ID,
+          statusId: status.id
+        })
+      ).resolves.toBe(true)
+
+      const bookmarks = await database.getBookmarks({
+        actorId: ACTOR2_ID,
+        limit: 20
+      })
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === status.id)
+      ).toHaveLength(1)
+    })
+
+    it('deletes bookmarks idempotently', async () => {
+      const status = await createStatus('delete')
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId: status.id })
+
+      await database.deleteBookmark({ actorId: ACTOR2_ID, statusId: status.id })
+      await database.deleteBookmark({ actorId: ACTOR2_ID, statusId: status.id })
+
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR2_ID,
+          statusId: status.id
+        })
+      ).resolves.toBe(false)
+    })
+
+    it('normalizes announce bookmarks to the original status', async () => {
+      const original = await createStatus('announce-original', ACTOR1_ID)
+      const announce = await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/bookmark-announce-${randomUUID()}`,
+        actorId: ACTOR2_ID,
+        originalStatusId: original.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createBookmark({
+        actorId: ACTOR3_ID,
+        statusId: announce.id
+      })
+
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR3_ID,
+          statusId: original.id
+        })
+      ).resolves.toBe(true)
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR3_ID,
+          statusId: announce.id
+        })
+      ).resolves.toBe(true)
+
+      const bookmarks = await database.getBookmarks({
+        actorId: ACTOR3_ID,
+        limit: 20
+      })
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === original.id)
+      ).toHaveLength(1)
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === announce.id)
+      ).toHaveLength(0)
+    })
+
+    it('paginates bookmarks by private bookmark ids', async () => {
+      const actorId = `${ACTOR3_ID}/bookmark-pagination-${randomUUID()}`
+      const statuses = await Promise.all([
+        createStatus('pagination-1'),
+        createStatus('pagination-2'),
+        createStatus('pagination-3')
+      ])
+      for (const status of statuses) {
+        await database.createBookmark({ actorId, statusId: status.id })
+      }
+
+      const firstPage = await database.getBookmarks({ actorId, limit: 2 })
+      expect(firstPage).toHaveLength(2)
+
+      const secondPage = await database.getBookmarks({
+        actorId,
+        limit: 2,
+        maxId: firstPage[firstPage.length - 1].id
+      })
+
+      expect(secondPage).toHaveLength(1)
+      expect(secondPage.map((bookmark) => bookmark.id)).not.toContain(
+        firstPage[0].id
+      )
+      expect(secondPage.map((bookmark) => bookmark.id)).not.toContain(
+        firstPage[1].id
+      )
+    })
+
+    it('removes bookmarks when a bookmarked status is deleted', async () => {
+      const status = await createStatus('status-delete')
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId: status.id })
+
+      await database.deleteStatus({ statusId: status.id })
+
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR2_ID,
+          statusId: status.id
+        })
+      ).resolves.toBe(false)
+    })
+  })
+})

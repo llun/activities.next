@@ -11,6 +11,7 @@ import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
+import { BookmarkDatabase } from '@/lib/types/database/operations'
 import { LikeDatabase } from '@/lib/types/database/operations'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import {
@@ -181,6 +182,7 @@ export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
   likeDatabase: LikeDatabase,
+  bookmarkDatabase: BookmarkDatabase,
   mediaDatabase: MediaDatabase
 ): StatusDatabase => {
   const applyPublicReadableStatusFilter = ({
@@ -485,6 +487,7 @@ export const StatusSQLDatabaseMixin = (
       replies: [],
       totalLikes: 0,
       isActorLiked: false,
+      isActorBookmarked: false,
       actorAnnounceStatusId: null,
       isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
@@ -820,6 +823,7 @@ export const StatusSQLDatabaseMixin = (
       choices: [],
       totalLikes: 0,
       isActorLiked: false,
+      isActorBookmarked: false,
       actorAnnounceStatusId: null,
       endAt,
       pollType,
@@ -1197,6 +1201,7 @@ export const StatusSQLDatabaseMixin = (
       trx('recipients').where('statusId', statusId).delete(),
       trx('tags').where('statusId', statusId).delete(),
       trx('attachments').where('statusId', statusId).delete(),
+      trx('bookmarks').where('statusId', statusId).delete(),
       trx('poll_choices').where('statusId', statusId).delete(),
       trx('timelines').where('statusId', statusId).delete()
     ])
@@ -1434,6 +1439,7 @@ export const StatusSQLDatabaseMixin = (
       totalLikes,
       totalShares,
       isActorLikedStatusResult,
+      isActorBookmarkedStatusResult,
       actorAnnounceStatus,
       edits,
       fitnessFile
@@ -1451,6 +1457,12 @@ export const StatusSQLDatabaseMixin = (
       getCounterValue(database, CounterKey.totalReblog(data.id)),
       currentActorId
         ? likeDatabase.isActorLikedStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : false,
+      currentActorId
+        ? bookmarkDatabase.isActorBookmarkedStatus({
             statusId: data.id,
             actorId: currentActorId
           })
@@ -1501,6 +1513,7 @@ export const StatusSQLDatabaseMixin = (
       totalLikes,
       totalShares,
       isActorLiked: isActorLikedStatusResult,
+      isActorBookmarked: isActorBookmarkedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
       attachments: orderedAttachments,

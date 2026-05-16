@@ -90,6 +90,14 @@ const getHashtagsFromTags = (tags: Tag[], host: string): MastodonTag[] => {
     })
 }
 
+const isStatusBookmarked = (status: Status): boolean => {
+  if (status.type === StatusType.enum.Announce) {
+    return isStatusBookmarked(status.originalStatus)
+  }
+
+  return status.isActorBookmarked ?? false
+}
+
 export const getMastodonStatus = async (
   database: Database,
   status: Status,
@@ -141,7 +149,7 @@ export const getMastodonStatus = async (
     favourited: false,
     reblogged: false,
     muted: false,
-    bookmarked: false,
+    bookmarked: isStatusBookmarked(status),
 
     // Content and account info
     content: '',

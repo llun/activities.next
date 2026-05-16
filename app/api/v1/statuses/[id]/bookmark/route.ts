@@ -1,4 +1,4 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
@@ -22,54 +22,69 @@ interface Params {
 
 export const POST = traceApiRoute(
   'bookmarkStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:bookmarks']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const statusId = idToUrl(encodedStatusId)
+      const status = await getReadableStatus({
+        database,
+        statusId,
+        currentActor,
+        withReplies: false
+      })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      await database.createBookmark({ actorId: currentActor.id, statusId })
+
+      const updatedStatus = await database.getStatus({
+        statusId,
+        withReplies: false,
+        currentActorId: currentActor.id
+      })
+      if (!updatedStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        updatedStatus,
+        currentActor.id
+      )
+      if (!mastodonStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: mastodonStatus
       })
-
-    const statusId = idToUrl(encodedStatusId)
-    const status = await getReadableStatus({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    // Bookmarking not yet implemented
-    // TODO: Implement bookmarking functionality with database table
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      status,
-      currentActor.id
-    )
-    if (!mastodonStatus)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
-  }),
+    }
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

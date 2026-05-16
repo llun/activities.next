@@ -1135,6 +1135,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         await trx('tags').whereIn('statusId', statusIds).delete()
         await trx('recipients').whereIn('statusId', statusIds).delete()
         await trx('likes').whereIn('statusId', statusIds).delete()
+        await trx('bookmarks').whereIn('statusId', statusIds).delete()
         await trx('attachments').whereIn('statusId', statusIds).delete()
         await trx('status_history').whereIn('statusId', statusIds).delete()
 
@@ -1198,6 +1199,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()
+
+      // Delete bookmarks made by this actor
+      await trx('bookmarks').where('actorId', actorId).delete()
 
       // Delete attachments created by this actor
       await trx('attachments').where('actorId', actorId).delete()

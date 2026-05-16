@@ -8,6 +8,7 @@ import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
+import { Bookmark } from '@/lib/types/domain/bookmark'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
 import { Status } from '@/lib/types/domain/status'
@@ -742,6 +743,34 @@ export interface LikeDatabase {
 }
 
 // ============================================================================
+// Bookmark Database
+// ============================================================================
+
+interface BaseBookmarkParams {
+  actorId: string
+  statusId: string
+}
+export type CreateBookmarkParams = BaseBookmarkParams
+export type DeleteBookmarkParams = BaseBookmarkParams
+export type IsActorBookmarkedStatusParams = BaseBookmarkParams
+export type GetBookmarksParams = {
+  actorId: string
+  limit: number
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+
+export interface BookmarkDatabase {
+  createBookmark(params: CreateBookmarkParams): Promise<void>
+  deleteBookmark(params: DeleteBookmarkParams): Promise<void>
+  isActorBookmarkedStatus(
+    params: IsActorBookmarkedStatusParams
+  ): Promise<boolean>
+  getBookmarks(params: GetBookmarksParams): Promise<Bookmark[]>
+}
+
+// ============================================================================
 // Media Database
 // ============================================================================
 
@@ -998,7 +1027,9 @@ export const Scope = z.enum([
   'profile',
   'email',
   'read',
+  'read:bookmarks',
   'write',
+  'write:bookmarks',
   'follow',
   'push'
 ])
@@ -1009,7 +1040,9 @@ export const UsableScopes = [
   Scope.enum.profile,
   Scope.enum.email,
   Scope.enum.read,
+  Scope.enum['read:bookmarks'],
   Scope.enum.write,
+  Scope.enum['write:bookmarks'],
   Scope.enum.follow
 ]
 

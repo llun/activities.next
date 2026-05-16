@@ -121,6 +121,7 @@ describe('StatusDatabase', () => {
           replies: [],
           actorAnnounceStatusId: null,
           isActorLiked: false,
+          isActorBookmarked: false,
           isLocalActor: true,
           totalLikes: 0,
           totalShares: 0,
