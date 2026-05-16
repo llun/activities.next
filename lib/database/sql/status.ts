@@ -84,6 +84,10 @@ const publicRecipientStatusIds = (database: Knex) =>
     .select('statusId')
     .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
 
+type StatusHydrationContext = {
+  bookmarkedStatusIds?: Set<string>
+}
+
 export const buildPubliclyReadableStatusIdsQuery = ({
   database,
   targetStatusIds
@@ -1104,6 +1108,22 @@ export const StatusSQLDatabaseMixin = (
     const statuses = await database('statuses')
       .whereIn('id', uniqueStatusIds)
       .select()
+    const hydrationContext: StatusHydrationContext = {}
+    if (currentActorId) {
+      const bookmarkCandidateStatusIds = statuses
+        .filter((statusData) => statusData.type !== StatusType.enum.Announce)
+        .map((statusData) => statusData.id)
+      const bookmarkRows =
+        bookmarkCandidateStatusIds.length > 0
+          ? await database('bookmarks')
+              .where('actorId', currentActorId)
+              .whereIn('statusId', [...new Set(bookmarkCandidateStatusIds)])
+              .select<{ statusId: string }[]>('statusId')
+          : []
+      hydrationContext.bookmarkedStatusIds = new Set(
+        bookmarkRows.map((row) => row.statusId)
+      )
+    }
     const statusMap = new Map(
       statuses.map((statusData) => [statusData.id, statusData] as const)
     )
@@ -1116,7 +1136,8 @@ export const StatusSQLDatabaseMixin = (
           getStatusWithAttachmentsFromData(
             statusData,
             currentActorId,
-            withReplies
+            withReplies,
+            hydrationContext
           )
         )
       )
@@ -1387,7 +1408,8 @@ export const StatusSQLDatabaseMixin = (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     currentActorId?: string,
-    withReplies?: boolean
+    withReplies?: boolean,
+    hydrationContext: StatusHydrationContext = {}
   ): Promise<Status | null> {
     const [to, cc] = await Promise.all([
       database('recipients').where('statusId', data.id).andWhere('type', 'to'),
@@ -1447,11 +1469,13 @@ export const StatusSQLDatabaseMixin = (
           })
         : false,
       currentActorId
-        ? bookmarkDatabase.isActorBookmarkedStatus({
-            statusId: data.id,
-            actorId: currentActorId,
-            statusType: data.type
-          })
+        ? hydrationContext.bookmarkedStatusIds
+          ? hydrationContext.bookmarkedStatusIds.has(data.id)
+          : bookmarkDatabase.isActorBookmarkedStatus({
+              statusId: data.id,
+              actorId: currentActorId,
+              statusType: data.type
+            })
         : false,
       currentActorId
         ? getActorAnnounceStatus({

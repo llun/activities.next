@@ -353,6 +353,47 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('getStatusesByIds', () => {
+      it('hydrates bookmark flags for the current actor', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const bookmarkedStatusId = `${emptyActorId}/statuses/bookmarked-${suffix}`
+        const unbookmarkedStatusId = `${emptyActorId}/statuses/unbookmarked-${suffix}`
+
+        await database.createNote({
+          id: bookmarkedStatusId,
+          url: bookmarkedStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Bookmarked status'
+        })
+        await database.createNote({
+          id: unbookmarkedStatusId,
+          url: unbookmarkedStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Unbookmarked status'
+        })
+        await database.createBookmark({
+          actorId: primaryActorId,
+          statusId: bookmarkedStatusId
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [unbookmarkedStatusId, bookmarkedStatusId],
+          currentActorId: primaryActorId
+        })
+
+        expect(results.map((status) => status.id)).toEqual([
+          unbookmarkedStatusId,
+          bookmarkedStatusId
+        ])
+        expect((results[0] as StatusNote).isActorBookmarked).toBe(false)
+        expect((results[1] as StatusNote).isActorBookmarked).toBe(true)
+      })
+    })
+
     describe('getActorStatuses', () => {
       it('returns statuses for specific actor', async () => {
         const statuses = await database.getActorStatuses({

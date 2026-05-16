@@ -12,7 +12,13 @@ import {
 import { Bookmark } from '@/lib/types/domain/bookmark'
 import { StatusType } from '@/lib/types/domain/status'
 
-const fixBookmarkDataDate = (data: Bookmark): Bookmark =>
+type BookmarkRow = Omit<Bookmark, 'id' | 'createdAt' | 'updatedAt'> & {
+  id: string | number
+  createdAt: number | Date | string
+  updatedAt: number | Date | string
+}
+
+const fixBookmarkDataDate = (data: BookmarkRow): Bookmark =>
   Bookmark.parse({
     ...data,
     id: String(data.id),
@@ -69,7 +75,7 @@ const resolveBookmarkStatusId = async ({
 
 const applyCursor = (
   query: Knex.QueryBuilder,
-  cursor: Bookmark,
+  cursor: BookmarkRow,
   direction: 'newer' | 'older'
 ) => {
   const createdAtOperator = direction === 'older' ? '<' : '>'
@@ -148,7 +154,7 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
     minId,
     sinceId
   }: GetBookmarksParams) {
-    const query = database<Bookmark>('bookmarks')
+    const query = database<BookmarkRow>('bookmarks')
       .where('actorId', actorId)
       .limit(limit)
 
@@ -162,7 +168,7 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
       return []
 
     if (olderCursorId) {
-      const cursor = await database<Bookmark>('bookmarks')
+      const cursor = await database<BookmarkRow>('bookmarks')
         .where({ actorId, id: olderCursorId })
         .first()
       if (!cursor) return []
@@ -170,7 +176,7 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
     }
 
     if (newerCursorId) {
-      const cursor = await database<Bookmark>('bookmarks')
+      const cursor = await database<BookmarkRow>('bookmarks')
         .where({ actorId, id: newerCursorId })
         .first()
       if (!cursor) return []
