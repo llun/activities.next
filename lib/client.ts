@@ -69,27 +69,40 @@ export interface UpdateNoteParams {
   statusId: string
   message?: string
   contentWarning?: string
+  attachments?: PostBoxAttachment[]
 }
 export const updateNote = async ({
   statusId,
   message,
-  contentWarning
+  contentWarning,
+  attachments
 }: UpdateNoteParams) => {
   const normalizedMessage =
     message !== undefined && message.trim().length > 0 ? message : undefined
+  const hasAttachmentChanges = attachments !== undefined
 
-  if (normalizedMessage === undefined && contentWarning === undefined) {
-    throw new Error('Message or content warning must be provided')
+  if (
+    normalizedMessage === undefined &&
+    contentWarning === undefined &&
+    !hasAttachmentChanges
+  ) {
+    throw new Error('Message, content warning, or attachments must be provided')
   }
 
-  const response = await fetch(`/api/v1/statuses/${statusId}`, {
+  const encodedStatusId = statusId.startsWith('http')
+    ? urlToId(statusId)
+    : statusId
+  const response = await fetch(`/api/v1/statuses/${encodedStatusId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       ...(normalizedMessage !== undefined ? { status: normalizedMessage } : {}),
-      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {})
+      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
+      ...(attachments !== undefined
+        ? { media_ids: attachments.map((attachment) => attachment.id) }
+        : {})
     })
   })
   if (response.status !== 200) {

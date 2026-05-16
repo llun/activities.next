@@ -935,6 +935,71 @@ describe('StatusDatabase', () => {
           createdAt: expect.toBeNumber()
         })
       })
+
+      it('replaces note media attachments without changing note text', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-media`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Original note with media'
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/old.jpg',
+          width: 320,
+          height: 240,
+          name: 'old.jpg',
+          mediaId: 'old-media'
+        })
+
+        const updated = await database.updateNote({
+          statusId,
+          text: 'Original note with media',
+          summary: null,
+          attachments: [
+            {
+              type: 'upload',
+              id: 'new-media',
+              mediaType: 'image/png',
+              url: 'https://example.com/new.png',
+              width: 640,
+              height: 480,
+              name: 'new.png'
+            }
+          ]
+        })
+
+        expect(updated).toMatchObject({
+          id: statusId,
+          text: 'Original note with media',
+          attachments: [
+            expect.objectContaining({
+              mediaType: 'image/png',
+              url: 'https://example.com/new.png',
+              name: 'new.png'
+            })
+          ]
+        })
+
+        const attachments = await database.getAttachmentsWithMedia({
+          statusId
+        })
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0]).toMatchObject({
+          mediaId: 'new-media',
+          url: 'https://example.com/new.png'
+        })
+
+        const fetched = (await database.getStatus({
+          statusId
+        })) as StatusNote
+        expect(fetched.edits).toHaveLength(1)
+      })
     })
 
     describe('updateNoteVisibility', () => {

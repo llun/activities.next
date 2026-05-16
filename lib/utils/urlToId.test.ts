@@ -44,6 +44,12 @@ describe('#urlToId', () => {
 
     expect(idToUrl(urlToId(actorId))).toEqual(actorId)
   })
+
+  it('round trips URLs with ports', () => {
+    const statusId = 'http://localhost:3001/users/test1/statuses/post-1'
+
+    expect(idToUrl(urlToId(statusId))).toEqual(statusId)
+  })
 })
 
 describe('#idToUrl', () => {

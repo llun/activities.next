@@ -1,5 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { urlToId } from '@/lib/utils/urlToId'
+
 import {
   clearFitnessRouteHeatmaps,
   getActorStatuses,
@@ -44,6 +46,64 @@ describe('client updateNote', () => {
         body: JSON.stringify({
           spoiler_text: 'Updated warning'
         })
+      })
+    )
+  })
+
+  it('sends media ids for media-only edits', async () => {
+    await updateNote({
+      statusId: '123',
+      attachments: [
+        {
+          type: 'upload',
+          id: 'media-1',
+          mediaType: 'image/jpeg',
+          url: 'https://llun.test/api/v1/files/media-1.jpg',
+          width: 640,
+          height: 480,
+          name: 'media-1.jpg'
+        }
+      ]
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          media_ids: ['media-1']
+        })
+      })
+    )
+  })
+
+  it('sends an empty media id list when all media is removed', async () => {
+    await updateNote({
+      statusId: '123',
+      attachments: []
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          media_ids: []
+        })
+      })
+    )
+  })
+
+  it('encodes full status URLs before sending updates', async () => {
+    const statusId = 'https://localhost:3001/users/test1/statuses/post-1'
+
+    await updateNote({
+      statusId,
+      attachments: []
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/v1/statuses/${urlToId(statusId)}`,
+      expect.objectContaining({
+        method: 'PUT'
       })
     )
   })

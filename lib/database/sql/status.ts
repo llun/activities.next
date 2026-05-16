@@ -44,6 +44,7 @@ import {
   UpdatePollParams
 } from '@/lib/types/database/operations'
 import { Actor, getActorProfile } from '@/lib/types/domain/actor'
+import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
@@ -487,7 +488,8 @@ export const StatusSQLDatabaseMixin = (
   async function updateNote({
     statusId,
     text,
-    summary
+    summary,
+    attachments
   }: UpdateNoteParams): Promise<Status | null> {
     const status = await getStatus({ statusId })
     if (!status) return null
@@ -518,6 +520,45 @@ export const StatusSQLDatabaseMixin = (
           }),
           updatedAt: currentTime
         })
+
+      if (attachments !== undefined) {
+        const replaceableAttachmentIds = status.attachments
+          .filter((attachment) => !isFitnessAttachment(attachment))
+          .map((attachment) => attachment.id)
+        if (replaceableAttachmentIds.length > 0) {
+          await trx('attachments')
+            .where('statusId', status.id)
+            .whereIn('id', replaceableAttachmentIds)
+            .delete()
+        }
+
+        await Promise.all(
+          attachments.map((attachment, index) => {
+            const attachmentCreatedAt = new Date(currentTime.getTime() + index)
+            const data = Attachment.parse({
+              id: crypto.randomUUID(),
+              actorId: status.actorId,
+              statusId: status.id,
+              type: 'Document',
+              mediaType: attachment.mediaType,
+              url: attachment.url,
+              width: attachment.width,
+              height: attachment.height,
+              name: attachment.name ?? '',
+              mediaId: attachment.id,
+              createdAt: attachmentCreatedAt.getTime(),
+              updatedAt: attachmentCreatedAt.getTime()
+            })
+
+            return trx('attachments').insert({
+              ...data,
+              mediaId: attachment.id,
+              createdAt: attachmentCreatedAt,
+              updatedAt: attachmentCreatedAt
+            })
+          })
+        )
+      }
     })
     return getStatus({ statusId })
   }

@@ -3,6 +3,7 @@ import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor } from '@/lib/types/domain/actor'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getSpan } from '@/lib/utils/trace'
@@ -12,6 +13,7 @@ interface UpdateNoteFromUserInput {
   currentActor: Actor
   text?: string
   summary?: string | null
+  attachments?: PostBoxAttachment[]
   publish?: boolean
   status?: StatusNote
   database: Database
@@ -22,6 +24,7 @@ export const updateNoteFromUserInput = async ({
   currentActor,
   text,
   summary,
+  attachments,
   publish = true,
   status: preloadedStatus,
   database
@@ -41,7 +44,8 @@ export const updateNoteFromUserInput = async ({
   const updatedStatus = await database.updateNote({
     statusId,
     summary: summary === undefined ? status.summary : summary?.trim() || null,
-    text: text ?? status.text
+    text: text ?? status.text,
+    ...(attachments !== undefined ? { attachments } : {})
   })
   if (!updatedStatus) {
     span.end()
