@@ -23,6 +23,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
   const editCountLabel = `${status.edits.length} ${
     status.edits.length === 1 ? 'edit' : 'edits'
   }`
+  const edits = [...status.edits].reverse()
   const closeHistory = () => {
     setShowHistory(false)
     triggerRef.current?.focus()
@@ -70,7 +71,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
             </button>
           </div>
           <ul className="max-h-80 divide-y divide-border overflow-auto max-md:max-h-[calc(100vh-10rem)]">
-            {status.edits.reverse().map((edit, index) => {
+            {edits.map((edit, index) => {
               return (
                 <li
                   key={edit.createdAt + index}

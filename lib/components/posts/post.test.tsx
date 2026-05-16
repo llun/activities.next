@@ -471,6 +471,44 @@ describe('Post', () => {
     expect(editHistoryButton).toHaveFocus()
   })
 
+  it('renders edit history newest first without mutating status edits', () => {
+    const edits = [
+      { text: 'First draft', createdAt: currentTime - 2000 },
+      { text: 'Second draft', createdAt: currentTime - 1000 }
+    ]
+
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          edits
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Show edit history, 2 edits'
+      })
+    )
+
+    const historyItems = screen.getAllByRole('listitem')
+
+    expect(
+      within(historyItems[0]).getByText('Second draft')
+    ).toBeInTheDocument()
+    expect(within(historyItems[1]).getByText('First draft')).toBeInTheDocument()
+    expect(edits.map((edit) => edit.text)).toEqual([
+      'First draft',
+      'Second draft'
+    ])
+  })
+
   it('does not render an empty status action group', () => {
     render(
       <Post
@@ -524,7 +562,8 @@ describe('Post', () => {
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
     ).toEqual(['Reply to post', 'Repost', 'Like'])
-    expect(secondaryActions).toHaveClass('grid-cols-4')
+    expect(secondaryActions).toHaveClass('grid-cols-3')
+    expect(secondaryActions).not.toHaveClass('grid-cols-4')
     expect(
       within(secondaryActions)
         .getAllByRole('button')

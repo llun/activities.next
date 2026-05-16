@@ -86,16 +86,14 @@ export const Actions: FC<Props> = ({
   }
 
   const hasSecondaryActions = secondaryActions.length > 0
+  const actionColumnClassName = hasEditHistory ? 'grid-cols-4' : 'grid-cols-3'
 
   return (
     <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
       <div
         role="group"
         aria-label="Post primary actions"
-        className={cn(
-          actionRowClassName,
-          hasEditHistory ? 'grid-cols-4' : 'grid-cols-3'
-        )}
+        className={cn(actionRowClassName, actionColumnClassName)}
       >
         {primaryActions}
       </div>
@@ -104,7 +102,7 @@ export const Actions: FC<Props> = ({
         <div
           role="group"
           aria-label="Post secondary actions"
-          className={cn(actionRowClassName, 'grid-cols-4')}
+          className={cn(actionRowClassName, actionColumnClassName)}
         >
           {secondaryActions}
         </div>
