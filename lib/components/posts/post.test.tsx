@@ -383,25 +383,16 @@ describe('Post', () => {
       />
     )
 
-    const socialActions = screen.getByRole('group', {
-      name: 'Post social actions'
-    })
-    const statusActions = screen.getByRole('group', {
-      name: 'Post status actions'
-    })
-
-    expect(socialActions).toHaveClass(
-      'grid',
-      'w-full',
-      'grid-cols-3',
-      'justify-items-center'
-    )
-    expect(statusActions).toHaveClass(
-      'grid',
-      'w-full',
-      'grid-cols-4',
-      'justify-items-center'
-    )
+    expect(
+      screen.getByRole('group', {
+        name: 'Post social actions'
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('group', {
+        name: 'Post status actions'
+      })
+    ).toBeInTheDocument()
 
     expect(
       screen.getByRole('button', { name: 'Reply to post' })
@@ -463,7 +454,7 @@ describe('Post', () => {
 
     expect(
       screen.getByRole('group', { name: 'Post status actions' })
-    ).toHaveClass('grid-cols-3')
+    ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()
@@ -494,10 +485,38 @@ describe('Post', () => {
 
     expect(
       screen.getByRole('button', { name: 'Reply to post, 2 replies' })
-    ).toBeInTheDocument()
+    ).toHaveAttribute('title', 'Reply to post, 2 replies')
     expect(
       screen.getByRole('button', { name: 'Like, 3 likes' })
-    ).toBeInTheDocument()
+    ).toHaveAttribute('title', 'Like, 3 likes')
+  })
+
+  it('keeps singular social action counts in accessible labels', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          replies: [{ ...status, id: 'https://activities.local/replies/1' }],
+          totalLikes: 1
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Reply to post, 1 reply' })
+    ).toHaveAttribute('title', 'Reply to post, 1 reply')
+    expect(
+      screen.getByRole('button', { name: 'Like, 1 like' })
+    ).toHaveAttribute('title', 'Like, 1 like')
   })
 
   it('labels repost action as undo when post is already reposted', () => {

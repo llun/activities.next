@@ -24,7 +24,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
 
   return (
     <button
-      title={isActorLiked ? 'Unlike' : 'Like'}
+      title={likeLabel}
       aria-label={likeLabel}
       disabled={status.actorId === currentActor?.id}
       className={cn(

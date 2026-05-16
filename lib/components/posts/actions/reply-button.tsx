@@ -20,7 +20,7 @@ export const ReplyButton: FC<Props> = ({ status, onReply }) => {
   return (
     <button
       className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted hover:text-blue-500"
-      title="Reply"
+      title={replyLabel}
       aria-label={replyLabel}
       onClick={() => onReply?.(status)}
     >
