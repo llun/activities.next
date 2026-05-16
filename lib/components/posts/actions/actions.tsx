@@ -41,27 +41,44 @@ export const Actions: FC<Props> = ({
   const isOwner =
     Boolean(actualStatus.isLocalActor) &&
     currentActor.id === actualStatus.actorId
+  const hasEditHistory = actualStatus.edits.length > 0
+  const hasStatusActions = hasEditHistory || isOwner || canEdit
 
   return (
-    <div className="mt-3 flex items-center gap-6 text-muted-foreground">
-      <ReplyButton status={actualStatus} onReply={onReply} />
-      <RepostButton currentActor={currentActor} status={actualStatus} />
-      <LikeButton currentActor={currentActor} status={actualStatus} />
-
-      <div className="flex items-center gap-6">
-        <EditHistoryButton
-          status={actualStatus}
-          host={host}
-          onShowEdits={onShowEdits}
-        />
-        {isOwner && <VisibilityButton status={actualStatus} />}
-        {canEdit && (
-          <>
-            <EditButton status={actualStatus} onEdit={onEdit} />
-            <DeleteButton status={actualStatus} onPostDeleted={onPostDeleted} />
-          </>
-        )}
+    <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
+      <div
+        role="group"
+        aria-label="Post social actions"
+        className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start sm:gap-6"
+      >
+        <ReplyButton status={actualStatus} onReply={onReply} />
+        <RepostButton currentActor={currentActor} status={actualStatus} />
+        <LikeButton currentActor={currentActor} status={actualStatus} />
       </div>
+
+      {hasStatusActions && (
+        <div
+          role="group"
+          aria-label="Post status actions"
+          className="flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start sm:gap-6"
+        >
+          <EditHistoryButton
+            status={actualStatus}
+            host={host}
+            onShowEdits={onShowEdits}
+          />
+          {isOwner && <VisibilityButton status={actualStatus} />}
+          {canEdit && (
+            <>
+              <EditButton status={actualStatus} onEdit={onEdit} />
+              <DeleteButton
+                status={actualStatus}
+                onPostDeleted={onPostDeleted}
+              />
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

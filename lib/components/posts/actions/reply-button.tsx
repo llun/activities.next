@@ -14,6 +14,7 @@ export const ReplyButton: FC<Props> = ({ status, onReply }) => {
     <button
       className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted hover:text-blue-500"
       title="Reply"
+      aria-label="Reply to post"
       onClick={() => onReply?.(status)}
     >
       <MessageCircle className="h-4 w-4" />

@@ -27,6 +27,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
         setShowHistory((value) => !value)
       }}
       title={`${status.edits.length} edits`}
+      aria-label="Show edit history"
     >
       <History className="h-4 w-4" />
       {showHistory && (

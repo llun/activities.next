@@ -37,6 +37,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
     <button
       disabled={isLoading}
       title="Repost"
+      aria-label="Repost"
       className={cn(
         'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',
         repostedStatusId !== null ? 'text-green-500' : 'hover:text-green-500'

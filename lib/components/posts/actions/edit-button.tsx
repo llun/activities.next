@@ -14,6 +14,7 @@ export const EditButton: FC<Props> = ({ status, onEdit }) => {
     <button
       className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
       title="Edit"
+      aria-label="Edit post"
       onClick={(e) => {
         e.stopPropagation()
         onEdit?.(status)

@@ -17,6 +17,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
   return (
     <button
       title={isActorLiked ? 'Unlike' : 'Like'}
+      aria-label={isActorLiked ? 'Unlike' : 'Like'}
       disabled={status.actorId === currentActor?.id}
       className={cn(
         'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',

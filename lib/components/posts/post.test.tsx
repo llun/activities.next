@@ -363,4 +363,76 @@ describe('Post', () => {
       screen.queryByRole('link', { name: '@hackers.pub' })
     ).not.toBeInTheDocument()
   })
+
+  it('splits owner actions into mobile-safe social and status action groups', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        editable
+        showActions
+        status={{
+          ...status,
+          edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
+        }}
+        onEdit={jest.fn()}
+        onPostDeleted={jest.fn()}
+        onReply={jest.fn()}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const socialActions = screen.getByRole('group', {
+      name: 'Post social actions'
+    })
+    const statusActions = screen.getByRole('group', {
+      name: 'Post status actions'
+    })
+
+    expect(socialActions).toHaveClass('w-full', 'justify-between')
+    expect(statusActions).toHaveClass('w-full', 'justify-end')
+
+    expect(
+      screen.getByRole('button', { name: 'Reply to post' })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Repost' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Like' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Show edit history' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Visibility: Direct' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Edit post' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete post' })
+    ).toBeInTheDocument()
+  })
+
+  it('does not render an empty status action group', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={status}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('group', { name: 'Post social actions' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('group', { name: 'Post status actions' })
+    ).not.toBeInTheDocument()
+  })
 })
