@@ -1,0 +1,22 @@
+lib/components/posts/actions/edit-history-button.tsx
+  s_30b9662e70826b::t_0042e80968f479 27-38,40-43
+  s_30b9662e70826b::t_7a41b5a6caf34f 26,67
+lib/components/posts/post.test.tsx
+  s_30b9662e70826b::t_4392749e674bfa 418-450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "896dbcee3f7b0c28fae3f616c721281951cdc90a",
+  "prompts": {},
+  "sessions": {
+    "s_30b9662e70826b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cb-e738-7883-98ff-e5d288fd8468",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
