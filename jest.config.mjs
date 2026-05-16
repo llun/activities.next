@@ -20,7 +20,10 @@ const customJestConfig = {
   testEnvironment: 'node',
   automock: false,
   resetMocks: false,
-  setupFilesAfterEnv: ['jest-extended/all'],
+  setupFilesAfterEnv: [
+    'jest-extended/all',
+    '<rootDir>/jest.setup-after-env.ts'
+  ],
   setupFiles: ['<rootDir>/jest.setup.mjs'],
   transform: {
     '\\.(js|mjs|jsx|ts|tsx)$': ['@swc/jest']
