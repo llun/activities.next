@@ -13,11 +13,19 @@ interface LikeButtonProps {
 export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
   const [isActorLiked, setIsActorLiked] = useState<boolean>(status.isActorLiked)
   const [totalLikes, setTotalLikes] = useState<number>(status.totalLikes)
+  const likeLabel =
+    totalLikes > 0
+      ? `${isActorLiked ? 'Unlike' : 'Like'}, ${totalLikes} ${
+          totalLikes === 1 ? 'like' : 'likes'
+        }`
+      : isActorLiked
+        ? 'Unlike'
+        : 'Like'
 
   return (
     <button
       title={isActorLiked ? 'Unlike' : 'Like'}
-      aria-label={isActorLiked ? 'Unlike' : 'Like'}
+      aria-label={likeLabel}
       disabled={status.actorId === currentActor?.id}
       className={cn(
         'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',

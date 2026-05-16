@@ -409,7 +409,7 @@ describe('Post', () => {
     expect(screen.getByRole('button', { name: 'Repost' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Like' })).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Show edit history' })
+      screen.getByRole('button', { name: 'Show edit history, 1 edit' })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Visibility: Direct' })
@@ -465,7 +465,38 @@ describe('Post', () => {
       screen.getByRole('group', { name: 'Post status actions' })
     ).toHaveClass('grid-cols-3')
     expect(
-      screen.queryByRole('button', { name: 'Show edit history' })
+      screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()
+  })
+
+  it('keeps visible social action counts in accessible labels', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          replies: [
+            { ...status, id: 'https://activities.local/replies/1' },
+            { ...status, id: 'https://activities.local/replies/2' }
+          ],
+          totalLikes: 3
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Reply to post, 2 replies' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Like, 3 likes' })
+    ).toBeInTheDocument()
   })
 })

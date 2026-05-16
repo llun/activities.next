@@ -18,6 +18,10 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
 
   if (status.edits.length === 0) return null
 
+  const editCountLabel = `${status.edits.length} ${
+    status.edits.length === 1 ? 'edit' : 'edits'
+  }`
+
   return (
     <button
       className="relative flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
@@ -26,8 +30,8 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
         onShowEdits?.(status)
         setShowHistory((value) => !value)
       }}
-      title={`${status.edits.length} edits`}
-      aria-label="Show edit history"
+      title={editCountLabel}
+      aria-label={`Show edit history, ${editCountLabel}`}
     >
       <History className="h-4 w-4" />
       {showHistory && (
