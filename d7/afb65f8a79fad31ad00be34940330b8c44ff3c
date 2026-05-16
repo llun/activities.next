@@ -1,0 +1,83 @@
+lib/database/sql/bookmark.test.ts
+  s_a3a57c3e535ceb::t_b551cb29327e97 59-61
+  s_a3a57c3e535ceb::t_32ddbbf3cb1b46 120
+  s_a3a57c3e535ceb::t_542f1443027495 1-58,62-119,121-162
+app/api/v1/statuses/[id]/route.test.ts
+  s_a3a57c3e535ceb::t_b551cb29327e97 610-612
+  s_a3a57c3e535ceb::t_f7522f68839426 540-609,613-688
+app/api/v1/bookmarks/route.test.ts
+  s_a3a57c3e535ceb::t_542f1443027495 1-123,130-135
+  s_a3a57c3e535ceb::t_b551cb29327e97 124-129
+lib/services/mastodon/getMastodonStatus.ts
+  s_a3a57c3e535ceb::t_d767822a3c4506 93-100,152
+app/api/v1/statuses/[id]/bookmark/route.ts
+  s_a3a57c3e535ceb::t_b551cb29327e97 28-43,45-51,53-58,60-66,68-79,84
+  s_a3a57c3e535ceb::t_fbcd1eeb5537ce 1,25-27,86-87
+docs/features.md
+  s_a3a57c3e535ceb::t_610db7a36fea85 58,73
+lib/types/domain/status.ts
+  s_a3a57c3e535ceb::t_4745fac7c841fb 81
+  s_a3a57c3e535ceb::t_7e37b46d9cbca8 224
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_a3a57c3e535ceb::t_caf3b7c0ebde65 1,25-27,31-36,41,86-88,91,98-99
+  s_a3a57c3e535ceb::t_b551cb29327e97 28-30,38-40,42-43,45-72,74-85,89-90,96
+lib/services/wellknown/index.test.ts
+  s_a3a57c3e535ceb::t_f0cd959b5df564 53,55,89-90
+lib/database/sql/status.test.ts
+  s_a3a57c3e535ceb::t_3c0c4d63690dfd 124
+lib/database/sql/actor.ts
+  s_a3a57c3e535ceb::t_85f1599b980811 1138,1203-1204
+app/api/v1/bookmarks/route.ts
+  s_a3a57c3e535ceb::t_1bb7d30aad3545 5
+  s_a3a57c3e535ceb::t_171b12706ccd75 1-4,6-87
+migrations/20260516000000_add_bookmarks_table.js
+  s_a3a57c3e535ceb::t_2e10248870a2cd 1-24
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_a3a57c3e535ceb::t_f7522f68839426 608-686
+lib/types/domain/status.test.ts
+  s_a3a57c3e535ceb::t_3c0c4d63690dfd 62,94
+lib/services/guards/OAuthGuard.test.ts
+  s_a3a57c3e535ceb::t_b551cb29327e97 10-14
+  s_a3a57c3e535ceb::t_f7522f68839426 643-666
+lib/database/sql/index.test.ts
+  s_a3a57c3e535ceb::t_f7522f68839426 6,29-32,69,109-111,139,155,182,193,204,219
+  s_a3a57c3e535ceb::t_4f09af2f9ffcf5 172
+lib/types/database/operations.ts
+  s_a3a57c3e535ceb::t_38623483d82d21 744-770,1028,1030,1041,1043
+  s_a3a57c3e535ceb::t_b551cb29327e97 11
+lib/database/sql/status.ts
+  s_a3a57c3e535ceb::t_e095db7b03cb3a 14,177
+  s_a3a57c3e535ceb::t_64065b69af355d 482,761
+  s_a3a57c3e535ceb::t_560f02ab18687a 1139
+  s_a3a57c3e535ceb::t_c061ceaafa5dea 1377,1399-1404,1451
+app/api/v1/apps/createApplication.test.ts
+  s_a3a57c3e535ceb::t_f7522f68839426 127-145
+lib/database/types.ts
+  s_a3a57c3e535ceb::t_b551cb29327e97 11
+  s_a3a57c3e535ceb::t_6bbaa7f3f18a1f 30
+lib/database/sql/bookmark.ts
+  s_a3a57c3e535ceb::t_50827e74cdb05f 82-86
+  s_a3a57c3e535ceb::t_b551cb29327e97 113
+  s_a3a57c3e535ceb::t_f7b9c26b25c317 1-81,87-112,114-196
+lib/types/domain/bookmark.ts
+  s_a3a57c3e535ceb::t_2e10248870a2cd 1-10
+lib/database/sql/index.ts
+  s_a3a57c3e535ceb::t_b551cb29327e97 7
+  s_a3a57c3e535ceb::t_7adf0cf2152f91 30,44,64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d7afb65f8a79fad31ad00be34940330b8c44ff3c",
+  "prompts": {},
+  "sessions": {
+    "s_a3a57c3e535ceb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cc-9ba2-72d2-b9c8-69a141404fcb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
