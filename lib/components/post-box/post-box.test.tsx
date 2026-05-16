@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { updateNote, uploadAttachment } from '@/lib/client'
+import { createNote, updateNote, uploadAttachment } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
@@ -40,6 +40,7 @@ jest.mock('@/lib/utils/resizeImage', () => ({
 }))
 
 const updateNoteMock = updateNote as jest.MockedFunction<typeof updateNote>
+const createNoteMock = createNote as jest.MockedFunction<typeof createNote>
 const uploadAttachmentMock = uploadAttachment as jest.MockedFunction<
   typeof uploadAttachment
 >
@@ -154,6 +155,137 @@ describe('PostBox edit media', () => {
         reply: ''
       }
     })
+    createNoteMock.mockResolvedValue({
+      status: editStatus,
+      attachments: []
+    })
+  })
+
+  it('enables and submits a media-only new post', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    expect(postButton).toBeDisabled()
+
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
+
+    await waitFor(() => {
+      expect(postButton).toBeEnabled()
+      expect(
+        screen.getByRole('button', { name: 'Remove media replacement.png' })
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(uploadAttachmentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'replacement.png' })
+      )
+      expect(createNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '',
+          attachments: [
+            expect.objectContaining({
+              id: 'uploaded-media',
+              name: 'replacement.png'
+            })
+          ]
+        })
+      )
+    })
+  })
+
+  it('keeps a new post with media enabled when text is cleared', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    const textbox = screen.getByPlaceholderText("What's on your mind?")
+    fireEvent.change(textbox, { target: { value: 'caption' } })
+
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
+
+    await waitFor(() => {
+      expect(postButton).toBeEnabled()
+    })
+
+    fireEvent.change(textbox, { target: { value: '' } })
+
+    expect(postButton).toBeEnabled()
+  })
+
+  it('disables a new post when the only media is removed', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
+
+    await waitFor(() => {
+      expect(postButton).toBeEnabled()
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove media replacement.png' })
+    )
+
+    expect(postButton).toBeDisabled()
   })
 
   it('initializes and submits edit text without escaping source text characters', async () => {
@@ -333,6 +465,70 @@ describe('PostBox edit media', () => {
               mediaType: 'video/mp4'
             })
           ]
+        })
+      )
+    })
+  })
+
+  it('submits an empty message when clearing text from a media edit', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: '' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(updateNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: ''
+        })
+      )
+    })
+  })
+
+  it('does not submit an edit when text, warning, and media are unchanged', async () => {
+    const { container } = render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.submit(container.querySelector('form')!)
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: 'Original post text updated' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(updateNoteMock).toHaveBeenCalledTimes(1)
+      expect(updateNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Original post text updated'
         })
       )
     })

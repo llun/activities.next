@@ -36,7 +36,6 @@ describe('client updateNote', () => {
   it('omits empty status text for content-warning-only edits', async () => {
     await updateNote({
       statusId: '123',
-      message: '',
       contentWarning: 'Updated warning'
     })
 
@@ -45,6 +44,50 @@ describe('client updateNote', () => {
       expect.objectContaining({
         body: JSON.stringify({
           spoiler_text: 'Updated warning'
+        })
+      })
+    )
+  })
+
+  it('sends empty status text when clearing an edit message', async () => {
+    await updateNote({
+      statusId: '123',
+      message: ''
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          status: ''
+        })
+      })
+    )
+  })
+
+  it('sends empty status text with media ids when clearing text during media edits', async () => {
+    await updateNote({
+      statusId: '123',
+      message: '',
+      attachments: [
+        {
+          type: 'upload',
+          id: 'media-1',
+          mediaType: 'image/jpeg',
+          url: 'https://llun.test/api/v1/files/media-1.jpg',
+          width: 640,
+          height: 480,
+          name: 'media-1.jpg'
+        }
+      ]
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          status: '',
+          media_ids: ['media-1']
         })
       })
     )

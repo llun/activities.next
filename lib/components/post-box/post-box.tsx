@@ -122,6 +122,14 @@ const areAttachmentIdsEqualInOrder = (
   return currentIds.every((id, index) => id === baselineIds[index])
 }
 
+const hasNewPostContent = (
+  value: string,
+  extension: { attachments: PostBoxAttachment[]; fitnessFile?: unknown }
+) =>
+  value.trim().length > 0 ||
+  extension.attachments.length > 0 ||
+  Boolean(extension.fitnessFile)
+
 type UpdateNoteResponse = Awaited<ReturnType<typeof updateNote>>
 type UpdateNoteMediaAttachment = UpdateNoteResponse['mediaAttachments'][number]
 
@@ -435,12 +443,22 @@ export const PostBox: FC<Props> = ({
           currentContentWarning !== baselineContentWarning
             ? currentContentWarning
             : undefined
+        const updateAttachments = attachmentsChanged ? attachments : undefined
+
+        if (
+          updateMessage === undefined &&
+          updateContentWarning === undefined &&
+          updateAttachments === undefined
+        ) {
+          setIsPosting(false)
+          return
+        }
 
         const updateResponse = await updateNote({
           statusId: editStatus.id,
           message: updateMessage,
           contentWarning: updateContentWarning,
-          attachments: attachmentsChanged ? attachments : undefined
+          attachments: updateAttachments
         })
         const responseStatus = updateResponse.status
         const responseCreatedAt = getTimestamp(
@@ -549,7 +567,9 @@ export const PostBox: FC<Props> = ({
     dispatch(setAttachments(nextAttachments))
     if (editStatus) {
       setAllowPost(isEditDirty(textRef.current, nextExtension))
+      return
     }
+    setAllowPost(hasNewPostContent(textRef.current, nextExtension))
   }
 
   const onRemoveFitnessFile = useCallback(async () => {
@@ -560,11 +580,12 @@ export const PostBox: FC<Props> = ({
 
     const clearFitnessFile = () => {
       dispatch(removeFitnessFile())
-      postExtensionRef.current = {
+      const nextExtension = {
         ...postExtensionRef.current,
         fitnessFile: undefined
       }
-      setAllowPost(textRef.current.trim().length > 0)
+      postExtensionRef.current = nextExtension
+      setAllowPost(hasNewPostContent(textRef.current, nextExtension))
     }
 
     if (!fitnessFile.uploadedId) {
@@ -622,7 +643,7 @@ export const PostBox: FC<Props> = ({
       setAllowPost(
         editStatus
           ? isEditDirty(value)
-          : Boolean(postExtensionRef.current.fitnessFile)
+          : hasNewPostContent(value, postExtensionRef.current)
       )
       return
     }
@@ -929,7 +950,9 @@ export const PostBox: FC<Props> = ({
                 dispatch(addAttachment(attachment))
                 if (editStatus) {
                   setAllowPost(isEditDirty(textRef.current, nextExtension))
+                  return
                 }
+                setAllowPost(hasNewPostContent(textRef.current, nextExtension))
               }}
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')

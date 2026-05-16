@@ -97,12 +97,11 @@ export const updateNote = async ({
   contentWarning,
   attachments
 }: UpdateNoteParams): Promise<UpdateNoteResult> => {
-  const normalizedMessage =
-    message !== undefined && message.trim().length > 0 ? message : undefined
+  const hasMessageChange = message !== undefined
   const hasAttachmentChanges = attachments !== undefined
 
   if (
-    normalizedMessage === undefined &&
+    !hasMessageChange &&
     contentWarning === undefined &&
     !hasAttachmentChanges
   ) {
@@ -118,7 +117,7 @@ export const updateNote = async ({
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      ...(normalizedMessage !== undefined ? { status: normalizedMessage } : {}),
+      ...(hasMessageChange ? { status: message } : {}),
       ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
       ...(attachments !== undefined
         ? { media_ids: attachments.map((attachment) => attachment.id) }
