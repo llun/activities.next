@@ -692,7 +692,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       ).resolves.toBe(false)
     })
 
-    it('allows actors to unbookmark when the original status is no longer readable', async () => {
+    it('deletes bookmarks and returns 404 when the original status is no longer readable', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor3.email }
       })
@@ -724,11 +724,8 @@ describe('GET /api/v1/statuses/[id]', () => {
         { params: Promise.resolve({ id: urlToId(statusId) }) }
       )
 
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toEqual({
-        id: urlToId(statusId),
-        bookmarked: false
-      })
+      expect(response.status).toBe(404)
+      await expect(response.json()).resolves.toEqual({ status: 'Not Found' })
       await expect(
         database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
       ).resolves.toBe(false)

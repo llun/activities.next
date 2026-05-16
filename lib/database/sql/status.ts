@@ -9,6 +9,7 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { BookmarkDatabase } from '@/lib/types/database/operations'
@@ -77,22 +78,6 @@ const isReplaceableMediaAttachment = (
   !isFitnessAttachment(attachment) &&
   attachment.mediaId !== null &&
   attachment.mediaId !== undefined
-
-const isUniqueConstraintError = (error: unknown) => {
-  const { code, errno, message } = error as {
-    code?: string
-    errno?: number
-    message?: string
-  }
-  return (
-    code === '23505' ||
-    code === 'ER_DUP_ENTRY' ||
-    code === 'SQLITE_CONSTRAINT' ||
-    code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-    errno === 1062 ||
-    Boolean(message?.includes('UNIQUE constraint failed'))
-  )
-}
 
 const publicRecipientStatusIds = (database: Knex) =>
   database('recipients')
@@ -1794,8 +1779,9 @@ export const StatusSQLDatabaseMixin = (
     originalStatusId: string
   }) {
     const result = await database('statuses')
+      .where('type', StatusType.enum.Announce)
+      .where('content', originalStatusId)
       .where('actorId', actorId)
-      .andWhere('originalStatusId', originalStatusId)
       .first<{ id: string }>('id')
     return result?.id ?? null
   }

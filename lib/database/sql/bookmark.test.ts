@@ -259,6 +259,22 @@ describe('BookmarkDatabase', () => {
       ])
     })
 
+    it('returns no bookmarks for invalid pagination cursors', async () => {
+      const actorId = `${ACTOR3_ID}/bookmark-invalid-cursor-${randomUUID()}`
+      const status = await createStatus('invalid-cursor')
+      await database.createBookmark({ actorId, statusId: status.id })
+
+      await expect(
+        database.getBookmarks({ actorId, limit: 20, maxId: 'not-a-number' })
+      ).resolves.toEqual([])
+      await expect(
+        database.getBookmarks({ actorId, limit: 20, minId: 'not-a-number' })
+      ).resolves.toEqual([])
+      await expect(
+        database.getBookmarks({ actorId, limit: 20, sinceId: 'not-a-number' })
+      ).resolves.toEqual([])
+    })
+
     it('removes bookmarks when a bookmarked status is deleted', async () => {
       const status = await createStatus('status-delete')
       await database.createBookmark({ actorId: ACTOR2_ID, statusId: status.id })

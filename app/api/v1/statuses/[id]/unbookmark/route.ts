@@ -60,10 +60,8 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: {
-            id: encodedStatusId,
-            bookmarked: false
-          }
+          data: ERROR_404,
+          responseStatusCode: 404
         })
       }
 

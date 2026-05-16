@@ -176,4 +176,15 @@ describe('GET /api/v1/bookmarks', () => {
     expect(secondPage).toHaveLength(1)
     expect(secondPage[0].id).not.toBe(firstPage[0].id)
   })
+
+  it('returns an empty list for invalid pagination cursors', async () => {
+    await createBookmarkedStatus('invalid-cursor')
+
+    const response = await GET(createRequest('?max_id=not-a-number'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual([])
+  })
 })

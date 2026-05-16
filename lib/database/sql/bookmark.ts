@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
   BookmarkDatabase,
   CreateBookmarkParams,
@@ -19,29 +20,15 @@ const fixBookmarkDataDate = (data: Bookmark): Bookmark =>
     updatedAt: getCompatibleTime(data.updatedAt)
   })
 
-const isUniqueConstraintError = (error: unknown) => {
-  if (typeof error !== 'object' || error === null) return false
-
-  const { code, errno, message } = error as Record<string, unknown>
-  const errorCode = typeof code === 'string' ? code : undefined
-  const errorNumber = typeof errno === 'number' ? errno : undefined
-  const errorMessage = typeof message === 'string' ? message : undefined
-
-  return (
-    errorCode === '23505' ||
-    errorCode === 'ER_DUP_ENTRY' ||
-    errorCode === 'SQLITE_CONSTRAINT_UNIQUE' ||
-    errorNumber === 1062 ||
-    Boolean(errorMessage?.includes('UNIQUE constraint failed'))
-  )
-}
-
 const getOriginalStatusIdFromAnnounceContent = (content: unknown) => {
   if (typeof content === 'string' && content.length > 0) return content
   return null
 }
 
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
+const BOOKMARK_CURSOR_ID_PATTERN = /^\d+$/
+
+const isBookmarkCursorId = (id: string) => BOOKMARK_CURSOR_ID_PATTERN.test(id)
 
 const resolveBookmarkStatusId = async ({
   database,
@@ -167,6 +154,12 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
 
     const olderCursorId = maxId
     const newerCursorId = minId || sinceId
+
+    if (
+      (olderCursorId && !isBookmarkCursorId(olderCursorId)) ||
+      (newerCursorId && !isBookmarkCursorId(newerCursorId))
+    )
+      return []
 
     if (olderCursorId) {
       const cursor = await database<Bookmark>('bookmarks')

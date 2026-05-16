@@ -717,6 +717,26 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('getActorAnnouncedStatusId', () => {
+      it('returns the actor announce id for an original status', async () => {
+        const announceId = await database.getActorAnnouncedStatusId({
+          originalStatusId: statuses.primary.postWithAttachments,
+          actorId: replyAuthorId
+        })
+
+        expect(announceId).toBe(statuses.replyAuthor.announcePrimary)
+      })
+
+      it('returns null when the actor has not announced the status', async () => {
+        const announceId = await database.getActorAnnouncedStatusId({
+          originalStatusId: statuses.primary.postWithAttachments,
+          actorId: primaryActorId
+        })
+
+        expect(announceId).toBeNull()
+      })
+    })
+
     describe('getStatusReblogsCount', () => {
       it('returns reblog count for announced status', async () => {
         const count = await database.getStatusReblogsCount({
