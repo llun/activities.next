@@ -1336,19 +1336,6 @@ export const StatusSQLDatabaseMixin = (
     sinceStatusId,
     visibleToActorId
   }: GetRebloggedByParams) {
-    const [maxCursor, sinceCursor] = await Promise.all([
-      maxStatusId
-        ? database('statuses')
-            .where('id', maxStatusId)
-            .first<{ id: string; createdAt: Date }>('id', 'createdAt')
-        : null,
-      sinceStatusId
-        ? database('statuses')
-            .where('id', sinceStatusId)
-            .first<{ id: string; createdAt: Date }>('id', 'createdAt')
-        : null
-    ])
-
     const reblogBase = database('statuses')
       .where('type', StatusType.enum.Announce)
       .where((builder) => {
@@ -1360,7 +1347,9 @@ export const StatusSQLDatabaseMixin = (
 
     let query = reblogBase
       .clone()
-      .select<{ id: string; actorId: string }[]>('id', 'actorId')
+      .select<
+        { id: string; actorId: string; createdAt: Date | number | string }[]
+      >('id', 'actorId', 'createdAt')
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
 
@@ -1371,36 +1360,59 @@ export const StatusSQLDatabaseMixin = (
           targetStatusIds: reblogTargetStatusIds
         })
 
+    const result = await query
+    const seenActorIds = new Set<string>()
+    const uniqueResult = result.filter((item) => {
+      if (seenActorIds.has(item.actorId)) return false
+      seenActorIds.add(item.actorId)
+      return true
+    })
+
+    const compareReblogRows = (
+      row: (typeof uniqueResult)[number],
+      cursor: (typeof uniqueResult)[number]
+    ) => {
+      const rowCreatedAt = getCompatibleTime(row.createdAt)
+      const cursorCreatedAt = getCompatibleTime(cursor.createdAt)
+      if (rowCreatedAt !== cursorCreatedAt) {
+        return rowCreatedAt - cursorCreatedAt
+      }
+      if (row.id === cursor.id) return 0
+      return row.id > cursor.id ? 1 : -1
+    }
+
+    const maxCursor = maxStatusId
+      ? uniqueResult.find((item) => item.id === maxStatusId)
+      : null
+    if (maxStatusId && !maxCursor) return []
+
+    const sinceCursor = sinceStatusId
+      ? uniqueResult.find((item) => item.id === sinceStatusId)
+      : null
+    if (sinceStatusId && !sinceCursor) return []
+
+    let pageResult = uniqueResult
+
     if (maxCursor) {
-      query = query.where((builder) => {
-        builder
-          .where('createdAt', '<', maxCursor.createdAt)
-          .orWhere((sameTimestampBuilder) => {
-            sameTimestampBuilder
-              .where('createdAt', maxCursor.createdAt)
-              .where('id', '<', maxCursor.id)
-          })
-      })
+      pageResult = pageResult.filter(
+        (item) => compareReblogRows(item, maxCursor) < 0
+      )
     }
 
     if (sinceCursor) {
-      query = query.where((builder) => {
-        builder
-          .where('createdAt', '>', sinceCursor.createdAt)
-          .orWhere((sameTimestampBuilder) => {
-            sameTimestampBuilder
-              .where('createdAt', sinceCursor.createdAt)
-              .where('id', '>', sinceCursor.id)
-          })
-      })
+      pageResult = pageResult.filter(
+        (item) => compareReblogRows(item, sinceCursor) > 0
+      )
     }
 
     if (typeof limit === 'number') {
-      query = query.limit(limit)
+      pageResult = pageResult.slice(0, limit)
     }
 
-    const result = await query
-    return result.map((item) => ({ actorId: item.actorId, statusId: item.id }))
+    return pageResult.map((item) => ({
+      actorId: item.actorId,
+      statusId: item.id
+    }))
   }
 
   async function createTag({

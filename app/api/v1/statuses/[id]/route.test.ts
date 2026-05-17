@@ -1660,6 +1660,94 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
     })
 
+    it('deduplicates boosting accounts before applying cursor pagination', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-duplicate-actors`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with duplicate actor reblogs',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const olderDuplicateAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-duplicate-older`
+      const middleAnnounceId = `${ACTOR3_ID}/statuses/api-reblogged-by-duplicate-middle`
+      const newerDuplicateAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-duplicate-newer`
+
+      await database.createAnnounce({
+        id: olderDuplicateAnnounceId,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-03-01T00:00:00.000Z')
+      })
+      await database.createAnnounce({
+        id: middleAnnounceId,
+        actorId: ACTOR3_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-03-02T00:00:00.000Z')
+      })
+      await database.createAnnounce({
+        id: newerDuplicateAnnounceId,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-03-03T00:00:00.000Z')
+      })
+
+      const fullResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(fullResponse.status).toBe(200)
+      const fullPage = (await fullResponse.json()) as { id: string }[]
+      expect(fullPage.map((account) => account.id)).toEqual([
+        urlToId(ACTOR2_ID),
+        urlToId(ACTOR3_ID)
+      ])
+
+      const firstResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(firstResponse.status).toBe(200)
+      expect(firstResponse.headers.get('Link')).toEqual(
+        expect.stringContaining(
+          `max_id=${encodeURIComponent(urlToId(newerDuplicateAnnounceId))}`
+        )
+      )
+
+      const nextResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1&max_id=${urlToId(newerDuplicateAnnounceId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(nextResponse.status).toBe(200)
+      const nextPage = (await nextResponse.json()) as { id: string }[]
+      expect(nextPage.map((account) => account.id)).toEqual([
+        urlToId(ACTOR3_ID)
+      ])
+    })
+
     it('does not expose non-public boosts to anonymous clients', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
@@ -1765,6 +1853,47 @@ describe('GET /api/v1/statuses/[id]', () => {
         )
 
         expect(response.status).toBe(400)
+      }
+    )
+
+    it.each(['max_id', 'since_id'] as const)(
+      'returns an empty page for an invalid %s cursor',
+      async (cursor) => {
+        mockGetServerSession.mockResolvedValue(null)
+
+        const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-invalid-${cursor}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text: 'Public status with invalid cursor reblog',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        await database.createAnnounce({
+          id: `${ACTOR2_ID}/statuses/api-reblogged-by-invalid-${cursor}`,
+          actorId: ACTOR2_ID,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: statusId
+        })
+
+        const requestUrl = new URL(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+        )
+        requestUrl.searchParams.set(
+          cursor,
+          urlToId(`${ACTOR2_ID}/statuses/api-reblogged-by-missing-cursor`)
+        )
+
+        const response = await getStatusRebloggedBy(
+          new NextRequest(requestUrl.toString()),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toEqual([])
+        expect(response.headers.get('Link')).toBeNull()
       }
     )
 
