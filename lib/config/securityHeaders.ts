@@ -11,8 +11,15 @@ export type SecurityHeaderStorageConfig = {
 
 export type SecurityHeaderConfig = {
   allowMediaDomains: string[]
+  allowRemoteMediaDomains: string[] | null
   mediaStorage: SecurityHeaderStorageConfig
   fitnessStorage: SecurityHeaderStorageConfig
+}
+
+const getOptionalEnvironmentList = (key: string): string[] | null => {
+  if (process.env[key] === undefined) return null
+
+  return getEnvironmentList(key)
 }
 
 const stripUndefinedStorageConfig = (
@@ -33,6 +40,9 @@ const stripUndefinedStorageConfig = (
 
 export const getSecurityHeaderConfig = (): SecurityHeaderConfig => ({
   allowMediaDomains: getEnvironmentList('ACTIVITIES_ALLOW_MEDIA_DOMAINS'),
+  allowRemoteMediaDomains: getOptionalEnvironmentList(
+    'ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS'
+  ),
   mediaStorage: stripUndefinedStorageConfig({
     type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
     bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,

@@ -84,6 +84,12 @@ const hasPublicMapboxAccessToken = (
   fitnessStorage: ReturnType<typeof getSecurityHeaderConfig>['fitnessStorage']
 ) => fitnessStorage?.mapboxAccessToken?.trim().startsWith('pk.') ?? false
 
+const getConfiguredCspSources = (sources: string[]) =>
+  sources.flatMap((source) => {
+    const cspSource = getCspSource(source)
+    return cspSource ? [cspSource] : []
+  })
+
 let cachedContentSecurityPolicy: string | null = null
 
 export const resetContentSecurityPolicyCacheForTests = () => {
@@ -97,8 +103,12 @@ export const resetContentSecurityPolicyCacheForTests = () => {
 export const getContentSecurityPolicy = () => {
   if (cachedContentSecurityPolicy) return cachedContentSecurityPolicy
 
-  const { allowMediaDomains, mediaStorage, fitnessStorage } =
-    getSecurityHeaderConfig()
+  const {
+    allowMediaDomains,
+    allowRemoteMediaDomains,
+    mediaStorage,
+    fitnessStorage
+  } = getSecurityHeaderConfig()
   const mediaStorageSource = getCspSource(getStorageHostname(mediaStorage))
   const fitnessStorageSource = getCspSource(getStorageHostname(fitnessStorage))
   const mediaStorageEndpointSource = getCspSource(
@@ -108,10 +118,11 @@ export const getContentSecurityPolicy = () => {
     getStorageEndpoint(fitnessStorage)
   )
   const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
-  const configuredImageSources = allowMediaDomains.flatMap((source) => {
-    const cspSource = getCspSource(source)
-    return cspSource ? [cspSource] : []
-  })
+  const serviceMediaSources = getConfiguredCspSources(allowMediaDomains)
+  const remoteMediaSources =
+    allowRemoteMediaDomains === null
+      ? ['https:']
+      : getConfiguredCspSources(allowRemoteMediaDomains)
   const connectSources = Array.from(
     new Set([
       "'self'",
@@ -130,14 +141,16 @@ export const getContentSecurityPolicy = () => {
       "'self'",
       'data:',
       'blob:',
-      ...(configuredImageSources.length ? configuredImageSources : ['https:']),
+      ...remoteMediaSources,
+      ...serviceMediaSources,
       ...(mediaStorageSource ? [mediaStorageSource] : [])
     ])
   ).join(' ')
   const mediaSources = Array.from(
     new Set([
       "'self'",
-      ...(configuredImageSources.length ? configuredImageSources : ['https:']),
+      ...remoteMediaSources,
+      ...serviceMediaSources,
       ...(mediaStorageSource ? [mediaStorageSource] : []),
       'blob:'
     ])
@@ -164,10 +177,10 @@ export const getContentSecurityPolicy = () => {
     // nonce wiring can be added separately from runtime origin generation.
     `script-src ${scriptSources}`,
     `style-src ${styleSources}`,
-    // Federated avatars and remote emoji are intentionally unbounded browser
-    // image loads unless an operator configures allowMediaDomains.
-    // next/image optimization is disabled so this does not reintroduce
-    // arbitrary server-side media fetches.
+    // Federated browser media defaults to HTTPS unless an operator narrows it
+    // with allowRemoteMediaDomains. Service-owned media domains are additive.
+    // next/image optimization is disabled so this does not reintroduce arbitrary
+    // server-side media fetches.
     `img-src ${imageSources}`,
     `connect-src ${connectSources}`,
     "font-src 'self' data:",

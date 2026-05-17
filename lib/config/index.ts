@@ -38,6 +38,7 @@ const Config = z.object({
   allowEmails: z.string().array(),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
+  allowRemoteMediaDomains: z.string().array().optional(),
   allowActorDomains: z.string().array().optional(),
   trustedHosts: z.string().array().optional(),
   trustProxyIpHeaders: z.boolean().default(false),
@@ -96,6 +97,16 @@ const getLanguagesConfig = () => {
   })
 }
 
+const getAllowRemoteMediaDomainsConfig = () => {
+  if (process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS === undefined) {
+    return undefined
+  }
+
+  return getEnvironmentList('ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS', {
+    onInvalidList: 'throw'
+  })
+}
+
 const getConfigFromEnvironment = () => {
   let config: Config
 
@@ -114,6 +125,7 @@ const getConfigFromEnvironment = () => {
       allowMediaDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
       ),
+      allowRemoteMediaDomains: getAllowRemoteMediaDomainsConfig(),
       allowActorDomains: hostConfig.allowActorDomains,
       trustedHosts: hostConfig.trustedHosts,
       trustProxyIpHeaders:
