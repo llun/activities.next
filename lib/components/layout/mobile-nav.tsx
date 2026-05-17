@@ -79,12 +79,7 @@ export function MobileNav({
                   )}
                   aria-label="More navigation"
                 >
-                  <MoreHorizontal
-                    className={cn(
-                      'h-6 w-6',
-                      isOverflowActive && 'fill-primary'
-                    )}
-                  />
+                  <MoreHorizontal className="h-6 w-6" />
                   <span className="max-w-full truncate">More</span>
                 </button>
               </DropdownMenuTrigger>
