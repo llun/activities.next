@@ -470,6 +470,16 @@ export type GetFavouritedByParams = BaseStatusParams & {
   limit?: number
   offset?: number
 }
+export type GetRebloggedByParams = BaseStatusParams & {
+  limit?: number
+  maxStatusId?: string
+  sinceStatusId?: string
+  visibleToActorId?: string | null
+}
+export type RebloggedByAccount = {
+  actor: Actor
+  statusId: string
+}
 
 export type CreateTagParams = {
   statusId: string
@@ -570,6 +580,7 @@ export interface StatusDatabase {
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
   getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
+  getRebloggedBy(params: GetRebloggedByParams): Promise<RebloggedByAccount[]>
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
   getStatusesByHashtag(params: GetStatusesByHashtagParams): Promise<Status[]>

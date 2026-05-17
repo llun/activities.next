@@ -1586,6 +1586,123 @@ describe('GET /api/v1/statuses/[id]', () => {
     })
   })
 
+  describe('reblogged_by', () => {
+    it('returns boosting accounts with Mastodon pagination for a public status without auth', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-test`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with reblogs',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const olderAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-older`
+      const newerAnnounceId = `${ACTOR3_ID}/statuses/api-reblogged-by-newer`
+      await database.createAnnounce({
+        id: olderAnnounceId,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-01-01T00:00:00.000Z')
+      })
+      await database.createAnnounce({
+        id: newerAnnounceId,
+        actorId: ACTOR3_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-01-02T00:00:00.000Z')
+      })
+
+      const firstResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(firstResponse.status).toBe(200)
+      const firstPage = (await firstResponse.json()) as { id: string }[]
+      expect(firstPage.map((account) => account.id)).toEqual([
+        urlToId(ACTOR3_ID)
+      ])
+      expect(firstResponse.headers.get('Link')).toEqual(
+        expect.stringContaining(
+          `max_id=${encodeURIComponent(urlToId(newerAnnounceId))}`
+        )
+      )
+
+      const nextResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1&max_id=${urlToId(newerAnnounceId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(nextResponse.status).toBe(200)
+      const nextPage = (await nextResponse.json()) as { id: string }[]
+      expect(nextPage.map((account) => account.id)).toEqual([
+        urlToId(ACTOR2_ID)
+      ])
+      expect(nextResponse.headers.get('Link')).toEqual(
+        expect.stringContaining(
+          `since_id=${encodeURIComponent(urlToId(olderAnnounceId))}`
+        )
+      )
+    })
+
+    it('does not expose non-public boosts to anonymous clients', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-private-boost`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with a private boost',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/api-reblogged-by-public-boost`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId
+      })
+      await database.createAnnounce({
+        id: `${ACTOR3_ID}/statuses/api-reblogged-by-hidden-boost`,
+        actorId: ACTOR3_ID,
+        to: [`${ACTOR3_ID}/followers`],
+        cc: [],
+        originalStatusId: statusId
+      })
+
+      const response = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const accounts = (await response.json()) as { id: string }[]
+      expect(accounts.map((account) => account.id)).toEqual([
+        urlToId(ACTOR2_ID)
+      ])
+    })
+  })
+
   describe('media attachments', () => {
     it('includes media attachments with correct format', async () => {
       const status = (await database.getStatus({

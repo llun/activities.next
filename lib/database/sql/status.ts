@@ -27,6 +27,7 @@ import {
   GetActorStatusesParams,
   GetFavouritedByParams,
   GetHashtagStatusesPageParams,
+  GetRebloggedByParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
   GetStatusParams,
@@ -1328,6 +1329,93 @@ export const StatusSQLDatabaseMixin = (
     return actors.filter((actor): actor is Actor => Boolean(actor))
   }
 
+  async function getRebloggedBy({
+    statusId,
+    limit,
+    maxStatusId,
+    sinceStatusId,
+    visibleToActorId
+  }: GetRebloggedByParams) {
+    const [maxCursor, sinceCursor] = await Promise.all([
+      maxStatusId
+        ? database('statuses')
+            .where('id', maxStatusId)
+            .first<{ id: string; createdAt: Date }>('id', 'createdAt')
+        : null,
+      sinceStatusId
+        ? database('statuses')
+            .where('id', sinceStatusId)
+            .first<{ id: string; createdAt: Date }>('id', 'createdAt')
+        : null
+    ])
+
+    const reblogTargetStatusIds = database('statuses')
+      .select('id')
+      .where('type', StatusType.enum.Announce)
+      .where((builder) => {
+        builder.where('originalStatusId', statusId).orWhere((legacyBuilder) => {
+          legacyBuilder.whereNull('originalStatusId').where('content', statusId)
+        })
+      })
+
+    let query = database('statuses')
+      .select<{ id: string; actorId: string }[]>('id', 'actorId')
+      .where('type', StatusType.enum.Announce)
+      .where((builder) => {
+        builder.where('originalStatusId', statusId).orWhere((legacyBuilder) => {
+          legacyBuilder.whereNull('originalStatusId').where('content', statusId)
+        })
+      })
+      .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
+
+    query = visibleToActorId
+      ? applyPotentiallyReadableStatusFilter({ query, visibleToActorId })
+      : applyPublicReadableStatusFilter({
+          query,
+          targetStatusIds: reblogTargetStatusIds
+        })
+
+    if (maxCursor) {
+      query = query.where((builder) => {
+        builder
+          .where('createdAt', '<', maxCursor.createdAt)
+          .orWhere((sameTimestampBuilder) => {
+            sameTimestampBuilder
+              .where('createdAt', maxCursor.createdAt)
+              .where('id', '<', maxCursor.id)
+          })
+      })
+    }
+
+    if (sinceCursor) {
+      query = query.where((builder) => {
+        builder
+          .where('createdAt', '>', sinceCursor.createdAt)
+          .orWhere((sameTimestampBuilder) => {
+            sameTimestampBuilder
+              .where('createdAt', sinceCursor.createdAt)
+              .where('id', '>', sinceCursor.id)
+          })
+      })
+    }
+
+    if (typeof limit === 'number') {
+      query = query.limit(limit)
+    }
+
+    const result = await query
+    const reblogs = await Promise.all(
+      result.map(async (item) => {
+        const actor = await actorDatabase.getActorFromId({ id: item.actorId })
+        return actor ? { actor, statusId: item.id } : null
+      })
+    )
+    return reblogs.filter((item): item is NonNullable<typeof item> =>
+      Boolean(item)
+    )
+  }
+
   async function createTag({
     statusId,
     name,
@@ -2008,6 +2096,7 @@ export const StatusSQLDatabaseMixin = (
     getPollVotes,
     addStatusTag,
     getFavouritedBy,
+    getRebloggedBy,
     createTag,
     getTags,
     getStatusesByHashtag,
