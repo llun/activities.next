@@ -56,6 +56,7 @@ const createDirectConversationTables = async (database: Knex) => {
     table.string('statusId').notNullable()
     table.timestamp('createdAt', { useTz: true }).notNullable()
     table.timestamp('updatedAt', { useTz: true })
+    table.primary(['conversationId', 'statusId'])
   })
   await database.schema.createTable(
     'direct_conversation_memberships',
@@ -70,6 +71,7 @@ const createDirectConversationTables = async (database: Knex) => {
       table.timestamp('hiddenAt', { useTz: true }).nullable()
       table.timestamp('createdAt', { useTz: true })
       table.timestamp('updatedAt', { useTz: true })
+      table.unique(['actorId', 'conversationId'])
     }
   )
 }
