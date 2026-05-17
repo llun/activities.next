@@ -1750,6 +1750,126 @@ describe('GET /api/v1/statuses/[id]', () => {
       ])
     })
 
+    it('accepts a visible reblog cursor even after a newer duplicate supersedes it', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-superseded-cursor`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with superseded cursor reblogs',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const cursorAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-superseded-cursor`
+      const olderAnnounceId = `${ACTOR3_ID}/statuses/api-reblogged-by-superseded-older`
+      await database.createAnnounce({
+        id: olderAnnounceId,
+        actorId: ACTOR3_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-06-01T00:00:00.000Z')
+      })
+      await database.createAnnounce({
+        id: cursorAnnounceId,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-06-02T00:00:00.000Z')
+      })
+
+      const firstResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(firstResponse.status).toBe(200)
+      expect(firstResponse.headers.get('Link')).toEqual(
+        expect.stringContaining(
+          `max_id=${encodeURIComponent(urlToId(cursorAnnounceId))}`
+        )
+      )
+
+      await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/api-reblogged-by-superseded-newer`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-06-03T00:00:00.000Z')
+      })
+
+      const nextResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1&max_id=${urlToId(cursorAnnounceId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(nextResponse.status).toBe(200)
+      const nextPage = (await nextResponse.json()) as { id: string }[]
+      expect(nextPage.map((account) => account.id)).toEqual([
+        urlToId(ACTOR3_ID)
+      ])
+    })
+
+    it('accepts a since_id cursor even after a newer duplicate supersedes it', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-superseded-since`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with superseded since cursor reblogs',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const cursorAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-superseded-since`
+      await database.createAnnounce({
+        id: cursorAnnounceId,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-07-01T00:00:00.000Z')
+      })
+
+      await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/api-reblogged-by-superseded-since-newer`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-07-02T00:00:00.000Z')
+      })
+
+      const response = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?since_id=${urlToId(cursorAnnounceId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const accounts = (await response.json()) as { id: string }[]
+      expect(accounts.map((account) => account.id)).toEqual([
+        urlToId(ACTOR2_ID)
+      ])
+    })
+
     it('does not expose non-public boosts to anonymous clients', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
