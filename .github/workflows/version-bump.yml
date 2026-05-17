@@ -11,6 +11,12 @@ permissions:
   pull-requests: write
 
 env:
+  # Required checks usually register within seconds; cap this wait at 5 minutes
+  # so auto-merge is not skipped just because checks were attached slowly.
+  CHECK_REGISTRATION_ATTEMPTS: 30
+  CHECK_REGISTRATION_INTERVAL_SECONDS: 10
+  CHECK_REGISTRATION_STABLE_READS: 2
+  CHECK_REGISTRATION_TRANSIENT_ERROR_LIMIT: 3
   DEBOUNCE_SECONDS: 300
   VERSION_BUMP_BRANCH: version-bump/main
 
@@ -338,6 +344,187 @@ jobs:
               --base main \
               --head "$VERSION_BUMP_BRANCH")
             echo "Created PR: $PR_URL"
+          fi
+
+          join_check_names() {
+            local check_names="$1"
+
+            if [ -z "$check_names" ]; then
+              echo "(none)"
+              return 0
+            fi
+
+            printf '%s\n' "$check_names" | paste -sd ',' - | sed 's/,/, /g'
+          }
+
+          read_branch_protection_required_checks() {
+            local checks_error="$1"
+            local gh_required_checks_exit
+            local required_check_names
+
+            : > "$checks_error"
+
+            set +e
+            # This endpoint only returns the branch-protection subset.
+            # Required workflows outside branch protection are still covered by
+            # the later gh pr checks --required --watch gate.
+            #
+            # .checks[] is the modern object array, while .contexts[] is the
+            # legacy string array. Union them, then keep only non-empty strings
+            # so either API shape produces the same required-check name set.
+            required_check_names=$(gh api "repos/${GITHUB_REPOSITORY}/branches/main/protection/required_status_checks" \
+              --jq '[.checks[]?.context, .contexts[]?] | map(select(type == "string" and length > 0)) | unique | .[]' 2> "$checks_error")
+            gh_required_checks_exit=$?
+            set -e
+
+            if [ "$gh_required_checks_exit" -eq 0 ]; then
+              printf '%s\n' "$required_check_names"
+              return 0
+            fi
+
+            cat "$checks_error" >&2
+            echo "::warning::Unable to read branch-protection required status checks." >&2
+
+            return 1
+          }
+
+          required_checks_not_reported_yet() {
+            local checks_error="$1"
+
+            # Some gh versions return a generic error, not exit 8, before
+            # required checks have registered. Treat only that startup state as
+            # pending; other errors still use the transient-error budget.
+            # Keep this fallback broad enough for minor gh wording changes; if
+            # it misses, the safe failure mode is leaving the PR open.
+            grep -Eiq '(no|0)[[:space:]]+(required[[:space:]]+)?(status[[:space:]]+)?checks?([[:space:]]+(reported|found|attached))?' "$checks_error"
+          }
+
+          wait_for_required_checks() {
+            local pr_url="$1"
+            local branch_protection_check_names="$2"
+            local checks_error="$3"
+            local attempt
+            local check_names
+            local consecutive_errors=0
+            local gh_checks_exit
+            local missing_checks=""
+            local previous_check_names=""
+            local required_check
+            local stable_reads=0
+
+            for attempt in $(seq 1 "$CHECK_REGISTRATION_ATTEMPTS"); do
+              : > "$checks_error"
+
+              set +e
+              check_names=$(gh pr checks "$pr_url" --required --json name,state --jq 'map(.name) | unique | .[]' 2> "$checks_error")
+              gh_checks_exit=$?
+              set -e
+
+              case "$gh_checks_exit" in
+                0 | 8)
+                  consecutive_errors=0
+                  missing_checks=""
+
+                  if [ -n "$branch_protection_check_names" ]; then
+                    while IFS= read -r required_check; do
+                      if [ -n "$required_check" ] && ! printf '%s\n' "$check_names" | grep -Fxq "$required_check"; then
+                        if [ -z "$missing_checks" ]; then
+                          missing_checks="$required_check"
+                        else
+                          missing_checks="${missing_checks}, ${required_check}"
+                        fi
+                      fi
+                    done <<< "$branch_protection_check_names"
+                  fi
+
+                  if [ -n "$check_names" ] && [ "$check_names" = "$previous_check_names" ]; then
+                    stable_reads=$((stable_reads + 1))
+                  elif [ -n "$check_names" ]; then
+                    stable_reads=1
+                    previous_check_names="$check_names"
+                  else
+                    stable_reads=0
+                    previous_check_names=""
+                  fi
+
+                  if [ -n "$check_names" ] && [ -z "$missing_checks" ] && [ "$stable_reads" -ge "$CHECK_REGISTRATION_STABLE_READS" ]; then
+                    echo "Required PR checks registered: $(join_check_names "$check_names")."
+                    return 0
+                  fi
+
+                  # gh exits 8 for pending checks, and some states produce either
+                  # exit 8 or exit 0 with no JSON rows. The JSON names decide
+                  # whether all required checks are registered yet.
+                  if [ -n "$missing_checks" ]; then
+                    echo "Required PR checks are not fully registered yet; missing branch-protection checks: ${missing_checks}."
+                  elif [ -z "$check_names" ]; then
+                    echo "Required PR checks are not reported yet."
+                  else
+                    echo "Required PR checks are settling; observed $(join_check_names "$check_names") for ${stable_reads}/${CHECK_REGISTRATION_STABLE_READS} stable reads."
+                  fi
+                  ;;
+                *)
+                  if required_checks_not_reported_yet "$checks_error"; then
+                    consecutive_errors=0
+                    # Preserve prior stable observations here too. Before any
+                    # checks appear these values are already empty/zero; after
+                    # checks appear, a no-checks response is another metadata
+                    # blip and should not discard the observed set.
+                    echo "Required PR checks are not reported yet."
+                  else
+                    consecutive_errors=$((consecutive_errors + 1))
+                    cat "$checks_error" >&2
+                    echo "::warning::Unable to read required PR checks (${consecutive_errors}/${CHECK_REGISTRATION_TRANSIENT_ERROR_LIMIT})."
+
+                    if [ "$consecutive_errors" -ge "$CHECK_REGISTRATION_TRANSIENT_ERROR_LIMIT" ]; then
+                      echo "::warning::Exceeded transient-error budget while reading required PR checks."
+                      return 1
+                    fi
+
+                    # Preserve stable_reads and previous_check_names across
+                    # transient errors; an API blip does not change the PR's
+                    # underlying required-check registration state.
+                  fi
+                  ;;
+              esac
+
+              if [ "$attempt" -lt "$CHECK_REGISTRATION_ATTEMPTS" ]; then
+                echo "Retrying required-check registration in ${CHECK_REGISTRATION_INTERVAL_SECONDS}s (${attempt}/${CHECK_REGISTRATION_ATTEMPTS})."
+                sleep "$CHECK_REGISTRATION_INTERVAL_SECONDS"
+              fi
+            done
+
+            if [ -n "$missing_checks" ]; then
+              echo "::warning::Last missing branch-protection checks: ${missing_checks}."
+            fi
+            echo "::warning::Last observed required PR checks: $(join_check_names "$previous_check_names")."
+            return 1
+          }
+
+          CHECKS_ERROR=$(mktemp)
+          trap 'rm -f "$CHECKS_ERROR"' EXIT
+
+          set +e
+          BRANCH_PROTECTION_CHECK_NAMES=$(read_branch_protection_required_checks "$CHECKS_ERROR")
+          BRANCH_PROTECTION_CHECKS_EXIT=$?
+          set -e
+
+          if [ "$BRANCH_PROTECTION_CHECKS_EXIT" -eq 0 ] && [ -n "$BRANCH_PROTECTION_CHECK_NAMES" ]; then
+            echo "Branch-protection required checks: $(join_check_names "$BRANCH_PROTECTION_CHECK_NAMES")."
+          elif [ "$BRANCH_PROTECTION_CHECKS_EXIT" -eq 0 ]; then
+            echo "No branch-protection required status checks are configured on main; using observed required PR checks as the registration gate."
+            BRANCH_PROTECTION_CHECK_NAMES=""
+          else
+            echo "::warning::Could not read branch-protection required checks; using observed required PR checks as the registration gate."
+            # Fallback mode cannot compare against an anchored expected set.
+            # It trusts the observed --required names after stable reads, and
+            # gh pr checks --required --watch remains the final merge gate.
+            BRANCH_PROTECTION_CHECK_NAMES=""
+          fi
+
+          if ! wait_for_required_checks "$PR_URL" "$BRANCH_PROTECTION_CHECK_NAMES" "$CHECKS_ERROR"; then
+            echo "::warning::Required PR checks were not fully reported after waiting; leaving $PR_URL open."
+            exit 0
           fi
 
           if ! gh pr checks "$PR_URL" --required --watch --interval 10; then
