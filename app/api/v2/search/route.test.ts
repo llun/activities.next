@@ -68,7 +68,9 @@ describe('GET /api/v2/search', () => {
 
   it('searches and serializes all result groups for authenticated requests', async () => {
     const response = await GET(
-      new NextRequest('https://local.test/api/v2/search?q=trail&limit=5')
+      new NextRequest(
+        'https://local.test/api/v2/search?q=trail&limit=5&exclude_unreviewed=true'
+      )
     )
 
     expect(response.status).toBe(200)
@@ -89,7 +91,9 @@ describe('GET /api/v2/search', () => {
       accountId: undefined,
       maxStatusId: undefined,
       minStatusId: undefined,
-      following: false
+      following: false,
+      resolve: false,
+      excludeUnreviewed: true
     })
     expect(mockGetMastodonStatus).toHaveBeenCalledWith(
       mockDatabase,
@@ -124,6 +128,26 @@ describe('GET /api/v2/search', () => {
     )
 
     expect(response.status).toBe(401)
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
+  it('requires authentication before resolving remote accounts', async () => {
+    mockCurrentActor = null
+
+    const response = await GET(
+      new NextRequest('https://local.test/api/v2/search?q=alice&resolve=true')
+    )
+
+    expect(response.status).toBe(401)
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
+  it('rejects queries longer than 500 characters', async () => {
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v2/search?q=${'a'.repeat(501)}`)
+    )
+
+    expect(response.status).toBe(400)
     expect(mockSearch).not.toHaveBeenCalled()
   })
 })

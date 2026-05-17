@@ -27,10 +27,18 @@ type WriteMeilisearchDocumentsParams = {
   documents: MeilisearchDocument[]
 }
 
+const EXISTING_INDEX_STATUS = 409
+const configuredIndexPromises = new Map<string, Promise<void>>()
+
 const getIndexUid = (
   config: Extract<SearchConfig, { backend: 'meilisearch' }>,
   type: MeilisearchType
 ) => `${config.indexPrefix}_${type}`
+
+const getConfiguredIndexCacheKey = (
+  config: Extract<SearchConfig, { backend: 'meilisearch' }>,
+  type: MeilisearchType
+) => `${config.url}\0${getIndexUid(config, type)}`
 
 const getUrl = (
   config: Extract<SearchConfig, { backend: 'meilisearch' }>,
@@ -102,18 +110,37 @@ export const configureMeilisearchIndex = async ({
   config,
   type
 }: Pick<WriteMeilisearchDocumentsParams, 'config' | 'type'>) => {
+  const cacheKey = getConfiguredIndexCacheKey(config, type)
+  const cachedConfiguration = configuredIndexPromises.get(cacheKey)
+  if (cachedConfiguration) return cachedConfiguration
+
+  const configuration = configureMeilisearchIndexWithoutCache({
+    config,
+    type
+  }).catch((error) => {
+    configuredIndexPromises.delete(cacheKey)
+    throw error
+  })
+  configuredIndexPromises.set(cacheKey, configuration)
+  return configuration
+}
+
+const configureMeilisearchIndexWithoutCache = async ({
+  config,
+  type
+}: Pick<WriteMeilisearchDocumentsParams, 'config' | 'type'>) => {
   const indexUid = getIndexUid(config, type)
   const createResponse = await fetchWithTimeout(
     config,
-    getUrl(config, `/indexes/${indexUid}`),
+    getUrl(config, '/indexes'),
     {
-      method: 'PUT',
+      method: 'POST',
       headers: getHeaders(config),
-      body: JSON.stringify({ primaryKey: 'id' })
+      body: JSON.stringify({ uid: indexUid, primaryKey: 'id' })
     }
   )
 
-  if (!createResponse.ok && createResponse.status !== 400) {
+  if (!createResponse.ok && createResponse.status !== EXISTING_INDEX_STATUS) {
     throw new Error(
       `Meilisearch index configuration failed with status ${createResponse.status}`
     )
@@ -138,6 +165,10 @@ export const configureMeilisearchIndex = async ({
       `Meilisearch settings update failed with status ${settingsResponse.status}`
     )
   }
+}
+
+export const resetMeilisearchIndexConfigurationCacheForTests = () => {
+  configuredIndexPromises.clear()
 }
 
 export const deleteMeilisearchDocuments = async ({

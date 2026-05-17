@@ -21,6 +21,8 @@ type SearchParams = {
   minStatusId?: string
   maxStatusId?: string
   resolve?: boolean
+  // Accepted for Mastodon compatibility; this project has no tag review state.
+  excludeUnreviewed?: boolean
 }
 
 type SearchResult = {
@@ -42,14 +44,8 @@ const canUseMeilisearch = ({
   maxStatusId
 }: SearchParams) => !following && !accountId && !minStatusId && !maxStatusId
 
-const hydrateAccounts = async (database: Database, actorIds: string[]) => {
-  const accounts = await Promise.all(
-    actorIds.map((actorId) => database.getMastodonActorFromId({ id: actorId }))
-  )
-  return accounts.filter(
-    (account): account is Mastodon.Account => account !== null
-  )
-}
+const hydrateAccounts = (database: Database, actorIds: string[]) =>
+  database.getMastodonActorsFromIds({ ids: actorIds })
 
 const searchDatabase = async ({
   database,
@@ -153,6 +149,9 @@ const searchWithMeilisearch = async (
 
 export const search = async (params: SearchParams): Promise<SearchResult> => {
   if (!params.query.trim()) return emptySearchResult()
+
+  // No reviewed/unreviewed tag state exists, so this is an intentional no-op.
+  const _excludeUnreviewed = params.excludeUnreviewed
 
   if (params.includeAccounts && params.resolve) {
     await resolveAccountForSearch({

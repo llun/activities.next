@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
+import { getConfiguredHost } from '@/lib/config/configuredHost'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -102,8 +103,7 @@ const parseStatusContent = (
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
 
 const getConfiguredActorDomain = () => {
-  const host = getConfig().host
-  return host.includes('://') ? new URL(host).host : host
+  return getConfiguredHost()
 }
 
 const getFederationSigningActorSettings = (
@@ -145,12 +145,14 @@ const getLastStatusCreatedAtByActorId = async (
   database: Knex,
   actorIds: string[]
 ) => {
-  if (actorIds.length === 0) return new Map<string, number | Date>()
+  if (actorIds.length === 0) {
+    return new Map<string, number | Date | string | null>()
+  }
 
   const rows = await database('statuses')
     .whereIn('actorId', actorIds)
     .groupBy('actorId')
-    .select<{ actorId: string; createdAt: number | Date }[]>(
+    .select<{ actorId: string; createdAt: number | Date | string | null }[]>(
       'actorId',
       database.raw('MAX(??) as ??', ['createdAt', 'createdAt'])
     )
@@ -183,7 +185,8 @@ const getActorCounterSummaries = async (database: Knex, actorIds: string[]) => {
 const getMastodonAccountFromSQLActor = ({
   sqlActor,
   counters,
-  lastStatusCreatedAt
+  lastStatusCreatedAt,
+  configuredDomain
 }: {
   sqlActor: SQLActor
   counters: {
@@ -191,14 +194,14 @@ const getMastodonAccountFromSQLActor = ({
     followingCount: number
     statusCount: number
   }
-  lastStatusCreatedAt: number | Date | undefined
+  lastStatusCreatedAt: number | Date | string | null | undefined
+  configuredDomain: string
 }) => {
   const settings = getCompatibleJSON(sqlActor.settings)
   const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
     sqlActor,
-    getConfiguredActorDomain()
+    configuredDomain
   )
-
   return Mastodon.Account.parse({
     id: urlToId(sqlActor.id),
     username: sqlActor.username,
@@ -748,6 +751,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         getLastStatusCreatedAtByActorId(database, existingActorIds)
       ]
     )
+    const configuredDomain = getConfiguredActorDomain()
 
     return actorIds.flatMap((id) => {
       const sqlActor = sqlActorById.get(id)
@@ -760,7 +764,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           followingCount: 0,
           statusCount: 0
         },
-        lastStatusCreatedAt: lastStatusCreatedAtByActorId.get(id)
+        lastStatusCreatedAt: lastStatusCreatedAtByActorId.get(id),
+        configuredDomain
       })
     })
   },

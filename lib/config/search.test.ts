@@ -42,4 +42,12 @@ describe('search config', () => {
       }
     })
   })
+
+  it('rejects Meilisearch backend config without a URL', async () => {
+    process.env.ACTIVITIES_SEARCH_BACKEND = 'meilisearch'
+
+    const { getSearchConfig } = await import('./search')
+
+    expect(() => getSearchConfig()).toThrow()
+  })
 })

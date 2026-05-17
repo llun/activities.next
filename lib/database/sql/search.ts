@@ -1,6 +1,7 @@
+import { createHash } from 'crypto'
 import { Knex } from 'knex'
 
-import { getConfig } from '@/lib/config'
+import { getConfiguredHost } from '@/lib/config/configuredHost'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import {
   buildSearchTermPrefixes,
@@ -33,6 +34,7 @@ import {
 
 const DEFAULT_LIMIT = 20
 const DEFAULT_BATCH_SIZE = 500
+const DEFAULT_REBUILD_CONCURRENCY = 8
 const MAX_QUERY_TERMS = 8
 const SEARCHABLE_STATUS_TYPES: StatusType[] = [
   StatusType.enum.Note,
@@ -83,16 +85,20 @@ type SQLTagSearchRow = {
   createdAt: Date | string | number
 }
 
+type KeysetRow = {
+  id: string
+  createdAt: Date | string | number
+}
+
 const normalizeLimit = (limit?: number) => Math.max(1, limit ?? DEFAULT_LIMIT)
 const normalizeOffset = (offset?: number) => Math.max(0, offset ?? 0)
+const normalizeBatchSize = (batchSize?: number) =>
+  Math.max(1, batchSize ?? DEFAULT_BATCH_SIZE)
 
 const getSearchDocumentId = (entityType: SearchEntityType, entityId: string) =>
-  `${entityType}:${entityId}`
-
-const getConfiguredHost = () => {
-  const host = getConfig().host
-  return host.includes('://') ? new URL(host).host : host
-}
+  createHash('sha256')
+    .update(`${entityType}\0${entityId}`, 'utf8')
+    .digest('hex')
 
 const getHashtagDisplayName = (name: string) =>
   name.startsWith('#') ? name.slice(1) : name
@@ -152,6 +158,49 @@ const getWeightedTerms = ({
   }))
 }
 
+const applyKeysetCursor = (
+  query: Knex.QueryBuilder,
+  cursor: KeysetRow | null,
+  createdAtColumn = 'createdAt',
+  idColumn = 'id'
+): Knex.QueryBuilder => {
+  if (!cursor) return query
+
+  return query.where((builder) => {
+    builder
+      .where(createdAtColumn, '>', cursor.createdAt)
+      .orWhere((sameCreatedAt) => {
+        sameCreatedAt
+          .where(createdAtColumn, '=', cursor.createdAt)
+          .where(idColumn, '>', cursor.id)
+      })
+  })
+}
+
+const mapWithConcurrency = async <T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>
+) => {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const workerCount = Math.min(concurrency, items.length)
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      for (;;) {
+        const index = nextIndex
+        nextIndex += 1
+        if (index >= items.length) return
+
+        results[index] = await worker(items[index])
+      }
+    })
+  )
+
+  return results
+}
+
 export const SearchSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
@@ -198,31 +247,27 @@ export const SearchSQLDatabaseMixin = (
     }
 
     await database.transaction(async (trx) => {
-      const existingDocument = await trx('search_documents')
-        .where('id', documentId)
-        .first<{ id: string }>('id')
-
-      if (existingDocument) {
-        await trx('search_documents')
-          .where('id', documentId)
-          .update(documentRow)
-      } else {
-        await trx('search_documents').insert({
+      await trx('search_documents')
+        .insert({
           ...documentRow,
           createdAt: currentTime
         })
-      }
+        .onConflict('id')
+        .merge(documentRow)
 
       await trx('search_terms').where('documentId', documentId).delete()
-      await trx('search_terms').insert(
-        weightedTerms.map(({ term, weight }) => ({
-          documentId,
-          entityType,
-          term,
-          weight,
-          createdAt: currentTime
-        }))
-      )
+      await trx('search_terms')
+        .insert(
+          weightedTerms.map(({ term, weight }) => ({
+            documentId,
+            entityType,
+            term,
+            weight,
+            createdAt: currentTime
+          }))
+        )
+        .onConflict(['documentId', 'term'])
+        .merge(['entityType', 'weight', 'createdAt'])
     })
   }
 
@@ -289,7 +334,7 @@ export const SearchSQLDatabaseMixin = (
 
   async function upsertStatusSearchDocument({
     statusId
-  }: UpsertSearchStatusParams): Promise<void> {
+  }: UpsertSearchStatusParams): Promise<boolean> {
     const status = await database<SQLStatusSearchRow>('statuses')
       .where('id', statusId)
       .first()
@@ -299,13 +344,13 @@ export const SearchSQLDatabaseMixin = (
       !SEARCHABLE_STATUS_TYPES.includes(status.type as StatusType)
     ) {
       await deleteSearchDocument({ entityType: 'status', entityId: statusId })
-      return
+      return false
     }
 
     const visibility = await getStatusVisibility(status.id)
     if (!visibility) {
       await deleteSearchDocument({ entityType: 'status', entityId: status.id })
-      return
+      return false
     }
 
     const content = parseStatusContent(status.content)
@@ -331,6 +376,7 @@ export const SearchSQLDatabaseMixin = (
         { text: summary, weight: 2 }
       ]
     })
+    return true
   }
 
   async function getPublicHashtagRow(
@@ -353,9 +399,9 @@ export const SearchSQLDatabaseMixin = (
 
   async function upsertHashtagSearchDocument({
     name
-  }: UpsertSearchHashtagParams): Promise<void> {
+  }: UpsertSearchHashtagParams): Promise<boolean> {
     const hashtagId = getHashtagId(name)
-    if (!hashtagId) return
+    if (!hashtagId) return false
 
     const tag = await getPublicHashtagRow(hashtagId)
     if (!tag) {
@@ -363,7 +409,7 @@ export const SearchSQLDatabaseMixin = (
         entityType: 'hashtag',
         entityId: hashtagId
       })
-      return
+      return false
     }
 
     const displayName = getHashtagDisplayName(tag.name)
@@ -377,6 +423,7 @@ export const SearchSQLDatabaseMixin = (
         { text: hashtagId, weight: 8 }
       ]
     })
+    return true
   }
 
   async function clearSearchIndex(): Promise<void> {
@@ -462,6 +509,8 @@ export const SearchSQLDatabaseMixin = (
         .first()
 
       if (cursor?.entityCreatedAt) {
+        // Status pagination uses entityCreatedAt as the primary cursor;
+        // entityId is only a deterministic tie-breaker for equal timestamps.
         documentsQuery = documentsQuery.where((builder) => {
           builder
             .where(
@@ -491,6 +540,8 @@ export const SearchSQLDatabaseMixin = (
         .first()
 
       if (cursor?.entityCreatedAt) {
+        // Status pagination uses entityCreatedAt as the primary cursor;
+        // entityId is only a deterministic tie-breaker for equal timestamps.
         documentsQuery = documentsQuery.where((builder) => {
           builder
             .where(
@@ -559,16 +610,8 @@ export const SearchSQLDatabaseMixin = (
     return actorIds.filter((actorId) => followedActorIds.has(actorId))
   }
 
-  const hydrateAccounts = async (actorIds: string[]) => {
-    const accounts = await Promise.all(
-      actorIds.map((actorId) =>
-        actorDatabase.getMastodonActorFromId({ id: actorId })
-      )
-    )
-    return accounts.filter(
-      (account): account is Mastodon.Account => account !== null
-    )
-  }
+  const hydrateAccounts = (actorIds: string[]) =>
+    actorDatabase.getMastodonActorsFromIds({ ids: actorIds })
 
   async function searchAccounts({
     query,
@@ -686,6 +729,11 @@ export const SearchSQLDatabaseMixin = (
     batchSize = DEFAULT_BATCH_SIZE,
     dryRun = false
   }: SearchRebuildParams = {}): Promise<SearchRebuildResult> {
+    const normalizedBatchSize = normalizeBatchSize(batchSize)
+    const rebuildConcurrency = Math.min(
+      DEFAULT_REBUILD_CONCURRENCY,
+      normalizedBatchSize
+    )
     const result: SearchRebuildResult = {
       accounts: 0,
       statuses: 0,
@@ -733,46 +781,76 @@ export const SearchSQLDatabaseMixin = (
       await clearSearchIndex()
     }
 
-    for (let offset = 0; ; offset += batchSize) {
-      const actors = await database<SQLActor>('actors')
-        .whereNull('deletionStatus')
-        .select('id')
-        .orderBy('createdAt', 'asc')
-        .orderBy('id', 'asc')
-        .limit(batchSize)
-        .offset(offset)
+    let actorCursor: KeysetRow | null = null
+    for (;;) {
+      const actors: KeysetRow[] = await applyKeysetCursor(
+        database<SQLActor>('actors')
+          .whereNull('deletionStatus')
+          .select<KeysetRow[]>('id', 'createdAt')
+          .orderBy('createdAt', 'asc')
+          .orderBy('id', 'asc')
+          .limit(normalizedBatchSize),
+        actorCursor
+      )
       if (actors.length === 0) break
 
-      for (const actor of actors) {
-        await upsertActorSearchDocument({ actorId: actor.id })
-        result.accounts += 1
-      }
+      await Promise.all(
+        actors.map((actor) => upsertActorSearchDocument({ actorId: actor.id }))
+      )
+      result.accounts += actors.length
+      actorCursor = actors[actors.length - 1]
     }
 
-    for (let offset = 0; ; offset += batchSize) {
-      const statuses = await database<SQLStatusSearchRow>('statuses')
-        .whereIn('type', SEARCHABLE_STATUS_TYPES)
-        .select('id')
-        .orderBy('createdAt', 'asc')
-        .orderBy('id', 'asc')
-        .limit(batchSize)
-        .offset(offset)
+    let statusCursor: KeysetRow | null = null
+    for (;;) {
+      const statuses: KeysetRow[] = await applyKeysetCursor(
+        database<SQLStatusSearchRow>('statuses')
+          .whereIn('type', SEARCHABLE_STATUS_TYPES)
+          .select<KeysetRow[]>('id', 'createdAt')
+          .orderBy('createdAt', 'asc')
+          .orderBy('id', 'asc')
+          .limit(normalizedBatchSize),
+        statusCursor
+      )
       if (statuses.length === 0) break
 
-      for (const status of statuses) {
-        await upsertStatusSearchDocument({ statusId: status.id })
-        result.statuses += 1
-      }
+      const indexed = await mapWithConcurrency(
+        statuses,
+        rebuildConcurrency,
+        (status) => upsertStatusSearchDocument({ statusId: status.id })
+      )
+      result.statuses += indexed.filter(Boolean).length
+      statusCursor = statuses[statuses.length - 1]
     }
 
-    const hashtagRows = await database('tags')
-      .where('type', 'hashtag')
-      .whereNotNull('nameNormalized')
-      .distinct<{ nameNormalized: string }[]>('nameNormalized')
+    let lastHashtagName: string | null = null
+    for (;;) {
+      let hashtagsQuery = database('tags')
+        .where('type', 'hashtag')
+        .whereNotNull('nameNormalized')
+        .groupBy('nameNormalized')
+        .select<{ nameNormalized: string }[]>('nameNormalized')
+        .orderBy('nameNormalized', 'asc')
+        .limit(normalizedBatchSize)
 
-    for (const hashtag of hashtagRows) {
-      await upsertHashtagSearchDocument({ name: hashtag.nameNormalized })
-      result.hashtags += 1
+      if (lastHashtagName) {
+        hashtagsQuery = hashtagsQuery.where(
+          'nameNormalized',
+          '>',
+          lastHashtagName
+        )
+      }
+
+      const hashtags = await hashtagsQuery
+      if (hashtags.length === 0) break
+
+      const indexed = await Promise.all(
+        hashtags.map((hashtag) =>
+          upsertHashtagSearchDocument({ name: hashtag.nameNormalized })
+        )
+      )
+      result.hashtags += indexed.filter(Boolean).length
+      lastHashtagName = hashtags[hashtags.length - 1].nameNormalized
     }
 
     return result

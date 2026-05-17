@@ -15,28 +15,27 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import {
+  BooleanSearchParam,
+  urlSearchParamsToObject
+} from '@/lib/utils/searchParams'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const BooleanString = z
-  .enum(['true', 'false'])
-  .optional()
-  .transform((value) => value === 'true')
-
 const SearchParams = z.object({
-  q: z.string().default(''),
+  q: z.string().max(500).default(''),
   type: z.enum(['accounts', 'statuses', 'hashtags']).optional(),
   limit: z.coerce.number().int().min(1).max(40).default(20),
   offset: z.coerce.number().int().min(0).default(0),
   min_id: z.string().min(1).optional(),
   max_id: z.string().min(1).optional(),
   account_id: z.string().min(1).optional(),
-  following: BooleanString,
-  resolve: BooleanString,
-  exclude_unreviewed: BooleanString
+  following: BooleanSearchParam,
+  resolve: BooleanSearchParam,
+  exclude_unreviewed: BooleanSearchParam
 })
 
 export const GET = traceApiRoute(
@@ -45,10 +44,7 @@ export const GET = traceApiRoute(
     [Scope.enum.read, Scope.enum['read:search']],
     async (req: NextRequest, { currentActor, database }) => {
       const url = new URL(req.url)
-      const queryParams: Record<string, string> = {}
-      url.searchParams.forEach((value, key) => {
-        queryParams[key] = value
-      })
+      const queryParams = urlSearchParamsToObject(url.searchParams)
 
       const parsedParams = SearchParams.safeParse(queryParams)
       if (!parsedParams.success) {
@@ -69,7 +65,8 @@ export const GET = traceApiRoute(
         max_id,
         account_id,
         following,
-        resolve
+        resolve,
+        exclude_unreviewed
       } = parsedParams.data
       const query = q.trim()
 
@@ -85,7 +82,7 @@ export const GET = traceApiRoute(
         })
       }
 
-      if (!currentActor && (following || type === 'statuses')) {
+      if (!currentActor && (following || resolve || type === 'statuses')) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -111,7 +108,8 @@ export const GET = traceApiRoute(
         maxStatusId: max_id,
         minStatusId: min_id,
         following,
-        ...(resolve ? { resolve } : {})
+        resolve,
+        excludeUnreviewed: exclude_unreviewed
       })
       const statuses = (
         await Promise.all(
