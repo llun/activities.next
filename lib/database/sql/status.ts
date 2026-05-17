@@ -1345,71 +1345,95 @@ export const StatusSQLDatabaseMixin = (
       })
     const reblogTargetStatusIds = reblogBase.clone().select('id')
 
-    let query = reblogBase
+    let visibleReblogsQuery = reblogBase
       .clone()
-      .select<
-        { id: string; actorId: string; createdAt: Date | number | string }[]
-      >('id', 'actorId', 'createdAt')
-      .orderBy('createdAt', 'desc')
-      .orderBy('id', 'desc')
+      .select('statuses.id', 'statuses.actorId', 'statuses.createdAt')
 
-    query = visibleToActorId
-      ? applyPotentiallyReadableStatusFilter({ query, visibleToActorId })
+    visibleReblogsQuery = visibleToActorId
+      ? applyPotentiallyReadableStatusFilter({
+          query: visibleReblogsQuery,
+          visibleToActorId
+        })
       : applyPublicReadableStatusFilter({
-          query,
+          query: visibleReblogsQuery,
           targetStatusIds: reblogTargetStatusIds
         })
 
-    const result = await query
-    const seenActorIds = new Set<string>()
-    const uniqueResult = result.filter((item) => {
-      if (seenActorIds.has(item.actorId)) return false
-      seenActorIds.add(item.actorId)
-      return true
-    })
+    const rankedReblogsQuery = database
+      .select('visible_reblogs.id', 'visible_reblogs.actorId')
+      .select('visible_reblogs.createdAt')
+      .select(
+        database.raw(
+          'ROW_NUMBER() OVER (PARTITION BY ?? ORDER BY ?? DESC, ?? DESC) as ??',
+          [
+            'visible_reblogs.actorId',
+            'visible_reblogs.createdAt',
+            'visible_reblogs.id',
+            'actorReblogRank'
+          ]
+        )
+      )
+      .from(visibleReblogsQuery.as('visible_reblogs'))
 
-    const compareReblogRows = (
-      row: (typeof uniqueResult)[number],
-      cursor: (typeof uniqueResult)[number]
-    ) => {
-      const rowCreatedAt = getCompatibleTime(row.createdAt)
-      const cursorCreatedAt = getCompatibleTime(cursor.createdAt)
-      if (rowCreatedAt !== cursorCreatedAt) {
-        return rowCreatedAt - cursorCreatedAt
-      }
-      if (row.id === cursor.id) return 0
-      return row.id > cursor.id ? 1 : -1
-    }
+    const dedupedReblogsQuery = database
+      .select<
+        { id: string; actorId: string; createdAt: Date }[]
+      >('ranked_reblogs.id', 'ranked_reblogs.actorId', 'ranked_reblogs.createdAt')
+      .from(rankedReblogsQuery.as('ranked_reblogs'))
+      .where('ranked_reblogs.actorReblogRank', 1)
 
-    const maxCursor = maxStatusId
-      ? uniqueResult.find((item) => item.id === maxStatusId)
-      : null
+    const [maxCursor, sinceCursor] = await Promise.all([
+      maxStatusId
+        ? dedupedReblogsQuery
+            .clone()
+            .where('id', maxStatusId)
+            .first<{ id: string; createdAt: Date }>('id', 'createdAt')
+        : null,
+      sinceStatusId
+        ? dedupedReblogsQuery
+            .clone()
+            .where('id', sinceStatusId)
+            .first<{ id: string; createdAt: Date }>('id', 'createdAt')
+        : null
+    ])
     if (maxStatusId && !maxCursor) return []
-
-    const sinceCursor = sinceStatusId
-      ? uniqueResult.find((item) => item.id === sinceStatusId)
-      : null
     if (sinceStatusId && !sinceCursor) return []
 
-    let pageResult = uniqueResult
+    let query = dedupedReblogsQuery
+      .clone()
+      .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
 
     if (maxCursor) {
-      pageResult = pageResult.filter(
-        (item) => compareReblogRows(item, maxCursor) < 0
-      )
+      query = query.where((builder) => {
+        builder
+          .where('createdAt', '<', maxCursor.createdAt)
+          .orWhere((sameTimestampBuilder) => {
+            sameTimestampBuilder
+              .where('createdAt', maxCursor.createdAt)
+              .where('id', '<', maxCursor.id)
+          })
+      })
     }
 
     if (sinceCursor) {
-      pageResult = pageResult.filter(
-        (item) => compareReblogRows(item, sinceCursor) > 0
-      )
+      query = query.where((builder) => {
+        builder
+          .where('createdAt', '>', sinceCursor.createdAt)
+          .orWhere((sameTimestampBuilder) => {
+            sameTimestampBuilder
+              .where('createdAt', sinceCursor.createdAt)
+              .where('id', '>', sinceCursor.id)
+          })
+      })
     }
 
     if (typeof limit === 'number') {
-      pageResult = pageResult.slice(0, limit)
+      query = query.limit(limit)
     }
 
-    return pageResult.map((item) => ({
+    const result = await query
+    return result.map((item) => ({
       actorId: item.actorId,
       statusId: item.id
     }))
