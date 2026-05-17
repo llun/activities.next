@@ -70,6 +70,13 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
 
+const isReplaceableMediaAttachment = (
+  attachment: Attachment
+): attachment is Attachment & { mediaId: string } =>
+  !isFitnessAttachment(attachment) &&
+  attachment.mediaId !== null &&
+  attachment.mediaId !== undefined
+
 const isUniqueConstraintError = (error: unknown) => {
   const { code, errno, message } = error as {
     code?: string
@@ -522,18 +529,36 @@ export const StatusSQLDatabaseMixin = (
         })
 
       if (attachments !== undefined) {
+        const incomingMediaIds = new Set(
+          attachments.map((attachment) => attachment.id)
+        )
+        const existingReplaceableAttachments = status.attachments.filter(
+          isReplaceableMediaAttachment
+        )
         const replaceableAttachmentIds = status.attachments
-          .filter((attachment) => !isFitnessAttachment(attachment))
+          .filter(
+            (attachment) =>
+              isReplaceableMediaAttachment(attachment) &&
+              !incomingMediaIds.has(attachment.mediaId)
+          )
           .map((attachment) => attachment.id)
         if (replaceableAttachmentIds.length > 0) {
           await trx('attachments')
             .where('statusId', status.id)
+            .where('actorId', status.actorId)
             .whereIn('id', replaceableAttachmentIds)
             .delete()
         }
 
+        const existingMediaIds = new Set(
+          existingReplaceableAttachments.map((attachment) => attachment.mediaId)
+        )
+        const newAttachments = attachments.filter(
+          (attachment) => !existingMediaIds.has(attachment.id)
+        )
+
         await Promise.all(
-          attachments.map((attachment, index) => {
+          newAttachments.map((attachment, index) => {
             const attachmentCreatedAt = new Date(currentTime.getTime() + index)
             const data = Attachment.parse({
               id: crypto.randomUUID(),

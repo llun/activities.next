@@ -206,6 +206,17 @@ describe('client updateNote', () => {
       }
     })
   })
+
+  it('throws an update-specific error when updating a note fails', async () => {
+    fetchMock.mockResponseOnce('', { status: 500 })
+
+    await expect(
+      updateNote({
+        statusId: '123',
+        message: 'Updated status'
+      })
+    ).rejects.toThrow('Fail to update the note')
+  })
 })
 
 describe('client getActorStatuses', () => {

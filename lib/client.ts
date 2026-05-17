@@ -125,7 +125,7 @@ export const updateNote = async ({
     })
   })
   if (response.status !== 200) {
-    throw new Error('Fail to create a new note')
+    throw new Error('Fail to update the note')
   }
 
   const mastodonStatus = await response.json()

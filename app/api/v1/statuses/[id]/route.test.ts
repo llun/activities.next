@@ -880,6 +880,88 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
     })
 
+    it('allows clearing editable media from a blank note when legacy attachments remain', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-clear-media-keep-legacy`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: '',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-clear-legacy-editable.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-clear-legacy-editable.jpg'
+        },
+        description: 'Editable media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-clear-legacy-editable.webp',
+        width: 320,
+        height: 240,
+        name: 'Editable media',
+        mediaId: media!.id
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: 'https://remote.example/legacy.jpg',
+        width: 640,
+        height: 480,
+        name: 'Legacy media'
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: '   ',
+              media_ids: []
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toHaveLength(1)
+      expect(data.media_attachments[0]).toMatchObject({
+        type: 'image',
+        url: 'https://remote.example/legacy.jpg',
+        description: 'Legacy media'
+      })
+
+      const attachments = await database.getAttachments({ statusId })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        mediaId: null,
+        url: 'https://remote.example/legacy.jpg',
+        name: 'Legacy media'
+      })
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
     it('rejects clearing media from a media-only note without partial mutation', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-reject-clear-media-only`
       await database.createNote({

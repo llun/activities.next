@@ -107,6 +107,17 @@ const EditNoteSchema = z.object({
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
 
+const isFitnessStatusAttachment = (attachment: {
+  mediaType: string
+  url: string
+  name?: string | null
+}) =>
+  isFitnessAttachment({
+    mediaType: attachment.mediaType,
+    url: attachment.url,
+    name: attachment.name ?? ''
+  })
+
 export const PUT = traceApiRoute(
   'updateStatus',
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
@@ -198,15 +209,18 @@ export const PUT = traceApiRoute(
         const effectiveText =
           changes.status === undefined ? existingStatus.text : changes.status
         const effectiveAttachments = (
-          attachments === undefined ? existingStatus.attachments : attachments
-        ).filter(
-          (attachment) =>
-            !isFitnessAttachment({
-              mediaType: attachment.mediaType,
-              url: attachment.url,
-              name: attachment.name ?? ''
-            })
-        )
+          attachments === undefined
+            ? existingStatus.attachments
+            : [
+                ...attachments,
+                ...existingStatus.attachments.filter(
+                  (attachment) =>
+                    (attachment.mediaId === null ||
+                      attachment.mediaId === undefined) &&
+                    !isFitnessStatusAttachment(attachment)
+                )
+              ]
+        ).filter((attachment) => !isFitnessStatusAttachment(attachment))
 
         if (
           effectiveText.trim().length === 0 &&

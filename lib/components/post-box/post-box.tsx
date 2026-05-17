@@ -409,7 +409,7 @@ export const PostBox: FC<Props> = ({
             originalId: attachment.id,
             uploadedAttachment: newAttachment
           }
-        } catch {
+        } catch (error) {
           const restoredAttachment = {
             ...attachment,
             isLoading: false
@@ -421,7 +421,11 @@ export const PostBox: FC<Props> = ({
             )
           }
           dispatch(updateAttachment(attachment.id, restoredAttachment))
-          throw new Error(`Fail to upload ${attachment.name}`)
+          const reason =
+            error instanceof Error && error.message ? `: ${error.message}` : ''
+          throw new Error(`Fail to upload ${attachment.name}${reason}`, {
+            cause: error
+          })
         }
       })
     )
@@ -589,10 +593,17 @@ export const PostBox: FC<Props> = ({
 
       setText('')
       setIsPosting(false)
-    } catch {
+    } catch (error) {
       setIsPosting(false)
       setAllowPost(true)
-      alert(editStatus ? 'Fail to update the post' : 'Fail to create a post')
+      const fallbackMessage = editStatus
+        ? 'Fail to update the post'
+        : 'Fail to create a post'
+      alert(
+        error instanceof Error && error.message
+          ? error.message
+          : fallbackMessage
+      )
     } finally {
       submitInFlightRef.current = false
     }

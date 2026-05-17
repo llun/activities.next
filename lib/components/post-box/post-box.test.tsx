@@ -546,29 +546,80 @@ describe('PostBox edit media', () => {
     const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {})
     updateNoteMock.mockRejectedValueOnce(new Error('update failed'))
 
-    render(
-      <PostBox
-        host="activities.local"
-        profile={profile}
-        editStatus={editStatus}
-        isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
-      />
-    )
+    try {
+      render(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          editStatus={editStatus}
+          isMediaUploadEnabled
+          onDiscardReply={jest.fn()}
+          onPostCreated={jest.fn()}
+          onPostUpdated={jest.fn()}
+          onDiscardEdit={jest.fn()}
+        />
+      )
 
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
-      target: { value: 'Updated post text' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+      fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+        target: { value: 'Updated post text' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
 
-    await waitFor(() => {
-      expect(alertMock).toHaveBeenCalledWith('Fail to update the post')
-    })
+      await waitFor(() => {
+        expect(alertMock).toHaveBeenCalledWith('update failed')
+      })
+    } finally {
+      alertMock.mockRestore()
+    }
+  })
 
-    alertMock.mockRestore()
+  it('shows media upload failure details when edit media upload fails', async () => {
+    const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {})
+    uploadAttachmentMock.mockRejectedValueOnce(new Error('unsupported file'))
+
+    try {
+      render(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          editStatus={editStatus}
+          isMediaUploadEnabled
+          onDiscardReply={jest.fn()}
+          onPostCreated={jest.fn()}
+          onPostUpdated={jest.fn()}
+          onDiscardEdit={jest.fn()}
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove media existing.jpg' })
+      )
+      const fileInput = Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+      ).at(-1)!
+      fireEvent.change(fileInput, {
+        target: {
+          files: [
+            new File(['replacement'], 'replacement.png', { type: 'image/png' })
+          ]
+        }
+      })
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+      await waitFor(() => {
+        expect(alertMock).toHaveBeenCalledWith(
+          'Fail to upload replacement.png: unsupported file'
+        )
+      })
+      expect(updateNoteMock).not.toHaveBeenCalled()
+    } finally {
+      alertMock.mockRestore()
+    }
   })
 
   it('does not submit an edit when text, warning, and media are unchanged', async () => {
