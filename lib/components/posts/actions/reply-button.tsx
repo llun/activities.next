@@ -10,10 +10,18 @@ interface Props {
 }
 
 export const ReplyButton: FC<Props> = ({ status, onReply }) => {
+  const replyLabel =
+    status.replies.length > 0
+      ? `Reply to post, ${status.replies.length} ${
+          status.replies.length === 1 ? 'reply' : 'replies'
+        }`
+      : 'Reply to post'
+
   return (
     <button
       className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted hover:text-blue-500"
-      title="Reply"
+      title={replyLabel}
+      aria-label={replyLabel}
       onClick={() => onReply?.(status)}
     >
       <MessageCircle className="h-4 w-4" />

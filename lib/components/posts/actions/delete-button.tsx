@@ -14,6 +14,7 @@ export const DeleteButton: FC<Props> = ({ status, onPostDeleted }) => {
     <button
       className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted hover:text-red-500 transition-colors"
       title="Delete post"
+      aria-label="Delete post"
       onClick={async (e) => {
         e.stopPropagation()
         const deleteConfirmation = window.confirm(

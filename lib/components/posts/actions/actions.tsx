@@ -1,4 +1,4 @@
-import { FC } from 'react'
+import { FC, ReactNode } from 'react'
 
 import { PostProps } from '@/lib/components/posts/post'
 import {
@@ -6,6 +6,7 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
@@ -19,9 +20,13 @@ interface Props extends PostProps {
   onShowEdits?: (status: Status) => void
 }
 
+const actionRowClassName =
+  'grid w-full items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6'
+
 export const Actions: FC<Props> = ({
   host,
   currentActor,
+  currentTime,
   status,
   editable = false,
   showActions = false,
@@ -41,27 +46,70 @@ export const Actions: FC<Props> = ({
   const isOwner =
     Boolean(actualStatus.isLocalActor) &&
     currentActor.id === actualStatus.actorId
+  const hasEditHistory = actualStatus.edits.length > 0
+  const primaryActions: ReactNode[] = [
+    <ReplyButton key="reply" status={actualStatus} onReply={onReply} />,
+    <RepostButton
+      key="repost"
+      currentActor={currentActor}
+      status={actualStatus}
+    />,
+    <LikeButton key="like" currentActor={currentActor} status={actualStatus} />
+  ]
+  const secondaryActions: ReactNode[] = []
+
+  if (hasEditHistory) {
+    primaryActions.push(
+      <EditHistoryButton
+        key="edit-history"
+        status={actualStatus}
+        host={host}
+        currentTime={currentTime}
+        onShowEdits={onShowEdits}
+      />
+    )
+  }
+
+  if (isOwner) {
+    secondaryActions.push(
+      <VisibilityButton key="visibility" status={actualStatus} />
+    )
+  }
+
+  if (canEdit) {
+    secondaryActions.push(
+      <EditButton key="edit" status={actualStatus} onEdit={onEdit} />,
+      <DeleteButton
+        key="delete"
+        status={actualStatus}
+        onPostDeleted={onPostDeleted}
+      />
+    )
+  }
+
+  const hasSecondaryActions = secondaryActions.length > 0
+  // Use the same mobile grid for both rows so secondary controls align under primary controls.
+  const actionColumnClassName = hasEditHistory ? 'grid-cols-4' : 'grid-cols-3'
 
   return (
-    <div className="mt-3 flex items-center gap-6 text-muted-foreground">
-      <ReplyButton status={actualStatus} onReply={onReply} />
-      <RepostButton currentActor={currentActor} status={actualStatus} />
-      <LikeButton currentActor={currentActor} status={actualStatus} />
-
-      <div className="flex items-center gap-6">
-        <EditHistoryButton
-          status={actualStatus}
-          host={host}
-          onShowEdits={onShowEdits}
-        />
-        {isOwner && <VisibilityButton status={actualStatus} />}
-        {canEdit && (
-          <>
-            <EditButton status={actualStatus} onEdit={onEdit} />
-            <DeleteButton status={actualStatus} onPostDeleted={onPostDeleted} />
-          </>
-        )}
+    <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
+      <div
+        role="group"
+        aria-label="Post primary actions"
+        className={cn(actionRowClassName, actionColumnClassName)}
+      >
+        {primaryActions}
       </div>
+
+      {hasSecondaryActions && (
+        <div
+          role="group"
+          aria-label="Post secondary actions"
+          className={cn(actionRowClassName, actionColumnClassName)}
+        >
+          {secondaryActions}
+        </div>
+      )}
     </div>
   )
 }

@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import {
@@ -362,5 +362,332 @@ describe('Post', () => {
     expect(
       screen.queryByRole('link', { name: '@hackers.pub' })
     ).not.toBeInTheDocument()
+  })
+
+  it('splits owner actions into a four-item primary row and left-aligned secondary row', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        editable
+        showActions
+        status={{
+          ...status,
+          edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
+        }}
+        onEdit={jest.fn()}
+        onPostDeleted={jest.fn()}
+        onReply={jest.fn()}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const primaryActions = screen.getByRole('group', {
+      name: 'Post primary actions'
+    })
+    const secondaryActions = screen.getByRole('group', {
+      name: 'Post secondary actions'
+    })
+
+    expect(primaryActions).toHaveClass(
+      'grid',
+      'w-full',
+      'grid-cols-4',
+      'justify-items-center',
+      'sm:flex',
+      'sm:w-auto',
+      'sm:justify-start'
+    )
+    expect(secondaryActions).toHaveClass(
+      'grid',
+      'w-full',
+      'grid-cols-4',
+      'justify-items-center',
+      'sm:flex',
+      'sm:w-auto',
+      'sm:justify-start'
+    )
+    expect(
+      within(primaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Reply to post', 'Repost', 'Like', 'Show edit history, 1 edit'])
+    expect(
+      within(secondaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Visibility: Direct', 'Edit post', 'Delete post'])
+  })
+
+  it('keeps edit history panel open when interacting with panel content', () => {
+    const onShowEdits = jest.fn()
+
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
+        }}
+        onShowAttachment={jest.fn()}
+        onShowEdits={onShowEdits}
+      />
+    )
+
+    const editHistoryButton = screen.getByRole('button', {
+      name: 'Show edit history, 1 edit'
+    })
+
+    expect(editHistoryButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(editHistoryButton)
+
+    const editHistoryContent = screen.getByText('Previous content')
+    const editHistoryRegion = screen.getByRole('region', {
+      name: 'Edit history'
+    })
+
+    expect(editHistoryContent).toBeInTheDocument()
+    expect(onShowEdits).toHaveBeenCalledTimes(1)
+    expect(editHistoryRegion).toBeInTheDocument()
+    expect(editHistoryButton).toHaveAttribute('aria-expanded', 'true')
+    expect(editHistoryButton).toHaveAttribute(
+      'aria-controls',
+      editHistoryRegion.id
+    )
+
+    fireEvent.click(editHistoryContent)
+
+    expect(screen.getByText('Previous content')).toBeInTheDocument()
+    expect(onShowEdits).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close edit history' }))
+
+    expect(screen.queryByText('Previous content')).not.toBeInTheDocument()
+    expect(editHistoryButton).toHaveFocus()
+  })
+
+  it('renders edit history newest first without mutating status edits', () => {
+    const edits = [
+      { text: 'First draft', createdAt: currentTime - 2000 },
+      { text: 'Second draft', createdAt: currentTime - 1000 }
+    ]
+
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          edits
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Show edit history, 2 edits'
+      })
+    )
+
+    const historyItems = screen.getAllByRole('listitem')
+
+    expect(
+      within(historyItems[0]).getByText('Second draft')
+    ).toBeInTheDocument()
+    expect(within(historyItems[1]).getByText('First draft')).toBeInTheDocument()
+    expect(edits.map((edit) => edit.text)).toEqual([
+      'First draft',
+      'Second draft'
+    ])
+  })
+
+  it('uses currentTime for edit history relative timestamps', () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(currentTime + 7 * 24 * 60 * 60 * 1000)
+
+    try {
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            edits: [
+              { text: 'Previous content', createdAt: currentTime - 60000 }
+            ]
+          }}
+          onShowAttachment={jest.fn()}
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Show edit history, 1 edit'
+        })
+      )
+
+      expect(screen.getByText('1 minute')).toBeInTheDocument()
+      expect(screen.queryByText('7 days')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('does not render an empty status action group', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={status}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('group', { name: 'Post primary actions' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('group', { name: 'Post secondary actions' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not render edit history action when status has no edits', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        editable
+        showActions
+        status={status}
+        onEdit={jest.fn()}
+        onPostDeleted={jest.fn()}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const primaryActions = screen.getByRole('group', {
+      name: 'Post primary actions'
+    })
+    const secondaryActions = screen.getByRole('group', {
+      name: 'Post secondary actions'
+    })
+
+    expect(primaryActions).toHaveClass('grid-cols-3')
+    expect(primaryActions).not.toHaveClass('grid-cols-4')
+    expect(
+      within(primaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Reply to post', 'Repost', 'Like'])
+    expect(secondaryActions).toHaveClass('grid-cols-3')
+    expect(secondaryActions).not.toHaveClass('grid-cols-4')
+    expect(
+      within(secondaryActions)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['Visibility: Direct', 'Edit post', 'Delete post'])
+    expect(
+      screen.queryByRole('button', { name: /Show edit history/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps visible social action counts in accessible labels', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          replies: [
+            { ...status, id: 'https://activities.local/replies/1' },
+            { ...status, id: 'https://activities.local/replies/2' }
+          ],
+          totalLikes: 3
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Reply to post, 2 replies' })
+    ).toHaveAttribute('title', 'Reply to post, 2 replies')
+    expect(
+      screen.getByRole('button', { name: 'Like, 3 likes' })
+    ).toHaveAttribute('title', 'Like, 3 likes')
+  })
+
+  it('keeps singular social action counts in accessible labels', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          replies: [{ ...status, id: 'https://activities.local/replies/1' }],
+          totalLikes: 1
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Reply to post, 1 reply' })
+    ).toHaveAttribute('title', 'Reply to post, 1 reply')
+    expect(
+      screen.getByRole('button', { name: 'Like, 1 like' })
+    ).toHaveAttribute('title', 'Like, 1 like')
+  })
+
+  it('labels repost action as undo when post is already reposted', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          actorAnnounceStatusId: 'https://activities.local/announces/1'
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Undo repost' })
+    ).toBeInTheDocument()
   })
 })
