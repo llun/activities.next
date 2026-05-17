@@ -23,7 +23,7 @@ export function buildNavItems({
   fitnessUrl,
   isAdmin = false
 }: BuildNavItemsParams): NavItem[] {
-  let items = [...baseNavItems]
+  const items = [...baseNavItems]
 
   if (fitnessUrl) {
     const notificationsIndex = items.findIndex(
