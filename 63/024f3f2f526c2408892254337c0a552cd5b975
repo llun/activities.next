@@ -1,0 +1,19 @@
+lib/services/bookmarks/getBookmarkedStatusesPage.test.ts
+  s_47fe4b7b3e7f3f::t_d176e93b2eab11 7-10,200-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "63024f3f2f526c2408892254337c0a552cd5b975",
+  "prompts": {},
+  "sessions": {
+    "s_47fe4b7b3e7f3f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3594-5c06-7680-a057-6dafd6dc88a2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
