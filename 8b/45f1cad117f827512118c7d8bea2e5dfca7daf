@@ -1,0 +1,25 @@
+app/api/v1/conversations/route.ts
+  s_310719d8018dcf::t_fd37b579e38897 5-6,79-83
+lib/services/mastodon/getMastodonConversation.ts
+  s_310719d8018dcf::t_89b9a12032a9c3 5,42-60,80-124
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_310719d8018dcf::t_1ef33f40808a4d 5-6,8,11,14-15,18-71,73-105,107-111,226-245,254-272,276-295,304-317
+  s_310719d8018dcf::t_e0898b1480c919 246-253,273-275,296-303
+  s_310719d8018dcf::t_144edfa1a83d0e 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8b45f1cad117f827512118c7d8bea2e5dfca7daf",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
