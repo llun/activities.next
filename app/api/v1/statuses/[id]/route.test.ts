@@ -1,5 +1,7 @@
+import knex from 'knex'
 import { NextRequest } from 'next/server'
 
+import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getQueue } from '@/lib/services/queue'
@@ -1790,6 +1792,75 @@ describe('GET /api/v1/statuses/[id]', () => {
       ])
     })
 
+    it('includes public legacy boosts stored only in content for anonymous clients', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+      const previousDatabase = mockDatabase
+
+      try {
+        await sqlDatabase.migrate()
+        await seedDatabase(sqlDatabase)
+        mockDatabase = sqlDatabase
+
+        const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-legacy-boost`
+        await sqlDatabase.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text: 'Public status with a legacy boost',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+
+        const legacyAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-legacy-boost`
+        const createdAt = new Date('2024-04-01T00:00:00.000Z')
+        await knexDatabase('statuses').insert({
+          id: legacyAnnounceId,
+          url: null,
+          urlHash: null,
+          actorId: ACTOR2_ID,
+          type: StatusType.enum.Announce,
+          reply: '',
+          content: statusId,
+          originalStatusId: null,
+          createdAt,
+          updatedAt: createdAt
+        })
+        await knexDatabase('recipients').insert({
+          id: crypto.randomUUID(),
+          statusId: legacyAnnounceId,
+          actorId: ACTIVITY_STREAM_PUBLIC,
+          type: 'to',
+          createdAt,
+          updatedAt: createdAt
+        })
+
+        const response = await getStatusRebloggedBy(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        const accounts = (await response.json()) as { id: string }[]
+        expect(accounts.map((account) => account.id)).toEqual([
+          urlToId(ACTOR2_ID)
+        ])
+      } finally {
+        mockDatabase = previousDatabase
+        await knexDatabase.destroy()
+      }
+    })
+
     it('exposes non-public boosts to authenticated actors they are addressed to', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-direct-boost`
       await database.createNote({
@@ -1961,6 +2032,71 @@ describe('GET /api/v1/statuses/[id]', () => {
       const linkHeader = response.headers.get('Link')
       expect(linkHeader).not.toEqual(expect.stringContaining('rel="next"'))
       expect(linkHeader).toEqual(expect.stringContaining('rel="prev"'))
+    })
+
+    it('omits pagination links when no trusted host is configured', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const { getConfig } = jest.requireMock('@/lib/config') as {
+        getConfig: jest.Mock
+      }
+      getConfig.mockReturnValue({
+        allowEmails: [],
+        host: '',
+        secretPhase: 'test-secret'
+      })
+
+      try {
+        const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-empty-host`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text: 'Public status with pagination and empty configured host',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+
+        const olderAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-empty-host-older`
+        const newerAnnounceId = `${ACTOR3_ID}/statuses/api-reblogged-by-empty-host-newer`
+        await database.createAnnounce({
+          id: olderAnnounceId,
+          actorId: ACTOR2_ID,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: statusId,
+          createdAt: Date.parse('2024-05-01T00:00:00.000Z')
+        })
+        await database.createAnnounce({
+          id: newerAnnounceId,
+          actorId: ACTOR3_ID,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: statusId,
+          createdAt: Date.parse('2024-05-02T00:00:00.000Z')
+        })
+
+        const response = await getStatusRebloggedBy(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(
+              statusId
+            )}/reblogged_by?limit=1`
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        const accounts = (await response.json()) as { id: string }[]
+        expect(accounts.map((account) => account.id)).toEqual([
+          urlToId(ACTOR3_ID)
+        ])
+        expect(response.headers.get('Link')).toBeNull()
+      } finally {
+        getConfig.mockReturnValue({
+          allowEmails: [],
+          host: 'llun.test',
+          secretPhase: 'test-secret'
+        })
+      }
     })
   })
 

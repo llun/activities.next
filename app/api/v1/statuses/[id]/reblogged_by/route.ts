@@ -41,6 +41,8 @@ const getPaginationLinkHeader = ({
 
   const requestUrl = new URL(req.url)
   const host = headerHost(req.headers)
+  if (!host) return undefined
+
   const buildUrl = (cursor: 'max_id' | 'since_id', statusId: string) => {
     const params = new URLSearchParams()
     params.set('limit', `${limit}`)

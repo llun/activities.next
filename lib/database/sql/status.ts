@@ -118,10 +118,21 @@ export const buildPubliclyReadableStatusIdsQuery = ({
         ).orWhereExists(function () {
           this.select(database.raw('1'))
             .from('statuses as original_statuses')
-            .whereRaw('?? = ??', [
-              'original_statuses.id',
-              'target_statuses.originalStatusId'
-            ])
+            .where((originalBuilder) => {
+              originalBuilder
+                .whereRaw('?? = ??', [
+                  'original_statuses.id',
+                  'target_statuses.originalStatusId'
+                ])
+                .orWhere((legacyBuilder) => {
+                  legacyBuilder
+                    .whereNull('target_statuses.originalStatusId')
+                    .whereRaw('?? = ??', [
+                      'original_statuses.id',
+                      'target_statuses.content'
+                    ])
+                })
+            })
             .whereNot('original_statuses.type', StatusType.enum.Announce)
             .whereIn('original_statuses.id', publicRecipientStatusIds(database))
         })
@@ -131,14 +142,15 @@ export const buildPubliclyReadableStatusIdsQuery = ({
   return database
     .withRecursive(
       'publicly_readable_statuses',
-      ['targetId', 'id', 'type', 'originalStatusId'],
+      ['targetId', 'id', 'type', 'originalStatusId', 'content'],
       (cte) => {
         cte
           .select(
             'target_statuses.id as targetId',
             'target_statuses.id',
             'target_statuses.type',
-            'target_statuses.originalStatusId'
+            'target_statuses.originalStatusId',
+            'target_statuses.content'
           )
           .from(targetStatusIdsQuery)
           .innerJoin(
@@ -152,13 +164,19 @@ export const buildPubliclyReadableStatusIdsQuery = ({
               'readable_statuses.targetId',
               'original_statuses.id',
               'original_statuses.type',
-              'original_statuses.originalStatusId'
+              'original_statuses.originalStatusId',
+              'original_statuses.content'
             )
               .from('statuses as original_statuses')
               .innerJoin(
                 'publicly_readable_statuses as readable_statuses',
-                'readable_statuses.originalStatusId',
-                'original_statuses.id'
+                database.raw('(?? = ?? or (?? is null and ?? = ??))', [
+                  'readable_statuses.originalStatusId',
+                  'original_statuses.id',
+                  'readable_statuses.originalStatusId',
+                  'readable_statuses.content',
+                  'original_statuses.id'
+                ])
               )
               .where('readable_statuses.type', StatusType.enum.Announce)
               .whereIn(
@@ -1359,28 +1377,39 @@ export const StatusSQLDatabaseMixin = (
           targetStatusIds: reblogTargetStatusIds
         })
 
-    const rankedReblogsQuery = database
-      .select('visible_reblogs.id', 'visible_reblogs.actorId')
-      .select('visible_reblogs.createdAt')
-      .select(
-        database.raw(
-          'ROW_NUMBER() OVER (PARTITION BY ?? ORDER BY ?? DESC, ?? DESC) as ??',
-          [
-            'visible_reblogs.actorId',
-            'visible_reblogs.createdAt',
-            'visible_reblogs.id',
-            'actorReblogRank'
-          ]
-        )
-      )
-      .from(visibleReblogsQuery.as('visible_reblogs'))
-
     const dedupedReblogsQuery = database
-      .select<
-        { id: string; actorId: string; createdAt: Date }[]
-      >('ranked_reblogs.id', 'ranked_reblogs.actorId', 'ranked_reblogs.createdAt')
-      .from(rankedReblogsQuery.as('ranked_reblogs'))
-      .where('ranked_reblogs.actorReblogRank', 1)
+      .select<{ id: string; actorId: string; createdAt: Date }[]>(
+        'visible_reblogs.id',
+        'visible_reblogs.actorId',
+        'visible_reblogs.createdAt'
+      )
+      .from(visibleReblogsQuery.clone().as('visible_reblogs'))
+      .whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from(visibleReblogsQuery.clone().as('newer_reblogs'))
+          .whereRaw('?? = ??', [
+            'newer_reblogs.actorId',
+            'visible_reblogs.actorId'
+          ])
+          .where((builder) => {
+            builder
+              .whereRaw('?? > ??', [
+                'newer_reblogs.createdAt',
+                'visible_reblogs.createdAt'
+              ])
+              .orWhere((sameTimestampBuilder) => {
+                sameTimestampBuilder
+                  .whereRaw('?? = ??', [
+                    'newer_reblogs.createdAt',
+                    'visible_reblogs.createdAt'
+                  ])
+                  .whereRaw('?? > ??', [
+                    'newer_reblogs.id',
+                    'visible_reblogs.id'
+                  ])
+              })
+          })
+      })
 
     const [maxCursor, sinceCursor] = await Promise.all([
       maxStatusId
