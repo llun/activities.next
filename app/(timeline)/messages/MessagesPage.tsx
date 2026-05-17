@@ -106,6 +106,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const [error, setError] = useState<string | null>(null)
   const latestThreadRequestIdRef = useRef(0)
   const selectedConversationIdRef = useRef(selectedConversationId)
+  const failedReadConversationIdsRef = useRef(new Set<string>())
+  const pendingReadConversationIdsRef = useRef(new Set<string>())
 
   const selectedConversation = useMemo(
     () =>
@@ -195,8 +197,14 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
   useEffect(() => {
     if (!selectedConversationId || !selectedConversation?.unread) return
+    if (
+      failedReadConversationIdsRef.current.has(selectedConversationId) ||
+      pendingReadConversationIdsRef.current.has(selectedConversationId)
+    ) {
+      return
+    }
 
-    void markConversationRead({ conversationId: selectedConversationId })
+    pendingReadConversationIdsRef.current.add(selectedConversationId)
     setCurrentConversations((previousConversations) =>
       previousConversations.map((conversation) =>
         conversation.id === selectedConversationId
@@ -204,6 +212,32 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           : conversation
       )
     )
+
+    const restoreUnreadState = () => {
+      failedReadConversationIdsRef.current.add(selectedConversationId)
+      setError('Could not mark conversation as read')
+      setCurrentConversations((previousConversations) =>
+        previousConversations.map((conversation) =>
+          conversation.id === selectedConversationId
+            ? { ...conversation, unread: true }
+            : conversation
+        )
+      )
+    }
+
+    void markConversationRead({ conversationId: selectedConversationId })
+      .then((markedRead) => {
+        if (markedRead) {
+          failedReadConversationIdsRef.current.delete(selectedConversationId)
+          return
+        }
+
+        restoreUnreadState()
+      })
+      .catch(restoreUnreadState)
+      .finally(() => {
+        pendingReadConversationIdsRef.current.delete(selectedConversationId)
+      })
   }, [selectedConversation?.unread, selectedConversationId])
 
   const refreshConversations = useCallback(async () => {
@@ -509,7 +543,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                 )}
               </Button>
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
           </form>
         </div>
       </section>

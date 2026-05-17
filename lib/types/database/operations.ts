@@ -122,6 +122,7 @@ export interface ActorDatabase {
     params: CreateActorParams
   ): Promise<Mastodon.Account | null>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | null>
+  getActorsFromIds(params: GetActorsFromIdsParams): Promise<Actor[]>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | null>
   getActorFromUsername(
     params: GetActorFromUsernameParams

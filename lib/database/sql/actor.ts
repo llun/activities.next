@@ -141,6 +141,113 @@ const federationSigningActorCreationLocks = new Map<
 const isMastodonBotActorType = (type: SQLActor['type']) =>
   type === 'Service' || type === 'Application' || type === 'Organization'
 
+const getLastStatusCreatedAtByActorId = async (
+  database: Knex,
+  actorIds: string[]
+) => {
+  if (actorIds.length === 0) return new Map<string, number | Date>()
+
+  const rows = await database('statuses')
+    .whereIn('actorId', actorIds)
+    .orderBy('actorId', 'asc')
+    .orderBy('createdAt', 'desc')
+    .select<
+      { actorId: string; createdAt: number | Date }[]
+    >('actorId', 'createdAt')
+  const lastStatusCreatedAtByActorId = new Map<string, number | Date>()
+
+  for (const row of rows) {
+    if (!lastStatusCreatedAtByActorId.has(row.actorId)) {
+      lastStatusCreatedAtByActorId.set(row.actorId, row.createdAt)
+    }
+  }
+
+  return lastStatusCreatedAtByActorId
+}
+
+const getActorCounterSummaries = async (database: Knex, actorIds: string[]) => {
+  const counterValues = await getCounterValues(
+    database,
+    actorIds.flatMap((actorId) => [
+      CounterKey.totalFollowers(actorId),
+      CounterKey.totalFollowing(actorId),
+      CounterKey.totalStatus(actorId)
+    ])
+  )
+
+  return new Map(
+    actorIds.map((actorId) => [
+      actorId,
+      {
+        followersCount: counterValues[CounterKey.totalFollowers(actorId)] ?? 0,
+        followingCount: counterValues[CounterKey.totalFollowing(actorId)] ?? 0,
+        statusCount: counterValues[CounterKey.totalStatus(actorId)] ?? 0
+      }
+    ])
+  )
+}
+
+const getMastodonAccountFromSQLActor = ({
+  sqlActor,
+  counters,
+  lastStatusCreatedAt
+}: {
+  sqlActor: SQLActor
+  counters: {
+    followersCount: number
+    followingCount: number
+    statusCount: number
+  }
+  lastStatusCreatedAt: number | Date | undefined
+}) => {
+  const settings = getCompatibleJSON(sqlActor.settings)
+  const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
+    sqlActor,
+    getConfiguredActorDomain()
+  )
+
+  return Mastodon.Account.parse({
+    id: urlToId(sqlActor.id),
+    username: sqlActor.username,
+    acct: `${sqlActor.username}@${sqlActor.domain}`,
+    url: sqlActor.id,
+    display_name: sqlActor.name ?? '',
+    note: sqlActor.summary ?? '',
+
+    avatar: settings.iconUrl ?? '',
+    avatar_static: settings.iconUrl ?? '',
+    header: settings.headerImageUrl ?? '',
+    header_static: settings.headerImageUrl ?? '',
+
+    fields: [],
+    emojis: [],
+
+    locked: settings.manuallyApprovesFollowers ?? true,
+    bot: isMastodonBotActorType(sqlActor.type),
+    group: sqlActor.type === 'Group',
+    discoverable: !isLocalHeadlessSigner,
+    noindex: isLocalHeadlessSigner,
+
+    source: {
+      note: '',
+      fields: [],
+      privacy: 'public',
+      sensitive: false,
+      language: 'en',
+      follow_requests_count: 0
+    },
+
+    created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
+    last_status_at: lastStatusCreatedAt
+      ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
+      : null,
+
+    followers_count: counters.followersCount,
+    following_count: counters.followingCount,
+    statuses_count: counters.statusCount
+  })
+}
+
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async createActor({
     actorId,
@@ -491,6 +598,58 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     )
   },
 
+  async getActorsFromIds({ ids }: GetActorsFromIdsParams) {
+    const actorIds = [...new Set(ids)]
+    if (actorIds.length === 0) return []
+
+    const persistedActors = await database<SQLActor>('actors').whereIn(
+      'id',
+      actorIds
+    )
+    const actorById = new Map(persistedActors.map((actor) => [actor.id, actor]))
+    const accountIds = [
+      ...new Set(
+        persistedActors
+          .map((actor) => actor.accountId)
+          .filter((accountId): accountId is string => Boolean(accountId))
+      )
+    ]
+    const [accounts, countersByActorId, lastStatusCreatedAtByActorId] =
+      await Promise.all([
+        accountIds.length > 0
+          ? database<SQLAccount>('accounts').whereIn('id', accountIds)
+          : [],
+        getActorCounterSummaries(database, actorIds),
+        getLastStatusCreatedAtByActorId(database, actorIds)
+      ])
+    const accountById = new Map(
+      accounts.map((account) => [account.id, account])
+    )
+
+    return actorIds
+      .map((actorId) => {
+        const actor = actorById.get(actorId)
+        if (!actor) return null
+
+        const counters = countersByActorId.get(actorId) ?? {
+          followersCount: 0,
+          followingCount: 0,
+          statusCount: 0
+        }
+        const lastStatusCreatedAt = lastStatusCreatedAtByActorId.get(actorId)
+
+        return this.getActor(
+          actor,
+          counters.followingCount,
+          counters.followersCount,
+          counters.statusCount,
+          getCompatibleTime(lastStatusCreatedAt ?? 0),
+          actor.accountId ? accountById.get(actor.accountId) : undefined
+        )
+      })
+      .filter((actor): actor is Actor => actor !== null)
+  },
+
   async getMastodonActorFromId({ id }: GetActorFromIdParams) {
     return this.getMastodonActor(id)
   },
@@ -588,83 +747,27 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     )
     if (sqlActors.length === 0) return []
 
-    const existingActorIds = sqlActors.map((actor) => actor.id)
-    const counterIds = existingActorIds.flatMap((id) => [
-      CounterKey.totalFollowers(id),
-      CounterKey.totalFollowing(id),
-      CounterKey.totalStatus(id)
-    ])
-
-    const [lastStatuses, counters] = await database.transaction(async (trx) =>
-      Promise.all([
-        trx('statuses')
-          .whereIn('actorId', existingActorIds)
-          .groupBy('actorId')
-          .select('actorId')
-          .max({ createdAt: 'createdAt' }),
-        getCounterValues(trx, counterIds)
-      ])
-    )
-
     const sqlActorById = new Map(sqlActors.map((actor) => [actor.id, actor]))
-    const lastStatusByActorId = new Map(
-      (
-        lastStatuses as {
-          actorId: string
-          createdAt: number | Date | string | null
-        }[]
-      ).map((row) => [row.actorId, row.createdAt])
+    const existingActorIds = sqlActors.map((actor) => actor.id)
+    const [countersByActorId, lastStatusCreatedAtByActorId] = await Promise.all(
+      [
+        getActorCounterSummaries(database, existingActorIds),
+        getLastStatusCreatedAtByActorId(database, existingActorIds)
+      ]
     )
 
     return actorIds.flatMap((id) => {
       const sqlActor = sqlActorById.get(id)
       if (!sqlActor) return []
 
-      const settings = getCompatibleJSON(sqlActor.settings)
-      const lastStatusCreatedAt = lastStatusByActorId.get(id) ?? 0
-      const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
+      return getMastodonAccountFromSQLActor({
         sqlActor,
-        getConfiguredActorDomain()
-      )
-      return Mastodon.Account.parse({
-        id: urlToId(sqlActor.id),
-        username: sqlActor.username,
-        acct: `${sqlActor.username}@${sqlActor.domain}`,
-        url: sqlActor.id,
-        display_name: sqlActor.name ?? '',
-        note: sqlActor.summary ?? '',
-
-        avatar: settings.iconUrl ?? '',
-        avatar_static: settings.iconUrl ?? '',
-        header: settings.headerImageUrl ?? '',
-        header_static: settings.headerImageUrl ?? '',
-
-        fields: [],
-        emojis: [],
-
-        locked: settings.manuallyApprovesFollowers ?? true,
-        bot: isMastodonBotActorType(sqlActor.type),
-        group: sqlActor.type === 'Group',
-        discoverable: !isLocalHeadlessSigner,
-        noindex: isLocalHeadlessSigner,
-
-        source: {
-          note: '',
-          fields: [],
-          privacy: 'public',
-          sensitive: false,
-          language: 'en',
-          follow_requests_count: 0
+        counters: countersByActorId.get(id) ?? {
+          followersCount: 0,
+          followingCount: 0,
+          statusCount: 0
         },
-
-        created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
-        last_status_at: lastStatusCreatedAt
-          ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
-          : null,
-
-        followers_count: counters[CounterKey.totalFollowers(sqlActor.id)] ?? 0,
-        following_count: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
-        statuses_count: counters[CounterKey.totalStatus(sqlActor.id)] ?? 0
+        lastStatusCreatedAt: lastStatusCreatedAtByActorId.get(id)
       })
     })
   },
