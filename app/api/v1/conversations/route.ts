@@ -1,6 +1,10 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getMastodonConversation } from '@/lib/services/mastodon/getMastodonConversation'
+import {
+  getMastodonConversation,
+  getMastodonConversationAccountMap,
+  getMastodonConversationAccounts
+} from '@/lib/services/mastodon/getMastodonConversation'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
@@ -43,23 +47,22 @@ export const GET = traceApiRoute(
       if (
         url.searchParams.get('format') === TimelineFormat.enum.activities_next
       ) {
-        const conversationViews = await Promise.all(
-          conversations.map(async (conversation) => {
-            const accounts = (
-              await Promise.all(
-                conversation.participantActorIds
-                  .filter((actorId) => actorId !== currentActor.id)
-                  .map((actorId) =>
-                    database.getMastodonActorFromId({ id: actorId })
-                  )
-              )
-            ).filter((account): account is Mastodon.Account => account !== null)
-            return {
-              ...cleanJson(conversation),
-              accounts
-            }
-          })
+        const accountsByActorId = await getMastodonConversationAccountMap(
+          database,
+          conversations,
+          currentActor.id
         )
+        const conversationViews = conversations.map((conversation) => {
+          const accounts = getMastodonConversationAccounts(
+            conversation,
+            currentActor.id,
+            accountsByActorId
+          )
+          return {
+            ...cleanJson(conversation),
+            accounts
+          }
+        })
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -69,10 +72,20 @@ export const GET = traceApiRoute(
         })
       }
 
+      const accountsByActorId = await getMastodonConversationAccountMap(
+        database,
+        conversations,
+        currentActor.id
+      )
       const mastodonConversations = (
         await Promise.all(
           conversations.map((conversation) =>
-            getMastodonConversation(database, conversation, currentActor.id)
+            getMastodonConversation(
+              database,
+              conversation,
+              currentActor.id,
+              accountsByActorId
+            )
           )
         )
       ).filter(

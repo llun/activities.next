@@ -2,7 +2,14 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import {
   getConversationStatuses,
@@ -41,14 +48,17 @@ jest.mock('@/lib/components/posts/posts', () => ({
 type Deferred<T> = {
   promise: Promise<T>
   resolve: (value: T) => void
+  reject: (error: Error) => void
 }
 
 const createDeferred = <T,>(): Deferred<T> => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 const currentTime = new Date('2026-05-17T12:00:00.000Z').getTime()
@@ -289,5 +299,37 @@ describe('MessagesPage', () => {
       })
     })
     expect(markConversationRead).not.toHaveBeenCalled()
+  })
+
+  it('restores unread state when marking the selected conversation read fails', async () => {
+    const markRead = createDeferred<boolean>()
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null,
+      prevMinStatusId: null
+    })
+    ;(markConversationRead as jest.Mock).mockReturnValue(markRead.promise)
+
+    renderMessagesPage([
+      conversation({ id: 'first', participantName: 'Ada', unread: true })
+    ])
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('button', { name: /Ada/i })).getByText('Ada')
+      ).not.toHaveClass('font-semibold')
+    })
+
+    await act(async () => {
+      markRead.reject(new Error('read failed'))
+    })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not mark conversation as read'
+    )
+    expect(
+      within(screen.getByRole('button', { name: /Ada/i })).getByText('Ada')
+    ).toHaveClass('font-semibold')
+    expect(markConversationRead).toHaveBeenCalledTimes(1)
   })
 })

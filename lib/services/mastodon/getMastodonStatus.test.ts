@@ -11,7 +11,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { getMastodonStatus } from './getMastodonStatus'
+import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
 
 // prettier-ignore
 jest.mock('@/lib/config', () => ({
@@ -33,6 +33,36 @@ describe('#getMastodonStatus', () => {
   afterAll(async () => {
     if (!database) return
     await database.destroy()
+  })
+
+  describe('#getMastodonStatuses', () => {
+    it('hydrates multiple statuses while reusing actor lookups', async () => {
+      const firstStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const secondStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-3`
+      })) as Status
+      const getMastodonActorsFromIds = jest.spyOn(
+        database,
+        'getMastodonActorsFromIds'
+      )
+
+      const mastodonStatuses = await getMastodonStatuses(database, [
+        firstStatus,
+        secondStatus
+      ])
+
+      expect(mastodonStatuses).toHaveLength(2)
+      expect(mastodonStatuses.map((status) => status.id)).toEqual([
+        urlToId(firstStatus.id),
+        urlToId(secondStatus.id)
+      ])
+      expect(getMastodonActorsFromIds).toHaveBeenCalledTimes(1)
+      expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
+        ids: [ACTOR1_ID]
+      })
+    })
   })
 
   it('returns mastodon status from status model', async () => {

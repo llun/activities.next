@@ -14,6 +14,8 @@ const PUBLIC_AUDIENCES = new Set([
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ])
 
+const EXPLICIT_RECIPIENT_LOOKUP_CONCURRENCY = 8
+
 const isFollowersAudience = (actorId: string) => actorId.endsWith('/followers')
 
 const hasFollowersAudience = (status: Status) =>
@@ -35,25 +37,62 @@ const isSameOriginActorId = (actorId: string, currentActor: Actor) => {
   }
 }
 
-const getRemoteActorInbox = async ({
-  database,
+const mapWithConcurrency = async <T, TResult>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<TResult>
+): Promise<TResult[]> => {
+  const results: TResult[] = []
+
+  for (let index = 0; index < items.length; index += concurrency) {
+    const chunk = items.slice(index, index + concurrency)
+    results.push(...(await Promise.all(chunk.map(mapper))))
+  }
+
+  return results
+}
+
+const getRemoteActorInboxForMissingActor = async ({
   actorId,
   currentActor
 }: {
-  database: Database
   actorId: string
   currentActor: Actor
 }) => {
-  const actor = await database.getActorFromId({ id: actorId })
-  if (actor) {
-    if (actor.privateKey) return null
-    return actor.sharedInboxUrl || actor.inboxUrl
-  }
-
   if (isSameOriginActorId(actorId, currentActor)) return null
 
   const person = await getActorPerson({ actorId })
   return person ? person.endpoints?.sharedInbox || person.inbox : null
+}
+
+const getRemoteActorInboxes = async ({
+  database,
+  actorIds,
+  currentActor
+}: {
+  database: Database
+  actorIds: string[]
+  currentActor: Actor
+}) => {
+  if (actorIds.length === 0) return []
+
+  const actors = await database.getActorsFromIds({ ids: actorIds })
+  const actorById = new Map(actors.map((actor) => [actor.id, actor]))
+  const cachedInboxes = actors
+    .filter((actor) => !actor.privateKey)
+    .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
+  const missingActorIds = actorIds.filter((actorId) => !actorById.has(actorId))
+  const fetchedInboxes = await mapWithConcurrency(
+    missingActorIds,
+    EXPLICIT_RECIPIENT_LOOKUP_CONCURRENCY,
+    (actorId) =>
+      getRemoteActorInboxForMissingActor({
+        actorId,
+        currentActor
+      })
+  )
+
+  return [...cachedInboxes, ...fetchedInboxes]
 }
 
 export const getFederatedStatusDeliveryInboxes = async ({
@@ -75,17 +114,14 @@ export const getFederatedStatusDeliveryInboxes = async ({
     )
   }
 
-  const recipientInboxes = await Promise.all(
-    getExplicitRecipientActorIds(status)
-      .filter((actorId) => actorId !== currentActor.id)
-      .map((actorId) =>
-        getRemoteActorInbox({
-          database,
-          actorId,
-          currentActor
-        })
-      )
+  const explicitRecipientActorIds = getExplicitRecipientActorIds(status).filter(
+    (actorId) => actorId !== currentActor.id
   )
+  const recipientInboxes = await getRemoteActorInboxes({
+    database,
+    actorIds: explicitRecipientActorIds,
+    currentActor
+  })
   inboxes.push(...recipientInboxes.filter((inbox): inbox is string => !!inbox))
 
   return filterFederatedUrls(database, [...new Set(inboxes)])
