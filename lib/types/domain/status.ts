@@ -78,7 +78,7 @@ export const StatusNote = StatusBase.extend({
 
   actorAnnounceStatusId: z.string().nullable(),
   isActorLiked: z.boolean(),
-  isActorBookmarked: z.boolean().optional(),
+  isActorBookmarked: z.boolean(),
   totalLikes: z.number(),
   totalShares: z.number().default(0),
 

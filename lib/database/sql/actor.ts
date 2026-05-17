@@ -926,7 +926,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       const actorStatuses = await trx('statuses')
         .where('actorId', actorId)
-        .select('id', 'type', 'reply', 'content')
+        .select('id', 'type', 'reply', 'content', 'originalStatusId')
 
       const statusIds = actorStatuses.map((status) => status.id)
       const statusReferenceToId = new Map<string, string>()
@@ -988,13 +988,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         if (status.type === 'Announce') {
           const content = parseStatusContent(status.content)
           const originalStatusId =
-            typeof content === 'string'
-              ? content
-              : typeof content?.url === 'string'
-                ? content.url
-                : typeof status.content === 'string'
-                  ? status.content
-                  : null
+            typeof status.originalStatusId === 'string'
+              ? status.originalStatusId
+              : typeof content === 'string'
+                ? content
+                : typeof content?.url === 'string'
+                  ? content.url
+                  : typeof status.content === 'string'
+                    ? status.content
+                    : null
 
           if (originalStatusId) {
             reblogCounterChanges[originalStatusId] =

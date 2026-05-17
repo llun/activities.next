@@ -11,7 +11,12 @@ import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
+import {
+  StatusAnnounce,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -354,7 +359,7 @@ describe('StatusDatabase', () => {
     })
 
     describe('getStatusesByIds', () => {
-      it('hydrates bookmark flags for the current actor', async () => {
+      it('hydrates actor flags for the current actor', async () => {
         const suffix = `${Date.now()}-${Math.random()}`
         const bookmarkedStatusId = `${emptyActorId}/statuses/bookmarked-${suffix}`
         const unbookmarkedStatusId = `${emptyActorId}/statuses/unbookmarked-${suffix}`
@@ -379,6 +384,10 @@ describe('StatusDatabase', () => {
           actorId: primaryActorId,
           statusId: bookmarkedStatusId
         })
+        await database.createLike({
+          actorId: primaryActorId,
+          statusId: unbookmarkedStatusId
+        })
 
         const results = await database.getStatusesByIds({
           statusIds: [unbookmarkedStatusId, bookmarkedStatusId],
@@ -390,7 +399,65 @@ describe('StatusDatabase', () => {
           bookmarkedStatusId
         ])
         expect((results[0] as StatusNote).isActorBookmarked).toBe(false)
+        expect((results[0] as StatusNote).isActorLiked).toBe(true)
         expect((results[1] as StatusNote).isActorBookmarked).toBe(true)
+        expect((results[1] as StatusNote).isActorLiked).toBe(false)
+      })
+
+      it('hydrates actor flags for nested announce originals', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const originalActorId = `${emptyActorId}/announce-original-${suffix}`
+        const firstAnnounceActorId = `${replyAuthorId}/announce-first-${suffix}`
+        const secondAnnounceActorId = `${extraActorId}/announce-second-${suffix}`
+        const originalStatusId = `${originalActorId}/statuses/original`
+        const firstAnnounceId = `${firstAnnounceActorId}/statuses/first`
+        const secondAnnounceId = `${secondAnnounceActorId}/statuses/second`
+
+        await database.createNote({
+          id: originalStatusId,
+          url: originalStatusId,
+          actorId: originalActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Nested announce original'
+        })
+        await database.createAnnounce({
+          id: firstAnnounceId,
+          actorId: firstAnnounceActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId
+        })
+        await database.createAnnounce({
+          id: secondAnnounceId,
+          actorId: secondAnnounceActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: firstAnnounceId
+        })
+        await database.createBookmark({
+          actorId: primaryActorId,
+          statusId: secondAnnounceId
+        })
+        await database.createLike({
+          actorId: primaryActorId,
+          statusId: originalStatusId
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [secondAnnounceId],
+          currentActorId: primaryActorId
+        })
+
+        expect(results).toHaveLength(1)
+        const secondAnnounce = results[0] as StatusAnnounce
+        expect(secondAnnounce.type).toBe(StatusType.enum.Announce)
+        const firstAnnounce = secondAnnounce.originalStatus as StatusAnnounce
+        expect(firstAnnounce.type).toBe(StatusType.enum.Announce)
+        const originalStatus = firstAnnounce.originalStatus as StatusNote
+        expect(originalStatus.id).toBe(originalStatusId)
+        expect(originalStatus.isActorBookmarked).toBe(true)
+        expect(originalStatus.isActorLiked).toBe(true)
       })
     })
 

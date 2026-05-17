@@ -259,6 +259,32 @@ describe('BookmarkDatabase', () => {
       ])
     })
 
+    it('returns min_id pages in descending bookmark order', async () => {
+      const actorId = `${ACTOR3_ID}/bookmark-min-order-${randomUUID()}`
+      const statuses = await Promise.all([
+        createStatus('min-order-1'),
+        createStatus('min-order-2'),
+        createStatus('min-order-3'),
+        createStatus('min-order-4'),
+        createStatus('min-order-5')
+      ])
+      for (const status of statuses) {
+        await database.createBookmark({ actorId, statusId: status.id })
+      }
+
+      const allBookmarks = await database.getBookmarks({ actorId, limit: 10 })
+      const newerBookmarks = await database.getBookmarks({
+        actorId,
+        limit: 2,
+        minId: allBookmarks[4].id
+      })
+
+      expect(newerBookmarks.map((bookmark) => bookmark.id)).toEqual([
+        allBookmarks[2].id,
+        allBookmarks[3].id
+      ])
+    })
+
     it('returns no bookmarks for invalid pagination cursors', async () => {
       const actorId = `${ACTOR3_ID}/bookmark-invalid-cursor-${randomUUID()}`
       const status = await createStatus('invalid-cursor')

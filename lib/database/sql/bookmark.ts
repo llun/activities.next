@@ -53,15 +53,16 @@ const resolveBookmarkStatusId = async ({
   const status = await database('statuses').where('id', statusId).first<{
     id: string
     type: string
+    originalStatusId?: string | null
     content: unknown
-  }>('id', 'type', 'content')
+  }>('id', 'type', 'originalStatusId', 'content')
   if (!status) return null
 
   if (status.type !== StatusType.enum.Announce) return status.id
 
-  const originalStatusId = getOriginalStatusIdFromAnnounceContent(
-    status.content
-  )
+  const originalStatusId =
+    status.originalStatusId ||
+    getOriginalStatusIdFromAnnounceContent(status.content)
   if (!originalStatusId || originalStatusId === status.id) return status.id
 
   return (
