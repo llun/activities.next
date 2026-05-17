@@ -256,18 +256,15 @@ export const SearchSQLDatabaseMixin = (
         .merge(documentRow)
 
       await trx('search_terms').where('documentId', documentId).delete()
-      await trx('search_terms')
-        .insert(
-          weightedTerms.map(({ term, weight }) => ({
-            documentId,
-            entityType,
-            term,
-            weight,
-            createdAt: currentTime
-          }))
-        )
-        .onConflict(['documentId', 'term'])
-        .merge(['entityType', 'weight', 'createdAt'])
+      await trx('search_terms').insert(
+        weightedTerms.map(({ term, weight }) => ({
+          documentId,
+          entityType,
+          term,
+          weight,
+          createdAt: currentTime
+        }))
+      )
     })
   }
 
@@ -466,7 +463,6 @@ export const SearchSQLDatabaseMixin = (
     const matches = database('search_terms')
       .select('documentId')
       .sum({ searchScore: 'weight' })
-      .countDistinct({ matchedTermCount: 'term' })
       .where('entityType', entityType)
       .whereIn('term', queryTerms)
       .groupBy('documentId')
@@ -794,8 +790,8 @@ export const SearchSQLDatabaseMixin = (
       )
       if (actors.length === 0) break
 
-      await Promise.all(
-        actors.map((actor) => upsertActorSearchDocument({ actorId: actor.id }))
+      await mapWithConcurrency(actors, rebuildConcurrency, (actor) =>
+        upsertActorSearchDocument({ actorId: actor.id })
       )
       result.accounts += actors.length
       actorCursor = actors[actors.length - 1]
@@ -844,10 +840,11 @@ export const SearchSQLDatabaseMixin = (
       const hashtags = await hashtagsQuery
       if (hashtags.length === 0) break
 
-      const indexed = await Promise.all(
-        hashtags.map((hashtag) =>
+      const indexed = await mapWithConcurrency(
+        hashtags,
+        rebuildConcurrency,
+        (hashtag) =>
           upsertHashtagSearchDocument({ name: hashtag.nameNormalized })
-        )
       )
       result.hashtags += indexed.filter(Boolean).length
       lastHashtagName = hashtags[hashtags.length - 1].nameNormalized
