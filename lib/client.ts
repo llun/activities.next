@@ -289,10 +289,6 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
   })
 }
 
-/**
- * Bookmarks a status using Mastodon-compatible API
- * @see https://docs.joinmastodon.org/methods/statuses/#bookmark
- */
 export const bookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(
     `/api/v1/statuses/${urlToId(statusId)}/bookmark`,
@@ -389,10 +385,6 @@ export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
   })
 }
 
-/**
- * Removes a bookmark from a status using Mastodon-compatible API
- * @see https://docs.joinmastodon.org/methods/statuses/#unbookmark
- */
 export const undoBookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(
     `/api/v1/statuses/${urlToId(statusId)}/unbookmark`,
