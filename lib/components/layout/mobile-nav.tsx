@@ -23,17 +23,17 @@ export function MobileNav({
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/90 backdrop-blur md:hidden safe-area-pb">
-      <ul className="flex items-center justify-around py-2">
+      <ul className="grid grid-flow-col auto-cols-fr items-center py-2">
         {allNavItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + '/')
           const isNotifications = item.href === '/notifications'
           return (
-            <li key={item.href}>
+            <li key={item.href} className="min-w-0">
               <Link
                 href={item.href}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-4 py-2 text-xs font-medium transition-colors relative',
+                  'relative flex min-w-0 flex-col items-center gap-1 px-1 py-2 text-[11px] font-medium transition-colors',
                   isActive ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
@@ -48,7 +48,7 @@ export function MobileNav({
                     />
                   )}
                 </div>
-                <span>{item.label}</span>
+                <span className="max-w-full truncate">{item.label}</span>
               </Link>
             </li>
           )

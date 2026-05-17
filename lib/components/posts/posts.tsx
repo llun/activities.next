@@ -7,7 +7,12 @@ import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { EditableStatus, Status } from '@/lib/types/domain/status'
+import {
+  EditableStatus,
+  Status,
+  StatusNote,
+  StatusPoll
+} from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
@@ -27,6 +32,10 @@ interface Props {
   onReplyCreated?: (status: Status, attachments: Attachment[]) => void
   onEdit?: (status: EditableStatus) => void
   onPostDeleted?: (status: Status) => void
+  onBookmarkChanged?: (
+    status: StatusNote | StatusPoll,
+    isBookmarked: boolean
+  ) => void
 }
 
 export const Posts: FC<Props> = ({
@@ -41,7 +50,8 @@ export const Posts: FC<Props> = ({
   onReply,
   onReplyCreated,
   onEdit,
-  onPostDeleted
+  onPostDeleted,
+  onBookmarkChanged
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
@@ -99,6 +109,7 @@ export const Posts: FC<Props> = ({
             onReply={handleReply}
             onEdit={onEdit}
             onPostDeleted={onPostDeleted}
+            onBookmarkChanged={onBookmarkChanged}
             onOpenStatus={openStatus}
             onShowAttachment={(allMedias, index) => {
               setModalMedias({ medias: allMedias, initialSelection: index })

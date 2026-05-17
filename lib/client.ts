@@ -289,6 +289,23 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
   })
 }
 
+/**
+ * Bookmarks a status using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/statuses/#bookmark
+ */
+export const bookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/bookmark`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  return response.status === 200
+}
+
 export interface GetStatusFavouritedByParams extends DefaultStatusParams {
   limit?: number
   offset?: number
@@ -370,6 +387,23 @@ export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
       'Content-Type': 'application/json'
     }
   })
+}
+
+/**
+ * Removes a bookmark from a status using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/statuses/#unbookmark
+ */
+export const undoBookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/unbookmark`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  return response.status === 200
 }
 
 interface VotePollParams {
@@ -569,6 +603,51 @@ export const getBlocks = async ({
     accounts: (await response.json()) as MastodonAccount[],
     nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
     prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
+  }
+}
+
+export interface GetBookmarksParams {
+  limit?: number
+  maxBookmarkId?: string
+  minBookmarkId?: string
+}
+
+export interface GetBookmarksResult {
+  statuses: Status[]
+  nextMaxBookmarkId: string | null
+  prevMinBookmarkId: string | null
+}
+
+export const getBookmarks = async ({
+  limit,
+  maxBookmarkId,
+  minBookmarkId
+}: GetBookmarksParams = {}): Promise<GetBookmarksResult> => {
+  const url = new URL(`${window.origin}/api/v1/bookmarks`)
+  url.searchParams.set('format', TimelineFormat.enum.activities_next)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxBookmarkId) url.searchParams.set('max_id', maxBookmarkId)
+  if (minBookmarkId) url.searchParams.set('min_id', minBookmarkId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return {
+      statuses: [],
+      nextMaxBookmarkId: null,
+      prevMinBookmarkId: null
+    }
+  }
+
+  const data = (await response.json()) as Partial<GetBookmarksResult>
+  return {
+    statuses: data.statuses ?? [],
+    nextMaxBookmarkId: data.nextMaxBookmarkId ?? null,
+    prevMinBookmarkId: data.prevMinBookmarkId ?? null
   }
 }
 

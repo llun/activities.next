@@ -8,6 +8,7 @@ import {
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
+import { BookmarkButton } from './bookmark-button'
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
 import { EditHistoryButton } from './edit-history-button'
@@ -33,7 +34,8 @@ export const Actions: FC<Props> = ({
   onReply,
   onEdit,
   onShowEdits,
-  onPostDeleted
+  onPostDeleted,
+  onBookmarkChanged
 }) => {
   if (!showActions) return null
   if (!currentActor) return null
@@ -54,7 +56,12 @@ export const Actions: FC<Props> = ({
       currentActor={currentActor}
       status={actualStatus}
     />,
-    <LikeButton key="like" currentActor={currentActor} status={actualStatus} />
+    <LikeButton key="like" currentActor={currentActor} status={actualStatus} />,
+    <BookmarkButton
+      key="bookmark"
+      status={actualStatus}
+      onBookmarkChanged={onBookmarkChanged}
+    />
   ]
   const secondaryActions: ReactNode[] = []
 
@@ -89,7 +96,7 @@ export const Actions: FC<Props> = ({
 
   const hasSecondaryActions = secondaryActions.length > 0
   // Use the same mobile grid for both rows so secondary controls align under primary controls.
-  const actionColumnClassName = hasEditHistory ? 'grid-cols-4' : 'grid-cols-3'
+  const actionColumnClassName = hasEditHistory ? 'grid-cols-5' : 'grid-cols-4'
 
   return (
     <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">

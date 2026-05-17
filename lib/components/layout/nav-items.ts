@@ -1,4 +1,4 @@
-import { Activity, Bell, Home, Settings, Shield } from 'lucide-react'
+import { Activity, Bell, Bookmark, Home, Settings, Shield } from 'lucide-react'
 import { type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
@@ -9,6 +9,7 @@ export interface NavItem {
 
 const baseNavItems: NavItem[] = [
   { href: '/', label: 'Timeline', icon: Home },
+  { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
@@ -22,13 +23,11 @@ export function buildNavItems({
   fitnessUrl,
   isAdmin = false
 }: BuildNavItemsParams): NavItem[] {
-  let items = fitnessUrl
-    ? [
-        ...baseNavItems.slice(0, 1),
-        { href: fitnessUrl, label: 'Fitness', icon: Activity },
-        ...baseNavItems.slice(1)
-      ]
-    : [...baseNavItems]
+  let items = [...baseNavItems]
+
+  if (fitnessUrl) {
+    items.splice(2, 0, { href: fitnessUrl, label: 'Fitness', icon: Activity })
+  }
 
   if (isAdmin) {
     const settingsIndex = items.findIndex((item) => item.href === '/settings')
