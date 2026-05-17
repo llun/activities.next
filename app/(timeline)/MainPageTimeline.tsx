@@ -255,14 +255,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
               dispatchStatusAction(clearAction())
             }}
             onPostUpdated={(updatedStatus: Status) => {
-              const index = currentStatuses.findIndex(
-                (status) => status.id === updatedStatus.id
+              setCurrentStatuses((previousStatuses) =>
+                previousStatuses.map((status) =>
+                  status.id === updatedStatus.id ? updatedStatus : status
+                )
               )
-              // TODO: Update status in Timeline somehow.
-              if (index >= 0) {
-                currentStatuses[index] = updatedStatus
-                setCurrentStatuses(() => currentStatuses)
-              }
               dispatchStatusAction(clearAction())
             }}
           />

@@ -44,6 +44,7 @@ import {
   UpdatePollParams
 } from '@/lib/types/database/operations'
 import { Actor, getActorProfile } from '@/lib/types/domain/actor'
+import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
@@ -68,6 +69,13 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
+
+const isReplaceableMediaAttachment = (
+  attachment: Attachment
+): attachment is Attachment & { mediaId: string } =>
+  !isFitnessAttachment(attachment) &&
+  attachment.mediaId !== null &&
+  attachment.mediaId !== undefined
 
 const isUniqueConstraintError = (error: unknown) => {
   const { code, errno, message } = error as {
@@ -487,7 +495,8 @@ export const StatusSQLDatabaseMixin = (
   async function updateNote({
     statusId,
     text,
-    summary
+    summary,
+    attachments
   }: UpdateNoteParams): Promise<Status | null> {
     const status = await getStatus({ statusId })
     if (!status) return null
@@ -518,6 +527,62 @@ export const StatusSQLDatabaseMixin = (
           }),
           updatedAt: currentTime
         })
+
+      if (attachments !== undefined) {
+        const incomingMediaIds = new Set(
+          attachments.map((attachment) => attachment.id)
+        )
+        const existingReplaceableAttachments = status.attachments.filter(
+          isReplaceableMediaAttachment
+        )
+        const replaceableAttachmentIds = status.attachments
+          .filter(
+            (attachment) =>
+              isReplaceableMediaAttachment(attachment) &&
+              !incomingMediaIds.has(attachment.mediaId)
+          )
+          .map((attachment) => attachment.id)
+        if (replaceableAttachmentIds.length > 0) {
+          await trx('attachments')
+            .where('statusId', status.id)
+            .where('actorId', status.actorId)
+            .whereIn('id', replaceableAttachmentIds)
+            .delete()
+        }
+
+        const existingMediaIds = new Set(
+          existingReplaceableAttachments.map((attachment) => attachment.mediaId)
+        )
+        const newAttachments = attachments.filter(
+          (attachment) => !existingMediaIds.has(attachment.id)
+        )
+
+        await Promise.all(
+          newAttachments.map((attachment, index) => {
+            const attachmentCreatedAt = new Date(currentTime.getTime() + index)
+            const data = Attachment.parse({
+              id: crypto.randomUUID(),
+              actorId: status.actorId,
+              statusId: status.id,
+              type: 'Document',
+              mediaType: attachment.mediaType,
+              url: attachment.url,
+              width: attachment.width,
+              height: attachment.height,
+              name: attachment.name ?? '',
+              mediaId: attachment.id,
+              createdAt: attachmentCreatedAt.getTime(),
+              updatedAt: attachmentCreatedAt.getTime()
+            })
+
+            return trx('attachments').insert({
+              ...data,
+              createdAt: attachmentCreatedAt,
+              updatedAt: attachmentCreatedAt
+            })
+          })
+        )
+      }
     })
     return getStatus({ statusId })
   }

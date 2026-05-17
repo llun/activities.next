@@ -10,6 +10,7 @@ import {
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
+import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
@@ -69,42 +70,78 @@ export interface UpdateNoteParams {
   statusId: string
   message?: string
   contentWarning?: string
+  attachments?: PostBoxAttachment[]
 }
+export interface UpdateNoteResult {
+  content: string
+  spoilerText: string
+  mediaAttachments: MediaAttachment[]
+  status: {
+    id: string
+    text: string | null
+    createdAt: number
+    updatedAt?: number
+    reply: string
+  }
+}
+
+const parseTimestamp = (value: unknown, fallback: number) => {
+  if (typeof value !== 'string') return fallback
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? fallback : timestamp
+}
+
 export const updateNote = async ({
   statusId,
   message,
-  contentWarning
-}: UpdateNoteParams) => {
-  const normalizedMessage =
-    message !== undefined && message.trim().length > 0 ? message : undefined
+  contentWarning,
+  attachments
+}: UpdateNoteParams): Promise<UpdateNoteResult> => {
+  const hasMessageChange = message !== undefined
+  const hasAttachmentChanges = attachments !== undefined
 
-  if (normalizedMessage === undefined && contentWarning === undefined) {
-    throw new Error('Message or content warning must be provided')
+  if (
+    !hasMessageChange &&
+    contentWarning === undefined &&
+    !hasAttachmentChanges
+  ) {
+    throw new Error('Message, content warning, or attachments must be provided')
   }
 
-  const response = await fetch(`/api/v1/statuses/${statusId}`, {
+  const encodedStatusId = statusId.startsWith('http')
+    ? urlToId(statusId)
+    : statusId
+  const response = await fetch(`/api/v1/statuses/${encodedStatusId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      ...(normalizedMessage !== undefined ? { status: normalizedMessage } : {}),
-      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {})
+      ...(hasMessageChange ? { status: message } : {}),
+      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
+      ...(attachments !== undefined
+        ? { media_ids: attachments.map((attachment) => attachment.id) }
+        : {})
     })
   })
   if (response.status !== 200) {
-    throw new Error('Fail to create a new note')
+    throw new Error('Fail to update the note')
   }
 
   const mastodonStatus = await response.json()
+  const createdAt = parseTimestamp(mastodonStatus.created_at, Date.now())
   return {
     content: mastodonStatus.content,
+    spoilerText: mastodonStatus.spoiler_text ?? '',
+    mediaAttachments: Array.isArray(mastodonStatus.media_attachments)
+      ? mastodonStatus.media_attachments
+      : [],
     status: {
-      id: mastodonStatus.id,
-      text: mastodonStatus.content,
-      createdAt: new Date(mastodonStatus.created_at),
+      id: mastodonStatus.uri ?? mastodonStatus.id,
+      text: mastodonStatus.text ?? null,
+      createdAt,
       updatedAt: mastodonStatus.edited_at
-        ? new Date(mastodonStatus.edited_at)
+        ? parseTimestamp(mastodonStatus.edited_at, createdAt)
         : undefined,
       reply: mastodonStatus.in_reply_to_id || ''
     }

@@ -286,6 +286,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           ...item,
           width: item.width ?? undefined,
           height: item.height ?? undefined,
+          mediaId:
+            item.mediaId === null || item.mediaId === undefined
+              ? null
+              : String(item.mediaId),
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -323,6 +327,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           ...item,
           width: item.width ?? undefined,
           height: item.height ?? undefined,
+          mediaId:
+            item.mediaId === null || item.mediaId === undefined
+              ? null
+              : String(item.mediaId),
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -362,6 +370,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           ...item,
           width: item.width ?? undefined,
           height: item.height ?? undefined,
+          mediaId:
+            item.mediaId === null || item.mediaId === undefined
+              ? null
+              : String(item.mediaId),
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })

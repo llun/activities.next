@@ -6,7 +6,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
@@ -363,7 +363,9 @@ type BaseStatusParams = {
 }
 
 export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
-  BaseStatusParams
+  BaseStatusParams & {
+    attachments?: PostBoxAttachment[]
+  }
 
 export type UpdateNoteVisibilityParams = BaseStatusParams & {
   to: string[]

@@ -44,6 +44,7 @@ export const Attachment = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   name: z.string(),
+  mediaId: z.string().nullable().optional(),
 
   createdAt: z.number(),
   updatedAt: z.number()
