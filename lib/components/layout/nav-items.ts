@@ -26,12 +26,19 @@ export function buildNavItems({
   let items = [...baseNavItems]
 
   if (fitnessUrl) {
-    items.splice(2, 0, { href: fitnessUrl, label: 'Fitness', icon: Activity })
+    const notificationsIndex = items.findIndex(
+      (item) => item.href === '/notifications'
+    )
+    items.splice(
+      notificationsIndex >= 0 ? notificationsIndex : items.length,
+      0,
+      { href: fitnessUrl, label: 'Fitness', icon: Activity }
+    )
   }
 
   if (isAdmin) {
     const settingsIndex = items.findIndex((item) => item.href === '/settings')
-    items.splice(settingsIndex, 0, {
+    items.splice(settingsIndex >= 0 ? settingsIndex : items.length, 0, {
       href: '/admin',
       label: 'Admin',
       icon: Shield
