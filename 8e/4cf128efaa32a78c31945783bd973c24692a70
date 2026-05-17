@@ -1,0 +1,30 @@
+lib/database/sql/actor.ts
+  s_310719d8018dcf::t_0fec4fdddf6001 151,157
+  s_310719d8018dcf::t_48de136a192bca 152-155
+lib/database/sql/actor.test.ts
+  s_310719d8018dcf::t_ef6429e6d8b28a 344-376,378-381
+  s_310719d8018dcf::t_f2b2e7f37b6e4d 377
+migrations/20260517002000_add_direct_conversations.js
+  s_310719d8018dcf::t_03593de4f24c59 88,175-180
+lib/database/sql/conversation.test.ts
+  s_310719d8018dcf::t_19da5f0f6412fe 59,74
+lib/database/sql/conversation.ts
+  s_310719d8018dcf::t_af036827f5a9c4 150
+  s_310719d8018dcf::t_eb6d1eb286aa81 464-468,483-487,497-522,524,526-528,530,532,536-537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8e4cf128efaa32a78c31945783bd973c24692a70",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
