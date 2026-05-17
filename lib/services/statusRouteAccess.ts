@@ -1,6 +1,6 @@
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
-import type { Status } from '@/lib/types/domain/status'
+import { type Status, StatusType } from '@/lib/types/domain/status'
 
 import { canActorReadStatus, isStatusPubliclyReadable } from './statusAccess'
 
@@ -32,6 +32,45 @@ export const getReadableStatus = async ({
   return hasAccess ? status : null
 }
 
+const addStatusActorIds = (status: Status, actorIds: Set<string>) => {
+  actorIds.add(status.actorId)
+  if (status.type === StatusType.enum.Announce) {
+    addStatusActorIds(status.originalStatus, actorIds)
+  }
+}
+
+const getFollowerStateByActorId = async ({
+  database,
+  statuses,
+  currentActor
+}: {
+  database: Database
+  statuses: Status[]
+  currentActor: Actor
+}): Promise<Map<string, boolean>> => {
+  const actorIds = new Set<string>()
+  for (const status of statuses) {
+    addStatusActorIds(status, actorIds)
+  }
+
+  actorIds.delete(currentActor.id)
+  if (actorIds.size === 0) return new Map<string, boolean>()
+
+  const targetActorIds = [...actorIds]
+  const acceptedTargetActorIds = new Set(
+    await database.getAcceptedFollowTargetActorIds({
+      actorId: currentActor.id,
+      targetActorIds
+    })
+  )
+
+  return new Map(
+    targetActorIds.map(
+      (actorId) => [actorId, acceptedTargetActorIds.has(actorId)] as const
+    )
+  )
+}
+
 export const filterReadableStatuses = async ({
   database,
   statuses,
@@ -52,10 +91,23 @@ export const filterReadableStatuses = async ({
     }
   }
 
+  const followerStateByActorId =
+    currentActor && statusesNeedingAccessCheck.length > 0
+      ? await getFollowerStateByActorId({
+          database,
+          statuses: statusesNeedingAccessCheck,
+          currentActor
+        })
+      : undefined
   const checkedStatuses = (
     await Promise.all(
       statusesNeedingAccessCheck.map(async (status) =>
-        (await canActorReadStatus({ database, status, currentActor }))
+        (await canActorReadStatus({
+          database,
+          status,
+          currentActor,
+          followerStateByActorId
+        }))
           ? status
           : null
       )

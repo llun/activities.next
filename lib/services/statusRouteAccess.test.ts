@@ -17,13 +17,17 @@ const createStatus = (id: string) =>
   }) as Status
 
 describe('filterReadableStatuses', () => {
-  const database = {} as Database
+  const getAcceptedFollowTargetActorIds = jest.fn()
+  const database = { getAcceptedFollowTargetActorIds } as unknown as Database
   const currentActor = {
     id: 'https://example.com/users/bob'
   } as Actor
 
   beforeEach(() => {
     jest.clearAllMocks()
+    getAcceptedFollowTargetActorIds.mockResolvedValue([
+      'https://example.com/users/alice'
+    ])
     ;(isStatusPubliclyReadable as jest.Mock).mockReturnValue(false)
     ;(canActorReadStatus as jest.Mock).mockResolvedValue(false)
   })
@@ -43,11 +47,16 @@ describe('filterReadableStatuses', () => {
     })
 
     expect(statuses).toEqual([publicStatus, privateStatus])
+    expect(getAcceptedFollowTargetActorIds).toHaveBeenCalledWith({
+      actorId: currentActor.id,
+      targetActorIds: [privateStatus.actorId]
+    })
     expect(canActorReadStatus).toHaveBeenCalledTimes(1)
     expect(canActorReadStatus).toHaveBeenCalledWith({
       database,
       status: privateStatus,
-      currentActor
+      currentActor,
+      followerStateByActorId: new Map([[privateStatus.actorId, true]])
     })
   })
 
@@ -65,6 +74,7 @@ describe('filterReadableStatuses', () => {
     })
 
     expect(statuses).toEqual([publicStatus])
+    expect(getAcceptedFollowTargetActorIds).not.toHaveBeenCalled()
     expect(canActorReadStatus).not.toHaveBeenCalled()
   })
 })
