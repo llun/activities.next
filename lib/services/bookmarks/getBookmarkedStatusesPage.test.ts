@@ -4,7 +4,10 @@ import type { Bookmark } from '@/lib/types/domain/bookmark'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { getBookmarkedStatusesPage } from './getBookmarkedStatusesPage'
+import {
+  MAX_BOOKMARK_BACKFILL_ITERATIONS,
+  getBookmarkedStatusesPage
+} from './getBookmarkedStatusesPage'
 
 const readerActorId = 'https://llun.test/users/reader'
 const authorActorId = 'https://llun.test/users/author'
@@ -193,5 +196,64 @@ describe('getBookmarkedStatusesPage', () => {
 
     expect(page.nextMaxBookmarkId).toBe(olderBookmark.id)
     expect(page.prevMinBookmarkId).toBe(newerBookmark.id)
+  })
+
+  it('uses the last scanned bookmark cursor when max backfill iterations are consumed before the visible page is full', async () => {
+    const limit = 3
+    const visible = createStatus('max-backfill-visible')
+    const visibleBookmark = createBookmark('max-backfill-visible', visible.id)
+    const batches = new Map<string | null, Bookmark[]>()
+    const statuses = [visible]
+    let previousCursor: string | null = null
+    let lastScannedBookmarkId: string | null = null
+
+    for (
+      let batchIndex = 0;
+      batchIndex < MAX_BOOKMARK_BACKFILL_ITERATIONS;
+      batchIndex++
+    ) {
+      const bookmarks = Array.from({ length: limit }, (_, bookmarkIndex) => {
+        if (batchIndex === 0 && bookmarkIndex === 0) {
+          return visibleBookmark
+        }
+
+        const hidden = createStatus(
+          `max-backfill-hidden-${batchIndex}-${bookmarkIndex}`,
+          { publicReadable: false }
+        )
+        statuses.push(hidden)
+        return createBookmark(
+          `max-backfill-hidden-${batchIndex}-${bookmarkIndex}`,
+          hidden.id
+        )
+      })
+
+      batches.set(previousCursor, bookmarks)
+      previousCursor = bookmarks[bookmarks.length - 1].id
+      lastScannedBookmarkId = previousCursor
+    }
+
+    batches.set(previousCursor, [
+      createBookmark('max-backfill-unscanned', visible.id)
+    ])
+
+    const { database, getBookmarks } = createDatabase({
+      statuses,
+      batches
+    })
+
+    const page = await getBookmarkedStatusesPage({
+      database,
+      actorId: readerActorId,
+      currentActor,
+      limit
+    })
+
+    expect(page.statuses.map((status) => status.id)).toEqual([visible.id])
+    expect(page.nextMaxBookmarkId).toBe(lastScannedBookmarkId)
+    expect(page.nextMaxBookmarkId).not.toBeNull()
+    expect(page.nextMaxBookmarkId).not.toBe(visibleBookmark.id)
+    expect(page.prevMinBookmarkId).toBe(visibleBookmark.id)
+    expect(getBookmarks).toHaveBeenCalledTimes(MAX_BOOKMARK_BACKFILL_ITERATIONS)
   })
 })
