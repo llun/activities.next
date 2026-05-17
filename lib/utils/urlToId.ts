@@ -10,6 +10,10 @@ const fromBase64Url = (value: string) =>
     .replaceAll('_', '/')
 
 const encodeBase64Url = (value: string) => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf8').toString('base64url')
+  }
+
   if (typeof btoa === 'function' && typeof TextEncoder !== 'undefined') {
     const bytes = new TextEncoder().encode(value)
     const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join(
@@ -18,15 +22,19 @@ const encodeBase64Url = (value: string) => {
     return toBase64Url(btoa(binary))
   }
 
-  return toBase64Url(Buffer.from(value, 'utf8').toString('base64'))
+  throw new Error('Base64url encoding is not available')
 }
 
 const decodeBase64Url = (value: string) => {
-  const base64 = fromBase64Url(value)
-  if (typeof atob !== 'function' || typeof TextDecoder === 'undefined') {
-    return Buffer.from(base64, 'base64').toString('utf8')
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'base64url').toString('utf8')
   }
 
+  if (typeof atob !== 'function' || typeof TextDecoder === 'undefined') {
+    throw new Error('Base64url decoding is not available')
+  }
+
+  const base64 = fromBase64Url(value)
   const binary = atob(base64)
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
   return new TextDecoder().decode(bytes)

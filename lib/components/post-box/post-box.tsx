@@ -89,17 +89,21 @@ interface Props {
 
 const getEditableStatusText = (status: EditableStatus) => status.text
 
+const isEditableStatusMediaAttachment = (
+  attachment: Attachment
+): attachment is Attachment & { mediaId: string } =>
+  Boolean(attachment.mediaId) && !isFitnessAttachment(attachment)
+
 const getEditableStatusAttachments = (
   status: EditableStatus
 ): PostBoxAttachment[] =>
   status.attachments.flatMap((attachment) => {
-    const mediaId = attachment.mediaId
-    if (!mediaId || isFitnessAttachment(attachment)) return []
+    if (!isEditableStatusMediaAttachment(attachment)) return []
 
     return [
       {
         type: 'upload',
-        id: mediaId,
+        id: attachment.mediaId,
         mediaType: attachment.mediaType,
         url: attachment.url,
         width: attachment.width ?? 0,
@@ -108,6 +112,11 @@ const getEditableStatusAttachments = (
       }
     ]
   })
+
+const getPreservedStatusAttachments = (attachments: Attachment[]) =>
+  attachments.filter(
+    (attachment) => !isEditableStatusMediaAttachment(attachment)
+  )
 
 const getAttachmentIds = (attachments: Pick<PostBoxAttachment, 'id'>[]) =>
   attachments.map((attachment) => attachment.id)
@@ -129,6 +138,15 @@ const hasNewPostContent = (
   value.trim().length > 0 ||
   extension.attachments.length > 0 ||
   Boolean(extension.fitnessFile)
+
+const hasEditPostContent = (
+  status: EditableStatus,
+  value: string,
+  extension: { attachments: PostBoxAttachment[] }
+) =>
+  value.trim().length > 0 ||
+  extension.attachments.length > 0 ||
+  getPreservedStatusAttachments(status.attachments).length > 0
 
 type UpdateNoteResponse = Awaited<ReturnType<typeof updateNote>>
 type UpdateNoteMediaAttachment = UpdateNoteResponse['mediaAttachments'][number]
@@ -197,48 +215,70 @@ const getStatusAttachmentsFromUpdateResponse = ({
   statusId: string
   uploadedAttachments: PostBoxAttachment[]
   updatedAt: number
-}): Attachment[] =>
-  mediaAttachments.map((mediaAttachment, index) => {
-    // Mastodon returns media attachments in the submitted order; keep this
-    // order-sensitive pairing so Attachment.id comes from the server while
-    // mediaId and fallback metadata come from the uploaded media ids.
-    const uploadedAttachment = uploadedAttachments[index]
-    const existingAttachment = existingAttachments.find(
-      (attachment) =>
-        attachment.id === mediaAttachment.id ||
-        attachment.mediaId === uploadedAttachment?.id ||
-        attachment.url === mediaAttachment.url
-    )
-    const dimensions = getMediaAttachmentDimensions(
-      mediaAttachment,
-      uploadedAttachment
-    )
-    const attachmentCreatedAt = existingAttachment?.createdAt ?? updatedAt
+}): Attachment[] => {
+  const updatedMediaAttachments: Attachment[] = mediaAttachments.map(
+    (mediaAttachment, index) => {
+      // Mastodon returns media attachments in the submitted order; keep this
+      // order-sensitive pairing so Attachment.id comes from the server while
+      // mediaId and fallback metadata come from the uploaded media ids.
+      const uploadedAttachment = uploadedAttachments[index]
+      const existingAttachment = existingAttachments.find(
+        (attachment) =>
+          attachment.id === mediaAttachment.id ||
+          attachment.mediaId === uploadedAttachment?.id ||
+          attachment.url === mediaAttachment.url
+      )
+      const dimensions = getMediaAttachmentDimensions(
+        mediaAttachment,
+        uploadedAttachment
+      )
+      const attachmentCreatedAt = existingAttachment?.createdAt ?? updatedAt
 
-    return {
-      id: mediaAttachment.id,
-      actorId,
-      statusId,
-      type: 'Document',
-      mediaType:
-        existingAttachment?.mediaType ??
-        uploadedAttachment?.mediaType ??
-        getMediaTypeFromMastodonAttachment(mediaAttachment),
-      url: mediaAttachment.url,
-      width: dimensions.width ?? existingAttachment?.width,
-      height: dimensions.height ?? existingAttachment?.height,
-      name:
-        mediaAttachment.description ??
-        existingAttachment?.name ??
-        uploadedAttachment?.name ??
-        '',
-      mediaId: existingAttachment
-        ? (existingAttachment.mediaId ?? null)
-        : (uploadedAttachment?.id ?? null),
-      createdAt: attachmentCreatedAt,
-      updatedAt
+      return {
+        id: mediaAttachment.id,
+        actorId,
+        statusId,
+        type: 'Document',
+        mediaType:
+          existingAttachment?.mediaType ??
+          uploadedAttachment?.mediaType ??
+          getMediaTypeFromMastodonAttachment(mediaAttachment),
+        url: mediaAttachment.url,
+        width: dimensions.width ?? existingAttachment?.width,
+        height: dimensions.height ?? existingAttachment?.height,
+        name:
+          mediaAttachment.description ??
+          existingAttachment?.name ??
+          uploadedAttachment?.name ??
+          '',
+        mediaId: existingAttachment
+          ? (existingAttachment.mediaId ?? null)
+          : (uploadedAttachment?.id ?? null),
+        createdAt: attachmentCreatedAt,
+        updatedAt
+      }
     }
-  })
+  )
+
+  const preservedAttachments: Attachment[] = getPreservedStatusAttachments(
+    existingAttachments
+  )
+    .filter(
+      (attachment) =>
+        !mediaAttachments.some(
+          (mediaAttachment) =>
+            mediaAttachment.id === attachment.id ||
+            mediaAttachment.url === attachment.url
+        )
+    )
+    .map((attachment) => ({
+      ...attachment,
+      statusId,
+      updatedAt
+    }))
+
+  return [...updatedMediaAttachments, ...preservedAttachments]
+}
 
 export const PostBox: FC<Props> = ({
   host,
@@ -295,6 +335,18 @@ export const PostBox: FC<Props> = ({
         extension.attachments,
         getEditableStatusAttachments(editStatus)
       )
+    )
+  }
+
+  const isEditSubmittable = (
+    value = textRef.current,
+    extension = postExtensionRef.current
+  ) => {
+    if (!editStatus) return false
+
+    return (
+      isEditDirty(value, extension) &&
+      hasEditPostContent(editStatus, value, extension)
     )
   }
 
@@ -390,6 +442,7 @@ export const PostBox: FC<Props> = ({
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
+    if (!allowPost) return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
 
@@ -539,7 +592,7 @@ export const PostBox: FC<Props> = ({
     } catch {
       setIsPosting(false)
       setAllowPost(true)
-      alert('Fail to create a post')
+      alert(editStatus ? 'Fail to update the post' : 'Fail to create a post')
     } finally {
       submitInFlightRef.current = false
     }
@@ -566,7 +619,7 @@ export const PostBox: FC<Props> = ({
     postExtensionRef.current = nextExtension
     dispatch(setAttachments(nextAttachments))
     if (editStatus) {
-      setAllowPost(isEditDirty(textRef.current, nextExtension))
+      setAllowPost(isEditSubmittable(textRef.current, nextExtension))
       return
     }
     setAllowPost(hasNewPostContent(textRef.current, nextExtension))
@@ -642,13 +695,13 @@ export const PostBox: FC<Props> = ({
     if (value.trim().length === 0) {
       setAllowPost(
         editStatus
-          ? isEditDirty(value)
+          ? isEditSubmittable(value)
           : hasNewPostContent(value, postExtensionRef.current)
       )
       return
     }
     if (editStatus) {
-      setAllowPost(isEditDirty(value))
+      setAllowPost(isEditSubmittable(value))
       return
     }
     setAllowPost(true)
@@ -665,7 +718,7 @@ export const PostBox: FC<Props> = ({
         postExtensionRef.current.contentWarningVisible || value.length > 0
     }
     postExtensionRef.current = nextExtension
-    setAllowPost(isEditDirty(textRef.current, nextExtension))
+    setAllowPost(isEditSubmittable(textRef.current, nextExtension))
   }
 
   const onToggleContentWarning = () => {
@@ -678,7 +731,7 @@ export const PostBox: FC<Props> = ({
       contentWarningVisible: nextVisible
     }
     postExtensionRef.current = nextExtension
-    setAllowPost(isEditDirty(textRef.current, nextExtension))
+    setAllowPost(isEditSubmittable(textRef.current, nextExtension))
   }
 
   /**
@@ -949,7 +1002,9 @@ export const PostBox: FC<Props> = ({
                 postExtensionRef.current = nextExtension
                 dispatch(addAttachment(attachment))
                 if (editStatus) {
-                  setAllowPost(isEditDirty(textRef.current, nextExtension))
+                  setAllowPost(
+                    isEditSubmittable(textRef.current, nextExtension)
+                  )
                   return
                 }
                 setAllowPost(hasNewPostContent(textRef.current, nextExtension))

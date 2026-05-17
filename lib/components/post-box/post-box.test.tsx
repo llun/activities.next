@@ -86,6 +86,15 @@ const legacyAttachmentWithoutMediaId: Attachment = {
   mediaId: null
 }
 
+const fitnessAttachment: Attachment = {
+  ...existingAttachment,
+  id: 'fitness-attachment',
+  mediaType: 'application/gpx+xml',
+  url: 'https://activities.local/api/v1/fitness-files/fitness-file-1',
+  name: 'activity.gpx',
+  mediaId: 'fitness-media'
+}
+
 const editStatus: EditableStatus = {
   id: 'https://activities.local/users/llun/statuses/post-1',
   actorId: profile.id,
@@ -498,6 +507,70 @@ describe('PostBox edit media', () => {
     })
   })
 
+  it('keeps update disabled when an edit would remove all content', async () => {
+    const { container } = render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const updateButton = screen.getByRole('button', { name: 'Update' })
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: '' }
+    })
+    expect(updateButton).toBeEnabled()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove media existing.jpg' })
+    )
+
+    expect(updateButton).toBeDisabled()
+    fireEvent.submit(container.querySelector('form')!)
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(updateNoteMock).not.toHaveBeenCalled()
+  })
+
+  it('shows an edit-specific alert when updating a post fails', async () => {
+    const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {})
+    updateNoteMock.mockRejectedValueOnce(new Error('update failed'))
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: 'Updated post text' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(alertMock).toHaveBeenCalledWith('Fail to update the post')
+    })
+
+    alertMock.mockRestore()
+  })
+
   it('does not submit an edit when text, warning, and media are unchanged', async () => {
     const { container } = render(
       <PostBox
@@ -613,6 +686,127 @@ describe('PostBox edit media', () => {
         ]
       })
     )
+  })
+
+  it('preserves fitness attachments in the locally updated status', async () => {
+    const onPostUpdated = jest.fn()
+    updateNoteMock.mockResolvedValueOnce({
+      content: '<p>Updated post text</p>',
+      spoilerText: '',
+      mediaAttachments: [],
+      status: {
+        id: editStatus.id,
+        text: 'Updated post text',
+        createdAt: currentTime,
+        updatedAt: updatedTime,
+        reply: ''
+      }
+    })
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={{
+          ...editStatus,
+          attachments: [fitnessAttachment]
+        }}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={onPostUpdated}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: 'Updated post text' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(onPostUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachments: [
+            expect.objectContaining({
+              id: 'fitness-attachment',
+              mediaType: 'application/gpx+xml',
+              mediaId: 'fitness-media',
+              statusId: editStatus.id,
+              updatedAt: updatedTime
+            })
+          ]
+        })
+      )
+    })
+  })
+
+  it('does not duplicate preserved attachments already returned by the update response', async () => {
+    const onPostUpdated = jest.fn()
+    updateNoteMock.mockResolvedValueOnce({
+      content: '<p>Updated post text</p>',
+      spoilerText: '',
+      mediaAttachments: [
+        {
+          id: 'legacy-attachment',
+          type: 'image',
+          url: 'https://activities.local/api/v1/files/legacy.jpg',
+          preview_url: null,
+          remote_url: null,
+          description: 'legacy.jpg',
+          blurhash: null,
+          meta: {
+            original: {
+              width: 800,
+              height: 600,
+              size: '800x600',
+              aspect: 1.3333333333333333
+            }
+          }
+        }
+      ],
+      status: {
+        id: editStatus.id,
+        text: 'Updated post text',
+        createdAt: currentTime,
+        updatedAt: updatedTime,
+        reply: ''
+      }
+    })
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={{
+          ...editStatus,
+          attachments: [legacyAttachmentWithoutMediaId]
+        }}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={onPostUpdated}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      target: { value: 'Updated post text' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => {
+      expect(onPostUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachments: [
+            expect.objectContaining({
+              id: 'legacy-attachment'
+            })
+          ]
+        })
+      )
+    })
+    expect(onPostUpdated.mock.calls[0][0].attachments).toHaveLength(1)
   })
 
   it('ignores reentrant submits while edit media upload is in flight', async () => {
