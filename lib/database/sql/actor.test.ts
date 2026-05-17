@@ -21,6 +21,7 @@ import {
   TEST_PASSWORD_HASH,
   TEST_USERNAME3
 } from '@/lib/stub/const'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -338,6 +339,79 @@ describe('ActorDatabase', () => {
           statuses_count: 0,
           followers_count: 0,
           following_count: 0
+        })
+      })
+
+      it('returns mastodon actors from ids in request order', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const username = `bulk-${suffix}`
+          const localActorId = `https://${TEST_DOMAIN}/users/${username}`
+          const remoteActorId = `https://remote-${suffix}.example/users/alice`
+          const statusId = `${localActorId}/statuses/1`
+
+          await database.createAccount({
+            email: `${username}@${TEST_DOMAIN}`,
+            username,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey-${suffix}`,
+            publicKey: `publicKey-${suffix}`
+          })
+          await database.createActor({
+            actorId: remoteActorId,
+            username: 'alice',
+            domain: `remote-${suffix}.example`,
+            followersUrl: `${remoteActorId}/followers`,
+            inboxUrl: `${remoteActorId}/inbox`,
+            sharedInboxUrl: `${remoteActorId}/inbox`,
+            publicKey: `remotePublicKey-${suffix}`,
+            createdAt: Date.now()
+          })
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: localActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Bulk account lookup test'
+          })
+          await database.createFollow({
+            actorId: remoteActorId,
+            targetActorId: localActorId,
+            inbox: `${remoteActorId}/inbox`,
+            sharedInbox: `${remoteActorId}/inbox`,
+            status: FollowStatus.enum.Accepted
+          })
+          await database.createFollow({
+            actorId: localActorId,
+            targetActorId: remoteActorId,
+            inbox: `${localActorId}/inbox`,
+            sharedInbox: `https://${TEST_DOMAIN}/inbox`,
+            status: FollowStatus.enum.Accepted
+          })
+
+          const actors = await database.getMastodonActorsFromIds({
+            ids: [
+              remoteActorId,
+              'https://missing.example/users/not-found',
+              localActorId,
+              remoteActorId
+            ]
+          })
+
+          expect(actors.map((actor) => actor.url)).toEqual([
+            remoteActorId,
+            localActorId,
+            remoteActorId
+          ])
+          expect(actors[1]).toMatchObject({
+            url: localActorId,
+            last_status_at: expect.toBeString(),
+            statuses_count: 1,
+            followers_count: 1,
+            following_count: 1
+          })
         })
       })
 

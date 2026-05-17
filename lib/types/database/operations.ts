@@ -50,6 +50,7 @@ export type CreateActorParams = {
 export type GetActorFromEmailParams = { email: string }
 export type GetActorFromUsernameParams = { username: string; domain: string }
 export type GetActorFromIdParams = { id: string }
+export type GetActorsFromIdsParams = { ids: string[] }
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
@@ -135,6 +136,9 @@ export interface ActorDatabase {
   getMastodonActorFromId(
     params: GetActorFromIdParams
   ): Promise<Mastodon.Account | null>
+  getMastodonActorsFromIds(
+    params: GetActorsFromIdsParams
+  ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
   deleteActor(params: DeleteActorParams): Promise<void>
   updateActorFollowersCount(actorId: string): Promise<void>

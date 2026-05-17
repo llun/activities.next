@@ -111,15 +111,9 @@ export const GET = traceApiRoute(
 
     const paginationLink = getPaginationLinkHeader({ req, limit, reblogs })
 
-    const accounts = (
-      await Promise.all(
-        reblogs.map(({ actorId }) =>
-          database.getMastodonActorFromId({ id: actorId })
-        )
-      )
-    ).filter((account): account is NonNullable<typeof account> =>
-      Boolean(account)
-    )
+    const accounts = await database.getMastodonActorsFromIds({
+      ids: reblogs.map(({ actorId }) => actorId)
+    })
 
     return apiResponse({
       req,
