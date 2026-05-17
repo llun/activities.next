@@ -1,0 +1,23 @@
+lib/components/posts/actions/bookmark-button.test.tsx
+  s_5d40a12a070d4a::t_264bef1e522136 73-74,93-94,109-110
+  s_5d40a12a070d4a::t_1349b910b61d72 1-72,75-92,95-108,111-113
+lib/components/posts/actions/bookmark-button.tsx
+  s_5d40a12a070d4a::t_0f2535081d4c82 24,28,32-34,37-48,50-60,63-68,70-71,73-79
+  s_5d40a12a070d4a::t_c47c88dd4b0f11 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "502f37e98bd7a35070fcc5048dbcf3995a5fab39",
+  "prompts": {},
+  "sessions": {
+    "s_5d40a12a070d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34f2-5f7a-78f2-bcb3-e89e9dbef690",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

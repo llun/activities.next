@@ -1,0 +1,21 @@
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  s_5d40a12a070d4a::t_d1ce0e5dc73235 130-164
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_5d40a12a070d4a::t_894fd19afad93e 20-21,73-74,79-104,107-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1279020bea435e6d8725f347c34a1ec600c78dc1",
+  "prompts": {},
+  "sessions": {
+    "s_5d40a12a070d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34f2-5f7a-78f2-bcb3-e89e9dbef690",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
