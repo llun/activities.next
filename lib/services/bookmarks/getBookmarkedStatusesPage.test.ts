@@ -64,14 +64,17 @@ const createDatabase = ({
     async ({ statusIds }: { statusIds: string[] }) =>
       statuses.filter((status) => statusIds.includes(status.id))
   )
+  const getAcceptedFollowTargetActorIds = jest.fn(async () => [])
 
   return {
     database: {
       getBookmarks,
-      getStatusesByIds
+      getStatusesByIds,
+      getAcceptedFollowTargetActorIds
     } as unknown as Database,
     getBookmarks,
-    getStatusesByIds
+    getStatusesByIds,
+    getAcceptedFollowTargetActorIds
   }
 }
 
@@ -81,7 +84,7 @@ describe('getBookmarkedStatusesPage', () => {
     const hiddenTwo = createStatus('hidden-two', { publicReadable: false })
     const hiddenOneBookmark = createBookmark('hidden-one', hiddenOne.id)
     const hiddenTwoBookmark = createBookmark('hidden-two', hiddenTwo.id)
-    const { database, getBookmarks } = createDatabase({
+    const { database, getBookmarks, getStatusesByIds } = createDatabase({
       statuses: [hiddenOne, hiddenTwo],
       batches: new Map([
         [null, [hiddenOneBookmark, hiddenTwoBookmark]],
@@ -99,6 +102,12 @@ describe('getBookmarkedStatusesPage', () => {
     expect(page.statuses).toEqual([])
     expect(page.nextMaxBookmarkId).toBeNull()
     expect(page.prevMinBookmarkId).toBeNull()
+    expect(getStatusesByIds).toHaveBeenCalledWith({
+      statusIds: [hiddenOne.id, hiddenTwo.id],
+      currentActorId: readerActorId,
+      visibleToActorId: readerActorId,
+      withReplies: false
+    })
     expect(getBookmarks).toHaveBeenNthCalledWith(2, {
       actorId: readerActorId,
       limit: 2,

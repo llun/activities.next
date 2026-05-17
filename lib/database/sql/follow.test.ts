@@ -147,6 +147,26 @@ describe('FollowDatabase', () => {
       })
     })
 
+    describe('getAcceptedFollowTargetActorIds', () => {
+      it('returns only accepted target actor ids from the requested set', async () => {
+        const targetActorIds = await database.getAcceptedFollowTargetActorIds({
+          actorId: 'https://somewhere.test/actors/friend',
+          targetActorIds: [primaryActorId, replyAuthorId, primaryActorId]
+        })
+
+        expect(targetActorIds).toEqual([primaryActorId])
+      })
+
+      it('omits requested follows and unrelated targets', async () => {
+        const targetActorIds = await database.getAcceptedFollowTargetActorIds({
+          actorId: followRequesterId,
+          targetActorIds: [primaryActorId, replyAuthorId]
+        })
+
+        expect(targetActorIds).toEqual([])
+      })
+    })
+
     describe('getFollowFromId', () => {
       it('returns follow by id', async () => {
         const pendingFollow = await database.getAcceptedOrRequestedFollow({

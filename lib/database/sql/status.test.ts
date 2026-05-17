@@ -459,6 +459,48 @@ describe('StatusDatabase', () => {
         expect(originalStatus.isActorBookmarked).toBe(true)
         expect(originalStatus.isActorLiked).toBe(true)
       })
+
+      it('filters statuses by visible actor while preserving requested order', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const hiddenStatusId = `${emptyActorId}/statuses/hidden-${suffix}`
+        const directStatusId = `${emptyActorId}/statuses/direct-${suffix}`
+        const publicStatusId = `${emptyActorId}/statuses/public-${suffix}`
+
+        await database.createNote({
+          id: hiddenStatusId,
+          url: hiddenStatusId,
+          actorId: emptyActorId,
+          to: [extraActorId],
+          cc: [],
+          text: 'Hidden status'
+        })
+        await database.createNote({
+          id: directStatusId,
+          url: directStatusId,
+          actorId: emptyActorId,
+          to: [primaryActorId],
+          cc: [],
+          text: 'Direct status'
+        })
+        await database.createNote({
+          id: publicStatusId,
+          url: publicStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Public status'
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [hiddenStatusId, directStatusId, publicStatusId],
+          visibleToActorId: primaryActorId
+        })
+
+        expect(results.map((status) => status.id)).toEqual([
+          directStatusId,
+          publicStatusId
+        ])
+      })
     })
 
     describe('getActorStatuses', () => {

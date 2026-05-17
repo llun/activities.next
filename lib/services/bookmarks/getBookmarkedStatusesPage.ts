@@ -57,6 +57,7 @@ export const getBookmarkedStatusesPage = async ({
     const statuses = await database.getStatusesByIds({
       statusIds: bookmarks.map((bookmark) => bookmark.statusId),
       currentActorId: actorId,
+      visibleToActorId: currentActor.id,
       withReplies: false
     })
     const statusMap = new Map<string, Status>(
