@@ -17,6 +17,8 @@ import {
   getOriginalStatus
 } from '@/lib/types/domain/status'
 
+const MAX_EMPTY_BOOKMARK_CONTINUATIONS = 5
+
 interface BookmarksTimelineProps {
   host: string
   statuses: Status[]
@@ -68,29 +70,43 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   }
 
   const loadMoreStatuses = useCallback(async () => {
-    const lastBookmarkId = lastBookmarkIdRef.current
-    if (isLoadingRef.current || !lastBookmarkId) return
+    let nextBookmarkId = lastBookmarkIdRef.current
+    if (isLoadingRef.current || !nextBookmarkId) return
 
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
     try {
-      const result = await getBookmarks({
-        maxBookmarkId: lastBookmarkId
-      })
-      if (result.statuses.length === 0) {
-        if (result.nextMaxBookmarkId) {
-          lastBookmarkIdRef.current = result.nextMaxBookmarkId
+      let emptyContinuations = 0
+
+      while (nextBookmarkId) {
+        const result = await getBookmarks({
+          maxBookmarkId: nextBookmarkId
+        })
+
+        lastBookmarkIdRef.current = result.nextMaxBookmarkId
+
+        if (result.statuses.length > 0) {
+          setHasMoreStatuses(Boolean(result.nextMaxBookmarkId))
+          setCurrentStatuses((previousStatuses) => [
+            ...previousStatuses,
+            ...result.statuses
+          ])
           return
         }
-        setHasMoreStatuses(false)
-        return
+
+        if (!result.nextMaxBookmarkId) {
+          setHasMoreStatuses(false)
+          return
+        }
+
+        emptyContinuations++
+        if (emptyContinuations >= MAX_EMPTY_BOOKMARK_CONTINUATIONS) {
+          setHasMoreStatuses(true)
+          return
+        }
+
+        nextBookmarkId = result.nextMaxBookmarkId
       }
-      lastBookmarkIdRef.current = result.nextMaxBookmarkId
-      setHasMoreStatuses(Boolean(result.nextMaxBookmarkId))
-      setCurrentStatuses((previousStatuses) => [
-        ...previousStatuses,
-        ...result.statuses
-      ])
     } catch (_error) {
       // Error loading more - user can retry by clicking the button
     } finally {

@@ -127,4 +127,39 @@ describe('BookmarksTimeline', () => {
     })
     expect(screen.getByText('No bookmarks yet')).toBeInTheDocument()
   })
+
+  it('continues loading when a bookmark page has no readable statuses', async () => {
+    ;(getBookmarks as jest.Mock)
+      .mockResolvedValueOnce({
+        statuses: [],
+        nextMaxBookmarkId: 'bookmark-2',
+        prevMinBookmarkId: null
+      })
+      .mockResolvedValueOnce({
+        statuses: [bookmarkedStatus],
+        nextMaxBookmarkId: null,
+        prevMinBookmarkId: 'bookmark-2'
+      })
+
+    render(
+      <BookmarksTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[]}
+        initialNextMaxBookmarkId="bookmark-1"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await screen.findByText('Bookmarked post')
+    expect(getBookmarks).toHaveBeenNthCalledWith(1, {
+      maxBookmarkId: 'bookmark-1'
+    })
+    expect(getBookmarks).toHaveBeenNthCalledWith(2, {
+      maxBookmarkId: 'bookmark-2'
+    })
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+  })
 })
