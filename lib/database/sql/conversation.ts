@@ -147,9 +147,7 @@ const insertIfMissing = async ({
   values: Record<string, unknown>
 }) => {
   try {
-    const existing = await trx(table).where(where).first()
-    if (existing) return
-    await trx(table).insert(values)
+    await trx(table).insert(values).onConflict(Object.keys(where)).ignore()
   } catch (error) {
     if (!isUniqueConstraintError(error)) throw error
   }
@@ -463,10 +461,11 @@ export const DirectConversationSQLDatabaseMixin = (
           currentTime
         })
 
-        const localParticipantActorIds = await getLocalParticipantActorIds(
-          trx,
-          participantActorIds
-        )
+        const localParticipantActorIds = [
+          ...new Set(
+            await getLocalParticipantActorIds(trx, participantActorIds)
+          )
+        ]
         const existingMemberships =
           localParticipantActorIds.length > 0
             ? await trx('direct_conversation_memberships')
@@ -481,12 +480,11 @@ export const DirectConversationSQLDatabaseMixin = (
           ])
         )
 
-        for (const actorId of localParticipantActorIds) {
-          const existingMembership = existingMembershipByActorId.get(actorId)
-          const unread = actorId !== status.actorId
-
-          if (!existingMembership) {
-            await trx('direct_conversation_memberships').insert({
+        const missingMembershipRows = localParticipantActorIds
+          .filter((actorId) => !existingMembershipByActorId.has(actorId))
+          .map((actorId) => {
+            const unread = actorId !== status.actorId
+            return {
               actorId,
               conversationId,
               lastStatusId: status.id,
@@ -496,19 +494,47 @@ export const DirectConversationSQLDatabaseMixin = (
               hiddenAt: null,
               createdAt: currentTime,
               updatedAt: currentTime
-            })
-            continue
-          }
+            }
+          })
 
-          if (!isMembershipOlderThanStatus(existingMembership, status)) continue
-
+        if (missingMembershipRows.length > 0) {
           await trx('direct_conversation_memberships')
-            .where('id', existingMembership.id)
+            .insert(missingMembershipRows)
+            .onConflict(['actorId', 'conversationId'])
+            .ignore()
+        }
+
+        const staleMemberships = existingMemberships.filter((membership) =>
+          isMembershipOlderThanStatus(membership, status)
+        )
+        const staleRecipientMembershipIds = staleMemberships
+          .filter((membership) => membership.actorId !== status.actorId)
+          .map((membership) => membership.id)
+
+        if (staleRecipientMembershipIds.length > 0) {
+          await trx('direct_conversation_memberships')
+            .whereIn('id', staleRecipientMembershipIds)
             .update({
               lastStatusId: status.id,
               lastStatusCreatedAt: statusCreatedAt,
-              unread,
-              readAt: unread ? existingMembership.readAt : statusCreatedAt,
+              unread: true,
+              hiddenAt: null,
+              updatedAt: currentTime
+            })
+        }
+
+        const staleSenderMembership = staleMemberships.find(
+          (membership) => membership.actorId === status.actorId
+        )
+
+        if (staleSenderMembership) {
+          await trx('direct_conversation_memberships')
+            .where('id', staleSenderMembership.id)
+            .update({
+              lastStatusId: status.id,
+              lastStatusCreatedAt: statusCreatedAt,
+              unread: false,
+              readAt: statusCreatedAt,
               hiddenAt: null,
               updatedAt: currentTime
             })

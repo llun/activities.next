@@ -149,20 +149,13 @@ const getLastStatusCreatedAtByActorId = async (
 
   const rows = await database('statuses')
     .whereIn('actorId', actorIds)
-    .orderBy('actorId', 'asc')
-    .orderBy('createdAt', 'desc')
-    .select<
-      { actorId: string; createdAt: number | Date }[]
-    >('actorId', 'createdAt')
-  const lastStatusCreatedAtByActorId = new Map<string, number | Date>()
+    .groupBy('actorId')
+    .select<{ actorId: string; createdAt: number | Date }[]>(
+      'actorId',
+      database.raw('MAX(??) as ??', ['createdAt', 'createdAt'])
+    )
 
-  for (const row of rows) {
-    if (!lastStatusCreatedAtByActorId.has(row.actorId)) {
-      lastStatusCreatedAtByActorId.set(row.actorId, row.createdAt)
-    }
-  }
-
-  return lastStatusCreatedAtByActorId
+  return new Map(rows.map((row) => [row.actorId, row.createdAt]))
 }
 
 const getActorCounterSummaries = async (database: Knex, actorIds: string[]) => {

@@ -415,6 +415,44 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('returns the latest actor status timestamp from a grouped lookup', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const username = `latest-status-${suffix}`
+          const actorId = `https://${TEST_DOMAIN}/users/${username}`
+          const olderCreatedAt = Date.parse('2026-05-16T00:00:00.000Z')
+          const newerCreatedAt = Date.parse('2026-05-17T00:00:00.000Z')
+
+          await createSigningAccount(database, username)
+          await database.createNote({
+            id: `${actorId}/statuses/older`,
+            url: `${actorId}/statuses/older`,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Older status',
+            createdAt: olderCreatedAt
+          })
+          await database.createNote({
+            id: `${actorId}/statuses/newer`,
+            url: `${actorId}/statuses/newer`,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Newer status',
+            createdAt: newerCreatedAt
+          })
+
+          const [mastodonActor] = await database.getMastodonActorsFromIds({
+            ids: [actorId]
+          })
+
+          expect(mastodonActor.last_status_at).toBe(
+            getISOTimeUTC(newerCreatedAt, true)
+          )
+        })
+      })
+
       it('returns mastodon actor from username', async () => {
         const actor = await database.getMastodonActorFromUsername({
           username: TEST_USERNAME3,

@@ -85,6 +85,7 @@ const createTables = async (knex) => {
 
 const DIRECT_STATUS_BATCH_SIZE = 500
 const LOCAL_ACTOR_LOOKUP_BATCH_SIZE = 500
+const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
 
 const attachRecipients = async (knex, statusRows) => {
   if (statusRows.length === 0) return []
@@ -171,7 +172,12 @@ const resolveRootStatusId = async (knex, status) => {
   let root = status
   const seen = new Set([status.id])
 
-  while (root.reply && !seen.has(root.reply)) {
+  for (
+    let depth = 0;
+    depth < MAX_DIRECT_CONVERSATION_ROOT_DEPTH && root.reply;
+    depth += 1
+  ) {
+    if (seen.has(root.reply)) break
     const syncedRootStatusId = await getSyncedRootStatusId(knex, root.reply)
     if (syncedRootStatusId) return syncedRootStatusId
 
