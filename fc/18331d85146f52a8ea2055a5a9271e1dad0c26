@@ -1,0 +1,36 @@
+lib/components/post-box/post-box.test.tsx
+  s_c0d2e9b98758c5::t_e6e2b36a428ba8 549-561,563-566,568-574,576-622
+app/api/v1/statuses/[id]/route.ts
+  s_c0d2e9b98758c5::t_3a19c6875914c8 110-120,212-223
+lib/client.ts
+  s_c0d2e9b98758c5::t_b03d808ec80ce6 128
+lib/client.test.ts
+  s_c0d2e9b98758c5::t_1a649ccb36014e 209-219
+lib/database/sql/status.test.ts
+  s_c0d2e9b98758c5::t_4f0d3c9d35745e 1003-1196,1200-1210
+  s_c0d2e9b98758c5::t_f0b4552adb5a70 1197-1199
+app/api/v1/statuses/[id]/route.test.ts
+  s_c0d2e9b98758c5::t_ef01055fdc6829 883-964
+lib/components/post-box/post-box.tsx
+  s_c0d2e9b98758c5::t_bdd7eee43a4b59 412,424-425,596,599-602,606
+  s_c0d2e9b98758c5::t_f0b4552adb5a70 603-605
+  s_c0d2e9b98758c5::t_f747d2a8780668 426-428
+lib/database/sql/status.ts
+  s_c0d2e9b98758c5::t_4a95f2b3b16145 73-79,532-537,539-543,548,553-559,561
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "fc18331d85146f52a8ea2055a5a9271e1dad0c26",
+  "prompts": {},
+  "sessions": {
+    "s_c0d2e9b98758c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cd-9f4b-7d51-92ab-bc9164cbe225",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
