@@ -97,7 +97,6 @@ describe('getBookmarkedStatusesPage', () => {
     })
 
     expect(page.statuses).toEqual([])
-    expect(page.bookmarks).toEqual([])
     expect(page.nextMaxBookmarkId).toBeNull()
     expect(page.prevMinBookmarkId).toBeNull()
     expect(getBookmarks).toHaveBeenNthCalledWith(2, {
@@ -132,9 +131,6 @@ describe('getBookmarkedStatusesPage', () => {
     })
 
     expect(page.statuses.map((status) => status.id)).toEqual([visible.id])
-    expect(page.bookmarks.map((bookmark) => bookmark.id)).toEqual([
-      visibleBookmark.id
-    ])
     expect(page.nextMaxBookmarkId).toBeNull()
     expect(page.prevMinBookmarkId).toBe(visibleBookmark.id)
     expect(getBookmarks).toHaveBeenNthCalledWith(2, {
@@ -166,10 +162,6 @@ describe('getBookmarkedStatusesPage', () => {
     expect(page.statuses.map((status) => status.id)).toEqual([
       newer.id,
       older.id
-    ])
-    expect(page.bookmarks.map((bookmark) => bookmark.id)).toEqual([
-      newerBookmark.id,
-      olderBookmark.id
     ])
   })
 

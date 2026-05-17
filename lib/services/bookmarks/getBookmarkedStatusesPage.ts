@@ -17,7 +17,6 @@ interface GetBookmarkedStatusesPageParams {
 }
 
 interface BookmarkedStatusesPage {
-  bookmarks: Bookmark[]
   statuses: Status[]
   nextMaxBookmarkId: string | null
   prevMinBookmarkId: string | null
@@ -114,7 +113,6 @@ export const getBookmarkedStatusesPage = async ({
   }
 
   return {
-    bookmarks: visibleEntries.map((entry) => entry.bookmark),
     statuses: visibleEntries.map((entry) => entry.status),
     nextMaxBookmarkId,
     prevMinBookmarkId:
