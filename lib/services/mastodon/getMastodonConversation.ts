@@ -2,7 +2,7 @@ import { Database } from '@/lib/database/types'
 import { Mastodon } from '@/lib/types/activitypub'
 import { DirectConversation } from '@/lib/types/database/operations'
 
-import { getMastodonStatus } from './getMastodonStatus'
+import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
 
 export type MastodonConversationAccountMap = Map<string, Mastodon.Account>
 
@@ -39,6 +39,25 @@ export const getMastodonConversationAccounts = (
     .map((actorId) => accountsByActorId.get(actorId))
     .filter((account): account is Mastodon.Account => account !== undefined)
 
+const buildMastodonConversation = (
+  conversation: DirectConversation,
+  currentActorId: string,
+  accountsByActorId: MastodonConversationAccountMap,
+  lastStatus: Mastodon.Status | null
+): Mastodon.Conversation | null => {
+  const parsed = Mastodon.Conversation.safeParse({
+    id: conversation.id,
+    unread: conversation.unread,
+    accounts: getMastodonConversationAccounts(
+      conversation,
+      currentActorId,
+      accountsByActorId
+    ),
+    last_status: lastStatus
+  })
+  return parsed.success ? parsed.data : null
+}
+
 export const getMastodonConversation = async (
   database: Database,
   conversation: DirectConversation,
@@ -58,15 +77,49 @@ export const getMastodonConversation = async (
     currentActorId
   )
 
-  const parsed = Mastodon.Conversation.safeParse({
-    id: conversation.id,
-    unread: conversation.unread,
-    accounts: getMastodonConversationAccounts(
-      conversation,
-      currentActorId,
-      accounts
-    ),
-    last_status: lastStatus
-  })
-  return parsed.success ? parsed.data : null
+  return buildMastodonConversation(
+    conversation,
+    currentActorId,
+    accounts,
+    lastStatus
+  )
+}
+
+export const getMastodonConversations = async (
+  database: Database,
+  conversations: DirectConversation[],
+  currentActorId: string,
+  accountsByActorId?: MastodonConversationAccountMap
+): Promise<Mastodon.Conversation[]> => {
+  if (conversations.length === 0) return []
+
+  const accounts =
+    accountsByActorId ??
+    (await getMastodonConversationAccountMap(
+      database,
+      conversations,
+      currentActorId
+    ))
+  const lastStatuses = await getMastodonStatuses(
+    database,
+    conversations.map((conversation) => conversation.lastStatus),
+    currentActorId
+  )
+  const lastStatusByUri = new Map(
+    lastStatuses.map((status) => [status.uri, status] as const)
+  )
+
+  return conversations
+    .map((conversation) =>
+      buildMastodonConversation(
+        conversation,
+        currentActorId,
+        accounts,
+        lastStatusByUri.get(conversation.lastStatus.id) ?? null
+      )
+    )
+    .filter(
+      (conversation): conversation is Mastodon.Conversation =>
+        conversation !== null
+    )
 }

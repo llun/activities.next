@@ -1,12 +1,11 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
-  getMastodonConversation,
   getMastodonConversationAccountMap,
-  getMastodonConversationAccounts
+  getMastodonConversationAccounts,
+  getMastodonConversations
 } from '@/lib/services/mastodon/getMastodonConversation'
 import { TimelineFormat } from '@/lib/services/timelines/const'
-import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -77,20 +76,11 @@ export const GET = traceApiRoute(
         conversations,
         currentActor.id
       )
-      const mastodonConversations = (
-        await Promise.all(
-          conversations.map((conversation) =>
-            getMastodonConversation(
-              database,
-              conversation,
-              currentActor.id,
-              accountsByActorId
-            )
-          )
-        )
-      ).filter(
-        (conversation): conversation is Mastodon.Conversation =>
-          conversation !== null
+      const mastodonConversations = await getMastodonConversations(
+        database,
+        conversations,
+        currentActor.id,
+        accountsByActorId
       )
 
       const host = headerHost(req.headers)
