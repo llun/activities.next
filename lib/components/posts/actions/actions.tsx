@@ -88,6 +88,7 @@ export const Actions: FC<Props> = ({
   }
 
   const hasSecondaryActions = secondaryActions.length > 0
+  // Use the same mobile grid for both rows so secondary controls align under primary controls.
   const actionColumnClassName = hasEditHistory ? 'grid-cols-4' : 'grid-cols-3'
 
   return (
