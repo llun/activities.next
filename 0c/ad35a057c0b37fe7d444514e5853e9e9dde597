@@ -1,0 +1,29 @@
+docs/environment-variables.md
+  s_ca00178bf5dc26::t_e08e88fe87c52a 182
+  s_ca00178bf5dc26::t_60ddc434b787b6 179-181,183-185
+next.config.test.ts
+  s_ca00178bf5dc26::t_e04a97b52b87f8 136-137
+  s_ca00178bf5dc26::t_e08e88fe87c52a 324,342-354
+.env.example
+  s_ca00178bf5dc26::t_e08e88fe87c52a 47-49
+lib/config/securityHeaders.test.ts
+  s_ca00178bf5dc26::t_e08e88fe87c52a 131-136
+lib/config/securityHeaders.ts
+  s_ca00178bf5dc26::t_e08e88fe87c52a 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0cad35a057c0b37fe7d444514e5853e9e9dde597",
+  "prompts": {},
+  "sessions": {
+    "s_ca00178bf5dc26": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e352e-7e88-7272-8bff-46dee463bf8f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
