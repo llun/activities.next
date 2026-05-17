@@ -1,0 +1,24 @@
+.github/workflows/version-bump.yml
+  s_e1d56a9ceccb0e::t_fcbd8dcf67e01c 422,453-455
+  s_e1d56a9ceccb0e::t_9cce6a9a28716f 18,349-364,384,387,390,393,398-399,402,409,411,426-433,435-446,448-449,456-462,493-496,504-505,508-509,513,518,521
+  s_e1d56a9ceccb0e::t_680e203c031b83 365-383,385-386,388-389,391-392,394-397,465-482,510-512,514-517
+  s_e1d56a9ceccb0e::t_146a0a1a5c0f5d 503,506
+  s_e1d56a9ceccb0e::t_3d25d10cb2b4de 14-15,19,400-401,403-408,410,412-421,423-425,434,447,450-452,463-464,483-489,491,497-502,507,519,522
+  s_e1d56a9ceccb0e::t_c1b96c8f410ee4 16-17,490,492,520,523
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c4a91d6bfaa60e1e4096d1504000147ac586cbdc",
+  "prompts": {},
+  "sessions": {
+    "s_e1d56a9ceccb0e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34fc-c3e4-7091-9f74-e4f0417e9144",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
