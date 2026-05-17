@@ -28,6 +28,7 @@ interface MessagesPageProps {
   conversations: DirectConversationView[]
   initialConversationId: string | null
   initialStatuses: Status[]
+  initialNextMaxStatusId: string | null
   currentTime: number
   currentActor: ActorProfile
   postLineLimit?: PostLineLimit
@@ -70,6 +71,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   conversations,
   initialConversationId,
   initialStatuses,
+  initialNextMaxStatusId,
   currentTime,
   currentActor,
   postLineLimit
@@ -81,6 +83,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   >(initialConversationId)
   const [threadStatuses, setThreadStatuses] =
     useState<Status[]>(initialStatuses)
+  const [nextMaxStatusId, setNextMaxStatusId] = useState<string | null>(
+    initialNextMaxStatusId
+  )
   const [selectedRecipients, setSelectedRecipients] = useState<
     MastodonAccount[]
   >([])
@@ -89,6 +94,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const [isResolvingRecipient, setResolvingRecipient] = useState(false)
   const [isSending, setSending] = useState(false)
   const [isThreadLoading, setThreadLoading] = useState(false)
+  const [isLoadingMoreStatuses, setLoadingMoreStatuses] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedConversation = useMemo(
@@ -114,14 +120,39 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         limit: 40
       })
       setThreadStatuses(result.statuses)
+      setNextMaxStatusId(result.nextMaxStatusId)
     } finally {
       setThreadLoading(false)
     }
   }, [])
 
+  const loadMoreStatuses = useCallback(async () => {
+    if (!selectedConversationId || !nextMaxStatusId) return
+
+    setLoadingMoreStatuses(true)
+    try {
+      const result = await getConversationStatuses({
+        conversationId: selectedConversationId,
+        maxStatusId: nextMaxStatusId,
+        limit: 40
+      })
+      setThreadStatuses((previousStatuses) => {
+        const seenIds = new Set(previousStatuses.map((status) => status.id))
+        return [
+          ...previousStatuses,
+          ...result.statuses.filter((status) => !seenIds.has(status.id))
+        ]
+      })
+      setNextMaxStatusId(result.nextMaxStatusId)
+    } finally {
+      setLoadingMoreStatuses(false)
+    }
+  }, [nextMaxStatusId, selectedConversationId])
+
   useEffect(() => {
     if (!selectedConversationId) {
       setThreadStatuses([])
+      setNextMaxStatusId(null)
       return
     }
 
@@ -136,11 +167,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     )
   }, [loadThread, selectedConversationId])
 
-  const refreshConversations = async () => {
+  const refreshConversations = useCallback(async () => {
     const result = await getConversations()
     setCurrentConversations(result.conversations)
     return result.conversations
-  }
+  }, [])
 
   const addRecipient = async () => {
     const query = recipientQuery.trim()
@@ -175,6 +206,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const startNewConversation = () => {
     setSelectedConversationId(null)
     setThreadStatuses([])
+    setNextMaxStatusId(null)
     setSelectedRecipients([])
     setMessage('')
     setError(null)
@@ -220,7 +252,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       const nextConversationId =
         selectedConversation?.id ?? refreshedConversations[0]?.id ?? null
       setSelectedConversationId(nextConversationId)
-      if (nextConversationId) {
+      if (nextConversationId && nextConversationId === selectedConversationId) {
         await loadThread(nextConversationId)
       }
     } catch (_error) {
@@ -338,13 +370,31 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                 <Loader2 className="size-5 animate-spin" />
               </div>
             ) : displayStatuses.length > 0 ? (
-              <Posts
-                host={host}
-                currentTime={currentTime}
-                statuses={displayStatuses}
-                currentActor={currentActor}
-                postLineLimit={postLineLimit}
-              />
+              <>
+                {nextMaxStatusId && (
+                  <div className="flex justify-center border-b p-3">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadMoreStatuses}
+                      disabled={isLoadingMoreStatuses}
+                    >
+                      {isLoadingMoreStatuses && (
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                      )}
+                      Load more
+                    </Button>
+                  </div>
+                )}
+                <Posts
+                  host={host}
+                  currentTime={currentTime}
+                  statuses={displayStatuses}
+                  currentActor={currentActor}
+                  postLineLimit={postLineLimit}
+                />
+              </>
             ) : (
               <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
                 No conversation selected

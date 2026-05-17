@@ -64,6 +64,11 @@ const Page = async () => {
       conversations={conversationsWithAccounts}
       initialConversationId={initialConversation?.id ?? null}
       initialStatuses={initialStatuses.map((status) => cleanJson(status))}
+      initialNextMaxStatusId={
+        initialStatuses.length === 40
+          ? initialStatuses[initialStatuses.length - 1].id
+          : null
+      }
       currentTime={Date.now()}
       currentActor={getActorProfile(actor)}
       postLineLimit={settings?.postLineLimit}

@@ -1,7 +1,7 @@
-import { isDirectStatus } from '@/lib/database/sql/conversation'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
+import { isDirectStatus } from '@/lib/utils/directStatus'
 import { getTracer } from '@/lib/utils/trace'
 
 import { getBlockedRecipientActorIdsForStatus } from './blockFilter'

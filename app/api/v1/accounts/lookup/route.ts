@@ -4,6 +4,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -17,6 +18,18 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+const parseAccountHandle = (value: string, localDomain: string) => {
+  const normalized = value.trim().replace(/^@/, '')
+  const segments = normalized.split('@')
+  if (segments.length > 2) return null
+
+  const [username, domain] =
+    segments.length === 2 ? segments : [segments[0], localDomain]
+  if (!username || !domain) return null
+
+  return { username, domain }
+}
 
 export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
   const database = getDatabase()
@@ -40,13 +53,10 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       responseStatusCode: 400
     })
 
-  // Parse acct format: username or username@domain
-  const normalizedAcct = acct.trim().replace(/^@/, '')
-  const [username, domain] = normalizedAcct.includes('@')
-    ? normalizedAcct.split('@')
-    : [acct, getConfig().host]
+  const config = getConfig()
+  const handle = parseAccountHandle(acct, config.host)
 
-  if (!username)
+  if (!handle)
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -54,8 +64,20 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       responseStatusCode: 400
     })
 
+  const { username, domain } = handle
   let actor = await database.getActorFromUsername({ username, domain })
-  if (!actor && resolve && domain !== getConfig().host) {
+  if (!actor && resolve && domain !== config.host) {
+    const session = await getServerAuthSession()
+    const canResolveRemote = Boolean(session?.user?.email)
+    if (!canResolveRemote) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
+    }
+
     const actorId = await getWebfingerSelf({ account: `${username}@${domain}` })
     actor = actorId
       ? ((await recordActorIfNeeded({ actorId, database })) ?? null)

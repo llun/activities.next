@@ -80,8 +80,11 @@ export const statusRecipientsTo = (
 ): string[] => {
   // For direct messages, only send to mentioned users
   if (visibility === 'direct') {
-    const recipients = mentions.map((item) => item.href)
-    // If replying, also include the original author
+    const recipients = [
+      ...mentions.map((item) => item.href),
+      ...(replyStatus ? replyStatus.to : [])
+    ]
+    // If replying, also include the original author even when they were only in cc.
     if (replyStatus) {
       recipients.push(replyStatus.actorId)
     }
@@ -113,7 +116,7 @@ export const statusRecipientsTo = (
  * - public: [followersUrl, ...mentions]
  * - unlisted: [Public, ...mentions]
  * - private: [...mentions only]
- * - direct: [] (no cc for direct messages)
+ * - direct: parent cc for replies, otherwise [] (no cc for new direct messages)
  */
 export const statusRecipientsCC = (
   actor: Actor,
@@ -123,9 +126,8 @@ export const statusRecipientsCC = (
 ): string[] => {
   const mentionHrefs = mentions.map((item) => item.href)
 
-  // For direct messages, no cc recipients
   if (visibility === 'direct') {
-    return []
+    return replyStatus ? [...new Set(replyStatus.cc)] : []
   }
 
   // For private (followers only), only include mentions

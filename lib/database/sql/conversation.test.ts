@@ -1,5 +1,8 @@
-import { randomBytes } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
+import knex, { Knex } from 'knex'
 
+import { getSQLDatabase } from '@/lib/database/sql'
+import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import {
   TestDatabaseTable,
   databaseBeforeAll,
@@ -11,8 +14,90 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
-import { DirectConversation } from '@/lib/types/database/operations'
-import { StatusNote } from '@/lib/types/domain/status'
+import {
+  DirectConversation,
+  StatusDatabase
+} from '@/lib/types/database/operations'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+
+const createMemoryKnex = () =>
+  knex({
+    client: 'better-sqlite3',
+    useNullAsDefault: true,
+    connection: {
+      filename: ':memory:'
+    }
+  })
+
+const createDirectConversationTables = async (database: Knex) => {
+  await database.schema.createTable('actors', (table) => {
+    table.string('id').primary()
+    table.text('privateKey')
+  })
+  await database.schema.createTable('direct_conversations', (table) => {
+    table.string('id').primary()
+    table.string('rootStatusId').notNullable()
+    table.timestamp('createdAt', { useTz: true })
+    table.timestamp('updatedAt', { useTz: true })
+  })
+  await database.schema.createTable(
+    'direct_conversation_participants',
+    (table) => {
+      table.string('id').primary()
+      table.string('conversationId').notNullable()
+      table.string('actorId').notNullable()
+      table.timestamp('createdAt', { useTz: true })
+      table.timestamp('updatedAt', { useTz: true })
+    }
+  )
+  await database.schema.createTable('direct_conversation_statuses', (table) => {
+    table.string('conversationId').notNullable()
+    table.string('statusId').notNullable()
+    table.timestamp('createdAt', { useTz: true }).notNullable()
+    table.timestamp('updatedAt', { useTz: true })
+  })
+  await database.schema.createTable(
+    'direct_conversation_memberships',
+    (table) => {
+      table.bigIncrements('id').primary()
+      table.string('actorId').notNullable()
+      table.string('conversationId').notNullable()
+      table.string('lastStatusId').notNullable()
+      table.timestamp('lastStatusCreatedAt', { useTz: true }).notNullable()
+      table.boolean('unread').notNullable().defaultTo(false)
+      table.timestamp('readAt', { useTz: true }).nullable()
+      table.timestamp('hiddenAt', { useTz: true }).nullable()
+      table.timestamp('createdAt', { useTz: true })
+      table.timestamp('updatedAt', { useTz: true })
+    }
+  )
+}
+
+const statusForId = (id: string): Status =>
+  ({
+    id,
+    url: id,
+    actorId: ACTOR1_ID,
+    actor: null,
+    type: StatusType.enum.Note,
+    text: id,
+    summary: '',
+    reply: '',
+    to: [ACTOR2_ID],
+    cc: [],
+    createdAt: 1000,
+    updatedAt: 1000,
+    attachments: [],
+    mentions: [],
+    likesCount: 0,
+    repliesCount: 0,
+    reblogsCount: 0,
+    liked: false,
+    bookmarked: false
+  }) as Status
+
+const conversationIdForRoot = (rootStatusId: string) =>
+  createHash('sha256').update(rootStatusId).digest('hex')
 
 const createDirectStatus = async ({
   database,
@@ -197,6 +282,258 @@ describe('ConversationDatabase', () => {
       expect(visibleConversation.lastStatusId).toEqual(reply.id)
       expect(visibleConversation.unread).toBe(true)
       expect(visibleConversation.hiddenAt).toBeNull()
+    })
+
+    test('filters narrowed direct replies out of status lists for removed participants', async () => {
+      const root = await createDirectStatus({
+        database,
+        actorId: ACTOR1_ID,
+        recipientActorIds: [ACTOR2_ID, ACTOR3_ID],
+        text: 'visible to the group',
+        createdAt: 5000
+      })
+      const reply = await createDirectStatus({
+        database,
+        actorId: ACTOR2_ID,
+        recipientActorIds: [ACTOR1_ID],
+        text: 'visible to actor1 only',
+        reply: root.id,
+        createdAt: 6000
+      })
+      const actor3Conversation = (
+        await database.getDirectConversations({ actorId: ACTOR3_ID })
+      ).find(
+        (conversation: DirectConversation) =>
+          conversation.rootStatusId === root.id
+      )
+
+      expect(actor3Conversation).toBeDefined()
+      if (!actor3Conversation) fail('Actor3 conversation must be defined')
+
+      const statuses = await database.getDirectConversationStatuses({
+        actorId: ACTOR3_ID,
+        conversationId: actor3Conversation.id
+      })
+
+      expect(statuses.map((status) => status.id)).toContain(root.id)
+      expect(statuses.map((status) => status.id)).not.toContain(reply.id)
+    })
+  })
+
+  describe('sqlite implementation details', () => {
+    let knexDatabase: Knex
+    let database: Database
+
+    beforeEach(async () => {
+      knexDatabase = createMemoryKnex()
+      database = getSQLDatabase(knexDatabase)
+      await database.migrate()
+      await seedDatabase(database)
+    })
+
+    afterEach(async () => {
+      await database.destroy()
+    })
+
+    test('falls back to the latest hydratable conversation status when membership last status is stale', async () => {
+      const root = await createDirectStatus({
+        database,
+        actorId: ACTOR1_ID,
+        recipientActorIds: [ACTOR2_ID],
+        text: 'fallback root',
+        createdAt: 7000
+      })
+      const reply = await createDirectStatus({
+        database,
+        actorId: ACTOR2_ID,
+        recipientActorIds: [ACTOR1_ID],
+        text: 'fallback reply',
+        reply: root.id,
+        createdAt: 8000
+      })
+      const [membership] = await knexDatabase('direct_conversation_memberships')
+        .where({
+          actorId: ACTOR1_ID,
+          lastStatusId: reply.id
+        })
+        .select<{ id: string | number; conversationId: string }[]>()
+
+      await knexDatabase('direct_conversation_memberships')
+        .where('id', membership.id)
+        .update({
+          lastStatusId: `${reply.id}/missing`,
+          lastStatusCreatedAt: new Date(9000)
+        })
+
+      const conversations = await database.getDirectConversations({
+        actorId: ACTOR1_ID
+      })
+      const conversation = conversations.find(
+        (item) => item.conversationId === membership.conversationId
+      )
+      const updatedMembership = await knexDatabase(
+        'direct_conversation_memberships'
+      )
+        .where('id', membership.id)
+        .first<{ lastStatusId: string }>()
+
+      expect(conversation?.lastStatusId).toEqual(reply.id)
+      expect(conversation?.lastStatus.id).toEqual(reply.id)
+      expect(updatedMembership?.lastStatusId).toEqual(reply.id)
+    })
+
+    test('returns empty results for malformed membership cursors', async () => {
+      await expect(
+        database.getDirectConversations({
+          actorId: ACTOR1_ID,
+          maxId: 'not-a-bigint'
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.getDirectConversation({
+          actorId: ACTOR1_ID,
+          conversationId: 'not-a-bigint'
+        })
+      ).resolves.toBeNull()
+      await expect(
+        database.getDirectConversationStatuses({
+          actorId: ACTOR1_ID,
+          conversationId: 'not-a-bigint'
+        })
+      ).resolves.toEqual([])
+    })
+  })
+
+  describe('direct conversation mixin', () => {
+    let knexDatabase: Knex
+
+    beforeEach(async () => {
+      knexDatabase = createMemoryKnex()
+      await createDirectConversationTables(knexDatabase)
+    })
+
+    afterEach(async () => {
+      await knexDatabase.destroy()
+    })
+
+    test('preserves database row order when status hydration returns unordered results', async () => {
+      const statusDatabase = {
+        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+          statusIds.map(statusForId).reverse()
+        )
+      } as unknown as StatusDatabase
+      const database = DirectConversationSQLDatabaseMixin(
+        knexDatabase,
+        statusDatabase
+      )
+      const now = new Date()
+
+      await knexDatabase('direct_conversations').insert({
+        id: 'conversation-ordered',
+        rootStatusId: 'status-1',
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_participants').insert({
+        id: 'participant-1',
+        conversationId: 'conversation-ordered',
+        actorId: ACTOR1_ID,
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_memberships').insert({
+        actorId: ACTOR1_ID,
+        conversationId: 'conversation-ordered',
+        lastStatusId: 'status-3',
+        lastStatusCreatedAt: new Date(3000),
+        unread: false,
+        readAt: null,
+        hiddenAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_statuses').insert([
+        {
+          conversationId: 'conversation-ordered',
+          statusId: 'status-1',
+          createdAt: new Date(1000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-ordered',
+          statusId: 'status-2',
+          createdAt: new Date(2000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-ordered',
+          statusId: 'status-3',
+          createdAt: new Date(3000),
+          updatedAt: now
+        }
+      ])
+
+      const statuses = await database.getDirectConversationStatuses({
+        actorId: ACTOR1_ID,
+        conversationId: '1'
+      })
+
+      expect(statuses.map((status) => status.id)).toEqual([
+        'status-3',
+        'status-2',
+        'status-1'
+      ])
+    })
+
+    test('resolves reply roots from synced direct conversation rows before hydrating parents', async () => {
+      const getStatus = jest.fn()
+      const statusDatabase = {
+        getStatus,
+        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+          statusIds.map(statusForId)
+        )
+      } as unknown as StatusDatabase
+      const database = DirectConversationSQLDatabaseMixin(
+        knexDatabase,
+        statusDatabase
+      )
+      const now = new Date()
+      const conversationId = conversationIdForRoot('root-status')
+
+      await knexDatabase('actors').insert([
+        { id: ACTOR1_ID, privateKey: 'private-key-1' },
+        { id: ACTOR2_ID, privateKey: 'private-key-2' }
+      ])
+      await knexDatabase('direct_conversations').insert({
+        id: conversationId,
+        rootStatusId: 'root-status',
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_statuses').insert({
+        conversationId,
+        statusId: 'parent-status',
+        createdAt: new Date(1000),
+        updatedAt: now
+      })
+
+      await database.syncDirectConversationForStatus({
+        status: {
+          ...statusForId('reply-status'),
+          actorId: ACTOR1_ID,
+          reply: 'parent-status',
+          to: [ACTOR2_ID],
+          cc: [],
+          createdAt: 2000
+        } as StatusNote
+      })
+
+      const syncedReply = await knexDatabase('direct_conversation_statuses')
+        .where('statusId', 'reply-status')
+        .first<{ conversationId: string }>()
+
+      expect(getStatus).not.toHaveBeenCalled()
+      expect(syncedReply?.conversationId).toEqual(conversationId)
     })
   })
 })

@@ -39,7 +39,7 @@ export const deleteStatusFromUserInput = async ({
         inbox,
         statusId,
         to: isDirect ? originalStatus.to : undefined,
-        cc: isDirect ? [] : undefined
+        cc: isDirect ? originalStatus.cc : undefined
       })
     })
   )
