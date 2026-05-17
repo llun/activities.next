@@ -62,6 +62,8 @@ describe('next config runtime isolation', () => {
   const originalCwd = process.cwd()
   const originalEnv = {
     ACTIVITIES_ALLOW_MEDIA_DOMAINS: process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS,
+    ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS:
+      process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS,
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
     NODE_ENV: process.env.NODE_ENV
   }
@@ -72,6 +74,7 @@ describe('next config runtime isolation', () => {
     tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'activities-next-'))
     process.chdir(tempDirectory)
     process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = 'not-json'
+    process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = 'not-json'
     process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
     process.env.NODE_ENV = 'production'
     fs.writeFileSync(
@@ -116,6 +119,25 @@ describe('next config runtime isolation', () => {
     ).not.toContain('ACTIVITIES_')
   })
 
+  it('documents the runtime media CSP allowlist in env example', () => {
+    const envExample = fs.readFileSync(
+      path.join(originalCwd, '.env.example'),
+      'utf-8'
+    )
+
+    expect(envExample).toContain('ACTIVITIES_ALLOW_MEDIA_DOMAINS')
+    expect(envExample).toContain(
+      'ACTIVITIES_ALLOW_MEDIA_DOMAINS=["media.example.com","cdn.example.org"]'
+    )
+    expect(envExample).toContain('ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS')
+    expect(envExample).toContain(
+      'ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS=["remote-media.example.com"]'
+    )
+    expect(envExample).toContain('images, avatars, emoji, video, and audio')
+    expect(envExample).toContain('Leave unset or blank')
+    expect(envExample).toContain('set [] to block all remote media sources')
+  })
+
   it('keeps utility declarations out of next config source', () => {
     const source = fs.readFileSync(
       path.join(originalCwd, 'next.config.ts'),
@@ -146,6 +168,7 @@ describe('next config security hardening', () => {
         const scriptSources = getCspDirectiveSources('script-src')
         const styleSources = getCspDirectiveSources('style-src')
         const connectSources = getCspDirectiveSources('connect-src')
+        const imageSources = getCspDirectiveSources('img-src')
         const mediaSources = getCspDirectiveSources('media-src')
 
         expect(csp?.value).toContain("default-src 'none'")
@@ -153,6 +176,7 @@ describe('next config security hardening', () => {
         expect(scriptSources).toEqual(["'self'", "'unsafe-inline'"])
         expect(styleSources).toEqual(["'self'", "'unsafe-inline'"])
         expect(connectSources).toEqual(["'self'"])
+        expect(imageSources).toEqual(["'self'", 'data:', 'blob:', 'https:'])
         expect(csp?.value).toContain("manifest-src 'self'")
         expect(mediaSources).toEqual(["'self'", 'https:', 'blob:'])
         expect(csp?.value).not.toContain("'unsafe-eval'")
@@ -281,7 +305,7 @@ describe('next config security hardening', () => {
     )
   })
 
-  it('uses configured media domains as the runtime image source allowlist', () => {
+  it('adds configured service media domains without narrowing remote media sources', () => {
     withEnv(
       {
         ACTIVITIES_ALLOW_MEDIA_DOMAINS: JSON.stringify([
@@ -298,8 +322,140 @@ describe('next config security hardening', () => {
             "'self'",
             'data:',
             'blob:',
+            'https:',
             'https://images.example.com',
             'https://cdn.example.com'
+          ])
+        )
+        expect(mediaSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'blob:',
+            'https:',
+            'https://images.example.com',
+            'https://cdn.example.com'
+          ])
+        )
+      }
+    )
+  })
+
+  it('documents that an explicit empty remote media allowlist blocks federated media sources', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS: '[]'
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(["'self'", 'data:', 'blob:'])
+        expect(mediaSources).toEqual(["'self'", 'blob:'])
+        expect(imageSources).not.toContain('https:')
+        expect(mediaSources).not.toContain('https:')
+      }
+    )
+  })
+
+  it('treats blank remote media allowlist as unset for federated media sources', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS: ''
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(
+          expect.arrayContaining(["'self'", 'data:', 'blob:', 'https:'])
+        )
+        expect(mediaSources).toEqual(
+          expect.arrayContaining(["'self'", 'blob:', 'https:'])
+        )
+      }
+    )
+  })
+
+  it('preserves default remote media sources when a non-empty allowlist normalizes empty', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS: JSON.stringify([
+          'http://remote-media.example.com',
+          'notahost'
+        ])
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(
+          expect.arrayContaining(["'self'", 'data:', 'blob:', 'https:'])
+        )
+        expect(mediaSources).toEqual(
+          expect.arrayContaining(["'self'", 'blob:', 'https:'])
+        )
+      }
+    )
+  })
+
+  it('does not restore broad remote media sources when a remote allowlist has valid sources', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS: JSON.stringify([
+          'http://remote-media.example.com',
+          'remote-cdn.example.com'
+        ])
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'data:',
+            'blob:',
+            'https://remote-cdn.example.com'
+          ])
+        )
+        expect(imageSources).not.toContain('https:')
+        expect(imageSources).not.toContain('http://remote-media.example.com')
+        expect(mediaSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'blob:',
+            'https://remote-cdn.example.com'
+          ])
+        )
+        expect(mediaSources).not.toContain('https:')
+        expect(mediaSources).not.toContain('http://remote-media.example.com')
+      }
+    )
+  })
+
+  it('uses configured remote media domains as the runtime remote media allowlist', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_MEDIA_DOMAINS: JSON.stringify([
+          'local-media.example.com'
+        ]),
+        ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS: JSON.stringify([
+          'remote-media.example.com',
+          'https://remote-cdn.example.com/assets'
+        ])
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(
+          expect.arrayContaining([
+            "'self'",
+            'data:',
+            'blob:',
+            'https://local-media.example.com',
+            'https://remote-media.example.com',
+            'https://remote-cdn.example.com'
           ])
         )
         expect(imageSources).not.toContain('https:')
@@ -307,8 +463,9 @@ describe('next config security hardening', () => {
           expect.arrayContaining([
             "'self'",
             'blob:',
-            'https://images.example.com',
-            'https://cdn.example.com'
+            'https://local-media.example.com',
+            'https://remote-media.example.com',
+            'https://remote-cdn.example.com'
           ])
         )
         expect(mediaSources).not.toContain('https:')

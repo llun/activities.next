@@ -6,6 +6,7 @@ import { getSecurityHeaderConfig } from './securityHeaders'
 
 const SECURITY_HEADER_ENV_KEYS = [
   'ACTIVITIES_ALLOW_MEDIA_DOMAINS',
+  'ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS',
   'ACTIVITIES_MEDIA_STORAGE_TYPE',
   'ACTIVITIES_MEDIA_STORAGE_BUCKET',
   'ACTIVITIES_MEDIA_STORAGE_REGION',
@@ -64,6 +65,9 @@ describe('getSecurityHeaderConfig', () => {
     process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = JSON.stringify([
       'env-images.example.com'
     ])
+    process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = JSON.stringify([
+      'remote-images.example.com'
+    ])
     process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'env-media.example.com'
     process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT =
       'https://env-media-storage.example.com'
@@ -77,6 +81,7 @@ describe('getSecurityHeaderConfig', () => {
 
     expect(getSecurityHeaderConfig()).toEqual({
       allowMediaDomains: ['env-images.example.com'],
+      allowRemoteMediaDomains: ['remote-images.example.com'],
       mediaStorage: {
         hostname: 'env-media.example.com',
         endpoint: 'https://env-media-storage.example.com'
@@ -95,9 +100,23 @@ describe('getSecurityHeaderConfig', () => {
   it('uses empty settings when scoped environment settings are absent', () => {
     expect(getSecurityHeaderConfig()).toEqual({
       allowMediaDomains: [],
+      allowRemoteMediaDomains: null,
       mediaStorage: {},
       fitnessStorage: {}
     })
+  })
+
+  it('treats blank runtime environment remote media allowlist as absent', () => {
+    for (const value of ['', '   ']) {
+      process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = value
+
+      expect(getSecurityHeaderConfig()).toEqual({
+        allowMediaDomains: [],
+        allowRemoteMediaDomains: null,
+        mediaStorage: {},
+        fitnessStorage: {}
+      })
+    }
   })
 
   it('keeps an explicit empty runtime environment media allowlist', () => {
@@ -105,9 +124,27 @@ describe('getSecurityHeaderConfig', () => {
 
     expect(getSecurityHeaderConfig()).toEqual({
       allowMediaDomains: [],
+      allowRemoteMediaDomains: null,
       mediaStorage: {},
       fitnessStorage: {}
     })
+  })
+
+  it('keeps an explicit empty runtime environment remote media allowlist', () => {
+    process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = '[]'
+
+    expect(getSecurityHeaderConfig()).toEqual({
+      allowMediaDomains: [],
+      allowRemoteMediaDomains: [],
+      mediaStorage: {},
+      fitnessStorage: {}
+    })
+  })
+
+  it('throws for malformed runtime environment remote media allowlist', () => {
+    process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = 'not-json'
+
+    expect(() => getSecurityHeaderConfig()).toThrow()
   })
 
   it('uses runtime environment media storage settings', () => {
@@ -115,6 +152,7 @@ describe('getSecurityHeaderConfig', () => {
 
     expect(getSecurityHeaderConfig()).toEqual({
       allowMediaDomains: [],
+      allowRemoteMediaDomains: null,
       mediaStorage: {
         hostname: 'env-media.example.com'
       },
