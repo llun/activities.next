@@ -106,6 +106,19 @@ describe('getSecurityHeaderConfig', () => {
     })
   })
 
+  it('treats blank runtime environment remote media allowlist as absent', () => {
+    for (const value of ['', '   ']) {
+      process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = value
+
+      expect(getSecurityHeaderConfig()).toEqual({
+        allowMediaDomains: [],
+        allowRemoteMediaDomains: null,
+        mediaStorage: {},
+        fitnessStorage: {}
+      })
+    }
+  })
+
   it('keeps an explicit empty runtime environment media allowlist', () => {
     process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = '[]'
 

@@ -134,6 +134,7 @@ describe('next config runtime isolation', () => {
       'ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS=["remote-media.example.com"]'
     )
     expect(envExample).toContain('images, avatars, emoji, video, and audio')
+    expect(envExample).toContain('Leave unset or blank')
     expect(envExample).toContain('set [] to block all remote media sources')
   })
 
@@ -352,6 +353,25 @@ describe('next config security hardening', () => {
         expect(mediaSources).toEqual(["'self'", 'blob:'])
         expect(imageSources).not.toContain('https:')
         expect(mediaSources).not.toContain('https:')
+      }
+    )
+  })
+
+  it('treats blank remote media allowlist as unset for federated media sources', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS: ''
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(
+          expect.arrayContaining(["'self'", 'data:', 'blob:', 'https:'])
+        )
+        expect(mediaSources).toEqual(
+          expect.arrayContaining(["'self'", 'blob:', 'https:'])
+        )
       }
     )
   })
