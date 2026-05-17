@@ -21,46 +21,61 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
     status.isActorBookmarked
   )
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setIsBookmarked(status.isActorBookmarked)
+    setError(null)
   }, [status.isActorBookmarked])
 
   const bookmarkLabel = isBookmarked ? 'Remove bookmark' : 'Bookmark'
+  const failureMessage = isBookmarked
+    ? 'Failed to remove bookmark. Please try again.'
+    : 'Failed to bookmark post. Please try again.'
 
   return (
-    <button
-      title={bookmarkLabel}
-      aria-label={bookmarkLabel}
-      disabled={isLoading}
-      className={cn(
-        'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',
-        isBookmarked ? 'text-amber-500' : 'hover:text-amber-500'
-      )}
-      onClick={async (e) => {
-        e.stopPropagation()
-        if (isLoading) return
+    <span className="inline-flex flex-col items-center gap-1">
+      <button
+        title={bookmarkLabel}
+        aria-label={bookmarkLabel}
+        disabled={isLoading}
+        className={cn(
+          'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',
+          isBookmarked ? 'text-amber-500' : 'hover:text-amber-500'
+        )}
+        onClick={async (e) => {
+          e.stopPropagation()
+          if (isLoading) return
 
-        setIsLoading(true)
-        try {
-          if (isBookmarked) {
-            if (await undoBookmarkStatus({ statusId: status.id })) {
-              setIsBookmarked(false)
-              onBookmarkChanged?.(status, false)
+          setIsLoading(true)
+          setError(null)
+          try {
+            const nextIsBookmarked = !isBookmarked
+            const success = isBookmarked
+              ? await undoBookmarkStatus({ statusId: status.id })
+              : await bookmarkStatus({ statusId: status.id })
+
+            if (!success) {
+              setError(failureMessage)
+              return
             }
-            return
-          }
 
-          if (await bookmarkStatus({ statusId: status.id })) {
-            setIsBookmarked(true)
-            onBookmarkChanged?.(status, true)
+            setIsBookmarked(nextIsBookmarked)
+            onBookmarkChanged?.(status, nextIsBookmarked)
+          } catch {
+            setError(failureMessage)
+          } finally {
+            setIsLoading(false)
           }
-        } finally {
-          setIsLoading(false)
-        }
-      }}
-    >
-      <Bookmark className={cn('h-4 w-4', { 'fill-current': isBookmarked })} />
-    </button>
+        }}
+      >
+        <Bookmark className={cn('h-4 w-4', { 'fill-current': isBookmarked })} />
+      </button>
+      {error ? (
+        <span className="text-xs text-destructive" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </span>
   )
 }
