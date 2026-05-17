@@ -15,17 +15,11 @@ import {
   StatusDatabase,
   SyncDirectConversationForStatusParams
 } from '@/lib/types/database/operations'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import {
-  Status,
-  StatusNote,
-  StatusPoll,
-  StatusType
-} from '@/lib/types/domain/status'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/activitystream'
-import { getVisibility } from '@/lib/utils/getVisibility'
+  getDirectStatusParticipantActorIds,
+  isDirectStatus
+} from '@/lib/utils/directStatus'
 
 type DirectConversationMembershipRow = {
   id: string | number
@@ -47,30 +41,12 @@ type DirectConversationStatusRow = {
   createdAt: Date | string | number
 }
 
-const PUBLIC_AUDIENCES = new Set([
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
-])
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
-
-const isFollowersAudience = (actorId: string) => actorId.endsWith('/followers')
-
-export const isDirectAudienceActorId = (actorId: string) =>
-  !PUBLIC_AUDIENCES.has(actorId) && !isFollowersAudience(actorId)
-
-export const isDirectStatus = (
-  status: Status
-): status is StatusNote | StatusPoll =>
-  status.type !== StatusType.enum.Announce &&
-  getVisibility(status.to, status.cc) === 'direct'
-
-export const getDirectStatusParticipantActorIds = (status: Status) =>
-  [...new Set([status.actorId, ...status.to, ...status.cc])].filter(
-    isDirectAudienceActorId
-  )
 
 const getConversationIdForRootStatusId = (rootStatusId: string) =>
   createHash('sha256').update(rootStatusId).digest('hex')
+
+const isValidMembershipId = (id: string) => /^[0-9]+$/.test(id)
 
 const isMembershipOlderThanStatus = (
   membership: DirectConversationMembershipRow,
@@ -151,6 +127,19 @@ export const DirectConversationSQLDatabaseMixin = (
   database: Knex,
   statusDatabase: StatusDatabase
 ): DirectConversationDatabase => {
+  const getSyncedRootStatusId = async (statusId: string) => {
+    const row = await database('direct_conversation_statuses')
+      .innerJoin(
+        'direct_conversations',
+        'direct_conversation_statuses.conversationId',
+        'direct_conversations.id'
+      )
+      .where('direct_conversation_statuses.statusId', statusId)
+      .select<{ rootStatusId: string }[]>('direct_conversations.rootStatusId')
+      .first()
+    return row?.rootStatusId ?? null
+  }
+
   const resolveConversationRootStatusId = async (
     status: StatusNote | StatusPoll
   ) => {
@@ -162,6 +151,9 @@ export const DirectConversationSQLDatabaseMixin = (
       depth < MAX_DIRECT_CONVERSATION_ROOT_DEPTH && root.reply;
       depth += 1
     ) {
+      const syncedRootStatusId = await getSyncedRootStatusId(root.reply)
+      if (syncedRootStatusId) return syncedRootStatusId
+
       const parentStatus = await statusDatabase.getStatus({
         statusId: root.reply,
         withReplies: false
@@ -173,6 +165,18 @@ export const DirectConversationSQLDatabaseMixin = (
     }
 
     return root.id
+  }
+
+  const getStatusesByIdVisibleToActor = async (
+    statusIds: string[],
+    actorId: string
+  ) => {
+    const statuses = await statusDatabase.getStatusesByIds({
+      statusIds,
+      currentActorId: actorId,
+      visibleToActorId: actorId
+    })
+    return new Map(statuses.map((status) => [status.id, status]))
   }
 
   const getLocalParticipantActorIds = async (
@@ -209,11 +213,67 @@ export const DirectConversationSQLDatabaseMixin = (
       },
       {} as Record<string, string[]>
     )
-    const statuses = await statusDatabase.getStatusesByIds({
-      statusIds: rows.map((row) => row.lastStatusId),
+    const statusById = await getStatusesByIdVisibleToActor(
+      rows.map((row) => row.lastStatusId),
       currentActorId
-    })
-    const statusById = new Map(statuses.map((status) => [status.id, status]))
+    )
+    const rowsMissingLastStatus = rows.filter(
+      (row) => !statusById.has(row.lastStatusId)
+    )
+    const fallbackStatusRowsByConversationId = new Map<
+      string,
+      DirectConversationStatusRow
+    >()
+
+    if (rowsMissingLastStatus.length > 0) {
+      const fallbackConversationIds = [
+        ...new Set(rowsMissingLastStatus.map((row) => row.conversationId))
+      ]
+      const fallbackRows = await database('direct_conversation_statuses')
+        .whereIn('conversationId', fallbackConversationIds)
+        .orderBy('createdAt', 'desc')
+        .orderBy('statusId', 'desc')
+        .select<
+          DirectConversationStatusRow[]
+        >('conversationId', 'statusId', 'createdAt')
+      const fallbackStatusById = await getStatusesByIdVisibleToActor(
+        fallbackRows.map((row) => row.statusId),
+        currentActorId
+      )
+
+      for (const fallbackRow of fallbackRows) {
+        if (fallbackStatusRowsByConversationId.has(fallbackRow.conversationId))
+          continue
+
+        const fallbackStatus = fallbackStatusById.get(fallbackRow.statusId)
+        if (!fallbackStatus) continue
+
+        fallbackStatusRowsByConversationId.set(
+          fallbackRow.conversationId,
+          fallbackRow
+        )
+        statusById.set(fallbackStatus.id, fallbackStatus)
+      }
+    }
+
+    await Promise.all(
+      rowsMissingLastStatus.map(async (row) => {
+        const fallbackRow = fallbackStatusRowsByConversationId.get(
+          row.conversationId
+        )
+        if (!fallbackRow || fallbackRow.statusId === row.lastStatusId) return
+
+        row.lastStatusId = fallbackRow.statusId
+        row.lastStatusCreatedAt = fallbackRow.createdAt
+        await database('direct_conversation_memberships')
+          .where('id', row.id)
+          .update({
+            lastStatusId: fallbackRow.statusId,
+            lastStatusCreatedAt: fallbackRow.createdAt,
+            updatedAt: new Date()
+          })
+      })
+    )
 
     return rows
       .map((row) => {
@@ -267,6 +327,8 @@ export const DirectConversationSQLDatabaseMixin = (
     conversationId,
     includeHidden
   }: GetDirectConversationParams) => {
+    if (!isValidMembershipId(conversationId)) return null
+
     const row = await buildConversationQuery({ actorId, includeHidden })
       .where('direct_conversation_memberships.id', conversationId)
       .first<DirectConversationMembershipRow>()
@@ -331,15 +393,22 @@ export const DirectConversationSQLDatabaseMixin = (
           trx,
           participantActorIds
         )
+        const existingMemberships =
+          localParticipantActorIds.length > 0
+            ? await trx('direct_conversation_memberships')
+                .where('conversationId', conversationId)
+                .whereIn('actorId', localParticipantActorIds)
+                .select<DirectConversationMembershipRow[]>()
+            : []
+        const existingMembershipByActorId = new Map(
+          existingMemberships.map((membership) => [
+            membership.actorId,
+            membership
+          ])
+        )
+
         for (const actorId of localParticipantActorIds) {
-          const existingMembership = await trx(
-            'direct_conversation_memberships'
-          )
-            .where({
-              actorId,
-              conversationId
-            })
-            .first<DirectConversationMembershipRow>()
+          const existingMembership = existingMembershipByActorId.get(actorId)
           const unread = actorId !== status.actorId
 
           if (!existingMembership) {
@@ -383,6 +452,12 @@ export const DirectConversationSQLDatabaseMixin = (
       const olderCursorId = maxId
       const newerCursorId = minId
 
+      if (
+        (olderCursorId && !isValidMembershipId(olderCursorId)) ||
+        (newerCursorId && !isValidMembershipId(newerCursorId))
+      )
+        return []
+
       if (olderCursorId) {
         const cursor = await buildConversationQuery({ actorId })
           .where('direct_conversation_memberships.id', olderCursorId)
@@ -422,6 +497,8 @@ export const DirectConversationSQLDatabaseMixin = (
       actorId,
       conversationId
     }: MarkDirectConversationReadParams) {
+      if (!isValidMembershipId(conversationId)) return null
+
       const row = await buildConversationQuery({ actorId })
         .where('direct_conversation_memberships.id', conversationId)
         .first<DirectConversationMembershipRow>()
@@ -442,6 +519,8 @@ export const DirectConversationSQLDatabaseMixin = (
       actorId,
       conversationId
     }: HideDirectConversationParams) {
+      if (!isValidMembershipId(conversationId)) return
+
       await database('direct_conversation_memberships')
         .where({
           actorId,
@@ -461,6 +540,8 @@ export const DirectConversationSQLDatabaseMixin = (
       maxStatusId,
       minStatusId
     }: GetDirectConversationStatusesParams) {
+      if (!isValidMembershipId(conversationId)) return []
+
       const conversation = await getDirectConversationByMembershipId({
         actorId,
         conversationId
@@ -499,10 +580,13 @@ export const DirectConversationSQLDatabaseMixin = (
         .orderBy('createdAt', 'desc')
         .orderBy('statusId', 'desc')
         .limit(limit)
-      return statusDatabase.getStatusesByIds({
-        statusIds: rows.map((row) => row.statusId),
-        currentActorId: actorId
-      })
+      const statusById = await getStatusesByIdVisibleToActor(
+        rows.map((row) => row.statusId),
+        actorId
+      )
+      return rows
+        .map((row) => statusById.get(row.statusId))
+        .filter((status): status is Status => Boolean(status))
     }
   }
 }

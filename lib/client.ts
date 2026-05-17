@@ -1988,7 +1988,9 @@ export const createDirectMessage = async ({
     throw new Error('At least one recipient is required')
   }
 
-  const mentionPrefix = recipients.map(accountMention).join(' ')
+  const mentionPrefix = replyStatus
+    ? ''
+    : recipients.map(accountMention).join(' ')
   const status = [mentionPrefix, normalizedMessage].filter(Boolean).join(' ')
   const response = await fetch('/api/v1/statuses', {
     method: 'POST',

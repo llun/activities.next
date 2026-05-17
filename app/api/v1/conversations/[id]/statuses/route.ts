@@ -23,7 +23,11 @@ interface Params {
 export const GET = traceApiRoute(
   'getConversationStatuses',
   OAuthGuardAnyScope<Params>(
-    [Scope.enum.read, Scope.enum['read:statuses']],
+    [
+      Scope.enum.read,
+      Scope.enum['read:conversations'],
+      Scope.enum['read:statuses']
+    ],
     async (req, { database, currentActor, params }) => {
       const { id } = await params
       const url = new URL(req.url)

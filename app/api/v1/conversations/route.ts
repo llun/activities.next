@@ -1,6 +1,7 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonConversation } from '@/lib/services/mastodon/getMastodonConversation'
+import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
@@ -24,7 +25,11 @@ const normalizeLimit = (value: string | null) => {
 export const GET = traceApiRoute(
   'getConversations',
   OAuthGuardAnyScope(
-    [Scope.enum.read, Scope.enum['read:statuses']],
+    [
+      Scope.enum.read,
+      Scope.enum['read:conversations'],
+      Scope.enum['read:statuses']
+    ],
     async (req, { database, currentActor }) => {
       const url = new URL(req.url)
       const limit = normalizeLimit(url.searchParams.get('limit'))
@@ -35,7 +40,9 @@ export const GET = traceApiRoute(
         minId: url.searchParams.get('min_id')
       })
 
-      if (url.searchParams.get('format') === 'activities_next') {
+      if (
+        url.searchParams.get('format') === TimelineFormat.enum.activities_next
+      ) {
         const conversationViews = await Promise.all(
           conversations.map(async (conversation) => {
             const accounts = (

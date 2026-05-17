@@ -113,6 +113,34 @@ describe('Visibility integration tests', () => {
       expect(status?.to).not.toContain(`${actor1.id}/followers`)
       expect(status?.cc).toHaveLength(0)
     })
+
+    it('preserves direct reply parent to and cc recipients without repeated mentions', async () => {
+      const parentStatus = await database.createNote({
+        id: `${actor1.id}/statuses/direct-parent-note-recipients`,
+        url: `${actor1.id}/statuses/direct-parent-note-recipients`,
+        actorId: 'https://remote.test/actors/sender',
+        text: 'Direct parent',
+        to: [actor1.id, 'https://remote.test/actors/primary'],
+        cc: ['https://remote.test/actors/copied']
+      })
+
+      const status = await createNoteFromUserInput({
+        text: 'Reply without mention prefixes',
+        currentActor: actor1,
+        replyNoteId: parentStatus.id,
+        database
+      })
+
+      expect(status).toBeDefined()
+      expect(status?.to).toEqual(
+        expect.arrayContaining([
+          actor1.id,
+          'https://remote.test/actors/primary',
+          'https://remote.test/actors/sender'
+        ])
+      )
+      expect(status?.cc).toEqual(['https://remote.test/actors/copied'])
+    })
   })
 
   describe('createPoll with visibility', () => {
@@ -210,6 +238,43 @@ describe('Visibility integration tests', () => {
       expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
       expect(poll?.to).not.toContain(`${actor1.id}/followers`)
       expect(poll?.cc).toHaveLength(0)
+    })
+
+    it('preserves direct reply parent to and cc recipients for polls', async () => {
+      const parentStatus = await database.createNote({
+        id: `${actor1.id}/statuses/direct-parent-poll-recipients`,
+        url: `${actor1.id}/statuses/direct-parent-poll-recipients`,
+        actorId: 'https://remote.test/actors/poll-sender',
+        text: 'Direct parent for poll',
+        to: [actor1.id, 'https://remote.test/actors/poll-primary'],
+        cc: ['https://remote.test/actors/poll-copied']
+      })
+
+      await createPollFromUserInput({
+        text: 'Poll reply without mention prefixes',
+        currentActor: actor1,
+        replyStatusId: parentStatus.id,
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 86400000,
+        database
+      })
+
+      const statuses = await database.getActorStatuses({
+        actorId: actor1.id
+      })
+      const poll = statuses.find((s) =>
+        s.text.includes('Poll reply without mention prefixes')
+      )
+
+      expect(poll).toBeDefined()
+      expect(poll?.to).toEqual(
+        expect.arrayContaining([
+          actor1.id,
+          'https://remote.test/actors/poll-primary',
+          'https://remote.test/actors/poll-sender'
+        ])
+      )
+      expect(poll?.cc).toEqual(['https://remote.test/actors/poll-copied'])
     })
   })
 })

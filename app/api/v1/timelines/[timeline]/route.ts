@@ -72,6 +72,9 @@ export const GET = traceApiRoute(
         })
       }
 
+      // Keep /api/v1/timelines/direct for Mastodon client compatibility.
+      // The messages UI uses /api/v1/conversations for threaded direct messages.
+
       const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
       const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
       const parsedLimit = limit ? parseInt(limit, 10) : PER_PAGE_LIMIT

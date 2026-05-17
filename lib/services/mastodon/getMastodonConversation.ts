@@ -22,10 +22,11 @@ export const getMastodonConversation = async (
     currentActorId
   )
 
-  return Mastodon.Conversation.parse({
+  const parsed = Mastodon.Conversation.safeParse({
     id: conversation.id,
     unread: conversation.unread,
     accounts,
     last_status: lastStatus
   })
+  return parsed.success ? parsed.data : null
 }
