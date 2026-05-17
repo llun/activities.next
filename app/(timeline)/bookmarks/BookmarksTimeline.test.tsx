@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getBookmarks, undoBookmarkStatus } from '@/lib/client'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -77,8 +77,17 @@ const bookmarkedStatus: StatusNote = {
 }
 
 describe('BookmarksTimeline', () => {
+  let intersectionObserverCallback:
+    | ((entries: IntersectionObserverEntry[]) => void)
+    | null = null
+  let intersectionObserverDisconnect: jest.Mock
+  let intersectionObserverObserve: jest.Mock
+
   beforeEach(() => {
     jest.clearAllMocks()
+    intersectionObserverCallback = null
+    intersectionObserverDisconnect = jest.fn()
+    intersectionObserverObserve = jest.fn()
     ;(undoBookmarkStatus as jest.Mock).mockResolvedValue(true)
     ;(getBookmarks as jest.Mock).mockResolvedValue({
       statuses: [],
@@ -87,10 +96,13 @@ describe('BookmarksTimeline', () => {
     })
     Object.defineProperty(globalThis, 'IntersectionObserver', {
       configurable: true,
-      value: jest.fn().mockImplementation(() => ({
-        disconnect: jest.fn(),
-        observe: jest.fn()
-      }))
+      value: jest.fn().mockImplementation((callback) => {
+        intersectionObserverCallback = callback
+        return {
+          disconnect: intersectionObserverDisconnect,
+          observe: intersectionObserverObserve
+        }
+      })
     })
     Object.defineProperty(globalThis, 'ResizeObserver', {
       configurable: true,
@@ -161,5 +173,38 @@ describe('BookmarksTimeline', () => {
       maxBookmarkId: 'bookmark-2'
     })
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+  })
+
+  it('disconnects the observer when the load-more sentinel is removed', async () => {
+    ;(getBookmarks as jest.Mock).mockResolvedValueOnce({
+      statuses: [bookmarkedStatus],
+      nextMaxBookmarkId: null,
+      prevMinBookmarkId: null
+    })
+
+    render(
+      <BookmarksTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[]}
+        initialNextMaxBookmarkId="bookmark-1"
+      />
+    )
+
+    await waitFor(() => {
+      expect(intersectionObserverObserve).toHaveBeenCalled()
+    })
+
+    await act(async () => {
+      intersectionObserverCallback?.([
+        { isIntersecting: true } as IntersectionObserverEntry
+      ])
+    })
+
+    await screen.findByText('Bookmarked post')
+    await waitFor(() => {
+      expect(intersectionObserverDisconnect).toHaveBeenCalled()
+    })
   })
 })

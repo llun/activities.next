@@ -116,6 +116,8 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   }, [])
 
   useEffect(() => {
+    if (!hasMoreStatuses) return
+
     const loadMoreElement = loadMoreRef.current
     if (!loadMoreElement || typeof IntersectionObserver === 'undefined') return
 
@@ -140,7 +142,7 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
     return () => {
       observer.disconnect()
     }
-  }, [loadMoreStatuses])
+  }, [hasMoreStatuses, loadMoreStatuses])
 
   return (
     <div className="space-y-6">
