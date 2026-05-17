@@ -26,6 +26,7 @@ const actionRowClassName =
 export const Actions: FC<Props> = ({
   host,
   currentActor,
+  currentTime,
   status,
   editable = false,
   showActions = false,
@@ -63,6 +64,7 @@ export const Actions: FC<Props> = ({
         key="edit-history"
         status={actualStatus}
         host={host}
+        currentTime={currentTime}
         onShowEdits={onShowEdits}
       />
     )

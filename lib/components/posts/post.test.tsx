@@ -509,6 +509,40 @@ describe('Post', () => {
     ])
   })
 
+  it('uses currentTime for edit history relative timestamps', () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(currentTime + 7 * 24 * 60 * 60 * 1000)
+
+    try {
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            edits: [
+              { text: 'Previous content', createdAt: currentTime - 60000 }
+            ]
+          }}
+          onShowAttachment={jest.fn()}
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Show edit history, 1 edit'
+        })
+      )
+
+      expect(screen.getByText('1 minute')).toBeInTheDocument()
+      expect(screen.queryByText('7 days')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('does not render an empty status action group', () => {
     render(
       <Post

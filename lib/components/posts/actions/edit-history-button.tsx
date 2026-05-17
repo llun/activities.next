@@ -9,11 +9,17 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 interface Props {
   host: string
+  currentTime: number
   status: StatusNote | StatusPoll
   onShowEdits?: (status: Status) => void
 }
 
-export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
+export const EditHistoryButton: FC<Props> = ({
+  host,
+  currentTime,
+  status,
+  onShowEdits
+}) => {
   const [showHistory, setShowHistory] = useState<boolean>(false)
   const editHistoryId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -78,7 +84,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
                   className="flex flex-col items-start p-3"
                 >
                   <div className="self-end bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs">
-                    {formatDistance(edit.createdAt, Date.now())}
+                    {formatDistance(edit.createdAt, currentTime)}
                   </div>
                   <div className="mr-auto text-left mt-2 whitespace-normal overflow-auto max-h-40">
                     {cleanClassName(
