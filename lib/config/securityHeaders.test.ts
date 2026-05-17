@@ -128,6 +128,12 @@ describe('getSecurityHeaderConfig', () => {
     })
   })
 
+  it('throws for malformed runtime environment remote media allowlist', () => {
+    process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = 'not-json'
+
+    expect(() => getSecurityHeaderConfig()).toThrow()
+  })
+
   it('uses runtime environment media storage settings', () => {
     process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME = 'env-media.example.com'
 

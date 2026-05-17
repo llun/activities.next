@@ -19,7 +19,7 @@ export type SecurityHeaderConfig = {
 const getOptionalEnvironmentList = (key: string): string[] | null => {
   if (process.env[key] === undefined) return null
 
-  return getEnvironmentList(key)
+  return getEnvironmentList(key, { onInvalidList: 'throw' })
 }
 
 const stripUndefinedStorageConfig = (

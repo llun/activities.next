@@ -133,6 +133,8 @@ describe('next config runtime isolation', () => {
     expect(envExample).toContain(
       'ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS=["remote-media.example.com"]'
     )
+    expect(envExample).toContain('images, avatars, emoji, video, and audio')
+    expect(envExample).toContain('set [] to block all remote media sources')
   })
 
   it('keeps utility declarations out of next config source', () => {
@@ -319,11 +321,11 @@ describe('next config security hardening', () => {
             "'self'",
             'data:',
             'blob:',
+            'https:',
             'https://images.example.com',
             'https://cdn.example.com'
           ])
         )
-        expect(imageSources).toContain('https:')
         expect(mediaSources).toEqual(
           expect.arrayContaining([
             "'self'",
@@ -333,6 +335,23 @@ describe('next config security hardening', () => {
             'https://cdn.example.com'
           ])
         )
+      }
+    )
+  })
+
+  it('documents that an explicit empty remote media allowlist blocks federated media sources', () => {
+    withEnv(
+      {
+        ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS: '[]'
+      },
+      () => {
+        const imageSources = getCspDirectiveSources('img-src')
+        const mediaSources = getCspDirectiveSources('media-src')
+
+        expect(imageSources).toEqual(["'self'", 'data:', 'blob:'])
+        expect(mediaSources).toEqual(["'self'", 'blob:'])
+        expect(imageSources).not.toContain('https:')
+        expect(mediaSources).not.toContain('https:')
       }
     )
   })
