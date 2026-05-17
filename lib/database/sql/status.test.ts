@@ -935,6 +935,279 @@ describe('StatusDatabase', () => {
           createdAt: expect.toBeNumber()
         })
       })
+
+      it('replaces note media attachments without changing note text', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-media`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Original note with media'
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/old.jpg',
+          width: 320,
+          height: 240,
+          name: 'old.jpg',
+          mediaId: 'old-media'
+        })
+
+        const updated = await database.updateNote({
+          statusId,
+          text: 'Original note with media',
+          summary: null,
+          attachments: [
+            {
+              type: 'upload',
+              id: 'new-media',
+              mediaType: 'image/png',
+              url: 'https://example.com/new.png',
+              width: 640,
+              height: 480,
+              name: 'new.png'
+            }
+          ]
+        })
+
+        expect(updated).toMatchObject({
+          id: statusId,
+          text: 'Original note with media',
+          attachments: [
+            expect.objectContaining({
+              mediaType: 'image/png',
+              url: 'https://example.com/new.png',
+              name: 'new.png'
+            })
+          ]
+        })
+
+        const attachments = await database.getAttachmentsWithMedia({
+          statusId
+        })
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0]).toMatchObject({
+          mediaId: 'new-media',
+          url: 'https://example.com/new.png'
+        })
+
+        const fetched = (await database.getStatus({
+          statusId
+        })) as StatusNote
+        expect(fetched.edits).toHaveLength(1)
+      })
+
+      it('preserves legacy attachments without media ids when replacing media', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-preserve-legacy`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Original note with legacy media'
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/old.jpg',
+          width: 320,
+          height: 240,
+          name: 'old.jpg',
+          mediaId: 'old-media'
+        })
+        const legacyAttachment = await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://remote.example/legacy.jpg',
+          width: 480,
+          height: 360,
+          name: 'legacy.jpg'
+        })
+
+        const updated = await database.updateNote({
+          statusId,
+          text: 'Original note with legacy media',
+          summary: null,
+          attachments: [
+            {
+              type: 'upload',
+              id: 'new-media',
+              mediaType: 'image/png',
+              url: 'https://example.com/new.png',
+              width: 640,
+              height: 480,
+              name: 'new.png'
+            }
+          ]
+        })
+
+        expect(updated?.attachments).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: legacyAttachment.id,
+              mediaId: null,
+              url: 'https://remote.example/legacy.jpg',
+              createdAt: legacyAttachment.createdAt
+            }),
+            expect.objectContaining({
+              mediaId: 'new-media',
+              url: 'https://example.com/new.png'
+            })
+          ])
+        )
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(attachments).toHaveLength(2)
+        expect(attachments).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              mediaId: 'old-media'
+            })
+          ])
+        )
+      })
+
+      it('clears only editable media while preserving legacy and fitness attachments', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-clear-editable-media`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Original note with mixed attachments'
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/old.jpg',
+          width: 320,
+          height: 240,
+          name: 'old.jpg',
+          mediaId: 'old-media'
+        })
+        const legacyAttachment = await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://remote.example/legacy.jpg',
+          width: 480,
+          height: 360,
+          name: 'legacy.jpg'
+        })
+        const fitnessAttachment = await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'application/gpx+xml',
+          url: 'https://example.com/api/v1/fitness-files/activity',
+          name: 'activity.gpx',
+          mediaId: 'fitness-media'
+        })
+
+        const updated = await database.updateNote({
+          statusId,
+          text: 'Original note with mixed attachments',
+          summary: null,
+          attachments: []
+        })
+
+        expect(updated?.attachments).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: legacyAttachment.id,
+              mediaId: null
+            }),
+            expect.objectContaining({
+              id: fitnessAttachment.id,
+              mediaId: 'fitness-media'
+            })
+          ])
+        )
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(attachments).toHaveLength(2)
+        expect(attachments).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              mediaId: 'old-media'
+            })
+          ])
+        )
+      })
+
+      it('preserves existing editable attachment rows when their media id remains', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-keep-existing-media`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Original note with existing media'
+        })
+        const existingAttachment = await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/existing.jpg',
+          width: 320,
+          height: 240,
+          name: 'existing.jpg',
+          mediaId: 'existing-media',
+          createdAt: new Date('2026-04-26T10:00:00.000Z').getTime()
+        })
+
+        await database.updateNote({
+          statusId,
+          text: 'Original note with existing media',
+          summary: null,
+          attachments: [
+            {
+              type: 'upload',
+              id: 'existing-media',
+              mediaType: 'image/jpeg',
+              url: 'https://example.com/existing.jpg',
+              width: 320,
+              height: 240,
+              name: 'existing.jpg'
+            },
+            {
+              type: 'upload',
+              id: 'new-media',
+              mediaType: 'image/png',
+              url: 'https://example.com/new.png',
+              width: 640,
+              height: 480,
+              name: 'new.png'
+            }
+          ]
+        })
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(attachments).toHaveLength(2)
+        expect(
+          attachments.find(
+            (attachment) => attachment.mediaId === 'existing-media'
+          )
+        ).toMatchObject({
+          id: existingAttachment.id,
+          createdAt: existingAttachment.createdAt,
+          updatedAt: existingAttachment.updatedAt
+        })
+        expect(
+          attachments.find((attachment) => attachment.mediaId === 'new-media')
+        ).toMatchObject({
+          url: 'https://example.com/new.png'
+        })
+      })
     })
 
     describe('updateNoteVisibility', () => {

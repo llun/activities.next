@@ -11,6 +11,7 @@ import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 import { POST as bookmarkStatus } from './bookmark/route'
@@ -720,6 +721,430 @@ describe('GET /api/v1/statuses/[id]', () => {
   })
 
   describe('status update', () => {
+    it('replaces media attachments with a media-only edit and federates the update', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-replace-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Media edit target',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const oldMedia = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-old.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-old.jpg'
+        },
+        description: 'Old media'
+      })
+      const newMedia = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-new.webp',
+          bytes: 2048,
+          mimeType: 'image/png',
+          metaData: { width: 640, height: 480 },
+          fileName: 'api-edit-new.png'
+        },
+        description: 'New media'
+      })
+      expect(oldMedia).not.toBeNull()
+      expect(newMedia).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: oldMedia!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-old.webp',
+        width: 320,
+        height: 240,
+        name: 'Old media',
+        mediaId: oldMedia!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_ids: [newMedia!.id]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.content).toContain('Media edit target')
+      expect(data.media_attachments).toHaveLength(1)
+      expect(data.media_attachments[0]).toMatchObject({
+        type: 'image',
+        url: 'https://llun.test/api/v1/files/medias/api-edit-new.webp',
+        description: 'New media'
+      })
+
+      const attachments = await database.getAttachmentsWithMedia({ statusId })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        mediaId: String(newMedia!.id),
+        url: 'https://llun.test/api/v1/files/medias/api-edit-new.webp',
+        name: 'New media'
+      })
+
+      const updatedStatus = (await database.getStatus({
+        statusId,
+        withReplies: false
+      })) as Status
+      const activityPubNote = getNoteFromStatus(updatedStatus)
+      expect(activityPubNote?.attachment).toEqual([
+        expect.objectContaining({
+          mediaType: 'image/png',
+          url: 'https://llun.test/api/v1/files/medias/api-edit-new.webp',
+          name: 'New media'
+        })
+      ])
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears media attachments with an empty media id list', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-clear-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Clear media target',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-clear.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-clear.jpg'
+        },
+        description: 'Clear media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-clear.webp',
+        width: 320,
+        height: 240,
+        name: 'Clear media',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_ids: []
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toEqual([])
+      await expect(database.getAttachments({ statusId })).resolves.toEqual([])
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows clearing editable media from a blank note when legacy attachments remain', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-clear-media-keep-legacy`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: '',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-clear-legacy-editable.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-clear-legacy-editable.jpg'
+        },
+        description: 'Editable media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-clear-legacy-editable.webp',
+        width: 320,
+        height: 240,
+        name: 'Editable media',
+        mediaId: media!.id
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: 'https://remote.example/legacy.jpg',
+        width: 640,
+        height: 480,
+        name: 'Legacy media'
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: '   ',
+              media_ids: []
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toHaveLength(1)
+      expect(data.media_attachments[0]).toMatchObject({
+        type: 'image',
+        url: 'https://remote.example/legacy.jpg',
+        description: 'Legacy media'
+      })
+
+      const attachments = await database.getAttachments({ statusId })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        mediaId: null,
+        url: 'https://remote.example/legacy.jpg',
+        name: 'Legacy media'
+      })
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects clearing media from a media-only note without partial mutation', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-reject-clear-media-only`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: '',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-reject-clear-media-only.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-reject-clear-media-only.jpg'
+        },
+        description: 'Only media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-clear-media-only.webp',
+        width: 320,
+        height: 240,
+        name: 'Only media',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_ids: []
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      const updatedStatus = await database.getStatus({ statusId })
+      const attachments = await database.getAttachments({ statusId })
+
+      expect(response.status).toBe(422)
+      expect(updatedStatus?.text).toBe('')
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-clear-media-only.webp',
+        name: 'Only media'
+      })
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('rejects blank status with empty media ids without partial mutation', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-reject-blank-clear-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Original text before rejected edit',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-reject-blank-clear-media.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-reject-blank-clear-media.jpg'
+        },
+        description: 'Preserved media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-blank-clear-media.webp',
+        width: 320,
+        height: 240,
+        name: 'Preserved media',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: '   ',
+              media_ids: []
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      const updatedStatus = await database.getStatus({ statusId })
+      const attachments = await database.getAttachments({ statusId })
+
+      expect(response.status).toBe(422)
+      expect(updatedStatus?.text).toBe('Original text before rejected edit')
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        url: 'https://llun.test/api/v1/files/medias/api-edit-reject-blank-clear-media.webp',
+        name: 'Preserved media'
+      })
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('does not partially apply text changes when media ids are forbidden', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-forbidden-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Original media ownership text',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const foreignMedia = await database.createMedia({
+        actorId: ACTOR2_ID,
+        original: {
+          path: 'medias/api-edit-foreign.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-foreign.jpg'
+        },
+        description: 'Foreign media'
+      })
+      expect(foreignMedia).not.toBeNull()
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: 'Should not be applied',
+              media_ids: [foreignMedia!.id]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      const updatedStatus = await database.getStatus({ statusId })
+      expect(response.status).toBe(422)
+      expect(updatedStatus?.text).toBe('Original media ownership text')
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
     it('applies visibility updates when spoiler_text is also present', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-visibility-with-cw`
       await database.createNote({

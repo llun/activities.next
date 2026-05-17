@@ -1,5 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { urlToId } from '@/lib/utils/urlToId'
+
 import {
   clearFitnessRouteHeatmaps,
   getActorStatuses,
@@ -34,7 +36,6 @@ describe('client updateNote', () => {
   it('omits empty status text for content-warning-only edits', async () => {
     await updateNote({
       statusId: '123',
-      message: '',
       contentWarning: 'Updated warning'
     })
 
@@ -46,6 +47,175 @@ describe('client updateNote', () => {
         })
       })
     )
+  })
+
+  it('sends empty status text when clearing an edit message', async () => {
+    await updateNote({
+      statusId: '123',
+      message: ''
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          status: ''
+        })
+      })
+    )
+  })
+
+  it('sends empty status text with media ids when clearing text during media edits', async () => {
+    await updateNote({
+      statusId: '123',
+      message: '',
+      attachments: [
+        {
+          type: 'upload',
+          id: 'media-1',
+          mediaType: 'image/jpeg',
+          url: 'https://llun.test/api/v1/files/media-1.jpg',
+          width: 640,
+          height: 480,
+          name: 'media-1.jpg'
+        }
+      ]
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          status: '',
+          media_ids: ['media-1']
+        })
+      })
+    )
+  })
+
+  it('sends media ids for media-only edits', async () => {
+    await updateNote({
+      statusId: '123',
+      attachments: [
+        {
+          type: 'upload',
+          id: 'media-1',
+          mediaType: 'image/jpeg',
+          url: 'https://llun.test/api/v1/files/media-1.jpg',
+          width: 640,
+          height: 480,
+          name: 'media-1.jpg'
+        }
+      ]
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          media_ids: ['media-1']
+        })
+      })
+    )
+  })
+
+  it('sends an empty media id list when all media is removed', async () => {
+    await updateNote({
+      statusId: '123',
+      attachments: []
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses/123',
+      expect.objectContaining({
+        body: JSON.stringify({
+          media_ids: []
+        })
+      })
+    )
+  })
+
+  it('encodes full status URLs before sending updates', async () => {
+    const statusId = 'https://localhost:3001/users/test1/statuses/post-1'
+
+    await updateNote({
+      statusId,
+      attachments: []
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/v1/statuses/${urlToId(statusId)}`,
+      expect.objectContaining({
+        method: 'PUT'
+      })
+    )
+  })
+
+  it('returns server edit metadata for local timeline reconciliation', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: 'localhost:users:test1:statuses:post-1',
+        uri: 'https://localhost/users/test1/statuses/post-1',
+        content: '<p>Updated status</p>',
+        text: 'Updated status',
+        spoiler_text: '',
+        created_at: '2026-04-26T10:00:00.000Z',
+        edited_at: '2026-04-26T11:00:00.000Z',
+        in_reply_to_id: null,
+        media_attachments: [
+          {
+            id: 'server-attachment',
+            type: 'image',
+            url: 'https://localhost/api/v1/files/image.jpg',
+            preview_url: null,
+            remote_url: null,
+            description: 'image.jpg',
+            blurhash: null,
+            meta: {
+              original: {
+                width: 640,
+                height: 480,
+                size: '640x480',
+                aspect: 1.3333333333333333
+              }
+            }
+          }
+        ]
+      })
+    )
+
+    await expect(
+      updateNote({
+        statusId: 'https://localhost/users/test1/statuses/post-1',
+        message: 'Updated status'
+      })
+    ).resolves.toMatchObject({
+      content: '<p>Updated status</p>',
+      spoilerText: '',
+      mediaAttachments: [
+        expect.objectContaining({
+          id: 'server-attachment'
+        })
+      ],
+      status: {
+        id: 'https://localhost/users/test1/statuses/post-1',
+        text: 'Updated status',
+        createdAt: new Date('2026-04-26T10:00:00.000Z').getTime(),
+        updatedAt: new Date('2026-04-26T11:00:00.000Z').getTime(),
+        reply: ''
+      }
+    })
+  })
+
+  it('throws an update-specific error when updating a note fails', async () => {
+    fetchMock.mockResponseOnce('', { status: 500 })
+
+    await expect(
+      updateNote({
+        statusId: '123',
+        message: 'Updated status'
+      })
+    ).rejects.toThrow('Fail to update the note')
   })
 })
 

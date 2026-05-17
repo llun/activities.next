@@ -44,6 +44,32 @@ describe('#urlToId', () => {
 
     expect(idToUrl(urlToId(actorId))).toEqual(actorId)
   })
+
+  it('round trips URLs with ports', () => {
+    const statusId = 'http://localhost:3001/users/test1/statuses/post-1'
+
+    expect(idToUrl(urlToId(statusId))).toEqual(statusId)
+  })
+
+  it('uses Buffer base64url support in Node before browser fallbacks', () => {
+    const originalBtoa = globalThis.btoa
+    const originalAtob = globalThis.atob
+    const actorId = 'https://bsky.brid.gy/ap/did:plc:abc123/statuses/post-1'
+
+    globalThis.btoa = jest.fn(() => {
+      throw new Error('btoa should not be used when Buffer is available')
+    })
+    globalThis.atob = jest.fn(() => {
+      throw new Error('atob should not be used when Buffer is available')
+    })
+
+    try {
+      expect(idToUrl(urlToId(actorId))).toEqual(actorId)
+    } finally {
+      globalThis.btoa = originalBtoa
+      globalThis.atob = originalAtob
+    }
+  })
 })
 
 describe('#idToUrl', () => {

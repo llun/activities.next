@@ -10,6 +10,27 @@ const supportsNativeBooleans = (db: Knex): boolean => {
   return clientName !== 'better-sqlite3' && clientName !== 'sqlite3'
 }
 
+const hydrateDateFields = <T>(row: T): T => {
+  if (!row || typeof row !== 'object' || row instanceof Date) {
+    return row
+  }
+
+  const hydrated = { ...(row as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(hydrated)) {
+    if (!key.endsWith('At')) continue
+    if (value === null || value === undefined || value instanceof Date) {
+      continue
+    }
+
+    const date = new Date(value as string | number)
+    if (Number.isNaN(date.getTime())) continue
+
+    hydrated[key] = date
+  }
+
+  return hydrated as T
+}
+
 const applyWhere = (
   query: Knex.QueryBuilder,
   model: string,
@@ -106,7 +127,7 @@ export const knexAdapter = (db: Knex) =>
           const id = record.id as string
           const row = await db(tableName).where(`${tableName}.id`, id).first()
           if (!row) throw new Error('Failed to create record')
-          return row as any
+          return hydrateDateFields(row) as any
         },
 
         async findOne({ model, where, select }) {
@@ -122,7 +143,7 @@ export const knexAdapter = (db: Knex) =>
             query = applyWhere(query, tableName, where)
           }
           const row = await query
-          return (row ?? null) as any
+          return row ? (hydrateDateFields(row) as any) : null
         },
 
         async findMany({ model, where, limit, sortBy, offset, select }) {
@@ -144,7 +165,7 @@ export const knexAdapter = (db: Knex) =>
           if (limit !== undefined) query = query.limit(limit)
           if (offset !== undefined) query = query.offset(offset)
           const rows = await query
-          return rows as any
+          return rows.map(hydrateDateFields) as any
         },
 
         async count({ model, where }) {
@@ -164,13 +185,13 @@ export const knexAdapter = (db: Knex) =>
             idQuery = applyWhere(idQuery, tableName, where)
           }
           const existing = await idQuery
-          if (!existing) return null as any
+          if (!existing) return null
           const id = existing.id
           await db(tableName)
             .where(`${tableName}.id`, id)
             .update(updateData as Record<string, unknown>)
           const row = await db(tableName).where(`${tableName}.id`, id).first()
-          return (row ?? null) as any
+          return row ? (hydrateDateFields(row) as any) : null
         },
 
         async updateMany({ model, where, update: updateData }) {

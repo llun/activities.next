@@ -12,7 +12,6 @@ import {
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkBreaks from 'remark-breaks'
-import sanitizeHtml from 'sanitize-html'
 
 import {
   createNote,
@@ -35,7 +34,11 @@ import {
   getMention,
   getMentionFromActorID
 } from '@/lib/types/domain/actor'
-import { Attachment } from '@/lib/types/domain/attachment'
+import {
+  Attachment,
+  PostBoxAttachment,
+  isFitnessAttachment
+} from '@/lib/types/domain/attachment'
 import {
   EditableStatus,
   Status,
@@ -45,7 +48,6 @@ import {
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
-import { urlToId } from '@/lib/utils/urlToId'
 
 import { Duration, PollChoices } from './poll-choices'
 import {
@@ -85,6 +87,199 @@ interface Props {
   onDiscardEdit: () => void
 }
 
+const getEditableStatusText = (status: EditableStatus) => status.text
+
+const isEditableStatusMediaAttachment = (
+  attachment: Attachment
+): attachment is Attachment & { mediaId: string } =>
+  Boolean(attachment.mediaId) && !isFitnessAttachment(attachment)
+
+const getEditableStatusAttachments = (
+  status: EditableStatus
+): PostBoxAttachment[] =>
+  status.attachments.flatMap((attachment) => {
+    if (!isEditableStatusMediaAttachment(attachment)) return []
+
+    return [
+      {
+        type: 'upload',
+        id: attachment.mediaId,
+        mediaType: attachment.mediaType,
+        url: attachment.url,
+        width: attachment.width ?? 0,
+        height: attachment.height ?? 0,
+        name: attachment.name
+      }
+    ]
+  })
+
+const getPreservedStatusAttachments = (attachments: Attachment[]) =>
+  attachments.filter(
+    (attachment) => !isEditableStatusMediaAttachment(attachment)
+  )
+
+const getAttachmentIds = (attachments: Pick<PostBoxAttachment, 'id'>[]) =>
+  attachments.map((attachment) => attachment.id)
+
+const areAttachmentIdsEqualInOrder = (
+  current: Pick<PostBoxAttachment, 'id'>[],
+  baseline: Pick<PostBoxAttachment, 'id'>[]
+) => {
+  const currentIds = getAttachmentIds(current)
+  const baselineIds = getAttachmentIds(baseline)
+  if (currentIds.length !== baselineIds.length) return false
+  return currentIds.every((id, index) => id === baselineIds[index])
+}
+
+const hasNewPostContent = (
+  value: string,
+  extension: { attachments: PostBoxAttachment[]; fitnessFile?: unknown }
+) =>
+  value.trim().length > 0 ||
+  extension.attachments.length > 0 ||
+  Boolean(extension.fitnessFile)
+
+const hasEditPostContent = (
+  status: EditableStatus,
+  value: string,
+  extension: { attachments: PostBoxAttachment[] }
+) =>
+  value.trim().length > 0 ||
+  extension.attachments.length > 0 ||
+  getPreservedStatusAttachments(status.attachments).length > 0
+
+type UpdateNoteResponse = Awaited<ReturnType<typeof updateNote>>
+type UpdateNoteMediaAttachment = UpdateNoteResponse['mediaAttachments'][number]
+
+const getTimestamp = (value: unknown, fallback: number) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const timestamp = Date.parse(value)
+    return Number.isNaN(timestamp) ? fallback : timestamp
+  }
+  if (value instanceof Date) {
+    const timestamp = value.getTime()
+    return Number.isNaN(timestamp) ? fallback : timestamp
+  }
+  return fallback
+}
+
+const getMediaAttachmentDimensions = (
+  mediaAttachment: UpdateNoteMediaAttachment,
+  fallback?: PostBoxAttachment
+) => {
+  const meta = (
+    'meta' in mediaAttachment ? mediaAttachment.meta : undefined
+  ) as
+    | {
+        original?: { width?: number; height?: number }
+        width?: number
+        height?: number
+      }
+    | null
+    | undefined
+
+  return {
+    width: meta?.original?.width ?? meta?.width ?? fallback?.width,
+    height: meta?.original?.height ?? meta?.height ?? fallback?.height
+  }
+}
+
+const getMediaTypeFromMastodonAttachment = (
+  attachment: UpdateNoteMediaAttachment
+) => {
+  switch (attachment.type) {
+    case 'image':
+      return 'image/jpeg'
+    case 'gifv':
+    case 'video':
+      return 'video/mp4'
+    case 'audio':
+      return 'audio/mpeg'
+    default:
+      return 'application/octet-stream'
+  }
+}
+
+const getStatusAttachmentsFromUpdateResponse = ({
+  actorId,
+  existingAttachments,
+  mediaAttachments,
+  statusId,
+  uploadedAttachments,
+  updatedAt
+}: {
+  actorId: string
+  existingAttachments: Attachment[]
+  mediaAttachments: UpdateNoteMediaAttachment[]
+  statusId: string
+  uploadedAttachments: PostBoxAttachment[]
+  updatedAt: number
+}): Attachment[] => {
+  const updatedMediaAttachments: Attachment[] = mediaAttachments.map(
+    (mediaAttachment, index) => {
+      // Mastodon returns media attachments in the submitted order; keep this
+      // order-sensitive pairing so Attachment.id comes from the server while
+      // mediaId and fallback metadata come from the uploaded media ids.
+      const uploadedAttachment = uploadedAttachments[index]
+      const existingAttachment = existingAttachments.find(
+        (attachment) =>
+          attachment.id === mediaAttachment.id ||
+          attachment.mediaId === uploadedAttachment?.id ||
+          attachment.url === mediaAttachment.url
+      )
+      const dimensions = getMediaAttachmentDimensions(
+        mediaAttachment,
+        uploadedAttachment
+      )
+      const attachmentCreatedAt = existingAttachment?.createdAt ?? updatedAt
+
+      return {
+        id: mediaAttachment.id,
+        actorId,
+        statusId,
+        type: 'Document',
+        mediaType:
+          existingAttachment?.mediaType ??
+          uploadedAttachment?.mediaType ??
+          getMediaTypeFromMastodonAttachment(mediaAttachment),
+        url: mediaAttachment.url,
+        width: dimensions.width ?? existingAttachment?.width,
+        height: dimensions.height ?? existingAttachment?.height,
+        name:
+          mediaAttachment.description ??
+          existingAttachment?.name ??
+          uploadedAttachment?.name ??
+          '',
+        mediaId: existingAttachment
+          ? (existingAttachment.mediaId ?? null)
+          : (uploadedAttachment?.id ?? null),
+        createdAt: attachmentCreatedAt,
+        updatedAt
+      }
+    }
+  )
+
+  const preservedAttachments: Attachment[] = getPreservedStatusAttachments(
+    existingAttachments
+  )
+    .filter(
+      (attachment) =>
+        !mediaAttachments.some(
+          (mediaAttachment) =>
+            mediaAttachment.id === attachment.id ||
+            mediaAttachment.url === attachment.url
+        )
+    )
+    .map((attachment) => ({
+      ...attachment,
+      statusId,
+      updatedAt
+    }))
+
+  return [...updatedMediaAttachments, ...preservedAttachments]
+}
+
 export const PostBox: FC<Props> = ({
   host,
   profile,
@@ -104,6 +299,7 @@ export const PostBox: FC<Props> = ({
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
+  const submitInFlightRef = useRef(false)
   const fitnessCleanupInFlightRef = useRef<{
     uploadedId: string
     promise: Promise<boolean>
@@ -123,6 +319,37 @@ export const PostBox: FC<Props> = ({
     textRef.current = text
   }, [text])
 
+  const isEditDirty = (
+    value = textRef.current,
+    extension = postExtensionRef.current
+  ) => {
+    if (!editStatus) return false
+
+    const contentWarning = extension.contentWarningVisible
+      ? extension.contentWarning
+      : ''
+    return (
+      value !== getEditableStatusText(editStatus) ||
+      contentWarning !== (editStatus.summary ?? '') ||
+      !areAttachmentIdsEqualInOrder(
+        extension.attachments,
+        getEditableStatusAttachments(editStatus)
+      )
+    )
+  }
+
+  const isEditSubmittable = (
+    value = textRef.current,
+    extension = postExtensionRef.current
+  ) => {
+    if (!editStatus) return false
+
+    return (
+      isEditDirty(value, extension) &&
+      hasEditPostContent(editStatus, value, extension)
+    )
+  }
+
   useEffect(() => {
     return () => {
       postExtensionRef.current.attachments.forEach((attachment) => {
@@ -133,8 +360,95 @@ export const PostBox: FC<Props> = ({
     }
   }, [])
 
+  const uploadMediaAttachments = async () => {
+    const attachmentsToUpload = postExtensionRef.current.attachments
+
+    const uploadResults = await Promise.all(
+      attachmentsToUpload.map(async (attachment) => {
+        if (!attachment.file)
+          return {
+            originalId: attachment.id,
+            uploadedAttachment: attachment
+          }
+
+        const loadingAttachment = {
+          ...attachment,
+          isLoading: true
+        }
+        postExtensionRef.current = {
+          ...postExtensionRef.current,
+          attachments: postExtensionRef.current.attachments.map((item) =>
+            item.id === attachment.id ? loadingAttachment : item
+          )
+        }
+        dispatch(updateAttachment(attachment.id, loadingAttachment))
+
+        try {
+          const uploaded = await uploadAttachment(attachment.file)
+          if (!uploaded) throw new Error()
+
+          // Revoke the blob URL after successful upload
+          if (attachment.url.startsWith('blob:')) {
+            URL.revokeObjectURL(attachment.url)
+          }
+
+          const newAttachment = {
+            ...attachment,
+            ...uploaded,
+            isLoading: false,
+            file: undefined
+          }
+          postExtensionRef.current = {
+            ...postExtensionRef.current,
+            attachments: postExtensionRef.current.attachments.map((item) =>
+              item.id === attachment.id ? newAttachment : item
+            )
+          }
+          dispatch(updateAttachment(attachment.id, newAttachment))
+          return {
+            originalId: attachment.id,
+            uploadedAttachment: newAttachment
+          }
+        } catch (error) {
+          const restoredAttachment = {
+            ...attachment,
+            isLoading: false
+          }
+          postExtensionRef.current = {
+            ...postExtensionRef.current,
+            attachments: postExtensionRef.current.attachments.map((item) =>
+              item.id === attachment.id ? restoredAttachment : item
+            )
+          }
+          dispatch(updateAttachment(attachment.id, restoredAttachment))
+          const reason =
+            error instanceof Error && error.message ? `: ${error.message}` : ''
+          throw new Error(`Fail to upload ${attachment.name}${reason}`, {
+            cause: error
+          })
+        }
+      })
+    )
+
+    // Filter out attachments that were removed during upload
+    const currentAttachmentIds = new Set(
+      postExtensionRef.current.attachments.map((a) => a.id)
+    )
+    return uploadResults
+      .filter((a) => {
+        return (
+          currentAttachmentIds.has(a.originalId) ||
+          currentAttachmentIds.has(a.uploadedAttachment.id)
+        )
+      })
+      .map((a) => a.uploadedAttachment)
+  }
+
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
+    if (!allowPost) return
+    if (submitInFlightRef.current) return
+    submitInFlightRef.current = true
 
     setAllowPost(false)
     setIsPosting(true)
@@ -171,16 +485,63 @@ export const PostBox: FC<Props> = ({
       }
 
       if (editStatus) {
-        const updateMessage = message.trim().length > 0 ? message : undefined
-        await updateNote({
-          statusId: urlToId(editStatus.id),
+        const attachments = await uploadMediaAttachments()
+        const baselineText = getEditableStatusText(editStatus)
+        const baselineContentWarning = editStatus.summary ?? ''
+        const currentContentWarning = postExtension.contentWarningVisible
+          ? postExtension.contentWarning
+          : ''
+        const attachmentsChanged = !areAttachmentIdsEqualInOrder(
+          attachments,
+          getEditableStatusAttachments(editStatus)
+        )
+        const updateMessage = message !== baselineText ? message : undefined
+        const updateContentWarning =
+          currentContentWarning !== baselineContentWarning
+            ? currentContentWarning
+            : undefined
+        const updateAttachments = attachmentsChanged ? attachments : undefined
+
+        if (
+          updateMessage === undefined &&
+          updateContentWarning === undefined &&
+          updateAttachments === undefined
+        ) {
+          setIsPosting(false)
+          return
+        }
+
+        const updateResponse = await updateNote({
+          statusId: editStatus.id,
           message: updateMessage,
-          contentWarning
+          contentWarning: updateContentWarning,
+          attachments: updateAttachments
         })
+        const responseStatus = updateResponse.status
+        const responseCreatedAt = getTimestamp(
+          responseStatus.createdAt,
+          editStatus.createdAt
+        )
+        const responseUpdatedAt = getTimestamp(
+          responseStatus.updatedAt,
+          Date.now()
+        )
+        const responseStatusId = responseStatus.id || editStatus.id
         onPostUpdated({
           ...editStatus,
-          text: updateMessage ?? editStatus.text,
-          summary: contentWarning.trim() || null
+          id: responseStatusId,
+          text: responseStatus.text ?? message,
+          summary: updateResponse.spoilerText.trim() || null,
+          attachments: getStatusAttachmentsFromUpdateResponse({
+            actorId: editStatus.actorId,
+            existingAttachments: editStatus.attachments,
+            mediaAttachments: updateResponse.mediaAttachments,
+            uploadedAttachments: attachments,
+            statusId: responseStatusId,
+            updatedAt: responseUpdatedAt
+          }),
+          createdAt: responseCreatedAt,
+          updatedAt: responseUpdatedAt
         })
         dispatch(resetExtension())
 
@@ -215,83 +576,7 @@ export const PostBox: FC<Props> = ({
         }
       }
 
-      const uploadResults = await Promise.all(
-        postExtension.attachments.map(async (attachment) => {
-          if (!attachment.file)
-            return {
-              originalId: attachment.id,
-              uploadedAttachment: attachment
-            }
-
-          dispatch(
-            updateAttachment(attachment.id, {
-              ...attachment,
-              isLoading: true
-            })
-          )
-
-          try {
-            const uploaded = await uploadAttachment(attachment.file)
-            if (!uploaded) throw new Error()
-
-            // Revoke the blob URL after successful upload
-            if (attachment.url.startsWith('blob:')) {
-              URL.revokeObjectURL(attachment.url)
-            }
-
-            const newAttachment = {
-              ...attachment,
-              ...uploaded,
-              isLoading: false,
-              file: undefined
-            }
-            dispatch(updateAttachment(attachment.id, newAttachment))
-            return {
-              originalId: attachment.id,
-              uploadedAttachment: newAttachment
-            }
-          } catch {
-            dispatch(
-              updateAttachment(attachment.id, {
-                ...attachment,
-                isLoading: false
-              })
-            )
-            throw new Error(`Fail to upload ${attachment.name}`)
-          }
-        })
-      )
-
-      // Filter out attachments that were removed during upload
-      const currentAttachmentIds = new Set(
-        postExtensionRef.current.attachments.map((a) => a.id)
-      )
-      const attachments = uploadResults
-        .filter((a) =>
-          // It is possible that the attachment is not in the current list
-          // because it was removed during the upload process.
-          // However, the current list might have the new ID or the old ID.
-          // If the attachment is in the current list, it means it was not removed.
-          // If checking with only original ID, it might be removed by the user
-          // but the current list has the old ID.
-          // If checking with only new ID, it might be removed by the user
-          // but the current list has the new ID.
-          // Wait, the postExtensionRef.current update is async in react
-          // so it might still have the old ID or the new ID?
-          // The dispatch is async, but the ref update is in useEffect which is also async
-          // relative to this function execution?
-          // Actually, dispatch triggers re-render, leading to useEffect update ref.
-          // So inside this async function, the ref update might happen after await.
-          // So we should check if the original ID is in the list (meaning not removed yet / old state)
-          // OR if the new ID is in the list (meaning not removed / new state).
-          {
-            return (
-              currentAttachmentIds.has(a.originalId) ||
-              currentAttachmentIds.has(a.uploadedAttachment.id)
-            )
-          }
-        )
-        .map((a) => a.uploadedAttachment)
+      const attachments = await uploadMediaAttachments()
 
       const response = await createNote({
         message,
@@ -308,10 +593,19 @@ export const PostBox: FC<Props> = ({
 
       setText('')
       setIsPosting(false)
-    } catch {
+    } catch (error) {
       setIsPosting(false)
       setAllowPost(true)
-      alert('Fail to create a post')
+      const fallbackMessage = editStatus
+        ? 'Fail to update the post'
+        : 'Fail to create a post'
+      alert(
+        error instanceof Error && error.message
+          ? error.message
+          : fallbackMessage
+      )
+    } finally {
+      submitInFlightRef.current = false
     }
   }
 
@@ -325,12 +619,21 @@ export const PostBox: FC<Props> = ({
     if (attachment.url.startsWith('blob:')) {
       URL.revokeObjectURL(attachment.url)
     }
-    dispatch(
-      setAttachments([
-        ...postExtension.attachments.slice(0, attachmentIndex),
-        ...postExtension.attachments.slice(attachmentIndex + 1)
-      ])
-    )
+    const nextAttachments = [
+      ...postExtension.attachments.slice(0, attachmentIndex),
+      ...postExtension.attachments.slice(attachmentIndex + 1)
+    ]
+    const nextExtension = {
+      ...postExtensionRef.current,
+      attachments: nextAttachments
+    }
+    postExtensionRef.current = nextExtension
+    dispatch(setAttachments(nextAttachments))
+    if (editStatus) {
+      setAllowPost(isEditSubmittable(textRef.current, nextExtension))
+      return
+    }
+    setAllowPost(hasNewPostContent(textRef.current, nextExtension))
   }
 
   const onRemoveFitnessFile = useCallback(async () => {
@@ -341,11 +644,12 @@ export const PostBox: FC<Props> = ({
 
     const clearFitnessFile = () => {
       dispatch(removeFitnessFile())
-      postExtensionRef.current = {
+      const nextExtension = {
         ...postExtensionRef.current,
         fitnessFile: undefined
       }
-      setAllowPost(textRef.current.trim().length > 0)
+      postExtensionRef.current = nextExtension
+      setAllowPost(hasNewPostContent(textRef.current, nextExtension))
     }
 
     if (!fitnessFile.uploadedId) {
@@ -400,15 +704,15 @@ export const PostBox: FC<Props> = ({
     setText(value)
     textRef.current = value
     if (value.trim().length === 0) {
-      setAllowPost(Boolean(postExtensionRef.current.fitnessFile))
+      setAllowPost(
+        editStatus
+          ? isEditSubmittable(value)
+          : hasNewPostContent(value, postExtensionRef.current)
+      )
       return
     }
-    if (
-      editStatus &&
-      value === sanitizeHtml(editStatus.text, { allowedTags: [] }) &&
-      postExtensionRef.current.contentWarning === (editStatus.summary ?? '')
-    ) {
-      setAllowPost(false)
+    if (editStatus) {
+      setAllowPost(isEditSubmittable(value))
       return
     }
     setAllowPost(true)
@@ -418,10 +722,14 @@ export const PostBox: FC<Props> = ({
     dispatch(setContentWarning(value))
     if (!editStatus) return
 
-    setAllowPost(
-      value !== (editStatus.summary ?? '') ||
-        textRef.current !== sanitizeHtml(editStatus.text, { allowedTags: [] })
-    )
+    const nextExtension = {
+      ...postExtensionRef.current,
+      contentWarning: value,
+      contentWarningVisible:
+        postExtensionRef.current.contentWarningVisible || value.length > 0
+    }
+    postExtensionRef.current = nextExtension
+    setAllowPost(isEditSubmittable(textRef.current, nextExtension))
   }
 
   const onToggleContentWarning = () => {
@@ -429,11 +737,12 @@ export const PostBox: FC<Props> = ({
     dispatch(setContentWarningVisibility(nextVisible))
     if (!editStatus) return
 
-    const nextContentWarning = nextVisible ? postExtension.contentWarning : ''
-    setAllowPost(
-      nextContentWarning !== (editStatus.summary ?? '') ||
-        textRef.current !== sanitizeHtml(editStatus.text, { allowedTags: [] })
-    )
+    const nextExtension = {
+      ...postExtensionRef.current,
+      contentWarningVisible: nextVisible
+    }
+    postExtensionRef.current = nextExtension
+    setAllowPost(isEditSubmittable(textRef.current, nextExtension))
   }
 
   /**
@@ -493,18 +802,27 @@ export const PostBox: FC<Props> = ({
 
   useEffect(() => {
     if (editStatus) {
-      setText(editStatus.text)
+      const editText = getEditableStatusText(editStatus)
+      const attachments = getEditableStatusAttachments(editStatus)
+      const nextExtension = {
+        ...DEFAULT_STATE,
+        attachments,
+        contentWarning: editStatus.summary ?? '',
+        contentWarningVisible: Boolean(editStatus.summary)
+      }
+      postExtensionRef.current = nextExtension
+      textRef.current = editText
+      setText(editText)
+      dispatch(setAttachments(attachments))
       dispatch(setContentWarning(editStatus.summary ?? ''))
       dispatch(setContentWarningVisibility(Boolean(editStatus.summary)))
-      setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check?
-      // Original logic in onTextChange checked if text === editStatus.text.
-      // So if we set text to editStatus.text, allowPost should be false.
-      // But we need to update allowPost.
+      setAllowPost(false)
       return
     } else {
       setText('')
-      dispatch(setContentWarning(''))
-      dispatch(setContentWarningVisibility(false))
+      textRef.current = ''
+      postExtensionRef.current = DEFAULT_STATE
+      dispatch(resetExtension())
       setAllowPost(false)
     }
 
@@ -681,7 +999,26 @@ export const PostBox: FC<Props> = ({
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
               onAddAttachment={(attachment) => {
+                const nextExtension = {
+                  ...postExtensionRef.current,
+                  attachments: [
+                    ...postExtensionRef.current.attachments,
+                    attachment
+                  ],
+                  fitnessFile: undefined,
+                  poll: {
+                    ...DEFAULT_STATE.poll
+                  }
+                }
+                postExtensionRef.current = nextExtension
                 dispatch(addAttachment(attachment))
+                if (editStatus) {
+                  setAllowPost(
+                    isEditSubmittable(textRef.current, nextExtension)
+                  )
+                  return
+                }
+                setAllowPost(hasNewPostContent(textRef.current, nextExtension))
               }}
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')
@@ -740,7 +1077,9 @@ export const PostBox: FC<Props> = ({
         <div className="grid gap-4 grid-cols-8">
           {postExtension.attachments.map((item, index) => {
             return (
-              <div
+              <button
+                type="button"
+                aria-label={`Remove media ${item.name ?? index + 1}`}
                 className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative"
                 key={item.id}
                 style={{
@@ -753,7 +1092,7 @@ export const PostBox: FC<Props> = ({
                     <Loader2 className="animate-spin text-primary" />
                   </div>
                 ) : null}
-              </div>
+              </button>
             )
           })}
         </div>

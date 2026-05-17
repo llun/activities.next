@@ -7,9 +7,12 @@ import {
   OAuthGuard,
   OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
+import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { Scope } from '@/lib/types/database/operations'
+import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -100,8 +103,20 @@ export const GET = traceApiRoute(
 const EditNoteSchema = z.object({
   status: z.string().optional(),
   spoiler_text: z.string().nullish(),
+  media_ids: z.array(z.coerce.string()).optional(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
+
+const isFitnessStatusAttachment = (attachment: {
+  mediaType: string
+  url: string
+  name?: string | null
+}) =>
+  isFitnessAttachment({
+    mediaType: attachment.mediaType,
+    url: attachment.url,
+    name: attachment.name ?? ''
+  })
 
 export const PUT = traceApiRoute(
   'updateStatus',
@@ -129,11 +144,28 @@ export const PUT = traceApiRoute(
         })
       }
       const changes = parsed.data
+      const mediaIds =
+        changes.media_ids === undefined
+          ? undefined
+          : [...new Set(changes.media_ids)]
+      if (
+        mediaIds !== undefined &&
+        mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
 
       let updatedNote
 
       const shouldUpdateContent =
-        changes.status !== undefined || changes.spoiler_text !== undefined
+        changes.status !== undefined ||
+        changes.spoiler_text !== undefined ||
+        mediaIds !== undefined
       const visibility = changes.visibility
 
       if (!shouldUpdateContent && visibility === undefined) {
@@ -157,6 +189,50 @@ export const PUT = traceApiRoute(
           data: ERROR_403,
           responseStatusCode: 403
         })
+      }
+
+      const attachments =
+        mediaIds === undefined
+          ? undefined
+          : await getAttachmentsFromMediaIds(database, currentActor, mediaIds)
+      if (attachments === null) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+      const changesTextOrMedia =
+        changes.status !== undefined || mediaIds !== undefined
+      if (changesTextOrMedia) {
+        const effectiveText =
+          changes.status === undefined ? existingStatus.text : changes.status
+        const effectiveAttachments = (
+          attachments === undefined
+            ? existingStatus.attachments
+            : [
+                ...attachments,
+                ...existingStatus.attachments.filter(
+                  (attachment) =>
+                    (attachment.mediaId === null ||
+                      attachment.mediaId === undefined) &&
+                    !isFitnessStatusAttachment(attachment)
+                )
+              ]
+        ).filter((attachment) => !isFitnessStatusAttachment(attachment))
+
+        if (
+          effectiveText.trim().length === 0 &&
+          effectiveAttachments.length === 0
+        ) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
       }
 
       if (visibility !== undefined) {
@@ -183,6 +259,7 @@ export const PUT = traceApiRoute(
           currentActor,
           text: changes.status,
           summary: changes.spoiler_text,
+          attachments,
           publish: true,
           status:
             updatedNote?.type === StatusType.enum.Note
