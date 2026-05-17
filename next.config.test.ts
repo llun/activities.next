@@ -116,6 +116,18 @@ describe('next config runtime isolation', () => {
     ).not.toContain('ACTIVITIES_')
   })
 
+  it('documents the runtime media CSP allowlist in env example', () => {
+    const envExample = fs.readFileSync(
+      path.join(originalCwd, '.env.example'),
+      'utf-8'
+    )
+
+    expect(envExample).toContain('ACTIVITIES_ALLOW_MEDIA_DOMAINS')
+    expect(envExample).toContain(
+      'ACTIVITIES_ALLOW_MEDIA_DOMAINS=["media.example.com","cdn.example.org"]'
+    )
+  })
+
   it('keeps utility declarations out of next config source', () => {
     const source = fs.readFileSync(
       path.join(originalCwd, 'next.config.ts'),
@@ -146,6 +158,7 @@ describe('next config security hardening', () => {
         const scriptSources = getCspDirectiveSources('script-src')
         const styleSources = getCspDirectiveSources('style-src')
         const connectSources = getCspDirectiveSources('connect-src')
+        const imageSources = getCspDirectiveSources('img-src')
         const mediaSources = getCspDirectiveSources('media-src')
 
         expect(csp?.value).toContain("default-src 'none'")
@@ -153,6 +166,7 @@ describe('next config security hardening', () => {
         expect(scriptSources).toEqual(["'self'", "'unsafe-inline'"])
         expect(styleSources).toEqual(["'self'", "'unsafe-inline'"])
         expect(connectSources).toEqual(["'self'"])
+        expect(imageSources).toEqual(["'self'", 'data:', 'blob:', 'https:'])
         expect(csp?.value).toContain("manifest-src 'self'")
         expect(mediaSources).toEqual(["'self'", 'https:', 'blob:'])
         expect(csp?.value).not.toContain("'unsafe-eval'")
