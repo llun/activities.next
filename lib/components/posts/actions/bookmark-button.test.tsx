@@ -59,11 +59,11 @@ describe('BookmarkButton', () => {
     jest.clearAllMocks()
   })
 
-  it('reserves error message space without announcing an empty alert', () => {
+  it('does not reserve idle error message space in the action grid', () => {
     render(<BookmarkButton status={status} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByTestId('bookmark-error-space')).toBeEmptyDOMElement()
+    expect(screen.queryByTestId('bookmark-error-space')).not.toBeInTheDocument()
   })
 
   it('shows an error and keeps state when bookmarking fails', async () => {

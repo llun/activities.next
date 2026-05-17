@@ -34,7 +34,7 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
     : 'Failed to bookmark post. Please try again.'
 
   return (
-    <span className="inline-flex flex-col items-center gap-1">
+    <span className="relative inline-flex items-center justify-center">
       <button
         title={bookmarkLabel}
         aria-label={bookmarkLabel}
@@ -71,14 +71,15 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
       >
         <Bookmark className={cn('h-4 w-4', { 'fill-current': isBookmarked })} />
       </button>
-      <span
-        aria-hidden={error ? undefined : true}
-        className="min-h-4 text-xs text-destructive"
-        data-testid="bookmark-error-space"
-        role={error ? 'alert' : undefined}
-      >
-        {error}
-      </span>
+      {error ? (
+        <span
+          className="absolute left-1/2 top-full z-10 mt-1 w-48 -translate-x-1/2 rounded-md border bg-background px-2 py-1 text-center text-xs text-destructive shadow-sm"
+          data-testid="bookmark-error"
+          role="alert"
+        >
+          {error}
+        </span>
+      ) : null}
     </span>
   )
 }
