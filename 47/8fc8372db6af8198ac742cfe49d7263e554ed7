@@ -1,0 +1,65 @@
+app/(timeline)/bookmarks/page.tsx
+  s_5d40a12a070d4a::t_63a8effeefb99c 1-6,8-52
+  s_5d40a12a070d4a::t_747f39cd572feb 7
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  s_5d40a12a070d4a::t_5981d7641a1951 95-101,106
+  s_5d40a12a070d4a::t_747f39cd572feb 8
+  s_5d40a12a070d4a::t_a8050ea8d139dc 22-27
+  s_5d40a12a070d4a::t_edb4bec81fe829 1-7,9-21,28-81,83-94,102-105,107-130
+  s_5d40a12a070d4a::t_c46e1c90fcb5e2 82
+lib/components/posts/actions/actions.tsx
+  s_5d40a12a070d4a::t_5438e27eae8e90 11,60-64,99
+  s_5d40a12a070d4a::t_a2a2a9bca6fb55 37-38,59
+lib/components/posts/post.test.tsx
+  s_5d40a12a070d4a::t_75a09a87f11390 63,368,416-422,599-600,605-607,700-721
+  s_5d40a12a070d4a::t_a8d14c7c838581 397,406
+lib/components/posts/posts.tsx
+  s_5d40a12a070d4a::t_34cc6011492c63 10-15,35-38,53-54,112
+app/api/v1/bookmarks/route.ts
+  s_5d40a12a070d4a::t_d9cf5802bdf348 5,8,33,45-56,60
+  s_5d40a12a070d4a::t_747f39cd572feb 1,35-44
+lib/components/posts/actions/bookmark-button.tsx
+  s_5d40a12a070d4a::t_5d4b5e65520b62 1-62,64-66
+  s_5d40a12a070d4a::t_747f39cd572feb 63
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_5d40a12a070d4a::t_747f39cd572feb 62-64
+  s_5d40a12a070d4a::t_8fca676e3ec74a 39
+  s_5d40a12a070d4a::t_b10042e3382213 1-38,40-61,65-178
+app/api/v1/bookmarks/route.test.ts
+  s_5d40a12a070d4a::t_747f39cd572feb 109-114
+  s_5d40a12a070d4a::t_631732e39cf5f1 106-108,115-129
+lib/components/layout/mobile-nav.tsx
+  s_5d40a12a070d4a::t_2b8250bd71d961 26,32,36,51
+lib/client.ts
+  s_5d40a12a070d4a::t_747f39cd572feb 297-303,305
+  s_5d40a12a070d4a::t_8f503332bb9063 610-614,616-653
+  s_5d40a12a070d4a::t_f982dca0006451 292-296,304,306-308,392-406
+  s_5d40a12a070d4a::t_ce6c1341c0aab8 609,615
+lib/components/posts/post.tsx
+  s_5d40a12a070d4a::t_bfe42ed47d1bc2 9-14,47-50
+lib/components/layout/nav-items.ts
+  s_5d40a12a070d4a::t_6399251143202d 26-30
+  s_5d40a12a070d4a::t_6a1bace20e7dc0 1,12
+lib/services/bookmarks/getBookmarkedStatusesPage.ts
+  s_5d40a12a070d4a::t_747f39cd572feb 4
+  s_5d40a12a070d4a::t_e1c0e4ebe2d9a8 1-3,5-64
+lib/client.test.ts
+  s_5d40a12a070d4a::t_747f39cd572feb 9
+  s_5d40a12a070d4a::t_010ac68015f64b 6,14,252-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "478fc8372db6af8198ac742cfe49d7263e554ed7",
+  "prompts": {},
+  "sessions": {
+    "s_5d40a12a070d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34f2-5f7a-78f2-bcb3-e89e9dbef690",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
