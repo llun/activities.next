@@ -80,7 +80,7 @@ export const EditHistoryButton: FC<Props> = ({
             {edits.map((edit, index) => {
               return (
                 <li
-                  key={edit.createdAt + index}
+                  key={`${edit.createdAt}-${index}`}
                   className="flex flex-col items-start p-3"
                 >
                   <div className="self-end bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs">
