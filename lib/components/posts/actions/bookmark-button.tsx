@@ -71,11 +71,14 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
       >
         <Bookmark className={cn('h-4 w-4', { 'fill-current': isBookmarked })} />
       </button>
-      {error ? (
-        <span className="text-xs text-destructive" role="alert">
-          {error}
-        </span>
-      ) : null}
+      <span
+        aria-hidden={error ? undefined : true}
+        className="min-h-4 text-xs text-destructive"
+        data-testid="bookmark-error-space"
+        role={error ? 'alert' : undefined}
+      >
+        {error}
+      </span>
     </span>
   )
 }

@@ -59,6 +59,13 @@ describe('BookmarkButton', () => {
     jest.clearAllMocks()
   })
 
+  it('reserves error message space without announcing an empty alert', () => {
+    render(<BookmarkButton status={status} />)
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByTestId('bookmark-error-space')).toBeEmptyDOMElement()
+  })
+
   it('shows an error and keeps state when bookmarking fails', async () => {
     ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
     const onBookmarkChanged = jest.fn()
