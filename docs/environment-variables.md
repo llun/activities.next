@@ -67,6 +67,18 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 | `ACTIVITIES_DATABASE_MYSQL_POOL_MIN` | Minimum connection pool size.         |
 | `ACTIVITIES_DATABASE_MYSQL_POOL_MAX` | Maximum connection pool size.         |
 
+## Search
+
+Search uses the SQL-backed index by default. Meilisearch can be enabled as an optional read backend; see [Search](search.md) for rebuild commands and operational notes.
+
+| Variable                                     | Description                                                                  |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ACTIVITIES_SEARCH_BACKEND`                  | Search read backend: `database` (default) or `meilisearch`.                  |
+| `ACTIVITIES_SEARCH_MEILISEARCH_URL`          | Meilisearch base URL. Required when `ACTIVITIES_SEARCH_BACKEND=meilisearch`. |
+| `ACTIVITIES_SEARCH_MEILISEARCH_API_KEY`      | Optional Meilisearch API key.                                                |
+| `ACTIVITIES_SEARCH_MEILISEARCH_INDEX_PREFIX` | Prefix for Meilisearch indexes. Defaults to `activities_next`.               |
+| `ACTIVITIES_SEARCH_MEILISEARCH_TIMEOUT_MS`   | Meilisearch request timeout in milliseconds. Defaults to `2000`.             |
+
 ## Authentication
 
 | Variable                        | Description                               |

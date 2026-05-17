@@ -1,21 +1,138 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 
+import { search } from '@/lib/search'
+import {
+  OptionalOAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
+import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_401,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = traceApiRoute('search', async (req: NextRequest) => {
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: {
-      accounts: [],
-      statuses: [],
-      hashtags: []
-    }
-  })
+const BooleanString = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true')
+
+const SearchParams = z.object({
+  q: z.string().default(''),
+  type: z.enum(['accounts', 'statuses', 'hashtags']).optional(),
+  limit: z.coerce.number().int().min(1).max(40).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  min_id: z.string().min(1).optional(),
+  max_id: z.string().min(1).optional(),
+  account_id: z.string().min(1).optional(),
+  following: BooleanString,
+  resolve: BooleanString,
+  exclude_unreviewed: BooleanString
 })
+
+export const GET = traceApiRoute(
+  'search',
+  OptionalOAuthGuardAnyScope(
+    [Scope.enum.read, Scope.enum['read:search']],
+    async (req: NextRequest, { currentActor, database }) => {
+      const url = new URL(req.url)
+      const queryParams: Record<string, string> = {}
+      url.searchParams.forEach((value, key) => {
+        queryParams[key] = value
+      })
+
+      const parsedParams = SearchParams.safeParse(queryParams)
+      if (!parsedParams.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      const {
+        q,
+        type,
+        limit,
+        offset,
+        min_id,
+        max_id,
+        account_id,
+        following,
+        resolve
+      } = parsedParams.data
+      const query = q.trim()
+
+      if (!query) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            accounts: [],
+            statuses: [],
+            hashtags: []
+          }
+        })
+      }
+
+      if (!currentActor && (following || type === 'statuses')) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_401,
+          responseStatusCode: 401
+        })
+      }
+
+      const includeAccounts = type ? type === 'accounts' : true
+      const includeStatuses = type ? type === 'statuses' : Boolean(currentActor)
+      const includeHashtags = type ? type === 'hashtags' : true
+
+      const results = await search({
+        database,
+        query,
+        limit,
+        offset,
+        currentActorId: currentActor?.id,
+        includeAccounts,
+        includeStatuses,
+        includeHashtags,
+        accountId: account_id,
+        maxStatusId: max_id,
+        minStatusId: min_id,
+        following,
+        ...(resolve ? { resolve } : {})
+      })
+      const statuses = (
+        await Promise.all(
+          results.statuses.map((status) =>
+            getMastodonStatus(database, status, currentActor?.id)
+          )
+        )
+      ).filter((status) => status !== null)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          accounts: results.accounts,
+          statuses,
+          hashtags: results.hashtags
+        }
+      })
+    },
+    {
+      errorResponse: corsErrorResponse(CORS_HEADERS)
+    }
+  )
+)

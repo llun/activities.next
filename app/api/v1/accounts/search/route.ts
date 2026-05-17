@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { resolveAccountForSearch } from '@/lib/search/resolveAccount'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -11,80 +11,66 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const BooleanString = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true')
+
 const SearchParams = z.object({
   q: z.string(),
-  limit: z.coerce.number().min(1).max(80).default(40).optional(),
-  offset: z.coerce.number().min(0).default(0).optional(),
-  resolve: z
-    .enum(['true', 'false'])
-    .transform((v) => v === 'true')
-    .optional(),
-  following: z
-    .enum(['true', 'false'])
-    .transform((v) => v === 'true')
-    .optional()
+  limit: z.coerce.number().int().min(1).max(80).default(40),
+  offset: z.coerce.number().int().min(0).default(0),
+  resolve: BooleanString,
+  following: BooleanString
 })
 
 export const GET = traceApiRoute(
   'searchAccounts',
-  OAuthGuard([Scope.enum.read], async (req, context) => {
-    const { database } = context
+  OAuthGuardAnyScope(
+    [Scope.enum.read, Scope.enum['read:search']],
+    async (req, context) => {
+      const { currentActor, database } = context
 
-    const url = new URL(req.url)
-    const queryParams: Record<string, string> = {}
-    url.searchParams.forEach((value, key) => {
-      queryParams[key] = value
-    })
+      const url = new URL(req.url)
+      const queryParams: Record<string, string> = {}
+      url.searchParams.forEach((value, key) => {
+        queryParams[key] = value
+      })
 
-    const parsedParams = SearchParams.safeParse(queryParams)
-    if (!parsedParams.success) {
+      const parsedParams = SearchParams.safeParse(queryParams)
+      if (!parsedParams.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      const { q, limit, offset, following, resolve } = parsedParams.data
+      if (!q || q.trim().length === 0) {
+        return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
+      }
+
+      const query = q.trim()
+      if (resolve) {
+        await resolveAccountForSearch({ database, query })
+      }
+
+      const results = await database.searchAccounts({
+        query,
+        limit,
+        offset,
+        currentActorId: currentActor.id,
+        following,
+        resolve
+      })
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: results
       })
     }
-
-    const { q, limit = 40 } = parsedParams.data
-
-    if (!q || q.trim().length === 0) {
-      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
-    }
-
-    const query = q.trim()
-    const results = []
-
-    // Try exact match first (username@domain or just username)
-    if (query.includes('@')) {
-      const [username, domain] = query.split('@')
-      if (username && domain) {
-        const actor = await database.getActorFromUsername({ username, domain })
-        if (actor) {
-          const mastodonActor = await database.getMastodonActorFromId({
-            id: actor.id
-          })
-          if (mastodonActor) results.push(mastodonActor)
-        }
-      }
-    } else {
-      // Try as local username
-      const actor = await database.getActorFromUsername({
-        username: query,
-        domain: getConfig().host
-      })
-      if (actor) {
-        const mastodonActor = await database.getMastodonActorFromId({
-          id: actor.id
-        })
-        if (mastodonActor) results.push(mastodonActor)
-      }
-    }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: results.slice(0, limit)
-    })
-  })
+  )
 )

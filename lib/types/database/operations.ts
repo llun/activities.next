@@ -606,6 +606,86 @@ export interface StatusDatabase {
 }
 
 // ============================================================================
+// Search Database
+// ============================================================================
+
+export type SearchEntityType = 'account' | 'status' | 'hashtag'
+
+export type SearchAccountsParams = {
+  query: string
+  limit?: number
+  offset?: number
+  currentActorId?: string
+  following?: boolean
+  resolve?: boolean
+}
+
+export type SearchStatusesParams = {
+  query: string
+  limit?: number
+  offset?: number
+  currentActorId?: string
+  accountId?: string
+  minStatusId?: string
+  maxStatusId?: string
+}
+
+export type SearchHashtagsParams = {
+  query: string
+  limit?: number
+  offset?: number
+}
+
+export type SearchRebuildParams = {
+  clear?: boolean
+  batchSize?: number
+  dryRun?: boolean
+}
+
+export type SearchRebuildResult = {
+  accounts: number
+  statuses: number
+  hashtags: number
+}
+
+export type UpsertSearchActorParams = {
+  actorId: string
+}
+
+export type UpsertSearchStatusParams = {
+  statusId: string
+}
+
+export type UpsertSearchHashtagParams = {
+  name: string
+  url?: string | null
+}
+
+export type DeleteSearchDocumentParams = {
+  entityType: SearchEntityType
+  entityId: string
+}
+
+export type GetSearchHashtagsByIdsParams = {
+  hashtagIds: string[]
+}
+
+export interface SearchDatabase {
+  searchAccounts(params: SearchAccountsParams): Promise<Mastodon.Account[]>
+  searchStatuses(params: SearchStatusesParams): Promise<Status[]>
+  searchHashtags(params: SearchHashtagsParams): Promise<Mastodon.Tag[]>
+  rebuildSearchIndex(params?: SearchRebuildParams): Promise<SearchRebuildResult>
+  clearSearchIndex(): Promise<void>
+  upsertActorSearchDocument(params: UpsertSearchActorParams): Promise<void>
+  upsertStatusSearchDocument(params: UpsertSearchStatusParams): Promise<void>
+  upsertHashtagSearchDocument(params: UpsertSearchHashtagParams): Promise<void>
+  deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
+  getSearchHashtagsByIds(
+    params: GetSearchHashtagsByIdsParams
+  ): Promise<Mastodon.Tag[]>
+}
+
+// ============================================================================
 // Follow Database
 // ============================================================================
 
@@ -1051,6 +1131,7 @@ export const Scope = z.enum([
   'profile',
   'email',
   'read',
+  'read:search',
   'read:bookmarks',
   'write',
   'write:bookmarks',
@@ -1064,6 +1145,7 @@ export const UsableScopes = [
   Scope.enum.profile,
   Scope.enum.email,
   Scope.enum.read,
+  Scope.enum['read:search'],
   Scope.enum['read:bookmarks'],
   Scope.enum.write,
   Scope.enum['write:bookmarks'],
