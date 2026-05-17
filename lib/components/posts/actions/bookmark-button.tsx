@@ -13,6 +13,8 @@ interface BookmarkButtonProps {
   ) => void
 }
 
+const BOOKMARK_ERROR_DISMISS_MS = 4000
+
 export const BookmarkButton: FC<BookmarkButtonProps> = ({
   status,
   onBookmarkChanged
@@ -28,13 +30,23 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
     setError(null)
   }, [status.isActorBookmarked])
 
+  useEffect(() => {
+    if (!error) return
+
+    const timeoutId = setTimeout(() => {
+      setError(null)
+    }, BOOKMARK_ERROR_DISMISS_MS)
+
+    return () => clearTimeout(timeoutId)
+  }, [error])
+
   const bookmarkLabel = isBookmarked ? 'Remove bookmark' : 'Bookmark'
   const failureMessage = isBookmarked
     ? 'Failed to remove bookmark. Please try again.'
     : 'Failed to bookmark post. Please try again.'
 
   return (
-    <span className="inline-flex flex-col items-center gap-1">
+    <span className="relative inline-flex items-center justify-center">
       <button
         title={bookmarkLabel}
         aria-label={bookmarkLabel}
@@ -71,14 +83,15 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
       >
         <Bookmark className={cn('h-4 w-4', { 'fill-current': isBookmarked })} />
       </button>
-      <span
-        aria-hidden={error ? undefined : true}
-        className="min-h-4 text-xs text-destructive"
-        data-testid="bookmark-error-space"
-        role={error ? 'alert' : undefined}
-      >
-        {error}
-      </span>
+      {error ? (
+        <span
+          className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"
+          data-testid="bookmark-error"
+          role="alert"
+        >
+          {error}
+        </span>
+      ) : null}
     </span>
   )
 }
