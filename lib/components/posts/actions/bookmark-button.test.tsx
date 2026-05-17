@@ -63,7 +63,7 @@ describe('BookmarkButton', () => {
     render(<BookmarkButton status={status} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('bookmark-error-space')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('bookmark-error')).not.toBeInTheDocument()
   })
 
   it('shows an error and keeps state when bookmarking fails', async () => {
