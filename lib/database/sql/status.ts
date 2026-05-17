@@ -1349,23 +1349,18 @@ export const StatusSQLDatabaseMixin = (
         : null
     ])
 
-    const reblogTargetStatusIds = database('statuses')
-      .select('id')
+    const reblogBase = database('statuses')
       .where('type', StatusType.enum.Announce)
       .where((builder) => {
         builder.where('originalStatusId', statusId).orWhere((legacyBuilder) => {
           legacyBuilder.whereNull('originalStatusId').where('content', statusId)
         })
       })
+    const reblogTargetStatusIds = reblogBase.clone().select('id')
 
-    let query = database('statuses')
+    let query = reblogBase
+      .clone()
       .select<{ id: string; actorId: string }[]>('id', 'actorId')
-      .where('type', StatusType.enum.Announce)
-      .where((builder) => {
-        builder.where('originalStatusId', statusId).orWhere((legacyBuilder) => {
-          legacyBuilder.whereNull('originalStatusId').where('content', statusId)
-        })
-      })
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
 
@@ -1405,15 +1400,7 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const result = await query
-    const reblogs = await Promise.all(
-      result.map(async (item) => {
-        const actor = await actorDatabase.getActorFromId({ id: item.actorId })
-        return actor ? { actor, statusId: item.id } : null
-      })
-    )
-    return reblogs.filter((item): item is NonNullable<typeof item> =>
-      Boolean(item)
-    )
+    return result.map((item) => ({ actorId: item.actorId, statusId: item.id }))
   }
 
   async function createTag({

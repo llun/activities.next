@@ -109,8 +109,8 @@ export const GET = traceApiRoute(
 
     const accounts = (
       await Promise.all(
-        reblogs.map(({ actor }) =>
-          database.getMastodonActorFromId({ id: actor.id })
+        reblogs.map(({ actorId }) =>
+          database.getMastodonActorFromId({ id: actorId })
         )
       )
     ).filter((account): account is NonNullable<typeof account> =>

@@ -477,7 +477,7 @@ export type GetRebloggedByParams = BaseStatusParams & {
   visibleToActorId?: string | null
 }
 export type RebloggedByAccount = {
-  actor: Actor
+  actorId: string
   statusId: string
 }
 
