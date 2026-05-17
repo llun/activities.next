@@ -1701,6 +1701,138 @@ describe('GET /api/v1/statuses/[id]', () => {
         urlToId(ACTOR2_ID)
       ])
     })
+
+    it('exposes non-public boosts to authenticated actors they are addressed to', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-direct-boost`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with a direct boost',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createAnnounce({
+        id: `${ACTOR3_ID}/statuses/api-reblogged-by-direct-boost`,
+        actorId: ACTOR3_ID,
+        to: [ACTOR2_ID],
+        cc: [],
+        originalStatusId: statusId
+      })
+
+      mockGetServerSession.mockResolvedValue(null)
+      const anonymousResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(anonymousResponse.status).toBe(200)
+      await expect(anonymousResponse.json()).resolves.toEqual([])
+
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+      const authenticatedResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(authenticatedResponse.status).toBe(200)
+      const accounts = (await authenticatedResponse.json()) as { id: string }[]
+      expect(accounts.map((account) => account.id)).toEqual([
+        urlToId(ACTOR3_ID)
+      ])
+    })
+
+    it.each(['0', '81', 'abc'])(
+      'returns bad request for invalid limit=%s',
+      async (limit) => {
+        mockGetServerSession.mockResolvedValue(null)
+
+        const statusId = `${ACTOR1_ID}/statuses/post-1`
+        const response = await getStatusRebloggedBy(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(
+              statusId
+            )}/reblogged_by?limit=${limit}`
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+        expect(response.status).toBe(400)
+      }
+    )
+
+    it('returns not found when the status does not exist', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-missing`
+      const response = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(404)
+    })
+
+    it('omits next pagination link on the last nonempty page', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-last-page`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with last-page reblogs',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const olderAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-last-page-older`
+      const newerAnnounceId = `${ACTOR3_ID}/statuses/api-reblogged-by-last-page-newer`
+      await database.createAnnounce({
+        id: olderAnnounceId,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-02-01T00:00:00.000Z')
+      })
+      await database.createAnnounce({
+        id: newerAnnounceId,
+        actorId: ACTOR3_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-02-02T00:00:00.000Z')
+      })
+
+      const response = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=3&max_id=${urlToId(newerAnnounceId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const accounts = (await response.json()) as { id: string }[]
+      expect(accounts.map((account) => account.id)).toEqual([
+        urlToId(ACTOR2_ID)
+      ])
+
+      const linkHeader = response.headers.get('Link')
+      expect(linkHeader).not.toEqual(expect.stringContaining('rel="next"'))
+      expect(linkHeader).toEqual(expect.stringContaining('rel="prev"'))
+    })
   })
 
   describe('media attachments', () => {
