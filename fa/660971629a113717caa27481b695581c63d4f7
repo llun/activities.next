@@ -1,0 +1,123 @@
+lib/services/timelines/types.ts
+  s_310719d8018dcf::t_1ab1bb0836a7a9 10
+app/api/v1/conversations/[id]/statuses/route.ts
+  s_310719d8018dcf::t_71d38302a38ba9 1-48,52-89
+  s_310719d8018dcf::t_15e42986a38d96 49-51
+app/api/v1/conversations/route.ts
+  s_310719d8018dcf::t_15e42986a38d96 49
+  s_310719d8018dcf::t_2cb3ce9e88a117 1-38,56-59,61-110
+  s_310719d8018dcf::t_a506483736c836 39-48,50-55,60
+lib/jobs/sendNoteJob.ts
+  s_310719d8018dcf::t_db6844d067be8e 6,55-56,58
+app/api/v1/statuses/route.ts
+  s_310719d8018dcf::t_47123a74a063d4 4,101-103,183
+  s_310719d8018dcf::t_15e42986a38d96 104-146,148-168,172,174,178-179
+lib/database/sql/timeline.ts
+  s_310719d8018dcf::t_23c9dc2dfd5102 90
+lib/services/timelines/index.ts
+  s_310719d8018dcf::t_70553a09c6e053 11
+  s_310719d8018dcf::t_15e42986a38d96 1,78-81,83-89
+  s_310719d8018dcf::t_5be92caa1f9bfc 56-59,65-72,74-77,82
+lib/database/sql/conversation.test.ts
+  s_310719d8018dcf::t_e3863cf9d8dcde 1-7,9-13,15-24,26-43,45-109,114-115,120-121,126-153,161-187,195-202
+  s_310719d8018dcf::t_39ef5580ef36c7 160
+  s_310719d8018dcf::t_9850c7855f5420 154-157,159
+  s_310719d8018dcf::t_6bc4d2ba3ed211 188-191,193-194
+  s_310719d8018dcf::t_bb1359a9c0561b 8,14,25,44,110-113,116-119,122-125,158,192
+app/api/v1/conversations/[id]/read/route.ts
+  s_310719d8018dcf::t_58284cbcdffe09 1-46
+lib/types/mastodon/index.ts
+  s_310719d8018dcf::t_4fabac82d27adb 6
+lib/services/timelines/index.test.ts
+  s_310719d8018dcf::t_9d2177378a16e1 116-145
+lib/database/types.ts
+  s_310719d8018dcf::t_b397e85f018c5e 12,32
+lib/actions/deleteStatus.ts
+  s_310719d8018dcf::t_83a2bb9532281b 3,5,28-31,40-42
+  s_310719d8018dcf::t_15e42986a38d96 33-34
+lib/components/layout/nav-items.ts
+  s_310719d8018dcf::t_a616d59b7dffd6 1-9,20
+app/api/v1/timelines/[timeline]/route.ts
+  s_310719d8018dcf::t_16dfa77871647f 2,37-39,124
+  s_310719d8018dcf::t_15e42986a38d96 40-45,47-55,57-64,66-73,75-113,118-121
+lib/activities/deleteStatus.ts
+  s_310719d8018dcf::t_245da8e14aecd5 9
+lib/activities/index.ts
+  s_310719d8018dcf::t_d9e12e71b7e7e7 265-266,271-273,289-290
+lib/client.ts
+  s_310719d8018dcf::t_68cdfd01f29aff 1850-1929,1934-2009
+  s_310719d8018dcf::t_41e00b63933648 5
+  s_310719d8018dcf::t_15e42986a38d96 1930-1933
+lib/services/federation/statusDelivery.ts
+  s_310719d8018dcf::t_7b1e43e822447c 1-92
+lib/services/guards/OAuthGuard.test.ts
+  s_310719d8018dcf::t_1f7ef6f5ba1e2a 400
+lib/database/sql/conversation.ts
+  s_310719d8018dcf::t_8cb362c488f805 154-156
+  s_310719d8018dcf::t_baf832f36bce41 1-18,25-60,64-79,82-94,100-101,106-119,123-125,127-153,157-199,203-255,262-264,278-413,419-437,439-463,465-471,475-508
+  s_310719d8018dcf::t_dc97519f3e6c1d 19-24
+  s_310719d8018dcf::t_15e42986a38d96 61-63,80-81,95-99,102-105,120-122,126,200-202,256-261,472-474
+  s_310719d8018dcf::t_bb572f5ea59b0b 265-277,414-418,438,464
+migrations/20260517002000_add_direct_conversations.js
+  s_310719d8018dcf::t_983fe0f5f7735b 55
+  s_310719d8018dcf::t_a2082262db0c9d 1-54,56-118,124-263
+  s_310719d8018dcf::t_15e42986a38d96 119-123
+app/api/v1/conversations/[id]/route.ts
+  s_310719d8018dcf::t_84b7e2ab2c6026 1-46
+lib/database/sql/index.ts
+  s_310719d8018dcf::t_6b592a39968b9e 8,48-51,79
+lib/actions/createNote.ts
+  s_310719d8018dcf::t_9e6fba1bdf5112 231-239
+app/api/v1/accounts/search/route.ts
+  s_310719d8018dcf::t_15e42986a38d96 4
+  s_310719d8018dcf::t_fb2f8a3a909ee3 3,16-22,58,69-74,76-85
+app/(timeline)/messages/page.tsx
+  s_310719d8018dcf::t_bba2b590065163 8
+  s_310719d8018dcf::t_15e42986a38d96 45
+  s_310719d8018dcf::t_e3752e477a4e60 1-7,9-44,46-74
+lib/services/guards/OAuthGuard.ts
+  s_310719d8018dcf::t_1531673f0b1974 55-79,181-183,202,229-232
+  s_310719d8018dcf::t_15e42986a38d96 199-201
+lib/types/database/operations.ts
+  s_310719d8018dcf::t_966b711930a01c 594-666
+  s_310719d8018dcf::t_106f36a006fb22 1114,1117-1118,1130,1133-1134
+lib/types/mastodon/conversation.ts
+  s_310719d8018dcf::t_a3ee4687da5b62 1-13
+lib/jobs/sendUpdateNoteJob.ts
+  s_310719d8018dcf::t_728ee89f00e90c 6,58-62
+app/(timeline)/messages/MessagesPage.tsx
+  s_310719d8018dcf::t_1ebedc6d9770c1 14,23
+  s_310719d8018dcf::t_3ade24e739f9bc 1-2,4-13,15-22,24-111,116-270,272-325,329-364,368-429
+  s_310719d8018dcf::t_15e42986a38d96 3,112-115,271,326-328,365-367
+lib/components/layout/mobile-nav.test.tsx
+  s_310719d8018dcf::t_0a034fcc700981 54-57
+  s_310719d8018dcf::t_1f7ef6f5ba1e2a 27-28,37-38,52-53
+lib/actions/createPoll.ts
+  s_310719d8018dcf::t_741c46f4a2e1e6 57-66
+lib/services/mastodon/getMastodonConversation.ts
+  s_310719d8018dcf::t_4d7bfdfd53dc5a 1-2,4-17,19-31
+  s_310719d8018dcf::t_15e42986a38d96 3,18
+app/api/v1/accounts/lookup/route.ts
+  s_310719d8018dcf::t_e9c3465bd94089 3,33,44-46,57-63
+  s_310719d8018dcf::t_15e42986a38d96 4
+lib/actions/visibility.integration.test.ts
+  s_310719d8018dcf::t_f3970f5a7c40b2 91,99-109,111,181-182,191-196
+lib/components/layout/nav-items.test.ts
+  s_310719d8018dcf::t_1f7ef6f5ba1e2a 10,20,31,44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "fa660971629a113717caa27481b695581c63d4f7",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
