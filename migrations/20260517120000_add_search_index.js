@@ -4,7 +4,7 @@
  */
 exports.up = async (knex) => {
   await knex.schema.createTable('search_documents', function (table) {
-    table.string('id').primary()
+    table.string('id', 64).primary()
     table.string('entityType', 32).notNullable()
     table.string('entityId').notNullable()
     table.string('actorId')
@@ -30,7 +30,7 @@ exports.up = async (knex) => {
 
   await knex.schema.createTable('search_terms', function (table) {
     table.bigIncrements('id').primary()
-    table.string('documentId').notNullable()
+    table.string('documentId', 64).notNullable()
     table.string('entityType', 32).notNullable()
     table.string('term', 64).notNullable()
     table.integer('weight').notNullable().defaultTo(1)

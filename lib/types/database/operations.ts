@@ -677,8 +677,10 @@ export interface SearchDatabase {
   rebuildSearchIndex(params?: SearchRebuildParams): Promise<SearchRebuildResult>
   clearSearchIndex(): Promise<void>
   upsertActorSearchDocument(params: UpsertSearchActorParams): Promise<void>
-  upsertStatusSearchDocument(params: UpsertSearchStatusParams): Promise<void>
-  upsertHashtagSearchDocument(params: UpsertSearchHashtagParams): Promise<void>
+  upsertStatusSearchDocument(params: UpsertSearchStatusParams): Promise<boolean>
+  upsertHashtagSearchDocument(
+    params: UpsertSearchHashtagParams
+  ): Promise<boolean>
   deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
   getSearchHashtagsByIds(
     params: GetSearchHashtagsByIdsParams

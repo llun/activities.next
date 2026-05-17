@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
+import { getConfiguredHost } from '@/lib/config/configuredHost'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -102,8 +103,7 @@ const parseStatusContent = (
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
 
 const getConfiguredActorDomain = () => {
-  const host = getConfig().host
-  return host.includes('://') ? new URL(host).host : host
+  return getConfiguredHost()
 }
 
 const getFederationSigningActorSettings = (
@@ -140,6 +140,69 @@ const federationSigningActorCreationLocks = new Map<
 
 const isMastodonBotActorType = (type: SQLActor['type']) =>
   type === 'Service' || type === 'Application' || type === 'Organization'
+
+const getMastodonAccountFromSQLActor = ({
+  sqlActor,
+  followersCount,
+  followingCount,
+  statusCount,
+  lastStatusAt,
+  configuredDomain
+}: {
+  sqlActor: SQLActor
+  followersCount: number
+  followingCount: number
+  statusCount: number
+  lastStatusAt: number | Date | null | undefined
+  configuredDomain: string
+}) => {
+  const settings = getCompatibleJSON(sqlActor.settings)
+  const lastStatusCreatedAt = lastStatusAt ? lastStatusAt : 0
+  const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
+    sqlActor,
+    configuredDomain
+  )
+  return Mastodon.Account.parse({
+    id: urlToId(sqlActor.id),
+    username: sqlActor.username,
+    acct: `${sqlActor.username}@${sqlActor.domain}`,
+    url: sqlActor.id,
+    display_name: sqlActor.name ?? '',
+    note: sqlActor.summary ?? '',
+
+    avatar: settings.iconUrl ?? '',
+    avatar_static: settings.iconUrl ?? '',
+    header: settings.headerImageUrl ?? '',
+    header_static: settings.headerImageUrl ?? '',
+
+    fields: [],
+    emojis: [],
+
+    locked: settings.manuallyApprovesFollowers ?? true,
+    bot: isMastodonBotActorType(sqlActor.type),
+    group: sqlActor.type === 'Group',
+    discoverable: !isLocalHeadlessSigner,
+    noindex: isLocalHeadlessSigner,
+
+    source: {
+      note: '',
+      fields: [],
+      privacy: 'public',
+      sensitive: false,
+      language: 'en',
+      follow_requests_count: 0
+    },
+
+    created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
+    last_status_at: lastStatusCreatedAt
+      ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
+      : null,
+
+    followers_count: followersCount,
+    following_count: followingCount,
+    statuses_count: statusCount
+  })
+}
 
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async createActor({

@@ -64,6 +64,18 @@ export const getSQLDatabase = (database: Knex): Database => {
         )
     )
   }
+  const getHashtagNamesForActorStatuses = async (actorId: string) => {
+    const tags = await database('tags')
+      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+      .where('statuses.actorId', actorId)
+      .where('tags.type', 'hashtag')
+      .select<
+        { name: string; nameNormalized: string | null }[]
+      >('tags.name', 'tags.nameNormalized')
+    return [
+      ...new Set(tags.map((tag) => tag.nameNormalized ?? tag.name))
+    ].filter(Boolean)
+  }
   const deleteSearchDocumentsForActor = async (actorId: string) => {
     const documents = await database('search_documents')
       .where('actorId', actorId)
@@ -111,8 +123,11 @@ export const getSQLDatabase = (database: Knex): Database => {
       ...args: Parameters<typeof actorDatabase.createMastodonActor>
     ) {
       const actor = await actorDatabase.createMastodonActor(...args)
+      const [params] = args
       if (actor) {
-        await searchDatabase.upsertActorSearchDocument({ actorId: actor.url })
+        await searchDatabase.upsertActorSearchDocument({
+          actorId: params.actorId
+        })
       }
       return actor
     },
@@ -126,17 +141,20 @@ export const getSQLDatabase = (database: Knex): Database => {
     async deleteActor(...args: Parameters<typeof actorDatabase.deleteActor>) {
       const [params] = args
       await actorDatabase.deleteActor(...args)
-      await searchDatabase.deleteSearchDocument({
-        entityType: 'account',
-        entityId: params.actorId
-      })
+      await deleteSearchDocumentsForActor(params.actorId)
     },
     async deleteActorData(
       ...args: Parameters<typeof actorDatabase.deleteActorData>
     ) {
       const [params] = args
+      const hashtagNames = await getHashtagNamesForActorStatuses(params.actorId)
       await actorDatabase.deleteActorData(...args)
       await deleteSearchDocumentsForActor(params.actorId)
+      await Promise.all(
+        hashtagNames.map((name) =>
+          searchDatabase.upsertHashtagSearchDocument({ name })
+        )
+      )
     }
   }
   const indexedStatusDatabase = {
@@ -166,6 +184,7 @@ export const getSQLDatabase = (database: Knex): Database => {
       await searchDatabase.upsertStatusSearchDocument({
         statusId: params.statusId
       })
+      await reindexHashtagsForStatus(params.statusId)
       return status
     },
     async updateNoteVisibility(
@@ -176,6 +195,7 @@ export const getSQLDatabase = (database: Knex): Database => {
       await searchDatabase.upsertStatusSearchDocument({
         statusId: params.statusId
       })
+      await reindexHashtagsForStatus(params.statusId)
       return status
     },
     async createTag(...args: Parameters<typeof statusDatabase.createTag>) {

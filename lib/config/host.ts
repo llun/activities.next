@@ -40,6 +40,10 @@ export const getProxyHostConfig = (): HostConfig => {
   return cachedProxyHostConfig
 }
 
+export const getConfiguredHostFromValue = (host: string) => {
+  return host.includes('://') ? new URL(host).host : host
+}
+
 export const resetHostConfigCacheForTests = () => {
   cachedHostConfig = null
   cachedProxyHostConfig = null

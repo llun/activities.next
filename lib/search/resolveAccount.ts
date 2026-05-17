@@ -1,17 +1,12 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getConfig } from '@/lib/config'
+import { getConfiguredHost } from '@/lib/config/configuredHost'
 import { Database } from '@/lib/database/types'
 import { logger } from '@/lib/utils/logger'
 
 type ResolveAccountForSearchParams = {
   database: Database
   query: string
-}
-
-const getConfiguredHost = () => {
-  const host = getConfig().host
-  return host.includes('://') ? new URL(host).host : host
 }
 
 const parseAccountQuery = (query: string) => {

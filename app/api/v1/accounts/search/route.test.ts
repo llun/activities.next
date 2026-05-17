@@ -72,4 +72,15 @@ describe('GET /api/v1/accounts/search', () => {
       })
     )
   })
+
+  it('rejects queries longer than 500 characters', async () => {
+    const response = await GET(
+      new NextRequest(
+        `https://local.test/api/v1/accounts/search?q=${'a'.repeat(501)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockDatabase.searchAccounts).not.toHaveBeenCalled()
+  })
 })

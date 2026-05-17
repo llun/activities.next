@@ -5,23 +5,22 @@ import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  BooleanSearchParam,
+  urlSearchParamsToObject
+} from '@/lib/utils/searchParams'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const BooleanString = z
-  .enum(['true', 'false'])
-  .optional()
-  .transform((value) => value === 'true')
-
 const SearchParams = z.object({
-  q: z.string(),
+  q: z.string().max(500),
   limit: z.coerce.number().int().min(1).max(80).default(40),
   offset: z.coerce.number().int().min(0).default(0),
-  resolve: BooleanString,
-  following: BooleanString
+  resolve: BooleanSearchParam,
+  following: BooleanSearchParam
 })
 
 export const GET = traceApiRoute(
@@ -32,10 +31,7 @@ export const GET = traceApiRoute(
       const { currentActor, database } = context
 
       const url = new URL(req.url)
-      const queryParams: Record<string, string> = {}
-      url.searchParams.forEach((value, key) => {
-        queryParams[key] = value
-      })
+      const queryParams = urlSearchParamsToObject(url.searchParams)
 
       const parsedParams = SearchParams.safeParse(queryParams)
       if (!parsedParams.success) {

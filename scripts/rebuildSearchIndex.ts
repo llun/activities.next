@@ -6,6 +6,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  configureMeilisearchIndex,
   deleteMeilisearchDocuments,
   writeMeilisearchDocuments
 } from '@/lib/search/meilisearch'
@@ -51,9 +52,6 @@ const parseArgs = (args: string[]): CliArgs => {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
-    if (arg === '--help' || arg === '-h') {
-      throw new Error(USAGE)
-    }
     if (arg === '--clear' || arg === '--dry-run') {
       parsed[arg.slice(2)] = true
       continue
@@ -80,6 +78,9 @@ const parseArgs = (args: string[]): CliArgs => {
     dryRun: Boolean(parsed['dry-run'])
   })
 }
+
+const isHelpRequest = (args: string[]) =>
+  args.some((arg) => arg === '--help' || arg === '-h')
 
 const toMeilisearchType = (
   entityType: SearchDocumentRow['entityType']
@@ -146,14 +147,22 @@ const reindexMeilisearch = async ({
       await deleteMeilisearchDocuments({ config, type: meilisearchType })
     }
 
-    for (let offset = 0; ; offset += batchSize) {
-      const rows = await knex<SearchDocumentRow>('search_documents')
+    await configureMeilisearchIndex({ config, type: meilisearchType })
+
+    let lastId: string | null = null
+    let indexed = 0
+    for (;;) {
+      const query = knex<SearchDocumentRow>('search_documents')
         .where('entityType', entityType)
         .where('searchable', true)
-        .orderBy('entityCreatedAt', 'asc')
-        .orderBy('entityId', 'asc')
+        .orderBy('id', 'asc')
         .limit(batchSize)
-        .offset(offset)
+
+      if (lastId) {
+        query.where('id', '>', lastId)
+      }
+
+      const rows = await query
 
       if (rows.length === 0) break
 
@@ -162,9 +171,11 @@ const reindexMeilisearch = async ({
         type: meilisearchType,
         documents: rows.map(toMeilisearchDocument)
       })
+      lastId = rows[rows.length - 1].id
+      indexed += rows.length
       console.log(
         `[meilisearch] ${meilisearchType}: indexed ${Math.min(
-          offset + rows.length,
+          indexed,
           total
         )}/${total}`
       )
@@ -172,22 +183,22 @@ const reindexMeilisearch = async ({
   }
 }
 
-const shouldRebuildDatabase = (backend: Backend) =>
-  backend === 'database' || backend === 'meilisearch' || backend === 'all'
-
 const shouldRebuildMeilisearch = (backend: Backend) =>
   backend === 'meilisearch' || backend === 'all'
 
 async function rebuildSearchIndex(args = process.argv.slice(2)) {
+  if (isHelpRequest(args)) {
+    console.log(USAGE)
+    return 0
+  }
+
   let input: CliArgs
   try {
     input = parseArgs(args)
   } catch (error) {
-    const nodeError = error as Error
-    console.error(nodeError.message)
-    if (nodeError.message !== USAGE) {
-      console.error(USAGE)
-    }
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(message)
+    console.error(USAGE)
     return 1
   }
 
@@ -197,7 +208,9 @@ async function rebuildSearchIndex(args = process.argv.slice(2)) {
     return 1
   }
 
-  if (shouldRebuildDatabase(input.backend)) {
+  try {
+    // The SQL search index is canonical and feeds Meilisearch, so every
+    // backend mode refreshes it before optional backend export.
     const verb = input.dryRun ? 'would index' : 'indexed'
     const result = await database.rebuildSearchIndex({
       clear: input.clear,
@@ -207,14 +220,15 @@ async function rebuildSearchIndex(args = process.argv.slice(2)) {
     console.log(
       `[database] ${verb} ${result.accounts} accounts, ${result.statuses} statuses, ${result.hashtags} hashtags`
     )
-  }
 
-  if (shouldRebuildMeilisearch(input.backend)) {
-    await reindexMeilisearch(input)
-  }
+    if (shouldRebuildMeilisearch(input.backend)) {
+      await reindexMeilisearch(input)
+    }
 
-  await database.destroy()
-  return 0
+    return 0
+  } finally {
+    await database.destroy()
+  }
 }
 
 rebuildSearchIndex()
@@ -222,7 +236,7 @@ rebuildSearchIndex()
     process.exit(code)
   })
   .catch((error) => {
-    const nodeError = error as Error
-    console.error(nodeError.message)
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(message)
     process.exit(1)
   })
