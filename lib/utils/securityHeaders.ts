@@ -90,6 +90,18 @@ const getConfiguredCspSources = (sources: string[]) =>
     return cspSource ? [cspSource] : []
   })
 
+const getRemoteMediaCspSources = (
+  allowRemoteMediaDomains: ReturnType<
+    typeof getSecurityHeaderConfig
+  >['allowRemoteMediaDomains']
+) => {
+  if (allowRemoteMediaDomains === null) return ['https:']
+  if (allowRemoteMediaDomains.length === 0) return []
+
+  const remoteMediaSources = getConfiguredCspSources(allowRemoteMediaDomains)
+  return remoteMediaSources.length > 0 ? remoteMediaSources : ['https:']
+}
+
 let cachedContentSecurityPolicy: string | null = null
 
 export const resetContentSecurityPolicyCacheForTests = () => {
@@ -119,10 +131,7 @@ export const getContentSecurityPolicy = () => {
   )
   const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
   const serviceMediaSources = getConfiguredCspSources(allowMediaDomains)
-  const remoteMediaSources =
-    allowRemoteMediaDomains === null
-      ? ['https:']
-      : getConfiguredCspSources(allowRemoteMediaDomains)
+  const remoteMediaSources = getRemoteMediaCspSources(allowRemoteMediaDomains)
   const connectSources = Array.from(
     new Set([
       "'self'",
