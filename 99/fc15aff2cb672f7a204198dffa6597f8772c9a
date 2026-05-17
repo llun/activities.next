@@ -1,0 +1,33 @@
+lib/types/database/operations.ts
+  s_0ce258a792564f::t_7a62e8618da0c4 473-476,478-482,583
+  s_0ce258a792564f::t_1d09785c8d8fb7 477
+lib/database/sql/status.ts
+  s_0ce258a792564f::t_edcfbb0eaefff1 1336-1337,1352-1360,1371-1377
+  s_0ce258a792564f::t_0c5845a1a4248a 1332-1335,1338-1351,1361-1370,1378-1418,2099
+  s_0ce258a792564f::t_15570f37c5a5a1 30
+app/api/v1/statuses/[id]/route.test.ts
+  s_0ce258a792564f::t_0032b95e258cdf 1693
+  s_0ce258a792564f::t_375094a2ede467 1662-1692,1694-1703
+  s_0ce258a792564f::t_41a5e5779147cf 1589-1661,1704-1705
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_0ce258a792564f::t_15570f37c5a5a1 5
+  s_0ce258a792564f::t_bdea1ba969cad4 1-2,7-12,14,24-57,73-84,100-103,106-108,112-114,124-125
+  s_0ce258a792564f::t_c4d55447e9d4d3 104-105
+  s_0ce258a792564f::t_0e42afcc385830 3,62,110-111,115-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "99fc15aff2cb672f7a204198dffa6597f8772c9a",
+  "prompts": {},
+  "sessions": {
+    "s_0ce258a792564f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3726-da1f-7481-90c4-86eb10b82bdf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
