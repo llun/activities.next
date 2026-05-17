@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import { bookmarkStatus, undoBookmarkStatus } from '@/lib/client'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -116,5 +116,28 @@ describe('BookmarkButton', () => {
       await screen.findByText('Failed to bookmark post. Please try again.')
     ).toHaveAttribute('role', 'alert')
     expect(screen.getByRole('button', { name: 'Bookmark' })).toBeEnabled()
+  })
+
+  it('auto-dismisses bookmark errors after a short delay', async () => {
+    jest.useFakeTimers()
+    ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
+
+    try {
+      render(<BookmarkButton status={status} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to bookmark post. Please try again.'
+      )
+
+      act(() => {
+        jest.advanceTimersByTime(4000)
+      })
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })

@@ -13,6 +13,8 @@ interface BookmarkButtonProps {
   ) => void
 }
 
+const BOOKMARK_ERROR_DISMISS_MS = 4000
+
 export const BookmarkButton: FC<BookmarkButtonProps> = ({
   status,
   onBookmarkChanged
@@ -27,6 +29,16 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
     setIsBookmarked(status.isActorBookmarked)
     setError(null)
   }, [status.isActorBookmarked])
+
+  useEffect(() => {
+    if (!error) return
+
+    const timeoutId = window.setTimeout(() => {
+      setError(null)
+    }, BOOKMARK_ERROR_DISMISS_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [error])
 
   const bookmarkLabel = isBookmarked ? 'Remove bookmark' : 'Bookmark'
   const failureMessage = isBookmarked
@@ -73,7 +85,7 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
       </button>
       {error ? (
         <span
-          className="absolute left-1/2 top-full z-10 mt-1 w-48 -translate-x-1/2 rounded-md border bg-background px-2 py-1 text-center text-xs text-destructive shadow-sm"
+          className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"
           data-testid="bookmark-error"
           role="alert"
         >
