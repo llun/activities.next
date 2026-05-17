@@ -1,0 +1,35 @@
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_a3a57c3e535ceb::t_caf3b7c0ebde65 1,25-27,31-36,41,91-93,96,103-104,60-62,78-80,83
+  s_a3a57c3e535ceb::t_b551cb29327e97 28-30,38,40,42-43,45-57,67-70,85-90,94-95,101,81-82
+  s_a3a57c3e535ceb::t_38351f01ac0adb 71,59,72-77,84
+  s_a3a57c3e535ceb::t_fd5ae295358644 39
+  s_a3a57c3e535ceb::t_be3491b5ac77b2 58
+lib/database/sql/bookmark.ts
+  s_a3a57c3e535ceb::t_f7b9c26b25c317 1-13,15-20,38,46-47,51-53,56,65-68,83-84,86-101,103-113,116-136,140-144,147-148,154-163,165-167,178,182-183,185-196,59,73,170,174-175,177,45
+  s_a3a57c3e535ceb::t_5acc834bc13a2c 43,44,49-50,55,57,77-78
+  s_a3a57c3e535ceb::t_50827e74cdb05f 60-63
+  s_a3a57c3e535ceb::t_b0ae2517747039 81-82,48
+  s_a3a57c3e535ceb::t_b551cb29327e97 102
+  s_a3a57c3e535ceb::t_74299a2d31a9bf 58,71-72,74-76,79-80,145-146,149-150,168-169,171,173,176,179,181,184
+app/api/v1/statuses/[id]/route.test.ts
+  s_a3a57c3e535ceb::t_f7522f68839426 541-610,614-652,697-724,729-730
+  s_a3a57c3e535ceb::t_b551cb29327e97 611-613
+  s_a3a57c3e535ceb::t_8bde4bc81df834 696,653,655,658-659,663,667,669-671,673-683,685-688,691
+  s_a3a57c3e535ceb::t_07755494f89872 725-726,732-735,731,654,656-657,660-662,664-666,668,672,684,689-690,692-694
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f513b3035e51f9d2083a598e4a59e666b74cd345",
+  "prompts": {},
+  "sessions": {
+    "s_a3a57c3e535ceb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cc-9ba2-72d2-b9c8-69a141404fcb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
