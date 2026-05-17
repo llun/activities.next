@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import { bookmarkStatus, undoBookmarkStatus } from '@/lib/client'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -59,11 +59,11 @@ describe('BookmarkButton', () => {
     jest.clearAllMocks()
   })
 
-  it('reserves error message space without announcing an empty alert', () => {
+  it('does not reserve idle error message space in the action grid', () => {
     render(<BookmarkButton status={status} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByTestId('bookmark-error-space')).toBeEmptyDOMElement()
+    expect(screen.queryByTestId('bookmark-error')).not.toBeInTheDocument()
   })
 
   it('shows an error and keeps state when bookmarking fails', async () => {
@@ -116,5 +116,37 @@ describe('BookmarkButton', () => {
       await screen.findByText('Failed to bookmark post. Please try again.')
     ).toHaveAttribute('role', 'alert')
     expect(screen.getByRole('button', { name: 'Bookmark' })).toBeEnabled()
+  })
+
+  it('auto-dismisses bookmark errors after a short delay', async () => {
+    jest.useFakeTimers()
+    let resolveBookmark: (value: boolean) => void = () => {}
+    const bookmarkPromise = new Promise<boolean>((resolve) => {
+      resolveBookmark = resolve
+    })
+    ;(bookmarkStatus as jest.Mock).mockReturnValue(bookmarkPromise)
+
+    try {
+      render(<BookmarkButton status={status} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
+
+      await act(async () => {
+        resolveBookmark(false)
+        await bookmarkPromise
+      })
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to bookmark post. Please try again.'
+      )
+
+      act(() => {
+        jest.advanceTimersByTime(4000)
+      })
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })
