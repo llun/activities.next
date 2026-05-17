@@ -257,6 +257,7 @@ export const StatusSQLDatabaseMixin = (
   ):
     | string
     | {
+        id?: string
         url?: string
       }
     | null => {
@@ -309,6 +310,9 @@ export const StatusSQLDatabaseMixin = (
     }
     if (typeof parsed.url === 'string' && parsed.url.length > 0) {
       return parsed.url
+    }
+    if (typeof parsed.id === 'string' && parsed.id.length > 0) {
+      return parsed.id
     }
     return null
   }

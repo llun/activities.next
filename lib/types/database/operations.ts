@@ -751,6 +751,7 @@ interface BaseBookmarkParams {
 export type CreateBookmarkParams = BaseBookmarkParams
 export type DeleteBookmarkParams = BaseBookmarkParams
 export type IsActorBookmarkedStatusParams = BaseBookmarkParams & {
+  // Allows callers that already loaded the status to skip an extra lookup for non-Announce rows.
   statusType?: StatusType
 }
 export type GetBookmarksParams = {

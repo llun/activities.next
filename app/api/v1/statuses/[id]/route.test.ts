@@ -730,6 +730,57 @@ describe('GET /api/v1/statuses/[id]', () => {
         database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
       ).resolves.toBe(false)
     })
+
+    it('cleans up a boost bookmark and returns 404 when the boost is gone and original is unreadable', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-unbookmark-deleted-boost-original`
+      const announceId = `${ACTOR2_ID}/statuses/api-unbookmark-deleted-boost`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Original status behind a deleted boost bookmark',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createAnnounce({
+        id: announceId,
+        actorId: ACTOR2_ID,
+        originalStatusId: statusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createBookmark({
+        actorId: ACTOR3_ID,
+        statusId: announceId
+      })
+      await database.updateNoteVisibility({
+        statusId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      await database.deleteStatus({ statusId: announceId })
+
+      const response = await unbookmarkStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(announceId)}/unbookmark`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(announceId) }) }
+      )
+
+      expect(response.status).toBe(404)
+      await expect(response.json()).resolves.toEqual({ status: 'Not Found' })
+      await expect(
+        database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
+      ).resolves.toBe(false)
+    })
   })
 
   describe('status visibility derivation', () => {

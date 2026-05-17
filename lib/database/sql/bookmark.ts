@@ -14,6 +14,7 @@ import { StatusType } from '@/lib/types/domain/status'
 
 type BookmarkRow = Omit<Bookmark, 'id' | 'createdAt' | 'updatedAt'> & {
   id: string | number
+  sourceStatusId?: string | null
   createdAt: number | Date | string
   updatedAt: number | Date | string
 }
@@ -26,8 +27,23 @@ const fixBookmarkDataDate = (data: BookmarkRow): Bookmark =>
     updatedAt: getCompatibleTime(data.updatedAt)
   })
 
-const getOriginalStatusIdFromAnnounceContent = (content: unknown) => {
-  if (typeof content === 'string' && content.length > 0) return content
+export const getOriginalStatusIdFromAnnounceContent = (content: unknown) => {
+  if (!content) return null
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content)
+      if (typeof parsed === 'string') return parsed
+      if (parsed && typeof parsed.url === 'string') return parsed.url
+      if (parsed && typeof parsed.id === 'string') return parsed.id
+      return null
+    } catch {
+      return content
+    }
+  }
+  if (typeof content === 'object') {
+    if ('url' in content && typeof content.url === 'string') return content.url
+    if ('id' in content && typeof content.id === 'string') return content.id
+  }
   return null
 }
 
@@ -44,7 +60,7 @@ const resolveBookmarkStatusId = async ({
 }: {
   database: Knex | Knex.Transaction
   statusId: string
-  statusType?: string
+  statusType?: StatusType
   depth?: number
 }): Promise<string | null> => {
   if (depth > MAX_ANNOUNCE_RESOLUTION_DEPTH) return statusId
@@ -72,6 +88,22 @@ const resolveBookmarkStatusId = async ({
       depth: depth + 1
     })) ?? originalStatusId
   )
+}
+
+const applyBookmarkStatusFilter = ({
+  query,
+  statusId,
+  bookmarkStatusId
+}: {
+  query: Knex.QueryBuilder
+  statusId: string
+  bookmarkStatusId: string | null
+}) => {
+  query.andWhere((builder) => {
+    builder
+      .where('statusId', bookmarkStatusId ?? statusId)
+      .orWhere('sourceStatusId', statusId)
+  })
 }
 
 const applyCursor = (
@@ -105,13 +137,24 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
 
         const existing = await trx('bookmarks')
           .where({ actorId, statusId: bookmarkStatusId })
-          .first('id')
-        if (existing) return
+          .first<BookmarkRow>('id', 'sourceStatusId')
 
         const currentTime = new Date()
+        const sourceStatusId = statusId === bookmarkStatusId ? null : statusId
+        if (existing) {
+          if (sourceStatusId && existing.sourceStatusId !== sourceStatusId) {
+            await trx('bookmarks').where('id', existing.id).update({
+              sourceStatusId,
+              updatedAt: currentTime
+            })
+          }
+          return
+        }
+
         await trx('bookmarks').insert({
           actorId,
           statusId: bookmarkStatusId,
+          sourceStatusId,
           createdAt: currentTime,
           updatedAt: currentTime
         })
@@ -128,9 +171,9 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
         statusId
       })
 
-      await trx('bookmarks')
-        .where({ actorId, statusId: bookmarkStatusId ?? statusId })
-        .delete()
+      const query = trx('bookmarks').where({ actorId })
+      applyBookmarkStatusFilter({ query, statusId, bookmarkStatusId })
+      await query.delete()
     })
   },
 
@@ -142,9 +185,9 @@ export const BookmarkSQLDatabaseMixin = (database: Knex): BookmarkDatabase => ({
     const bookmarkStatusId =
       (await resolveBookmarkStatusId({ database, statusId, statusType })) ??
       statusId
-    const bookmark = await database('bookmarks')
-      .where({ actorId, statusId: bookmarkStatusId })
-      .first('id')
+    const query = database('bookmarks').where({ actorId })
+    applyBookmarkStatusFilter({ query, statusId, bookmarkStatusId })
+    const bookmark = await query.first('id')
     return Boolean(bookmark)
   },
 

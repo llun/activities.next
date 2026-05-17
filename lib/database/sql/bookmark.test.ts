@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { getOriginalStatusIdFromAnnounceContent } from '@/lib/database/sql/bookmark'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -9,6 +10,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('BookmarkDatabase', () => {
@@ -172,6 +174,57 @@ describe('BookmarkDatabase', () => {
       ).toHaveLength(0)
     })
 
+    it('resolves and deletes bookmarks created through an Announce after the Announce row is deleted', async () => {
+      const original = await createStatus(
+        'deleted-announce-original',
+        ACTOR1_ID
+      )
+      const announce = await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/bookmark-deleted-announce-${randomUUID()}`,
+        actorId: ACTOR2_ID,
+        originalStatusId: original.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createBookmark({
+        actorId: ACTOR3_ID,
+        statusId: announce.id
+      })
+      await database.deleteStatus({ statusId: announce.id })
+
+      const bookmarks = await database.getBookmarks({
+        actorId: ACTOR3_ID,
+        limit: 20
+      })
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === original.id)
+      ).toHaveLength(1)
+      expect(
+        bookmarks.filter((bookmark) => bookmark.statusId === announce.id)
+      ).toHaveLength(0)
+
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR3_ID,
+          statusId: announce.id,
+          statusType: StatusType.enum.Announce
+        })
+      ).resolves.toBe(true)
+
+      await database.deleteBookmark({
+        actorId: ACTOR3_ID,
+        statusId: announce.id
+      })
+
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: ACTOR3_ID,
+          statusId: original.id
+        })
+      ).resolves.toBe(false)
+    })
+
     it('paginates bookmarks by private bookmark ids', async () => {
       const actorId = `${ACTOR3_ID}/bookmark-pagination-${randomUUID()}`
       const statuses = await Promise.all([
@@ -314,5 +367,32 @@ describe('BookmarkDatabase', () => {
         })
       ).resolves.toBe(false)
     })
+  })
+})
+
+describe('getOriginalStatusIdFromAnnounceContent', () => {
+  it('extracts original status ids from legacy announce content shapes', () => {
+    expect(getOriginalStatusIdFromAnnounceContent('original-plain')).toBe(
+      'original-plain'
+    )
+    expect(
+      getOriginalStatusIdFromAnnounceContent(JSON.stringify('original-json'))
+    ).toBe('original-json')
+    expect(
+      getOriginalStatusIdFromAnnounceContent(
+        JSON.stringify({ url: 'original-url' })
+      )
+    ).toBe('original-url')
+    expect(
+      getOriginalStatusIdFromAnnounceContent(
+        JSON.stringify({ id: 'original-id' })
+      )
+    ).toBe('original-id')
+    expect(
+      getOriginalStatusIdFromAnnounceContent({ url: 'original-object-url' })
+    ).toBe('original-object-url')
+    expect(
+      getOriginalStatusIdFromAnnounceContent({ id: 'original-object-id' })
+    ).toBe('original-object-id')
   })
 })

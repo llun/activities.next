@@ -38,6 +38,12 @@ describe('status original status id migration', () => {
         content: JSON.stringify({ url: 'original-2' })
       },
       {
+        id: 'announce-json-id',
+        type: 'Announce',
+        actorId: 'actor-1',
+        content: JSON.stringify({ id: 'original-3' })
+      },
+      {
         id: 'note',
         type: 'Note',
         actorId: 'actor-1',
@@ -54,6 +60,7 @@ describe('status original status id migration', () => {
       database('statuses').select('id', 'originalStatusId').orderBy('id', 'asc')
     ).resolves.toEqual([
       { id: 'announce-json', originalStatusId: 'original-2' },
+      { id: 'announce-json-id', originalStatusId: 'original-3' },
       { id: 'announce-string', originalStatusId: 'original-1' },
       { id: 'note', originalStatusId: null }
     ])
