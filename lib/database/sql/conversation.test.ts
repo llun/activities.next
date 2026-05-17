@@ -338,15 +338,15 @@ describe('ConversationDatabase', () => {
     test('falls back to the latest hydratable conversation status when membership last status is stale', async () => {
       const root = await createDirectStatus({
         database,
-        actorId: ACTOR1_ID,
-        recipientActorIds: [ACTOR2_ID],
+        actorId: ACTOR2_ID,
+        recipientActorIds: [ACTOR1_ID],
         text: 'fallback root',
         createdAt: 7000
       })
       const reply = await createDirectStatus({
         database,
-        actorId: ACTOR2_ID,
-        recipientActorIds: [ACTOR1_ID],
+        actorId: ACTOR1_ID,
+        recipientActorIds: [ACTOR2_ID],
         text: 'fallback reply',
         reply: root.id,
         createdAt: 8000
@@ -362,7 +362,9 @@ describe('ConversationDatabase', () => {
         .where('id', membership.id)
         .update({
           lastStatusId: `${reply.id}/missing`,
-          lastStatusCreatedAt: new Date(9000)
+          lastStatusCreatedAt: new Date(9000),
+          unread: true,
+          readAt: new Date(9000)
         })
 
       const conversations = await database.getDirectConversations({
@@ -375,11 +377,19 @@ describe('ConversationDatabase', () => {
         'direct_conversation_memberships'
       )
         .where('id', membership.id)
-        .first<{ lastStatusId: string }>()
+        .first<{
+          lastStatusId: string
+          unread: boolean | number
+          readAt: Date
+        }>()
 
       expect(conversation?.lastStatusId).toEqual(reply.id)
       expect(conversation?.lastStatus.id).toEqual(reply.id)
+      expect(conversation?.unread).toBe(false)
+      expect(conversation?.readAt).toEqual(9000)
       expect(updatedMembership?.lastStatusId).toEqual(reply.id)
+      expect(Boolean(updatedMembership?.unread)).toBe(false)
+      expect(new Date(updatedMembership?.readAt ?? 0).getTime()).toEqual(9000)
     })
 
     test('returns empty results for malformed membership cursors', async () => {
@@ -483,6 +493,98 @@ describe('ConversationDatabase', () => {
         'status-2',
         'status-1'
       ])
+    })
+
+    test('scans past invisible statuses to fill direct conversation status pages', async () => {
+      const statusDatabase = {
+        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+          statusIds
+            .filter(
+              (statusId: string) => !['status-4', 'status-2'].includes(statusId)
+            )
+            .map(statusForId)
+        )
+      } as unknown as StatusDatabase
+      const database = DirectConversationSQLDatabaseMixin(
+        knexDatabase,
+        statusDatabase
+      )
+      const now = new Date()
+
+      await knexDatabase('direct_conversations').insert({
+        id: 'conversation-with-invisible-statuses',
+        rootStatusId: 'status-1',
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_participants').insert({
+        id: 'participant-1',
+        conversationId: 'conversation-with-invisible-statuses',
+        actorId: ACTOR1_ID,
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_memberships').insert({
+        actorId: ACTOR1_ID,
+        conversationId: 'conversation-with-invisible-statuses',
+        lastStatusId: 'status-5',
+        lastStatusCreatedAt: new Date(5000),
+        unread: false,
+        readAt: null,
+        hiddenAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_statuses').insert([
+        {
+          conversationId: 'conversation-with-invisible-statuses',
+          statusId: 'status-1',
+          createdAt: new Date(1000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-with-invisible-statuses',
+          statusId: 'status-2',
+          createdAt: new Date(2000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-with-invisible-statuses',
+          statusId: 'status-3',
+          createdAt: new Date(3000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-with-invisible-statuses',
+          statusId: 'status-4',
+          createdAt: new Date(4000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-with-invisible-statuses',
+          statusId: 'status-5',
+          createdAt: new Date(5000),
+          updatedAt: now
+        }
+      ])
+
+      const firstPage = await database.getDirectConversationStatuses({
+        actorId: ACTOR1_ID,
+        conversationId: '1',
+        limit: 2
+      })
+      const secondPage = await database.getDirectConversationStatuses({
+        actorId: ACTOR1_ID,
+        conversationId: '1',
+        maxStatusId: 'status-3',
+        limit: 2
+      })
+
+      expect(firstPage.map((status) => status.id)).toEqual([
+        'status-5',
+        'status-3'
+      ])
+      expect(secondPage.map((status) => status.id)).toEqual(['status-1'])
     })
 
     test('resolves reply roots from synced direct conversation rows before hydrating parents', async () => {

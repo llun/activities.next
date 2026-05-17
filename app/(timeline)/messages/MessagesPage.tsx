@@ -1,7 +1,15 @@
 'use client'
 
 import { Archive, Loader2, Mail, Plus, Search, Send, X } from 'lucide-react'
-import { FC, FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  FC,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import {
   createDirectMessage,
@@ -96,6 +104,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const [isThreadLoading, setThreadLoading] = useState(false)
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const latestThreadRequestIdRef = useRef(0)
+  const selectedConversationIdRef = useRef(selectedConversationId)
 
   const selectedConversation = useMemo(
     () =>
@@ -112,23 +122,38 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     ? selectedConversation.accounts
     : selectedRecipients
 
+  const selectConversation = useCallback((conversationId: string | null) => {
+    if (conversationId === selectedConversationIdRef.current) return
+    latestThreadRequestIdRef.current += 1
+    selectedConversationIdRef.current = conversationId
+    setSelectedConversationId(conversationId)
+  }, [])
+
   const loadThread = useCallback(async (conversationId: string) => {
+    const requestId = latestThreadRequestIdRef.current + 1
+    latestThreadRequestIdRef.current = requestId
     setThreadLoading(true)
+    setLoadingMoreStatuses(false)
     try {
       const result = await getConversationStatuses({
         conversationId,
         limit: 40
       })
+      if (latestThreadRequestIdRef.current !== requestId) return
       setThreadStatuses(result.statuses)
       setNextMaxStatusId(result.nextMaxStatusId)
     } finally {
-      setThreadLoading(false)
+      if (latestThreadRequestIdRef.current === requestId) {
+        setThreadLoading(false)
+      }
     }
   }, [])
 
   const loadMoreStatuses = useCallback(async () => {
     if (!selectedConversationId || !nextMaxStatusId) return
 
+    const requestId = latestThreadRequestIdRef.current + 1
+    latestThreadRequestIdRef.current = requestId
     setLoadingMoreStatuses(true)
     try {
       const result = await getConversationStatuses({
@@ -136,6 +161,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         maxStatusId: nextMaxStatusId,
         limit: 40
       })
+      if (latestThreadRequestIdRef.current !== requestId) return
       setThreadStatuses((previousStatuses) => {
         const seenIds = new Set(previousStatuses.map((status) => status.id))
         return [
@@ -145,18 +171,31 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       })
       setNextMaxStatusId(result.nextMaxStatusId)
     } finally {
-      setLoadingMoreStatuses(false)
+      if (latestThreadRequestIdRef.current === requestId) {
+        setLoadingMoreStatuses(false)
+      }
     }
   }, [nextMaxStatusId, selectedConversationId])
 
   useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId
+  }, [selectedConversationId])
+
+  useEffect(() => {
     if (!selectedConversationId) {
+      latestThreadRequestIdRef.current += 1
+      setThreadLoading(false)
       setThreadStatuses([])
       setNextMaxStatusId(null)
       return
     }
 
     void loadThread(selectedConversationId)
+  }, [loadThread, selectedConversationId])
+
+  useEffect(() => {
+    if (!selectedConversationId || !selectedConversation?.unread) return
+
     void markConversationRead({ conversationId: selectedConversationId })
     setCurrentConversations((previousConversations) =>
       previousConversations.map((conversation) =>
@@ -165,7 +204,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           : conversation
       )
     )
-  }, [loadThread, selectedConversationId])
+  }, [selectedConversation?.unread, selectedConversationId])
 
   const refreshConversations = useCallback(async () => {
     const result = await getConversations()
@@ -204,7 +243,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   }
 
   const startNewConversation = () => {
-    setSelectedConversationId(null)
+    selectConversation(null)
     setThreadStatuses([])
     setNextMaxStatusId(null)
     setSelectedRecipients([])
@@ -223,8 +262,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       const nextConversations = previousConversations.filter(
         (conversation) => conversation.id !== conversationId
       )
-      if (selectedConversationId === conversationId) {
-        setSelectedConversationId(nextConversations[0]?.id ?? null)
+      if (selectedConversationIdRef.current === conversationId) {
+        selectConversation(nextConversations[0]?.id ?? null)
       }
       return nextConversations
     })
@@ -251,7 +290,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       const refreshedConversations = await refreshConversations()
       const nextConversationId =
         selectedConversation?.id ?? refreshedConversations[0]?.id ?? null
-      setSelectedConversationId(nextConversationId)
+      selectConversation(nextConversationId)
       if (nextConversationId && nextConversationId === selectedConversationId) {
         await loadThread(nextConversationId)
       }
@@ -288,7 +327,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                     key={conversation.id}
                     type="button"
                     onClick={() => {
-                      setSelectedConversationId(conversation.id)
+                      selectConversation(conversation.id)
                       setError(null)
                     }}
                     className={cn(
