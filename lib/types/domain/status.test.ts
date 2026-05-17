@@ -59,6 +59,7 @@ describe('Status', () => {
         totalLikes: 0,
         totalShares: 0,
         isActorLiked: false,
+        isActorBookmarked: false,
         actorAnnounceStatusId: null,
         isLocalActor: false,
         tags: [],
@@ -67,6 +68,34 @@ describe('Status', () => {
         createdAt: expect.toBeNumber(),
         updatedAt: expect.toBeNumber()
       })
+    })
+
+    it('requires explicit bookmark state for note statuses', () => {
+      const createdAt = Date.UTC(2026, 0, 1)
+      const status = {
+        id: `${ACTOR1_ID}/statuses/bookmark-required`,
+        actorId: ACTOR1_ID,
+        actor: null,
+        type: StatusType.enum.Note,
+        url: `${ACTOR1_ID}/statuses/bookmark-required`,
+        text: 'Bookmark state is explicit',
+        summary: '',
+        reply: '',
+        replies: [],
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        edits: [],
+        isLocalActor: true,
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        totalLikes: 0,
+        attachments: [],
+        tags: [],
+        createdAt,
+        updatedAt: createdAt
+      }
+
+      expect(StatusNote.safeParse(status).success).toBe(false)
     })
 
     it('returns empty string for undefined reply', () => {
@@ -90,6 +119,7 @@ describe('Status', () => {
         totalLikes: 0,
         totalShares: 0,
         isActorLiked: false,
+        isActorBookmarked: false,
         actorAnnounceStatusId: null,
         isLocalActor: false,
         tags: [],
@@ -304,6 +334,7 @@ describe('Status', () => {
           isLocalActor: true,
           actorAnnounceStatusId: null,
           isActorLiked: false,
+          isActorBookmarked: false,
           totalLikes: 0,
           attachments: [],
           tags: [],
@@ -369,6 +400,7 @@ describe('Status', () => {
           isLocalActor: true,
           actorAnnounceStatusId: null,
           isActorLiked: false,
+          isActorBookmarked: false,
           totalLikes: 0,
           attachments: [],
           tags: [],

@@ -605,6 +605,85 @@ describe('#getMastodonStatus', () => {
     })
   })
 
+  describe('bookmarked flag', () => {
+    it('returns bookmarked=false when no current actor has bookmarked the status', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/bookmarked-flag-false`
+      const status = await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Not bookmarked',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const mastodonStatus = await getMastodonStatus(database, status)
+
+      expect(mastodonStatus?.bookmarked).toBe(false)
+    })
+
+    it('returns bookmarked=true when the current actor bookmarked the status', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/bookmarked-flag-true`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Bookmarked by current actor',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId })
+
+      const status = (await database.getStatus({
+        statusId,
+        currentActorId: ACTOR2_ID
+      })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR2_ID
+      )
+
+      expect(mastodonStatus?.bookmarked).toBe(true)
+    })
+
+    it('returns bookmarked=true on an announce and nested original when the original status is bookmarked', async () => {
+      const originalStatusId = `${ACTOR1_ID}/statuses/bookmarked-announce-original`
+      await database.createNote({
+        id: originalStatusId,
+        url: originalStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Bookmarked original',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const announce = await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/bookmarked-announce`,
+        actorId: ACTOR2_ID,
+        originalStatusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createBookmark({
+        actorId: ACTOR2_ID,
+        statusId: originalStatusId
+      })
+
+      const status = (await database.getStatus({
+        statusId: announce.id,
+        currentActorId: ACTOR2_ID
+      })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR2_ID
+      )
+
+      expect(mastodonStatus?.bookmarked).toBe(true)
+      expect(mastodonStatus?.reblog?.bookmarked).toBe(true)
+    })
+  })
+
   describe('text field', () => {
     it('includes plain text source in text field', async () => {
       const statusWithMarkdown = await database.createNote({

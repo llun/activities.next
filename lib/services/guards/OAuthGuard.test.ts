@@ -7,7 +7,11 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 
-import { OAuthGuard, getTokenFromHeader } from './OAuthGuard'
+import {
+  OAuthGuard,
+  OAuthGuardAnyScope,
+  getTokenFromHeader
+} from './OAuthGuard'
 
 // Mock auth session
 const mockGetServerSession = jest.fn()
@@ -634,6 +638,32 @@ describe('#OAuthGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
+    })
+
+    test('allows opaque token when any requested scope matches', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('bookmark-scope-opaque'), {
+        token: hashToken('bookmark-scope-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read:bookmarks'])
+      })
+
+      const guard = OAuthGuardAnyScope(
+        [Scope.enum.read, Scope.enum['read:bookmarks']],
+        mockHandler
+      )
+      const req = createRequest({
+        Authorization: 'Bearer bookmark-scope-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
     })
 
     test('returns 401 when opaque token has no referenceId', async () => {

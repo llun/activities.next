@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 import { AccountSQLDatabaseMixin } from './account'
 import { ActorSQLDatabaseMixin } from './actor'
 import { BlockSQLDatabaseMixin } from './block'
+import { BookmarkSQLDatabaseMixin } from './bookmark'
 import { FitnessSettingsSQLDatabaseMixin } from './fitnessSettings'
 import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
@@ -23,6 +24,10 @@ jest.mock('@/lib/database/sql/actor', () => ({
 
 jest.mock('@/lib/database/sql/block', () => ({
   BlockSQLDatabaseMixin: jest.fn()
+}))
+
+jest.mock('@/lib/database/sql/bookmark', () => ({
+  BookmarkSQLDatabaseMixin: jest.fn()
 }))
 
 jest.mock('@/lib/database/sql/fitnessSettings', () => ({
@@ -61,6 +66,7 @@ describe('getSQLDatabase', () => {
   const accountMixinMock = AccountSQLDatabaseMixin as unknown as jest.Mock
   const actorMixinMock = ActorSQLDatabaseMixin as unknown as jest.Mock
   const blockMixinMock = BlockSQLDatabaseMixin as unknown as jest.Mock
+  const bookmarkMixinMock = BookmarkSQLDatabaseMixin as unknown as jest.Mock
   const fitnessSettingsMixinMock =
     FitnessSettingsSQLDatabaseMixin as unknown as jest.Mock
   const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
@@ -100,6 +106,9 @@ describe('getSQLDatabase', () => {
     const blockDatabase = {
       createBlock: jest.fn()
     }
+    const bookmarkDatabase = {
+      createBookmark: jest.fn()
+    }
     const followerDatabase = {
       getFollowers: jest.fn()
     }
@@ -127,6 +136,7 @@ describe('getSQLDatabase', () => {
     accountMixinMock.mockReturnValue(accountDatabase)
     actorMixinMock.mockReturnValue(actorDatabase)
     blockMixinMock.mockReturnValue(blockDatabase)
+    bookmarkMixinMock.mockReturnValue(bookmarkDatabase)
     fitnessSettingsMixinMock.mockReturnValue(fitnessSettingsDatabase)
     followerMixinMock.mockReturnValue(followerDatabase)
     likeMixinMock.mockReturnValue(likeDatabase)
@@ -142,6 +152,7 @@ describe('getSQLDatabase', () => {
       accountDatabase,
       actorDatabase,
       blockDatabase,
+      bookmarkDatabase,
       database,
       followerDatabase,
       fitnessSettingsDatabase,
@@ -158,6 +169,7 @@ describe('getSQLDatabase', () => {
   it('wires mixin dependencies correctly', () => {
     const {
       actorDatabase,
+      bookmarkDatabase,
       knexDatabase,
       likeDatabase,
       mediaDatabase,
@@ -167,6 +179,7 @@ describe('getSQLDatabase', () => {
     expect(accountMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(actorMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(blockMixinMock).toHaveBeenCalledWith(knexDatabase)
+    expect(bookmarkMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(fitnessSettingsMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
     expect(likeMixinMock).toHaveBeenCalledWith(knexDatabase)
@@ -177,6 +190,7 @@ describe('getSQLDatabase', () => {
       knexDatabase,
       actorDatabase,
       likeDatabase,
+      bookmarkDatabase,
       mediaDatabase
     )
     expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
@@ -187,6 +201,7 @@ describe('getSQLDatabase', () => {
       accountDatabase,
       actorDatabase,
       blockDatabase,
+      bookmarkDatabase,
       database,
       followerDatabase,
       fitnessSettingsDatabase,
@@ -201,6 +216,7 @@ describe('getSQLDatabase', () => {
     expect(database.isAccountExists).toBe(accountDatabase.isAccountExists)
     expect(database.getActorFromId).toBe(actorDatabase.getActorFromId)
     expect(database.createBlock).toBe(blockDatabase.createBlock)
+    expect(database.createBookmark).toBe(bookmarkDatabase.createBookmark)
     expect(database.createFitnessSettings).toBe(
       fitnessSettingsDatabase.createFitnessSettings
     )
