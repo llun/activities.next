@@ -58,6 +58,38 @@ const isMembershipOlderThanStatus = (
   return String(membership.lastStatusId) < status.id
 }
 
+const getMembershipReadStateForStatus = ({
+  actorId,
+  status,
+  statusCreatedAt,
+  readAt
+}: {
+  actorId: string
+  status: Status
+  statusCreatedAt: Date | string | number
+  readAt: DirectConversationMembershipRow['readAt']
+}) => {
+  const readAtTime = readAt ? getCompatibleTime(readAt) : null
+  const statusTime = getCompatibleTime(statusCreatedAt)
+
+  if (actorId === status.actorId)
+    return {
+      unread: false,
+      readAt: readAtTime && readAtTime > statusTime ? readAt : statusCreatedAt
+    }
+
+  if (readAtTime && readAtTime >= statusTime)
+    return {
+      unread: false,
+      readAt
+    }
+
+  return {
+    unread: true,
+    readAt
+  }
+}
+
 const applyMembershipCursor = (
   query: Knex.QueryBuilder,
   cursor: DirectConversationMembershipRow,
@@ -263,13 +295,27 @@ export const DirectConversationSQLDatabaseMixin = (
         )
         if (!fallbackRow || fallbackRow.statusId === row.lastStatusId) return
 
+        const fallbackStatus = statusById.get(fallbackRow.statusId)
+        if (!fallbackStatus) return
+
+        const readState = getMembershipReadStateForStatus({
+          actorId: currentActorId,
+          status: fallbackStatus,
+          statusCreatedAt: fallbackRow.createdAt,
+          readAt: row.readAt
+        })
+
         row.lastStatusId = fallbackRow.statusId
         row.lastStatusCreatedAt = fallbackRow.createdAt
+        row.unread = readState.unread
+        row.readAt = readState.readAt
         await database('direct_conversation_memberships')
           .where('id', row.id)
           .update({
             lastStatusId: fallbackRow.statusId,
             lastStatusCreatedAt: fallbackRow.createdAt,
+            unread: readState.unread,
+            readAt: readState.readAt,
             updatedAt: new Date()
           })
       })
@@ -576,17 +622,40 @@ export const DirectConversationSQLDatabaseMixin = (
         applyStatusCursor(query, cursor, 'newer')
       }
 
-      const rows = await query
-        .orderBy('createdAt', 'desc')
-        .orderBy('statusId', 'desc')
-        .limit(limit)
-      const statusById = await getStatusesByIdVisibleToActor(
-        rows.map((row) => row.statusId),
-        actorId
-      )
-      return rows
-        .map((row) => statusById.get(row.statusId))
-        .filter((status): status is Status => Boolean(status))
+      if (limit <= 0) return []
+
+      const statuses: Status[] = []
+      const scanBatchSize = Math.max(limit, PER_PAGE_LIMIT)
+      let scannedCursor: DirectConversationStatusRow | null = null
+
+      while (statuses.length < limit) {
+        const scanQuery = query.clone()
+        if (scannedCursor) applyStatusCursor(scanQuery, scannedCursor, 'older')
+
+        const rows = await scanQuery
+          .orderBy('createdAt', 'desc')
+          .orderBy('statusId', 'desc')
+          .limit(scanBatchSize)
+        if (rows.length === 0) break
+
+        const statusById = await getStatusesByIdVisibleToActor(
+          rows.map((row) => row.statusId),
+          actorId
+        )
+
+        for (const row of rows) {
+          const status = statusById.get(row.statusId)
+          if (!status) continue
+
+          statuses.push(status)
+          if (statuses.length === limit) break
+        }
+
+        if (statuses.length === limit || rows.length < scanBatchSize) break
+        scannedCursor = rows[rows.length - 1]
+      }
+
+      return statuses
     }
   }
 }
