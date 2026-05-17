@@ -32,7 +32,7 @@ export const GET = traceApiRoute(
           : DEFAULT_LIMIT
       const format = url.searchParams.get('format')
 
-      const { bookmarks, statuses, nextMaxBookmarkId, prevMinBookmarkId } =
+      const { statuses, nextMaxBookmarkId, prevMinBookmarkId } =
         await getBookmarkedStatusesPage({
           database,
           actorId: currentActor.id,
@@ -73,14 +73,12 @@ export const GET = traceApiRoute(
           cursorParam === 'max_id' ? 'next' : 'prev'
         }"`
       }
-      const nextLink =
-        bookmarks.length === limit
-          ? buildPaginationUrl('max_id', bookmarks[bookmarks.length - 1].id)
-          : null
-      const prevLink =
-        bookmarks.length > 0
-          ? buildPaginationUrl('min_id', bookmarks[0].id)
-          : null
+      const nextLink = nextMaxBookmarkId
+        ? buildPaginationUrl('max_id', nextMaxBookmarkId)
+        : null
+      const prevLink = prevMinBookmarkId
+        ? buildPaginationUrl('min_id', prevMinBookmarkId)
+        : null
       const links = [nextLink, prevLink].filter(Boolean).join(', ')
 
       return apiResponse({
