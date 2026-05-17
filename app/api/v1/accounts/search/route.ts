@@ -1,51 +1,38 @@
 import { z } from 'zod'
 
-import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getConfig } from '@/lib/config'
+import { normalizeAccountSearchQuery } from '@/lib/search/normalizeAccountSearchQuery'
+import { resolveAccountForSearch } from '@/lib/search/resolveAccount'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  BooleanSearchParam,
+  urlSearchParamsToObject
+} from '@/lib/utils/searchParams'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const parseAccountHandle = (value: string) => {
-  const normalized = value.trim().replace(/^@/, '')
-  const [username, domain, ...rest] = normalized.split('@')
-  if (!username || !domain || rest.length > 0) return null
-  return { username, domain }
-}
-
 const SearchParams = z.object({
-  q: z.string(),
-  limit: z.coerce.number().min(1).max(80).default(40).optional(),
-  offset: z.coerce.number().min(0).default(0).optional(),
-  resolve: z
-    .enum(['true', 'false'])
-    .transform((v) => v === 'true')
-    .optional(),
-  following: z
-    .enum(['true', 'false'])
-    .transform((v) => v === 'true')
-    .optional()
+  q: z.string().max(500),
+  limit: z.coerce.number().int().min(1).max(80).default(40),
+  offset: z.coerce.number().int().min(0).default(0),
+  resolve: BooleanSearchParam,
+  following: BooleanSearchParam
 })
 
 export const GET = traceApiRoute(
   'searchAccounts',
   OAuthGuardAnyScope(
-    [Scope.enum.read, Scope.enum['read:accounts']],
+    [Scope.enum.read, Scope.enum['read:accounts'], Scope.enum['read:search']],
     async (req, context) => {
-      const { database } = context
+      const { currentActor, database } = context
 
       const url = new URL(req.url)
-      const queryParams: Record<string, string> = {}
-      url.searchParams.forEach((value, key) => {
-        queryParams[key] = value
-      })
+      const queryParams = urlSearchParamsToObject(url.searchParams)
 
       const parsedParams = SearchParams.safeParse(queryParams)
       if (!parsedParams.success) {
@@ -57,54 +44,33 @@ export const GET = traceApiRoute(
         })
       }
 
-      const { q, limit = 40, resolve = false } = parsedParams.data
-
+      const { q, limit, offset, following, resolve } = parsedParams.data
       if (!q || q.trim().length === 0) {
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
-      const query = q.trim()
-      const results = []
-
-      // Try exact match first (username@domain or just username)
-      if (query.includes('@')) {
-        const handle = parseAccountHandle(query)
-        if (handle) {
-          let actor = await database.getActorFromUsername(handle)
-          if (!actor && resolve) {
-            const actorId = await getWebfingerSelf({
-              account: `${handle.username}@${handle.domain}`
-            })
-            actor = actorId
-              ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
-              : null
-          }
-
-          const mastodonActor = actor
-            ? await database.getMastodonActorFromId({ id: actor.id })
-            : null
-          if (mastodonActor) {
-            results.push(mastodonActor)
-          }
-        }
-      } else {
-        // Try as local username
-        const actor = await database.getActorFromUsername({
-          username: query,
-          domain: getConfig().host
-        })
-        if (actor) {
-          const mastodonActor = await database.getMastodonActorFromId({
-            id: actor.id
-          })
-          if (mastodonActor) results.push(mastodonActor)
-        }
+      const query = normalizeAccountSearchQuery(q)
+      if (!query) {
+        return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
+
+      if (resolve) {
+        await resolveAccountForSearch({ database, query: q })
+      }
+
+      const results = await database.searchAccounts({
+        query,
+        limit,
+        offset,
+        currentActorId: currentActor.id,
+        following,
+        resolve
+      })
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: results.slice(0, limit)
+        data: results
       })
     }
   )
