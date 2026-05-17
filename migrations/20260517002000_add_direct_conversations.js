@@ -84,6 +84,7 @@ const createTables = async (knex) => {
 }
 
 const DIRECT_STATUS_BATCH_SIZE = 500
+const LOCAL_ACTOR_LOOKUP_BATCH_SIZE = 500
 
 const attachRecipients = async (knex, statusRows) => {
   if (statusRows.length === 0) return []
@@ -190,6 +191,36 @@ const insertIfMissing = async (knex, table, where, values) => {
   return values
 }
 
+const getParticipantActorIds = (status) =>
+  [
+    ...new Set([
+      status.actorId,
+      ...status.recipients.map((recipient) => recipient.actorId)
+    ])
+  ].filter(isDirectRecipient)
+
+const getLocalActorIds = async (knex, statuses) => {
+  const actorIds = [
+    ...new Set(statuses.flatMap((status) => getParticipantActorIds(status)))
+  ]
+  const localActorIds = new Set()
+
+  for (let i = 0; i < actorIds.length; i += LOCAL_ACTOR_LOOKUP_BATCH_SIZE) {
+    const actorIdBatch = actorIds.slice(i, i + LOCAL_ACTOR_LOOKUP_BATCH_SIZE)
+    const localActorRows = await knex('actors')
+      .whereIn('id', actorIdBatch)
+      .whereNotNull('privateKey')
+      .whereNot('privateKey', '')
+      .select('id')
+
+    for (const actor of localActorRows) {
+      localActorIds.add(actor.id)
+    }
+  }
+
+  return localActorIds
+}
+
 const backfillDirectConversations = async (knex) => {
   let cursor = null
   let hasMore = true
@@ -201,16 +232,13 @@ const backfillDirectConversations = async (knex) => {
     cursor = batch.cursor
     if (directStatuses.length === 0) continue
 
+    const localActorIds = await getLocalActorIds(knex, directStatuses)
+
     for (const status of directStatuses) {
       const rootStatusId = await resolveRootStatusId(knex, status)
       const conversationId = conversationIdForRoot(rootStatusId)
       const currentTime = new Date()
-      const participantActorIds = [
-        ...new Set([
-          status.actorId,
-          ...status.recipients.map((recipient) => recipient.actorId)
-        ])
-      ].filter(isDirectRecipient)
+      const participantActorIds = getParticipantActorIds(status)
 
       await insertIfMissing(
         knex,
@@ -253,24 +281,22 @@ const backfillDirectConversations = async (knex) => {
 
       if (participantActorIds.length === 0) continue
 
-      const localActorRows = await knex('actors')
-        .whereIn('id', participantActorIds)
-        .whereNotNull('privateKey')
-        .whereNot('privateKey', '')
-        .select('id')
+      const statusLocalActorIds = participantActorIds.filter((actorId) =>
+        localActorIds.has(actorId)
+      )
 
-      for (const actor of localActorRows) {
+      for (const actorId of statusLocalActorIds) {
         const existingMembership = await knex('direct_conversation_memberships')
           .where({
-            actorId: actor.id,
+            actorId,
             conversationId
           })
           .first()
-        const unread = actor.id !== status.actorId
+        const unread = actorId !== status.actorId
 
         if (!existingMembership) {
           await knex('direct_conversation_memberships').insert({
-            actorId: actor.id,
+            actorId,
             conversationId,
             lastStatusId: status.id,
             lastStatusCreatedAt: asDate(status.createdAt),

@@ -48,6 +48,7 @@ const createDirectConversationTables = async (database: Knex) => {
       table.string('actorId').notNullable()
       table.timestamp('createdAt', { useTz: true })
       table.timestamp('updatedAt', { useTz: true })
+      table.unique(['conversationId', 'actorId'])
     }
   )
   await database.schema.createTable('direct_conversation_statuses', (table) => {

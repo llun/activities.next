@@ -155,6 +155,42 @@ const insertIfMissing = async ({
   }
 }
 
+const insertDirectConversationParticipantsIfMissing = async ({
+  trx,
+  conversationId,
+  actorIds,
+  currentTime
+}: {
+  trx: Knex.Transaction
+  conversationId: string
+  actorIds: string[]
+  currentTime: Date
+}) => {
+  if (actorIds.length === 0) return
+
+  const existingRows = await trx('direct_conversation_participants')
+    .where('conversationId', conversationId)
+    .whereIn('actorId', actorIds)
+    .select<{ actorId: string }[]>('actorId')
+  const existingActorIds = new Set(existingRows.map((row) => row.actorId))
+  const missingRows = actorIds
+    .filter((actorId) => !existingActorIds.has(actorId))
+    .map((actorId) => ({
+      id: randomUUID(),
+      conversationId,
+      actorId,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }))
+
+  if (missingRows.length === 0) return
+
+  await trx('direct_conversation_participants')
+    .insert(missingRows)
+    .onConflict(['conversationId', 'actorId'])
+    .ignore()
+}
+
 export const DirectConversationSQLDatabaseMixin = (
   database: Knex,
   statusDatabase: StatusDatabase
@@ -420,20 +456,12 @@ export const DirectConversationSQLDatabaseMixin = (
           }
         })
 
-        for (const actorId of participantActorIds) {
-          await insertIfMissing({
-            trx,
-            table: 'direct_conversation_participants',
-            where: { conversationId, actorId },
-            values: {
-              id: randomUUID(),
-              conversationId,
-              actorId,
-              createdAt: currentTime,
-              updatedAt: currentTime
-            }
-          })
-        }
+        await insertDirectConversationParticipantsIfMissing({
+          trx,
+          conversationId,
+          actorIds: participantActorIds,
+          currentTime
+        })
 
         const localParticipantActorIds = await getLocalParticipantActorIds(
           trx,
