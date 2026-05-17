@@ -1,4 +1,12 @@
-import { Activity, Bell, Bookmark, Home, Settings, Shield } from 'lucide-react'
+import {
+  Activity,
+  Bell,
+  Bookmark,
+  Home,
+  Mail,
+  Settings,
+  Shield
+} from 'lucide-react'
 import { type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
@@ -9,6 +17,7 @@ export interface NavItem {
 
 const baseNavItems: NavItem[] = [
   { href: '/', label: 'Timeline', icon: Home },
+  { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings }

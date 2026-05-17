@@ -88,7 +88,7 @@ describe('Visibility integration tests', () => {
       expect(status?.cc).toHaveLength(0)
     })
 
-    it('creates direct note with correct to/cc', async () => {
+    it('rejects direct note without an explicit recipient', async () => {
       const status = await createNoteFromUserInput({
         text: 'Direct message without mention',
         currentActor: actor1,
@@ -96,12 +96,22 @@ describe('Visibility integration tests', () => {
         database
       })
 
+      expect(status).toBeNull()
+    })
+
+    it('creates direct note with explicit recipients in to only', async () => {
+      const status = await createNoteFromUserInput({
+        text: '@test2@llun.test direct message',
+        currentActor: actor1,
+        visibility: 'direct',
+        database
+      })
+
       expect(status).toBeDefined()
+      expect(status?.to).toHaveLength(1)
       expect(status?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
       expect(status?.to).not.toContain(`${actor1.id}/followers`)
       expect(status?.cc).toHaveLength(0)
-      // For direct messages with no mentions, to should be empty or only contain reply author
-      // This is the correct behavior for direct messages
     })
   })
 
@@ -168,9 +178,22 @@ describe('Visibility integration tests', () => {
       expect(poll?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
     })
 
-    it('creates direct poll with correct to/cc', async () => {
-      await createPollFromUserInput({
+    it('rejects direct poll without an explicit recipient', async () => {
+      const poll = await createPollFromUserInput({
         text: 'Direct poll',
+        currentActor: actor1,
+        visibility: 'direct',
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 86400000,
+        database
+      })
+
+      expect(poll).toBeNull()
+    })
+
+    it('creates direct poll with explicit recipients in to only', async () => {
+      await createPollFromUserInput({
+        text: '@test2@llun.test Direct poll',
         currentActor: actor1,
         visibility: 'direct',
         choices: ['Yes', 'No'],

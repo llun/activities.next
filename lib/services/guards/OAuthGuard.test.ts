@@ -397,7 +397,7 @@ describe('#OAuthGuard', () => {
       expect(mockHandler).toHaveBeenCalled()
       expect(mockVerifyAccessToken).toHaveBeenCalledWith(token, {
         jwksUrl: 'https://llun.test/api/auth/jwks',
-        scopes: [Scope.enum.read],
+        scopes: [],
         verifyOptions: {
           issuer: 'https://llun.test',
           audience: 'https://llun.test'
