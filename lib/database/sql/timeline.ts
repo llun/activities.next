@@ -87,6 +87,7 @@ export const TimelineSQLDatabaseMixin = (
       case Timeline.MAIN:
       case Timeline.HOME:
       case Timeline.MENTION:
+      case Timeline.DIRECT:
       case Timeline.NOANNOUNCE: {
         if (!actorId) return []
 

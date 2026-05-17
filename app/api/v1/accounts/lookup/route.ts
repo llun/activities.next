@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -28,6 +30,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
 
   const url = new URL(req.url)
   const acct = url.searchParams.get('acct')
+  const resolve = url.searchParams.get('resolve') === 'true'
 
   if (!acct)
     return apiResponse({
@@ -38,8 +41,9 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     })
 
   // Parse acct format: username or username@domain
-  const [username, domain] = acct.includes('@')
-    ? acct.split('@')
+  const normalizedAcct = acct.trim().replace(/^@/, '')
+  const [username, domain] = normalizedAcct.includes('@')
+    ? normalizedAcct.split('@')
     : [acct, getConfig().host]
 
   if (!username)
@@ -50,7 +54,13 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       responseStatusCode: 400
     })
 
-  const actor = await database.getActorFromUsername({ username, domain })
+  let actor = await database.getActorFromUsername({ username, domain })
+  if (!actor && resolve && domain !== getConfig().host) {
+    const actorId = await getWebfingerSelf({ account: `${username}@${domain}` })
+    actor = actorId
+      ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+      : null
+  }
 
   if (!actor)
     return apiResponse({

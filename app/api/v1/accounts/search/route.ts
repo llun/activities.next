@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
@@ -10,6 +12,13 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+const parseAccountHandle = (value: string) => {
+  const normalized = value.trim().replace(/^@/, '')
+  const [username, domain, ...rest] = normalized.split('@')
+  if (!username || !domain || rest.length > 0) return null
+  return { username, domain }
+}
 
 const SearchParams = z.object({
   q: z.string(),
@@ -46,7 +55,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    const { q, limit = 40 } = parsedParams.data
+    const { q, limit = 40, resolve = false } = parsedParams.data
 
     if (!q || q.trim().length === 0) {
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
@@ -57,14 +66,23 @@ export const GET = traceApiRoute(
 
     // Try exact match first (username@domain or just username)
     if (query.includes('@')) {
-      const [username, domain] = query.split('@')
-      if (username && domain) {
-        const actor = await database.getActorFromUsername({ username, domain })
-        if (actor) {
-          const mastodonActor = await database.getMastodonActorFromId({
-            id: actor.id
+      const handle = parseAccountHandle(query)
+      if (handle) {
+        let actor = await database.getActorFromUsername(handle)
+        if (!actor && resolve) {
+          const actorId = await getWebfingerSelf({
+            account: `${handle.username}@${handle.domain}`
           })
-          if (mastodonActor) results.push(mastodonActor)
+          actor = actorId
+            ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+            : null
+        }
+
+        const mastodonActor = actor
+          ? await database.getMastodonActorFromId({ id: actor.id })
+          : null
+        if (mastodonActor) {
+          results.push(mastodonActor)
         }
       }
     } else {

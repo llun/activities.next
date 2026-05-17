@@ -228,6 +228,15 @@ export const createNoteFromUserInput = async ({
   // 3. Default to 'public'
   const replyVisibility = getVisibilityFromReplyStatus(replyStatus)
   const effectiveVisibility = visibility ?? replyVisibility ?? 'public'
+  const isReplyingToDirectThread = replyStatus && replyVisibility === 'direct'
+  if (
+    effectiveVisibility === 'direct' &&
+    mentions.length === 0 &&
+    !isReplyingToDirectThread
+  ) {
+    span.end()
+    return null
+  }
 
   const to = statusRecipientsTo(
     currentActor,

@@ -1,17 +1,15 @@
 import { z } from 'zod'
 
 import { sendNote } from '@/lib/activities'
-import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
-import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
+import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
-import { getMentions } from '@/lib/utils/text/getMentions'
 import { getTracer } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -54,50 +52,11 @@ export const sendNoteJob: JobHandle = createJobHandle(
         return
       }
 
-      const currentActorUrl = new URL(actor.id)
-      const replyStatus =
-        (status.type === StatusType.enum.Note ||
-          status.type === StatusType.enum.Poll) &&
-        status.reply
-          ? await database.getStatus({
-              statusId: status.reply,
-              withReplies: false
-            })
-          : null
-      const mentions = await getMentions({
-        text: status.text,
+      const federatedInboxes = await getFederatedStatusDeliveryInboxes({
+        database,
         currentActor: actor,
-        replyStatus
+        status
       })
-
-      const remoteActorsInbox = (
-        await Promise.all(
-          mentions
-            .filter(
-              (item) =>
-                item.href && !item.href.startsWith(currentActorUrl.origin)
-            )
-            .map((item) => item.href)
-            .map(async (id: string) => {
-              const actorObj = await database.getActorFromId({ id })
-              if (actorObj) return actorObj.sharedInboxUrl || actorObj.inboxUrl
-
-              const person = await getActorPerson({ actorId: id })
-              if (person) return person.endpoints?.sharedInbox || person.inbox
-              return null
-            })
-        )
-      ).filter((item): item is string => item !== null)
-
-      // Get followers inboxes
-      const followersInbox = await database.getFollowersInbox({
-        targetActorId: actor.id
-      })
-
-      const inboxes = Array.from(
-        new Set([...remoteActorsInbox, ...followersInbox])
-      )
-      const federatedInboxes = await filterFederatedUrls(database, inboxes)
 
       await Promise.all(
         federatedInboxes.map(async (inbox) => {

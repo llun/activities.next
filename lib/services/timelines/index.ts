@@ -1,3 +1,4 @@
+import { isDirectStatus } from '@/lib/database/sql/conversation'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -7,6 +8,7 @@ import { getBlockedRecipientActorIdsForStatus } from './blockFilter'
 import { mainTimelineRule } from './main'
 import { mentionTimelineRule } from './mention'
 import { noannounceTimelineRule } from './noaanounce'
+import { Timeline } from './types'
 
 export const addStatusToTimelines = async (
   database: Database,
@@ -51,27 +53,40 @@ export const addStatusToTimelines = async (
           actors.map((actor) => actor.id),
           status
         )
+      const isDirect = isDirectStatus(status)
+      if (isDirect) {
+        await database.syncDirectConversationForStatus({ status })
+      }
 
       await Promise.all(
         actors.map(async (actor) => {
           if (blockedRecipientActorIds.has(actor.id)) return
 
+          if (isDirect) {
+            await database.createTimelineStatus({
+              actorId: actor.id,
+              status,
+              timeline: Timeline.DIRECT
+            })
+          }
+
           await Promise.all(
-            [mainTimelineRule, noannounceTimelineRule, mentionTimelineRule].map(
-              async (timelineFunction) => {
-                const timeline = await timelineFunction({
-                  currentActor: actor,
-                  status,
-                  database
-                })
-                if (!timeline) return
-                return database.createTimelineStatus({
-                  actorId: actor.id,
-                  status,
-                  timeline
-                })
-              }
-            )
+            [
+              ...(isDirect ? [] : [mainTimelineRule, noannounceTimelineRule]),
+              mentionTimelineRule
+            ].map(async (timelineFunction) => {
+              const timeline = await timelineFunction({
+                currentActor: actor,
+                status,
+                database
+              })
+              if (!timeline) return
+              return database.createTimelineStatus({
+                actorId: actor.id,
+                status,
+                timeline
+              })
+            })
           )
         })
       )

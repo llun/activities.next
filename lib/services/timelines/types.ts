@@ -7,6 +7,7 @@ export enum Timeline {
   HOME = 'home',
   NOANNOUNCE = 'noannounce',
   MENTION = 'mention',
+  DIRECT = 'direct',
   LOCAL_PUBLIC = 'local-public'
 }
 

@@ -5,6 +5,7 @@ import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
 import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
 import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
+import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
@@ -44,6 +45,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     bookmarkDatabase,
     mediaDatabase
   )
+  const directConversationDatabase = DirectConversationSQLDatabaseMixin(
+    database,
+    statusDatabase
+  )
   const timelineDatabase = TimelineSQLDatabaseMixin(database, statusDatabase)
 
   return {
@@ -71,6 +76,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...oauthDatabase,
     ...stravaArchiveImportDatabase,
     ...statusDatabase,
+    ...directConversationDatabase,
 
     ...timelineDatabase
   }

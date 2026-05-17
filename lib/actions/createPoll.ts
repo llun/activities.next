@@ -54,6 +54,16 @@ export const createPollFromUserInput = async ({
   // 3. Default to 'public'
   const effectiveVisibility =
     visibility ?? getVisibilityFromReplyStatus(replyStatus) ?? 'public'
+  const isReplyingToDirectThread =
+    replyStatus && getVisibilityFromReplyStatus(replyStatus) === 'direct'
+  if (
+    effectiveVisibility === 'direct' &&
+    mentions.length === 0 &&
+    !isReplyingToDirectThread
+  ) {
+    span.end()
+    return null
+  }
 
   const to = statusRecipientsTo(
     currentActor,

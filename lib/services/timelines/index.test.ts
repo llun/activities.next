@@ -113,6 +113,36 @@ describe('#addStatusToTimeline', () => {
     expect(mentionTimeline.some((s) => s.id === status.id)).toBe(true)
   })
 
+  test('it routes direct statuses only to the direct timeline', async () => {
+    const id = randomBytes(16).toString('hex')
+    const status = await database.createNote({
+      id: `${ACTOR2_ID}/statuses/direct-${id}`,
+      url: `${ACTOR2_ID}/statuses/direct-${id}`,
+      actorId: ACTOR2_ID,
+      to: [ACTOR1_ID],
+      cc: [],
+      text: 'direct timeline message'
+    })
+    await addStatusToTimelines(database, status)
+
+    const directTimeline = await database.getTimeline({
+      timeline: Timeline.DIRECT,
+      actorId: ACTOR1_ID
+    })
+    const mainTimeline = await database.getTimeline({
+      timeline: Timeline.MAIN,
+      actorId: ACTOR1_ID
+    })
+    const noannounceTimeline = await database.getTimeline({
+      timeline: Timeline.NOANNOUNCE,
+      actorId: ACTOR1_ID
+    })
+
+    expect(directTimeline.some((s) => s.id === status.id)).toBe(true)
+    expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
+    expect(noannounceTimeline.some((s) => s.id === status.id)).toBe(false)
+  })
+
   test('it skips timelines when recipient blocks the status actor', async () => {
     await database.createBlock({
       actorId: ACTOR3_ID,
