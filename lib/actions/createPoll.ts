@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 
 import {
+  getExplicitMentions,
   getVisibilityFromReplyStatus,
   statusRecipientsCC,
   statusRecipientsTo
@@ -47,35 +48,43 @@ export const createPollFromUserInput = async ({
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
+  const explicitMentions = getExplicitMentions(text, mentions)
 
   // Determine effective visibility:
   // 1. Use explicit visibility if provided
   // 2. Inherit from reply status if replying
   // 3. Default to 'public'
-  const effectiveVisibility =
-    visibility ?? getVisibilityFromReplyStatus(replyStatus) ?? 'public'
-  const isReplyingToDirectThread =
-    replyStatus && getVisibilityFromReplyStatus(replyStatus) === 'direct'
+  const replyVisibility = getVisibilityFromReplyStatus(replyStatus)
+  const effectiveVisibility = visibility ?? replyVisibility ?? 'public'
+  const isReplyingToDirectThread = replyStatus && replyVisibility === 'direct'
   if (
     effectiveVisibility === 'direct' &&
-    mentions.length === 0 &&
+    explicitMentions.length === 0 &&
     !isReplyingToDirectThread
   ) {
     span.end()
     return null
   }
+  const recipientMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility !== 'direct'
+      ? explicitMentions
+      : mentions
 
   const to = statusRecipientsTo(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
   const cc = statusRecipientsCC(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
 
   const createdPoll = await database.createPoll({
