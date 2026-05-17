@@ -6,6 +6,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -112,6 +113,56 @@ describe('Visibility integration tests', () => {
       expect(status?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
       expect(status?.to).not.toContain(`${actor1.id}/followers`)
       expect(status?.cc).toHaveLength(0)
+    })
+
+    it('rejects direct reply to non-direct status without an explicit recipient', async () => {
+      const parentStatus = await database.createNote({
+        id: `${actor1.id}/statuses/public-parent-direct-no-recipient`,
+        url: `${actor1.id}/statuses/public-parent-direct-no-recipient`,
+        actorId: 'https://remote.test/actors/public-parent',
+        text: 'Public parent',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${actor1.id}/followers`]
+      })
+
+      const status = await createNoteFromUserInput({
+        text: 'quiet direct reply',
+        currentActor: actor1,
+        replyNoteId: parentStatus.id,
+        visibility: 'direct',
+        database
+      })
+
+      expect(status).toBeNull()
+    })
+
+    it('does not inherit non-direct parent audiences for explicit direct replies', async () => {
+      const parentStatus = await database.createNote({
+        id: `${actor1.id}/statuses/public-parent-direct-audience`,
+        url: `${actor1.id}/statuses/public-parent-direct-audience`,
+        actorId: 'https://remote.test/actors/public-parent-audience',
+        text: 'Public parent with audiences',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [
+          `${actor1.id}/followers`,
+          'https://remote.test/actors/parent-mention'
+        ]
+      })
+
+      const status = await createNoteFromUserInput({
+        text: '@test2@llun.test direct reply',
+        currentActor: actor1,
+        replyNoteId: parentStatus.id,
+        visibility: 'direct',
+        database
+      })
+
+      expect(status).toBeDefined()
+      expect(status?.to).toEqual([ACTOR2_ID])
+      expect(status?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      expect(status?.to).not.toContain(`${actor1.id}/followers`)
+      expect(status?.to).not.toContain(parentStatus.actorId)
+      expect(status?.cc).toEqual([])
     })
 
     it('preserves direct reply parent to and cc recipients without repeated mentions', async () => {
@@ -238,6 +289,29 @@ describe('Visibility integration tests', () => {
       expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
       expect(poll?.to).not.toContain(`${actor1.id}/followers`)
       expect(poll?.cc).toHaveLength(0)
+    })
+
+    it('rejects direct poll reply to non-direct status without an explicit recipient', async () => {
+      const parentStatus = await database.createNote({
+        id: `${actor1.id}/statuses/public-parent-direct-poll-no-recipient`,
+        url: `${actor1.id}/statuses/public-parent-direct-poll-no-recipient`,
+        actorId: 'https://remote.test/actors/public-poll-parent',
+        text: 'Public poll parent',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${actor1.id}/followers`]
+      })
+
+      const poll = await createPollFromUserInput({
+        text: 'quiet direct poll reply',
+        currentActor: actor1,
+        replyStatusId: parentStatus.id,
+        visibility: 'direct',
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 86400000,
+        database
+      })
+
+      expect(poll).toBeNull()
     })
 
     it('preserves direct reply parent to and cc recipients for polls', async () => {

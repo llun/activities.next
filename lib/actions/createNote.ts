@@ -29,6 +29,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -61,6 +62,21 @@ const getNotificationEligibleActorIds = async (
   )
 }
 
+export const getExplicitMentions = (
+  text: string,
+  mentions: Mention[]
+): Mention[] => {
+  const explicitMentionNames = new Set(
+    Array.from(text.matchAll(MENTION_GLOBAL_REGEX)).map((match) =>
+      match[0].trim()
+    )
+  )
+
+  return mentions.filter((mention) =>
+    explicitMentionNames.has(mention.name || '')
+  )
+}
+
 /**
  * Determines the 'to' recipients based on visibility and reply context.
  *
@@ -68,7 +84,7 @@ const getNotificationEligibleActorIds = async (
  * - public: [Public]
  * - unlisted: [followersUrl]
  * - private: [followersUrl]
- * - direct: [specific recipients from mentions]
+ * - direct: [specific recipients from mentions], plus existing direct-thread recipients on direct replies
  *
  * When replying, inherits visibility from the parent status if not specified.
  */
@@ -76,16 +92,20 @@ export const statusRecipientsTo = (
   actor: Actor,
   mentions: Mention[],
   replyStatus: Status | null,
-  visibility: MastodonVisibility = 'public'
+  visibility: MastodonVisibility = 'public',
+  replyVisibility: MastodonVisibility | null = getVisibilityFromReplyStatus(
+    replyStatus
+  )
 ): string[] => {
-  // For direct messages, only send to mentioned users
+  // Direct replies only inherit parent recipients when the parent is already
+  // direct; otherwise explicit direct recipients stay isolated from public or
+  // followers audiences on the parent.
   if (visibility === 'direct') {
-    const recipients = [
-      ...mentions.map((item) => item.href),
-      ...(replyStatus ? replyStatus.to : [])
-    ]
-    // If replying, also include the original author even when they were only in cc.
-    if (replyStatus) {
+    const recipients = mentions.map((item) => item.href)
+    if (replyStatus && replyVisibility === 'direct') {
+      recipients.push(...replyStatus.to)
+      // If replying to a direct thread, also include the original author even
+      // when they were only in cc.
       recipients.push(replyStatus.actorId)
     }
     return [...new Set(recipients)] // Remove duplicates
@@ -116,18 +136,23 @@ export const statusRecipientsTo = (
  * - public: [followersUrl, ...mentions]
  * - unlisted: [Public, ...mentions]
  * - private: [...mentions only]
- * - direct: parent cc for replies, otherwise [] (no cc for new direct messages)
+ * - direct: parent cc for direct-thread replies, otherwise [] (no cc for new direct messages)
  */
 export const statusRecipientsCC = (
   actor: Actor,
   mentions: Mention[],
   replyStatus: Status | null,
-  visibility: MastodonVisibility = 'public'
+  visibility: MastodonVisibility = 'public',
+  replyVisibility: MastodonVisibility | null = getVisibilityFromReplyStatus(
+    replyStatus
+  )
 ): string[] => {
   const mentionHrefs = mentions.map((item) => item.href)
 
   if (visibility === 'direct') {
-    return replyStatus ? [...new Set(replyStatus.cc)] : []
+    return replyStatus && replyVisibility === 'direct'
+      ? [...new Set(replyStatus.cc)]
+      : []
   }
 
   // For private (followers only), only include mentions
@@ -223,6 +248,7 @@ export const createNoteFromUserInput = async ({
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
+  const explicitMentions = getExplicitMentions(text, mentions)
 
   // Determine effective visibility:
   // 1. Use provided visibility if specified
@@ -233,24 +259,32 @@ export const createNoteFromUserInput = async ({
   const isReplyingToDirectThread = replyStatus && replyVisibility === 'direct'
   if (
     effectiveVisibility === 'direct' &&
-    mentions.length === 0 &&
+    explicitMentions.length === 0 &&
     !isReplyingToDirectThread
   ) {
     span.end()
     return null
   }
+  const recipientMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility !== 'direct'
+      ? explicitMentions
+      : mentions
 
   const to = statusRecipientsTo(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
   const cc = statusRecipientsCC(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
 
   const createdStatus = await database.createNote({
