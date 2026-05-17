@@ -20,6 +20,7 @@ import {
   urlSearchParamsToObject
 } from '@/lib/utils/searchParams'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -37,6 +38,8 @@ const SearchParams = z.object({
   resolve: BooleanSearchParam,
   exclude_unreviewed: BooleanSearchParam
 })
+
+const decodeSearchId = (id?: string) => (id ? idToUrl(id) || id : undefined)
 
 export const GET = traceApiRoute(
   'search',
@@ -104,9 +107,9 @@ export const GET = traceApiRoute(
         includeAccounts,
         includeStatuses,
         includeHashtags,
-        accountId: account_id,
-        maxStatusId: max_id,
-        minStatusId: min_id,
+        accountId: decodeSearchId(account_id),
+        maxStatusId: decodeSearchId(max_id),
+        minStatusId: decodeSearchId(min_id),
         following,
         resolve,
         excludeUnreviewed: exclude_unreviewed

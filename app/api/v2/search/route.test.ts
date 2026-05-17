@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Scope } from '@/lib/types/database/operations'
+import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
@@ -99,6 +100,32 @@ describe('GET /api/v2/search', () => {
       mockDatabase,
       { id: 'status-1' },
       'actor-1'
+    )
+  })
+
+  it('decodes API IDs before applying status filters', async () => {
+    const accountId = 'https://local.test/users/alice'
+    const minStatusId = 'https://local.test/users/alice/statuses/2'
+    const maxStatusId = 'https://local.test/users/alice/statuses/9'
+    const params = new URLSearchParams({
+      q: 'trail',
+      type: 'statuses',
+      account_id: urlToId(accountId),
+      min_id: urlToId(minStatusId),
+      max_id: urlToId(maxStatusId)
+    })
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v2/search?${params.toString()}`)
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId,
+        minStatusId,
+        maxStatusId
+      })
     )
   })
 

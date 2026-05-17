@@ -41,8 +41,10 @@ const canUseMeilisearch = ({
   following,
   accountId,
   minStatusId,
-  maxStatusId
-}: SearchParams) => !following && !accountId && !minStatusId && !maxStatusId
+  maxStatusId,
+  resolve
+}: SearchParams) =>
+  !following && !accountId && !minStatusId && !maxStatusId && !resolve
 
 const hydrateAccounts = (database: Database, actorIds: string[]) =>
   database.getMastodonActorsFromIds({ ids: actorIds })
