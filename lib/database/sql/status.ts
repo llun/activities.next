@@ -9,8 +9,10 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
+import { BookmarkDatabase } from '@/lib/types/database/operations'
 import { LikeDatabase } from '@/lib/types/database/operations'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import {
@@ -69,6 +71,7 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
+const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
@@ -77,26 +80,15 @@ const isReplaceableMediaAttachment = (
   attachment.mediaId !== null &&
   attachment.mediaId !== undefined
 
-const isUniqueConstraintError = (error: unknown) => {
-  const { code, errno, message } = error as {
-    code?: string
-    errno?: number
-    message?: string
-  }
-  return (
-    code === '23505' ||
-    code === 'ER_DUP_ENTRY' ||
-    code === 'SQLITE_CONSTRAINT' ||
-    code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-    errno === 1062 ||
-    Boolean(message?.includes('UNIQUE constraint failed'))
-  )
-}
-
 const publicRecipientStatusIds = (database: Knex) =>
   database('recipients')
     .select('statusId')
     .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+
+type StatusHydrationContext = {
+  bookmarkedStatusIds?: Set<string>
+  likedStatusIds?: Set<string>
+}
 
 export const buildPubliclyReadableStatusIdsQuery = ({
   database,
@@ -125,7 +117,10 @@ export const buildPubliclyReadableStatusIdsQuery = ({
         ).orWhereExists(function () {
           this.select(database.raw('1'))
             .from('statuses as original_statuses')
-            .whereRaw('original_statuses.id = target_statuses.content')
+            .whereRaw('?? = ??', [
+              'original_statuses.id',
+              'target_statuses.originalStatusId'
+            ])
             .whereNot('original_statuses.type', StatusType.enum.Announce)
             .whereIn('original_statuses.id', publicRecipientStatusIds(database))
         })
@@ -135,14 +130,14 @@ export const buildPubliclyReadableStatusIdsQuery = ({
   return database
     .withRecursive(
       'publicly_readable_statuses',
-      ['targetId', 'id', 'type', 'content'],
+      ['targetId', 'id', 'type', 'originalStatusId'],
       (cte) => {
         cte
           .select(
             'target_statuses.id as targetId',
             'target_statuses.id',
             'target_statuses.type',
-            'target_statuses.content'
+            'target_statuses.originalStatusId'
           )
           .from(targetStatusIdsQuery)
           .innerJoin(
@@ -156,12 +151,12 @@ export const buildPubliclyReadableStatusIdsQuery = ({
               'readable_statuses.targetId',
               'original_statuses.id',
               'original_statuses.type',
-              'original_statuses.content'
+              'original_statuses.originalStatusId'
             )
               .from('statuses as original_statuses')
               .innerJoin(
                 'publicly_readable_statuses as readable_statuses',
-                'readable_statuses.content',
+                'readable_statuses.originalStatusId',
                 'original_statuses.id'
               )
               .where('readable_statuses.type', StatusType.enum.Announce)
@@ -181,6 +176,7 @@ export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
   likeDatabase: LikeDatabase,
+  bookmarkDatabase: BookmarkDatabase,
   mediaDatabase: MediaDatabase
 ): StatusDatabase => {
   const applyPublicReadableStatusFilter = ({
@@ -261,6 +257,7 @@ export const StatusSQLDatabaseMixin = (
   ):
     | string
     | {
+        id?: string
         url?: string
       }
     | null => {
@@ -314,8 +311,20 @@ export const StatusSQLDatabaseMixin = (
     if (typeof parsed.url === 'string' && parsed.url.length > 0) {
       return parsed.url
     }
+    if (typeof parsed.id === 'string' && parsed.id.length > 0) {
+      return parsed.id
+    }
     return null
   }
+
+  const getAnnounceOriginalStatusId = ({
+    content,
+    originalStatusId
+  }: {
+    content?: unknown
+    originalStatusId?: string | null
+  }): string | null =>
+    originalStatusId || getOriginalStatusIdFromAnnounceContent(content)
 
   const getStatusUrlHash = (url: string): string => getHashFromString(url)
 
@@ -485,6 +494,7 @@ export const StatusSQLDatabaseMixin = (
       replies: [],
       totalLikes: 0,
       isActorLiked: false,
+      isActorBookmarked: false,
       actorAnnounceStatusId: null,
       isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
@@ -649,6 +659,7 @@ export const StatusSQLDatabaseMixin = (
         type: StatusType.enum.Announce,
         reply: '',
         content: originalStatusId,
+        originalStatusId,
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
@@ -820,6 +831,7 @@ export const StatusSQLDatabaseMixin = (
       choices: [],
       totalLikes: 0,
       isActorLiked: false,
+      isActorBookmarked: false,
       actorAnnounceStatusId: null,
       endAt,
       pollType,
@@ -891,10 +903,28 @@ export const StatusSQLDatabaseMixin = (
     withReplies,
     currentActorId
   }: GetStatusParams) {
+    return getStatusWithHydration({
+      statusId,
+      currentActorId,
+      withReplies
+    })
+  }
+
+  async function getStatusWithHydration({
+    statusId,
+    withReplies,
+    currentActorId,
+    hydrationContext = {}
+  }: GetStatusParams & { hydrationContext?: StatusHydrationContext }) {
     const status = await database('statuses').where('id', statusId).first()
     if (!status) return null
 
-    return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
+    return getStatusWithAttachmentsFromData(
+      status,
+      currentActorId,
+      withReplies,
+      hydrationContext
+    )
   }
 
   const getReplyTargetStatusIds = ({
@@ -965,7 +995,7 @@ export const StatusSQLDatabaseMixin = (
 
     const result = await database('statuses')
       .where('type', StatusType.enum.Announce)
-      .where('content', statusId)
+      .where('originalStatusId', statusId)
       .where('actorId', actorId)
       .count<{ count: string }>('* as count')
       .first()
@@ -981,7 +1011,7 @@ export const StatusSQLDatabaseMixin = (
 
     const data = await database('statuses')
       .where('type', StatusType.enum.Announce)
-      .where('content', statusId)
+      .where('originalStatusId', statusId)
       .where('actorId', actorId)
       .first()
 
@@ -1115,6 +1145,29 @@ export const StatusSQLDatabaseMixin = (
     const statuses = await database('statuses')
       .whereIn('id', uniqueStatusIds)
       .select()
+    const hydrationContext: StatusHydrationContext = {}
+    if (currentActorId) {
+      const hydrationStatusIds = await collectHydrationStatusIds(statuses)
+      const [bookmarkRows, likeRows] =
+        hydrationStatusIds.size > 0
+          ? await Promise.all([
+              database('bookmarks')
+                .where('actorId', currentActorId)
+                .whereIn('statusId', [...hydrationStatusIds])
+                .select<{ statusId: string }[]>('statusId'),
+              database('likes')
+                .where('actorId', currentActorId)
+                .whereIn('statusId', [...hydrationStatusIds])
+                .select<{ statusId: string }[]>('statusId')
+            ])
+          : [[], []]
+      hydrationContext.bookmarkedStatusIds = new Set(
+        bookmarkRows.map((row) => row.statusId)
+      )
+      hydrationContext.likedStatusIds = new Set(
+        likeRows.map((row) => row.statusId)
+      )
+    }
     const statusMap = new Map(
       statuses.map((statusData) => [statusData.id, statusData] as const)
     )
@@ -1127,13 +1180,54 @@ export const StatusSQLDatabaseMixin = (
           getStatusWithAttachmentsFromData(
             statusData,
             currentActorId,
-            withReplies
+            withReplies,
+            hydrationContext
           )
         )
       )
     ).filter((status): status is Status => status !== null)
 
     return statusesWithAttachments
+  }
+
+  async function collectHydrationStatusIds(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    statuses: any[]
+  ): Promise<Set<string>> {
+    const statusIds = new Set<string>()
+    const seen = new Set<string>()
+    let pending = statuses
+
+    for (
+      let depth = 0;
+      pending.length > 0 && depth <= MAX_ANNOUNCE_RESOLUTION_DEPTH;
+      depth += 1
+    ) {
+      const originalStatusIds: string[] = []
+      for (const statusData of pending) {
+        if (seen.has(statusData.id)) continue
+        seen.add(statusData.id)
+
+        if (statusData.type === StatusType.enum.Announce) {
+          const originalStatusId = getAnnounceOriginalStatusId(statusData)
+          if (originalStatusId) originalStatusIds.push(originalStatusId)
+        } else {
+          statusIds.add(statusData.id)
+        }
+      }
+
+      const missingOriginalStatusIds = [
+        ...new Set(originalStatusIds.filter((statusId) => !seen.has(statusId)))
+      ]
+      pending =
+        missingOriginalStatusIds.length > 0
+          ? await database('statuses')
+              .whereIn('id', missingOriginalStatusIds)
+              .select()
+          : []
+    }
+
+    return statusIds
   }
 
   async function deleteStatus({
@@ -1197,6 +1291,7 @@ export const StatusSQLDatabaseMixin = (
       trx('recipients').where('statusId', statusId).delete(),
       trx('tags').where('statusId', statusId).delete(),
       trx('attachments').where('statusId', statusId).delete(),
+      trx('bookmarks').where('statusId', statusId).delete(),
       trx('poll_choices').where('statusId', statusId).delete(),
       trx('timelines').where('statusId', statusId).delete()
     ])
@@ -1397,7 +1492,8 @@ export const StatusSQLDatabaseMixin = (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     currentActorId?: string,
-    withReplies?: boolean
+    withReplies?: boolean,
+    hydrationContext: StatusHydrationContext = {}
   ): Promise<Status | null> {
     const [to, cc] = await Promise.all([
       database('recipients').where('statusId', data.id).andWhere('type', 'to'),
@@ -1405,10 +1501,15 @@ export const StatusSQLDatabaseMixin = (
     ])
 
     if (data.type === StatusType.enum.Announce) {
-      const originalStatusId = data.content
+      const originalStatusId = getAnnounceOriginalStatusId(data)
+      if (!originalStatusId) return null
       const [actor, originalStatus] = await Promise.all([
         actorDatabase.getActorFromId({ id: data.actorId }),
-        getStatus({ statusId: originalStatusId, currentActorId })
+        getStatusWithHydration({
+          statusId: originalStatusId,
+          currentActorId,
+          hydrationContext
+        })
       ])
       if (!originalStatus) return null
       return StatusAnnounce.parse({
@@ -1434,6 +1535,7 @@ export const StatusSQLDatabaseMixin = (
       totalLikes,
       totalShares,
       isActorLikedStatusResult,
+      isActorBookmarkedStatusResult,
       actorAnnounceStatus,
       edits,
       fitnessFile
@@ -1450,10 +1552,21 @@ export const StatusSQLDatabaseMixin = (
       getCounterValue(database, CounterKey.totalLike(data.id)),
       getCounterValue(database, CounterKey.totalReblog(data.id)),
       currentActorId
-        ? likeDatabase.isActorLikedStatus({
-            statusId: data.id,
-            actorId: currentActorId
-          })
+        ? hydrationContext.likedStatusIds
+          ? hydrationContext.likedStatusIds.has(data.id)
+          : likeDatabase.isActorLikedStatus({
+              statusId: data.id,
+              actorId: currentActorId
+            })
+        : false,
+      currentActorId
+        ? hydrationContext.bookmarkedStatusIds
+          ? hydrationContext.bookmarkedStatusIds.has(data.id)
+          : bookmarkDatabase.isActorBookmarkedStatus({
+              statusId: data.id,
+              actorId: currentActorId,
+              statusType: data.type
+            })
         : false,
       currentActorId
         ? getActorAnnounceStatus({
@@ -1501,6 +1614,7 @@ export const StatusSQLDatabaseMixin = (
       totalLikes,
       totalShares,
       isActorLiked: isActorLikedStatusResult,
+      isActorBookmarked: isActorBookmarkedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
       attachments: orderedAttachments,
@@ -1780,8 +1894,9 @@ export const StatusSQLDatabaseMixin = (
     originalStatusId: string
   }) {
     const result = await database('statuses')
+      .where('type', StatusType.enum.Announce)
+      .where('originalStatusId', originalStatusId)
       .where('actorId', actorId)
-      .andWhere('originalStatusId', originalStatusId)
       .first<{ id: string }>('id')
     return result?.id ?? null
   }

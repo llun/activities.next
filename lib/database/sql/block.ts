@@ -7,6 +7,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
   BlockDatabase,
   BlockRelation,
@@ -38,24 +39,6 @@ const chunkArray = <T>(items: T[], chunkSize: number) => {
   }
 
   return chunks
-}
-
-const isUniqueConstraintError = (error: unknown) => {
-  if (typeof error !== 'object' || error === null) return false
-
-  const { code, errno, message } = error as Record<string, unknown>
-  const errorCode = typeof code === 'string' ? code : undefined
-  const errorNumber = typeof errno === 'number' ? errno : undefined
-  const errorMessage = typeof message === 'string' ? message : undefined
-
-  return (
-    errorCode === '23505' ||
-    errorCode === 'ER_DUP_ENTRY' ||
-    errorCode === 'SQLITE_CONSTRAINT_UNIQUE' ||
-    errorNumber === 1062 ||
-    (errorCode === 'SQLITE_CONSTRAINT' &&
-      Boolean(errorMessage?.includes('UNIQUE constraint failed')))
-  )
 }
 
 const applyCursor = (

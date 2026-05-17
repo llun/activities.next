@@ -124,6 +124,25 @@ describe('createApplication', () => {
     expect(JSON.parse(dbClient.scopes)).toEqual(['read', 'write', 'follow'])
   })
 
+  test('it accepts Mastodon bookmark scopes', async () => {
+    const response = (await createApplication({
+      client_name: 'bookmarkScopesClient',
+      redirect_uris: 'https://test.llun.dev/apps/redirect',
+      scopes: 'read:bookmarks write:bookmarks',
+      website: 'https://test.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.scopes)).toEqual([
+      'read:bookmarks',
+      'write:bookmarks'
+    ])
+  })
+
   test('it defaults omitted scopes to read', async () => {
     const response = (await createApplication({
       client_name: 'defaultScopesClient',

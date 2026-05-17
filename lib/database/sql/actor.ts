@@ -926,7 +926,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       const actorStatuses = await trx('statuses')
         .where('actorId', actorId)
-        .select('id', 'type', 'reply', 'content')
+        .select('id', 'type', 'reply', 'content', 'originalStatusId')
 
       const statusIds = actorStatuses.map((status) => status.id)
       const statusReferenceToId = new Map<string, string>()
@@ -988,13 +988,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         if (status.type === 'Announce') {
           const content = parseStatusContent(status.content)
           const originalStatusId =
-            typeof content === 'string'
-              ? content
-              : typeof content?.url === 'string'
-                ? content.url
-                : typeof status.content === 'string'
-                  ? status.content
-                  : null
+            typeof status.originalStatusId === 'string'
+              ? status.originalStatusId
+              : typeof content === 'string'
+                ? content
+                : typeof content?.url === 'string'
+                  ? content.url
+                  : typeof status.content === 'string'
+                    ? status.content
+                    : null
 
           if (originalStatusId) {
             reblogCounterChanges[originalStatusId] =
@@ -1135,6 +1137,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         await trx('tags').whereIn('statusId', statusIds).delete()
         await trx('recipients').whereIn('statusId', statusIds).delete()
         await trx('likes').whereIn('statusId', statusIds).delete()
+        await trx('bookmarks').whereIn('statusId', statusIds).delete()
         await trx('attachments').whereIn('statusId', statusIds).delete()
         await trx('status_history').whereIn('statusId', statusIds).delete()
 
@@ -1198,6 +1201,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()
+
+      // Delete bookmarks made by this actor
+      await trx('bookmarks').where('actorId', actorId).delete()
 
       // Delete attachments created by this actor
       await trx('attachments').where('actorId', actorId).delete()
