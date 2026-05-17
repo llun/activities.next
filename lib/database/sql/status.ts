@@ -1135,6 +1135,7 @@ export const StatusSQLDatabaseMixin = (
   async function getStatusesByIds({
     statusIds,
     currentActorId,
+    visibleToActorId,
     withReplies
   }: GetStatusesByIdsParams): Promise<Status[]> {
     if (statusIds.length === 0) {
@@ -1142,9 +1143,14 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const uniqueStatusIds = [...new Set(statusIds)]
-    const statuses = await database('statuses')
-      .whereIn('id', uniqueStatusIds)
-      .select()
+    let query = database('statuses').whereIn('id', uniqueStatusIds)
+    if (visibleToActorId) {
+      query = applyPotentiallyReadableStatusFilter({
+        query,
+        visibleToActorId
+      })
+    }
+    const statuses = await query.select()
     const hydrationContext: StatusHydrationContext = {}
     if (currentActorId) {
       const hydrationStatusIds = await collectHydrationStatusIds(statuses)

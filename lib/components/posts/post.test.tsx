@@ -60,6 +60,7 @@ const status: StatusNote = {
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
+  isActorBookmarked: false,
   totalLikes: 0,
   totalShares: 0,
   attachments: [],
@@ -364,7 +365,7 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('splits owner actions into a four-item primary row and left-aligned secondary row', () => {
+  it('splits owner actions into a five-item primary row and left-aligned secondary row', () => {
     render(
       <Post
         host="activities.local"
@@ -393,7 +394,7 @@ describe('Post', () => {
     expect(primaryActions).toHaveClass(
       'grid',
       'w-full',
-      'grid-cols-4',
+      'grid-cols-5',
       'justify-items-center',
       'sm:flex',
       'sm:w-auto',
@@ -402,7 +403,7 @@ describe('Post', () => {
     expect(secondaryActions).toHaveClass(
       'grid',
       'w-full',
-      'grid-cols-4',
+      'grid-cols-5',
       'justify-items-center',
       'sm:flex',
       'sm:w-auto',
@@ -412,7 +413,13 @@ describe('Post', () => {
       within(primaryActions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
-    ).toEqual(['Reply to post', 'Repost', 'Like', 'Show edit history, 1 edit'])
+    ).toEqual([
+      'Reply to post',
+      'Repost',
+      'Like',
+      'Bookmark',
+      'Show edit history, 1 edit'
+    ])
     expect(
       within(secondaryActions)
         .getAllByRole('button')
@@ -589,15 +596,15 @@ describe('Post', () => {
       name: 'Post secondary actions'
     })
 
-    expect(primaryActions).toHaveClass('grid-cols-3')
-    expect(primaryActions).not.toHaveClass('grid-cols-4')
+    expect(primaryActions).toHaveClass('grid-cols-4')
+    expect(primaryActions).not.toHaveClass('grid-cols-5')
     expect(
       within(primaryActions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
-    ).toEqual(['Reply to post', 'Repost', 'Like'])
-    expect(secondaryActions).toHaveClass('grid-cols-3')
-    expect(secondaryActions).not.toHaveClass('grid-cols-4')
+    ).toEqual(['Reply to post', 'Repost', 'Like', 'Bookmark'])
+    expect(secondaryActions).toHaveClass('grid-cols-4')
+    expect(secondaryActions).not.toHaveClass('grid-cols-5')
     expect(
       within(secondaryActions)
         .getAllByRole('button')
@@ -688,6 +695,30 @@ describe('Post', () => {
 
     expect(
       screen.getByRole('button', { name: 'Undo repost' })
+    ).toBeInTheDocument()
+  })
+
+  it('labels bookmark action as remove when post is already bookmarked', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={{
+          ...status.actor!,
+          id: 'https://activities.local/users/other',
+          username: 'other'
+        }}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          isActorBookmarked: true
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Remove bookmark' })
     ).toBeInTheDocument()
   })
 })

@@ -5,7 +5,13 @@ import { FC } from 'react'
 
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
+import {
+  EditableStatus,
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import {
   formatFitnessDistance,
   formatFitnessDuration,
@@ -38,6 +44,10 @@ export interface PostProps {
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onPostDeleted?: (status: Status) => void
+  onBookmarkChanged?: (
+    status: StatusNote | StatusPoll,
+    isBookmarked: boolean
+  ) => void
   onOpenStatus?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean

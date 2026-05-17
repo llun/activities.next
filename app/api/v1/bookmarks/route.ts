@@ -1,10 +1,11 @@
+import { getBookmarkedStatusesPage } from '@/lib/services/bookmarks/getBookmarkedStatusesPage'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
-import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
+import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
-import type { Status } from '@/lib/types/domain/status'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -29,33 +30,34 @@ export const GET = traceApiRoute(
         Number.isSafeInteger(parsedLimit) && parsedLimit > 0
           ? Math.min(parsedLimit, MAX_LIMIT)
           : DEFAULT_LIMIT
+      const format = url.searchParams.get('format')
 
-      const bookmarks = await database.getBookmarks({
-        actorId: currentActor.id,
-        limit,
-        maxId: url.searchParams.get('max_id'),
-        minId: url.searchParams.get('min_id'),
-        sinceId: url.searchParams.get('since_id')
-      })
-      const statuses = await database.getStatusesByIds({
-        statusIds: bookmarks.map((bookmark) => bookmark.statusId),
-        currentActorId: currentActor.id,
-        withReplies: false
-      })
-      const statusMap = new Map<string, Status>(
-        statuses.map((status) => [status.id, status])
-      )
-      const orderedStatuses = bookmarks
-        .map((bookmark) => statusMap.get(bookmark.statusId))
-        .filter((status): status is Status => Boolean(status))
-      const readableStatuses = await filterReadableStatuses({
-        database,
-        statuses: orderedStatuses,
-        currentActor
-      })
+      const { statuses, nextMaxBookmarkId, prevMinBookmarkId } =
+        await getBookmarkedStatusesPage({
+          database,
+          actorId: currentActor.id,
+          currentActor,
+          limit,
+          maxId: url.searchParams.get('max_id'),
+          minId: url.searchParams.get('min_id'),
+          sinceId: url.searchParams.get('since_id')
+        })
+
+      if (format === TimelineFormat.enum.activities_next) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            statuses: statuses.map((status) => cleanJson(status)),
+            nextMaxBookmarkId,
+            prevMinBookmarkId
+          }
+        })
+      }
+
       const mastodonStatuses = (
         await Promise.all(
-          readableStatuses.map((status) =>
+          statuses.map((status) =>
             getMastodonStatus(database, status, currentActor.id)
           )
         )
@@ -71,14 +73,12 @@ export const GET = traceApiRoute(
           cursorParam === 'max_id' ? 'next' : 'prev'
         }"`
       }
-      const nextLink =
-        bookmarks.length === limit
-          ? buildPaginationUrl('max_id', bookmarks[bookmarks.length - 1].id)
-          : null
-      const prevLink =
-        bookmarks.length > 0
-          ? buildPaginationUrl('min_id', bookmarks[0].id)
-          : null
+      const nextLink = nextMaxBookmarkId
+        ? buildPaginationUrl('max_id', nextMaxBookmarkId)
+        : null
+      const prevLink = prevMinBookmarkId
+        ? buildPaginationUrl('min_id', prevMinBookmarkId)
+        : null
       const links = [nextLink, prevLink].filter(Boolean).join(', ')
 
       return apiResponse({

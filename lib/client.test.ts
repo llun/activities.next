@@ -3,12 +3,15 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
+  bookmarkStatus,
   clearFitnessRouteHeatmaps,
   getActorStatuses,
+  getBookmarks,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
   startStravaArchiveImport,
   triggerFitnessRouteHeatmap,
+  undoBookmarkStatus,
   updateNote,
   uploadAttachment
 } from './client'
@@ -243,6 +246,79 @@ describe('client getActorStatuses', () => {
         pageUrl: 'https://remote.example/users/actor/outbox?page=true'
       })
     ).rejects.toThrow('Failed to load actor statuses: 500')
+  })
+})
+
+describe('client bookmark helpers', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        origin: 'https://local.example'
+      }
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'window')
+  })
+
+  it('encodes full status URLs when bookmarking and unbookmarking', async () => {
+    fetchMock.mockResponse('', { status: 200 })
+    const statusId = 'https://remote.example/users/actor/statuses/post-1'
+
+    await bookmarkStatus({ statusId })
+    await undoBookmarkStatus({ statusId })
+
+    const encodedStatusId = urlToId(statusId)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `/api/v1/statuses/${encodedStatusId}/bookmark`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/v1/statuses/${encodedStatusId}/unbookmark`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
+  })
+
+  it('loads bookmarks with activities_next format and bookmark cursors', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        statuses: [{ id: 'status-1' }],
+        nextMaxBookmarkId: '10',
+        prevMinBookmarkId: '12'
+      }),
+      { status: 200 }
+    )
+
+    await expect(
+      getBookmarks({
+        limit: 15,
+        maxBookmarkId: '20',
+        minBookmarkId: '30'
+      })
+    ).resolves.toEqual({
+      statuses: [{ id: 'status-1' }],
+      nextMaxBookmarkId: '10',
+      prevMinBookmarkId: '12'
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://local.example/api/v1/bookmarks?format=activities_next&limit=15&max_id=20&min_id=30',
+      expect.objectContaining({
+        method: 'GET',
+        headers: { Accept: 'application/json' }
+      })
+    )
   })
 })
 

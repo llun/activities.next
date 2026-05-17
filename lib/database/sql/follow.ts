@@ -11,6 +11,7 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateFollowParams,
   FollowDatabase,
+  GetAcceptedFollowTargetActorIdsParams,
   GetAcceptedOrRequestedFollowParams,
   GetFollowFromIdParams,
   GetFollowRequestsCountParams,
@@ -211,6 +212,23 @@ export const FollowerSQLDatabaseMixin = (
       .first()
     if (!follow) return null
     return fixFollowDataDate(follow)
+  },
+
+  async getAcceptedFollowTargetActorIds({
+    actorId,
+    targetActorIds
+  }: GetAcceptedFollowTargetActorIdsParams) {
+    const uniqueTargetActorIds = [...new Set(targetActorIds)]
+    if (uniqueTargetActorIds.length === 0) return []
+
+    const follows = await database<Pick<Follow, 'targetActorId'>>('follows')
+      .select('targetActorId')
+      .where({
+        actorId,
+        status: FollowStatus.enum.Accepted
+      })
+      .whereIn('targetActorId', uniqueTargetActorIds)
+    return [...new Set(follows.map((follow) => follow.targetActorId))]
   },
 
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {

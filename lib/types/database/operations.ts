@@ -459,6 +459,7 @@ export type GetActorStatusesParams = {
 export type GetStatusesByIdsParams = {
   statusIds: string[]
   currentActorId?: string
+  visibleToActorId?: string | null
   withReplies?: boolean
 }
 
@@ -611,6 +612,10 @@ export type GetAcceptedOrRequestedFollowParams = {
   actorId: string
   targetActorId: string
 }
+export type GetAcceptedFollowTargetActorIdsParams = {
+  actorId: string
+  targetActorIds: string[]
+}
 export type GetFollowersInboxParams = { targetActorId: string }
 export type UpdateFollowStatusParams = {
   followId: string
@@ -653,6 +658,9 @@ export interface FollowDatabase {
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
   ): Promise<Follow | null>
+  getAcceptedFollowTargetActorIds(
+    params: GetAcceptedFollowTargetActorIdsParams
+  ): Promise<string[]>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
   // New method for getting following with pagination

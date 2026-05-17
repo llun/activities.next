@@ -459,6 +459,99 @@ describe('StatusDatabase', () => {
         expect(originalStatus.isActorBookmarked).toBe(true)
         expect(originalStatus.isActorLiked).toBe(true)
       })
+
+      it('filters statuses by visible actor while preserving requested order', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const hiddenStatusId = `${emptyActorId}/statuses/hidden-${suffix}`
+        const directStatusId = `${emptyActorId}/statuses/direct-${suffix}`
+        const publicStatusId = `${emptyActorId}/statuses/public-${suffix}`
+
+        await database.createNote({
+          id: hiddenStatusId,
+          url: hiddenStatusId,
+          actorId: emptyActorId,
+          to: [extraActorId],
+          cc: [],
+          text: 'Hidden status'
+        })
+        await database.createNote({
+          id: directStatusId,
+          url: directStatusId,
+          actorId: emptyActorId,
+          to: [primaryActorId],
+          cc: [],
+          text: 'Direct status'
+        })
+        await database.createNote({
+          id: publicStatusId,
+          url: publicStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Public status'
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [hiddenStatusId, directStatusId, publicStatusId],
+          visibleToActorId: primaryActorId
+        })
+
+        expect(results.map((status) => status.id)).toEqual([
+          directStatusId,
+          publicStatusId
+        ])
+      })
+
+      it('includes followers-only statuses from followed actors when filtering by visible actor', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const followerActorId = `${emptyActorId}/followers-only-follower-${suffix}`
+        const followedActorId = `${emptyActorId}/followers-only-followed-${suffix}`
+        const followersUrl = `${followedActorId}/followers`
+        const statusId = `${followedActorId}/statuses/followers-only-${suffix}`
+
+        await database.createActor({
+          actorId: followerActorId,
+          username: `followers-only-follower-${suffix}`,
+          domain: 'remote.test',
+          followersUrl: `${followerActorId}/followers`,
+          inboxUrl: `${followerActorId}/inbox`,
+          sharedInboxUrl: 'https://remote.test/inbox',
+          publicKey: `follower-public-key-${suffix}`,
+          createdAt: Date.now()
+        })
+        await database.createActor({
+          actorId: followedActorId,
+          username: `followers-only-followed-${suffix}`,
+          domain: 'remote.test',
+          followersUrl,
+          inboxUrl: `${followedActorId}/inbox`,
+          sharedInboxUrl: 'https://remote.test/inbox',
+          publicKey: `followed-public-key-${suffix}`,
+          createdAt: Date.now()
+        })
+        await database.createFollow({
+          actorId: followerActorId,
+          targetActorId: followedActorId,
+          inbox: `${followerActorId}/inbox`,
+          sharedInbox: `${followerActorId}/inbox`,
+          status: FollowStatus.enum.Accepted
+        })
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: followedActorId,
+          to: [followersUrl],
+          cc: [],
+          text: 'Followers-only status from followed actor'
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [statusId],
+          visibleToActorId: followerActorId
+        })
+
+        expect(results.map((status) => status.id)).toEqual([statusId])
+      })
     })
 
     describe('getActorStatuses', () => {

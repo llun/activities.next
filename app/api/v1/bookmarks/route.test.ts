@@ -103,6 +103,30 @@ describe('GET /api/v1/bookmarks', () => {
     )
   })
 
+  it('returns activities_next statuses with bookmark cursors when requested', async () => {
+    const statusId = await createBookmarkedStatus('activities-next')
+
+    const response = await GET(
+      createRequest('?format=activities_next&limit=1'),
+      {
+        params: Promise.resolve({})
+      }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toEqual({
+      statuses: [
+        expect.objectContaining({
+          id: statusId,
+          isActorBookmarked: true
+        })
+      ],
+      nextMaxBookmarkId: expect.any(String),
+      prevMinBookmarkId: expect.any(String)
+    })
+  })
+
   it('returns bookmarked statuses in bookmark order', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor2.email }
