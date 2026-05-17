@@ -33,11 +33,11 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
   useEffect(() => {
     if (!error) return
 
-    const timeoutId = window.setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setError(null)
     }, BOOKMARK_ERROR_DISMISS_MS)
 
-    return () => window.clearTimeout(timeoutId)
+    return () => clearTimeout(timeoutId)
   }, [error])
 
   const bookmarkLabel = isBookmarked ? 'Remove bookmark' : 'Bookmark'

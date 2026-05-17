@@ -120,14 +120,23 @@ describe('BookmarkButton', () => {
 
   it('auto-dismisses bookmark errors after a short delay', async () => {
     jest.useFakeTimers()
-    ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
+    let resolveBookmark: (value: boolean) => void = () => {}
+    const bookmarkPromise = new Promise<boolean>((resolve) => {
+      resolveBookmark = resolve
+    })
+    ;(bookmarkStatus as jest.Mock).mockReturnValue(bookmarkPromise)
 
     try {
       render(<BookmarkButton status={status} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
+      await act(async () => {
+        resolveBookmark(false)
+        await bookmarkPromise
+      })
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
         'Failed to bookmark post. Please try again.'
       )
 
