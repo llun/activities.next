@@ -153,7 +153,7 @@ const getMastodonAccountFromSQLActor = ({
   followersCount: number
   followingCount: number
   statusCount: number
-  lastStatusAt: number | Date | null | undefined
+  lastStatusAt: number | Date | string | null | undefined
   configuredDomain: string
 }) => {
   const settings = getCompatibleJSON(sqlActor.settings)
@@ -678,56 +678,20 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         }[]
       ).map((row) => [row.actorId, row.createdAt])
     )
+    const configuredDomain = getConfiguredActorDomain()
 
     return actorIds.flatMap((id) => {
       const sqlActor = sqlActorById.get(id)
       if (!sqlActor) return []
 
-      const settings = getCompatibleJSON(sqlActor.settings)
       const lastStatusCreatedAt = lastStatusByActorId.get(id) ?? 0
-      const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
+      return getMastodonAccountFromSQLActor({
         sqlActor,
-        getConfiguredActorDomain()
-      )
-      return Mastodon.Account.parse({
-        id: urlToId(sqlActor.id),
-        username: sqlActor.username,
-        acct: `${sqlActor.username}@${sqlActor.domain}`,
-        url: sqlActor.id,
-        display_name: sqlActor.name ?? '',
-        note: sqlActor.summary ?? '',
-
-        avatar: settings.iconUrl ?? '',
-        avatar_static: settings.iconUrl ?? '',
-        header: settings.headerImageUrl ?? '',
-        header_static: settings.headerImageUrl ?? '',
-
-        fields: [],
-        emojis: [],
-
-        locked: settings.manuallyApprovesFollowers ?? true,
-        bot: isMastodonBotActorType(sqlActor.type),
-        group: sqlActor.type === 'Group',
-        discoverable: !isLocalHeadlessSigner,
-        noindex: isLocalHeadlessSigner,
-
-        source: {
-          note: '',
-          fields: [],
-          privacy: 'public',
-          sensitive: false,
-          language: 'en',
-          follow_requests_count: 0
-        },
-
-        created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
-        last_status_at: lastStatusCreatedAt
-          ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
-          : null,
-
-        followers_count: counters[CounterKey.totalFollowers(sqlActor.id)] ?? 0,
-        following_count: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
-        statuses_count: counters[CounterKey.totalStatus(sqlActor.id)] ?? 0
+        followersCount: counters[CounterKey.totalFollowers(sqlActor.id)] ?? 0,
+        followingCount: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
+        statusCount: counters[CounterKey.totalStatus(sqlActor.id)] ?? 0,
+        lastStatusAt: lastStatusCreatedAt,
+        configuredDomain
       })
     })
   },
