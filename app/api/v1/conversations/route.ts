@@ -36,11 +36,13 @@ export const GET = traceApiRoute(
     async (req, { database, currentActor }) => {
       const url = new URL(req.url)
       const limit = normalizeLimit(url.searchParams.get('limit'))
+      const minId =
+        url.searchParams.get('min_id') || url.searchParams.get('since_id')
       const conversationsPage = await database.getDirectConversations({
         actorId: currentActor.id,
         limit: limit + 1,
         maxId: url.searchParams.get('max_id'),
-        minId: url.searchParams.get('min_id')
+        minId
       })
       const hasMoreConversations = conversationsPage.length > limit
       const conversations = conversationsPage.slice(0, limit)
