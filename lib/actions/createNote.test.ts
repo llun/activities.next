@@ -13,6 +13,7 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Note } from '@/lib/types/activitypub'
+import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -447,6 +448,103 @@ How are you?
         expect(status.cc).toEqual([])
         expect(status.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
         expect(status.to).not.toContain(`${actor1.id}/followers`)
+      })
+
+      it('only notifies explicit direct recipients when direct replying to a non-direct parent', async () => {
+        await clearSettledNotificationAlerts()
+        const parentStatus = (await createNoteFromUserInput({
+          text: 'Public parent from actor2',
+          currentActor: actor2,
+          database
+        })) as StatusNote
+
+        const replyStatus = (await createNoteFromUserInput({
+          text: '@test3@llun.test private side note',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          visibility: 'direct',
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        expect(replyStatus.to).toEqual([ACTOR3_ID])
+        expect(replyStatus.cc).toEqual([])
+
+        const parentAuthorNotifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          parentAuthorNotifications.filter(
+            (notification) => notification.statusId === replyStatus.id
+          )
+        ).toHaveLength(0)
+
+        const directRecipientNotifications = await database.getNotifications({
+          actorId: ACTOR3_ID,
+          limit: 100
+        })
+        expect(
+          directRecipientNotifications.filter(
+            (notification) =>
+              notification.statusId === replyStatus.id &&
+              notification.type === NotificationType.enum.mention
+          )
+        ).toHaveLength(1)
+        expect(mockSendNotificationAlerts).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: ACTOR3_ID,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+      })
+
+      it('still notifies the parent author when replying in an existing direct thread', async () => {
+        await clearSettledNotificationAlerts()
+        const parentStatus = (await createNoteFromUserInput({
+          text: '@test1@llun.test Direct parent from actor2',
+          currentActor: actor2,
+          visibility: 'direct',
+          database
+        })) as StatusNote
+
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Reply to existing direct thread',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        expect(replyStatus.to).toContain(actor2.id)
+        expect(replyStatus.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+
+        const parentAuthorNotifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          parentAuthorNotifications.filter(
+            (notification) =>
+              notification.statusId === replyStatus.id &&
+              notification.type === NotificationType.enum.reply
+          )
+        ).toHaveLength(1)
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
       })
 
       it('creates private post with mentions in cc', async () => {

@@ -329,6 +329,13 @@ export const createNoteFromUserInput = async ({
     replyVisibility !== 'direct'
       ? explicitMentions
       : mentions
+  const shouldNotifyReply =
+    Boolean(replyStatus) &&
+    !(
+      effectiveVisibility === 'direct' &&
+      replyStatus &&
+      replyVisibility !== 'direct'
+    )
 
   const to = statusRecipientsTo(
     currentActor,
@@ -415,14 +422,18 @@ export const createNoteFromUserInput = async ({
   const eligibleNotificationActorIds = await getNotificationEligibleActorIds(
     database,
     [
-      ...(replyStatus ? [replyStatus.actorId] : []),
-      ...mentions.map((mention) => mention.href)
+      ...(shouldNotifyReply && replyStatus ? [replyStatus.actorId] : []),
+      ...recipientMentions.map((mention) => mention.href)
     ],
     currentActor.id
   )
 
   // Create reply notification if this is a reply
-  if (replyStatus && eligibleNotificationActorIds.has(replyStatus.actorId)) {
+  if (
+    shouldNotifyReply &&
+    replyStatus &&
+    eligibleNotificationActorIds.has(replyStatus.actorId)
+  ) {
     notificationPromises.push(
       database.createNotification({
         actorId: replyStatus.actorId,
@@ -435,7 +446,7 @@ export const createNoteFromUserInput = async ({
   }
 
   // Create mention notifications
-  for (const mention of mentions) {
+  for (const mention of recipientMentions) {
     const mentionedActorId = mention.href
     // Don't create notification for self-mentions
     if (eligibleNotificationActorIds.has(mentionedActorId)) {
@@ -468,7 +479,11 @@ export const createNoteFromUserInput = async ({
   // Uses the fetched status (with actor info) to build email content.
   const seenActorIds = new Set<string>()
 
-  if (replyStatus && eligibleNotificationActorIds.has(replyStatus.actorId)) {
+  if (
+    shouldNotifyReply &&
+    replyStatus &&
+    eligibleNotificationActorIds.has(replyStatus.actorId)
+  ) {
     seenActorIds.add(replyStatus.actorId)
     database
       .getActorFromId({ id: replyStatus.actorId })
@@ -497,7 +512,7 @@ export const createNoteFromUserInput = async ({
       })
   }
 
-  for (const mention of mentions) {
+  for (const mention of recipientMentions) {
     const mentionedActorId = mention.href
     if (
       !seenActorIds.has(mentionedActorId) &&
