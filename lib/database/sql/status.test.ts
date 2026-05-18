@@ -1,5 +1,6 @@
 import knex, { Knex } from 'knex'
 
+import { getSQLDatabase } from '@/lib/database/sql'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -82,6 +83,70 @@ describe('StatusDatabase', () => {
       expect(sql).toContain('actorid')
 
       await mysqlDatabase.destroy()
+    })
+
+    it('includes publicly readable legacy Announces that only store the target in content', async () => {
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+
+      try {
+        await sqlDatabase.migrate()
+        await seedDatabase(sqlDatabase)
+
+        const statusId = `${primaryActorId}/statuses/legacy-reblog-target`
+        await sqlDatabase.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          text: 'Public target for legacy reblog',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+
+        const legacyAnnounceId = `${replyAuthorId}/statuses/legacy-reblog`
+        const createdAt = new Date('2024-04-01T00:00:00.000Z')
+        await knexDatabase('statuses').insert({
+          id: legacyAnnounceId,
+          url: null,
+          urlHash: null,
+          actorId: replyAuthorId,
+          type: StatusType.enum.Announce,
+          reply: '',
+          content: statusId,
+          originalStatusId: null,
+          createdAt,
+          updatedAt: createdAt
+        })
+        await knexDatabase('recipients').insert({
+          id: crypto.randomUUID(),
+          statusId: legacyAnnounceId,
+          actorId: ACTIVITY_STREAM_PUBLIC,
+          type: 'to',
+          createdAt,
+          updatedAt: createdAt
+        })
+
+        await expect(
+          sqlDatabase.getRebloggedBy({
+            statusId,
+            limit: 40,
+            visibleToActorId: null
+          })
+        ).resolves.toEqual([
+          {
+            actorId: replyAuthorId,
+            statusId: legacyAnnounceId
+          }
+        ])
+      } finally {
+        await knexDatabase.destroy()
+      }
     })
   })
 
