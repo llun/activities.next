@@ -561,7 +561,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
               </Button>
             </div>
             {error && (
-              <p className="text-sm text-destructive" role="alert">
+              <p
+                className="text-sm text-destructive"
+                role="alert"
+                aria-live="assertive"
+              >
                 {error}
               </p>
             )}
