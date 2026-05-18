@@ -7,6 +7,12 @@ describe('search tokenization', () => {
     ).toEqual(['cafe', 'runner', 'run', 'alice', 'example', 'com'])
   })
 
+  it('strips html tags before tokenizing status and profile text', () => {
+    expect(
+      normalizeSearchTokens('  <p>Hello <strong>trail</strong><br>crew</p>  ')
+    ).toEqual(['hello', 'trail', 'crew'])
+  })
+
   it('builds deduplicated bounded prefixes for indexed terms', () => {
     expect(buildSearchTermPrefixes(['running', 'run'])).toEqual([
       'ru',

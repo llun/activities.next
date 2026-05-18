@@ -35,10 +35,19 @@ type MastodonStatusHydrationContext = {
   replyCountByStatusId: Map<string, number>
 }
 
-const collectRelatedStatuses = (status: Status, statuses: Status[] = []) => {
+const MAX_RELATED_STATUS_DEPTH = 1
+
+const collectRelatedStatuses = (
+  status: Status,
+  statuses: Status[] = [],
+  depth = 0
+) => {
   statuses.push(status)
-  if (status.type === StatusType.enum.Announce) {
-    collectRelatedStatuses(status.originalStatus, statuses)
+  if (
+    status.type === StatusType.enum.Announce &&
+    depth < MAX_RELATED_STATUS_DEPTH
+  ) {
+    collectRelatedStatuses(status.originalStatus, statuses, depth + 1)
   }
   return statuses
 }
@@ -90,9 +99,11 @@ const getHashtagsFromTags = (tags: Tag[], host: string): MastodonTag[] => {
     })
 }
 
-const isStatusBookmarked = (status: Status): boolean => {
+const isStatusBookmarked = (status: Status, depth = 0): boolean => {
   if (status.type === StatusType.enum.Announce) {
-    return isStatusBookmarked(status.originalStatus)
+    return depth < MAX_RELATED_STATUS_DEPTH
+      ? isStatusBookmarked(status.originalStatus, depth + 1)
+      : false
   }
 
   return status.isActorBookmarked ?? false
@@ -102,7 +113,8 @@ const getMastodonStatusFromContext = async (
   database: Database,
   status: Status,
   context: MastodonStatusHydrationContext,
-  currentActorId?: string
+  currentActorId?: string,
+  depth = 0
 ): Promise<Mastodon.Status | null> => {
   const account = context.accountByActorId.get(status.actorId)
   if (!account) {
@@ -171,12 +183,16 @@ const getMastodonStatusFromContext = async (
       in_reply_to_id: null,
       in_reply_to_account_id: null,
 
-      reblog: await getMastodonStatusFromContext(
-        database,
-        status.originalStatus,
-        context,
-        currentActorId
-      ),
+      reblog:
+        depth < MAX_RELATED_STATUS_DEPTH
+          ? await getMastodonStatusFromContext(
+              database,
+              status.originalStatus,
+              context,
+              currentActorId,
+              depth + 1
+            )
+          : null,
       media_attachments: []
     })
   }
