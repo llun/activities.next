@@ -72,6 +72,13 @@ describe('direct conversations migration', () => {
       },
       {
         actorId: localActorId,
+        timeline: 'mention',
+        statusId,
+        statusActorId: remoteActorId,
+        createdAt: new Date('2026-05-17T00:00:00.000Z')
+      },
+      {
+        actorId: localActorId,
         timeline: 'noannounce',
         statusId,
         statusActorId: remoteActorId,
@@ -110,6 +117,7 @@ describe('direct conversations migration', () => {
     ).resolves.toEqual([
       { timeline: 'home' },
       { timeline: 'main' },
+      { timeline: 'mention' },
       { timeline: 'noannounce' }
     ])
     await expect(

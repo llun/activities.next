@@ -121,7 +121,13 @@ describe('#addStatusToTimeline', () => {
       actorId: ACTOR2_ID,
       to: [ACTOR1_ID],
       cc: [],
-      text: 'direct timeline message'
+      text: 'direct timeline message @test1@llun.test'
+    })
+    await database.createTag({
+      statusId: status.id,
+      name: '@test1',
+      value: ACTOR1_ID,
+      type: 'mention'
     })
     await addStatusToTimelines(database, status)
 
@@ -137,10 +143,20 @@ describe('#addStatusToTimeline', () => {
       timeline: Timeline.NOANNOUNCE,
       actorId: ACTOR1_ID
     })
+    const recipientMentionTimeline = await database.getTimeline({
+      timeline: Timeline.MENTION,
+      actorId: ACTOR1_ID
+    })
+    const senderMentionTimeline = await database.getTimeline({
+      timeline: Timeline.MENTION,
+      actorId: ACTOR2_ID
+    })
 
     expect(directTimeline.some((s) => s.id === status.id)).toBe(true)
     expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
     expect(noannounceTimeline.some((s) => s.id === status.id)).toBe(false)
+    expect(recipientMentionTimeline.some((s) => s.id === status.id)).toBe(false)
+    expect(senderMentionTimeline.some((s) => s.id === status.id)).toBe(false)
   })
 
   test('it skips timelines when recipient blocks the status actor', async () => {
