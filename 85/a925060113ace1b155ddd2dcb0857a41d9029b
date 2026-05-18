@@ -1,0 +1,19 @@
+migrations/20260517002000_add_direct_conversations.js
+  s_310719d8018dcf::t_f2fe3c510a3a76 268-269,375-376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "85a925060113ace1b155ddd2dcb0857a41d9029b",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
