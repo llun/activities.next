@@ -62,6 +62,12 @@ export interface SQLActorDatabase extends ActorDatabase {
   ) => Actor
   getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
+  deleteActor(
+    params: DeleteActorParams & { trx?: Knex.Transaction }
+  ): Promise<void>
+  deleteActorData(
+    params: DeleteActorDataParams & { trx?: Knex.Transaction }
+  ): Promise<void>
 }
 
 const getActorCounterSummary = async (
@@ -753,8 +759,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     return this.getActorFromId({ id: actorId })
   },
 
-  async deleteActor({ actorId }: DeleteActorParams) {
-    await database('actors').where('id', actorId).delete()
+  async deleteActor({
+    actorId,
+    trx
+  }: DeleteActorParams & { trx?: Knex.Transaction }) {
+    await (trx ?? database)('actors').where('id', actorId).delete()
   },
 
   async updateActorFollowersCount(actorId: string) {
@@ -980,8 +989,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     return { totalUsers, activeMonth, activeHalfyear, localPosts }
   },
 
-  async deleteActorData({ actorId }: DeleteActorDataParams) {
-    await database.transaction(async (trx) => {
+  async deleteActorData({
+    actorId,
+    trx
+  }: DeleteActorDataParams & { trx?: Knex.Transaction }) {
+    const deleteWithTransaction = async (trx: Knex.Transaction) => {
       const currentTime = new Date()
 
       const persistedActor = await trx('actors')
@@ -1314,6 +1326,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Finally delete the actor
       await trx('actors').where('id', actorId).delete()
-    })
+    }
+
+    if (trx) {
+      await deleteWithTransaction(trx)
+      return
+    }
+
+    await database.transaction(deleteWithTransaction)
   }
 })

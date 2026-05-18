@@ -142,6 +142,30 @@ describe('GET /api/v2/search', () => {
     )
   })
 
+  it('does not decode raw URLs or opaque cursor values', async () => {
+    const accountId = 'https://local.test/users/alice'
+    const params = new URLSearchParams({
+      q: 'trail',
+      type: 'statuses',
+      account_id: accountId,
+      min_id: '123',
+      max_id: 'opaque-cursor'
+    })
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v2/search?${params.toString()}`)
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId,
+        minStatusId: '123',
+        maxStatusId: 'opaque-cursor'
+      })
+    )
+  })
+
   it('does not run status search for anonymous broad searches', async () => {
     mockCurrentActor = null
 

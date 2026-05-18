@@ -40,7 +40,8 @@ const emptySearchResult = (): SearchResult => ({
 
 const addResolvedStatus = (
   result: SearchResult,
-  resolvedStatus: Status | null
+  resolvedStatus: Status | null,
+  limit: number
 ): SearchResult =>
   resolvedStatus
     ? {
@@ -48,7 +49,7 @@ const addResolvedStatus = (
         statuses: [
           resolvedStatus,
           ...result.statuses.filter((status) => status.id !== resolvedStatus.id)
-        ]
+        ].slice(0, limit)
       }
     : result
 
@@ -187,19 +188,28 @@ export const search = async (params: SearchParams): Promise<SearchResult> => {
 
   const config = getConfig().search ?? { backend: 'database' as const }
   if (config.backend !== 'meilisearch' || !canUseMeilisearch(params)) {
-    return addResolvedStatus(await searchDatabase(params), resolvedStatus)
+    return addResolvedStatus(
+      await searchDatabase(params),
+      resolvedStatus,
+      params.limit
+    )
   }
 
   try {
     return addResolvedStatus(
       await searchWithMeilisearch(params),
-      resolvedStatus
+      resolvedStatus,
+      params.limit
     )
   } catch (error) {
     logger.warn({
       message: 'Meilisearch search failed; falling back to database search',
       error: error instanceof Error ? error.message : String(error)
     })
-    return addResolvedStatus(await searchDatabase(params), resolvedStatus)
+    return addResolvedStatus(
+      await searchDatabase(params),
+      resolvedStatus,
+      params.limit
+    )
   }
 }

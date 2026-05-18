@@ -10,7 +10,7 @@ import {
 import { logger } from '@/lib/utils/logger'
 
 import { Actor as DomainActor } from '../types/domain/actor'
-import { StatusNote, fromNote } from '../types/domain/status'
+import { Status, StatusNote, fromNote } from '../types/domain/status'
 
 type GetRemoteStatusParams = {
   statusId: string
@@ -35,7 +35,7 @@ const getErrorMessage = (error: unknown) =>
 export const getRemoteStatus = async ({
   statusId,
   signingActor
-}: GetRemoteStatusParams): Promise<StatusNote | null> => {
+}: GetRemoteStatusParams): Promise<Status | null> => {
   let remoteNote: Awaited<ReturnType<typeof getNote>>
   try {
     remoteNote = await getNote({ statusId, signingActor })

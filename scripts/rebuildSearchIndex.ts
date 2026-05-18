@@ -1,5 +1,6 @@
 #!/usr/bin/env -S node -r @swc-node/register
 import { loadEnvConfig } from '@next/env'
+import { parseArgs as parseNodeArgs } from 'node:util'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
@@ -54,41 +55,54 @@ const parseBooleanFlag = (key: string, value?: string) => {
   throw new Error(`Invalid value for --${key}: ${value}. Use true or false.`)
 }
 
-export const parseArgs = (args: string[]): CliArgs => {
-  const parsed: Record<string, string | boolean> = {}
+const BOOLEAN_OPTIONS = new Set(['clear', 'dry-run'])
+
+const normalizeCliArgs = (args: string[]) => {
+  const normalizedArgs: string[] = []
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
     if (!arg.startsWith('--')) {
-      throw new Error(`Unexpected argument: ${arg}`)
-    }
-
-    const [rawKey, inlineValue] = arg.slice(2).split('=', 2)
-    if (rawKey === 'clear' || rawKey === 'dry-run') {
-      const nextValue = args[index + 1]
-      if (inlineValue !== undefined) {
-        parsed[rawKey] = parseBooleanFlag(rawKey, inlineValue)
-        continue
-      }
-      if (nextValue && !nextValue.startsWith('--')) {
-        parsed[rawKey] = parseBooleanFlag(rawKey, nextValue)
-        index += 1
-        continue
-      }
-
-      parsed[rawKey] = parseBooleanFlag(rawKey)
+      normalizedArgs.push(arg)
       continue
     }
 
-    const value = inlineValue ?? args[index + 1]
-    if (!value || value.startsWith('--')) {
-      throw new Error(`Missing value for --${rawKey}`)
+    const [rawKey, inlineValue] = arg.slice(2).split('=', 2)
+    if (!BOOLEAN_OPTIONS.has(rawKey)) {
+      normalizedArgs.push(arg)
+      continue
     }
-    if (inlineValue === undefined) {
+
+    const nextValue = args[index + 1]
+    const flagEnabled =
+      inlineValue !== undefined
+        ? parseBooleanFlag(rawKey, inlineValue)
+        : nextValue && !nextValue.startsWith('--')
+          ? parseBooleanFlag(rawKey, nextValue)
+          : parseBooleanFlag(rawKey)
+    if (inlineValue === undefined && nextValue && !nextValue.startsWith('--')) {
       index += 1
     }
-    parsed[rawKey] = value
+    if (flagEnabled) {
+      normalizedArgs.push(`--${rawKey}`)
+    }
   }
+
+  return normalizedArgs
+}
+
+export const parseArgs = (args: string[]): CliArgs => {
+  const parsed = parseNodeArgs({
+    args: normalizeCliArgs(args),
+    options: {
+      backend: { type: 'string' },
+      clear: { type: 'boolean' },
+      'batch-size': { type: 'string' },
+      'dry-run': { type: 'boolean' }
+    },
+    strict: true,
+    allowPositionals: false
+  }).values
 
   return CliArgs.parse({
     backend: parsed.backend,

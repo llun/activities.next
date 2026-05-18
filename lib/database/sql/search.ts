@@ -14,7 +14,7 @@ import type {
   MeilisearchDocument,
   MeilisearchType
 } from '@/lib/search/meilisearch'
-import { normalizeAccountSearchQuery } from '@/lib/search/normalizeAccountSearchQuery'
+import { parseAccountSearchQuery } from '@/lib/search/parseAccountSearchQuery'
 import {
   buildSearchTermPrefixes,
   normalizeSearchTokens
@@ -754,18 +754,12 @@ export const SearchSQLDatabaseMixin = (
   const getExactAccountActorId = async (
     query: string
   ): Promise<string | null> => {
-    const cleanedQuery = normalizeAccountSearchQuery(query)
-    if (!cleanedQuery) return null
-
-    const parts = cleanedQuery.split('@')
-    if (parts.length > 2) return null
-
-    const [username, domain = getConfiguredHost()] = parts
-    if (!username || !domain) return null
+    const parsed = parseAccountSearchQuery(query)
+    if (!parsed) return null
 
     const actor = await actorDatabase.getActorFromUsername({
-      username,
-      domain
+      username: parsed.username,
+      domain: parsed.domain
     })
     return actor?.id ?? null
   }
