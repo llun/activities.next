@@ -215,7 +215,8 @@ export const getSQLDatabase = (database: Knex): Database => {
       documents.map((document) =>
         searchDatabase.deleteSearchDocument({
           entityType: document.entityType,
-          entityId: document.entityId
+          entityId: document.entityId,
+          deleteSql: false
         })
       )
     )
@@ -405,13 +406,11 @@ export const getSQLDatabase = (database: Knex): Database => {
         return { statusIds, tags }
       })
 
-      await Promise.all(
-        statusIds.map((statusId) =>
-          searchDatabase.deleteSearchDocument({
-            entityType: 'status',
-            entityId: statusId
-          })
-        )
+      await syncDeletedSearchDocuments(
+        statusIds.map((statusId) => ({
+          entityType: 'status',
+          entityId: statusId
+        }))
       )
       await Promise.all(
         tags.map((tag) =>

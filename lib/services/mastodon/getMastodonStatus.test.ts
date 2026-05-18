@@ -705,7 +705,7 @@ describe('#getMastodonStatus', () => {
   })
 
   describe('announce/reblog visibility', () => {
-    it('caps related status recursion for nested announces', async () => {
+    it('resolves nested announces to the original status', async () => {
       const originalStatus = await database.createNote({
         id: `${ACTOR1_ID}/statuses/nested-announce-original`,
         url: `${ACTOR1_ID}/statuses/nested-announce-original`,
@@ -736,7 +736,10 @@ describe('#getMastodonStatus', () => {
       const mastodonStatus = await getMastodonStatus(database, status)
 
       expect(mastodonStatus?.id).toBe(urlToId(secondAnnounce.id))
-      expect(mastodonStatus?.reblog?.id).toBe(urlToId(firstAnnounce.id))
+      expect(mastodonStatus?.reblog?.id).toBe(urlToId(originalStatus.id))
+      expect(mastodonStatus?.reblog?.content).toContain(
+        'Nested announce original'
+      )
     })
 
     it('uses original status visibility for Announce statuses', async () => {

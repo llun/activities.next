@@ -2,7 +2,12 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { Mastodon } from '@/lib/types/activitypub'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
@@ -35,21 +40,49 @@ type MastodonStatusHydrationContext = {
   replyCountByStatusId: Map<string, number>
 }
 
-const MAX_RELATED_STATUS_DEPTH = 1
+const MAX_RELATED_STATUS_DEPTH = 10
 
-const collectRelatedStatuses = (
-  status: Status,
-  statuses: Status[] = [],
-  depth = 0
-) => {
-  statuses.push(status)
-  if (
-    status.type === StatusType.enum.Announce &&
-    depth < MAX_RELATED_STATUS_DEPTH
-  ) {
-    collectRelatedStatuses(status.originalStatus, statuses, depth + 1)
+const collectRelatedStatuses = (status: Status, statuses: Status[] = []) => {
+  const seen = new Set<string>()
+  let currentStatus: Status | null = status
+  let depth = 0
+
+  while (currentStatus && !seen.has(currentStatus.id)) {
+    statuses.push(currentStatus)
+    seen.add(currentStatus.id)
+
+    if (
+      currentStatus.type !== StatusType.enum.Announce ||
+      depth >= MAX_RELATED_STATUS_DEPTH
+    ) {
+      break
+    }
+
+    currentStatus = currentStatus.originalStatus
+    depth += 1
   }
+
   return statuses
+}
+
+const getReblogTargetStatus = (
+  status: Status
+): StatusNote | StatusPoll | null => {
+  let currentStatus: Status = status
+  const seen = new Set<string>()
+  let depth = 0
+
+  while (currentStatus.type === StatusType.enum.Announce) {
+    if (seen.has(currentStatus.id) || depth >= MAX_RELATED_STATUS_DEPTH) {
+      return null
+    }
+
+    seen.add(currentStatus.id)
+    currentStatus = currentStatus.originalStatus
+    depth += 1
+  }
+
+  return currentStatus
 }
 
 const getMentionsFromTags = (tags: Tag[]): MastodonMention[] => {
@@ -99,11 +132,9 @@ const getHashtagsFromTags = (tags: Tag[], host: string): MastodonTag[] => {
     })
 }
 
-const isStatusBookmarked = (status: Status, depth = 0): boolean => {
+const isStatusBookmarked = (status: Status): boolean => {
   if (status.type === StatusType.enum.Announce) {
-    return depth < MAX_RELATED_STATUS_DEPTH
-      ? isStatusBookmarked(status.originalStatus, depth + 1)
-      : false
+    return getReblogTargetStatus(status)?.isActorBookmarked ?? false
   }
 
   return status.isActorBookmarked ?? false
@@ -113,8 +144,7 @@ const getMastodonStatusFromContext = async (
   database: Database,
   status: Status,
   context: MastodonStatusHydrationContext,
-  currentActorId?: string,
-  depth = 0
+  currentActorId?: string
 ): Promise<Mastodon.Status | null> => {
   const account = context.accountByActorId.get(status.actorId)
   if (!account) {
@@ -165,15 +195,12 @@ const getMastodonStatusFromContext = async (
   }
 
   if (status.type === StatusType.enum.Announce) {
-    const originalReblogsCount =
-      status.originalStatus.type === StatusType.enum.Announce
-        ? 0
-        : status.originalStatus.totalShares
+    const reblogTarget = getReblogTargetStatus(status)
+    const originalReblogsCount = reblogTarget ? reblogTarget.totalShares : 0
 
-    const originalVisibility = getVisibility(
-      status.originalStatus.to,
-      status.originalStatus.cc
-    )
+    const originalVisibility = reblogTarget
+      ? getVisibility(reblogTarget.to, reblogTarget.cc)
+      : visibility
 
     return Mastodon.Status.parse({
       ...baseData,
@@ -183,16 +210,14 @@ const getMastodonStatusFromContext = async (
       in_reply_to_id: null,
       in_reply_to_account_id: null,
 
-      reblog:
-        depth < MAX_RELATED_STATUS_DEPTH
-          ? await getMastodonStatusFromContext(
-              database,
-              status.originalStatus,
-              context,
-              currentActorId,
-              depth + 1
-            )
-          : null,
+      reblog: reblogTarget
+        ? await getMastodonStatusFromContext(
+            database,
+            reblogTarget,
+            context,
+            currentActorId
+          )
+        : null,
       media_attachments: []
     })
   }

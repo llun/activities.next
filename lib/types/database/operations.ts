@@ -674,6 +674,8 @@ export type UpsertSearchHashtagParams = {
 export type DeleteSearchDocumentParams = {
   entityType: SearchEntityType
   entityId: string
+  deleteSql?: boolean
+  syncMeilisearch?: boolean
 }
 
 export type GetSearchHashtagsByIdsParams = {

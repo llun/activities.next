@@ -49,6 +49,27 @@ describe('resolveStatusForSearch', () => {
     mockGetFederationSigningActor.mockResolvedValue(null)
   })
 
+  it('checks federation policy using the status hostname', async () => {
+    const database = {
+      getStatus: jest.fn().mockResolvedValue(null),
+      getStatusFromUrl: jest.fn().mockResolvedValue(null)
+    }
+    mockCanFederateWithDomain.mockResolvedValue(false)
+
+    await expect(
+      resolveStatusForSearch({
+        database: database as never,
+        query: 'https://remote.test/@alice/statuses/1'
+      })
+    ).resolves.toBeNull()
+
+    expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+      database,
+      'remote.test'
+    )
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+  })
+
   it('does not persist remote polls as notes', async () => {
     const database = {
       getStatus: jest.fn().mockResolvedValue(null),

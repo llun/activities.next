@@ -1,6 +1,26 @@
+import sanitizeHtml from 'sanitize-html'
+
 const DEFAULT_MAX_TOKENS = 32
 const DEFAULT_MAX_TOKEN_LENGTH = 64
 const DEFAULT_MIN_PREFIX_LENGTH = 2
+const HTML_TEXT_BOUNDARY_TAGS = new Set([
+  'article',
+  'blockquote',
+  'div',
+  'footer',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'header',
+  'li',
+  'ol',
+  'p',
+  'section',
+  'ul'
+])
 
 type NormalizeSearchTokensOptions = {
   maxTokens?: number
@@ -12,6 +32,14 @@ type BuildSearchTermPrefixesOptions = {
   maxPrefixLength?: number
 }
 
+const stripHtmlForSearch = (value: string) =>
+  sanitizeHtml(value, {
+    allowedTags: ['br'],
+    allowedAttributes: {},
+    textFilter: (text, tagName) =>
+      HTML_TEXT_BOUNDARY_TAGS.has(tagName) ? `${text} ` : text
+  }).replace(/<br\s*\/?>/gi, ' ')
+
 export const normalizeSearchTokens = (
   value: string,
   {
@@ -21,9 +49,8 @@ export const normalizeSearchTokens = (
 ): string[] => {
   const seen = new Set<string>()
   const tokens: string[] = []
-  const normalized = value
+  const normalized = stripHtmlForSearch(value)
     .trim()
-    .replace(/<[^>]*>/g, ' ')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()

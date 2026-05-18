@@ -297,7 +297,10 @@ export const SearchSQLDatabaseMixin = (
 
     queuedMeilisearchSyncTasks += 1
     meilisearchSyncQueue = meilisearchSyncQueue
-      .then(task, task)
+      .then(
+        () => task(),
+        () => task()
+      )
       .catch((error) => {
         logger.warn({
           message:
@@ -392,16 +395,17 @@ export const SearchSQLDatabaseMixin = (
   async function deleteSearchDocument({
     entityType,
     entityId,
+    deleteSql = true,
     syncMeilisearch = true
-  }: DeleteSearchDocumentParams & {
-    syncMeilisearch?: boolean
-  }): Promise<void> {
+  }: DeleteSearchDocumentParams): Promise<void> {
     const documentId = getSearchDocumentId(entityType, entityId)
-    await database.transaction(async (trx) => {
-      // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
-      await trx('search_terms').where('documentId', documentId).delete()
-      await trx('search_documents').where('id', documentId).delete()
-    })
+    if (deleteSql) {
+      await database.transaction(async (trx) => {
+        // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
+        await trx('search_terms').where('documentId', documentId).delete()
+        await trx('search_documents').where('id', documentId).delete()
+      })
+    }
     if (syncMeilisearch) {
       enqueueMeilisearchSync(() =>
         syncMeilisearchDelete({ entityType, entityId, documentId })
