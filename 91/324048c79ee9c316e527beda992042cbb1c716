@@ -1,0 +1,158 @@
+lib/types/database/operations.ts
+  s_310719d8018dcf::t_842e1846ae2ee5 53,140-142,125
+  s_310719d8018dcf::t_966b711930a01c 610-682
+  s_310719d8018dcf::t_106f36a006fb22 1131,1134-1135,1148,1151-1152
+  s_e091af6245d4c8::t_3d47aff5205682 1130,1147
+lib/services/federation/statusDelivery.test.ts
+  s_33cf7ac4980a45::t_5c9946336edfc2 1-60,62-81,90-96,98-101,103-104,106-113,115-122,126,164
+  s_310719d8018dcf::t_f3bbe9636002f0 61,82-89,105,114,123-125,139
+  s_33cf7ac4980a45::t_34733226ae818f 97,102
+  s_33cf7ac4980a45::t_8932ea2e974c30 127-138,140-163
+app/api/v1/conversations/route.ts
+  s_310719d8018dcf::t_2cb3ce9e88a117 1-2,10-31,37-46,66-69,71-74,94-130,64-65,79
+  s_310719d8018dcf::t_a506483736c836 54,70
+  s_e091af6245d4c8::t_089b4bbf51d528 8,47-49
+  s_310719d8018dcf::t_f7dc8ec447e12d 32-36
+  s_243fd11decc2c0::t_133a911704bda0 3,5,7,50-53,55-60,75,78
+  s_243fd11decc2c0::t_597922b3d9548f 61-63
+  s_310719d8018dcf::t_fd37b579e38897 76-77
+app/(timeline)/messages/MessagesPage.tsx
+  s_310719d8018dcf::t_3ade24e739f9bc 1-2,13-21,23-30,32-38,40-81,83-93,97-104,106,111-125,134,137,139,145,147,151-152,186-187,190,192-195,208-214,242,244-246,248,250-270,272,274-276,278,281,283-285,287,294,305,309,337-363,365-375,377-430,434-445,471-487,491-545,551-556,96,156,160,175,179,181,461-462,4,133,185,197,206,205,215,226-227,234
+  s_310719d8018dcf::t_15e42986a38d96 3,140-143,376,431-433,488-490
+  s_310719d8018dcf::t_1ebedc6d9770c1 22,31
+  s_310719d8018dcf::t_25a80dcb0d94c9 126,135-136,138,144,148,157-158,166,176-177,280,364
+  s_310719d8018dcf::t_c8694535b9a1af 153,108,183-184
+  s_9686503828309b::t_4918bb679f2540 314,330,165,173,150,178,224,233,236,240
+  s_e091af6245d4c8::t_3c4eab1ee21f0d 39,82,94-95,105,146,154-155,159,161-164,167-172,174,180,191,243,282,446-460,463-470
+  s_9686503828309b::t_cb04b06aabc499 247,132
+  s_562deeae7618cf::t_ff09cd3c427508 5-12,107,149,182,188-189,196,198-199,241
+  s_310719d8018dcf::t_5c6bcdecaafe9e 127-131
+  s_9fe867c202f44e::t_01a58d46e221b1 109-110,200-204,207,228-232,238-239
+  s_9fe867c202f44e::t_c32fba21612f35 216-223,225,235,237
+  s_9fe867c202f44e::t_76f45ac67dc7ee 546-550
+app/api/v1/conversations/[id]/statuses/route.ts
+  s_310719d8018dcf::t_71d38302a38ba9 1-3,5-24,30-51,55-73,79-90
+  s_310719d8018dcf::t_15e42986a38d96 52-54
+  s_310719d8018dcf::t_f7dc8ec447e12d 25-29
+  s_dda913a164bc9d::t_ae7027c9ec5c58 4,74-78
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_dda913a164bc9d::t_1469ec09ba41af 14,38-39,47,49-60,65
+  s_dda913a164bc9d::t_c1e0e5f5ca6553 40-45
+  s_310719d8018dcf::t_a973d6fc7a2492 46,48,61-64
+lib/services/mastodon/getMastodonConversation.ts
+  s_310719d8018dcf::t_4d7bfdfd53dc5a 1-2,4,6,42-44,47,55-60,72,30,33
+  s_310719d8018dcf::t_15e42986a38d96 3
+  s_310719d8018dcf::t_89b9a12032a9c3 61,71,8,10-11,20-21,24,27-28,31,34,41,45-46,48-51,53-54,64-66,68
+  s_243fd11decc2c0::t_071cf021333e73 7,9,12-19,22,32,35-40
+  s_310719d8018dcf::t_15398a58d8c94a 23
+  s_310719d8018dcf::t_7f839474e66bf6 25-26
+  s_33cf7ac4980a45::t_af682d1655c1d3 52
+lib/services/federation/statusDelivery.ts
+  s_310719d8018dcf::t_7b1e43e822447c 1-16,19-36,56-65,98-116,119,125-128,18,46,50-51,53-54,69,72-73,75-76,78,93-94,96-97
+  s_33cf7ac4980a45::t_200c73ea4577e8 37,17,40-45,47-49,52,117-118
+  s_310719d8018dcf::t_3aed4eaca55df3 55,68,70-71,74,77,79-83,85-92,95,120-124
+  s_310719d8018dcf::t_6e6f67b677ae2f 84
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_562deeae7618cf::t_27dfefe0cc322d 1-4,13-39,43-50,52-55,58,60,62-170,172-175,177-191,194-203,206-209,216-218,284-286,289-301,335,334
+  s_562deeae7618cf::t_c543e8c68ff389 40-42,210-215
+  s_310719d8018dcf::t_a32fdfcebe759e 219-222,224-227,229-232,234-247,250-258,261-270,273-283
+  s_9fe867c202f44e::t_3ab443ff7b3976 6-12,318-320,330-332
+  s_9fe867c202f44e::t_1c1efcfd88fa61 51,56-57,59,61,303-307,310-317,321-326,333
+  s_9fe867c202f44e::t_181f84af5bf359 327-329
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_e091af6245d4c8::t_e09d81fd0b228b 1,8-10,12-14,106-107,111-127,129,34,41-42,85,92,96,102
+  s_243fd11decc2c0::t_7f7be50f3d38c8 2-4,6-7,15-16,45-48,51-55,68-70,74,86-87,89-90,95,97-101,103
+  s_310719d8018dcf::t_e0898b1480c919 17-18,24-26,32,88,91,94
+  s_310719d8018dcf::t_5e1a73ee59d252 19-23,27-31,75-84,108-110
+  s_310719d8018dcf::t_1ef33f40808a4d 33,43-44,49-50,56-58,60-64,71-73,93,104-105
+  s_310719d8018dcf::t_953bc19b3a6dc9 35-40,65-67
+  s_31717af284fc5c::t_85d05456beaca0 59
+lib/services/mastodon/getMastodonStatus.ts
+  s_dda913a164bc9d::t_5b82bccd355189 32-56,122-123,125,196-197,288-293,312-318
+  s_310719d8018dcf::t_d628de565ac860 112-118,296-311
+  s_310719d8018dcf::t_2a04194f2d4361 294-295
+lib/database/sql/actor.ts
+  s_310719d8018dcf::t_a84d9fddf09b0d 37,144-151,164,166-249
+  s_310719d8018dcf::t_b389b538f747f8 601-608,610-652,657,659-660
+  s_310719d8018dcf::t_6e6f67b677ae2f 609
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "91324048c79ee9c316e527beda992042cbb1c716",
+  "prompts": {},
+  "sessions": {
+    "s_243fd11decc2c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f827-7172-ba61-2e0783bbd9e0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_31717af284fc5c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e39b7-6f4b-7f32-9bdd-8a30fcc85594",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_33cf7ac4980a45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f90d-79b2-ada2-7f5f634b7168",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_562deeae7618cf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e378d-8dd2-7e81-b6c7-1f2e9deed632",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9686503828309b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e39b7-5078-70e0-a066-6baaba780cd3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9fe867c202f44e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f7c0-7712-9924-347fb9b25ca3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dda913a164bc9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f896-76c1-8c71-5965836e66a3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e091af6245d4c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e376e-0f7f-7e82-90bb-798d332323df",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
