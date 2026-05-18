@@ -61,8 +61,7 @@ export const GET = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: {
             statuses: statuses.map((status) => cleanJson(status)),
-            nextMaxStatusId,
-            prevMinStatusId
+            nextMaxStatusId
           }
         })
       }

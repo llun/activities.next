@@ -68,8 +68,7 @@ describe('GET /api/v1/conversations/[id]/statuses', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       statuses: [status('2'), status('1')],
-      nextMaxStatusId: null,
-      prevMinStatusId: status('2').id
+      nextMaxStatusId: null
     })
     expect(mockDatabase.getDirectConversationStatuses).toHaveBeenCalledWith({
       actorId: mockCurrentActor.id,
@@ -97,8 +96,7 @@ describe('GET /api/v1/conversations/[id]/statuses', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       statuses: [status('3'), status('2')],
-      nextMaxStatusId: status('2').id,
-      prevMinStatusId: status('3').id
+      nextMaxStatusId: status('2').id
     })
   })
 
