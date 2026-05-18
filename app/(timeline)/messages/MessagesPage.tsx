@@ -110,6 +110,12 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const threadContainerRef = useRef<HTMLDivElement | null>(null)
   const failedReadConversationIdsRef = useRef(new Set<string>())
   const pendingReadConversationIdsRef = useRef(new Set<string>())
+  const lastAutoScrolledStatusIdRef = useRef<string | null>(null)
+  const pendingOlderScrollAnchorRef = useRef<{
+    requestId: number
+    scrollHeight: number
+    scrollTop: number
+  } | null>(null)
 
   const selectedConversation = useMemo(
     () =>
@@ -122,6 +128,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     () => [...threadStatuses].reverse(),
     [threadStatuses]
   )
+  const newestDisplayedStatusId =
+    displayStatuses[displayStatuses.length - 1]?.id ?? null
   const composerRecipients = selectedConversation
     ? selectedConversation.accounts
     : selectedRecipients
@@ -130,6 +138,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     if (conversationId === selectedConversationIdRef.current) return
     latestThreadRequestIdRef.current += 1
     selectedConversationIdRef.current = conversationId
+    lastAutoScrolledStatusIdRef.current = null
+    pendingOlderScrollAnchorRef.current = null
     setSelectedConversationId(conversationId)
   }, [])
 
@@ -162,8 +172,27 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     const threadContainer = threadContainerRef.current
     if (!threadContainer) return
 
+    const pendingOlderScrollAnchor = pendingOlderScrollAnchorRef.current
+    if (
+      pendingOlderScrollAnchor &&
+      pendingOlderScrollAnchor.requestId === latestThreadRequestIdRef.current
+    ) {
+      pendingOlderScrollAnchorRef.current = null
+      threadContainer.scrollTop =
+        pendingOlderScrollAnchor.scrollTop +
+        (threadContainer.scrollHeight - pendingOlderScrollAnchor.scrollHeight)
+      return
+    }
+
+    if (!newestDisplayedStatusId) {
+      lastAutoScrolledStatusIdRef.current = null
+      return
+    }
+
+    if (lastAutoScrolledStatusIdRef.current === newestDisplayedStatusId) return
+    lastAutoScrolledStatusIdRef.current = newestDisplayedStatusId
     threadContainer.scrollTop = threadContainer.scrollHeight
-  }, [displayStatuses])
+  }, [displayStatuses.length, newestDisplayedStatusId])
 
   const handleMessageKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -180,28 +209,54 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
     const requestId = latestThreadRequestIdRef.current + 1
     latestThreadRequestIdRef.current = requestId
+    const threadContainer = threadContainerRef.current
+    pendingOlderScrollAnchorRef.current = threadContainer
+      ? {
+          requestId,
+          scrollHeight: threadContainer.scrollHeight,
+          scrollTop: threadContainer.scrollTop
+        }
+      : null
     setLoadingMoreStatuses(true)
+    let shouldPreserveScroll = false
     try {
       const result = await getConversationStatuses({
         conversationId: selectedConversationId,
         maxStatusId: nextMaxStatusId,
         limit: 40
       })
-      if (latestThreadRequestIdRef.current !== requestId) return
+      if (latestThreadRequestIdRef.current !== requestId) {
+        if (pendingOlderScrollAnchorRef.current?.requestId === requestId) {
+          pendingOlderScrollAnchorRef.current = null
+        }
+        return
+      }
+      const existingStatusIds = new Set(
+        threadStatuses.map((status) => status.id)
+      )
+      shouldPreserveScroll = result.statuses.some(
+        (status) => !existingStatusIds.has(status.id)
+      )
       setThreadStatuses((previousStatuses) => {
         const seenIds = new Set(previousStatuses.map((status) => status.id))
-        return [
-          ...previousStatuses,
-          ...result.statuses.filter((status) => !seenIds.has(status.id))
-        ]
+        const newStatuses = result.statuses.filter(
+          (status) => !seenIds.has(status.id)
+        )
+        return [...previousStatuses, ...newStatuses]
       })
       setNextMaxStatusId(result.nextMaxStatusId)
     } finally {
+      if (
+        !shouldPreserveScroll &&
+        pendingOlderScrollAnchorRef.current?.requestId === requestId
+      ) {
+        pendingOlderScrollAnchorRef.current = null
+      }
       if (latestThreadRequestIdRef.current === requestId) {
         setLoadingMoreStatuses(false)
       }
     }
-  }, [nextMaxStatusId, selectedConversationId])
+  }, [nextMaxStatusId, selectedConversationId, threadStatuses])
 
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId

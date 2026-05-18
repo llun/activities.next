@@ -144,4 +144,50 @@ describe('messages page', () => {
       }
     })
   })
+
+  it('sets the initial older-status cursor only when an extra status row exists', async () => {
+    const conversations = [
+      conversation('first', [currentActor.id, 'https://example.com/users/ada'])
+    ]
+    const initialStatusPage = Array.from({ length: 41 }, (_, index) =>
+      status(`status-${index}`)
+    )
+    const database = {
+      getActorSettings: jest.fn().mockResolvedValue({ postLineLimit: 10 }),
+      getDirectConversations: jest.fn().mockResolvedValue(conversations),
+      getDirectConversationStatuses: jest
+        .fn()
+        .mockResolvedValue(initialStatusPage),
+      getMastodonActorsFromIds: jest.fn().mockResolvedValue([account('ada')]),
+      getMastodonActorFromId: jest.fn().mockResolvedValue(null)
+    }
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page()
+
+    expect(database.getDirectConversationStatuses).toHaveBeenCalledWith({
+      actorId: currentActor.id,
+      conversationId: 'first',
+      limit: 41
+    })
+    expect(element).toMatchObject({
+      props: {
+        initialStatuses: initialStatusPage.slice(0, 40),
+        initialNextMaxStatusId: 'status-39'
+      }
+    })
+
+    database.getDirectConversationStatuses.mockResolvedValueOnce(
+      initialStatusPage.slice(0, 40)
+    )
+
+    const exactLimitElement = await Page()
+
+    expect(exactLimitElement).toMatchObject({
+      props: {
+        initialStatuses: initialStatusPage.slice(0, 40),
+        initialNextMaxStatusId: null
+      }
+    })
+  })
 })

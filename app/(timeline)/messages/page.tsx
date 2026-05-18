@@ -18,6 +18,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Messages'
 }
+const INITIAL_STATUS_LIMIT = 40
 
 const Page = async () => {
   const { host } = getConfig()
@@ -51,13 +52,15 @@ const Page = async () => {
     )
   }))
   const initialConversation = conversations[0] ?? null
-  const initialStatuses = initialConversation
+  const initialStatusPage = initialConversation
     ? await database.getDirectConversationStatuses({
         actorId: actor.id,
         conversationId: initialConversation.id,
-        limit: 40
+        limit: INITIAL_STATUS_LIMIT + 1
       })
     : []
+  const hasMoreInitialStatuses = initialStatusPage.length > INITIAL_STATUS_LIMIT
+  const initialStatuses = initialStatusPage.slice(0, INITIAL_STATUS_LIMIT)
 
   return (
     <MessagesPage
@@ -66,7 +69,7 @@ const Page = async () => {
       initialConversationId={initialConversation?.id ?? null}
       initialStatuses={initialStatuses.map((status) => cleanJson(status))}
       initialNextMaxStatusId={
-        initialStatuses.length === 40
+        hasMoreInitialStatuses && initialStatuses.length > 0
           ? initialStatuses[initialStatuses.length - 1].id
           : null
       }

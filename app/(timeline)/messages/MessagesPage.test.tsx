@@ -144,7 +144,8 @@ const conversation = ({
 const renderMessagesPage = (
   conversations: DirectConversationView[],
   initialConversationId: string | null = conversations[0]?.id ?? null,
-  initialStatuses: Status[] = []
+  initialStatuses: Status[] = [],
+  initialNextMaxStatusId: string | null = null
 ) =>
   render(
     <MessagesPage
@@ -152,7 +153,7 @@ const renderMessagesPage = (
       conversations={conversations}
       initialConversationId={initialConversationId}
       initialStatuses={initialStatuses}
-      initialNextMaxStatusId={null}
+      initialNextMaxStatusId={initialNextMaxStatusId}
       currentTime={currentTime}
       currentActor={currentActor}
     />
@@ -391,6 +392,157 @@ describe('MessagesPage', () => {
 
     await waitFor(() => {
       expect(thread.scrollTop).toBe(640)
+    })
+  })
+
+  it('preserves the visible thread position when loading older statuses', async () => {
+    const initialThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    const olderThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    ;(getConversationStatuses as jest.Mock)
+      .mockReturnValueOnce(initialThread.promise)
+      .mockReturnValueOnce(olderThread.promise)
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const thread = screen.getByLabelText('Message thread')
+    Object.defineProperty(thread, 'scrollHeight', {
+      configurable: true,
+      value: 600
+    })
+
+    await act(async () => {
+      initialThread.resolve({
+        statuses: [
+          status('newest-status', 'Newest status'),
+          status('middle-status', 'Middle status')
+        ],
+        nextMaxStatusId: 'older-cursor'
+      })
+    })
+
+    expect(await screen.findByText('Middle status')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(thread.scrollTop).toBe(600)
+    })
+
+    thread.scrollTop = 240
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    Object.defineProperty(thread, 'scrollHeight', {
+      configurable: true,
+      value: 900
+    })
+
+    await act(async () => {
+      olderThread.resolve({
+        statuses: [status('oldest-status', 'Oldest status')],
+        nextMaxStatusId: null
+      })
+    })
+
+    expect(await screen.findByText('Oldest status')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(thread.scrollTop).toBe(540)
+    })
+  })
+
+  it('does not let stale load-more requests clear the active scroll anchor', async () => {
+    const initialThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    const staleOlderThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    const secondThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    const reloadedThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    const activeOlderThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    ;(getConversationStatuses as jest.Mock)
+      .mockReturnValueOnce(initialThread.promise)
+      .mockReturnValueOnce(staleOlderThread.promise)
+      .mockReturnValueOnce(secondThread.promise)
+      .mockReturnValueOnce(reloadedThread.promise)
+      .mockReturnValueOnce(activeOlderThread.promise)
+
+    renderMessagesPage([
+      conversation({ id: 'first', participantName: 'Ada' }),
+      conversation({ id: 'second', participantName: 'Bea' })
+    ])
+
+    const thread = screen.getByLabelText('Message thread')
+    Object.defineProperty(thread, 'scrollHeight', {
+      configurable: true,
+      value: 600
+    })
+
+    await act(async () => {
+      initialThread.resolve({
+        statuses: [status('first-newest', 'First newest')],
+        nextMaxStatusId: 'older-cursor'
+      })
+    })
+    expect(await screen.findByText('First newest')).toBeInTheDocument()
+
+    thread.scrollTop = 240
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: /Bea/i }))
+
+    await act(async () => {
+      secondThread.resolve({
+        statuses: [status('second-newest', 'Second newest')],
+        nextMaxStatusId: null
+      })
+    })
+    expect(await screen.findByText('Second newest')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Ada/i }))
+    await act(async () => {
+      reloadedThread.resolve({
+        statuses: [status('first-newest', 'First newest')],
+        nextMaxStatusId: 'older-cursor'
+      })
+    })
+    expect(await screen.findByText('First newest')).toBeInTheDocument()
+
+    thread.scrollTop = 240
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    Object.defineProperty(thread, 'scrollHeight', {
+      configurable: true,
+      value: 900
+    })
+
+    await act(async () => {
+      staleOlderThread.resolve({
+        statuses: [status('stale-older', 'Stale older')],
+        nextMaxStatusId: null
+      })
+      activeOlderThread.resolve({
+        statuses: [status('active-older', 'Active older')],
+        nextMaxStatusId: null
+      })
+    })
+
+    expect(await screen.findByText('Active older')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('Stale older')).not.toBeInTheDocument()
+      expect(thread.scrollTop).toBe(540)
     })
   })
 
