@@ -40,6 +40,47 @@ const getExistingStatusForUrl = async (database: Database, url: string) =>
   (await database.getStatus({ statusId: url })) ??
   (await database.getStatusFromUrl({ url }))
 
+const persistRemoteStatus = async ({
+  database,
+  status
+}: {
+  database: Database
+  status: Status
+}) => {
+  if (status.type === StatusType.enum.Note) {
+    return database.createNote({
+      id: status.id,
+      url: status.url,
+      actorId: status.actorId,
+      text: status.text,
+      summary: status.summary ?? '',
+      to: status.to,
+      cc: status.cc,
+      reply: status.reply,
+      createdAt: status.createdAt
+    })
+  }
+
+  if (status.type === StatusType.enum.Poll) {
+    return database.createPoll({
+      id: status.id,
+      url: status.url,
+      actorId: status.actorId,
+      text: status.text,
+      summary: status.summary ?? '',
+      to: status.to,
+      cc: status.cc,
+      reply: status.reply,
+      choices: status.choices.map((choice) => choice.title),
+      endAt: status.endAt,
+      pollType: status.pollType,
+      createdAt: status.createdAt
+    })
+  }
+
+  return null
+}
+
 export const resolveStatusForSearch = async ({
   database,
   query
@@ -65,14 +106,6 @@ export const resolveStatusForSearch = async ({
   })
   if (!remoteStatus || !isSearchableStatus(remoteStatus)) return null
   const resolvedRemoteStatus: Status = remoteStatus
-  if (resolvedRemoteStatus.type !== StatusType.enum.Note) {
-    logger.warn({
-      message: 'Skipping unsupported remote status type for search resolve',
-      statusId: resolvedRemoteStatus.id,
-      statusType: resolvedRemoteStatus.type
-    })
-    return null
-  }
 
   const actor = await recordActorIfNeeded({
     actorId: resolvedRemoteStatus.actorId,
@@ -82,16 +115,9 @@ export const resolveStatusForSearch = async ({
   if (!actor) return null
 
   try {
-    await database.createNote({
-      id: resolvedRemoteStatus.id,
-      url: resolvedRemoteStatus.url,
-      actorId: resolvedRemoteStatus.actorId,
-      text: resolvedRemoteStatus.text,
-      summary: resolvedRemoteStatus.summary ?? '',
-      to: resolvedRemoteStatus.to,
-      cc: resolvedRemoteStatus.cc,
-      reply: resolvedRemoteStatus.reply,
-      createdAt: resolvedRemoteStatus.createdAt
+    await persistRemoteStatus({
+      database,
+      status: resolvedRemoteStatus
     })
   } catch (error) {
     // Persist is best-effort: concurrent resolves can race on insert, so

@@ -378,8 +378,7 @@ export const getSQLDatabase = (database: Knex): Database => {
         await Promise.all([
           searchDatabase.upsertStatusSearchDocument({ statusId: tag.statusId }),
           searchDatabase.upsertHashtagSearchDocument({
-            name: tag.name,
-            url: tag.value
+            name: tag.name
           })
         ])
       }
