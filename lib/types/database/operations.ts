@@ -751,6 +751,11 @@ export type UpsertSearchHashtagsParams = {
   syncMeilisearch?: boolean
 }
 
+export type UpsertSearchHashtagsParams = {
+  names: string[]
+  syncMeilisearch?: boolean
+}
+
 export type DeleteSearchDocumentParams = {
   entityType: SearchEntityType
   entityId: string

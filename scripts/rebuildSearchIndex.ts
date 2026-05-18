@@ -252,7 +252,15 @@ async function rebuildSearchIndex(args = process.argv.slice(2)) {
     console.error('Error: Database is not available')
     return 1
   }
-  const knex = getKnex()
+  let knex: Knex | null = null
+  try {
+    knex = getKnex()
+  } catch {
+    if (shouldRebuildMeilisearch(input.backend)) {
+      console.error('Error: Knex instance is not available')
+      return 1
+    }
+  }
 
   try {
     // The SQL search index is canonical and feeds Meilisearch, so every
@@ -269,6 +277,10 @@ async function rebuildSearchIndex(args = process.argv.slice(2)) {
     )
 
     if (shouldRebuildMeilisearch(input.backend)) {
+      if (!knex) {
+        console.error('Error: Knex instance is not available')
+        return 1
+      }
       await reindexMeilisearch({ ...input, knex })
     }
 
