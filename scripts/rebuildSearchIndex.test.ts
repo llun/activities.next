@@ -24,4 +24,22 @@ describe('rebuildSearchIndex parseArgs', () => {
       dryRun: true
     })
   })
+
+  it('parses equals-form string options', () => {
+    expect(parseArgs(['--backend=all', '--batch-size=1000'])).toMatchObject({
+      backend: 'all',
+      batchSize: 1000
+    })
+  })
+
+  it('rejects unknown flags and positionals', () => {
+    expect(() => parseArgs(['--unknown', 'value'])).toThrow()
+    expect(() => parseArgs(['unexpected'])).toThrow()
+  })
+
+  it('rejects invalid explicit boolean values', () => {
+    expect(() => parseArgs(['--clear=maybe'])).toThrow(
+      'Invalid value for --clear'
+    )
+  })
 })

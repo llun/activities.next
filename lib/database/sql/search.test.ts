@@ -103,6 +103,41 @@ describe('SearchDatabase', () => {
       ).resolves.toMatchObject([{ url: matchingActorId }])
     })
 
+    it('resolves account URL queries through exact account lookup', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `exact-url-${suffix}`
+      const domain = 'remote.test'
+      const actorId = `https://${domain}/users/${username}`
+
+      await database.createMastodonActor({
+        actorId,
+        username,
+        domain,
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `${actorId}/inbox`,
+        publicKey: `public-exact-url-${suffix}`,
+        createdAt: Date.now()
+      })
+
+      await expect(
+        database.searchAccounts({
+          query: `https://${domain}/@${username}`,
+          limit: 10,
+          offset: 0,
+          resolve: true
+        })
+      ).resolves.toMatchObject([{ url: actorId }])
+      await expect(
+        database.searchAccounts({
+          query: actorId,
+          limit: 10,
+          offset: 0,
+          resolve: true
+        })
+      ).resolves.toMatchObject([{ url: actorId }])
+    })
+
     it('finds only public statuses by indexed text', async () => {
       await database.createNote({
         id: `${ACTOR1_ID}/statuses/search-public-note`,
@@ -643,6 +678,64 @@ describe('SearchDatabase', () => {
       await expect(
         database.searchHashtags({
           query: replyHashtag,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([])
+    })
+
+    it('deindexes deep recursively deleted replies and their hashtags', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const rootStatusId = `${ACTOR1_ID}/statuses/deep-delete-root-${suffix}`
+      const deepestSearchText = `DeepDeletedReplySearch${suffix}`
+      const deepestHashtag = `#DeepDeletedReplyTag${suffix}`
+      let previousStatusId = rootStatusId
+
+      await database.createNote({
+        id: rootStatusId,
+        url: rootStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Root status for deep recursive delete',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      for (let depth = 1; depth <= 35; depth += 1) {
+        const statusId = `${ACTOR1_ID}/statuses/deep-delete-${depth}-${suffix}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text:
+            depth === 35
+              ? deepestSearchText
+              : `Intermediate deep reply ${depth}`,
+          reply: previousStatusId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        previousStatusId = statusId
+      }
+
+      await database.createTag({
+        statusId: previousStatusId,
+        type: 'hashtag',
+        name: deepestHashtag,
+        value: `https://llun.test/tags/${deepestHashtag.slice(1)}`
+      })
+
+      await database.deleteStatus({ statusId: rootStatusId })
+
+      await expect(
+        database.searchStatuses({
+          query: deepestSearchText,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchHashtags({
+          query: deepestHashtag,
           limit: 10,
           offset: 0
         })

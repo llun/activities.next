@@ -166,4 +166,32 @@ describe('search service', () => {
     expect(mockResolveAccountForSearch).not.toHaveBeenCalled()
     expect(mockSearchMeilisearch).not.toHaveBeenCalled()
   })
+
+  it('enforces status limit after prepending resolved statuses', async () => {
+    const resolvedStatus = { id: 'https://remote.test/statuses/1' }
+    const indexedStatus = { id: 'https://remote.test/statuses/2' }
+    const database = {
+      searchAccounts: jest.fn(),
+      searchStatuses: jest.fn().mockResolvedValue([indexedStatus]),
+      searchHashtags: jest.fn()
+    } as unknown as Database
+    mockResolveStatusForSearch.mockResolvedValue(resolvedStatus as never)
+
+    await expect(
+      search({
+        database,
+        query: 'https://remote.test/statuses/1',
+        limit: 1,
+        offset: 0,
+        includeAccounts: false,
+        includeStatuses: true,
+        includeHashtags: false,
+        resolve: true
+      })
+    ).resolves.toEqual({
+      accounts: [],
+      statuses: [resolvedStatus],
+      hashtags: []
+    })
+  })
 })

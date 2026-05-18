@@ -63,9 +63,18 @@ export const resolveStatusForSearch = async ({
     signingActor: signingActor ?? undefined
   })
   if (!remoteStatus || !isSearchableStatus(remoteStatus)) return null
+  const resolvedRemoteStatus: Status = remoteStatus
+  if (resolvedRemoteStatus.type !== StatusType.enum.Note) {
+    logger.warn({
+      message: 'Skipping unsupported remote status type for search resolve',
+      statusId: resolvedRemoteStatus.id,
+      statusType: resolvedRemoteStatus.type
+    })
+    return null
+  }
 
   const actor = await recordActorIfNeeded({
-    actorId: remoteStatus.actorId,
+    actorId: resolvedRemoteStatus.actorId,
     database,
     signingActor: signingActor ?? undefined
   })
@@ -73,26 +82,26 @@ export const resolveStatusForSearch = async ({
 
   try {
     await database.createNote({
-      id: remoteStatus.id,
-      url: remoteStatus.url,
-      actorId: remoteStatus.actorId,
-      text: remoteStatus.text,
-      summary: remoteStatus.summary ?? '',
-      to: remoteStatus.to,
-      cc: remoteStatus.cc,
-      reply: remoteStatus.reply,
-      createdAt: remoteStatus.createdAt
+      id: resolvedRemoteStatus.id,
+      url: resolvedRemoteStatus.url,
+      actorId: resolvedRemoteStatus.actorId,
+      text: resolvedRemoteStatus.text,
+      summary: resolvedRemoteStatus.summary ?? '',
+      to: resolvedRemoteStatus.to,
+      cc: resolvedRemoteStatus.cc,
+      reply: resolvedRemoteStatus.reply,
+      createdAt: resolvedRemoteStatus.createdAt
     })
   } catch (error) {
     logger.warn({
       message: 'Failed to persist resolved status for search',
-      statusId: remoteStatus.id,
+      statusId: resolvedRemoteStatus.id,
       error: error instanceof Error ? error.message : String(error)
     })
   }
 
   const persistedStatus =
-    (await database.getStatus({ statusId: remoteStatus.id })) ??
+    (await database.getStatus({ statusId: resolvedRemoteStatus.id })) ??
     (await database.getStatusFromUrl({ url: statusUrl }))
   if (!persistedStatus || !isSearchableStatus(persistedStatus)) return null
 
