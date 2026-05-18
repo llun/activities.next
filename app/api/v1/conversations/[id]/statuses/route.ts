@@ -38,15 +38,19 @@ export const GET = traceApiRoute(
       const maxStatusIdParam = url.searchParams.get('max_id')
       const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
       const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
-      const statuses = await database.getDirectConversationStatuses({
+      const statusesPage = await database.getDirectConversationStatuses({
         actorId: currentActor.id,
         conversationId: id,
-        limit,
+        limit: limit + 1,
         minStatusId,
         maxStatusId
       })
+      const hasMoreStatuses = statusesPage.length > limit
+      const statuses = statusesPage.slice(0, limit)
       const nextMaxStatusId =
-        statuses.length === limit ? statuses[statuses.length - 1].id : null
+        hasMoreStatuses && statuses.length > 0
+          ? statuses[statuses.length - 1].id
+          : null
       const prevMinStatusId = statuses.length > 0 ? statuses[0].id : null
 
       if (

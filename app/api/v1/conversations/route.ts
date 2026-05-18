@@ -36,12 +36,14 @@ export const GET = traceApiRoute(
     async (req, { database, currentActor }) => {
       const url = new URL(req.url)
       const limit = normalizeLimit(url.searchParams.get('limit'))
-      const conversations = await database.getDirectConversations({
+      const conversationsPage = await database.getDirectConversations({
         actorId: currentActor.id,
-        limit,
+        limit: limit + 1,
         maxId: url.searchParams.get('max_id'),
         minId: url.searchParams.get('min_id')
       })
+      const hasMoreConversations = conversationsPage.length > limit
+      const conversations = conversationsPage.slice(0, limit)
 
       if (
         url.searchParams.get('format') === TimelineFormat.enum.activities_next
@@ -94,7 +96,7 @@ export const GET = traceApiRoute(
         }"`
       }
       const nextConversationId =
-        conversations.length === limit
+        hasMoreConversations && conversations.length > 0
           ? conversations[conversations.length - 1].id
           : null
       const prevConversationId =
