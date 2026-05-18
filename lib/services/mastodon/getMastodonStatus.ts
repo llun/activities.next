@@ -29,6 +29,20 @@ interface MastodonTag {
   url: string
 }
 
+type MastodonStatusHydrationContext = {
+  accountByActorId: Map<string, Mastodon.Account>
+  replyStatusById: Map<string, Status>
+  replyCountByStatusId: Map<string, number>
+}
+
+const collectRelatedStatuses = (status: Status, statuses: Status[] = []) => {
+  statuses.push(status)
+  if (status.type === StatusType.enum.Announce) {
+    collectRelatedStatuses(status.originalStatus, statuses)
+  }
+  return statuses
+}
+
 const getMentionsFromTags = (tags: Tag[]): MastodonMention[] => {
   return tags
     .filter((tag) => tag.type === TagType.enum.mention)
@@ -84,12 +98,13 @@ const isStatusBookmarked = (status: Status): boolean => {
   return status.isActorBookmarked ?? false
 }
 
-export const getMastodonStatus = async (
+const getMastodonStatusFromContext = async (
   database: Database,
   status: Status,
+  context: MastodonStatusHydrationContext,
   currentActorId?: string
 ): Promise<Mastodon.Status | null> => {
-  const account = await database.getMastodonActorFromId({ id: status.actorId })
+  const account = context.accountByActorId.get(status.actorId)
   if (!account) {
     return null
   }
@@ -102,9 +117,7 @@ export const getMastodonStatus = async (
       : getVisibility(status.to, status.cc)
 
   const reblogsCount =
-    status.type !== StatusType.enum.Announce
-      ? await database.getStatusReblogsCount({ statusId: status.id })
-      : 0
+    status.type !== StatusType.enum.Announce ? status.totalShares : 0
 
   const baseData = {
     id: urlToId(status.id),
@@ -140,9 +153,10 @@ export const getMastodonStatus = async (
   }
 
   if (status.type === StatusType.enum.Announce) {
-    const originalReblogsCount = await database.getStatusReblogsCount({
-      statusId: status.originalStatus.id
-    })
+    const originalReblogsCount =
+      status.originalStatus.type === StatusType.enum.Announce
+        ? 0
+        : status.originalStatus.totalShares
 
     const originalVisibility = getVisibility(
       status.originalStatus.to,
@@ -157,9 +171,10 @@ export const getMastodonStatus = async (
       in_reply_to_id: null,
       in_reply_to_account_id: null,
 
-      reblog: await getMastodonStatus(
+      reblog: await getMastodonStatusFromContext(
         database,
         status.originalStatus,
+        context,
         currentActorId
       ),
       media_attachments: []
@@ -167,11 +182,9 @@ export const getMastodonStatus = async (
   }
 
   const replyStatus = status.reply
-    ? await database.getStatus({ statusId: status.reply })
+    ? context.replyStatusById.get(status.reply)
     : null
-  const repliesCount = await database.getStatusRepliesCount({
-    statusId: status.id
-  })
+  const repliesCount = context.replyCountByStatusId.get(status.id) ?? 0
 
   const mentions = getMentionsFromTags(status.tags)
   const emojis = getEmojisFromTags(status.tags)
@@ -250,4 +263,64 @@ export const getMastodonStatus = async (
     ...mastodonStatus,
     poll: pollData
   })
+}
+
+export const getMastodonStatuses = async (
+  database: Database,
+  statuses: Status[],
+  currentActorId?: string
+): Promise<Mastodon.Status[]> => {
+  if (statuses.length === 0) return []
+
+  const relatedStatuses = statuses.flatMap((status) =>
+    collectRelatedStatuses(status)
+  )
+  const actorIds = [...new Set(relatedStatuses.map((status) => status.actorId))]
+  const statusIds = [
+    ...new Set(
+      relatedStatuses.flatMap((status) =>
+        status.type === StatusType.enum.Announce ? [] : [status.id]
+      )
+    )
+  ]
+  const replyIds = [
+    ...new Set(
+      relatedStatuses.flatMap((status) =>
+        status.type === StatusType.enum.Announce || !status.reply
+          ? []
+          : [status.reply]
+      )
+    )
+  ]
+
+  const [accounts, replyStatuses, replyCounts] = await Promise.all([
+    database.getMastodonActorsFromIds({ ids: actorIds }),
+    database.getStatusesByIds({ statusIds: replyIds }),
+    database.getStatusRepliesCounts({ statusIds })
+  ])
+  const accountByActorId = new Map(
+    accounts.map((account) => [account.url, account])
+  )
+  const replyStatusById = new Map(
+    replyStatuses.map((replyStatus) => [replyStatus.id, replyStatus])
+  )
+  const replyCountByStatusId = new Map(Object.entries(replyCounts))
+  const context = { accountByActorId, replyStatusById, replyCountByStatusId }
+  const mastodonStatuses = await Promise.all(
+    statuses.map((status) =>
+      getMastodonStatusFromContext(database, status, context, currentActorId)
+    )
+  )
+  return mastodonStatuses.filter(
+    (status): status is Mastodon.Status => status !== null
+  )
+}
+
+export const getMastodonStatus = async (
+  database: Database,
+  status: Status,
+  currentActorId?: string
+): Promise<Mastodon.Status | null> => {
+  const statuses = await getMastodonStatuses(database, [status], currentActorId)
+  return statuses[0] ?? null
 }

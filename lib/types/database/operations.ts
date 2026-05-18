@@ -525,6 +525,9 @@ export type GetStatusRepliesCountParams = {
   url?: string
   publicOnly?: boolean
 }
+export type GetStatusRepliesCountsParams = {
+  statusIds: string[]
+}
 
 export type CreatePollAnswerParams = {
   statusId: string
@@ -596,6 +599,9 @@ export interface StatusDatabase {
   decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
   getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
+  getStatusRepliesCounts(
+    params: GetStatusRepliesCountsParams
+  ): Promise<Record<string, number>>
   createPollAnswer(params: CreatePollAnswerParams): Promise<void>
   hasActorVoted(params: HasActorVotedParams): Promise<boolean>
   getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>
@@ -640,6 +646,7 @@ export type SearchRebuildParams = {
   clear?: boolean
   batchSize?: number
   dryRun?: boolean
+  syncMeilisearch?: boolean
 }
 
 export type SearchRebuildResult = {
@@ -650,15 +657,18 @@ export type SearchRebuildResult = {
 
 export type UpsertSearchActorParams = {
   actorId: string
+  syncMeilisearch?: boolean
 }
 
 export type UpsertSearchStatusParams = {
   statusId: string
+  syncMeilisearch?: boolean
 }
 
 export type UpsertSearchHashtagParams = {
   name: string
   url?: string | null
+  syncMeilisearch?: boolean
 }
 
 export type DeleteSearchDocumentParams = {

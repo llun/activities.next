@@ -6,7 +6,7 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { GET } from './route'
 
 const mockSearch = jest.fn()
-const mockGetMastodonStatus = jest.fn()
+const mockGetMastodonStatuses = jest.fn()
 const mockDatabase = {}
 let mockCurrentActor: { id: string } | null = { id: 'actor-1' }
 
@@ -39,7 +39,7 @@ jest.mock('@/lib/search', () => ({
 }))
 
 jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: (...args: unknown[]) => mockGetMastodonStatus(...args)
+  getMastodonStatuses: (...args: unknown[]) => mockGetMastodonStatuses(...args)
 }))
 
 describe('GET /api/v2/search', () => {
@@ -51,7 +51,7 @@ describe('GET /api/v2/search', () => {
       statuses: [{ id: 'status-1' }],
       hashtags: [{ name: 'trailrun', url: 'https://local.test/tags/trailrun' }]
     })
-    mockGetMastodonStatus.mockResolvedValue({ id: 'mastodon-status-1' })
+    mockGetMastodonStatuses.mockResolvedValue([{ id: 'mastodon-status-1' }])
   })
 
   it('returns empty search results for a blank query', async () => {
@@ -109,9 +109,9 @@ describe('GET /api/v2/search', () => {
       resolve: undefined,
       excludeUnreviewed: true
     })
-    expect(mockGetMastodonStatus).toHaveBeenCalledWith(
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
       mockDatabase,
-      { id: 'status-1' },
+      [{ id: 'status-1' }],
       'actor-1'
     )
   })

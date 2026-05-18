@@ -1,5 +1,6 @@
 #!/usr/bin/env -S node -r @swc-node/register
 import { loadEnvConfig } from '@next/env'
+import type { Knex } from 'knex'
 import { parseArgs as parseNodeArgs } from 'node:util'
 import { z } from 'zod'
 
@@ -145,8 +146,9 @@ const toMeilisearchDocument = (
 const reindexMeilisearch = async ({
   clear,
   batchSize,
-  dryRun
-}: Pick<CliArgs, 'clear' | 'batchSize' | 'dryRun'>) => {
+  dryRun,
+  knex
+}: Pick<CliArgs, 'clear' | 'batchSize' | 'dryRun'> & { knex: Knex }) => {
   const config = getConfig().search
   if (config.backend !== 'meilisearch') {
     throw new Error(
@@ -154,7 +156,6 @@ const reindexMeilisearch = async ({
     )
   }
 
-  const knex = getKnex()
   const types: SearchDocumentRow['entityType'][] = [
     'account',
     'status',
@@ -240,6 +241,7 @@ async function rebuildSearchIndex(args = process.argv.slice(2)) {
     console.error('Error: Database is not available')
     return 1
   }
+  const knex = getKnex()
 
   try {
     // The SQL search index is canonical and feeds Meilisearch, so every
@@ -248,14 +250,15 @@ async function rebuildSearchIndex(args = process.argv.slice(2)) {
     const result = await database.rebuildSearchIndex({
       clear: input.clear,
       batchSize: input.batchSize,
-      dryRun: input.dryRun
+      dryRun: input.dryRun,
+      syncMeilisearch: false
     })
     console.log(
       `[database] ${verb} ${result.accounts} accounts, ${result.statuses} statuses, ${result.hashtags} hashtags`
     )
 
     if (shouldRebuildMeilisearch(input.backend)) {
-      await reindexMeilisearch(input)
+      await reindexMeilisearch({ ...input, knex })
     }
 
     return 0

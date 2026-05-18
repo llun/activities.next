@@ -93,6 +93,8 @@ export const resolveStatusForSearch = async ({
       createdAt: resolvedRemoteStatus.createdAt
     })
   } catch (error) {
+    // Persist is best-effort: concurrent resolves can race on insert, so
+    // continue and read back the canonical row before indexing.
     logger.warn({
       message: 'Failed to persist resolved status for search',
       statusId: resolvedRemoteStatus.id,

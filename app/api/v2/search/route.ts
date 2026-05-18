@@ -6,7 +6,7 @@ import {
   OptionalOAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -124,13 +124,11 @@ export const GET = traceApiRoute(
         resolve,
         excludeUnreviewed: exclude_unreviewed
       })
-      const statuses = (
-        await Promise.all(
-          results.statuses.map((status) =>
-            getMastodonStatus(database, status, currentActor?.id)
-          )
-        )
-      ).filter((status) => status !== null)
+      const statuses = await getMastodonStatuses(
+        database,
+        results.statuses,
+        currentActor?.id
+      )
 
       return apiResponse({
         req,

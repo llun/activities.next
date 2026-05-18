@@ -55,7 +55,7 @@ export const GET = traceApiRoute(
       }
 
       if (resolve) {
-        await resolveAccountForSearch({ database, query })
+        await resolveAccountForSearch({ database, query: q })
       }
 
       const results = await database.searchAccounts({

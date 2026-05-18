@@ -23,6 +23,9 @@ import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaAr
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
+
+const MAX_STATUS_DELETE_BFS_DEPTH = 1000
 
 export const getSQLDatabase = (database: Knex): Database => {
   const accountDatabase = AccountSQLDatabaseMixin(database)
@@ -95,8 +98,20 @@ export const getSQLDatabase = (database: Knex): Database => {
     const statusIds = [statusId]
     const seen = new Set(statusIds)
     let pendingParentIds = [statusId]
+    let depth = 0
 
     while (pendingParentIds.length > 0) {
+      if (depth >= MAX_STATUS_DELETE_BFS_DEPTH) {
+        logger.warn({
+          message: 'Status delete reply traversal exceeded maximum depth',
+          statusId,
+          maxDepth: MAX_STATUS_DELETE_BFS_DEPTH,
+          collectedStatusCount: statusIds.length,
+          pendingParentCount: pendingParentIds.length
+        })
+        throw new Error('Status reply tree exceeds maximum delete depth')
+      }
+
       const replies = await query('statuses')
         .whereIn('reply', pendingParentIds)
         .select<{ id: string }[]>('id')
@@ -108,6 +123,7 @@ export const getSQLDatabase = (database: Knex): Database => {
         seen.add(id)
         statusIds.push(id)
       }
+      depth += 1
     }
 
     return statusIds

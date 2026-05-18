@@ -110,7 +110,7 @@ describe('GET /api/v1/accounts/search', () => {
     )
     expect(mockResolveAccountForSearch).toHaveBeenCalledWith({
       database: mockDatabase,
-      query: 'alice@example.com'
+      query: 'acct:alice@example.com'
     })
   })
 
