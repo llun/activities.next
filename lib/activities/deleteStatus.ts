@@ -6,6 +6,7 @@ import { BaseActivity } from './actionsBase'
 export interface DeleteStatus extends BaseActivity, ContextEntity {
   type: DeleteAction
   to: string[]
+  cc?: string[]
   object: {
     id: string
     type: 'Tombstone'

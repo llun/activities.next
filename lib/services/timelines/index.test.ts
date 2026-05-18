@@ -113,6 +113,52 @@ describe('#addStatusToTimeline', () => {
     expect(mentionTimeline.some((s) => s.id === status.id)).toBe(true)
   })
 
+  test('it routes direct statuses only to the direct timeline', async () => {
+    const id = randomBytes(16).toString('hex')
+    const status = await database.createNote({
+      id: `${ACTOR2_ID}/statuses/direct-${id}`,
+      url: `${ACTOR2_ID}/statuses/direct-${id}`,
+      actorId: ACTOR2_ID,
+      to: [ACTOR1_ID],
+      cc: [],
+      text: 'direct timeline message @test1@llun.test'
+    })
+    await database.createTag({
+      statusId: status.id,
+      name: '@test1',
+      value: ACTOR1_ID,
+      type: 'mention'
+    })
+    await addStatusToTimelines(database, status)
+
+    const directTimeline = await database.getTimeline({
+      timeline: Timeline.DIRECT,
+      actorId: ACTOR1_ID
+    })
+    const mainTimeline = await database.getTimeline({
+      timeline: Timeline.MAIN,
+      actorId: ACTOR1_ID
+    })
+    const noannounceTimeline = await database.getTimeline({
+      timeline: Timeline.NOANNOUNCE,
+      actorId: ACTOR1_ID
+    })
+    const recipientMentionTimeline = await database.getTimeline({
+      timeline: Timeline.MENTION,
+      actorId: ACTOR1_ID
+    })
+    const senderMentionTimeline = await database.getTimeline({
+      timeline: Timeline.MENTION,
+      actorId: ACTOR2_ID
+    })
+
+    expect(directTimeline.some((s) => s.id === status.id)).toBe(true)
+    expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
+    expect(noannounceTimeline.some((s) => s.id === status.id)).toBe(false)
+    expect(recipientMentionTimeline.some((s) => s.id === status.id)).toBe(false)
+    expect(senderMentionTimeline.some((s) => s.id === status.id)).toBe(false)
+  })
+
   test('it skips timelines when recipient blocks the status actor', async () => {
     await database.createBlock({
       actorId: ACTOR3_ID,

@@ -11,7 +11,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { getMastodonStatus } from './getMastodonStatus'
+import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
 
 // prettier-ignore
 jest.mock('@/lib/config', () => ({
@@ -33,6 +33,72 @@ describe('#getMastodonStatus', () => {
   afterAll(async () => {
     if (!database) return
     await database.destroy()
+  })
+
+  describe('#getMastodonStatuses', () => {
+    it('hydrates multiple statuses while reusing actor lookups', async () => {
+      const firstStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const secondStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-3`
+      })) as Status
+      const getMastodonActorsFromIds = jest.spyOn(
+        database,
+        'getMastodonActorsFromIds'
+      )
+
+      const mastodonStatuses = await getMastodonStatuses(database, [
+        firstStatus,
+        secondStatus
+      ])
+
+      expect(mastodonStatuses).toHaveLength(2)
+      expect(mastodonStatuses.map((status) => status.id)).toEqual([
+        urlToId(firstStatus.id),
+        urlToId(secondStatus.id)
+      ])
+      expect(getMastodonActorsFromIds).toHaveBeenCalledTimes(1)
+      expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
+        ids: [ACTOR1_ID]
+      })
+    })
+
+    it('keys hydrated account cache by actor id when account url is a profile url', async () => {
+      const status = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const account = await database.getMastodonActorFromId({ id: ACTOR1_ID })
+      if (!account) {
+        throw new Error('Expected seed actor account')
+      }
+      const getMastodonActorsFromIds = jest
+        .spyOn(database, 'getMastodonActorsFromIds')
+        .mockResolvedValueOnce([
+          {
+            ...account,
+            url: 'https://llun.test/@test1'
+          }
+        ])
+      const getMastodonActorFromId = jest.spyOn(
+        database,
+        'getMastodonActorFromId'
+      )
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(database, [status])
+
+        expect(mastodonStatuses).toHaveLength(1)
+        expect(mastodonStatuses[0].account.url).toBe('https://llun.test/@test1')
+        expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
+          ids: [ACTOR1_ID]
+        })
+        expect(getMastodonActorFromId).not.toHaveBeenCalled()
+      } finally {
+        getMastodonActorsFromIds.mockRestore()
+        getMastodonActorFromId.mockRestore()
+      }
+    })
   })
 
   it('returns mastodon status from status model', async () => {

@@ -1,5 +1,5 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
@@ -34,89 +34,97 @@ const isTimeline = (value: string): value is Timeline =>
 
 export const GET = traceApiRoute(
   'getTimeline',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const url = new URL(req.url)
-    const minStatusIdParam =
-      url.searchParams.get('since_id') || url.searchParams.get('min_id')
-    const maxStatusIdParam = url.searchParams.get('max_id')
-    const limit = url.searchParams.get('limit')
-    const format = url.searchParams.get('format')
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read, Scope.enum['read:statuses']],
+    async (req, context) => {
+      const url = new URL(req.url)
+      const minStatusIdParam =
+        url.searchParams.get('since_id') || url.searchParams.get('min_id')
+      const maxStatusIdParam = url.searchParams.get('max_id')
+      const limit = url.searchParams.get('limit')
+      const format = url.searchParams.get('format')
 
-    const { database, currentActor, params } = context
-    const { timeline } = await params
-    if (!timeline)
+      const { database, currentActor, params } = context
+      const { timeline } = await params
+      if (!timeline)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+
+      if (!isTimeline(timeline)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
+      if (UNSUPPORTED_TIMELINE.includes(timeline)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
+      // Keep /api/v1/timelines/direct for Mastodon client compatibility.
+      // The messages UI uses /api/v1/conversations for threaded direct messages.
+
+      const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
+      const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
+      const parsedLimit = limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
+      const pageLimit = normalizeTimelineLimit(parsedLimit)
+
+      const { statuses, nextMaxStatusId, prevMinStatusId } =
+        await getFilteredTimelinePage({
+          database,
+          timeline,
+          actorId: currentActor.id,
+          minStatusId,
+          maxStatusId,
+          limit: pageLimit
+        })
+      if (format === TimelineFormat.enum.activities_next) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            statuses: statuses.map((item) => cleanJson(item)),
+            nextMaxStatusId,
+            prevMinStatusId
+          }
+        })
+      }
+
+      const host = headerHost(req.headers)
+      const nextLink = nextMaxStatusId
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
+        : null
+      const prevLink = prevMinStatusId
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&min_id=${urlToId(prevMinStatusId)}>; rel="prev"`
+        : null
+      const links = [nextLink, prevLink].filter(Boolean).join(', ')
+      const mastodonStatuses = await Promise.all(
+        statuses.map((item) =>
+          getMastodonStatus(database, item, currentActor.id)
+        )
+      )
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-
-    if (!isTimeline(timeline)) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: mastodonStatuses.filter(Boolean),
+        additionalHeaders: [
+          ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+        ]
       })
     }
-
-    if (UNSUPPORTED_TIMELINE.includes(timeline)) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-    }
-
-    const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
-    const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
-    const parsedLimit = limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
-    const pageLimit = normalizeTimelineLimit(parsedLimit)
-
-    const { statuses, nextMaxStatusId, prevMinStatusId } =
-      await getFilteredTimelinePage({
-        database,
-        timeline,
-        actorId: currentActor.id,
-        minStatusId,
-        maxStatusId,
-        limit: pageLimit
-      })
-    if (format === TimelineFormat.enum.activities_next) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: {
-          statuses: statuses.map((item) => cleanJson(item)),
-          nextMaxStatusId,
-          prevMinStatusId
-        }
-      })
-    }
-
-    const host = headerHost(req.headers)
-    const nextLink = nextMaxStatusId
-      ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
-      : null
-    const prevLink = prevMinStatusId
-      ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&min_id=${urlToId(prevMinStatusId)}>; rel="prev"`
-      : null
-    const links = [nextLink, prevLink].filter(Boolean).join(', ')
-    const mastodonStatuses = await Promise.all(
-      statuses.map((item) => getMastodonStatus(database, item, currentActor.id))
-    )
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatuses.filter(Boolean),
-      additionalHeaders: [
-        ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
-      ]
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const { timeline } = await context.params

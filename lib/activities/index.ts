@@ -262,11 +262,15 @@ interface DeleteStatusParams {
   currentActor: Actor
   inbox: string
   statusId: string
+  to?: string[]
+  cc?: string[]
 }
 export const deleteStatus = async ({
   currentActor,
   inbox,
-  statusId
+  statusId,
+  to,
+  cc
 }: DeleteStatusParams) =>
   getTracer().startActiveSpan(
     'activities.deleteStatus',
@@ -282,7 +286,8 @@ export const deleteStatus = async ({
         id: `${statusId}#delete`,
         type: DeleteAction,
         actor: currentActor.id,
-        to: [ACTIVITY_STREAM_PUBLIC],
+        to: to ?? [ACTIVITY_STREAM_PUBLIC],
+        ...(cc ? { cc } : {}),
         object: {
           id: statusId,
           type: 'Tombstone'

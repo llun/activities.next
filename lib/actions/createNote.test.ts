@@ -11,7 +11,9 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Note } from '@/lib/types/activitypub'
+import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -448,6 +450,144 @@ How are you?
         expect(status.to).not.toContain(`${actor1.id}/followers`)
       })
 
+      it('only notifies explicit direct recipients when direct replying to a non-direct parent', async () => {
+        await clearSettledNotificationAlerts()
+        const parentStatus = (await createNoteFromUserInput({
+          text: 'Public parent from actor2',
+          currentActor: actor2,
+          database
+        })) as StatusNote
+
+        const replyStatus = (await createNoteFromUserInput({
+          text: '@test3@llun.test private side note',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          visibility: 'direct',
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        expect(replyStatus.to).toEqual([ACTOR3_ID])
+        expect(replyStatus.cc).toEqual([])
+
+        const parentAuthorNotifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          parentAuthorNotifications.filter(
+            (notification) => notification.statusId === replyStatus.id
+          )
+        ).toHaveLength(0)
+
+        const directRecipientNotifications = await database.getNotifications({
+          actorId: ACTOR3_ID,
+          limit: 100
+        })
+        expect(
+          directRecipientNotifications.filter(
+            (notification) =>
+              notification.statusId === replyStatus.id &&
+              notification.type === NotificationType.enum.mention
+          )
+        ).toHaveLength(1)
+        expect(mockSendNotificationAlerts).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: ACTOR3_ID,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+      })
+
+      it('still notifies the parent author when replying in an existing direct thread', async () => {
+        await clearSettledNotificationAlerts()
+        const parentStatus = (await createNoteFromUserInput({
+          text: '@test1@llun.test Direct parent from actor2',
+          currentActor: actor2,
+          visibility: 'direct',
+          database
+        })) as StatusNote
+
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Reply to existing direct thread',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        expect(replyStatus.to).toContain(actor2.id)
+        expect(replyStatus.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+
+        const parentAuthorNotifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          parentAuthorNotifications.filter(
+            (notification) =>
+              notification.statusId === replyStatus.id &&
+              notification.type === NotificationType.enum.reply
+          )
+        ).toHaveLength(1)
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+      })
+
+      it('notifies inherited group direct participants when replying without explicit mentions', async () => {
+        await clearSettledNotificationAlerts()
+        const parentStatus = await database.createNote({
+          id: `${actor2.id}/statuses/direct-group-notification-parent`,
+          url: `${actor2.id}/statuses/direct-group-notification-parent`,
+          actorId: actor2.id,
+          text: 'Direct group parent from actor2',
+          to: [actor1.id],
+          cc: [ACTOR3_ID]
+        })
+
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Reply to the group thread',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        const inheritedRecipientNotifications = await database.getNotifications(
+          {
+            actorId: ACTOR3_ID,
+            limit: 100
+          }
+        )
+        expect(
+          inheritedRecipientNotifications.filter(
+            (notification) =>
+              notification.statusId === replyStatus.id &&
+              notification.type === NotificationType.enum.mention
+          )
+        ).toHaveLength(1)
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: ACTOR3_ID,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+      })
+
       it('creates private post with mentions in cc', async () => {
         const status = (await createNoteFromUserInput({
           text: '@test2@llun.test Private hello!',
@@ -533,6 +673,82 @@ How are you?
         // The original author (actor2) should be in the 'to' recipients
         expect(replyStatus.to).toContain(actor2.id)
         expect(replyStatus.to).toContain(`${actor1.id}/followers`)
+      })
+
+      it('stores inherited direct reply recipients as mention tags', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/direct-parent-note-mention-tags`,
+          url: `${actor1.id}/statuses/direct-parent-note-mention-tags`,
+          actorId: 'https://remote.test/actors/direct-sender',
+          text: 'Direct parent with multiple recipients',
+          to: [actor1.id, ACTOR2_ID],
+          cc: [ACTOR3_ID]
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: 'Reply without manually rementioning everyone',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+
+        const mentionTags = await database.getTags({ statusId: status.id })
+
+        expect(mentionTags).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'mention',
+              value: ACTOR2_ID
+            }),
+            expect.objectContaining({
+              type: 'mention',
+              value: ACTOR3_ID
+            }),
+            expect.objectContaining({
+              type: 'mention',
+              value: parentStatus.actorId
+            })
+          ])
+        )
+        expect(mentionTags).not.toContainEqual(
+          expect.objectContaining({
+            type: 'mention',
+            value: actor1.id
+          })
+        )
+      })
+
+      it('does not store non-direct parent audiences as mention tags', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/private-parent-note-audience-tags`,
+          url: `${actor1.id}/statuses/private-parent-note-audience-tags`,
+          actorId: actor2.id,
+          text: 'Private parent with another addressed actor',
+          to: [`${actor2.id}/followers`],
+          cc: [ACTOR3_ID]
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: 'Reply to private thread',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+
+        const mentionTags = await database.getTags({ statusId: status.id })
+
+        expect(mentionTags).toContainEqual(
+          expect.objectContaining({
+            type: 'mention',
+            value: actor2.id
+          })
+        )
+        expect(mentionTags).not.toContainEqual(
+          expect.objectContaining({
+            type: 'mention',
+            value: ACTOR3_ID
+          })
+        )
       })
     })
   })

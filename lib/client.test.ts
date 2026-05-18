@@ -1,10 +1,14 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import type { Status } from '@/lib/types/domain/status'
+import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
   bookmarkStatus,
   clearFitnessRouteHeatmaps,
+  createDirectMessage,
+  createPoll,
   getActorStatuses,
   getBookmarks,
   getFitnessRouteHeatmap,
@@ -219,6 +223,73 @@ describe('client updateNote', () => {
         message: 'Updated status'
       })
     ).rejects.toThrow('Fail to update the note')
+  })
+})
+
+describe('client createPoll', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+  })
+
+  it('throws when poll creation is rejected by the server', async () => {
+    fetchMock.mockResponse(JSON.stringify({ status: 'Unprocessable entity' }), {
+      status: 422
+    })
+
+    await expect(
+      createPoll({
+        message: 'Private poll without recipients',
+        choices: ['A', 'B'],
+        durationInSeconds: 300,
+        visibility: 'direct'
+      })
+    ).rejects.toThrow('Fail to create a new poll')
+  })
+})
+
+describe('client createDirectMessage', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(JSON.stringify({ id: 'status-1' }), { status: 200 })
+  })
+
+  it('mentions extra reply recipients without duplicating existing participants', async () => {
+    const replyStatus = {
+      id: 'https://local.example/users/me/statuses/root',
+      actorId: 'https://local.example/users/me',
+      to: ['https://local.example/users/ada'],
+      cc: ['https://local.example/users/me']
+    } as Status
+    const existingRecipientActorId = 'https://local.example/users/ada'
+    const existingRecipient = {
+      id: urlToId(existingRecipientActorId),
+      url: 'https://local.example/@ada',
+      username: 'ada',
+      acct: 'ada@local.example'
+    } as MastodonAccount
+    const extraRecipient = {
+      id: 'https://remote.example/users/bea',
+      url: 'https://remote.example/users/bea',
+      username: 'bea',
+      acct: 'bea@remote.example'
+    } as MastodonAccount
+
+    await createDirectMessage({
+      message: 'hello',
+      recipients: [existingRecipient, extraRecipient],
+      replyStatus
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses',
+      expect.objectContaining({
+        body: JSON.stringify({
+          status: '@bea@remote.example hello',
+          visibility: 'direct',
+          in_reply_to_id: urlToId(replyStatus.id)
+        })
+      })
+    )
   })
 })
 
