@@ -322,38 +322,27 @@ export const DirectConversationSQLDatabaseMixin = (
       }
     }
 
-    await Promise.all(
-      rowsMissingLastStatus.map(async (row) => {
-        const fallbackRow = fallbackStatusRowsByConversationId.get(
-          row.conversationId
-        )
-        if (!fallbackRow || fallbackRow.statusId === row.lastStatusId) return
+    for (const row of rowsMissingLastStatus) {
+      const fallbackRow = fallbackStatusRowsByConversationId.get(
+        row.conversationId
+      )
+      if (!fallbackRow || fallbackRow.statusId === row.lastStatusId) continue
 
-        const fallbackStatus = statusById.get(fallbackRow.statusId)
-        if (!fallbackStatus) return
+      const fallbackStatus = statusById.get(fallbackRow.statusId)
+      if (!fallbackStatus) continue
 
-        const readState = getMembershipReadStateForStatus({
-          actorId: currentActorId,
-          status: fallbackStatus,
-          statusCreatedAt: fallbackRow.createdAt,
-          readAt: row.readAt
-        })
-
-        row.lastStatusId = fallbackRow.statusId
-        row.lastStatusCreatedAt = fallbackRow.createdAt
-        row.unread = readState.unread
-        row.readAt = readState.readAt
-        await database('direct_conversation_memberships')
-          .where('id', row.id)
-          .update({
-            lastStatusId: fallbackRow.statusId,
-            lastStatusCreatedAt: fallbackRow.createdAt,
-            unread: readState.unread,
-            readAt: readState.readAt,
-            updatedAt: new Date()
-          })
+      const readState = getMembershipReadStateForStatus({
+        actorId: currentActorId,
+        status: fallbackStatus,
+        statusCreatedAt: fallbackRow.createdAt,
+        readAt: row.readAt
       })
-    )
+
+      row.lastStatusId = fallbackRow.statusId
+      row.lastStatusCreatedAt = fallbackRow.createdAt
+      row.unread = readState.unread
+      row.readAt = readState.readAt
+    }
 
     return rows
       .map((row) => {

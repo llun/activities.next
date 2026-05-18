@@ -4,8 +4,11 @@ import { redirect } from 'next/navigation'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  getMastodonConversationAccountMap,
+  getMastodonConversationAccounts
+} from '@/lib/services/mastodon/getMastodonConversation'
 import { getActorProfile } from '@/lib/types/domain/actor'
-import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -34,21 +37,19 @@ const Page = async () => {
     actorId: actor.id,
     limit: 20
   })
-  const conversationsWithAccounts = await Promise.all(
-    conversations.map(async (conversation) => {
-      const accounts = (
-        await Promise.all(
-          conversation.participantActorIds
-            .filter((actorId) => actorId !== actor.id)
-            .map((actorId) => database.getMastodonActorFromId({ id: actorId }))
-        )
-      ).filter((account): account is MastodonAccount => account !== null)
-      return {
-        ...cleanJson(conversation),
-        accounts
-      }
-    })
+  const accountsByActorId = await getMastodonConversationAccountMap(
+    database,
+    conversations,
+    actor.id
   )
+  const conversationsWithAccounts = conversations.map((conversation) => ({
+    ...cleanJson(conversation),
+    accounts: getMastodonConversationAccounts(
+      conversation,
+      actor.id,
+      accountsByActorId
+    )
+  }))
   const initialConversation = conversations[0] ?? null
   const initialStatuses = initialConversation
     ? await database.getDirectConversationStatuses({

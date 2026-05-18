@@ -168,12 +168,10 @@ describe('MessagesPage', () => {
     const firstThread = createDeferred<{
       statuses: Status[]
       nextMaxStatusId: string | null
-      prevMinStatusId: string | null
     }>()
     const secondThread = createDeferred<{
       statuses: Status[]
       nextMaxStatusId: string | null
-      prevMinStatusId: string | null
     }>()
     ;(getConversationStatuses as jest.Mock)
       .mockReturnValueOnce(firstThread.promise)
@@ -189,8 +187,7 @@ describe('MessagesPage', () => {
     await act(async () => {
       secondThread.resolve({
         statuses: [status('second-status', 'Selected conversation status')],
-        nextMaxStatusId: null,
-        prevMinStatusId: null
+        nextMaxStatusId: null
       })
     })
 
@@ -201,8 +198,7 @@ describe('MessagesPage', () => {
     await act(async () => {
       firstThread.resolve({
         statuses: [status('first-status', 'Stale conversation status')],
-        nextMaxStatusId: null,
-        prevMinStatusId: null
+        nextMaxStatusId: null
       })
     })
 
@@ -220,17 +216,14 @@ describe('MessagesPage', () => {
     const initialThread = createDeferred<{
       statuses: Status[]
       nextMaxStatusId: string | null
-      prevMinStatusId: string | null
     }>()
     const olderThread = createDeferred<{
       statuses: Status[]
       nextMaxStatusId: string | null
-      prevMinStatusId: string | null
     }>()
     const secondThread = createDeferred<{
       statuses: Status[]
       nextMaxStatusId: string | null
-      prevMinStatusId: string | null
     }>()
     ;(getConversationStatuses as jest.Mock)
       .mockReturnValueOnce(initialThread.promise)
@@ -245,8 +238,7 @@ describe('MessagesPage', () => {
     await act(async () => {
       initialThread.resolve({
         statuses: [status('first-status', 'First conversation status')],
-        nextMaxStatusId: 'older-cursor',
-        prevMinStatusId: null
+        nextMaxStatusId: 'older-cursor'
       })
     })
 
@@ -256,8 +248,7 @@ describe('MessagesPage', () => {
     await act(async () => {
       secondThread.resolve({
         statuses: [status('second-status', 'Selected conversation status')],
-        nextMaxStatusId: null,
-        prevMinStatusId: null
+        nextMaxStatusId: null
       })
     })
 
@@ -268,8 +259,7 @@ describe('MessagesPage', () => {
     await act(async () => {
       olderThread.resolve({
         statuses: [status('first-older-status', 'Stale older status')],
-        nextMaxStatusId: null,
-        prevMinStatusId: null
+        nextMaxStatusId: null
       })
     })
 
@@ -284,8 +274,7 @@ describe('MessagesPage', () => {
   it('does not mark an already-read selected conversation as read again', async () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],
-      nextMaxStatusId: null,
-      prevMinStatusId: null
+      nextMaxStatusId: null
     })
 
     renderMessagesPage([
@@ -305,8 +294,7 @@ describe('MessagesPage', () => {
     const markRead = createDeferred<boolean>()
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],
-      nextMaxStatusId: null,
-      prevMinStatusId: null
+      nextMaxStatusId: null
     })
     ;(markConversationRead as jest.Mock).mockReturnValue(markRead.promise)
 

@@ -376,7 +376,7 @@ describe('ConversationDatabase', () => {
       const conversation = conversations.find(
         (item) => item.conversationId === membership.conversationId
       )
-      const updatedMembership = await knexDatabase(
+      const persistedMembership = await knexDatabase(
         'direct_conversation_memberships'
       )
         .where('id', membership.id)
@@ -390,9 +390,9 @@ describe('ConversationDatabase', () => {
       expect(conversation?.lastStatus.id).toEqual(reply.id)
       expect(conversation?.unread).toBe(false)
       expect(conversation?.readAt).toEqual(9000)
-      expect(updatedMembership?.lastStatusId).toEqual(reply.id)
-      expect(Boolean(updatedMembership?.unread)).toBe(false)
-      expect(new Date(updatedMembership?.readAt ?? 0).getTime()).toEqual(9000)
+      expect(persistedMembership?.lastStatusId).toEqual(`${reply.id}/missing`)
+      expect(Boolean(persistedMembership?.unread)).toBe(true)
+      expect(new Date(persistedMembership?.readAt ?? 0).getTime()).toEqual(9000)
     })
 
     test('returns empty results for malformed membership cursors', async () => {

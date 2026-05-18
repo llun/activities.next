@@ -15,7 +15,7 @@ import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
   message: string
@@ -1884,7 +1884,6 @@ export const getConversations = async ({
 export interface GetConversationStatusesResult {
   statuses: Status[]
   nextMaxStatusId: string | null
-  prevMinStatusId: string | null
 }
 
 export const getConversationStatuses = async ({
@@ -1911,14 +1910,13 @@ export const getConversationStatuses = async ({
     headers: { Accept: 'application/json' }
   })
   if (!response.ok) {
-    return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
+    return { statuses: [], nextMaxStatusId: null }
   }
 
   const data = (await response.json()) as Partial<GetConversationStatusesResult>
   return {
     statuses: data.statuses ?? [],
-    nextMaxStatusId: data.nextMaxStatusId ?? null,
-    prevMinStatusId: data.prevMinStatusId ?? null
+    nextMaxStatusId: data.nextMaxStatusId ?? null
   }
 }
 
@@ -1971,6 +1969,17 @@ export const searchAccounts = async ({
 const accountMention = (account: MastodonAccount) =>
   `@${account.acct || account.username}`
 
+const getReplyParticipantIds = (replyStatus: Status) =>
+  new Set([replyStatus.actorId, ...replyStatus.to, ...replyStatus.cc])
+
+const isReplyParticipant = (
+  account: MastodonAccount,
+  replyParticipantIds: Set<string>
+) =>
+  replyParticipantIds.has(account.id) ||
+  replyParticipantIds.has(idToUrl(account.id)) ||
+  replyParticipantIds.has(account.url)
+
 export const createDirectMessage = async ({
   message,
   recipients,
@@ -1988,9 +1997,15 @@ export const createDirectMessage = async ({
     throw new Error('At least one recipient is required')
   }
 
-  const mentionPrefix = replyStatus
-    ? ''
-    : recipients.map(accountMention).join(' ')
+  const replyParticipantIds = replyStatus
+    ? getReplyParticipantIds(replyStatus)
+    : null
+  const recipientsToMention = replyParticipantIds
+    ? recipients.filter(
+        (recipient) => !isReplyParticipant(recipient, replyParticipantIds)
+      )
+    : recipients
+  const mentionPrefix = recipientsToMention.map(accountMention).join(' ')
   const status = [mentionPrefix, normalizedMessage].filter(Boolean).join(' ')
   const response = await fetch('/api/v1/statuses', {
     method: 'POST',
