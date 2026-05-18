@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
@@ -1035,6 +1036,138 @@ describe('SearchDatabase', () => {
         entityId: actorId,
         entityIdHash: expect.stringMatching(/^[a-f0-9]{64}$/)
       })
+    })
+
+    it('falls back to actor search when the account index is empty', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `fallback-account-${suffix}`
+      const actorId = `https://fallback.test/users/${username}`
+      await database.createMastodonActor({
+        actorId,
+        username,
+        domain: 'fallback.test',
+        name: `Fallback Account ${suffix}`,
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `${actorId}/inbox`,
+        publicKey: 'public-key',
+        createdAt: Date.now()
+      })
+      await database.clearSearchIndex()
+
+      await expect(
+        database.searchAccounts({
+          query: 'Fallback Account',
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toMatchObject([{ url: actorId }])
+    })
+
+    it('preserves hashtag display casing after a rebuild', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const actorId = `https://hashtag-rebuild.test/users/rebuild-${suffix}`
+      const statusId = `${actorId}/statuses/hashtag-rebuild`
+      const hashtag = `#TrailRunCase${suffix}`
+      await database.createMastodonActor({
+        actorId,
+        username: `hashtag-rebuild-${suffix}`,
+        domain: 'hashtag-rebuild.test',
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `${actorId}/inbox`,
+        publicKey: 'public-key',
+        createdAt: Date.now()
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        text: 'Hashtag rebuild casing',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: hashtag,
+        value: `https://llun.test/tags/${hashtag.slice(1)}`
+      })
+      await database.rebuildSearchIndex({ clear: true, batchSize: 1 })
+
+      await expect(
+        database.searchHashtags({
+          query: hashtag,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toContainEqual({
+        id: hashtag.slice(1).toLowerCase(),
+        name: hashtag.slice(1),
+        url: `https://llun.test/tags/${hashtag.slice(1)}`,
+        history: []
+      })
+    })
+
+    it('applies status cursors when the cursor timestamp is null', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const searchText = `NullCursor${suffix}`
+      const actorId = `https://cursor.test/users/cursor-${suffix}`
+      const firstStatusId = `${actorId}/statuses/null-cursor-a`
+      const secondStatusId = `${actorId}/statuses/null-cursor-b`
+      await database.createMastodonActor({
+        actorId,
+        username: `cursor-${suffix}`,
+        domain: 'cursor.test',
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `${actorId}/inbox`,
+        publicKey: 'public-key',
+        createdAt: Date.now()
+      })
+      await database.createNote({
+        id: firstStatusId,
+        url: firstStatusId,
+        actorId,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: secondStatusId,
+        url: secondStatusId,
+        actorId,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await rawDatabase('search_documents')
+        .where('entityType', 'status')
+        .whereIn('entityId', [firstStatusId, secondStatusId])
+        .update({ entityCreatedAt: null })
+      const orderedStatusIds = [firstStatusId, secondStatusId].sort((a, b) =>
+        createHash('sha256')
+          .update(b, 'utf8')
+          .digest('hex')
+          .localeCompare(createHash('sha256').update(a, 'utf8').digest('hex'))
+      )
+
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0,
+          maxStatusId: orderedStatusIds[0]
+        })
+      ).resolves.toMatchObject([{ id: orderedStatusIds[1] }])
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0,
+          minStatusId: orderedStatusIds[1]
+        })
+      ).resolves.toMatchObject([{ id: orderedStatusIds[0] }])
     })
   })
 })

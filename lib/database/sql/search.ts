@@ -33,6 +33,7 @@ import {
   StatusDatabase,
   UpsertSearchActorParams,
   UpsertSearchHashtagParams,
+  UpsertSearchHashtagsParams,
   UpsertSearchStatusParams
 } from '@/lib/types/database/operations'
 import { SQLActor } from '@/lib/types/database/rows'
@@ -50,6 +51,11 @@ const DEFAULT_BATCH_SIZE = 500
 const DEFAULT_REBUILD_CONCURRENCY = 8
 const MAX_MEILISEARCH_SYNC_QUEUE_SIZE = 1000
 const MAX_QUERY_TERMS = 8
+const ACCOUNT_FALLBACK_COLUMNS = [
+  'actors.username',
+  'actors.name',
+  'actors.domain'
+]
 const SQL_WHERE_IN_BATCH_SIZE = 400
 const SEARCHABLE_STATUS_TYPES: StatusType[] = [
   StatusType.enum.Note,
@@ -823,10 +829,7 @@ export const SearchSQLDatabaseMixin = (
   async function upsertHashtagSearchDocuments({
     names,
     syncMeilisearch = true
-  }: {
-    names: string[]
-    syncMeilisearch?: boolean
-  }): Promise<boolean[]> {
+  }: UpsertSearchHashtagsParams): Promise<boolean[]> {
     const hashtagIds = [...new Set(names.map(getHashtagId).filter(Boolean))]
     if (hashtagIds.length === 0) return []
 
@@ -964,25 +967,36 @@ export const SearchSQLDatabaseMixin = (
             sameScore
               .where('term_matches.searchScore', '=', cursor.searchScore)
               .where((sameScoreTie) => {
-                sameScoreTie
-                  .where(
-                    'search_documents.entityCreatedAt',
-                    cursorOperator,
-                    entityCreatedAt
-                  )
-                  .orWhere((sameCreatedAt) => {
-                    sameCreatedAt
-                      .where(
-                        'search_documents.entityCreatedAt',
-                        '=',
-                        entityCreatedAt
-                      )
-                      .where(
-                        'search_documents.entityIdHash',
-                        cursorOperator,
-                        cursor.entityIdHash
-                      )
-                  })
+                sameScoreTie.where((sameCreatedAt) => {
+                  if (entityCreatedAt === null) {
+                    sameCreatedAt.where(
+                      'search_documents.entityIdHash',
+                      cursorOperator,
+                      cursor.entityIdHash
+                    )
+                    return
+                  }
+
+                  sameCreatedAt
+                    .where(
+                      'search_documents.entityCreatedAt',
+                      cursorOperator,
+                      entityCreatedAt
+                    )
+                    .orWhere((sameNonNullCreatedAt) => {
+                      sameNonNullCreatedAt
+                        .where(
+                          'search_documents.entityCreatedAt',
+                          '=',
+                          entityCreatedAt
+                        )
+                        .where(
+                          'search_documents.entityIdHash',
+                          cursorOperator,
+                          cursor.entityIdHash
+                        )
+                    })
+                })
               })
           })
       })
@@ -1025,14 +1039,14 @@ export const SearchSQLDatabaseMixin = (
 
     if (entityType === 'status' && minStatusId) {
       const cursor = await getStatusSearchCursor(minStatusId)
-      if (cursor?.entityCreatedAt) {
+      if (cursor) {
         applyStatusSearchCursor('before', cursor)
       }
     }
 
     if (entityType === 'status' && maxStatusId) {
       const cursor = await getStatusSearchCursor(maxStatusId)
-      if (cursor?.entityCreatedAt) {
+      if (cursor) {
         applyStatusSearchCursor('after', cursor)
       }
     }
@@ -1074,6 +1088,59 @@ export const SearchSQLDatabaseMixin = (
       .select<{ targetActorId: string }[]>('targetActorId')
     const followedActorIds = new Set(rows.map((row) => row.targetActorId))
     return actorIds.filter((actorId) => followedActorIds.has(actorId))
+  }
+
+  async function getFallbackAccountActorIds({
+    query,
+    limit,
+    offset,
+    currentActorId,
+    following = false,
+    excludedActorIds = []
+  }: {
+    query: string
+    limit: number
+    offset: number
+    currentActorId?: string
+    following?: boolean
+    excludedActorIds?: string[]
+  }): Promise<string[]> {
+    if (limit <= 0) return []
+    if (following && !currentActorId) return []
+
+    const queryTerms = await getSearchQueryTerms(query)
+    if (queryTerms.length === 0) return []
+
+    let fallbackQuery = database<SQLActor>('actors')
+      .whereNull('actors.deletionStatus')
+      .modify((builder) => {
+        if (excludedActorIds.length > 0) {
+          builder.whereNotIn('actors.id', excludedActorIds)
+        }
+      })
+
+    if (following) {
+      fallbackQuery = fallbackQuery
+        .innerJoin('follows', 'follows.targetActorId', 'actors.id')
+        .where('follows.actorId', currentActorId)
+        .where('follows.status', FollowStatus.enum.Accepted)
+    }
+
+    for (const term of queryTerms) {
+      fallbackQuery = fallbackQuery.where((termBuilder) => {
+        for (const column of ACCOUNT_FALLBACK_COLUMNS) {
+          termBuilder.orWhereRaw('LOWER(??) LIKE ?', [column, `%${term}%`])
+        }
+      })
+    }
+
+    const rows = await fallbackQuery
+      .select<{ id: string }[]>('actors.id')
+      .orderBy('actors.username', 'asc')
+      .orderBy('actors.domain', 'asc')
+      .limit(limit)
+      .offset(offset)
+    return rows.map((row) => row.id)
   }
 
   const hydrateAccounts = (actorIds: string[]) =>
@@ -1124,8 +1191,30 @@ export const SearchSQLDatabaseMixin = (
               : []
           })
         : []
+    const fallbackLimit = indexedActorIds.length === 0 ? indexedLimit : 0
+    const fallbackActorIds =
+      fallbackLimit > 0
+        ? await getFallbackAccountActorIds({
+            query,
+            limit: fallbackLimit,
+            offset: indexedActorIds.length === 0 ? indexedOffset : 0,
+            currentActorId,
+            following,
+            excludedActorIds: [
+              ...new Set([
+                ...exactActorIdsForPage,
+                ...indexedActorIds,
+                ...(exactActorIdForResult ? [exactActorIdForResult] : [])
+              ])
+            ]
+          })
+        : []
     const combinedActorIds = [
-      ...new Set([...exactActorIdsForPage, ...indexedActorIds])
+      ...new Set([
+        ...exactActorIdsForPage,
+        ...indexedActorIds,
+        ...fallbackActorIds
+      ])
     ]
 
     return hydrateAccounts(combinedActorIds)

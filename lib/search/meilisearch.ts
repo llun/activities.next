@@ -35,7 +35,9 @@ type DeleteMeilisearchDocumentParams = Pick<
 }
 
 const EXISTING_INDEX_STATUS = 409
-const TASK_POLL_INTERVAL_MS = 100
+const TASK_POLL_INITIAL_INTERVAL_MS = 100
+const TASK_POLL_MAX_INTERVAL_MS = 1000
+const TASK_POLL_JITTER_RATIO = 0.25
 // Index configuration is expected to stay valid for the process lifetime.
 // Restart the process if indexes are deleted externally while writes are active.
 const configuredIndexPromises = new Map<string, Promise<void>>()
@@ -94,6 +96,17 @@ const fetchWithTimeout = async (
 const sleep = (durationMs: number) =>
   new Promise((resolve) => setTimeout(resolve, durationMs))
 
+const getTaskPollDelayMs = (attempt: number, remainingMs: number) => {
+  const baseDelayMs = Math.min(
+    TASK_POLL_MAX_INTERVAL_MS,
+    TASK_POLL_INITIAL_INTERVAL_MS * 2 ** attempt
+  )
+  const jitterMs = Math.floor(
+    baseDelayMs * TASK_POLL_JITTER_RATIO * Math.random()
+  )
+  return Math.min(baseDelayMs + jitterMs, Math.max(0, remainingMs))
+}
+
 const getMeilisearchTaskUid = async (
   response: Response,
   operationLabel: string
@@ -125,6 +138,7 @@ const waitForMeilisearchTask = async ({
   operationLabel: string
 }) => {
   const deadline = Date.now() + config.timeoutMs
+  let attempt = 0
 
   for (;;) {
     const remainingMs = deadline - Date.now()
@@ -163,9 +177,8 @@ const waitForMeilisearchTask = async ({
       )
     }
 
-    await sleep(
-      Math.min(TASK_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now()))
-    )
+    await sleep(getTaskPollDelayMs(attempt, deadline - Date.now()))
+    attempt += 1
   }
 }
 

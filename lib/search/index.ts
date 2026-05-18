@@ -186,7 +186,7 @@ export const search = async (params: SearchParams): Promise<SearchResult> => {
     })
   }
 
-  const config = getConfig().search ?? { backend: 'database' as const }
+  const config = getConfig().search
   if (config.backend !== 'meilisearch' || !canUseMeilisearch(params)) {
     return addResolvedStatus(
       await searchDatabase(params),
