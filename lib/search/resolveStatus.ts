@@ -55,7 +55,8 @@ export const resolveStatusForSearch = async ({
     return existingStatus
   }
 
-  if (!(await canFederateWithDomain(database, statusUrl))) return null
+  const statusDomain = new URL(statusUrl).hostname
+  if (!(await canFederateWithDomain(database, statusDomain))) return null
 
   const signingActor = await getFederationSigningActor(database)
   const remoteStatus = await getRemoteStatus({

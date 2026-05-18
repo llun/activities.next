@@ -1,4 +1,4 @@
-import { parseArgs } from './rebuildSearchIndex'
+import { hasMeilisearchSearchText, parseArgs } from './rebuildSearchIndex'
 
 describe('rebuildSearchIndex parseArgs', () => {
   it('parses explicit false boolean flags', () => {
@@ -41,5 +41,14 @@ describe('rebuildSearchIndex parseArgs', () => {
     expect(() => parseArgs(['--clear=maybe'])).toThrow(
       'Invalid value for --clear'
     )
+  })
+})
+
+describe('hasMeilisearchSearchText', () => {
+  it('rejects null and empty search text rows', () => {
+    expect(hasMeilisearchSearchText({ searchText: null })).toBe(false)
+    expect(hasMeilisearchSearchText({ searchText: '' })).toBe(false)
+    expect(hasMeilisearchSearchText({ searchText: '   ' })).toBe(false)
+    expect(hasMeilisearchSearchText({ searchText: 'searchable' })).toBe(true)
   })
 })

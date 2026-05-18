@@ -49,6 +49,10 @@ type SearchDocumentRow = {
   entityCreatedAt: Date | string | number | null
 }
 
+export const hasMeilisearchSearchText = (
+  row: Pick<SearchDocumentRow, 'searchText'>
+) => typeof row.searchText === 'string' && row.searchText.trim().length > 0
+
 const parseBooleanFlag = (key: string, value?: string) => {
   if (value === undefined) return true
   if (value === 'true') return true
@@ -167,6 +171,8 @@ const reindexMeilisearch = async ({
     const countRow = await knex('search_documents')
       .where('entityType', entityType)
       .where('searchable', true)
+      .whereNotNull('searchText')
+      .whereNot('searchText', '')
       .count<{ count: string | number }>('* as count')
       .first()
     const total = parseInt(String(countRow?.count ?? '0'), 10)
@@ -189,6 +195,8 @@ const reindexMeilisearch = async ({
       const query = knex<SearchDocumentRow>('search_documents')
         .where('entityType', entityType)
         .where('searchable', true)
+        .whereNotNull('searchText')
+        .whereNot('searchText', '')
         .orderBy('id', 'asc')
         .limit(batchSize)
 
@@ -200,13 +208,16 @@ const reindexMeilisearch = async ({
 
       if (rows.length === 0) break
 
+      const documents = rows
+        .filter(hasMeilisearchSearchText)
+        .map(toMeilisearchDocument)
       await writeMeilisearchDocuments({
         config,
         type: meilisearchType,
-        documents: rows.map(toMeilisearchDocument)
+        documents
       })
       lastId = rows[rows.length - 1].id
-      indexed += rows.length
+      indexed += documents.length
       console.log(
         `[meilisearch] ${meilisearchType}: indexed ${Math.min(
           indexed,
