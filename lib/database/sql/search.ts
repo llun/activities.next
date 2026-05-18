@@ -50,6 +50,7 @@ const DEFAULT_BATCH_SIZE = 500
 const DEFAULT_REBUILD_CONCURRENCY = 8
 const MAX_MEILISEARCH_SYNC_QUEUE_SIZE = 1000
 const MAX_QUERY_TERMS = 8
+const SQL_WHERE_IN_BATCH_SIZE = 400
 const SEARCHABLE_STATUS_TYPES: StatusType[] = [
   StatusType.enum.Note,
   StatusType.enum.Poll
@@ -101,6 +102,14 @@ type SearchCursorRow = {
   entityIdHash: string
   entityCreatedAt: Date | string | number | null
   searchScore: string | number
+}
+
+const chunkArray = <T>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
 }
 
 const normalizeLimit = (limit?: number) => Math.max(1, limit ?? DEFAULT_LIMIT)
@@ -773,57 +782,103 @@ export const SearchSQLDatabaseMixin = (
     return rebuildDocuments()
   }
 
-  async function getPublicHashtagRow(
-    hashtagId: string
-  ): Promise<SQLTagSearchRow | undefined> {
-    const normalizedName = getNormalizedStoredHashtagName(hashtagId)
-    return database('tags')
-      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-      .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
-      .innerJoin('actors', 'statuses.actorId', 'actors.id')
-      .where('tags.type', 'hashtag')
-      .whereIn('tags.nameNormalized', [normalizedName, hashtagId])
-      .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
-      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-      .whereIn('recipients.type', ['to', 'cc'])
-      .whereNull('actors.deletionStatus')
-      .select<
-        SQLTagSearchRow[]
-      >('tags.name', 'tags.value', 'tags.nameNormalized', 'tags.createdAt')
-      .orderBy('tags.createdAt', 'asc')
-      .first()
+  async function getPublicHashtagRows(
+    hashtagIds: string[]
+  ): Promise<SQLTagSearchRow[]> {
+    const uniqueHashtagIds = [...new Set(hashtagIds)].filter(Boolean)
+    if (uniqueHashtagIds.length === 0) return []
+
+    const rowGroups = await Promise.all(
+      chunkArray(uniqueHashtagIds, SQL_WHERE_IN_BATCH_SIZE).map(
+        (hashtagIdChunk) => {
+          const normalizedNames = hashtagIdChunk.map(
+            getNormalizedStoredHashtagName
+          )
+          return database('tags')
+            .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+            .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+            .innerJoin('actors', 'statuses.actorId', 'actors.id')
+            .where('tags.type', 'hashtag')
+            .whereIn('tags.nameNormalized', [
+              ...normalizedNames,
+              ...hashtagIdChunk
+            ])
+            .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
+            .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+            .whereIn('recipients.type', ['to', 'cc'])
+            .whereNull('actors.deletionStatus')
+            .select<SQLTagSearchRow[]>(
+              'tags.name',
+              'tags.value',
+              'tags.nameNormalized',
+              'tags.createdAt'
+            )
+            .orderBy('tags.createdAt', 'asc')
+        }
+      )
+    )
+    return rowGroups.flat()
+  }
+
+  async function upsertHashtagSearchDocuments({
+    names,
+    syncMeilisearch = true
+  }: {
+    names: string[]
+    syncMeilisearch?: boolean
+  }): Promise<boolean[]> {
+    const hashtagIds = [...new Set(names.map(getHashtagId).filter(Boolean))]
+    if (hashtagIds.length === 0) return []
+
+    const rows = await getPublicHashtagRows(hashtagIds)
+    const rowByHashtagId = rows.reduce((tagMap, row) => {
+      const hashtagId = getHashtagId(row.name)
+      if (!tagMap.has(hashtagId)) {
+        tagMap.set(hashtagId, row)
+      }
+      return tagMap
+    }, new Map<string, SQLTagSearchRow>())
+
+    return mapWithConcurrency(
+      hashtagIds,
+      DEFAULT_REBUILD_CONCURRENCY,
+      async (hashtagId) => {
+        const tag = rowByHashtagId.get(hashtagId)
+        if (!tag) {
+          await deleteSearchDocument({
+            entityType: 'hashtag',
+            entityId: hashtagId,
+            syncMeilisearch
+          })
+          return false
+        }
+
+        const displayName = getHashtagDisplayName(tag.name)
+        await replaceSearchDocument({
+          entityType: 'hashtag',
+          entityId: hashtagId,
+          searchText: [displayName, hashtagId].join(' '),
+          entityCreatedAt: tag.createdAt,
+          syncMeilisearch,
+          weightedText: [
+            { text: displayName, weight: 8 },
+            { text: hashtagId, weight: 8 }
+          ]
+        })
+        return true
+      }
+    )
   }
 
   async function upsertHashtagSearchDocument({
     name,
     syncMeilisearch = true
   }: UpsertSearchHashtagParams): Promise<boolean> {
-    const hashtagId = getHashtagId(name)
-    if (!hashtagId) return false
-
-    const tag = await getPublicHashtagRow(hashtagId)
-    if (!tag) {
-      await deleteSearchDocument({
-        entityType: 'hashtag',
-        entityId: hashtagId,
-        syncMeilisearch
-      })
-      return false
-    }
-
-    const displayName = getHashtagDisplayName(tag.name)
-    await replaceSearchDocument({
-      entityType: 'hashtag',
-      entityId: hashtagId,
-      searchText: [displayName, hashtagId].join(' '),
-      entityCreatedAt: tag.createdAt,
-      syncMeilisearch,
-      weightedText: [
-        { text: displayName, weight: 8 },
-        { text: hashtagId, weight: 8 }
-      ]
+    const [indexed] = await upsertHashtagSearchDocuments({
+      names: [name],
+      syncMeilisearch
     })
-    return true
+    return indexed ?? false
   }
 
   async function clearSearchIndex(syncMeilisearch = true): Promise<void> {
@@ -1326,6 +1381,7 @@ export const SearchSQLDatabaseMixin = (
     upsertActorSearchDocument,
     upsertStatusSearchDocument,
     upsertHashtagSearchDocument,
+    upsertHashtagSearchDocuments,
     deleteSearchDocument,
     getSearchHashtagsByIds
   }

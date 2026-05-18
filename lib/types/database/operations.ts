@@ -671,6 +671,11 @@ export type UpsertSearchHashtagParams = {
   syncMeilisearch?: boolean
 }
 
+export type UpsertSearchHashtagsParams = {
+  names: string[]
+  syncMeilisearch?: boolean
+}
+
 export type DeleteSearchDocumentParams = {
   entityType: SearchEntityType
   entityId: string
@@ -693,6 +698,9 @@ export interface SearchDatabase {
   upsertHashtagSearchDocument(
     params: UpsertSearchHashtagParams
   ): Promise<boolean>
+  upsertHashtagSearchDocuments(
+    params: UpsertSearchHashtagsParams
+  ): Promise<boolean[]>
   deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
   getSearchHashtagsByIds(
     params: GetSearchHashtagsByIdsParams

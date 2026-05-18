@@ -168,8 +168,8 @@ const searchWithMeilisearch = async (
 export const search = async (params: SearchParams): Promise<SearchResult> => {
   if (!params.query.trim()) return emptySearchResult()
 
-  // No reviewed/unreviewed tag state exists, so this is an intentional no-op.
-  const _excludeUnreviewed = params.excludeUnreviewed
+  // params.excludeUnreviewed is intentionally ignored: no reviewed/unreviewed
+  // tag state exists in this implementation.
 
   const resolvedStatus =
     params.includeStatuses && params.resolve && params.offset === 0

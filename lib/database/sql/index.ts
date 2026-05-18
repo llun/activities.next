@@ -22,11 +22,16 @@ import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
+import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
-const MAX_STATUS_DELETE_BFS_DEPTH = 1000
+const MAX_STATUS_DELETE_REPLY_DEPTH = 10000
 const SQL_WHERE_IN_BATCH_SIZE = 500
+const SEARCH_DOCUMENT_STATUS_TYPES: StatusType[] = [
+  StatusType.enum.Note,
+  StatusType.enum.Poll
+]
 
 const chunkArray = <T>(items: T[], size: number): T[][] => {
   const chunks: T[][] = []
@@ -69,20 +74,17 @@ export const getSQLDatabase = (database: Knex): Database => {
   )
   const reindexHashtagsForStatus = async (statusId: string) => {
     const tags = await statusDatabase.getTags({ statusId })
-    await Promise.all(
-      tags
-        .filter((tag) => tag.type === 'hashtag')
-        .map((tag) =>
-          searchDatabase.upsertHashtagSearchDocument({
-            name: tag.name,
-            url: tag.value
-          })
-        )
-    )
+    await searchDatabase.upsertHashtagSearchDocuments({
+      names: tags.filter((tag) => tag.type === 'hashtag').map((tag) => tag.name)
+    })
   }
   type SearchDocumentReference = {
     entityType: 'account' | 'status' | 'hashtag'
     entityId: string
+  }
+  type StatusDeleteReference = {
+    id: string
+    type: string
   }
 
   const getHashtagNamesForActorStatuses = async (
@@ -100,75 +102,61 @@ export const getSQLDatabase = (database: Knex): Database => {
       ...new Set(tags.map((tag) => tag.nameNormalized ?? tag.name))
     ].filter(Boolean)
   }
-  const getStatusIdsForDeleteWithBfs = async (
+  const getStatusRowsForDelete = async (
     statusId: string,
     query: Knex | Knex.Transaction = database
   ) => {
-    const statusIds = [statusId]
-    const seen = new Set(statusIds)
+    const rootStatus = await query('statuses')
+      .where('id', statusId)
+      .first<StatusDeleteReference>('id', 'type')
+    if (!rootStatus) return []
+
+    const statusRows = [rootStatus]
+    const seen = new Set([statusId])
     let pendingParentIds = [statusId]
     let depth = 0
 
     while (pendingParentIds.length > 0) {
-      if (depth >= MAX_STATUS_DELETE_BFS_DEPTH) {
-        logger.warn({
-          message: 'Status delete reply traversal exceeded maximum depth',
-          statusId,
-          maxDepth: MAX_STATUS_DELETE_BFS_DEPTH,
-          collectedStatusCount: statusIds.length,
-          pendingParentCount: pendingParentIds.length
-        })
-        throw new Error('Status reply tree exceeds maximum delete depth')
-      }
-
       const replyGroups = await Promise.all(
         chunkArray(pendingParentIds, SQL_WHERE_IN_BATCH_SIZE).map(
           (parentIdChunk) =>
             query('statuses')
               .whereIn('reply', parentIdChunk)
-              .select<{ id: string }[]>('id')
+              .select<StatusDeleteReference[]>('id', 'type')
         )
       )
       const replies = replyGroups.flat()
-      pendingParentIds = replies
-        .map((reply) => reply.id)
-        .filter((id) => !seen.has(id))
+      const nextRows = replies.filter((reply) => !seen.has(reply.id))
+      if (nextRows.length === 0) break
 
-      for (const id of pendingParentIds) {
-        seen.add(id)
-        statusIds.push(id)
+      if (depth >= MAX_STATUS_DELETE_REPLY_DEPTH) {
+        logger.warn({
+          message: 'Status delete reply traversal exceeded maximum depth',
+          statusId,
+          maxDepth: MAX_STATUS_DELETE_REPLY_DEPTH,
+          collectedStatusCount: statusRows.length,
+          pendingParentCount: pendingParentIds.length,
+          overflowChildCount: nextRows.length
+        })
+        throw new Error('Status reply tree exceeds maximum delete depth')
       }
+
+      for (const row of nextRows) {
+        seen.add(row.id)
+        statusRows.push(row)
+      }
+      pendingParentIds = nextRows.map((row) => row.id)
       depth += 1
     }
 
-    return statusIds
+    return statusRows
   }
-  const getStatusIdsForDelete = async (
-    statusId: string,
-    query: Knex | Knex.Transaction = database
-  ) => {
-    const clientName = String(database.client.config.client)
-    if (clientName.includes('mysql')) {
-      return getStatusIdsForDeleteWithBfs(statusId, query)
-    }
-
-    const rows = await query
-      .withRecursive('reply_tree', ['id'], (cte) => {
-        cte
-          .select('id')
-          .from('statuses')
-          .where('id', statusId)
-          .union((qb) => {
-            qb.select('statuses.id')
-              .from('statuses')
-              .innerJoin('reply_tree', 'statuses.reply', 'reply_tree.id')
-          })
-      })
-      .select<{ id: string }[]>('id')
-      .from('reply_tree')
-
-    return rows.map((row) => row.id)
-  }
+  const getSearchableStatusIds = (statusRows: StatusDeleteReference[]) =>
+    statusRows
+      .filter((status) =>
+        SEARCH_DOCUMENT_STATUS_TYPES.includes(status.type as StatusType)
+      )
+      .map((status) => status.id)
   const getHashtagTagsForStatuses = async (
     statusIds: string[],
     query: Knex | Knex.Transaction = database
@@ -316,11 +304,7 @@ export const getSQLDatabase = (database: Knex): Database => {
         }
       )
       await syncDeletedSearchDocuments(documents)
-      await Promise.all(
-        hashtagNames.map((name) =>
-          searchDatabase.upsertHashtagSearchDocument({ name })
-        )
-      )
+      await searchDatabase.upsertHashtagSearchDocuments({ names: hashtagNames })
     },
     async deleteActorData(
       ...args: Parameters<typeof actorDatabase.deleteActorData>
@@ -339,11 +323,7 @@ export const getSQLDatabase = (database: Knex): Database => {
         }
       )
       await syncDeletedSearchDocuments(documents)
-      await Promise.all(
-        hashtagNames.map((name) =>
-          searchDatabase.upsertHashtagSearchDocument({ name })
-        )
-      )
+      await searchDatabase.upsertHashtagSearchDocuments({ names: hashtagNames })
     }
   }
   const indexedStatusDatabase = {
@@ -404,52 +384,58 @@ export const getSQLDatabase = (database: Knex): Database => {
       ...args: Parameters<typeof statusDatabase.deleteStatus>
     ) {
       const [params] = args
-      const { statusIds, tags } = await database.transaction(async (trx) => {
-        const status = await trx('statuses')
-          .where('id', params.statusId)
-          .first<{ actorId: string }>('actorId')
+      const { searchableStatusIds, tags } = await database.transaction(
+        async (trx) => {
+          const status = await trx('statuses')
+            .where('id', params.statusId)
+            .first<{ actorId: string }>('actorId')
 
-        if (params.actorId && status) {
-          const normalizedStoredActorId = normalizeActorId(status.actorId)
-          const normalizedExpectedActorId = normalizeActorId(params.actorId)
-          if (
-            !normalizedStoredActorId ||
-            !normalizedExpectedActorId ||
-            normalizedStoredActorId !== normalizedExpectedActorId
-          ) {
-            return { statusIds: [], tags: [] }
+          if (params.actorId && status) {
+            const normalizedStoredActorId = normalizeActorId(status.actorId)
+            const normalizedExpectedActorId = normalizeActorId(params.actorId)
+            if (
+              !normalizedStoredActorId ||
+              !normalizedExpectedActorId ||
+              normalizedStoredActorId !== normalizedExpectedActorId
+            ) {
+              return { searchableStatusIds: [], tags: [] }
+            }
           }
+
+          const statusRows = status
+            ? await getStatusRowsForDelete(params.statusId, trx)
+            : []
+          const statusIds = status
+            ? statusRows.map((row) => row.id)
+            : [params.statusId]
+          const searchableStatusIds = status
+            ? getSearchableStatusIds(statusRows)
+            : [params.statusId]
+          const tags = await getHashtagTagsForStatuses(statusIds, trx)
+          await statusDatabase.deleteStatus({
+            ...params,
+            trx
+          } as Parameters<typeof statusDatabase.deleteStatus>[0] & {
+            trx: Knex.Transaction
+          })
+          await deleteStatusSearchDocumentsInTransaction(
+            trx,
+            searchableStatusIds
+          )
+
+          return { searchableStatusIds, tags }
         }
-
-        const statusIds = status
-          ? await getStatusIdsForDelete(params.statusId, trx)
-          : [params.statusId]
-        const tags = await getHashtagTagsForStatuses(statusIds, trx)
-        await statusDatabase.deleteStatus({
-          ...params,
-          trx
-        } as Parameters<typeof statusDatabase.deleteStatus>[0] & {
-          trx: Knex.Transaction
-        })
-        await deleteStatusSearchDocumentsInTransaction(trx, statusIds)
-
-        return { statusIds, tags }
-      })
+      )
 
       await syncDeletedSearchDocuments(
-        statusIds.map((statusId) => ({
+        searchableStatusIds.map((statusId) => ({
           entityType: 'status',
           entityId: statusId
         }))
       )
-      await Promise.all(
-        tags.map((tag) =>
-          searchDatabase.upsertHashtagSearchDocument({
-            name: tag.name,
-            url: tag.value
-          })
-        )
-      )
+      await searchDatabase.upsertHashtagSearchDocuments({
+        names: tags.map((tag) => tag.name)
+      })
     }
   }
 
