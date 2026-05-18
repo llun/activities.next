@@ -11,6 +11,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Note } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -533,6 +534,82 @@ How are you?
         // The original author (actor2) should be in the 'to' recipients
         expect(replyStatus.to).toContain(actor2.id)
         expect(replyStatus.to).toContain(`${actor1.id}/followers`)
+      })
+
+      it('stores inherited direct reply recipients as mention tags', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/direct-parent-note-mention-tags`,
+          url: `${actor1.id}/statuses/direct-parent-note-mention-tags`,
+          actorId: 'https://remote.test/actors/direct-sender',
+          text: 'Direct parent with multiple recipients',
+          to: [actor1.id, ACTOR2_ID],
+          cc: [ACTOR3_ID]
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: 'Reply without manually rementioning everyone',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+
+        const mentionTags = await database.getTags({ statusId: status.id })
+
+        expect(mentionTags).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'mention',
+              value: ACTOR2_ID
+            }),
+            expect.objectContaining({
+              type: 'mention',
+              value: ACTOR3_ID
+            }),
+            expect.objectContaining({
+              type: 'mention',
+              value: parentStatus.actorId
+            })
+          ])
+        )
+        expect(mentionTags).not.toContainEqual(
+          expect.objectContaining({
+            type: 'mention',
+            value: actor1.id
+          })
+        )
+      })
+
+      it('does not store non-direct parent audiences as mention tags', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/private-parent-note-audience-tags`,
+          url: `${actor1.id}/statuses/private-parent-note-audience-tags`,
+          actorId: actor2.id,
+          text: 'Private parent with another addressed actor',
+          to: [`${actor2.id}/followers`],
+          cc: [ACTOR3_ID]
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: 'Reply to private thread',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+
+        const mentionTags = await database.getTags({ statusId: status.id })
+
+        expect(mentionTags).toContainEqual(
+          expect.objectContaining({
+            type: 'mention',
+            value: actor2.id
+          })
+        )
+        expect(mentionTags).not.toContainEqual(
+          expect.objectContaining({
+            type: 'mention',
+            value: ACTOR3_ID
+          })
+        )
       })
     })
   })

@@ -2,6 +2,7 @@ import crypto from 'crypto'
 
 import {
   getExplicitMentions,
+  getMentionTagsForStatus,
   getVisibilityFromReplyStatus,
   statusRecipientsCC,
   statusRecipientsTo
@@ -86,6 +87,13 @@ export const createPollFromUserInput = async ({
     effectiveVisibility,
     replyVisibility
   )
+  const mentionTags = getMentionTagsForStatus({
+    mentions,
+    currentActor,
+    replyStatus,
+    effectiveVisibility,
+    replyVisibility
+  })
 
   const createdPoll = await database.createPoll({
     id: statusId,
@@ -103,7 +111,7 @@ export const createPollFromUserInput = async ({
 
   await Promise.all([
     addStatusToTimelines(database, createdPoll),
-    ...mentions.map((mention) =>
+    ...mentionTags.map((mention) =>
       database.createTag({
         statusId,
         name: mention.name || '',
