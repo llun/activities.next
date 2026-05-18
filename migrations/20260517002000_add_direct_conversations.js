@@ -86,6 +86,8 @@ const createTables = async (knex) => {
 const DIRECT_STATUS_BATCH_SIZE = 500
 const LOCAL_ACTOR_LOOKUP_BATCH_SIZE = 500
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
+const DIRECT_TIMELINE = 'direct'
+const LEGACY_DIRECT_TIMELINES = ['main', 'home', 'noannounce']
 
 const attachRecipients = async (knex, statusRows) => {
   if (statusRows.length === 0) return []
@@ -195,6 +197,31 @@ const insertIfMissing = async (knex, table, where, values) => {
   return values
 }
 
+const insertTimelineStatusIfMissing = async ({
+  knex,
+  actorId,
+  status,
+  timeline,
+  currentTime
+}) =>
+  insertIfMissing(
+    knex,
+    'timelines',
+    {
+      actorId,
+      timeline,
+      statusId: status.id
+    },
+    {
+      actorId,
+      timeline,
+      statusId: status.id,
+      statusActorId: status.actorId,
+      createdAt: asDate(status.createdAt),
+      updatedAt: currentTime
+    }
+  )
+
 const getParticipantActorIds = (status) =>
   [
     ...new Set([
@@ -290,6 +317,14 @@ const backfillDirectConversations = async (knex) => {
       )
 
       for (const actorId of statusLocalActorIds) {
+        await insertTimelineStatusIfMissing({
+          knex,
+          actorId,
+          status,
+          timeline: DIRECT_TIMELINE,
+          currentTime
+        })
+
         const existingMembership = await knex('direct_conversation_memberships')
           .where({
             actorId,
@@ -334,7 +369,101 @@ const backfillDirectConversations = async (knex) => {
         'statusId',
         directStatuses.map((status) => status.id)
       )
-      .whereIn('timeline', ['main', 'home', 'noannounce'])
+      .whereIn('timeline', LEGACY_DIRECT_TIMELINES)
+      .delete()
+  }
+}
+
+const getSyncedDirectStatusBatch = async (knex, cursor) => {
+  let query = knex('direct_conversation_statuses')
+    .innerJoin(
+      'statuses',
+      'direct_conversation_statuses.statusId',
+      'statuses.id'
+    )
+    .orderBy('direct_conversation_statuses.createdAt', 'asc')
+    .orderBy('direct_conversation_statuses.statusId', 'asc')
+    .limit(DIRECT_STATUS_BATCH_SIZE)
+    .select(
+      'direct_conversation_statuses.conversationId',
+      'direct_conversation_statuses.statusId as id',
+      'direct_conversation_statuses.createdAt',
+      'statuses.actorId'
+    )
+
+  if (cursor) {
+    query = query.where((builder) => {
+      builder
+        .where('direct_conversation_statuses.createdAt', '>', cursor.createdAt)
+        .orWhere((sameTime) => {
+          sameTime
+            .where('direct_conversation_statuses.createdAt', cursor.createdAt)
+            .where('direct_conversation_statuses.statusId', '>', cursor.id)
+        })
+    })
+  }
+
+  const statuses = await query
+  return {
+    cursor: statuses[statuses.length - 1] || cursor,
+    hasMore: statuses.length === DIRECT_STATUS_BATCH_SIZE,
+    statuses
+  }
+}
+
+const getMembershipActorIdsByConversationId = async (knex, conversationIds) => {
+  if (conversationIds.length === 0) return {}
+
+  const memberships = await knex('direct_conversation_memberships')
+    .whereIn('conversationId', conversationIds)
+    .select('conversationId', 'actorId')
+
+  return memberships.reduce((output, membership) => {
+    output[membership.conversationId] = output[membership.conversationId] || []
+    output[membership.conversationId].push(membership.actorId)
+    return output
+  }, {})
+}
+
+const restoreLegacyTimelineRows = async (knex) => {
+  let cursor = null
+  let hasMore = true
+
+  while (hasMore) {
+    const batch = await getSyncedDirectStatusBatch(knex, cursor)
+    const directStatuses = batch.statuses
+    hasMore = batch.hasMore
+    cursor = batch.cursor
+    if (directStatuses.length === 0) continue
+
+    const actorIdsByConversationId =
+      await getMembershipActorIdsByConversationId(knex, [
+        ...new Set(directStatuses.map((status) => status.conversationId))
+      ])
+    const currentTime = new Date()
+
+    for (const status of directStatuses) {
+      const actorIds = actorIdsByConversationId[status.conversationId] || []
+
+      for (const actorId of actorIds) {
+        for (const timeline of LEGACY_DIRECT_TIMELINES) {
+          await insertTimelineStatusIfMissing({
+            knex,
+            actorId,
+            status,
+            timeline,
+            currentTime
+          })
+        }
+      }
+    }
+
+    await knex('timelines')
+      .whereIn(
+        'statusId',
+        directStatuses.map((status) => status.id)
+      )
+      .where('timeline', DIRECT_TIMELINE)
       .delete()
   }
 }
@@ -345,9 +474,9 @@ exports.up = async (knex) => {
 }
 
 exports.down = async (knex) => {
-  // This migration moves direct statuses out of home timelines during backfill.
-  // Dropping the conversation tables cannot restore those timeline rows safely.
-  throw new Error(
-    'Irreversible migration: direct conversation backfill removes timeline rows and cannot be safely rolled back.'
-  )
+  await restoreLegacyTimelineRows(knex)
+  await knex.schema.dropTableIfExists('direct_conversation_memberships')
+  await knex.schema.dropTableIfExists('direct_conversation_statuses')
+  await knex.schema.dropTableIfExists('direct_conversation_participants')
+  await knex.schema.dropTableIfExists('direct_conversations')
 }
