@@ -1,0 +1,50 @@
+lib/database/sql/search.ts
+  s_4941627279dc6b::t_64c15d97724bbf 381-383,609-611,626
+  s_4941627279dc6b::t_276cf21806595f 68,244,247,250,285-297,312-314,336-338,355-357,359-361,367,369-374,379-380,390-394,404,409,450-452,478-479,486-490,511,524-525,538-542,548-552,573,700-701,710-711,722,731,737-739,1065-1066,1124,1143-1147,1211-1214
+  s_4941627279dc6b::t_cd0cea010f8b06 86,583-608,612-625,627-677,1170,1172-1174
+app/api/v1/accounts/search/route.ts
+  s_4941627279dc6b::t_276cf21806595f 58
+lib/database/sql/index.ts
+  s_4941627279dc6b::t_276cf21806595f 26-28,101,104-114,126
+lib/search/meilisearch.ts
+  s_4941627279dc6b::t_276cf21806595f 290-292
+scripts/rebuildSearchIndex.ts
+  s_4941627279dc6b::t_8cd298a1e22f35 254
+  s_4941627279dc6b::t_276cf21806595f 3,149-151,244,253,261
+lib/search/resolveStatus.ts
+  s_4941627279dc6b::t_276cf21806595f 96-97
+lib/database/sql/status.ts
+  s_4941627279dc6b::t_6a4c94519ea787 8,37,1881-1898,2184
+lib/services/mastodon/getMastodonStatus.ts
+  s_4941627279dc6b::t_64c15d97724bbf 311
+  s_4941627279dc6b::t_276cf21806595f 32-34,36-45,101,104,107,120,156-159,174,177,185,267-278,286-295,297,300-306,309-310,312-325
+  s_4941627279dc6b::t_6a4c94519ea787 35,187,279-285,296,298-299,307-308
+app/api/v1/accounts/search/route.test.ts
+  s_4941627279dc6b::t_276cf21806595f 113
+app/api/v2/search/route.test.ts
+  s_4941627279dc6b::t_64c15d97724bbf 42
+  s_4941627279dc6b::t_276cf21806595f 9,54,112,114
+app/api/v2/search/route.ts
+  s_4941627279dc6b::t_276cf21806595f 9,127-131
+lib/types/database/operations.ts
+  s_4941627279dc6b::t_6a4c94519ea787 528-530,602-604
+  s_4941627279dc6b::t_276cf21806595f 649,660,665,671
+lib/database/sql/searchMeilisearchSync.test.ts
+  s_4941627279dc6b::t_276cf21806595f 39-43,88,112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "06f490da655ec66328b3986a37419d6e948c4cba",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
