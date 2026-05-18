@@ -94,4 +94,63 @@ describe('GET /api/v1/conversations', () => {
       expect.stringContaining('max_id=2')
     )
   })
+
+  it('uses since_id as an alias for min_id when fetching conversations', async () => {
+    mockDatabase.getDirectConversations.mockResolvedValueOnce([
+      conversation('3')
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/conversations?limit=2&since_id=1'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([{ id: '3' }])
+    expect(mockDatabase.getDirectConversations).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      limit: 3,
+      maxId: null,
+      minId: '1'
+    })
+  })
+
+  it('prefers min_id when both min_id and since_id are provided', async () => {
+    mockDatabase.getDirectConversations.mockResolvedValueOnce([
+      conversation('4')
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/conversations?min_id=2&since_id=1'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([{ id: '4' }])
+    expect(mockDatabase.getDirectConversations).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      limit: 21,
+      maxId: null,
+      minId: '2'
+    })
+  })
+
+  it('keeps the conversations limit capped at 40', async () => {
+    mockDatabase.getDirectConversations.mockResolvedValueOnce([])
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/conversations?limit=80')
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
+    expect(mockDatabase.getDirectConversations).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      limit: 41,
+      maxId: null,
+      minId: null
+    })
+  })
 })
