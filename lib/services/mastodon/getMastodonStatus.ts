@@ -7,7 +7,7 @@ import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 interface MastodonMention {
   id: string
@@ -295,12 +295,36 @@ export const getMastodonStatuses = async (
 
   const actorIds = new Set<string>()
   statuses.forEach((status) => addStatusActorIds(status, actorIds))
+  const requestedActorIds = [...actorIds]
   const accounts = await database.getMastodonActorsFromIds({
-    ids: [...actorIds]
+    ids: requestedActorIds
   })
-  const accountCache: MastodonAccountCache = new Map(
-    accounts.map((account) => [account.url, Promise.resolve(account)])
-  )
+  const requestedActorIdSet = new Set(requestedActorIds)
+  const accountCache: MastodonAccountCache = new Map()
+  const keyedAccounts = new Set<Mastodon.Account>()
+
+  for (const account of accounts) {
+    const decodedActorId =
+      typeof account.id === 'string' ? idToUrl(account.id) : ''
+    if (requestedActorIdSet.has(decodedActorId)) {
+      accountCache.set(decodedActorId, Promise.resolve(account))
+      keyedAccounts.add(account)
+      continue
+    }
+
+    if (requestedActorIdSet.has(account.url)) {
+      accountCache.set(account.url, Promise.resolve(account))
+      keyedAccounts.add(account)
+    }
+  }
+
+  if (accounts.length === requestedActorIds.length) {
+    accounts.forEach((account, index) => {
+      if (!keyedAccounts.has(account)) {
+        accountCache.set(requestedActorIds[index], Promise.resolve(account))
+      }
+    })
+  }
 
   for (const actorId of actorIds) {
     if (!accountCache.has(actorId)) {
