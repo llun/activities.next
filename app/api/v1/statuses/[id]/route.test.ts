@@ -1655,7 +1655,9 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(nextPage.map((account) => account.id)).toEqual([
         urlToId(ACTOR2_ID)
       ])
-      expect(nextResponse.headers.get('Link')).toEqual(
+      const nextLinkHeader = nextResponse.headers.get('Link')
+      expect(nextLinkHeader).not.toEqual(expect.stringContaining('rel="next"'))
+      expect(nextLinkHeader).toEqual(
         expect.stringContaining(
           `since_id=${encodeURIComponent(urlToId(olderAnnounceId))}`
         )

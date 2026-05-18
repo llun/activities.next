@@ -1413,13 +1413,10 @@ export const StatusSQLDatabaseMixin = (
 
     const [maxCursor, sinceCursor] = await Promise.all([
       maxStatusId
-        ? visibleReblogsQuery
-            .clone()
-            .where('statuses.id', maxStatusId)
-            .first<{
-              id: string
-              createdAt: Date
-            }>('statuses.id', 'statuses.createdAt')
+        ? visibleReblogsQuery.clone().where('statuses.id', maxStatusId).first<{
+            id: string
+            createdAt: Date
+          }>('statuses.id', 'statuses.createdAt')
         : null,
       sinceStatusId
         ? visibleReblogsQuery

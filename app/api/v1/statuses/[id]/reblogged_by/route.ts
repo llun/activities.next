@@ -31,11 +31,13 @@ const RebloggedByQueryParams = z.object({
 const getPaginationLinkHeader = ({
   req,
   limit,
-  reblogs
+  reblogs,
+  hasNextPage
 }: {
   req: Request
   limit: number
   reblogs: RebloggedByAccount[]
+  hasNextPage: boolean
 }) => {
   if (reblogs.length === 0) return undefined
 
@@ -55,10 +57,9 @@ const getPaginationLinkHeader = ({
 
   const firstReblog = reblogs[0]
   const lastReblog = reblogs[reblogs.length - 1]
-  const nextLink =
-    reblogs.length >= limit
-      ? `<${buildUrl('max_id', lastReblog.statusId)}>; rel="next"`
-      : null
+  const nextLink = hasNextPage
+    ? `<${buildUrl('max_id', lastReblog.statusId)}>; rel="next"`
+    : null
   const prevLink = `<${buildUrl('since_id', firstReblog.statusId)}>; rel="prev"`
   return [nextLink, prevLink].filter(Boolean).join(', ')
 }
@@ -103,15 +104,22 @@ export const GET = traceApiRoute(
         responseStatusCode: 404
       })
 
-    const reblogs = await database.getRebloggedBy({
+    const reblogsPage = await database.getRebloggedBy({
       statusId,
-      limit,
+      limit: limit + 1,
       maxStatusId: maxId ? idToUrl(maxId) : undefined,
       sinceStatusId: sinceId ? idToUrl(sinceId) : undefined,
       visibleToActorId: currentActor?.id ?? null
     })
+    const hasNextPage = reblogsPage.length > limit
+    const reblogs = reblogsPage.slice(0, limit)
 
-    const paginationLink = getPaginationLinkHeader({ req, limit, reblogs })
+    const paginationLink = getPaginationLinkHeader({
+      req,
+      limit,
+      reblogs,
+      hasNextPage
+    })
 
     const accounts = await database.getMastodonActorsFromIds({
       ids: reblogs.map(({ actorId }) => actorId)
