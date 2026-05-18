@@ -46,9 +46,7 @@ const Page: FC = async () => {
           <CredentialForm providerName={serviceName ?? 'credentials'} />
         )}
 
-        <div className="space-y-2">
-          <PasskeySigninButton />
-        </div>
+        <PasskeySigninButton />
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">

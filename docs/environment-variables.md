@@ -69,9 +69,9 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 
 ## Authentication
 
-| Variable          | Description                               |
-| ----------------- | ----------------------------------------- |
-| `ACTIVITIES_AUTH` | Full auth configuration as a JSON string. |
+| Variable          | Description                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_AUTH` | Full auth configuration as a JSON string. If not provided, local email/password authentication is enabled by default. |
 
 ## Email
 

@@ -1,10 +1,20 @@
+import { logger } from '@/lib/utils/logger'
+
 import { AuthConfig, getAuthConfig } from './auth'
+
+jest.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: jest.fn()
+  }
+}))
 
 describe('Auth config', () => {
   const originalEnv = process.env
+  const mockWarn = logger.warn as jest.Mock
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    mockWarn.mockReset()
   })
 
   afterAll(() => {
@@ -57,13 +67,31 @@ describe('Auth config', () => {
       expect(config?.auth).not.toHaveProperty('github')
     })
 
-    it('ignores legacy individual github env vars', () => {
+    it('warns and ignores legacy individual github env vars', () => {
       process.env.ACTIVITIES_AUTH_GITHUB_ID = 'env-id'
       process.env.ACTIVITIES_AUTH_GITHUB_SECRET = 'env-secret'
 
       const config = getAuthConfig()
 
       expect(config).toBeNull()
+      expect(mockWarn).toHaveBeenCalledWith({
+        message:
+          'ACTIVITIES_AUTH_GITHUB_ID and ACTIVITIES_AUTH_GITHUB_SECRET are no longer supported and will be ignored. Remove them from your environment.'
+      })
+    })
+
+    it('throws a clear error when ACTIVITIES_AUTH is invalid JSON', () => {
+      process.env.ACTIVITIES_AUTH = '{'
+
+      expect(() => getAuthConfig()).toThrow('ACTIVITIES_AUTH is not valid JSON')
+    })
+
+    it('throws a clear error when ACTIVITIES_AUTH has an invalid schema', () => {
+      process.env.ACTIVITIES_AUTH = JSON.stringify({
+        enableCredential: 'false'
+      })
+
+      expect(() => getAuthConfig()).toThrow('ACTIVITIES_AUTH is invalid:')
     })
   })
 })
