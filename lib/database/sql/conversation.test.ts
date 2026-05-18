@@ -415,6 +415,35 @@ describe('ConversationDatabase', () => {
         })
       ).resolves.toEqual([])
     })
+
+    test('returns empty results for non-positive or out-of-range membership ids before querying bigint columns', async () => {
+      for (const membershipId of ['0', '0000', '9223372036854775808']) {
+        await expect(
+          database.getDirectConversations({
+            actorId: ACTOR1_ID,
+            maxId: membershipId
+          })
+        ).resolves.toEqual([])
+        await expect(
+          database.getDirectConversations({
+            actorId: ACTOR1_ID,
+            minId: membershipId
+          })
+        ).resolves.toEqual([])
+        await expect(
+          database.getDirectConversation({
+            actorId: ACTOR1_ID,
+            conversationId: membershipId
+          })
+        ).resolves.toBeNull()
+        await expect(
+          database.getDirectConversationStatuses({
+            actorId: ACTOR1_ID,
+            conversationId: membershipId
+          })
+        ).resolves.toEqual([])
+      }
+    })
   })
 
   describe('direct conversation mixin', () => {
@@ -496,6 +525,212 @@ describe('ConversationDatabase', () => {
         'status-2',
         'status-1'
       ])
+    })
+
+    test('orders conversation pages by hydratable last status instead of stale membership timestamps', async () => {
+      const statusDatabase = {
+        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+          statusIds
+            .filter((statusId: string) => statusId !== 'stale-missing-status')
+            .map(statusForId)
+        )
+      } as unknown as StatusDatabase
+      const database = DirectConversationSQLDatabaseMixin(
+        knexDatabase,
+        statusDatabase
+      )
+      const now = new Date()
+
+      await knexDatabase('direct_conversations').insert([
+        {
+          id: 'conversation-stale',
+          rootStatusId: 'stale-fallback-status',
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: 'conversation-fresh',
+          rootStatusId: 'fresh-status',
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+      await knexDatabase('direct_conversation_participants').insert([
+        {
+          id: 'participant-stale',
+          conversationId: 'conversation-stale',
+          actorId: ACTOR1_ID,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: 'participant-fresh',
+          conversationId: 'conversation-fresh',
+          actorId: ACTOR1_ID,
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+      await knexDatabase('direct_conversation_memberships').insert([
+        {
+          actorId: ACTOR1_ID,
+          conversationId: 'conversation-stale',
+          lastStatusId: 'stale-missing-status',
+          lastStatusCreatedAt: new Date(9000),
+          unread: true,
+          readAt: null,
+          hiddenAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          actorId: ACTOR1_ID,
+          conversationId: 'conversation-fresh',
+          lastStatusId: 'fresh-status',
+          lastStatusCreatedAt: new Date(8000),
+          unread: false,
+          readAt: null,
+          hiddenAt: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+      await knexDatabase('direct_conversation_statuses').insert([
+        {
+          conversationId: 'conversation-stale',
+          statusId: 'stale-fallback-status',
+          createdAt: new Date(1000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-fresh',
+          statusId: 'fresh-status',
+          createdAt: new Date(8000),
+          updatedAt: now
+        }
+      ])
+
+      const firstPage = await database.getDirectConversations({
+        actorId: ACTOR1_ID,
+        limit: 1
+      })
+      const secondPage = await database.getDirectConversations({
+        actorId: ACTOR1_ID,
+        maxId: firstPage[0].id,
+        limit: 1
+      })
+
+      expect(
+        firstPage.map((conversation) => conversation.lastStatusId)
+      ).toEqual(['fresh-status'])
+      expect(
+        secondPage.map((conversation) => conversation.lastStatusId)
+      ).toEqual(['stale-fallback-status'])
+    })
+
+    test('continues scanning from the stored boundary when hydration rewrites a stale boundary row', async () => {
+      const statusDatabase = {
+        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+          statusIds
+            .filter(
+              (statusId: string) =>
+                !['missing-status', 'stale-missing-status'].includes(statusId)
+            )
+            .map(statusForId)
+        )
+      } as unknown as StatusDatabase
+      const database = DirectConversationSQLDatabaseMixin(
+        knexDatabase,
+        statusDatabase
+      )
+      const now = new Date()
+      const visibleConversations = Array.from({ length: 18 }, (_, index) => ({
+        conversationId: `conversation-visible-${index}`,
+        statusId: `visible-status-${index}`,
+        createdAt: new Date(10_000 - index * 100)
+      }))
+      const memberships = [
+        ...visibleConversations,
+        {
+          conversationId: 'conversation-missing',
+          statusId: 'missing-status',
+          createdAt: new Date(8200)
+        },
+        {
+          conversationId: 'conversation-stale-boundary',
+          statusId: 'stale-missing-status',
+          createdAt: new Date(8100)
+        },
+        {
+          conversationId: 'conversation-after-boundary',
+          statusId: 'after-boundary-status',
+          createdAt: new Date(8000)
+        }
+      ]
+
+      await knexDatabase('direct_conversations').insert(
+        memberships.map((membership) => ({
+          id: membership.conversationId,
+          rootStatusId: membership.statusId,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      await knexDatabase('direct_conversation_participants').insert(
+        memberships.map((membership) => ({
+          id: `participant-${membership.conversationId}`,
+          conversationId: membership.conversationId,
+          actorId: ACTOR1_ID,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      await knexDatabase('direct_conversation_memberships').insert(
+        memberships.map((membership) => ({
+          actorId: ACTOR1_ID,
+          conversationId: membership.conversationId,
+          lastStatusId: membership.statusId,
+          lastStatusCreatedAt: membership.createdAt,
+          unread: false,
+          readAt: null,
+          hiddenAt: null,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      await knexDatabase('direct_conversation_statuses').insert([
+        ...visibleConversations.map((membership) => ({
+          conversationId: membership.conversationId,
+          statusId: membership.statusId,
+          createdAt: membership.createdAt,
+          updatedAt: now
+        })),
+        {
+          conversationId: 'conversation-stale-boundary',
+          statusId: 'stale-fallback-status',
+          createdAt: new Date(1000),
+          updatedAt: now
+        },
+        {
+          conversationId: 'conversation-after-boundary',
+          statusId: 'after-boundary-status',
+          createdAt: new Date(8000),
+          updatedAt: now
+        }
+      ])
+
+      const page = await database.getDirectConversations({
+        actorId: ACTOR1_ID,
+        limit: 20
+      })
+
+      expect(page).toHaveLength(20)
+      expect(page.map((conversation) => conversation.lastStatusId)).toContain(
+        'after-boundary-status'
+      )
+      expect(page[page.length - 1].lastStatusId).toEqual(
+        'stale-fallback-status'
+      )
     })
 
     test('scans past invisible statuses to fill direct conversation status pages', async () => {
