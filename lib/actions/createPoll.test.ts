@@ -47,7 +47,7 @@ describe('Create poll action', () => {
 
   describe('#createPollFromUserInput', () => {
     it('creates a poll with correct recipients', async () => {
-      await createPollFromUserInput({
+      const createdPoll = await createPollFromUserInput({
         text: 'What is your favorite color?',
         currentActor: actor1,
         choices: ['Red', 'Blue', 'Green'],
@@ -64,8 +64,22 @@ describe('Create poll action', () => {
       )
 
       expect(poll).toBeDefined()
+      expect(createdPoll?.id).toBe(poll?.id)
       expect(poll?.to).toContain(ACTIVITY_STREAM_PUBLIC)
       expect(poll?.cc).toContain(`${actor1.id}/followers`)
+    })
+
+    it('returns null for direct polls without explicit recipients', async () => {
+      const createdPoll = await createPollFromUserInput({
+        text: 'Private poll without a recipient',
+        currentActor: actor1,
+        choices: ['Red', 'Blue'],
+        database,
+        endAt: Date.now() + 24 * 60 * 60 * 1000,
+        visibility: 'direct'
+      })
+
+      expect(createdPoll).toBeNull()
     })
 
     it('stores content warning text as poll summary', async () => {

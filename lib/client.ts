@@ -201,8 +201,7 @@ export const createPoll = async ({
     }
   }
 
-  // TODO: Continue on create poll
-  await fetch('/api/v1/accounts/outbox', {
+  const response = await fetch('/api/v1/accounts/outbox', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -218,6 +217,9 @@ export const createPoll = async ({
       visibility
     })
   })
+  if (response.status !== 200) {
+    throw new Error('Fail to create a new poll')
+  }
 }
 
 export interface DefaultStatusParams {

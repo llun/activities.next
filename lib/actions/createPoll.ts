@@ -126,4 +126,7 @@ export const createPollFromUserInput = async ({
     span.end()
     return null
   }
+
+  span.end()
+  return status
 }

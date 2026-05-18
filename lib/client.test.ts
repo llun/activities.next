@@ -8,6 +8,7 @@ import {
   bookmarkStatus,
   clearFitnessRouteHeatmaps,
   createDirectMessage,
+  createPoll,
   getActorStatuses,
   getBookmarks,
   getFitnessRouteHeatmap,
@@ -222,6 +223,27 @@ describe('client updateNote', () => {
         message: 'Updated status'
       })
     ).rejects.toThrow('Fail to update the note')
+  })
+})
+
+describe('client createPoll', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+  })
+
+  it('throws when poll creation is rejected by the server', async () => {
+    fetchMock.mockResponse(JSON.stringify({ status: 'Unprocessable entity' }), {
+      status: 422
+    })
+
+    await expect(
+      createPoll({
+        message: 'Private poll without recipients',
+        choices: ['A', 'B'],
+        durationInSeconds: 300,
+        visibility: 'direct'
+      })
+    ).rejects.toThrow('Fail to create a new poll')
   })
 })
 
