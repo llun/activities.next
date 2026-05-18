@@ -287,8 +287,10 @@ const configureMeilisearchIndexWithoutCache = async ({
   )
 }
 
+/**
+ * @internal Test-only helper for isolating cached index configuration between cases.
+ */
 export const resetMeilisearchIndexConfigurationCacheForTests = () => {
-  // Test-only hook for isolating cached index configuration between cases.
   configuredIndexPromises.clear()
 }
 

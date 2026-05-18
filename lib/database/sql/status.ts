@@ -5,6 +5,7 @@ import {
   CounterKey,
   decreaseCounterValue,
   getCounterValue,
+  getCounterValues,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
@@ -33,6 +34,7 @@ import {
   GetStatusParams,
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
+  GetStatusRepliesCountsParams,
   GetStatusRepliesParams,
   GetStatusesByHashtagParams,
   GetStatusesByIdsParams,
@@ -1892,6 +1894,24 @@ export const StatusSQLDatabaseMixin = (
     return parseInt(String(result?.count ?? '0'), 10)
   }
 
+  async function getStatusRepliesCounts({
+    statusIds
+  }: GetStatusRepliesCountsParams): Promise<Record<string, number>> {
+    const uniqueStatusIds = [...new Set(statusIds)]
+    if (uniqueStatusIds.length === 0) return {}
+
+    const counters = await getCounterValues(
+      database,
+      uniqueStatusIds.map((statusId) => CounterKey.totalReply(statusId))
+    )
+    return Object.fromEntries(
+      uniqueStatusIds.map((statusId) => [
+        statusId,
+        counters[CounterKey.totalReply(statusId)] ?? 0
+      ])
+    )
+  }
+
   async function recordPollVotes({
     statusId,
     actorId,
@@ -2177,6 +2197,7 @@ export const StatusSQLDatabaseMixin = (
     decreaseHashtagCounter,
     getStatusReblogsCount,
     getStatusRepliesCount,
+    getStatusRepliesCounts,
     createPollAnswer,
     hasActorVoted,
     getActorPollVotes,

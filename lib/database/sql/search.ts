@@ -65,6 +65,7 @@ type SearchDocumentInput = {
   visibility?: string | null
   searchText: string
   entityCreatedAt?: number | Date | string | null
+  syncMeilisearch?: boolean
   weightedText?: {
     text: string
     weight: number
@@ -82,6 +83,7 @@ type SQLStatusSearchRow = {
 
 type SQLTagSearchRow = {
   name: string
+  statusId?: string
   value: string | null
   nameNormalized: string | null
   createdAt: Date | string | number
@@ -239,12 +241,13 @@ const applyKeysetCursor = (
 ): Knex.QueryBuilder => {
   if (!cursor) return query
 
+  const cursorCreatedAt = getCompatibleTime(cursor.createdAt)
   return query.where((builder) => {
     builder
-      .where(createdAtColumn, '>', cursor.createdAt)
+      .where(createdAtColumn, '>', cursorCreatedAt)
       .orWhere((sameCreatedAt) => {
         sameCreatedAt
-          .where(createdAtColumn, '=', cursor.createdAt)
+          .where(createdAtColumn, '=', cursorCreatedAt)
           .where(idColumn, '>', cursor.id)
       })
   })
@@ -279,6 +282,19 @@ export const SearchSQLDatabaseMixin = (
   actorDatabase: ActorDatabase,
   statusDatabase: StatusDatabase
 ): SearchDatabase => {
+  let meilisearchSyncQueue: Promise<void> = Promise.resolve()
+
+  function enqueueMeilisearchSync(task: () => Promise<void>) {
+    const queuedTask = meilisearchSyncQueue.then(task, task)
+    meilisearchSyncQueue = queuedTask.catch((error) => {
+      logger.warn({
+        message:
+          'Unexpected Meilisearch search index synchronization queue failure',
+        error: error instanceof Error ? error.message : String(error)
+      })
+    })
+  }
+
   async function syncMeilisearchDocument({
     documentRow
   }: {
@@ -292,10 +308,10 @@ export const SearchSQLDatabaseMixin = (
       entityCreatedAt: number | Date | string | null
     }
   }) {
-    const config = getMeilisearchWriteConfig()
-    if (!config) return
-
     try {
+      const config = getMeilisearchWriteConfig()
+      if (!config) return
+
       await writeMeilisearchDocuments({
         config,
         type: toMeilisearchType(documentRow.entityType),
@@ -316,10 +332,10 @@ export const SearchSQLDatabaseMixin = (
     entityId,
     documentId
   }: DeleteSearchDocumentParams & { documentId: string }) {
-    const config = getMeilisearchWriteConfig()
-    if (!config) return
-
     try {
+      const config = getMeilisearchWriteConfig()
+      if (!config) return
+
       await deleteMeilisearchDocument({
         config,
         type: toMeilisearchType(entityType),
@@ -336,40 +352,46 @@ export const SearchSQLDatabaseMixin = (
   }
 
   async function syncMeilisearchClear() {
-    const config = getMeilisearchWriteConfig()
-    if (!config) return
+    try {
+      const config = getMeilisearchWriteConfig()
+      if (!config) return
 
-    await Promise.all(
-      (['account', 'status', 'hashtag'] as SearchEntityType[]).map(
-        async (entityType) => {
-          try {
+      await Promise.all(
+        (['account', 'status', 'hashtag'] as SearchEntityType[]).map(
+          async (entityType) => {
             await deleteMeilisearchDocuments({
               config,
               type: toMeilisearchType(entityType)
             })
-          } catch (error) {
-            warnMeilisearchWriteFailure({
-              action: 'clear',
-              entityType,
-              error
-            })
           }
-        }
+        )
       )
-    )
+    } catch (error) {
+      warnMeilisearchWriteFailure({
+        action: 'clear',
+        error
+      })
+    }
   }
 
   async function deleteSearchDocument({
     entityType,
-    entityId
-  }: DeleteSearchDocumentParams): Promise<void> {
+    entityId,
+    syncMeilisearch = true
+  }: DeleteSearchDocumentParams & {
+    syncMeilisearch?: boolean
+  }): Promise<void> {
     const documentId = getSearchDocumentId(entityType, entityId)
     await database.transaction(async (trx) => {
       // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
       await trx('search_terms').where('documentId', documentId).delete()
       await trx('search_documents').where('id', documentId).delete()
     })
-    await syncMeilisearchDelete({ entityType, entityId, documentId })
+    if (syncMeilisearch) {
+      enqueueMeilisearchSync(() =>
+        syncMeilisearchDelete({ entityType, entityId, documentId })
+      )
+    }
   }
 
   async function replaceSearchDocument({
@@ -379,11 +401,12 @@ export const SearchSQLDatabaseMixin = (
     visibility = null,
     searchText,
     entityCreatedAt = null,
+    syncMeilisearch = true,
     weightedText
   }: SearchDocumentInput): Promise<void> {
     const weightedTerms = getWeightedTerms({ searchText, weightedText })
     if (weightedTerms.length === 0) {
-      await deleteSearchDocument({ entityType, entityId })
+      await deleteSearchDocument({ entityType, entityId, syncMeilisearch })
       return
     }
 
@@ -424,7 +447,9 @@ export const SearchSQLDatabaseMixin = (
         }))
       )
     })
-    await syncMeilisearchDocument({ documentRow })
+    if (syncMeilisearch) {
+      enqueueMeilisearchSync(() => syncMeilisearchDocument({ documentRow }))
+    }
   }
 
   async function getStatusVisibility(
@@ -450,14 +475,19 @@ export const SearchSQLDatabaseMixin = (
   }
 
   async function upsertActorSearchDocument({
-    actorId
+    actorId,
+    syncMeilisearch = true
   }: UpsertSearchActorParams): Promise<boolean> {
     const actor = await database<SQLActor>('actors')
       .where('id', actorId)
       .first()
 
     if (!actor || actor.deletionStatus) {
-      await deleteSearchDocument({ entityType: 'account', entityId: actorId })
+      await deleteSearchDocument({
+        entityType: 'account',
+        entityId: actorId,
+        syncMeilisearch
+      })
       return false
     }
 
@@ -478,6 +508,7 @@ export const SearchSQLDatabaseMixin = (
       actorId: actor.id,
       searchText,
       entityCreatedAt: actor.createdAt,
+      syncMeilisearch,
       weightedText: [
         { text: actor.username, weight: 8 },
         { text: acct, weight: 8 },
@@ -490,7 +521,8 @@ export const SearchSQLDatabaseMixin = (
   }
 
   async function upsertStatusSearchDocument({
-    statusId
+    statusId,
+    syncMeilisearch = true
   }: UpsertSearchStatusParams): Promise<boolean> {
     const status = await database<SQLStatusSearchRow>('statuses')
       .innerJoin('actors', 'statuses.actorId', 'actors.id')
@@ -503,13 +535,21 @@ export const SearchSQLDatabaseMixin = (
       !status ||
       !SEARCHABLE_STATUS_TYPES.includes(status.type as StatusType)
     ) {
-      await deleteSearchDocument({ entityType: 'status', entityId: statusId })
+      await deleteSearchDocument({
+        entityType: 'status',
+        entityId: statusId,
+        syncMeilisearch
+      })
       return false
     }
 
     const visibility = await getStatusVisibility(status.id)
     if (!visibility) {
-      await deleteSearchDocument({ entityType: 'status', entityId: status.id })
+      await deleteSearchDocument({
+        entityType: 'status',
+        entityId: status.id,
+        syncMeilisearch
+      })
       return false
     }
 
@@ -530,6 +570,7 @@ export const SearchSQLDatabaseMixin = (
       visibility,
       searchText,
       entityCreatedAt: status.createdAt,
+      syncMeilisearch,
       weightedText: [
         { text, weight: 5 },
         { text: tagText, weight: 4 },
@@ -537,6 +578,101 @@ export const SearchSQLDatabaseMixin = (
       ]
     })
     return true
+  }
+
+  async function rebuildStatusSearchDocuments({
+    statuses,
+    syncMeilisearch,
+    concurrency
+  }: {
+    statuses: KeysetRow[]
+    syncMeilisearch: boolean
+    concurrency: number
+  }): Promise<boolean[]> {
+    const statusIds = statuses.map((status) => status.id)
+    if (statusIds.length === 0) return []
+
+    const [statusRows, recipientRows, tagRows] = await Promise.all([
+      database<SQLStatusSearchRow>('statuses')
+        .innerJoin('actors', 'statuses.actorId', 'actors.id')
+        .whereIn('statuses.id', statusIds)
+        .whereNull('actors.deletionStatus')
+        .select<SQLStatusSearchRow[]>('statuses.*'),
+      database('recipients')
+        .whereIn('statusId', statusIds)
+        .whereIn('actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+        .whereIn('type', ['to', 'cc'])
+        .select<{ statusId: string; type: string }[]>('statusId', 'type'),
+      database('tags')
+        .whereIn('statusId', statusIds)
+        .where('type', 'hashtag')
+        .select<
+          Pick<SQLTagSearchRow, 'statusId' | 'name'>[]
+        >('statusId', 'name')
+    ])
+    const statusById = new Map(statusRows.map((status) => [status.id, status]))
+    const visibilityByStatusId = recipientRows.reduce((visibilityMap, row) => {
+      const currentVisibility = visibilityMap.get(row.statusId)
+      if (row.type === 'to') {
+        visibilityMap.set(row.statusId, 'public')
+      } else if (!currentVisibility) {
+        visibilityMap.set(row.statusId, 'unlisted')
+      }
+      return visibilityMap
+    }, new Map<string, 'public' | 'unlisted'>())
+    const tagTextByStatusId = tagRows.reduce((tagMap, row) => {
+      if (!row.statusId) return tagMap
+
+      tagMap.set(row.statusId, [...(tagMap.get(row.statusId) ?? []), row.name])
+      return tagMap
+    }, new Map<string, string[]>())
+
+    return mapWithConcurrency(statuses, concurrency, async ({ id }) => {
+      const status = statusById.get(id)
+      if (
+        !status ||
+        !SEARCHABLE_STATUS_TYPES.includes(status.type as StatusType)
+      ) {
+        await deleteSearchDocument({
+          entityType: 'status',
+          entityId: id,
+          syncMeilisearch
+        })
+        return false
+      }
+
+      const visibility = visibilityByStatusId.get(id)
+      if (!visibility) {
+        await deleteSearchDocument({
+          entityType: 'status',
+          entityId: id,
+          syncMeilisearch
+        })
+        return false
+      }
+
+      const content = parseStatusContent(status.content)
+      const tagText = (tagTextByStatusId.get(id) ?? []).join(' ')
+      const text = getString(content.text)
+      const summary = getString(content.summary)
+      const searchText = [text, summary, tagText].filter(Boolean).join(' ')
+
+      await replaceSearchDocument({
+        entityType: 'status',
+        entityId: status.id,
+        actorId: status.actorId,
+        visibility,
+        searchText,
+        entityCreatedAt: status.createdAt,
+        syncMeilisearch,
+        weightedText: [
+          { text, weight: 5 },
+          { text: tagText, weight: 4 },
+          { text: summary, weight: 2 }
+        ]
+      })
+      return true
+    })
   }
 
   async function getPublicHashtagRow(
@@ -561,7 +697,8 @@ export const SearchSQLDatabaseMixin = (
   }
 
   async function upsertHashtagSearchDocument({
-    name
+    name,
+    syncMeilisearch = true
   }: UpsertSearchHashtagParams): Promise<boolean> {
     const hashtagId = getHashtagId(name)
     if (!hashtagId) return false
@@ -570,7 +707,8 @@ export const SearchSQLDatabaseMixin = (
     if (!tag) {
       await deleteSearchDocument({
         entityType: 'hashtag',
-        entityId: hashtagId
+        entityId: hashtagId,
+        syncMeilisearch
       })
       return false
     }
@@ -581,6 +719,7 @@ export const SearchSQLDatabaseMixin = (
       entityId: hashtagId,
       searchText: [displayName, hashtagId].join(' '),
       entityCreatedAt: tag.createdAt,
+      syncMeilisearch,
       weightedText: [
         { text: displayName, weight: 8 },
         { text: hashtagId, weight: 8 }
@@ -589,13 +728,15 @@ export const SearchSQLDatabaseMixin = (
     return true
   }
 
-  async function clearSearchIndex(): Promise<void> {
+  async function clearSearchIndex(syncMeilisearch = true): Promise<void> {
     await database.transaction(async (trx) => {
       // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
       await trx('search_terms').delete()
       await trx('search_documents').delete()
     })
-    await syncMeilisearchClear()
+    if (syncMeilisearch) {
+      enqueueMeilisearchSync(syncMeilisearchClear)
+    }
   }
 
   async function getSearchQueryTerms(query: string) {
@@ -921,7 +1062,8 @@ export const SearchSQLDatabaseMixin = (
   async function rebuildSearchIndex({
     clear = false,
     batchSize = DEFAULT_BATCH_SIZE,
-    dryRun = false
+    dryRun = false,
+    syncMeilisearch = true
   }: SearchRebuildParams = {}): Promise<SearchRebuildResult> {
     const normalizedBatchSize = normalizeBatchSize(batchSize)
     const rebuildConcurrency = Math.min(
@@ -979,7 +1121,7 @@ export const SearchSQLDatabaseMixin = (
     }
 
     if (clear) {
-      await clearSearchIndex()
+      await clearSearchIndex(syncMeilisearch)
     }
 
     let actorCursor: KeysetRow | null = null
@@ -998,7 +1140,11 @@ export const SearchSQLDatabaseMixin = (
       const indexed = await mapWithConcurrency(
         actors,
         rebuildConcurrency,
-        (actor) => upsertActorSearchDocument({ actorId: actor.id })
+        (actor) =>
+          upsertActorSearchDocument({
+            actorId: actor.id,
+            syncMeilisearch
+          })
       )
       result.accounts += indexed.filter(Boolean).length
       actorCursor = actors[actors.length - 1]
@@ -1021,11 +1167,11 @@ export const SearchSQLDatabaseMixin = (
       )
       if (statuses.length === 0) break
 
-      const indexed = await mapWithConcurrency(
+      const indexed = await rebuildStatusSearchDocuments({
         statuses,
-        rebuildConcurrency,
-        (status) => upsertStatusSearchDocument({ statusId: status.id })
-      )
+        syncMeilisearch,
+        concurrency: rebuildConcurrency
+      })
       result.statuses += indexed.filter(Boolean).length
       statusCursor = statuses[statuses.length - 1]
     }
@@ -1062,7 +1208,10 @@ export const SearchSQLDatabaseMixin = (
         hashtags,
         rebuildConcurrency,
         (hashtag) =>
-          upsertHashtagSearchDocument({ name: hashtag.nameNormalized })
+          upsertHashtagSearchDocument({
+            name: hashtag.nameNormalized,
+            syncMeilisearch
+          })
       )
       result.hashtags += indexed.filter(Boolean).length
       lastHashtagName = hashtags[hashtags.length - 1].nameNormalized

@@ -36,6 +36,11 @@ describe('SearchSQLDatabase Meilisearch synchronization', () => {
 
   let rawDatabase: Knex
   let database: Database
+  const flushQueuedMeilisearchSync = async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  }
 
   beforeEach(async () => {
     jest.clearAllMocks()
@@ -80,6 +85,7 @@ describe('SearchSQLDatabase Meilisearch synchronization', () => {
       publicKey: 'public-key',
       createdAt: Date.now()
     })
+    await flushQueuedMeilisearchSync()
 
     expect(mockWriteMeilisearchDocuments).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -103,6 +109,7 @@ describe('SearchSQLDatabase Meilisearch synchronization', () => {
       entityId: actorId
     })
     await database.clearSearchIndex()
+    await flushQueuedMeilisearchSync()
 
     expect(mockDeleteMeilisearchDocument).toHaveBeenCalledWith(
       expect.objectContaining({
