@@ -12,6 +12,7 @@ import {
 } from '@testing-library/react'
 
 import {
+  createDirectMessage,
   getConversationStatuses,
   getConversations,
   hideConversation,
@@ -142,14 +143,15 @@ const conversation = ({
 
 const renderMessagesPage = (
   conversations: DirectConversationView[],
-  initialConversationId: string | null = conversations[0]?.id ?? null
+  initialConversationId: string | null = conversations[0]?.id ?? null,
+  initialStatuses: Status[] = []
 ) =>
   render(
     <MessagesPage
       host="example.com"
       conversations={conversations}
       initialConversationId={initialConversationId}
-      initialStatuses={[]}
+      initialStatuses={initialStatuses}
       initialNextMaxStatusId={null}
       currentTime={currentTime}
       currentActor={currentActor}
@@ -159,6 +161,7 @@ const renderMessagesPage = (
 describe('MessagesPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    ;(createDirectMessage as jest.Mock).mockResolvedValue({})
     ;(getConversations as jest.Mock).mockResolvedValue({ conversations: [] })
     ;(hideConversation as jest.Mock).mockResolvedValue(true)
     ;(markConversationRead as jest.Mock).mockResolvedValue(true)
@@ -319,5 +322,105 @@ describe('MessagesPage', () => {
       within(screen.getByRole('button', { name: /Ada/i })).getByText('Ada')
     ).toHaveClass('font-semibold')
     expect(markConversationRead).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the current thread visible while refreshing after sending a message', async () => {
+    const refreshedThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    const conversations = [
+      conversation({ id: 'first', participantName: 'Ada' })
+    ]
+    ;(getConversationStatuses as jest.Mock)
+      .mockResolvedValueOnce({
+        statuses: [status('first-status', 'Existing status')],
+        nextMaxStatusId: null
+      })
+      .mockReturnValueOnce(refreshedThread.promise)
+    ;(getConversations as jest.Mock).mockResolvedValue({ conversations })
+
+    renderMessagesPage(conversations, 'first', [
+      status('initial-status', 'Existing status')
+    ])
+
+    expect(await screen.findByText('Existing status')).toBeInTheDocument()
+
+    const messageInput = screen.getByPlaceholderText('Write a message')
+    fireEvent.change(messageInput, { target: { value: 'Reply' } })
+    fireEvent.submit(messageInput.closest('form')!)
+
+    await waitFor(() => {
+      expect(getConversationStatuses).toHaveBeenCalledTimes(2)
+    })
+
+    expect(screen.getByText('Existing status')).toBeInTheDocument()
+    expect(screen.queryByText('Refreshed status')).not.toBeInTheDocument()
+
+    await act(async () => {
+      refreshedThread.resolve({
+        statuses: [status('refreshed-status', 'Refreshed status')],
+        nextMaxStatusId: null
+      })
+    })
+
+    expect(await screen.findByText('Refreshed status')).toBeInTheDocument()
+  })
+
+  it('scrolls the message thread to the bottom when displayed statuses change', async () => {
+    const threadLoad = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    ;(getConversationStatuses as jest.Mock).mockReturnValue(threadLoad.promise)
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const thread = screen.getByLabelText('Message thread')
+    Object.defineProperty(thread, 'scrollHeight', {
+      configurable: true,
+      value: 640
+    })
+
+    await act(async () => {
+      threadLoad.resolve({
+        statuses: [status('first-status', 'First status')],
+        nextMaxStatusId: null
+      })
+    })
+
+    await waitFor(() => {
+      expect(thread.scrollTop).toBe(640)
+    })
+  })
+
+  it('sends the message with Enter and preserves Shift+Enter for a newline', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+    ;(getConversations as jest.Mock).mockResolvedValue({
+      conversations: [conversation({ id: 'first', participantName: 'Ada' })]
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const messageInput = screen.getByPlaceholderText('Write a message')
+    fireEvent.change(messageInput, { target: { value: 'Line one' } })
+
+    expect(
+      fireEvent.keyDown(messageInput, { key: 'Enter', shiftKey: true })
+    ).toBe(true)
+    expect(createDirectMessage).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(messageInput, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(createDirectMessage).toHaveBeenCalledWith({
+        message: 'Line one',
+        recipients: [expect.objectContaining({ display_name: 'Ada' })],
+        replyStatus: expect.objectContaining({ id: 'last-first' })
+      })
+    })
   })
 })

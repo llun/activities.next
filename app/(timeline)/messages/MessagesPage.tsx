@@ -4,6 +4,7 @@ import { Archive, Loader2, Mail, Plus, Search, Send, X } from 'lucide-react'
 import {
   FC,
   FormEvent,
+  KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -106,6 +107,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const [error, setError] = useState<string | null>(null)
   const latestThreadRequestIdRef = useRef(0)
   const selectedConversationIdRef = useRef(selectedConversationId)
+  const threadContainerRef = useRef<HTMLDivElement | null>(null)
   const failedReadConversationIdsRef = useRef(new Set<string>())
   const pendingReadConversationIdsRef = useRef(new Set<string>())
 
@@ -131,25 +133,47 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     setSelectedConversationId(conversationId)
   }, [])
 
-  const loadThread = useCallback(async (conversationId: string) => {
-    const requestId = latestThreadRequestIdRef.current + 1
-    latestThreadRequestIdRef.current = requestId
-    setThreadLoading(true)
-    setLoadingMoreStatuses(false)
-    try {
-      const result = await getConversationStatuses({
-        conversationId,
-        limit: 40
-      })
-      if (latestThreadRequestIdRef.current !== requestId) return
-      setThreadStatuses(result.statuses)
-      setNextMaxStatusId(result.nextMaxStatusId)
-    } finally {
-      if (latestThreadRequestIdRef.current === requestId) {
-        setThreadLoading(false)
+  const loadThread = useCallback(
+    async (conversationId: string, options: { silent?: boolean } = {}) => {
+      const requestId = latestThreadRequestIdRef.current + 1
+      latestThreadRequestIdRef.current = requestId
+      if (!options.silent) {
+        setThreadLoading(true)
       }
-    }
-  }, [])
+      setLoadingMoreStatuses(false)
+      try {
+        const result = await getConversationStatuses({
+          conversationId,
+          limit: 40
+        })
+        if (latestThreadRequestIdRef.current !== requestId) return
+        setThreadStatuses(result.statuses)
+        setNextMaxStatusId(result.nextMaxStatusId)
+      } finally {
+        if (latestThreadRequestIdRef.current === requestId) {
+          setThreadLoading(false)
+        }
+      }
+    },
+    []
+  )
+
+  useEffect(() => {
+    const threadContainer = threadContainerRef.current
+    if (!threadContainer) return
+
+    threadContainer.scrollTop = threadContainer.scrollHeight
+  }, [displayStatuses])
+
+  const handleMessageKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key !== 'Enter' || event.shiftKey) return
+
+      event.preventDefault()
+      event.currentTarget.form?.requestSubmit()
+    },
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     if (!selectedConversationId || !nextMaxStatusId) return
@@ -329,11 +353,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         const nextConversationId =
           selectedConversation?.id ?? refreshedConversations[0]?.id ?? null
         selectConversation(nextConversationId)
-        if (
-          nextConversationId &&
-          nextConversationId === selectedConversationId
-        ) {
-          await loadThread(nextConversationId)
+        if (nextConversationId) {
+          await loadThread(nextConversationId, { silent: true })
         }
       } catch (_error) {
         setError('Could not send message')
@@ -347,8 +368,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       message,
       refreshConversations,
       selectConversation,
-      selectedConversation,
-      selectedConversationId
+      selectedConversation
     ]
   )
 
@@ -454,7 +474,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
             )}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            ref={threadContainerRef}
+            aria-label="Message thread"
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
             {isThreadLoading ? (
               <div className="flex h-full items-center justify-center text-muted-foreground">
                 <Loader2 className="size-5 animate-spin" />
@@ -549,6 +573,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
               <Textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={handleMessageKeyDown}
                 placeholder="Write a message"
                 className="min-h-24 resize-y"
               />
