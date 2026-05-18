@@ -1,6 +1,7 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { logger } from '@/lib/utils/logger'
 
 import { parseAccountSearchQuery } from './parseAccountSearchQuery'
@@ -36,6 +37,8 @@ export const resolveAccountForSearch = async ({
   }
 
   try {
+    if (!(await canFederateWithDomain(database, parsed.domain))) return null
+
     const actorId = await getWebfingerSelf({ account: parsed.account })
     if (!actorId) return null
 

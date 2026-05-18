@@ -48,6 +48,7 @@ import { logger } from '@/lib/utils/logger'
 const DEFAULT_LIMIT = 20
 const DEFAULT_BATCH_SIZE = 500
 const DEFAULT_REBUILD_CONCURRENCY = 8
+const MAX_MEILISEARCH_SYNC_QUEUE_SIZE = 1000
 const MAX_QUERY_TERMS = 8
 const SEARCHABLE_STATUS_TYPES: StatusType[] = [
   StatusType.enum.Note,
@@ -283,16 +284,30 @@ export const SearchSQLDatabaseMixin = (
   statusDatabase: StatusDatabase
 ): SearchDatabase => {
   let meilisearchSyncQueue: Promise<void> = Promise.resolve()
+  let queuedMeilisearchSyncTasks = 0
 
   function enqueueMeilisearchSync(task: () => Promise<void>) {
-    const queuedTask = meilisearchSyncQueue.then(task, task)
-    meilisearchSyncQueue = queuedTask.catch((error) => {
+    if (queuedMeilisearchSyncTasks >= MAX_MEILISEARCH_SYNC_QUEUE_SIZE) {
       logger.warn({
-        message:
-          'Unexpected Meilisearch search index synchronization queue failure',
-        error: error instanceof Error ? error.message : String(error)
+        message: 'Dropping Meilisearch search index synchronization task',
+        queueSize: queuedMeilisearchSyncTasks
       })
-    })
+      return
+    }
+
+    queuedMeilisearchSyncTasks += 1
+    meilisearchSyncQueue = meilisearchSyncQueue
+      .then(task, task)
+      .catch((error) => {
+        logger.warn({
+          message:
+            'Unexpected Meilisearch search index synchronization queue failure',
+          error: error instanceof Error ? error.message : String(error)
+        })
+      })
+      .finally(() => {
+        queuedMeilisearchSyncTasks -= 1
+      })
   }
 
   async function syncMeilisearchDocument({
@@ -800,6 +815,9 @@ export const SearchSQLDatabaseMixin = (
       cursor: SearchCursorRow
     ) => {
       const cursorOperator = direction === 'before' ? '>' : '<'
+      const entityCreatedAt = cursor.entityCreatedAt
+        ? getCompatibleTime(cursor.entityCreatedAt)
+        : null
 
       documentsQuery = documentsQuery.where((builder) => {
         builder
@@ -812,14 +830,14 @@ export const SearchSQLDatabaseMixin = (
                   .where(
                     'search_documents.entityCreatedAt',
                     cursorOperator,
-                    cursor.entityCreatedAt
+                    entityCreatedAt
                   )
                   .orWhere((sameCreatedAt) => {
                     sameCreatedAt
                       .where(
                         'search_documents.entityCreatedAt',
                         '=',
-                        cursor.entityCreatedAt
+                        entityCreatedAt
                       )
                       .where(
                         'search_documents.entityIdHash',

@@ -22,6 +22,8 @@ export const normalizeSearchTokens = (
   const seen = new Set<string>()
   const tokens: string[] = []
   const normalized = value
+    .trim()
+    .replace(/<[^>]*>/g, ' ')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()

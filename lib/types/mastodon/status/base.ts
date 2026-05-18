@@ -11,7 +11,7 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 
 import { Application } from './application'
 import { Mention } from './mention'
-import { Tag } from './tag'
+import { StatusTag } from './tag'
 
 export const BaseStatus = z.object({
   id: z
@@ -43,7 +43,7 @@ export const BaseStatus = z.object({
   mentions: Mention.array().describe(
     'Mentions of users within the status content'
   ),
-  tags: Tag.array().describe('Hashtags used within the status content'),
+  tags: StatusTag.array().describe('Hashtags used within the status content'),
 
   reblogs_count: z
     .number()
