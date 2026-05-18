@@ -265,8 +265,8 @@ const backfillDirectConversations = async (knex) => {
 
     const localActorIds = await getLocalActorIds(knex, directStatuses)
 
-    for (const status of directStatuses) {
-      await knex.transaction(async (trx) => {
+    await knex.transaction(async (trx) => {
+      for (const status of directStatuses) {
         const rootStatusId = await resolveRootStatusId(trx, status)
         const conversationId = conversationIdForRoot(rootStatusId)
         const currentTime = new Date()
@@ -372,8 +372,8 @@ const backfillDirectConversations = async (knex) => {
           })
           .whereIn('timeline', LEGACY_DIRECT_TIMELINES)
           .delete()
-      })
-    }
+      }
+    })
   }
 }
 
