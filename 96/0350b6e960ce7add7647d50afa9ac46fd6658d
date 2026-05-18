@@ -1,0 +1,25 @@
+lib/actions/createPoll.test.ts
+  s_5bb2489756d368::t_de98d78b6c4fd4 9,231-283
+lib/actions/createPoll.ts
+  s_5bb2489756d368::t_dd70b3b475487f 5,90-96,114
+lib/actions/createNote.test.ts
+  s_5bb2489756d368::t_e6516c87fddd44 14,538-612
+lib/actions/createNote.ts
+  s_5bb2489756d368::t_ce3a800e1b7605 23-27,84-137,347-353,374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "960350b6e960ce7add7647d50afa9ac46fd6658d",
+  "prompts": {},
+  "sessions": {
+    "s_5bb2489756d368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3b06-9cea-79a1-b1d0-41d4a99aefdb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
