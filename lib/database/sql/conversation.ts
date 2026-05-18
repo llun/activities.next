@@ -180,22 +180,30 @@ const applyMembershipCursor = (
   })
 }
 
-const applyStatusCursor = (
-  query: Knex.QueryBuilder,
+const applyStatusCursorCondition = (
+  builder: Knex.QueryBuilder,
   cursor: DirectConversationStatusRow,
   direction: 'older' | 'newer'
 ) => {
   const createdAtOperator = direction === 'older' ? '<' : '>'
   const idOperator = direction === 'older' ? '<' : '>'
 
+  builder
+    .where('createdAt', createdAtOperator, cursor.createdAt)
+    .orWhere((tieBreaker) => {
+      tieBreaker
+        .where('createdAt', cursor.createdAt)
+        .andWhere('statusId', idOperator, cursor.statusId)
+    })
+}
+
+const applyStatusCursor = (
+  query: Knex.QueryBuilder,
+  cursor: DirectConversationStatusRow,
+  direction: 'older' | 'newer'
+) => {
   query.andWhere((builder) => {
-    builder
-      .where('createdAt', createdAtOperator, cursor.createdAt)
-      .orWhere((tieBreaker) => {
-        tieBreaker
-          .where('createdAt', cursor.createdAt)
-          .andWhere('statusId', idOperator, cursor.statusId)
-      })
+    applyStatusCursorCondition(builder, cursor, direction)
   })
 }
 
@@ -309,6 +317,50 @@ export const DirectConversationSQLDatabaseMixin = (
     return new Map(statuses.map((status) => [status.id, status]))
   }
 
+  const getFallbackStatusRowsForConversations = async ({
+    conversationIds,
+    cursorByConversationId
+  }: {
+    conversationIds: string[]
+    cursorByConversationId: Map<string, DirectConversationStatusRow>
+  }) => {
+    if (conversationIds.length === 0) return []
+
+    const rankedRowsQuery = database('direct_conversation_statuses')
+      .select('conversationId', 'statusId', 'createdAt')
+      .where((builder) => {
+        for (const conversationId of conversationIds) {
+          builder.orWhere((conversationBuilder) => {
+            conversationBuilder.where('conversationId', conversationId)
+            const cursor = cursorByConversationId.get(conversationId)
+            if (cursor) {
+              conversationBuilder.andWhere((cursorBuilder) => {
+                applyStatusCursorCondition(cursorBuilder, cursor, 'older')
+              })
+            }
+          })
+        }
+      })
+      .rowNumber('conversationStatusRank', function () {
+        this.partitionBy('conversationId')
+          .orderBy('createdAt', 'desc')
+          .orderBy('statusId', 'desc')
+      })
+
+    return database(rankedRowsQuery.as('ranked_direct_conversation_statuses'))
+      .where(
+        'conversationStatusRank',
+        '<=',
+        DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE
+      )
+      .select<
+        DirectConversationStatusRow[]
+      >('conversationId', 'statusId', 'createdAt')
+      .orderBy('conversationId', 'asc')
+      .orderBy('createdAt', 'desc')
+      .orderBy('statusId', 'desc')
+  }
+
   const getLocalParticipantActorIds = async (
     trx: Knex.Transaction,
     participantActorIds: string[]
@@ -356,53 +408,72 @@ export const DirectConversationSQLDatabaseMixin = (
     >()
 
     if (rowsMissingLastStatus.length > 0) {
-      const fallbackConversationIds = [
+      const unresolvedFallbackConversationIds = new Set([
         ...new Set(rowsMissingLastStatus.map((row) => row.conversationId))
-      ]
+      ])
+      const fallbackCursorByConversationId = new Map<
+        string,
+        DirectConversationStatusRow
+      >()
 
-      for (const conversationId of fallbackConversationIds) {
-        let scannedCursor: DirectConversationStatusRow | null = null
+      for (
+        let batchIndex = 0;
+        batchIndex < MAX_DIRECT_CONVERSATION_FALLBACK_STATUS_BATCHES &&
+        unresolvedFallbackConversationIds.size > 0;
+        batchIndex += 1
+      ) {
+        const fallbackRows = await getFallbackStatusRowsForConversations({
+          conversationIds: [...unresolvedFallbackConversationIds],
+          cursorByConversationId: fallbackCursorByConversationId
+        })
+        if (fallbackRows.length === 0) break
 
-        for (
-          let batchIndex = 0;
-          batchIndex < MAX_DIRECT_CONVERSATION_FALLBACK_STATUS_BATCHES &&
-          !fallbackStatusRowsByConversationId.has(conversationId);
-          batchIndex += 1
-        ) {
-          const query = database('direct_conversation_statuses')
-            .where('conversationId', conversationId)
-            .select<
-              DirectConversationStatusRow[]
-            >('conversationId', 'statusId', 'createdAt')
-          if (scannedCursor) applyStatusCursor(query, scannedCursor, 'older')
+        const fallbackRowsByConversationId = fallbackRows.reduce(
+          (output, fallbackRow) => {
+            const conversationRows =
+              output.get(fallbackRow.conversationId) || []
+            conversationRows.push(fallbackRow)
+            output.set(fallbackRow.conversationId, conversationRows)
+            return output
+          },
+          new Map<string, DirectConversationStatusRow[]>()
+        )
+        const fallbackStatusById = await getStatusesByIdVisibleToActor(
+          fallbackRows.map((row) => row.statusId),
+          currentActorId
+        )
 
-          const fallbackRows = await query
-            .orderBy('createdAt', 'desc')
-            .orderBy('statusId', 'desc')
-            .limit(DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE)
-          if (fallbackRows.length === 0) break
+        for (const conversationId of [...unresolvedFallbackConversationIds]) {
+          const conversationFallbackRows =
+            fallbackRowsByConversationId.get(conversationId) || []
+          if (conversationFallbackRows.length === 0) {
+            unresolvedFallbackConversationIds.delete(conversationId)
+            continue
+          }
 
-          const fallbackStatusById = await getStatusesByIdVisibleToActor(
-            fallbackRows.map((row) => row.statusId),
-            currentActorId
-          )
-
-          for (const fallbackRow of fallbackRows) {
+          for (const fallbackRow of conversationFallbackRows) {
             const fallbackStatus = fallbackStatusById.get(fallbackRow.statusId)
             if (!fallbackStatus) continue
 
             fallbackStatusRowsByConversationId.set(conversationId, fallbackRow)
             statusById.set(fallbackStatus.id, fallbackStatus)
+            unresolvedFallbackConversationIds.delete(conversationId)
             break
           }
 
           if (
             fallbackStatusRowsByConversationId.has(conversationId) ||
-            fallbackRows.length < DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE
-          )
-            break
+            conversationFallbackRows.length <
+              DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE
+          ) {
+            unresolvedFallbackConversationIds.delete(conversationId)
+            continue
+          }
 
-          scannedCursor = fallbackRows[fallbackRows.length - 1]
+          fallbackCursorByConversationId.set(
+            conversationId,
+            conversationFallbackRows[conversationFallbackRows.length - 1]
+          )
         }
       }
     }
