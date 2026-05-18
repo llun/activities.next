@@ -50,6 +50,7 @@ export type CreateActorParams = {
 export type GetActorFromEmailParams = { email: string }
 export type GetActorFromUsernameParams = { username: string; domain: string }
 export type GetActorFromIdParams = { id: string }
+export type GetActorsFromIdsParams = { ids: string[] }
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
@@ -135,6 +136,9 @@ export interface ActorDatabase {
   getMastodonActorFromId(
     params: GetActorFromIdParams
   ): Promise<Mastodon.Account | null>
+  getMastodonActorsFromIds(
+    params: GetActorsFromIdsParams
+  ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
   deleteActor(params: DeleteActorParams): Promise<void>
   updateActorFollowersCount(actorId: string): Promise<void>
@@ -470,6 +474,16 @@ export type GetFavouritedByParams = BaseStatusParams & {
   limit?: number
   offset?: number
 }
+export type GetRebloggedByParams = BaseStatusParams & {
+  limit?: number
+  maxStatusId?: string
+  sinceStatusId?: string
+  visibleToActorId?: string | null
+}
+export type RebloggedByAccount = {
+  actorId: string
+  statusId: string
+}
 
 export type CreateTagParams = {
   statusId: string
@@ -570,6 +584,7 @@ export interface StatusDatabase {
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
   getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
+  getRebloggedBy(params: GetRebloggedByParams): Promise<RebloggedByAccount[]>
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
   getStatusesByHashtag(params: GetStatusesByHashtagParams): Promise<Status[]>
