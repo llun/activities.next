@@ -89,12 +89,12 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
   const { username, domain } = handle
   let actor = await database.getActorFromUsername({ username, domain })
   if (!actor && resolve && domain !== config.host) {
-    const session = await getServerAuthSession()
+    const hasBearerAuthorization = isBearerAuthorizationHeader(
+      req.headers.get('Authorization')
+    )
+    const session = hasBearerAuthorization ? null : await getServerAuthSession()
     let canResolveRemote = Boolean(session?.user?.email)
-    if (
-      !canResolveRemote &&
-      isBearerAuthorizationHeader(req.headers.get('Authorization'))
-    ) {
+    if (!canResolveRemote && hasBearerAuthorization) {
       const bearerAuth = await authorizeBearerRemoteLookup(req)
       if (!bearerAuth.authorized) return bearerAuth.response
       canResolveRemote = true

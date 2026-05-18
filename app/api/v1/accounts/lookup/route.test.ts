@@ -140,6 +140,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
       account: 'person@remote.test'
     })
+    expect(mockGetServerSession).not.toHaveBeenCalled()
     expect(await response.json()).toEqual(account)
   })
 
@@ -159,6 +160,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     )
 
     expect(response.status).toBe(401)
+    expect(mockGetServerSession).not.toHaveBeenCalled()
     expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
   })
 })
