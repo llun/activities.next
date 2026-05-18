@@ -77,11 +77,11 @@ export const GET = traceApiRoute(
         exclude_unreviewed
       } = parsedParams.data
       const query = q.trim()
-      const usesTypedOffset = Boolean(type) && offset > 0
+      const usesOffset = url.searchParams.has('offset')
 
       if (
         !currentActor &&
-        (following || resolve || usesTypedOffset || type === 'statuses')
+        (following || resolve || usesOffset || type === 'statuses')
       ) {
         return apiResponse({
           req,

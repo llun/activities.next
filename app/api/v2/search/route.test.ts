@@ -184,12 +184,23 @@ describe('GET /api/v2/search', () => {
     )
   })
 
-  it('requires authentication for typed offset pagination', async () => {
+  it('requires authentication when offset is present', async () => {
+    mockCurrentActor = null
+
+    const response = await GET(
+      new NextRequest('https://local.test/api/v2/search?q=trail&offset=1')
+    )
+
+    expect(response.status).toBe(401)
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
+  it('requires authentication when typed offset is explicitly zero', async () => {
     mockCurrentActor = null
 
     const response = await GET(
       new NextRequest(
-        'https://local.test/api/v2/search?q=trail&type=accounts&offset=1'
+        'https://local.test/api/v2/search?q=trail&type=accounts&offset=0'
       )
     )
 
