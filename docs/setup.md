@@ -19,7 +19,7 @@ Activity.next supports multiple SQL database backends. Choose the one that best 
 
 ## General Configuration
 
-Activity.next is configured through environment variables prefixed with `ACTIVITIES_`. Top-level options use `ACTIVITIES_<KEY>` (e.g., `ACTIVITIES_HOST`); nested options use `ACTIVITIES_<SECTION>_<KEY>` (e.g., `ACTIVITIES_AUTH_GITHUB_ID`).
+Activity.next is configured through environment variables prefixed with `ACTIVITIES_`. Top-level options use `ACTIVITIES_<KEY>` (e.g., `ACTIVITIES_HOST`); nested options use `ACTIVITIES_<SECTION>_<KEY>` (e.g., `ACTIVITIES_DATABASE_PG_HOST`).
 
 For a complete reference of all configuration options, see the [Environment Variables Guide](environment-variables.md).
 
@@ -54,26 +54,9 @@ ACTIVITIES_ALLOW_EMAILS='["your_email@example.com"]'
 
 > **Tip:** If `allowEmails` is set, only users with matching email addresses can register. This is recommended for personal or small-group instances.
 
-### Authentication Providers
+### Authentication Methods
 
-Activity.next uses [better-auth](https://www.better-auth.com/) for authentication and supports local email/password accounts by default.
-
-#### GitHub OAuth (Optional)
-
-To enable GitHub sign-in:
-
-1. Create a GitHub OAuth app in your [GitHub Developer Settings](https://github.com/settings/developers)
-
-   ![GitHub OAuth app settings](images/github-settings-oauth-apps.png)
-
-2. Set the callback URL to `https://your-domain.tld/api/auth/callback/github`
-
-3. Add the credentials via environment variables:
-
-```bash
-ACTIVITIES_AUTH_GITHUB_ID=github-app-client-id
-ACTIVITIES_AUTH_GITHUB_SECRET=github-app-secret
-```
+Activity.next uses [better-auth](https://www.better-auth.com/) for authentication and supports local email/password accounts, passkeys, and two-factor authentication.
 
 ### Media Storage (Optional)
 

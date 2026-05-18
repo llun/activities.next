@@ -69,13 +69,9 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 
 ## Authentication
 
-| Variable                        | Description                               |
-| ------------------------------- | ----------------------------------------- |
-| `ACTIVITIES_AUTH`               | Full auth configuration as a JSON string. |
-| `ACTIVITIES_AUTH_GITHUB_ID`     | GitHub OAuth app Client ID.               |
-| `ACTIVITIES_AUTH_GITHUB_SECRET` | GitHub OAuth app Client Secret.           |
-
-To set up GitHub OAuth, create an app at [GitHub Developer Settings](https://github.com/settings/developers) and set the callback URL to `https://your-domain.tld/api/auth/callback/github`.
+| Variable          | Description                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_AUTH` | Full auth configuration as a JSON string. If not provided, local email/password authentication is enabled by default. |
 
 ## Email
 

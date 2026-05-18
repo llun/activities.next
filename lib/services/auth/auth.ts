@@ -108,15 +108,6 @@ export const getAuth = memoize(() => {
           bcrypt.compare(password, hash)
       }
     },
-    socialProviders: {
-      github: config.auth?.github
-        ? {
-            clientId: config.auth.github.id,
-            clientSecret: config.auth.github.secret,
-            disableSignUp: true
-          }
-        : undefined
-    },
     account: {
       modelName: 'account_providers',
       accountLinking: {

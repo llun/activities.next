@@ -126,7 +126,8 @@ The `/api/v1/` and `/api/v2/` routes implement a subset of the [Mastodon API](ht
 Authentication is handled by [better-auth](https://www.better-auth.com/), which provides:
 
 - Local email/password authentication
-- GitHub OAuth sign-in
+- Passkey authentication
+- Two-factor authentication
 - Session management stored in the database
 - OAuth 2.0 access tokens (JWT and opaque) for API access
 

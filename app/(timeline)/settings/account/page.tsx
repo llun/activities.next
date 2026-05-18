@@ -1,7 +1,6 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import { AuthenticationProviders } from '@/app/(timeline)/settings/AuthenticationProviders'
 import { LogoutButton } from '@/app/(timeline)/settings/LogoutButton'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
@@ -42,17 +41,7 @@ const Page = async ({
 
   const account = actor.account
   const { error } = await searchParams
-  const { auth, serviceName } = getConfig()
-  const [nonCredentialsProviders, connectedProviders] = await Promise.all([
-    [
-      auth?.github && { id: 'github', name: 'GitHub' }
-      // To add more providers in the future, add them here. For example:
-      // auth?.google && { id: 'google', name: 'Google' }
-    ].filter(
-      (provider): provider is { id: string; name: string } => !!provider
-    ),
-    database.getAccountProviders({ accountId: account.id })
-  ])
+  const { serviceName } = getConfig()
 
   return (
     <div className="space-y-6">
@@ -156,22 +145,6 @@ const Page = async ({
         </div>
         <PasskeyManager />
       </section>
-
-      {nonCredentialsProviders.length > 0 && (
-        <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Connected Accounts</h2>
-            <p className="text-sm text-muted-foreground">
-              Manage login methods.
-            </p>
-          </div>
-          <AuthenticationProviders
-            nonCredentialsProviders={nonCredentialsProviders}
-            connectedProviders={connectedProviders}
-            callbackURL="/settings/account"
-          />
-        </section>
-      )}
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <div>
