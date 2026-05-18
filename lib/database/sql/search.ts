@@ -508,6 +508,45 @@ export const SearchSQLDatabaseMixin = (
     return publicCc ? 'unlisted' : null
   }
 
+  async function replaceActorSearchDocument({
+    actor,
+    syncMeilisearch,
+    trx
+  }: {
+    actor: SQLActor
+    syncMeilisearch: boolean
+    trx?: Knex.Transaction
+  }): Promise<boolean> {
+    const acct = `${actor.username}@${actor.domain}`
+    const searchText = [
+      actor.username,
+      actor.domain,
+      acct,
+      actor.name,
+      actor.summary
+    ]
+      .filter((item): item is string => Boolean(item))
+      .join(' ')
+
+    await replaceSearchDocument({
+      entityType: 'account',
+      entityId: actor.id,
+      actorId: actor.id,
+      trx,
+      searchText,
+      entityCreatedAt: actor.createdAt,
+      syncMeilisearch,
+      weightedText: [
+        { text: actor.username, weight: 8 },
+        { text: acct, weight: 8 },
+        { text: actor.name ?? '', weight: 5 },
+        { text: actor.domain, weight: 2 },
+        { text: actor.summary ?? '', weight: 1 }
+      ]
+    })
+    return true
+  }
+
   async function upsertActorSearchDocument({
     actorId,
     syncMeilisearch = true
@@ -525,33 +564,48 @@ export const SearchSQLDatabaseMixin = (
       return false
     }
 
-    const acct = `${actor.username}@${actor.domain}`
-    const searchText = [
-      actor.username,
-      actor.domain,
-      acct,
-      actor.name,
-      actor.summary
-    ]
-      .filter((item): item is string => Boolean(item))
-      .join(' ')
+    return replaceActorSearchDocument({ actor, syncMeilisearch })
+  }
 
-    await replaceSearchDocument({
-      entityType: 'account',
-      entityId: actor.id,
-      actorId: actor.id,
-      searchText,
-      entityCreatedAt: actor.createdAt,
-      syncMeilisearch,
-      weightedText: [
-        { text: actor.username, weight: 8 },
-        { text: acct, weight: 8 },
-        { text: actor.name ?? '', weight: 5 },
-        { text: actor.domain, weight: 2 },
-        { text: actor.summary ?? '', weight: 1 }
-      ]
-    })
-    return true
+  async function rebuildActorSearchDocuments({
+    actors,
+    syncMeilisearch,
+    concurrency
+  }: {
+    actors: KeysetRow[]
+    syncMeilisearch: boolean
+    concurrency: number
+  }): Promise<boolean[]> {
+    const actorIds = actors.map((actor) => actor.id)
+    if (actorIds.length === 0) return []
+
+    const actorRows = await database<SQLActor>('actors')
+      .whereIn('id', actorIds)
+      .whereNull('deletionStatus')
+      .select<SQLActor[]>('*')
+    const actorById = new Map(actorRows.map((actor) => [actor.id, actor]))
+
+    const rebuildDocuments = async (trx?: Knex.Transaction) =>
+      mapWithConcurrency(actors, concurrency, async ({ id }) => {
+        const actor = actorById.get(id)
+        if (!actor) {
+          await deleteSearchDocument({
+            entityType: 'account',
+            entityId: id,
+            syncMeilisearch,
+            trx
+          })
+          return false
+        }
+
+        return replaceActorSearchDocument({ actor, syncMeilisearch, trx })
+      })
+
+    if (!syncMeilisearch) {
+      return database.transaction((trx) => rebuildDocuments(trx))
+    }
+
+    return rebuildDocuments()
   }
 
   async function upsertStatusSearchDocument({
@@ -1184,15 +1238,11 @@ export const SearchSQLDatabaseMixin = (
       )
       if (actors.length === 0) break
 
-      const indexed = await mapWithConcurrency(
+      const indexed = await rebuildActorSearchDocuments({
         actors,
-        rebuildConcurrency,
-        (actor) =>
-          upsertActorSearchDocument({
-            actorId: actor.id,
-            syncMeilisearch
-          })
-      )
+        syncMeilisearch,
+        concurrency: rebuildConcurrency
+      })
       result.accounts += indexed.filter(Boolean).length
       actorCursor = actors[actors.length - 1]
     }

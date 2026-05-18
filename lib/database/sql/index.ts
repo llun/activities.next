@@ -26,6 +26,15 @@ import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
 const MAX_STATUS_DELETE_BFS_DEPTH = 1000
+const SQL_WHERE_IN_BATCH_SIZE = 500
+
+const chunkArray = <T>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
+}
 
 export const getSQLDatabase = (database: Knex): Database => {
   const accountDatabase = AccountSQLDatabaseMixin(database)
@@ -112,9 +121,15 @@ export const getSQLDatabase = (database: Knex): Database => {
         throw new Error('Status reply tree exceeds maximum delete depth')
       }
 
-      const replies = await query('statuses')
-        .whereIn('reply', pendingParentIds)
-        .select<{ id: string }[]>('id')
+      const replyGroups = await Promise.all(
+        chunkArray(pendingParentIds, SQL_WHERE_IN_BATCH_SIZE).map(
+          (parentIdChunk) =>
+            query('statuses')
+              .whereIn('reply', parentIdChunk)
+              .select<{ id: string }[]>('id')
+        )
+      )
+      const replies = replyGroups.flat()
       pendingParentIds = replies
         .map((reply) => reply.id)
         .filter((id) => !seen.has(id))
@@ -160,12 +175,17 @@ export const getSQLDatabase = (database: Knex): Database => {
   ) => {
     if (statusIds.length === 0) return []
 
-    const tags = await query('tags')
-      .whereIn('statusId', statusIds)
-      .where('type', 'hashtag')
-      .select<
-        { name: string; nameNormalized: string | null; value: string }[]
-      >('name', 'nameNormalized', 'value')
+    const tagGroups = await Promise.all(
+      chunkArray(statusIds, SQL_WHERE_IN_BATCH_SIZE).map((statusIdChunk) =>
+        query('tags')
+          .whereIn('statusId', statusIdChunk)
+          .where('type', 'hashtag')
+          .select<
+            { name: string; nameNormalized: string | null; value: string }[]
+          >('name', 'nameNormalized', 'value')
+      )
+    )
+    const tags = tagGroups.flat()
     return Array.from(
       tags
         .reduce((tagByName, tag) => {
@@ -184,9 +204,14 @@ export const getSQLDatabase = (database: Knex): Database => {
     const documentIds = statusIds.map((statusId) =>
       getSearchDocumentId('status', statusId)
     )
-    // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
-    await trx('search_terms').whereIn('documentId', documentIds).delete()
-    await trx('search_documents').whereIn('id', documentIds).delete()
+    for (const documentIdChunk of chunkArray(
+      documentIds,
+      SQL_WHERE_IN_BATCH_SIZE
+    )) {
+      // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
+      await trx('search_terms').whereIn('documentId', documentIdChunk).delete()
+      await trx('search_documents').whereIn('id', documentIdChunk).delete()
+    }
   }
   const getSearchDocumentsForActor = async (
     actorId: string,
@@ -204,9 +229,14 @@ export const getSQLDatabase = (database: Knex): Database => {
     const documentIds = documents.map((document) =>
       getSearchDocumentId(document.entityType, document.entityId)
     )
-    // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
-    await trx('search_terms').whereIn('documentId', documentIds).delete()
-    await trx('search_documents').whereIn('id', documentIds).delete()
+    for (const documentIdChunk of chunkArray(
+      documentIds,
+      SQL_WHERE_IN_BATCH_SIZE
+    )) {
+      // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
+      await trx('search_terms').whereIn('documentId', documentIdChunk).delete()
+      await trx('search_documents').whereIn('id', documentIdChunk).delete()
+    }
   }
   const syncDeletedSearchDocuments = async (
     documents: SearchDocumentReference[]
