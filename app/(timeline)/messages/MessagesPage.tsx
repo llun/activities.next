@@ -246,7 +246,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     return result.conversations
   }, [])
 
-  const addRecipient = async () => {
+  const addRecipient = useCallback(async () => {
     const query = recipientQuery.trim()
     if (!query) return
 
@@ -268,72 +268,89 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     } finally {
       setResolvingRecipient(false)
     }
-  }
+  }, [recipientQuery])
 
-  const removeRecipient = (accountId: string) => {
+  const removeRecipient = useCallback((accountId: string) => {
     setSelectedRecipients((previousRecipients) =>
       previousRecipients.filter((account) => account.id !== accountId)
     )
-  }
+  }, [])
 
-  const startNewConversation = () => {
+  const startNewConversation = useCallback(() => {
     selectConversation(null)
     setThreadStatuses([])
     setNextMaxStatusId(null)
     setSelectedRecipients([])
     setMessage('')
     setError(null)
-  }
+  }, [selectConversation])
 
-  const hideSelectedConversation = async (conversationId: string) => {
-    const hidden = await hideConversation({ conversationId })
-    if (!hidden) {
-      setError('Could not hide conversation')
-      return
-    }
-
-    setCurrentConversations((previousConversations) => {
-      const nextConversations = previousConversations.filter(
-        (conversation) => conversation.id !== conversationId
-      )
-      if (selectedConversationIdRef.current === conversationId) {
-        selectConversation(nextConversations[0]?.id ?? null)
+  const hideSelectedConversation = useCallback(
+    async (conversationId: string) => {
+      const hidden = await hideConversation({ conversationId })
+      if (!hidden) {
+        setError('Could not hide conversation')
+        return
       }
-      return nextConversations
-    })
-  }
 
-  const sendMessage = async (event: FormEvent) => {
-    event.preventDefault()
-    setError(null)
-
-    if (composerRecipients.length === 0 && !selectedConversation) {
-      setError('Choose at least one recipient')
-      return
-    }
-
-    setSending(true)
-    try {
-      await createDirectMessage({
-        message,
-        recipients: composerRecipients,
-        replyStatus: selectedConversation?.lastStatus
+      setCurrentConversations((previousConversations) => {
+        const nextConversations = previousConversations.filter(
+          (conversation) => conversation.id !== conversationId
+        )
+        if (selectedConversationIdRef.current === conversationId) {
+          selectConversation(nextConversations[0]?.id ?? null)
+        }
+        return nextConversations
       })
-      setMessage('')
-      setSelectedRecipients([])
-      const refreshedConversations = await refreshConversations()
-      const nextConversationId =
-        selectedConversation?.id ?? refreshedConversations[0]?.id ?? null
-      selectConversation(nextConversationId)
-      if (nextConversationId && nextConversationId === selectedConversationId) {
-        await loadThread(nextConversationId)
+    },
+    [selectConversation]
+  )
+
+  const sendMessage = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault()
+      setError(null)
+
+      if (composerRecipients.length === 0 && !selectedConversation) {
+        setError('Choose at least one recipient')
+        return
       }
-    } catch (_error) {
-      setError('Could not send message')
-    } finally {
-      setSending(false)
-    }
-  }
+
+      setSending(true)
+      try {
+        await createDirectMessage({
+          message,
+          recipients: composerRecipients,
+          replyStatus: selectedConversation?.lastStatus
+        })
+        setMessage('')
+        setSelectedRecipients([])
+        const refreshedConversations = await refreshConversations()
+        const nextConversationId =
+          selectedConversation?.id ?? refreshedConversations[0]?.id ?? null
+        selectConversation(nextConversationId)
+        if (
+          nextConversationId &&
+          nextConversationId === selectedConversationId
+        ) {
+          await loadThread(nextConversationId)
+        }
+      } catch (_error) {
+        setError('Could not send message')
+      } finally {
+        setSending(false)
+      }
+    },
+    [
+      composerRecipients,
+      loadThread,
+      message,
+      refreshConversations,
+      selectConversation,
+      selectedConversation,
+      selectedConversationId
+    ]
+  )
 
   return (
     <div className="space-y-5">

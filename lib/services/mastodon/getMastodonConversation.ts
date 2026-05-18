@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { Mastodon } from '@/lib/types/activitypub'
 import { DirectConversation } from '@/lib/types/database/operations'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
 
@@ -26,7 +27,34 @@ export const getMastodonConversationAccountMap = async (
     ids: participantActorIds
   })
 
-  return new Map(accounts.map((account) => [account.url, account] as const))
+  const requestedActorIds = new Set(participantActorIds)
+  const accountMap: MastodonConversationAccountMap = new Map()
+  const keyedAccounts = new Set<Mastodon.Account>()
+
+  for (const account of accounts) {
+    const decodedActorId =
+      typeof account.id === 'string' ? idToUrl(account.id) : ''
+    if (requestedActorIds.has(decodedActorId)) {
+      accountMap.set(decodedActorId, account)
+      keyedAccounts.add(account)
+      continue
+    }
+
+    if (requestedActorIds.has(account.url)) {
+      accountMap.set(account.url, account)
+      keyedAccounts.add(account)
+    }
+  }
+
+  if (accounts.length === participantActorIds.length) {
+    accounts.forEach((account, index) => {
+      if (!keyedAccounts.has(account)) {
+        accountMap.set(participantActorIds[index], account)
+      }
+    })
+  }
+
+  return accountMap
 }
 
 export const getMastodonConversationAccounts = (

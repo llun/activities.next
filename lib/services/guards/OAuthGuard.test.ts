@@ -640,6 +640,29 @@ describe('#OAuthGuard', () => {
       expect(response.status).toBe(401)
     })
 
+    test('returns 401 when no required scopes are configured', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('empty-required-scopes-opaque'), {
+        token: hashToken('empty-required-scopes-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer empty-required-scopes-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
     test('allows opaque token when any requested scope matches', async () => {
       mockGetServerSession.mockResolvedValue(null)
 

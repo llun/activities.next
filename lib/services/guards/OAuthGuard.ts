@@ -71,6 +71,8 @@ const hasRequiredScopes = ({
   scopes: Scope[]
   matchMode: ScopeMatchMode
 }) => {
+  if (scopes.length === 0) return false
+
   if (matchMode === 'all') {
     return scopes.every((scope) => hasGrantedScope(grantedScopes, scope))
   }

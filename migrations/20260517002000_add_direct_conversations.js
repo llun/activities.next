@@ -191,9 +191,7 @@ const resolveRootStatusId = async (knex, status) => {
 }
 
 const insertIfMissing = async (knex, table, where, values) => {
-  const existing = await knex(table).where(where).first()
-  if (existing) return existing
-  await knex(table).insert(values)
+  await knex(table).insert(values).onConflict(Object.keys(where)).ignore()
   return values
 }
 

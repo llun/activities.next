@@ -9,6 +9,7 @@ import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { Mastodon } from '@/lib/types/activitypub'
 import { DirectConversation } from '@/lib/types/database/operations'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { urlToId } from '@/lib/utils/urlToId'
 
 jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   getMastodonStatus: jest.fn().mockResolvedValue(null),
@@ -166,6 +167,33 @@ describe('getMastodonConversation', () => {
     expect(accountsByActorId.get('https://llun.test/users/alice')).toEqual(
       accountByActorId.get('https://llun.test/users/alice')
     )
+  })
+
+  it('keys hydrated accounts by actor id when account url is a profile url', async () => {
+    const actorId = 'https://remote.example/users/alice'
+    const profileUrl = 'https://remote.example/@alice'
+    const account = {
+      ...mastodonAccount(actorId),
+      id: urlToId(actorId),
+      url: profileUrl
+    }
+    const database = {
+      getMastodonActorsFromIds: jest.fn().mockResolvedValue([account])
+    } as unknown as Database
+    const conversations = [
+      {
+        participantActorIds: ['https://llun.test/users/me', actorId]
+      }
+    ] as DirectConversation[]
+
+    const accountsByActorId = await getMastodonConversationAccountMap(
+      database,
+      conversations,
+      'https://llun.test/users/me'
+    )
+
+    expect(accountsByActorId.get(actorId)).toBe(account)
+    expect(accountsByActorId.get(profileUrl)).toBeUndefined()
   })
 
   it('keeps participant account order from the conversation when using a hydrated map', () => {
