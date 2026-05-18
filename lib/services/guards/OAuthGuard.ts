@@ -311,7 +311,8 @@ export const corsErrorResponse =
       responseStatusCode
     })
 
-export const OptionalOAuthGuard =
+const createOptionalOAuthGuard =
+  (matchMode: ScopeMatchMode) =>
   <P>(
     scopes: Scope[],
     handle: OptionalAuthenticatedApiHandle<P>,
@@ -324,7 +325,7 @@ export const OptionalOAuthGuard =
       req,
       context,
       scopes,
-      matchMode: 'all'
+      matchMode
     })
 
     if (result.authenticated) {
@@ -350,3 +351,7 @@ export const OptionalOAuthGuard =
       params: context.params
     })
   }
+
+export const OptionalOAuthGuard = createOptionalOAuthGuard('all')
+
+export const OptionalOAuthGuardAnyScope = createOptionalOAuthGuard('any')

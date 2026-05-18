@@ -705,6 +705,43 @@ describe('#getMastodonStatus', () => {
   })
 
   describe('announce/reblog visibility', () => {
+    it('resolves nested announces to the original status', async () => {
+      const originalStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/nested-announce-original`,
+        url: `${ACTOR1_ID}/statuses/nested-announce-original`,
+        actorId: ACTOR1_ID,
+        text: 'Nested announce original',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const firstAnnounce = await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/nested-announce-first`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: originalStatus.id
+      })
+      const secondAnnounce = await database.createAnnounce({
+        id: `${ACTOR1_ID}/statuses/nested-announce-second`,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: firstAnnounce.id
+      })
+
+      const status = (await database.getStatus({
+        statusId: secondAnnounce.id
+      })) as Status
+
+      const mastodonStatus = await getMastodonStatus(database, status)
+
+      expect(mastodonStatus?.id).toBe(urlToId(secondAnnounce.id))
+      expect(mastodonStatus?.reblog?.id).toBe(urlToId(originalStatus.id))
+      expect(mastodonStatus?.reblog?.content).toContain(
+        'Nested announce original'
+      )
+    })
+
     it('uses original status visibility for Announce statuses', async () => {
       // Create an unlisted original status
       const unlistedStatus = await database.createNote({

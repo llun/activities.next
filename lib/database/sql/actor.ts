@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
+import { getConfiguredHost } from '@/lib/config/configuredHost'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -61,6 +62,12 @@ export interface SQLActorDatabase extends ActorDatabase {
   ) => Actor
   getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
+  deleteActor(
+    params: DeleteActorParams & { trx?: Knex.Transaction }
+  ): Promise<void>
+  deleteActorData(
+    params: DeleteActorDataParams & { trx?: Knex.Transaction }
+  ): Promise<void>
 }
 
 const getActorCounterSummary = async (
@@ -102,8 +109,7 @@ const parseStatusContent = (
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
 
 const getConfiguredActorDomain = () => {
-  const host = getConfig().host
-  return host.includes('://') ? new URL(host).host : host
+  return getConfiguredHost()
 }
 
 const getFederationSigningActorSettings = (
@@ -140,6 +146,69 @@ const federationSigningActorCreationLocks = new Map<
 
 const isMastodonBotActorType = (type: SQLActor['type']) =>
   type === 'Service' || type === 'Application' || type === 'Organization'
+
+const getMastodonAccountFromSQLActor = ({
+  sqlActor,
+  followersCount,
+  followingCount,
+  statusCount,
+  lastStatusAt,
+  configuredDomain
+}: {
+  sqlActor: SQLActor
+  followersCount: number
+  followingCount: number
+  statusCount: number
+  lastStatusAt: number | Date | string | null | undefined
+  configuredDomain: string
+}) => {
+  const settings = getCompatibleJSON(sqlActor.settings)
+  const lastStatusCreatedAt = lastStatusAt ? lastStatusAt : 0
+  const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
+    sqlActor,
+    configuredDomain
+  )
+  return Mastodon.Account.parse({
+    id: urlToId(sqlActor.id),
+    username: sqlActor.username,
+    acct: `${sqlActor.username}@${sqlActor.domain}`,
+    url: sqlActor.id,
+    display_name: sqlActor.name ?? '',
+    note: sqlActor.summary ?? '',
+
+    avatar: settings.iconUrl ?? '',
+    avatar_static: settings.iconUrl ?? '',
+    header: settings.headerImageUrl ?? '',
+    header_static: settings.headerImageUrl ?? '',
+
+    fields: [],
+    emojis: [],
+
+    locked: settings.manuallyApprovesFollowers ?? true,
+    bot: isMastodonBotActorType(sqlActor.type),
+    group: sqlActor.type === 'Group',
+    discoverable: !isLocalHeadlessSigner,
+    noindex: isLocalHeadlessSigner,
+
+    source: {
+      note: '',
+      fields: [],
+      privacy: 'public',
+      sensitive: false,
+      language: 'en',
+      follow_requests_count: 0
+    },
+
+    created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
+    last_status_at: lastStatusCreatedAt
+      ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
+      : null,
+
+    followers_count: followersCount,
+    following_count: followingCount,
+    statuses_count: statusCount
+  })
+}
 
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async createActor({
@@ -615,56 +684,20 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         }[]
       ).map((row) => [row.actorId, row.createdAt])
     )
+    const configuredDomain = getConfiguredActorDomain()
 
     return actorIds.flatMap((id) => {
       const sqlActor = sqlActorById.get(id)
       if (!sqlActor) return []
 
-      const settings = getCompatibleJSON(sqlActor.settings)
       const lastStatusCreatedAt = lastStatusByActorId.get(id) ?? 0
-      const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
+      return getMastodonAccountFromSQLActor({
         sqlActor,
-        getConfiguredActorDomain()
-      )
-      return Mastodon.Account.parse({
-        id: urlToId(sqlActor.id),
-        username: sqlActor.username,
-        acct: `${sqlActor.username}@${sqlActor.domain}`,
-        url: sqlActor.id,
-        display_name: sqlActor.name ?? '',
-        note: sqlActor.summary ?? '',
-
-        avatar: settings.iconUrl ?? '',
-        avatar_static: settings.iconUrl ?? '',
-        header: settings.headerImageUrl ?? '',
-        header_static: settings.headerImageUrl ?? '',
-
-        fields: [],
-        emojis: [],
-
-        locked: settings.manuallyApprovesFollowers ?? true,
-        bot: isMastodonBotActorType(sqlActor.type),
-        group: sqlActor.type === 'Group',
-        discoverable: !isLocalHeadlessSigner,
-        noindex: isLocalHeadlessSigner,
-
-        source: {
-          note: '',
-          fields: [],
-          privacy: 'public',
-          sensitive: false,
-          language: 'en',
-          follow_requests_count: 0
-        },
-
-        created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
-        last_status_at: lastStatusCreatedAt
-          ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
-          : null,
-
-        followers_count: counters[CounterKey.totalFollowers(sqlActor.id)] ?? 0,
-        following_count: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
-        statuses_count: counters[CounterKey.totalStatus(sqlActor.id)] ?? 0
+        followersCount: counters[CounterKey.totalFollowers(sqlActor.id)] ?? 0,
+        followingCount: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
+        statusCount: counters[CounterKey.totalStatus(sqlActor.id)] ?? 0,
+        lastStatusAt: lastStatusCreatedAt,
+        configuredDomain
       })
     })
   },
@@ -726,8 +759,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     return this.getActorFromId({ id: actorId })
   },
 
-  async deleteActor({ actorId }: DeleteActorParams) {
-    await database('actors').where('id', actorId).delete()
+  async deleteActor({
+    actorId,
+    trx
+  }: DeleteActorParams & { trx?: Knex.Transaction }) {
+    await (trx ?? database)('actors').where('id', actorId).delete()
   },
 
   async updateActorFollowersCount(actorId: string) {
@@ -953,8 +989,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     return { totalUsers, activeMonth, activeHalfyear, localPosts }
   },
 
-  async deleteActorData({ actorId }: DeleteActorDataParams) {
-    await database.transaction(async (trx) => {
+  async deleteActorData({
+    actorId,
+    trx
+  }: DeleteActorDataParams & { trx?: Knex.Transaction }) {
+    const deleteWithTransaction = async (trx: Knex.Transaction) => {
       const currentTime = new Date()
 
       const persistedActor = await trx('actors')
@@ -1287,6 +1326,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Finally delete the actor
       await trx('actors').where('id', actorId).delete()
-    })
+    }
+
+    if (trx) {
+      await deleteWithTransaction(trx)
+      return
+    }
+
+    await database.transaction(deleteWithTransaction)
   }
 })

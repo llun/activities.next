@@ -525,6 +525,9 @@ export type GetStatusRepliesCountParams = {
   url?: string
   publicOnly?: boolean
 }
+export type GetStatusRepliesCountsParams = {
+  statusIds: string[]
+}
 
 export type CreatePollAnswerParams = {
   statusId: string
@@ -596,6 +599,9 @@ export interface StatusDatabase {
   decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
   getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
+  getStatusRepliesCounts(
+    params: GetStatusRepliesCountsParams
+  ): Promise<Record<string, number>>
   createPollAnswer(params: CreatePollAnswerParams): Promise<void>
   hasActorVoted(params: HasActorVotedParams): Promise<boolean>
   getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>
@@ -603,6 +609,101 @@ export interface StatusDatabase {
     params: IncrementPollChoiceVotesParams
   ): Promise<void>
   recordPollVotes(params: RecordPollVotesParams): Promise<boolean>
+}
+
+// ============================================================================
+// Search Database
+// ============================================================================
+
+export type SearchEntityType = 'account' | 'status' | 'hashtag'
+
+export type SearchAccountsParams = {
+  query: string
+  limit?: number
+  offset?: number
+  currentActorId?: string
+  following?: boolean
+  resolve?: boolean
+}
+
+export type SearchStatusesParams = {
+  query: string
+  limit?: number
+  offset?: number
+  currentActorId?: string
+  accountId?: string
+  minStatusId?: string
+  maxStatusId?: string
+}
+
+export type SearchHashtagsParams = {
+  query: string
+  limit?: number
+  offset?: number
+}
+
+export type SearchRebuildParams = {
+  clear?: boolean
+  batchSize?: number
+  dryRun?: boolean
+  syncMeilisearch?: boolean
+}
+
+export type SearchRebuildResult = {
+  accounts: number
+  statuses: number
+  hashtags: number
+}
+
+export type UpsertSearchActorParams = {
+  actorId: string
+  syncMeilisearch?: boolean
+}
+
+export type UpsertSearchStatusParams = {
+  statusId: string
+  syncMeilisearch?: boolean
+}
+
+export type UpsertSearchHashtagParams = {
+  name: string
+  syncMeilisearch?: boolean
+}
+
+export type UpsertSearchHashtagsParams = {
+  names: string[]
+  syncMeilisearch?: boolean
+}
+
+export type DeleteSearchDocumentParams = {
+  entityType: SearchEntityType
+  entityId: string
+  deleteSql?: boolean
+  syncMeilisearch?: boolean
+}
+
+export type GetSearchHashtagsByIdsParams = {
+  hashtagIds: string[]
+}
+
+export interface SearchDatabase {
+  searchAccounts(params: SearchAccountsParams): Promise<Mastodon.Account[]>
+  searchStatuses(params: SearchStatusesParams): Promise<Status[]>
+  searchHashtags(params: SearchHashtagsParams): Promise<Mastodon.SearchTag[]>
+  rebuildSearchIndex(params?: SearchRebuildParams): Promise<SearchRebuildResult>
+  clearSearchIndex(): Promise<void>
+  upsertActorSearchDocument(params: UpsertSearchActorParams): Promise<boolean>
+  upsertStatusSearchDocument(params: UpsertSearchStatusParams): Promise<boolean>
+  upsertHashtagSearchDocument(
+    params: UpsertSearchHashtagParams
+  ): Promise<boolean>
+  upsertHashtagSearchDocuments(
+    params: UpsertSearchHashtagsParams
+  ): Promise<boolean[]>
+  deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
+  getSearchHashtagsByIds(
+    params: GetSearchHashtagsByIdsParams
+  ): Promise<Mastodon.SearchTag[]>
 }
 
 // ============================================================================
@@ -1051,6 +1152,7 @@ export const Scope = z.enum([
   'profile',
   'email',
   'read',
+  'read:search',
   'read:bookmarks',
   'write',
   'write:bookmarks',
@@ -1064,6 +1166,7 @@ export const UsableScopes = [
   Scope.enum.profile,
   Scope.enum.email,
   Scope.enum.read,
+  Scope.enum['read:search'],
   Scope.enum['read:bookmarks'],
   Scope.enum.write,
   Scope.enum['write:bookmarks'],

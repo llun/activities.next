@@ -15,6 +15,7 @@ import {
   NotificationDatabase,
   OAuthDatabase,
   PushSubscriptionDatabase,
+  SearchDatabase,
   StatusDatabase,
   TimelineDatabase
 } from '@/lib/types/database/operations'
@@ -34,6 +35,7 @@ export type Database = AccountDatabase &
   NotificationDatabase &
   OAuthDatabase &
   PushSubscriptionDatabase &
+  SearchDatabase &
   StatusDatabase &
   TimelineDatabase &
   BaseDatabase
