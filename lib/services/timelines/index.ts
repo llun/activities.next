@@ -71,10 +71,10 @@ export const addStatusToTimelines = async (
           }
 
           await Promise.all(
-            [
-              ...(isDirect ? [] : [mainTimelineRule, noannounceTimelineRule]),
-              mentionTimelineRule
-            ].map(async (timelineFunction) => {
+            (isDirect
+              ? []
+              : [mainTimelineRule, noannounceTimelineRule, mentionTimelineRule]
+            ).map(async (timelineFunction) => {
               const timeline = await timelineFunction({
                 currentActor: actor,
                 status,

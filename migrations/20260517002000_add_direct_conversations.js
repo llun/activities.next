@@ -87,7 +87,7 @@ const DIRECT_STATUS_BATCH_SIZE = 500
 const LOCAL_ACTOR_LOOKUP_BATCH_SIZE = 500
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
 const DIRECT_TIMELINE = 'direct'
-const LEGACY_DIRECT_TIMELINES = ['main', 'home', 'noannounce']
+const LEGACY_DIRECT_TIMELINES = ['main', 'home', 'mention', 'noannounce']
 
 const attachRecipients = async (knex, statusRows) => {
   if (statusRows.length === 0) return []
@@ -266,111 +266,114 @@ const backfillDirectConversations = async (knex) => {
     const localActorIds = await getLocalActorIds(knex, directStatuses)
 
     for (const status of directStatuses) {
-      const rootStatusId = await resolveRootStatusId(knex, status)
-      const conversationId = conversationIdForRoot(rootStatusId)
-      const currentTime = new Date()
-      const participantActorIds = getParticipantActorIds(status)
+      await knex.transaction(async (trx) => {
+        const rootStatusId = await resolveRootStatusId(trx, status)
+        const conversationId = conversationIdForRoot(rootStatusId)
+        const currentTime = new Date()
+        const participantActorIds = getParticipantActorIds(status)
 
-      await insertIfMissing(
-        knex,
-        'direct_conversations',
-        { id: conversationId },
-        {
-          id: conversationId,
-          rootStatusId,
-          createdAt: asDate(status.createdAt),
-          updatedAt: currentTime
-        }
-      )
-
-      await insertIfMissing(
-        knex,
-        'direct_conversation_statuses',
-        { conversationId, statusId: status.id },
-        {
-          conversationId,
-          statusId: status.id,
-          createdAt: asDate(status.createdAt),
-          updatedAt: currentTime
-        }
-      )
-
-      for (const actorId of participantActorIds) {
         await insertIfMissing(
-          knex,
-          'direct_conversation_participants',
-          { conversationId, actorId },
+          trx,
+          'direct_conversations',
+          { id: conversationId },
           {
-            id: crypto.randomUUID(),
-            conversationId,
-            actorId,
-            createdAt: currentTime,
+            id: conversationId,
+            rootStatusId,
+            createdAt: asDate(status.createdAt),
             updatedAt: currentTime
           }
         )
-      }
 
-      if (participantActorIds.length === 0) continue
-
-      const statusLocalActorIds = participantActorIds.filter((actorId) =>
-        localActorIds.has(actorId)
-      )
-
-      for (const actorId of statusLocalActorIds) {
-        await insertTimelineStatusIfMissing({
-          knex,
-          actorId,
-          status,
-          timeline: DIRECT_TIMELINE,
-          currentTime
-        })
-
-        const existingMembership = await knex('direct_conversation_memberships')
-          .where({
-            actorId,
-            conversationId
-          })
-          .first()
-        const unread = actorId !== status.actorId
-
-        if (!existingMembership) {
-          await knex('direct_conversation_memberships').insert({
-            actorId,
+        await insertIfMissing(
+          trx,
+          'direct_conversation_statuses',
+          { conversationId, statusId: status.id },
+          {
             conversationId,
-            lastStatusId: status.id,
-            lastStatusCreatedAt: asDate(status.createdAt),
-            unread,
-            readAt: unread ? null : asDate(status.createdAt),
-            hiddenAt: null,
-            createdAt: currentTime,
+            statusId: status.id,
+            createdAt: asDate(status.createdAt),
             updatedAt: currentTime
-          })
-          continue
+          }
+        )
+
+        for (const actorId of participantActorIds) {
+          await insertIfMissing(
+            trx,
+            'direct_conversation_participants',
+            { conversationId, actorId },
+            {
+              id: crypto.randomUUID(),
+              conversationId,
+              actorId,
+              createdAt: currentTime,
+              updatedAt: currentTime
+            }
+          )
         }
 
-        if (!isOlderThanStatus(existingMembership, status)) continue
-        await knex('direct_conversation_memberships')
-          .where('id', existingMembership.id)
-          .update({
-            lastStatusId: status.id,
-            lastStatusCreatedAt: asDate(status.createdAt),
-            unread,
-            readAt: unread
-              ? existingMembership.readAt
-              : asDate(status.createdAt),
-            hiddenAt: null,
-            updatedAt: currentTime
-          })
-      }
-    }
+        if (participantActorIds.length > 0) {
+          const statusLocalActorIds = participantActorIds.filter((actorId) =>
+            localActorIds.has(actorId)
+          )
 
-    await knex('timelines')
-      .whereIn(
-        'statusId',
-        directStatuses.map((status) => status.id)
-      )
-      .whereIn('timeline', LEGACY_DIRECT_TIMELINES)
-      .delete()
+          for (const actorId of statusLocalActorIds) {
+            await insertTimelineStatusIfMissing({
+              knex: trx,
+              actorId,
+              status,
+              timeline: DIRECT_TIMELINE,
+              currentTime
+            })
+
+            const existingMembership = await trx(
+              'direct_conversation_memberships'
+            )
+              .where({
+                actorId,
+                conversationId
+              })
+              .first()
+            const unread = actorId !== status.actorId
+
+            if (!existingMembership) {
+              await trx('direct_conversation_memberships').insert({
+                actorId,
+                conversationId,
+                lastStatusId: status.id,
+                lastStatusCreatedAt: asDate(status.createdAt),
+                unread,
+                readAt: unread ? null : asDate(status.createdAt),
+                hiddenAt: null,
+                createdAt: currentTime,
+                updatedAt: currentTime
+              })
+              continue
+            }
+
+            if (!isOlderThanStatus(existingMembership, status)) continue
+            await trx('direct_conversation_memberships')
+              .where('id', existingMembership.id)
+              .update({
+                lastStatusId: status.id,
+                lastStatusCreatedAt: asDate(status.createdAt),
+                unread,
+                readAt: unread
+                  ? existingMembership.readAt
+                  : asDate(status.createdAt),
+                hiddenAt: null,
+                updatedAt: currentTime
+              })
+          }
+        }
+
+        await trx('timelines')
+          .where({
+            statusId: status.id
+          })
+          .whereIn('timeline', LEGACY_DIRECT_TIMELINES)
+          .delete()
+      })
+    }
   }
 }
 
