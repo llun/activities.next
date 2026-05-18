@@ -20,7 +20,11 @@ import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
-import { Actor, getMention } from '@/lib/types/domain/actor'
+import {
+  Actor,
+  getMention,
+  getMentionFromActorID
+} from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import {
@@ -75,6 +79,60 @@ export const getExplicitMentions = (
   return mentions.filter((mention) =>
     explicitMentionNames.has(mention.name || '')
   )
+}
+
+const isActorRecipient = (recipient: string) =>
+  recipient !== ACTIVITY_STREAM_PUBLIC &&
+  recipient !== ACTIVITY_STREAM_PUBLIC_COMPACT &&
+  !recipient.endsWith('/followers')
+
+export const getMentionTagsForStatus = ({
+  mentions,
+  currentActor,
+  replyStatus,
+  effectiveVisibility,
+  replyVisibility
+}: {
+  mentions: Mention[]
+  currentActor: Actor
+  replyStatus: Status | null
+  effectiveVisibility: MastodonVisibility
+  replyVisibility: MastodonVisibility | null
+}): Mention[] => {
+  if (
+    effectiveVisibility !== 'direct' ||
+    !replyStatus ||
+    replyVisibility !== 'direct'
+  ) {
+    return mentions
+  }
+
+  const mentionsByHref = new Map(
+    mentions.map((mention) => [mention.href, mention])
+  )
+  const inheritedActorIds = [
+    replyStatus.actorId,
+    ...replyStatus.to,
+    ...replyStatus.cc
+  ]
+
+  for (const actorId of inheritedActorIds) {
+    if (
+      actorId === currentActor.id ||
+      !isActorRecipient(actorId) ||
+      mentionsByHref.has(actorId)
+    ) {
+      continue
+    }
+
+    mentionsByHref.set(actorId, {
+      type: 'Mention',
+      href: actorId,
+      name: getMentionFromActorID(actorId, true)
+    })
+  }
+
+  return [...mentionsByHref.values()]
 }
 
 /**
@@ -286,6 +344,13 @@ export const createNoteFromUserInput = async ({
     effectiveVisibility,
     replyVisibility
   )
+  const mentionTags = getMentionTagsForStatus({
+    mentions,
+    currentActor,
+    replyStatus,
+    effectiveVisibility,
+    replyVisibility
+  })
 
   const createdStatus = await database.createNote({
     id: statusId,
@@ -306,7 +371,7 @@ export const createNoteFromUserInput = async ({
   // mentionTimelineRule can verify mentions via tags rather than text content.
   const hashtags = getHashtags(text, currentActor.domain)
   await Promise.all([
-    ...mentions.map((mention) =>
+    ...mentionTags.map((mention) =>
       database.createTag({
         statusId,
         name: mention.name || '',
