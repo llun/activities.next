@@ -63,6 +63,7 @@ type SearchDocumentInput = {
   entityType: SearchEntityType
   entityId: string
   actorId?: string | null
+  trx?: Knex.Transaction
   visibility?: string | null
   searchText: string
   entityCreatedAt?: number | Date | string | null
@@ -396,15 +397,22 @@ export const SearchSQLDatabaseMixin = (
     entityType,
     entityId,
     deleteSql = true,
-    syncMeilisearch = true
-  }: DeleteSearchDocumentParams): Promise<void> {
+    syncMeilisearch = true,
+    trx
+  }: DeleteSearchDocumentParams & { trx?: Knex.Transaction }): Promise<void> {
     const documentId = getSearchDocumentId(entityType, entityId)
     if (deleteSql) {
-      await database.transaction(async (trx) => {
+      const deleteSqlDocument = async (query: Knex.Transaction) => {
         // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
-        await trx('search_terms').where('documentId', documentId).delete()
-        await trx('search_documents').where('id', documentId).delete()
-      })
+        await query('search_terms').where('documentId', documentId).delete()
+        await query('search_documents').where('id', documentId).delete()
+      }
+
+      if (trx) {
+        await deleteSqlDocument(trx)
+      } else {
+        await database.transaction(deleteSqlDocument)
+      }
     }
     if (syncMeilisearch) {
       enqueueMeilisearchSync(() =>
@@ -417,6 +425,7 @@ export const SearchSQLDatabaseMixin = (
     entityType,
     entityId,
     actorId = null,
+    trx,
     visibility = null,
     searchText,
     entityCreatedAt = null,
@@ -425,7 +434,7 @@ export const SearchSQLDatabaseMixin = (
   }: SearchDocumentInput): Promise<void> {
     const weightedTerms = getWeightedTerms({ searchText, weightedText })
     if (weightedTerms.length === 0) {
-      await deleteSearchDocument({ entityType, entityId, syncMeilisearch })
+      await deleteSearchDocument({ entityType, entityId, syncMeilisearch, trx })
       return
     }
 
@@ -444,8 +453,8 @@ export const SearchSQLDatabaseMixin = (
       updatedAt: currentTime
     }
 
-    await database.transaction(async (trx) => {
-      await trx('search_documents')
+    const replaceSqlDocument = async (query: Knex.Transaction) => {
+      await query('search_documents')
         .insert({
           ...documentRow,
           createdAt: currentTime
@@ -455,8 +464,8 @@ export const SearchSQLDatabaseMixin = (
 
       // Replacement upserts the parent row, so cascades do not clear prior terms.
       // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
-      await trx('search_terms').where('documentId', documentId).delete()
-      await trx('search_terms').insert(
+      await query('search_terms').where('documentId', documentId).delete()
+      await query('search_terms').insert(
         weightedTerms.map(({ term, weight }) => ({
           documentId,
           entityType,
@@ -465,7 +474,13 @@ export const SearchSQLDatabaseMixin = (
           createdAt: currentTime
         }))
       )
-    })
+    }
+
+    if (trx) {
+      await replaceSqlDocument(trx)
+    } else {
+      await database.transaction(replaceSqlDocument)
+    }
     if (syncMeilisearch) {
       enqueueMeilisearchSync(() => syncMeilisearchDocument({ documentRow }))
     }
@@ -646,52 +661,62 @@ export const SearchSQLDatabaseMixin = (
       return tagMap
     }, new Map<string, string[]>())
 
-    return mapWithConcurrency(statuses, concurrency, async ({ id }) => {
-      const status = statusById.get(id)
-      if (
-        !status ||
-        !SEARCHABLE_STATUS_TYPES.includes(status.type as StatusType)
-      ) {
-        await deleteSearchDocument({
+    const rebuildDocuments = async (trx?: Knex.Transaction) =>
+      mapWithConcurrency(statuses, concurrency, async ({ id }) => {
+        const status = statusById.get(id)
+        if (
+          !status ||
+          !SEARCHABLE_STATUS_TYPES.includes(status.type as StatusType)
+        ) {
+          await deleteSearchDocument({
+            entityType: 'status',
+            entityId: id,
+            syncMeilisearch,
+            trx
+          })
+          return false
+        }
+
+        const visibility = visibilityByStatusId.get(id)
+        if (!visibility) {
+          await deleteSearchDocument({
+            entityType: 'status',
+            entityId: id,
+            syncMeilisearch,
+            trx
+          })
+          return false
+        }
+
+        const content = parseStatusContent(status.content)
+        const tagText = (tagTextByStatusId.get(id) ?? []).join(' ')
+        const text = getString(content.text)
+        const summary = getString(content.summary)
+        const searchText = [text, summary, tagText].filter(Boolean).join(' ')
+
+        await replaceSearchDocument({
           entityType: 'status',
-          entityId: id,
-          syncMeilisearch
+          entityId: status.id,
+          actorId: status.actorId,
+          visibility,
+          searchText,
+          entityCreatedAt: status.createdAt,
+          syncMeilisearch,
+          trx,
+          weightedText: [
+            { text, weight: 5 },
+            { text: tagText, weight: 4 },
+            { text: summary, weight: 2 }
+          ]
         })
-        return false
-      }
-
-      const visibility = visibilityByStatusId.get(id)
-      if (!visibility) {
-        await deleteSearchDocument({
-          entityType: 'status',
-          entityId: id,
-          syncMeilisearch
-        })
-        return false
-      }
-
-      const content = parseStatusContent(status.content)
-      const tagText = (tagTextByStatusId.get(id) ?? []).join(' ')
-      const text = getString(content.text)
-      const summary = getString(content.summary)
-      const searchText = [text, summary, tagText].filter(Boolean).join(' ')
-
-      await replaceSearchDocument({
-        entityType: 'status',
-        entityId: status.id,
-        actorId: status.actorId,
-        visibility,
-        searchText,
-        entityCreatedAt: status.createdAt,
-        syncMeilisearch,
-        weightedText: [
-          { text, weight: 5 },
-          { text: tagText, weight: 4 },
-          { text: summary, weight: 2 }
-        ]
+        return true
       })
-      return true
-    })
+
+    if (!syncMeilisearch) {
+      return database.transaction((trx) => rebuildDocuments(trx))
+    }
+
+    return rebuildDocuments()
   }
 
   async function getPublicHashtagRow(
