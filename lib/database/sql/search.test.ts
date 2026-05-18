@@ -118,6 +118,62 @@ describe('SearchDatabase', () => {
       })
     })
 
+    it('preserves full normalized hashtag slugs with separators', async () => {
+      const status = (await database.createNote({
+        id: `${ACTOR1_ID}/statuses/search-hashtag-slug-note`,
+        url: `${ACTOR1_ID}/statuses/search-hashtag-slug-note`,
+        actorId: ACTOR1_ID,
+        text: 'Separated tag search test',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })) as StatusNote
+      await database.createTag({
+        statusId: status.id,
+        type: 'hashtag',
+        name: '#Trail-Run',
+        value: 'https://llun.test/tags/Trail-Run'
+      })
+
+      const hashtags = await database.searchHashtags({
+        query: 'trail run',
+        limit: 10,
+        offset: 0
+      })
+
+      expect(hashtags).toContainEqual({
+        id: 'trail-run',
+        name: 'Trail-Run',
+        url: 'https://llun.test/tags/Trail-Run',
+        history: []
+      })
+    })
+
+    it('does not hydrate private-only or missing hashtag ids', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const privateHashtag = `#PrivateOnly${suffix}`
+      const privateHashtagId = privateHashtag.slice(1).toLowerCase()
+      const status = (await database.createNote({
+        id: `${ACTOR1_ID}/statuses/private-hashtag-hydration-${suffix}`,
+        url: `${ACTOR1_ID}/statuses/private-hashtag-hydration-${suffix}`,
+        actorId: ACTOR1_ID,
+        text: 'Private-only hashtag hydration',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })) as StatusNote
+      await database.createTag({
+        statusId: status.id,
+        type: 'hashtag',
+        name: privateHashtag,
+        value: `https://llun.test/tags/${privateHashtag.slice(1)}`
+      })
+
+      await expect(
+        database.getSearchHashtagsByIds({
+          hashtagIds: [privateHashtagId, `missing-${suffix}`]
+        })
+      ).resolves.toEqual([])
+    })
+
     it('reindexes hashtags when a poll is updated', async () => {
       const suffix = crypto.randomUUID().slice(0, 8)
       const statusId = `${ACTOR1_ID}/statuses/poll-hashtag-reindex-${suffix}`
@@ -367,6 +423,104 @@ describe('SearchDatabase', () => {
           offset: 0
         })
       ).toEqual([])
+    })
+
+    it('reports dry-run counts without writing search documents', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const actorId = `https://dryrun.test/users/rebuild-${suffix}`
+      const publicStatusId = `${actorId}/statuses/public`
+      const privateStatusId = `${actorId}/statuses/private`
+      await database.createMastodonActor({
+        actorId,
+        username: `rebuild-${suffix}`,
+        domain: 'dryrun.test',
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `${actorId}/inbox`,
+        publicKey: 'public-key',
+        createdAt: Date.now()
+      })
+      await database.createNote({
+        id: publicStatusId,
+        url: publicStatusId,
+        actorId,
+        text: 'Dry run public status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId: publicStatusId,
+        type: 'hashtag',
+        name: `#DryRun${suffix}`,
+        value: `https://llun.test/tags/DryRun${suffix}`
+      })
+      await database.createNote({
+        id: privateStatusId,
+        url: privateStatusId,
+        actorId,
+        text: 'Dry run private status',
+        to: [`${actorId}/followers`],
+        cc: []
+      })
+      await database.clearSearchIndex()
+
+      await expect(
+        database.rebuildSearchIndex({ dryRun: true, clear: true, batchSize: 1 })
+      ).resolves.toEqual({
+        accounts: 1,
+        statuses: 1,
+        hashtags: 1
+      })
+      await expect(
+        rawDatabase('search_documents').count<{ count: string | number }>(
+          '* as count'
+        )
+      ).resolves.toEqual([{ count: 0 }])
+    })
+
+    it('does not index hashtags when public recipients are not to or cc', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const actorId = `https://recipient-type.test/users/rebuild-${suffix}`
+      const statusId = `${actorId}/statuses/malformed-public`
+      const hashtag = `#MalformedPublic${suffix}`
+      await database.createMastodonActor({
+        actorId,
+        username: `recipient-${suffix}`,
+        domain: 'recipient-type.test',
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `${actorId}/inbox`,
+        publicKey: 'public-key',
+        createdAt: Date.now()
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        text: 'Malformed public recipient hashtag',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: hashtag,
+        value: `https://llun.test/tags/${hashtag.slice(1)}`
+      })
+      await rawDatabase('recipients')
+        .where({ statusId, actorId: ACTIVITY_STREAM_PUBLIC })
+        .update({ type: 'bto' })
+      await database.clearSearchIndex()
+
+      await expect(
+        database.rebuildSearchIndex({ clear: true, batchSize: 1 })
+      ).resolves.toMatchObject({
+        statuses: 0,
+        hashtags: 0
+      })
+      await expect(
+        database.searchHashtags({ query: hashtag, limit: 10, offset: 0 })
+      ).resolves.toEqual([])
     })
 
     it('indexes long entity ids with fixed-length search document ids', async () => {

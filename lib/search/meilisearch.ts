@@ -28,7 +28,18 @@ type WriteMeilisearchDocumentsParams = {
 }
 
 const EXISTING_INDEX_STATUS = 409
+const TASK_POLL_INTERVAL_MS = 100
 const configuredIndexPromises = new Map<string, Promise<void>>()
+
+type MeilisearchTask = {
+  uid?: unknown
+  taskUid?: unknown
+  status?: unknown
+  error?: {
+    message?: unknown
+    code?: unknown
+  } | null
+}
 
 const getIndexUid = (
   config: Extract<SearchConfig, { backend: 'meilisearch' }>,
@@ -56,10 +67,11 @@ const getHeaders = (
 const fetchWithTimeout = async (
   config: Extract<SearchConfig, { backend: 'meilisearch' }>,
   input: string,
-  init: NonNullable<Parameters<typeof fetch>[1]>
+  init: NonNullable<Parameters<typeof fetch>[1]>,
+  timeoutMs = config.timeoutMs
 ) => {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await fetch(input, {
       ...init,
@@ -68,6 +80,93 @@ const fetchWithTimeout = async (
   } finally {
     clearTimeout(timeout)
   }
+}
+
+const sleep = (durationMs: number) =>
+  new Promise((resolve) => setTimeout(resolve, durationMs))
+
+const getMeilisearchTaskUid = async (
+  response: Response,
+  operationLabel: string
+) => {
+  const data = (await response.json()) as MeilisearchTask
+  if (typeof data.taskUid !== 'number') {
+    throw new Error(`Meilisearch ${operationLabel} did not return a taskUid`)
+  }
+  return data.taskUid
+}
+
+const getMeilisearchTaskError = (task: MeilisearchTask) => {
+  if (!task.error) return ''
+
+  const details = [
+    typeof task.error.message === 'string' ? task.error.message : null,
+    typeof task.error.code === 'string' ? task.error.code : null
+  ].filter(Boolean)
+  return details.length > 0 ? `: ${details.join(' ')}` : ''
+}
+
+const waitForMeilisearchTask = async ({
+  config,
+  taskUid,
+  operationLabel
+}: {
+  config: Extract<SearchConfig, { backend: 'meilisearch' }>
+  taskUid: number
+  operationLabel: string
+}) => {
+  const deadline = Date.now() + config.timeoutMs
+
+  for (;;) {
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) {
+      throw new Error(
+        `Meilisearch ${operationLabel} task ${taskUid} timed out after ${config.timeoutMs}ms`
+      )
+    }
+
+    const response = await fetchWithTimeout(
+      config,
+      getUrl(config, `/tasks/${taskUid}`),
+      {
+        method: 'GET',
+        headers: getHeaders(config)
+      },
+      remainingMs
+    )
+
+    if (!response.ok) {
+      throw new Error(
+        `Meilisearch ${operationLabel} task ${taskUid} status check failed with status ${response.status}`
+      )
+    }
+
+    const task = (await response.json()) as MeilisearchTask
+    if (task.status === 'succeeded') return
+    if (task.status === 'failed' || task.status === 'canceled') {
+      throw new Error(
+        `Meilisearch ${operationLabel} task ${taskUid} ${task.status}${getMeilisearchTaskError(task)}`
+      )
+    }
+    if (task.status !== 'enqueued' && task.status !== 'processing') {
+      throw new Error(
+        `Meilisearch ${operationLabel} task ${taskUid} returned unknown status ${String(task.status)}`
+      )
+    }
+
+    await sleep(
+      Math.min(TASK_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now()))
+    )
+  }
+}
+
+const waitForMeilisearchResponseTask = async (
+  config: Extract<SearchConfig, { backend: 'meilisearch' }>,
+  response: Response,
+  operationLabel: string
+) => {
+  const taskUid = await getMeilisearchTaskUid(response, operationLabel)
+  await waitForMeilisearchTask({ config, taskUid, operationLabel })
 }
 
 export const searchMeilisearch = async ({
@@ -145,6 +244,13 @@ const configureMeilisearchIndexWithoutCache = async ({
       `Meilisearch index configuration failed with status ${createResponse.status}`
     )
   }
+  if (createResponse.status !== EXISTING_INDEX_STATUS) {
+    await waitForMeilisearchResponseTask(
+      config,
+      createResponse,
+      'index configuration'
+    )
+  }
 
   const settingsResponse = await fetchWithTimeout(
     config,
@@ -165,6 +271,11 @@ const configureMeilisearchIndexWithoutCache = async ({
       `Meilisearch settings update failed with status ${settingsResponse.status}`
     )
   }
+  await waitForMeilisearchResponseTask(
+    config,
+    settingsResponse,
+    'settings update'
+  )
 }
 
 export const resetMeilisearchIndexConfigurationCacheForTests = () => {
@@ -188,6 +299,9 @@ export const deleteMeilisearchDocuments = async ({
     throw new Error(
       `Meilisearch document delete failed with status ${response.status}`
     )
+  }
+  if (response.status !== 404) {
+    await waitForMeilisearchResponseTask(config, response, 'document delete')
   }
 }
 
@@ -214,4 +328,5 @@ export const writeMeilisearchDocuments = async ({
       `Meilisearch document write failed with status ${response.status}`
     )
   }
+  await waitForMeilisearchResponseTask(config, response, 'document write')
 }

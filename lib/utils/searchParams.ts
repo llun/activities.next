@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const BooleanSearchParam = z
   .enum(['true', 'false'])
   .optional()
-  .transform((value) => value === 'true')
+  .transform((value) => (value === undefined ? undefined : value === 'true'))
 
 export const urlSearchParamsToObject = (
   searchParams: URLSearchParams

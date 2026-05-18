@@ -24,6 +24,12 @@ const SearchParams = z.object({
   following: BooleanSearchParam
 })
 
+const normalizeAccountSearchQuery = (query: string) =>
+  query
+    .trim()
+    .replace(/^acct:/i, '')
+    .replace(/^@/, '')
+
 export const GET = traceApiRoute(
   'searchAccounts',
   OAuthGuardAnyScope(

@@ -11,7 +11,7 @@
     "prettier": "prettier --write app migrations lib",
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make",
-    "search:reindex": "scripts/rebuildSearchIndex.ts",
+    "search:reindex": "node -r @swc-node/register scripts/rebuildSearchIndex.ts",
     "prepare": "husky"
   },
   "dependencies": {

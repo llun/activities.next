@@ -28,7 +28,7 @@ type SearchParams = {
 type SearchResult = {
   accounts: Mastodon.Account[]
   statuses: Status[]
-  hashtags: Mastodon.Tag[]
+  hashtags: Mastodon.SearchTag[]
 }
 
 const emptySearchResult = (): SearchResult => ({

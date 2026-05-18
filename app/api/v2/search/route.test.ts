@@ -92,8 +92,8 @@ describe('GET /api/v2/search', () => {
       accountId: undefined,
       maxStatusId: undefined,
       minStatusId: undefined,
-      following: false,
-      resolve: false,
+      following: undefined,
+      resolve: undefined,
       excludeUnreviewed: true
     })
     expect(mockGetMastodonStatus).toHaveBeenCalledWith(
@@ -143,6 +143,23 @@ describe('GET /api/v2/search', () => {
         includeAccounts: true,
         includeStatuses: false,
         includeHashtags: true
+      })
+    )
+  })
+
+  it('preserves explicit false boolean params', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://local.test/api/v2/search?q=trail&following=false&resolve=false&exclude_unreviewed=false'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        following: false,
+        resolve: false,
+        excludeUnreviewed: false
       })
     )
   })
