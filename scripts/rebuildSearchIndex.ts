@@ -47,20 +47,39 @@ type SearchDocumentRow = {
   entityCreatedAt: Date | string | number | null
 }
 
-const parseArgs = (args: string[]): CliArgs => {
+const parseBooleanFlag = (key: string, value?: string) => {
+  if (value === undefined) return true
+  if (value === 'true') return true
+  if (value === 'false') return false
+  throw new Error(`Invalid value for --${key}: ${value}. Use true or false.`)
+}
+
+export const parseArgs = (args: string[]): CliArgs => {
   const parsed: Record<string, string | boolean> = {}
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
-    if (arg === '--clear' || arg === '--dry-run') {
-      parsed[arg.slice(2)] = true
-      continue
-    }
     if (!arg.startsWith('--')) {
       throw new Error(`Unexpected argument: ${arg}`)
     }
 
     const [rawKey, inlineValue] = arg.slice(2).split('=', 2)
+    if (rawKey === 'clear' || rawKey === 'dry-run') {
+      const nextValue = args[index + 1]
+      if (inlineValue !== undefined) {
+        parsed[rawKey] = parseBooleanFlag(rawKey, inlineValue)
+        continue
+      }
+      if (nextValue && !nextValue.startsWith('--')) {
+        parsed[rawKey] = parseBooleanFlag(rawKey, nextValue)
+        index += 1
+        continue
+      }
+
+      parsed[rawKey] = parseBooleanFlag(rawKey)
+      continue
+    }
+
     const value = inlineValue ?? args[index + 1]
     if (!value || value.startsWith('--')) {
       throw new Error(`Missing value for --${rawKey}`)
@@ -231,12 +250,14 @@ async function rebuildSearchIndex(args = process.argv.slice(2)) {
   }
 }
 
-rebuildSearchIndex()
-  .then((code) => {
-    process.exit(code)
-  })
-  .catch((error) => {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(message)
-    process.exit(1)
-  })
+if (require.main === module) {
+  rebuildSearchIndex()
+    .then((code) => {
+      process.exit(code)
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(message)
+      process.exit(1)
+    })
+}

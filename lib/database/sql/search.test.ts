@@ -316,6 +316,44 @@ describe('SearchDatabase', () => {
       ).resolves.toEqual([])
     })
 
+    it('hydrates hashtag ids in request order', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const firstHashtag = `#OrderedFirst${suffix}`
+      const secondHashtag = `#OrderedSecond${suffix}`
+      const status = (await database.createNote({
+        id: `${ACTOR1_ID}/statuses/ordered-hashtag-hydration-${suffix}`,
+        url: `${ACTOR1_ID}/statuses/ordered-hashtag-hydration-${suffix}`,
+        actorId: ACTOR1_ID,
+        text: 'Ordered hashtag hydration',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })) as StatusNote
+      await database.createTag({
+        statusId: status.id,
+        type: 'hashtag',
+        name: firstHashtag,
+        value: `https://llun.test/tags/${firstHashtag.slice(1)}`
+      })
+      await database.createTag({
+        statusId: status.id,
+        type: 'hashtag',
+        name: secondHashtag,
+        value: `https://llun.test/tags/${secondHashtag.slice(1)}`
+      })
+
+      await expect(
+        database.getSearchHashtagsByIds({
+          hashtagIds: [
+            secondHashtag.slice(1).toLowerCase(),
+            firstHashtag.slice(1).toLowerCase()
+          ]
+        })
+      ).resolves.toMatchObject([
+        { id: secondHashtag.slice(1).toLowerCase() },
+        { id: firstHashtag.slice(1).toLowerCase() }
+      ])
+    })
+
     it('reindexes hashtags when a poll is updated', async () => {
       const suffix = crypto.randomUUID().slice(0, 8)
       const statusId = `${ACTOR1_ID}/statuses/poll-hashtag-reindex-${suffix}`
@@ -887,14 +925,20 @@ describe('SearchDatabase', () => {
       expect(accounts.map((account) => account.url)).toEqual([actorId])
       await expect(
         rawDatabase('search_documents')
-          .where({ entityType: 'account', entityId: actorId })
+          .where({
+            entityType: 'account',
+            entityId: actorId,
+            actorId
+          })
           .first<{
             id: string
+            actorId: string
             entityId: string
             entityIdHash: string
-          }>('id', 'entityId', 'entityIdHash')
+          }>('id', 'actorId', 'entityId', 'entityIdHash')
       ).resolves.toMatchObject({
         id: expect.stringMatching(/^[a-f0-9]{64}$/),
+        actorId,
         entityId: actorId,
         entityIdHash: expect.stringMatching(/^[a-f0-9]{64}$/)
       })

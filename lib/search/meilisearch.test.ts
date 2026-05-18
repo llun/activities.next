@@ -1,5 +1,6 @@
 import {
   configureMeilisearchIndex,
+  deleteMeilisearchDocument,
   deleteMeilisearchDocuments,
   resetMeilisearchIndexConfigurationCacheForTests,
   searchMeilisearch,
@@ -289,5 +290,25 @@ describe('Meilisearch search backend', () => {
     })
 
     expect(deleteFetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('deletes individual documents by id', async () => {
+    const deleteFetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(taskResponse(1))
+      .mockResolvedValueOnce(completedTaskResponse(1))
+    global.fetch = deleteFetchMock as unknown as typeof fetch
+
+    await deleteMeilisearchDocument({
+      config: config('delete_document'),
+      type: 'statuses',
+      documentId: 'doc/with/slashes'
+    })
+
+    expect(deleteFetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://search.test/indexes/delete_document_statuses/documents/doc%2Fwith%2Fslashes',
+      expect.objectContaining({ method: 'DELETE' })
+    )
   })
 })

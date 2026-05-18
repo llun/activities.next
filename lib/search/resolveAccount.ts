@@ -10,7 +10,34 @@ type ResolveAccountForSearchParams = {
   query: string
 }
 
+const parseAccountUrlQuery = (query: string) => {
+  let url: URL
+  try {
+    url = new URL(query.trim())
+  } catch {
+    return null
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+
+  const [firstSegment, secondSegment] = url.pathname.split('/').filter(Boolean)
+  const username = firstSegment?.startsWith('@')
+    ? firstSegment.slice(1)
+    : firstSegment === 'users'
+      ? secondSegment
+      : null
+  if (!username || username.includes('@')) return null
+
+  const domain = url.hostname
+  if (!domain) return null
+
+  return { username, domain, account: `${username}@${domain}` }
+}
+
 const parseAccountQuery = (query: string) => {
+  const accountUrl = parseAccountUrlQuery(query)
+  if (accountUrl) return accountUrl
+
   const cleanedQuery = normalizeAccountSearchQuery(query)
   if (!cleanedQuery) return null
 
@@ -39,7 +66,14 @@ export const resolveAccountForSearch = async ({
     return existingActor.id
   }
 
-  if (!query.includes('@')) return null
+  const trimmedQuery = query.trim()
+  if (
+    !trimmedQuery.includes('@') &&
+    !trimmedQuery.startsWith('http://') &&
+    !trimmedQuery.startsWith('https://')
+  ) {
+    return null
+  }
 
   try {
     const actorId = await getWebfingerSelf({ account: parsed.account })

@@ -14,7 +14,10 @@ import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscription'
-import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
+import {
+  SearchSQLDatabaseMixin,
+  getSearchDocumentId
+} from '@/lib/database/sql/search'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
@@ -77,13 +80,16 @@ export const getSQLDatabase = (database: Knex): Database => {
       ...new Set(tags.map((tag) => tag.nameNormalized ?? tag.name))
     ].filter(Boolean)
   }
-  const getStatusIdsForDelete = async (statusId: string) => {
+  const getStatusIdsForDelete = async (
+    statusId: string,
+    query: Knex | Knex.Transaction = database
+  ) => {
     const statusIds: string[] = []
     const seen = new Set<string>()
     let pendingStatusIds = [statusId]
 
     while (pendingStatusIds.length > 0) {
-      const statuses = await database('statuses')
+      const statuses = await query('statuses')
         .whereIn('id', pendingStatusIds)
         .select<{ id: string }[]>('id')
       const existingStatusIds = statuses
@@ -97,7 +103,7 @@ export const getSQLDatabase = (database: Knex): Database => {
         statusIds.push(id)
       }
 
-      const replies = await database('statuses')
+      const replies = await query('statuses')
         .whereIn('reply', existingStatusIds)
         .select<{ id: string }[]>('id')
       pendingStatusIds = replies
@@ -107,10 +113,13 @@ export const getSQLDatabase = (database: Knex): Database => {
 
     return statusIds
   }
-  const getHashtagTagsForStatuses = async (statusIds: string[]) => {
+  const getHashtagTagsForStatuses = async (
+    statusIds: string[],
+    query: Knex | Knex.Transaction = database
+  ) => {
     if (statusIds.length === 0) return []
 
-    const tags = await database('tags')
+    const tags = await query('tags')
       .whereIn('statusId', statusIds)
       .where('type', 'hashtag')
       .select<
@@ -125,17 +134,33 @@ export const getSQLDatabase = (database: Knex): Database => {
         .values()
     )
   }
+  const deleteStatusSearchDocumentsInTransaction = async (
+    trx: Knex.Transaction,
+    statusIds: string[]
+  ) => {
+    if (statusIds.length === 0) return
+
+    const documentIds = statusIds.map((statusId) =>
+      getSearchDocumentId('status', statusId)
+    )
+    // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
+    await trx('search_terms').whereIn('documentId', documentIds).delete()
+    await trx('search_documents').whereIn('id', documentIds).delete()
+  }
   const deleteSearchDocumentsForActor = async (actorId: string) => {
-    await database.transaction(async (trx) => {
-      // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
-      await trx('search_terms')
-        .whereIn(
-          'documentId',
-          trx('search_documents').where('actorId', actorId).select('id')
-        )
-        .delete()
-      await trx('search_documents').where('actorId', actorId).delete()
-    })
+    const documents = await database('search_documents')
+      .where('actorId', actorId)
+      .select<
+        { entityType: 'account' | 'status' | 'hashtag'; entityId: string }[]
+      >('entityType', 'entityId')
+    await Promise.all(
+      documents.map((document) =>
+        searchDatabase.deleteSearchDocument({
+          entityType: document.entityType,
+          entityId: document.entityId
+        })
+      )
+    )
   }
   const indexedAccountDatabase = {
     ...accountDatabase,
@@ -270,27 +295,38 @@ export const getSQLDatabase = (database: Knex): Database => {
       ...args: Parameters<typeof statusDatabase.deleteStatus>
     ) {
       const [params] = args
-      const status = await statusDatabase.getStatus({
-        statusId: params.statusId
+      const { statusIds, tags } = await database.transaction(async (trx) => {
+        const status = await trx('statuses')
+          .where('id', params.statusId)
+          .first<{ actorId: string }>('actorId')
+
+        if (params.actorId && status) {
+          const normalizedStoredActorId = normalizeActorId(status.actorId)
+          const normalizedExpectedActorId = normalizeActorId(params.actorId)
+          if (
+            !normalizedStoredActorId ||
+            !normalizedExpectedActorId ||
+            normalizedStoredActorId !== normalizedExpectedActorId
+          ) {
+            return { statusIds: [], tags: [] }
+          }
+        }
+
+        const statusIds = status
+          ? await getStatusIdsForDelete(params.statusId, trx)
+          : [params.statusId]
+        const tags = await getHashtagTagsForStatuses(statusIds, trx)
+        await statusDatabase.deleteStatus({
+          ...params,
+          trx
+        } as Parameters<typeof statusDatabase.deleteStatus>[0] & {
+          trx: Knex.Transaction
+        })
+        await deleteStatusSearchDocumentsInTransaction(trx, statusIds)
+
+        return { statusIds, tags }
       })
 
-      if (params.actorId && status) {
-        const normalizedStoredActorId = normalizeActorId(status.actorId)
-        const normalizedExpectedActorId = normalizeActorId(params.actorId)
-        if (
-          !normalizedStoredActorId ||
-          !normalizedExpectedActorId ||
-          normalizedStoredActorId !== normalizedExpectedActorId
-        ) {
-          return
-        }
-      }
-
-      const statusIds = status
-        ? await getStatusIdsForDelete(params.statusId)
-        : [params.statusId]
-      const tags = await getHashtagTagsForStatuses(statusIds)
-      await statusDatabase.deleteStatus(...args)
       await Promise.all(
         statusIds.map((statusId) =>
           searchDatabase.deleteSearchDocument({

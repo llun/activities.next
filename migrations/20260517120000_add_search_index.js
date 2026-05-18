@@ -8,7 +8,7 @@ exports.up = async (knex) => {
     table.string('entityType', 32).notNullable()
     table.text('entityId').notNullable()
     table.string('entityIdHash', 64).notNullable()
-    table.string('actorId')
+    table.text('actorId')
     table.string('visibility', 32)
     table.text('searchText')
     table.boolean('searchable').notNullable().defaultTo(true)

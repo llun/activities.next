@@ -27,6 +27,13 @@ type WriteMeilisearchDocumentsParams = {
   documents: MeilisearchDocument[]
 }
 
+type DeleteMeilisearchDocumentParams = Pick<
+  WriteMeilisearchDocumentsParams,
+  'config' | 'type'
+> & {
+  documentId: string
+}
+
 const EXISTING_INDEX_STATUS = 409
 const TASK_POLL_INTERVAL_MS = 100
 // Index configuration is expected to stay valid for the process lifetime.
@@ -292,6 +299,35 @@ export const deleteMeilisearchDocuments = async ({
   const response = await fetchWithTimeout(
     config,
     getUrl(config, `/indexes/${getIndexUid(config, type)}/documents`),
+    {
+      method: 'DELETE',
+      headers: getHeaders(config)
+    }
+  )
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error(
+      `Meilisearch document delete failed with status ${response.status}`
+    )
+  }
+  if (response.status !== 404) {
+    await waitForMeilisearchResponseTask(config, response, 'document delete')
+  }
+}
+
+export const deleteMeilisearchDocument = async ({
+  config,
+  type,
+  documentId
+}: DeleteMeilisearchDocumentParams) => {
+  const response = await fetchWithTimeout(
+    config,
+    getUrl(
+      config,
+      `/indexes/${getIndexUid(config, type)}/documents/${encodeURIComponent(
+        documentId
+      )}`
+    ),
     {
       method: 'DELETE',
       headers: getHeaders(config)
