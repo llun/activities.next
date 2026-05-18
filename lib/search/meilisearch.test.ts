@@ -1,5 +1,6 @@
 import {
   configureMeilisearchIndex,
+  deleteMeilisearchDocuments,
   resetMeilisearchIndexConfigurationCacheForTests,
   searchMeilisearch,
   writeMeilisearchDocuments
@@ -19,6 +20,16 @@ describe('Meilisearch search backend', () => {
     status,
     json: async () => data
   })
+  const taskResponse = (taskUid: number) =>
+    fetchResponse(202, {
+      taskUid,
+      status: 'enqueued'
+    })
+  const completedTaskResponse = (uid: number) =>
+    fetchResponse(200, {
+      uid,
+      status: 'succeeded'
+    })
 
   afterEach(() => {
     global.fetch = originalFetch
@@ -67,8 +78,10 @@ describe('Meilisearch search backend', () => {
   it('creates indexes with the Meilisearch create-index API and updates settings', async () => {
     const fetchMock = jest
       .fn()
-      .mockResolvedValueOnce(fetchResponse(202))
-      .mockResolvedValueOnce(fetchResponse(202))
+      .mockResolvedValueOnce(taskResponse(1))
+      .mockResolvedValueOnce(completedTaskResponse(1))
+      .mockResolvedValueOnce(taskResponse(2))
+      .mockResolvedValueOnce(completedTaskResponse(2))
     global.fetch = fetchMock as unknown as typeof fetch
 
     await configureMeilisearchIndex({
@@ -94,10 +107,20 @@ describe('Meilisearch search backend', () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
+      'https://search.test/tasks/1',
+      expect.objectContaining({ method: 'GET' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
       'https://search.test/indexes/create_index_accounts/settings',
       expect.objectContaining({
         method: 'PATCH'
       })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      'https://search.test/tasks/2',
+      expect.objectContaining({ method: 'GET' })
     )
   })
 
@@ -105,7 +128,8 @@ describe('Meilisearch search backend', () => {
     const fetchMock = jest
       .fn()
       .mockResolvedValueOnce(fetchResponse(409))
-      .mockResolvedValueOnce(fetchResponse(202))
+      .mockResolvedValueOnce(taskResponse(1))
+      .mockResolvedValueOnce(completedTaskResponse(1))
     global.fetch = fetchMock as unknown as typeof fetch
 
     await expect(
@@ -115,14 +139,14 @@ describe('Meilisearch search backend', () => {
       })
     ).resolves.toBeUndefined()
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('rejects non-conflict index creation errors', async () => {
     const fetchMock = jest
       .fn()
       .mockResolvedValueOnce(fetchResponse(400))
-      .mockResolvedValueOnce(fetchResponse(202))
+      .mockResolvedValueOnce(taskResponse(1))
     global.fetch = fetchMock as unknown as typeof fetch
 
     await expect(
@@ -136,7 +160,15 @@ describe('Meilisearch search backend', () => {
   })
 
   it('configures each index once before writing document batches', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(fetchResponse(202))
+    let taskUid = 0
+    const fetchMock = jest.fn().mockImplementation(async (input: string) => {
+      const taskMatch = input.match(/\/tasks\/(\d+)$/)
+      if (taskMatch) {
+        return completedTaskResponse(Number(taskMatch[1]))
+      }
+      taskUid += 1
+      return taskResponse(taskUid)
+    })
     global.fetch = fetchMock as unknown as typeof fetch
     const searchConfig = config('cached_write')
 
@@ -165,26 +197,97 @@ describe('Meilisearch search backend', () => {
       ]
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(8)
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       'https://search.test/indexes',
       expect.objectContaining({ method: 'POST' })
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       'https://search.test/indexes/cached_write_accounts/settings',
       expect.objectContaining({ method: 'PATCH' })
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      5,
       'https://search.test/indexes/cached_write_accounts/documents',
       expect.objectContaining({ method: 'POST' })
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
+      7,
       'https://search.test/indexes/cached_write_accounts/documents',
       expect.objectContaining({ method: 'POST' })
     )
+  })
+
+  it('rejects failed document write tasks', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(fetchResponse(409))
+      .mockResolvedValueOnce(taskResponse(1))
+      .mockResolvedValueOnce(completedTaskResponse(1))
+      .mockResolvedValueOnce(taskResponse(2))
+      .mockResolvedValueOnce(
+        fetchResponse(200, {
+          uid: 2,
+          status: 'failed',
+          error: {
+            message: 'bad documents',
+            code: 'invalid_document'
+          }
+        })
+      )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    await expect(
+      writeMeilisearchDocuments({
+        config: config('failed_write'),
+        type: 'accounts',
+        documents: [
+          {
+            id: 'doc-1',
+            entityId: 'actor-1',
+            text: 'Alice',
+            entityType: 'accounts'
+          }
+        ]
+      })
+    ).rejects.toThrow(
+      'Meilisearch document write task 2 failed: bad documents invalid_document'
+    )
+  })
+
+  it('rejects async responses without a task uid', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(fetchResponse(202, {}))
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    await expect(
+      configureMeilisearchIndex({
+        config: config('missing_task'),
+        type: 'accounts'
+      })
+    ).rejects.toThrow(
+      'Meilisearch index configuration did not return a taskUid'
+    )
+  })
+
+  it('waits for delete tasks and preserves missing-index success', async () => {
+    const deleteFetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(taskResponse(1))
+      .mockResolvedValueOnce(completedTaskResponse(1))
+      .mockResolvedValueOnce(fetchResponse(404))
+    global.fetch = deleteFetchMock as unknown as typeof fetch
+
+    await deleteMeilisearchDocuments({
+      config: config('delete_index'),
+      type: 'accounts'
+    })
+    await deleteMeilisearchDocuments({
+      config: config('delete_index'),
+      type: 'accounts'
+    })
+
+    expect(deleteFetchMock).toHaveBeenCalledTimes(3)
   })
 })

@@ -105,7 +105,11 @@ const getHashtagDisplayName = (name: string) =>
 
 const getHashtagId = (name: string) => {
   const bareName = getHashtagDisplayName(name)
-  return normalizeSearchTokens(bareName, { maxTokens: 1 })[0] ?? ''
+  return bareName
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
 }
 
 const getNormalizedStoredHashtagName = (hashtagId: string) => `#${hashtagId}`
@@ -292,14 +296,14 @@ export const SearchSQLDatabaseMixin = (
 
   async function upsertActorSearchDocument({
     actorId
-  }: UpsertSearchActorParams): Promise<void> {
+  }: UpsertSearchActorParams): Promise<boolean> {
     const actor = await database<SQLActor>('actors')
       .where('id', actorId)
       .first()
 
     if (!actor || actor.deletionStatus) {
       await deleteSearchDocument({ entityType: 'account', entityId: actorId })
-      return
+      return false
     }
 
     const acct = `${actor.username}@${actor.domain}`
@@ -327,6 +331,7 @@ export const SearchSQLDatabaseMixin = (
         { text: actor.summary ?? '', weight: 1 }
       ]
     })
+    return true
   }
 
   async function upsertStatusSearchDocument({
@@ -387,6 +392,7 @@ export const SearchSQLDatabaseMixin = (
       .whereIn('tags.nameNormalized', [normalizedName, hashtagId])
       .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
       .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+      .whereIn('recipients.type', ['to', 'cc'])
       .select<
         SQLTagSearchRow[]
       >('tags.name', 'tags.value', 'tags.nameNormalized', 'tags.createdAt')
@@ -672,18 +678,27 @@ export const SearchSQLDatabaseMixin = (
 
   async function getSearchHashtagsByIds({
     hashtagIds
-  }: GetSearchHashtagsByIdsParams): Promise<Mastodon.Tag[]> {
+  }: GetSearchHashtagsByIdsParams): Promise<Mastodon.SearchTag[]> {
     if (hashtagIds.length === 0) return []
 
     const rows = await database<SQLTagSearchRow>('tags')
-      .where('type', 'hashtag')
+      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+      .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+      .where('tags.type', 'hashtag')
       .whereIn(
-        'nameNormalized',
+        'tags.nameNormalized',
         hashtagIds.flatMap(getStoredHashtagNameCandidates)
       )
-      .select('name', 'value', 'nameNormalized', 'createdAt')
+      .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
+      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+      .whereIn('recipients.type', ['to', 'cc'])
+      .select(
+        'tags.name',
+        'tags.value',
+        'tags.nameNormalized',
+        'tags.createdAt'
+      )
 
-    const host = getConfiguredHost()
     const rowByHashtagId = new Map<string, SQLTagSearchRow>()
     for (const row of rows) {
       const id = row.nameNormalized
@@ -694,13 +709,15 @@ export const SearchSQLDatabaseMixin = (
       }
     }
 
-    return hashtagIds.map((hashtagId) => {
+    return hashtagIds.flatMap((hashtagId) => {
       const row = rowByHashtagId.get(hashtagId)
-      const name = row ? getHashtagDisplayName(row.name) : hashtagId
-      return Mastodon.Tag.parse({
+      if (!row) return []
+
+      const name = getHashtagDisplayName(row.name)
+      return Mastodon.SearchTag.parse({
         id: hashtagId,
         name,
-        url: row?.value || `https://${host}/tags/${name}`,
+        url: row.value || `https://${getConfiguredHost()}/tags/${name}`,
         history: []
       })
     })
@@ -710,7 +727,7 @@ export const SearchSQLDatabaseMixin = (
     query,
     limit,
     offset
-  }: SearchHashtagsParams): Promise<Mastodon.Tag[]> {
+  }: SearchHashtagsParams): Promise<Mastodon.SearchTag[]> {
     const hashtagIds = await getMatchedDocumentIds({
       entityType: 'hashtag',
       query,
@@ -749,19 +766,19 @@ export const SearchSQLDatabaseMixin = (
             database('recipients')
               .select('statusId')
               .whereIn('actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+              .whereIn('type', ['to', 'cc'])
           )
           .count<{ count: string | number }>('* as count')
           .first(),
         database('tags')
-          .where('type', 'hashtag')
-          .whereIn(
-            'statusId',
-            database('recipients')
-              .select('statusId')
-              .whereIn('actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-          )
+          .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+          .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+          .where('tags.type', 'hashtag')
+          .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
+          .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+          .whereIn('recipients.type', ['to', 'cc'])
           .countDistinct<{ count: string | number }>({
-            count: 'nameNormalized'
+            count: 'tags.nameNormalized'
           })
           .first()
       ])
@@ -790,10 +807,12 @@ export const SearchSQLDatabaseMixin = (
       )
       if (actors.length === 0) break
 
-      await mapWithConcurrency(actors, rebuildConcurrency, (actor) =>
-        upsertActorSearchDocument({ actorId: actor.id })
+      const indexed = await mapWithConcurrency(
+        actors,
+        rebuildConcurrency,
+        (actor) => upsertActorSearchDocument({ actorId: actor.id })
       )
-      result.accounts += actors.length
+      result.accounts += indexed.filter(Boolean).length
       actorCursor = actors[actors.length - 1]
     }
 

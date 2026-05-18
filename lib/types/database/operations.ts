@@ -673,10 +673,10 @@ export type GetSearchHashtagsByIdsParams = {
 export interface SearchDatabase {
   searchAccounts(params: SearchAccountsParams): Promise<Mastodon.Account[]>
   searchStatuses(params: SearchStatusesParams): Promise<Status[]>
-  searchHashtags(params: SearchHashtagsParams): Promise<Mastodon.Tag[]>
+  searchHashtags(params: SearchHashtagsParams): Promise<Mastodon.SearchTag[]>
   rebuildSearchIndex(params?: SearchRebuildParams): Promise<SearchRebuildResult>
   clearSearchIndex(): Promise<void>
-  upsertActorSearchDocument(params: UpsertSearchActorParams): Promise<void>
+  upsertActorSearchDocument(params: UpsertSearchActorParams): Promise<boolean>
   upsertStatusSearchDocument(params: UpsertSearchStatusParams): Promise<boolean>
   upsertHashtagSearchDocument(
     params: UpsertSearchHashtagParams
@@ -684,7 +684,7 @@ export interface SearchDatabase {
   deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
   getSearchHashtagsByIds(
     params: GetSearchHashtagsByIdsParams
-  ): Promise<Mastodon.Tag[]>
+  ): Promise<Mastodon.SearchTag[]>
 }
 
 // ============================================================================

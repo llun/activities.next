@@ -23,6 +23,12 @@ const SearchParams = z.object({
   following: BooleanSearchParam
 })
 
+const normalizeAccountSearchQuery = (query: string) =>
+  query
+    .trim()
+    .replace(/^acct:/i, '')
+    .replace(/^@/, '')
+
 export const GET = traceApiRoute(
   'searchAccounts',
   OAuthGuardAnyScope(
@@ -48,7 +54,11 @@ export const GET = traceApiRoute(
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
-      const query = q.trim()
+      const query = normalizeAccountSearchQuery(q)
+      if (!query) {
+        return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
+      }
+
       if (resolve) {
         await resolveAccountForSearch({ database, query })
       }

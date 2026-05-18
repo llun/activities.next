@@ -44,7 +44,10 @@ exports.up = async (knex) => {
     table.unique(['documentId', 'term'], {
       indexName: 'search_terms_document_term_unique'
     })
-    table.index(['entityType', 'term', 'weight'], 'search_terms_query_idx')
+    table.index(
+      ['entityType', 'term', 'documentId', 'weight'],
+      'search_terms_query_idx'
+    )
   })
 }
 
