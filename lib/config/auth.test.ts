@@ -12,7 +12,7 @@ describe('Auth config', () => {
   })
 
   describe('AuthConfig schema', () => {
-    it('parses config with github', () => {
+    it('ignores legacy github config', () => {
       const config = AuthConfig.parse({
         github: {
           id: 'github-id',
@@ -20,13 +20,21 @@ describe('Auth config', () => {
         }
       })
 
-      expect(config.github?.id).toBe('github-id')
+      expect(config).not.toHaveProperty('github')
     })
 
-    it('parses config without github', () => {
+    it('parses config without optional auth settings', () => {
       const config = AuthConfig.parse({})
 
-      expect(config.github).toBeUndefined()
+      expect(config).not.toHaveProperty('github')
+    })
+
+    it('parses credential auth settings', () => {
+      const config = AuthConfig.parse({
+        enableCredential: false
+      })
+
+      expect(config.enableCredential).toBe(false)
     })
   })
 
@@ -36,26 +44,26 @@ describe('Auth config', () => {
       expect(config).toBeNull()
     })
 
-    it('parses ACTIVITIES_AUTH json env var', () => {
+    it('parses ACTIVITIES_AUTH json env var without legacy github config', () => {
       process.env.ACTIVITIES_AUTH = JSON.stringify({
+        enableCredential: false,
         github: { id: 'test-id', secret: 'test-secret' }
       })
 
       const config = getAuthConfig()
 
       expect(config).not.toBeNull()
-      expect(config?.auth.github?.id).toBe('test-id')
+      expect(config?.auth.enableCredential).toBe(false)
+      expect(config?.auth).not.toHaveProperty('github')
     })
 
-    it('builds config from individual env vars', () => {
+    it('ignores legacy individual github env vars', () => {
       process.env.ACTIVITIES_AUTH_GITHUB_ID = 'env-id'
       process.env.ACTIVITIES_AUTH_GITHUB_SECRET = 'env-secret'
 
       const config = getAuthConfig()
 
-      expect(config).not.toBeNull()
-      expect(config?.auth.github?.id).toBe('env-id')
-      expect(config?.auth.github?.secret).toBe('env-secret')
+      expect(config).toBeNull()
     })
   })
 })

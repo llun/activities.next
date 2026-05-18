@@ -11,14 +11,12 @@ import {
   CardHeader,
   CardTitle
 } from '@/lib/components/ui/card'
-import { Separator } from '@/lib/components/ui/separator'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 import { CredentialForm } from './CredentialForm'
 import { PasskeySigninButton } from './PasskeySigninButton'
-import { SigninButton } from './SigninButton'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -35,9 +33,7 @@ const Page: FC = async () => {
   }
 
   const { auth, serviceName } = getConfig()
-  const oauthProviders = auth?.github ? [{ id: 'github', name: 'GitHub' }] : []
   const credentialEnabled = auth?.enableCredential !== false
-  const hasAlternativeProviders = oauthProviders.length > 0
 
   return (
     <Card>
@@ -50,21 +46,8 @@ const Page: FC = async () => {
           <CredentialForm providerName={serviceName ?? 'credentials'} />
         )}
 
-        {credentialEnabled && hasAlternativeProviders && (
-          <div className="relative">
-            <Separator />
-            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-              or continue with
-            </span>
-          </div>
-        )}
-
         <div className="space-y-2">
           <PasskeySigninButton />
-          {hasAlternativeProviders &&
-            oauthProviders.map((provider) => (
-              <SigninButton key={provider.id} provider={provider} />
-            ))}
         </div>
       </CardContent>
       <CardFooter className="justify-center">
