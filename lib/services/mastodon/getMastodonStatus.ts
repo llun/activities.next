@@ -82,7 +82,14 @@ const getReblogTargetStatus = (
     depth += 1
   }
 
-  return currentStatus
+  if (
+    currentStatus.type === StatusType.enum.Note ||
+    currentStatus.type === StatusType.enum.Poll
+  ) {
+    return currentStatus
+  }
+
+  return null
 }
 
 const getMentionsFromTags = (tags: Tag[]): MastodonMention[] => {
