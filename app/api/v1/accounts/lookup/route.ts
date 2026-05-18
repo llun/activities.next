@@ -5,6 +5,11 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  OptionalOAuthGuard,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
+import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -29,6 +34,23 @@ const parseAccountHandle = (value: string, localDomain: string) => {
   if (!username || !domain) return null
 
   return { username, domain }
+}
+
+const isBearerAuthorizationHeader = (authorizationHeader: string | null) =>
+  authorizationHeader?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer'
+
+const authorizeBearerRemoteLookup = async (req: NextRequest) => {
+  let authorized = false
+  const response = await OptionalOAuthGuard(
+    [Scope.enum.read],
+    async () => {
+      authorized = true
+      return new Response(null, { status: 204 })
+    },
+    { errorResponse: corsErrorResponse(CORS_HEADERS) }
+  )(req, { params: Promise.resolve({}) })
+
+  return { authorized, response }
 }
 
 export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
@@ -68,7 +90,16 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
   let actor = await database.getActorFromUsername({ username, domain })
   if (!actor && resolve && domain !== config.host) {
     const session = await getServerAuthSession()
-    const canResolveRemote = Boolean(session?.user?.email)
+    let canResolveRemote = Boolean(session?.user?.email)
+    if (
+      !canResolveRemote &&
+      isBearerAuthorizationHeader(req.headers.get('Authorization'))
+    ) {
+      const bearerAuth = await authorizeBearerRemoteLookup(req)
+      if (!bearerAuth.authorized) return bearerAuth.response
+      canResolveRemote = true
+    }
+
     if (!canResolveRemote) {
       return apiResponse({
         req,
