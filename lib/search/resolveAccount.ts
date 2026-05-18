@@ -2,6 +2,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfiguredHost } from '@/lib/config/configuredHost'
 import { Database } from '@/lib/database/types'
+import { normalizeAccountSearchQuery } from '@/lib/search/normalizeAccountSearchQuery'
 import { logger } from '@/lib/utils/logger'
 
 type ResolveAccountForSearchParams = {
@@ -10,10 +11,7 @@ type ResolveAccountForSearchParams = {
 }
 
 const parseAccountQuery = (query: string) => {
-  const cleanedQuery = query
-    .trim()
-    .replace(/^acct:/i, '')
-    .replace(/^@/, '')
+  const cleanedQuery = normalizeAccountSearchQuery(query)
   if (!cleanedQuery) return null
 
   const parts = cleanedQuery.split('@')

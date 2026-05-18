@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { normalizeAccountSearchQuery } from '@/lib/search/normalizeAccountSearchQuery'
 import { resolveAccountForSearch } from '@/lib/search/resolveAccount'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
@@ -22,12 +23,6 @@ const SearchParams = z.object({
   resolve: BooleanSearchParam,
   following: BooleanSearchParam
 })
-
-const normalizeAccountSearchQuery = (query: string) =>
-  query
-    .trim()
-    .replace(/^acct:/i, '')
-    .replace(/^@/, '')
 
 export const GET = traceApiRoute(
   'searchAccounts',

@@ -29,6 +29,8 @@ type WriteMeilisearchDocumentsParams = {
 
 const EXISTING_INDEX_STATUS = 409
 const TASK_POLL_INTERVAL_MS = 100
+// Index configuration is expected to stay valid for the process lifetime.
+// Restart the process if indexes are deleted externally while writes are active.
 const configuredIndexPromises = new Map<string, Promise<void>>()
 
 type MeilisearchTask = {
@@ -279,6 +281,7 @@ const configureMeilisearchIndexWithoutCache = async ({
 }
 
 export const resetMeilisearchIndexConfigurationCacheForTests = () => {
+  // Test-only hook for isolating cached index configuration between cases.
   configuredIndexPromises.clear()
 }
 
