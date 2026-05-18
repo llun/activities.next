@@ -42,11 +42,73 @@ type DirectConversationStatusRow = {
 }
 
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
+const MAX_BIGINT_ID = '9223372036854775807'
 
 const getConversationIdForRootStatusId = (rootStatusId: string) =>
   createHash('sha256').update(rootStatusId).digest('hex')
 
-const isValidMembershipId = (id: string) => /^[0-9]+$/.test(id)
+const normalizeMembershipId = (id: string) => {
+  if (!/^[0-9]+$/.test(id)) return null
+
+  const normalizedId = id.replace(/^0+/, '')
+  if (!normalizedId) return null
+  if (normalizedId.length > MAX_BIGINT_ID.length) return null
+  if (
+    normalizedId.length === MAX_BIGINT_ID.length &&
+    normalizedId > MAX_BIGINT_ID
+  )
+    return null
+
+  return normalizedId
+}
+
+const isValidMembershipId = (id: string) => normalizeMembershipId(id) !== null
+
+const compareMembershipIdsDesc = (
+  left: string | number,
+  right: string | number
+) => {
+  const leftId = BigInt(String(left))
+  const rightId = BigInt(String(right))
+
+  if (leftId === rightId) return 0
+  return leftId > rightId ? -1 : 1
+}
+
+const compareMembershipOrderDesc = (
+  left: Pick<DirectConversationMembershipRow, 'id' | 'lastStatusCreatedAt'>,
+  right: Pick<DirectConversationMembershipRow, 'id' | 'lastStatusCreatedAt'>
+) => {
+  const leftTime = getCompatibleTime(left.lastStatusCreatedAt)
+  const rightTime = getCompatibleTime(right.lastStatusCreatedAt)
+
+  if (leftTime !== rightTime) return rightTime - leftTime
+  return compareMembershipIdsDesc(left.id, right.id)
+}
+
+const compareConversationOrderDesc = (
+  left: Pick<DirectConversation, 'id' | 'lastStatusCreatedAt'>,
+  right: Pick<DirectConversation, 'id' | 'lastStatusCreatedAt'>
+) => {
+  if (left.lastStatusCreatedAt !== right.lastStatusCreatedAt)
+    return right.lastStatusCreatedAt - left.lastStatusCreatedAt
+  return compareMembershipIdsDesc(left.id, right.id)
+}
+
+const compareConversationToMembershipOrderDesc = (
+  conversation: Pick<DirectConversation, 'id' | 'lastStatusCreatedAt'>,
+  membership: Pick<
+    DirectConversationMembershipRow,
+    'id' | 'lastStatusCreatedAt'
+  >
+) =>
+  compareMembershipOrderDesc(
+    {
+      id: conversation.id,
+      lastStatusCreatedAt: conversation.lastStatusCreatedAt
+    },
+    membership
+  )
 
 const isMembershipOlderThanStatus = (
   membership: DirectConversationMembershipRow,
@@ -406,6 +468,92 @@ export const DirectConversationSQLDatabaseMixin = (
     return conversation ?? null
   }
 
+  const getDirectConversationCursor = async ({
+    actorId,
+    conversationId
+  }: Pick<GetDirectConversationParams, 'actorId' | 'conversationId'>) => {
+    if (!isValidMembershipId(conversationId)) return null
+
+    const row = await buildConversationQuery({ actorId })
+      .where('direct_conversation_memberships.id', conversationId)
+      .first<DirectConversationMembershipRow>()
+    if (!row) return null
+
+    const [conversation] = await hydrateConversationRows([row], actorId)
+    return conversation ?? null
+  }
+
+  const getHydratedConversationPage = async ({
+    actorId,
+    query,
+    limit,
+    olderThan,
+    newerThan
+  }: {
+    actorId: string
+    query: Knex.QueryBuilder
+    limit: number
+    olderThan: DirectConversation | null
+    newerThan: DirectConversation | null
+  }) => {
+    if (limit <= 0) return []
+
+    const conversations: DirectConversation[] = []
+    const scanBatchSize = Math.max(limit, PER_PAGE_LIMIT)
+    let scannedCursor: DirectConversationMembershipRow | null = null
+
+    while (conversations.length < limit || scannedCursor) {
+      const scanQuery = query.clone()
+      if (scannedCursor)
+        applyMembershipCursor(scanQuery, scannedCursor, 'older')
+
+      const rows = await scanQuery
+        .orderBy('direct_conversation_memberships.lastStatusCreatedAt', 'desc')
+        .orderBy('direct_conversation_memberships.id', 'desc')
+        .limit(scanBatchSize)
+      if (rows.length === 0) break
+      const scanBoundary = { ...rows[rows.length - 1] }
+
+      const hydratedRows = await hydrateConversationRows(rows, actorId)
+      conversations.push(
+        ...hydratedRows.filter((conversation) => {
+          if (
+            olderThan &&
+            compareConversationOrderDesc(conversation, olderThan) <= 0
+          )
+            return false
+          if (
+            newerThan &&
+            compareConversationOrderDesc(conversation, newerThan) >= 0
+          )
+            return false
+          return true
+        })
+      )
+      conversations.sort(compareConversationOrderDesc)
+      conversations.splice(limit)
+
+      if (rows.length < scanBatchSize) break
+      if (
+        conversations.length === limit &&
+        compareConversationToMembershipOrderDesc(
+          conversations[conversations.length - 1],
+          scanBoundary
+        ) <= 0
+      )
+        break
+      if (
+        newerThan &&
+        compareConversationToMembershipOrderDesc(newerThan, scanBoundary) <= 0
+      )
+        break
+
+      scannedCursor = scanBoundary
+    }
+
+    return conversations
+  }
+
   return {
     async syncDirectConversationForStatus({
       status
@@ -547,27 +695,29 @@ export const DirectConversationSQLDatabaseMixin = (
       )
         return []
 
-      if (olderCursorId) {
-        const cursor = await buildConversationQuery({ actorId })
-          .where('direct_conversation_memberships.id', olderCursorId)
-          .first<DirectConversationMembershipRow>()
-        if (!cursor) return []
-        applyMembershipCursor(query, cursor, 'older')
-      }
+      const olderThan = olderCursorId
+        ? await getDirectConversationCursor({
+            actorId,
+            conversationId: olderCursorId
+          })
+        : null
+      if (olderCursorId && !olderThan) return []
 
-      if (newerCursorId) {
-        const cursor = await buildConversationQuery({ actorId })
-          .where('direct_conversation_memberships.id', newerCursorId)
-          .first<DirectConversationMembershipRow>()
-        if (!cursor) return []
-        applyMembershipCursor(query, cursor, 'newer')
-      }
+      const newerThan = newerCursorId
+        ? await getDirectConversationCursor({
+            actorId,
+            conversationId: newerCursorId
+          })
+        : null
+      if (newerCursorId && !newerThan) return []
 
-      const rows = await query
-        .orderBy('direct_conversation_memberships.lastStatusCreatedAt', 'desc')
-        .orderBy('direct_conversation_memberships.id', 'desc')
-        .limit(limit)
-      return hydrateConversationRows(rows, actorId)
+      return getHydratedConversationPage({
+        actorId,
+        query,
+        limit,
+        olderThan,
+        newerThan
+      })
     },
 
     async getDirectConversation({
