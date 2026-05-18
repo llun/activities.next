@@ -72,6 +72,19 @@ export const GET = traceApiRoute(
         exclude_unreviewed
       } = parsedParams.data
       const query = q.trim()
+      const usesTypedOffset = Boolean(type) && offset > 0
+
+      if (
+        !currentActor &&
+        (following || resolve || usesTypedOffset || type === 'statuses')
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_401,
+          responseStatusCode: 401
+        })
+      }
 
       if (!query) {
         return apiResponse({
@@ -85,24 +98,16 @@ export const GET = traceApiRoute(
         })
       }
 
-      if (!currentActor && (following || resolve || type === 'statuses')) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_401,
-          responseStatusCode: 401
-        })
-      }
-
       const includeAccounts = type ? type === 'accounts' : true
       const includeStatuses = type ? type === 'statuses' : Boolean(currentActor)
       const includeHashtags = type ? type === 'hashtags' : true
+      const effectiveOffset = type ? offset : 0
 
       const results = await search({
         database,
         query,
         limit,
-        offset,
+        offset: effectiveOffset,
         currentActorId: currentActor?.id,
         includeAccounts,
         includeStatuses,

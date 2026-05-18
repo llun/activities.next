@@ -5,6 +5,7 @@ import { logger } from '@/lib/utils/logger'
 import { search } from './index'
 import { searchMeilisearch } from './meilisearch'
 import { resolveAccountForSearch } from './resolveAccount'
+import { resolveStatusForSearch } from './resolveStatus'
 
 jest.mock('@/lib/config', () => ({
   getConfig: jest.fn()
@@ -24,6 +25,10 @@ jest.mock('./resolveAccount', () => ({
   resolveAccountForSearch: jest.fn()
 }))
 
+jest.mock('./resolveStatus', () => ({
+  resolveStatusForSearch: jest.fn()
+}))
+
 describe('search service', () => {
   const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
   const mockSearchMeilisearch = searchMeilisearch as jest.MockedFunction<
@@ -34,6 +39,8 @@ describe('search service', () => {
     resolveAccountForSearch as jest.MockedFunction<
       typeof resolveAccountForSearch
     >
+  const mockResolveStatusForSearch =
+    resolveStatusForSearch as jest.MockedFunction<typeof resolveStatusForSearch>
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -45,6 +52,7 @@ describe('search service', () => {
         timeoutMs: 2000
       }
     } as ReturnType<typeof getConfig>)
+    mockResolveStatusForSearch.mockResolvedValue(null)
   })
 
   it('falls back to database search when Meilisearch fails', async () => {
@@ -122,5 +130,40 @@ describe('search service', () => {
       following: undefined,
       resolve: true
     })
+  })
+
+  it('prepends resolved statuses for status URL searches', async () => {
+    const resolvedStatus = { id: 'https://remote.test/statuses/1' }
+    const indexedStatus = { id: 'https://remote.test/statuses/2' }
+    const database = {
+      searchAccounts: jest.fn(),
+      searchStatuses: jest.fn().mockResolvedValue([indexedStatus]),
+      searchHashtags: jest.fn()
+    } as unknown as Database
+    mockResolveStatusForSearch.mockResolvedValue(resolvedStatus as never)
+
+    await expect(
+      search({
+        database,
+        query: 'https://remote.test/statuses/1',
+        limit: 10,
+        offset: 0,
+        includeAccounts: false,
+        includeStatuses: true,
+        includeHashtags: false,
+        resolve: true
+      })
+    ).resolves.toEqual({
+      accounts: [],
+      statuses: [resolvedStatus, indexedStatus],
+      hashtags: []
+    })
+
+    expect(mockResolveStatusForSearch).toHaveBeenCalledWith({
+      database,
+      query: 'https://remote.test/statuses/1'
+    })
+    expect(mockResolveAccountForSearch).not.toHaveBeenCalled()
+    expect(mockSearchMeilisearch).not.toHaveBeenCalled()
   })
 })

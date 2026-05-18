@@ -6,6 +6,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { searchMeilisearch } from './meilisearch'
 import { resolveAccountForSearch } from './resolveAccount'
+import { resolveStatusForSearch } from './resolveStatus'
 
 type SearchParams = {
   database: Database
@@ -36,6 +37,20 @@ const emptySearchResult = (): SearchResult => ({
   statuses: [],
   hashtags: []
 })
+
+const addResolvedStatus = (
+  result: SearchResult,
+  resolvedStatus: Status | null
+): SearchResult =>
+  resolvedStatus
+    ? {
+        ...result,
+        statuses: [
+          resolvedStatus,
+          ...result.statuses.filter((status) => status.id !== resolvedStatus.id)
+        ]
+      }
+    : result
 
 const canUseMeilisearch = ({
   following,
@@ -155,6 +170,14 @@ export const search = async (params: SearchParams): Promise<SearchResult> => {
   // No reviewed/unreviewed tag state exists, so this is an intentional no-op.
   const _excludeUnreviewed = params.excludeUnreviewed
 
+  const resolvedStatus =
+    params.includeStatuses && params.resolve && params.offset === 0
+      ? await resolveStatusForSearch({
+          database: params.database,
+          query: params.query
+        })
+      : null
+
   if (params.includeAccounts && params.resolve) {
     await resolveAccountForSearch({
       database: params.database,
@@ -164,16 +187,19 @@ export const search = async (params: SearchParams): Promise<SearchResult> => {
 
   const config = getConfig().search ?? { backend: 'database' as const }
   if (config.backend !== 'meilisearch' || !canUseMeilisearch(params)) {
-    return searchDatabase(params)
+    return addResolvedStatus(await searchDatabase(params), resolvedStatus)
   }
 
   try {
-    return await searchWithMeilisearch(params)
+    return addResolvedStatus(
+      await searchWithMeilisearch(params),
+      resolvedStatus
+    )
   } catch (error) {
     logger.warn({
       message: 'Meilisearch search failed; falling back to database search',
       error: error instanceof Error ? error.message : String(error)
     })
-    return searchDatabase(params)
+    return addResolvedStatus(await searchDatabase(params), resolvedStatus)
   }
 }

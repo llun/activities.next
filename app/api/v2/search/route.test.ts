@@ -67,6 +67,19 @@ describe('GET /api/v2/search', () => {
     expect(mockSearch).not.toHaveBeenCalled()
   })
 
+  it('requires authentication for auth-sensitive blank queries', async () => {
+    mockCurrentActor = null
+
+    const response = await GET(
+      new NextRequest(
+        'https://local.test/api/v2/search?q=+&type=statuses&resolve=true'
+      )
+    )
+
+    expect(response.status).toBe(401)
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
   it('searches and serializes all result groups for authenticated requests', async () => {
     const response = await GET(
       new NextRequest(
@@ -147,10 +160,51 @@ describe('GET /api/v2/search', () => {
     )
   })
 
+  it('requires authentication for typed offset pagination', async () => {
+    mockCurrentActor = null
+
+    const response = await GET(
+      new NextRequest(
+        'https://local.test/api/v2/search?q=trail&type=accounts&offset=1'
+      )
+    )
+
+    expect(response.status).toBe(401)
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
+  it('ignores offset for broad searches', async () => {
+    const response = await GET(
+      new NextRequest('https://local.test/api/v2/search?q=trail&offset=5')
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offset: 0
+      })
+    )
+  })
+
+  it('preserves offset for typed searches', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://local.test/api/v2/search?q=trail&type=accounts&offset=5'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offset: 5
+      })
+    )
+  })
+
   it('preserves explicit false boolean params', async () => {
     const response = await GET(
       new NextRequest(
-        'https://local.test/api/v2/search?q=trail&following=false&resolve=false&exclude_unreviewed=false'
+        'https://local.test/api/v2/search?q=trail&following=0&resolve=off&exclude_unreviewed=f'
       )
     )
 

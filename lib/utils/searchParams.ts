@@ -1,9 +1,24 @@
 import { z } from 'zod'
 
+const TRUE_VALUES = new Set(['true', '1', 't', 'yes', 'y', 'on'])
+const FALSE_VALUES = new Set(['false', '0', 'f', 'no', 'n', 'off'])
+
 export const BooleanSearchParam = z
-  .enum(['true', 'false'])
+  .string()
   .optional()
-  .transform((value) => (value === undefined ? undefined : value === 'true'))
+  .transform((value, ctx) => {
+    if (value === undefined) return undefined
+
+    const normalizedValue = value.trim().toLowerCase()
+    if (TRUE_VALUES.has(normalizedValue)) return true
+    if (FALSE_VALUES.has(normalizedValue)) return false
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Invalid boolean search parameter'
+    })
+    return z.NEVER
+  })
 
 export const urlSearchParamsToObject = (
   searchParams: URLSearchParams
