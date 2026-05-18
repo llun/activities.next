@@ -42,6 +42,8 @@ type DirectConversationStatusRow = {
 }
 
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
+const DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE = 50
+const MAX_DIRECT_CONVERSATION_FALLBACK_STATUS_BATCHES = 4
 const MAX_BIGINT_ID = '9223372036854775807'
 
 const getConversationIdForRootStatusId = (rootStatusId: string) =>
@@ -357,30 +359,51 @@ export const DirectConversationSQLDatabaseMixin = (
       const fallbackConversationIds = [
         ...new Set(rowsMissingLastStatus.map((row) => row.conversationId))
       ]
-      const fallbackRows = await database('direct_conversation_statuses')
-        .whereIn('conversationId', fallbackConversationIds)
-        .orderBy('createdAt', 'desc')
-        .orderBy('statusId', 'desc')
-        .select<
-          DirectConversationStatusRow[]
-        >('conversationId', 'statusId', 'createdAt')
-      const fallbackStatusById = await getStatusesByIdVisibleToActor(
-        fallbackRows.map((row) => row.statusId),
-        currentActorId
-      )
 
-      for (const fallbackRow of fallbackRows) {
-        if (fallbackStatusRowsByConversationId.has(fallbackRow.conversationId))
-          continue
+      for (const conversationId of fallbackConversationIds) {
+        let scannedCursor: DirectConversationStatusRow | null = null
 
-        const fallbackStatus = fallbackStatusById.get(fallbackRow.statusId)
-        if (!fallbackStatus) continue
+        for (
+          let batchIndex = 0;
+          batchIndex < MAX_DIRECT_CONVERSATION_FALLBACK_STATUS_BATCHES &&
+          !fallbackStatusRowsByConversationId.has(conversationId);
+          batchIndex += 1
+        ) {
+          const query = database('direct_conversation_statuses')
+            .where('conversationId', conversationId)
+            .select<
+              DirectConversationStatusRow[]
+            >('conversationId', 'statusId', 'createdAt')
+          if (scannedCursor) applyStatusCursor(query, scannedCursor, 'older')
 
-        fallbackStatusRowsByConversationId.set(
-          fallbackRow.conversationId,
-          fallbackRow
-        )
-        statusById.set(fallbackStatus.id, fallbackStatus)
+          const fallbackRows = await query
+            .orderBy('createdAt', 'desc')
+            .orderBy('statusId', 'desc')
+            .limit(DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE)
+          if (fallbackRows.length === 0) break
+
+          const fallbackStatusById = await getStatusesByIdVisibleToActor(
+            fallbackRows.map((row) => row.statusId),
+            currentActorId
+          )
+
+          for (const fallbackRow of fallbackRows) {
+            const fallbackStatus = fallbackStatusById.get(fallbackRow.statusId)
+            if (!fallbackStatus) continue
+
+            fallbackStatusRowsByConversationId.set(conversationId, fallbackRow)
+            statusById.set(fallbackStatus.id, fallbackStatus)
+            break
+          }
+
+          if (
+            fallbackStatusRowsByConversationId.has(conversationId) ||
+            fallbackRows.length < DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE
+          )
+            break
+
+          scannedCursor = fallbackRows[fallbackRows.length - 1]
+        }
       }
     }
 
