@@ -21,7 +21,6 @@ This document tracks the implemented and planned features for Activity.next.
 ### Authentication & OAuth
 
 - ✅ **Local authentication** — Email and password sign-up/sign-in (via [better-auth](https://www.better-auth.com/))
-- ✅ **GitHub OAuth** — Sign in with GitHub
 - ✅ **Passkeys** — Register and use passkeys for account authentication
 - ✅ **Two-factor authentication** — TOTP-based second-factor login support
 - ✅ **OAuth 2.0 provider** — App acts as a full OAuth 2.0 / OpenID Connect server

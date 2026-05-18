@@ -343,8 +343,8 @@ describe('AccountDatabase', () => {
     describe('account providers', () => {
       it('links, resolves, and unlinks account providers', async () => {
         const { accountId } = await createTestAccount()
-        const provider = 'github'
-        const providerAccountId = `gh-${crypto.randomUUID()}`
+        const provider = 'external'
+        const providerAccountId = `external-${crypto.randomUUID()}`
 
         const linked = await database.linkAccountWithProvider({
           accountId,

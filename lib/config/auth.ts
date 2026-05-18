@@ -1,39 +1,38 @@
 import { z } from 'zod'
 
-import { matcher } from './utils'
-
-const GithubConfig = z.object({
-  id: z.string(),
-  secret: z.string()
-})
-type GithubConfig = z.infer<typeof GithubConfig>
+import { logger } from '@/lib/utils/logger'
 
 export const AuthConfig = z.object({
-  github: GithubConfig.nullish(),
   enableCredential: z.boolean().optional()
 })
 export type AuthConfig = z.infer<typeof AuthConfig>
 
-const getGithubConfig = (): GithubConfig | null => {
-  const hasEnvironmentAuthGithub = matcher('ACTIVITIES_AUTH_GITHUB_')
-  if (!hasEnvironmentAuthGithub) return null
-
-  return {
-    id: process.env.ACTIVITIES_AUTH_GITHUB_ID as string,
-    secret: process.env.ACTIVITIES_AUTH_GITHUB_SECRET as string
-  }
-}
-
 export const getAuthConfig = (): { auth: AuthConfig } | null => {
   if (process.env.ACTIVITIES_AUTH) {
-    return { auth: JSON.parse(process.env.ACTIVITIES_AUTH) }
+    let raw: unknown
+    try {
+      raw = JSON.parse(process.env.ACTIVITIES_AUTH)
+    } catch {
+      throw new Error('ACTIVITIES_AUTH is not valid JSON')
+    }
+
+    const result = AuthConfig.safeParse(raw)
+    if (!result.success) {
+      throw new Error(`ACTIVITIES_AUTH is invalid: ${result.error.message}`)
+    }
+
+    return { auth: result.data }
   }
 
-  const hasEnvironmentAuth = matcher('ACTIVITIES_AUTH_')
-  if (!hasEnvironmentAuth) return null
-  return {
-    auth: {
-      github: getGithubConfig()
-    }
+  if (
+    process.env.ACTIVITIES_AUTH_GITHUB_ID ||
+    process.env.ACTIVITIES_AUTH_GITHUB_SECRET
+  ) {
+    logger.warn({
+      message:
+        'ACTIVITIES_AUTH_GITHUB_ID and ACTIVITIES_AUTH_GITHUB_SECRET are no longer supported and will be ignored. Remove them from your environment.'
+    })
   }
+
+  return null
 }
