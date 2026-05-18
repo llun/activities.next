@@ -461,6 +461,119 @@ describe('ConversationDatabase', () => {
       expect(fallbackCalls[1]).toContain('status-60')
     })
 
+    test('hydrates stale fallbacks for multiple conversations in shared batches', async () => {
+      const getStatusesByIds = jest.fn(async ({ statusIds }) =>
+        statusIds
+          .filter((statusId: string) =>
+            ['conversation-a-status-2', 'conversation-b-status-3'].includes(
+              statusId
+            )
+          )
+          .map(statusForId)
+      )
+      const database = DirectConversationSQLDatabaseMixin(knexDatabase, {
+        getStatusesByIds
+      } as unknown as StatusDatabase)
+      const now = new Date()
+      const staleConversations = [
+        {
+          conversationId: 'conversation-a',
+          missingStatusId: 'conversation-a-missing-status',
+          fallbackStatusIds: [
+            'conversation-a-status-1',
+            'conversation-a-status-2'
+          ]
+        },
+        {
+          conversationId: 'conversation-b',
+          missingStatusId: 'conversation-b-missing-status',
+          fallbackStatusIds: [
+            'conversation-b-status-1',
+            'conversation-b-status-2',
+            'conversation-b-status-3'
+          ]
+        }
+      ]
+
+      await knexDatabase('direct_conversations').insert(
+        staleConversations.map((conversation) => ({
+          id: conversation.conversationId,
+          rootStatusId: conversation.fallbackStatusIds[0],
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      await knexDatabase('direct_conversation_participants').insert(
+        staleConversations.map((conversation) => ({
+          id: `participant-${conversation.conversationId}`,
+          conversationId: conversation.conversationId,
+          actorId: ACTOR1_ID,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      await knexDatabase('direct_conversation_memberships').insert(
+        staleConversations.map((conversation, index) => ({
+          actorId: ACTOR1_ID,
+          conversationId: conversation.conversationId,
+          lastStatusId: conversation.missingStatusId,
+          lastStatusCreatedAt: new Date(10_000 - index * 1000),
+          unread: true,
+          readAt: null,
+          hiddenAt: null,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      await knexDatabase('direct_conversation_statuses').insert(
+        staleConversations.flatMap((conversation) =>
+          conversation.fallbackStatusIds.map((statusId, index) => ({
+            conversationId: conversation.conversationId,
+            statusId,
+            createdAt: new Date((index + 1) * 1000),
+            updatedAt: now
+          }))
+        )
+      )
+
+      const fallbackStatusRowQueries: string[] = []
+      const queryListener = ({ sql }: { sql: string }) => {
+        const normalizedSql = sql.toLowerCase()
+        if (
+          normalizedSql.startsWith('select') &&
+          normalizedSql.includes('direct_conversation_statuses')
+        ) {
+          fallbackStatusRowQueries.push(sql)
+        }
+      }
+      const conversations = await (async () => {
+        knexDatabase.on('query', queryListener)
+        try {
+          return await database.getDirectConversations({
+            actorId: ACTOR1_ID,
+            limit: 2
+          })
+        } finally {
+          knexDatabase.off('query', queryListener)
+        }
+      })()
+      const fallbackCalls = getStatusesByIds.mock.calls
+        .slice(1)
+        .map(([params]) => params.statusIds as string[])
+
+      expect(
+        conversations.map((conversation) => conversation.lastStatusId).sort()
+      ).toEqual(['conversation-a-status-2', 'conversation-b-status-3'])
+      expect(fallbackStatusRowQueries).toHaveLength(1)
+      expect(fallbackCalls).toHaveLength(1)
+      expect(fallbackCalls[0]).toEqual(
+        expect.arrayContaining([
+          'conversation-a-status-2',
+          'conversation-b-status-3'
+        ])
+      )
+    })
+
     test('returns empty results for malformed membership cursors', async () => {
       await expect(
         database.getDirectConversations({
