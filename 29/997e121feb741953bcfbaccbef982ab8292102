@@ -1,0 +1,21 @@
+app/api/v1/conversations/route.test.ts
+  s_44e909b00d0d04::t_4602d00be0b65d 97-155
+app/api/v1/conversations/route.ts
+  s_44e909b00d0d04::t_491f37f02f2535 39-40,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "29997e121feb741953bcfbaccbef982ab8292102",
+  "prompts": {},
+  "sessions": {
+    "s_44e909b00d0d04": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3b94-fa53-7902-b1fd-dc3570036aec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
