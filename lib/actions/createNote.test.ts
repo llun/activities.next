@@ -547,6 +547,47 @@ How are you?
         )
       })
 
+      it('notifies inherited group direct participants when replying without explicit mentions', async () => {
+        await clearSettledNotificationAlerts()
+        const parentStatus = await database.createNote({
+          id: `${actor2.id}/statuses/direct-group-notification-parent`,
+          url: `${actor2.id}/statuses/direct-group-notification-parent`,
+          actorId: actor2.id,
+          text: 'Direct group parent from actor2',
+          to: [actor1.id],
+          cc: [ACTOR3_ID]
+        })
+
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Reply to the group thread',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        const inheritedRecipientNotifications = await database.getNotifications(
+          {
+            actorId: ACTOR3_ID,
+            limit: 100
+          }
+        )
+        expect(
+          inheritedRecipientNotifications.filter(
+            (notification) =>
+              notification.statusId === replyStatus.id &&
+              notification.type === NotificationType.enum.mention
+          )
+        ).toHaveLength(1)
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: ACTOR3_ID,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+      })
+
       it('creates private post with mentions in cc', async () => {
         const status = (await createNoteFromUserInput({
           text: '@test2@llun.test Private hello!',

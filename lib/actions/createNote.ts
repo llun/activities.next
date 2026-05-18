@@ -418,12 +418,18 @@ export const createNoteFromUserInput = async ({
   }
 
   // Create notifications for replies and mentions
+  const notificationMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility === 'direct'
+      ? mentionTags
+      : recipientMentions
   const notificationPromises = []
   const eligibleNotificationActorIds = await getNotificationEligibleActorIds(
     database,
     [
       ...(shouldNotifyReply && replyStatus ? [replyStatus.actorId] : []),
-      ...recipientMentions.map((mention) => mention.href)
+      ...notificationMentions.map((mention) => mention.href)
     ],
     currentActor.id
   )
@@ -446,7 +452,7 @@ export const createNoteFromUserInput = async ({
   }
 
   // Create mention notifications
-  for (const mention of recipientMentions) {
+  for (const mention of notificationMentions) {
     const mentionedActorId = mention.href
     // Don't create notification for self-mentions
     if (eligibleNotificationActorIds.has(mentionedActorId)) {
@@ -512,7 +518,7 @@ export const createNoteFromUserInput = async ({
       })
   }
 
-  for (const mention of recipientMentions) {
+  for (const mention of notificationMentions) {
     const mentionedActorId = mention.href
     if (
       !seenActorIds.has(mentionedActorId) &&
