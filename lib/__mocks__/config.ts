@@ -6,7 +6,10 @@ export const getConfig = jest.fn().mockReturnValue({
   database: {},
   allowEmails: [],
   secretPhase: MOCK_SECRET_PHASES,
-  auth: {}
+  auth: {},
+  search: {
+    backend: 'database'
+  }
 })
 
 export const getBaseURL = jest.fn().mockReturnValue(`https://${TEST_DOMAIN}`)

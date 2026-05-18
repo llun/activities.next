@@ -70,14 +70,10 @@ describe('resolveStatusForSearch', () => {
     expect(mockGetRemoteStatus).not.toHaveBeenCalled()
   })
 
-  it('does not persist remote polls as notes', async () => {
-    const database = {
-      getStatus: jest.fn().mockResolvedValue(null),
-      getStatusFromUrl: jest.fn().mockResolvedValue(null),
-      createNote: jest.fn(),
-      upsertStatusSearchDocument: jest.fn()
-    }
-    mockGetRemoteStatus.mockResolvedValue({
+  it('persists searchable remote polls as polls', async () => {
+    const endAt = Date.now() + 60_000
+    const createdAt = Date.now()
+    const remotePoll = {
       id: 'https://remote.test/statuses/poll-1',
       url: 'https://remote.test/@alice/poll/1',
       actorId: 'https://remote.test/users/alice',
@@ -87,21 +83,68 @@ describe('resolveStatusForSearch', () => {
       reply: '',
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
-      choices: [],
-      endAt: Date.now() + 60_000,
+      choices: [
+        {
+          statusId: 'https://remote.test/statuses/poll-1',
+          title: 'One',
+          totalVotes: 3,
+          createdAt,
+          updatedAt: createdAt
+        },
+        {
+          statusId: 'https://remote.test/statuses/poll-1',
+          title: 'Two',
+          totalVotes: 1,
+          createdAt,
+          updatedAt: createdAt
+        }
+      ],
+      endAt,
       pollType: 'oneOf',
-      createdAt: Date.now()
+      createdAt
+    }
+    const database = {
+      getStatus: jest
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(remotePoll),
+      getStatusFromUrl: jest.fn().mockResolvedValue(null),
+      createPoll: jest.fn().mockResolvedValue(remotePoll),
+      upsertStatusSearchDocument: jest.fn()
+    }
+    mockRecordActorIfNeeded.mockResolvedValue({
+      id: remotePoll.actorId
     } as never)
+    mockGetRemoteStatus.mockResolvedValue(remotePoll as never)
 
     await expect(
       resolveStatusForSearch({
         database: database as never,
         query: 'https://remote.test/@alice/poll/1'
       })
-    ).resolves.toBeNull()
+    ).resolves.toBe(remotePoll)
 
-    expect(database.createNote).not.toHaveBeenCalled()
-    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
-    expect(database.upsertStatusSearchDocument).not.toHaveBeenCalled()
+    expect(database.createPoll).toHaveBeenCalledWith({
+      id: remotePoll.id,
+      url: remotePoll.url,
+      actorId: remotePoll.actorId,
+      text: remotePoll.text,
+      summary: '',
+      to: remotePoll.to,
+      cc: remotePoll.cc,
+      reply: remotePoll.reply,
+      choices: ['One', 'Two'],
+      endAt,
+      pollType: 'oneOf',
+      createdAt
+    })
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: remotePoll.actorId,
+      database,
+      signingActor: undefined
+    })
+    expect(database.upsertStatusSearchDocument).toHaveBeenCalledWith({
+      statusId: remotePoll.id
+    })
   })
 })

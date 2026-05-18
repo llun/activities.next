@@ -199,8 +199,8 @@ const getWeightedTerms = ({
 }
 
 const getMeilisearchWriteConfig = () => {
-  const config = getConfig()?.search
-  return config?.backend === 'meilisearch' ? config : null
+  const config = getConfig().search
+  return config.backend === 'meilisearch' ? config : null
 }
 
 const toMeilisearchDocument = ({

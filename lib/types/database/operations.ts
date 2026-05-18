@@ -667,7 +667,6 @@ export type UpsertSearchStatusParams = {
 
 export type UpsertSearchHashtagParams = {
   name: string
-  url?: string | null
   syncMeilisearch?: boolean
 }
 
