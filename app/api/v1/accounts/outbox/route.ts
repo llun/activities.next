@@ -14,6 +14,7 @@ import {
   DEFAULT_202,
   ERROR_400,
   ERROR_404,
+  ERROR_422,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -93,7 +94,7 @@ export const POST = traceApiRoute(
             visibility
           } = request
           const endAt = Date.now() + durationInSeconds * 1000
-          await createPollFromUserInput({
+          const status = await createPollFromUserInput({
             currentActor,
             text: message,
             summary: contentWarning,
@@ -104,6 +105,14 @@ export const POST = traceApiRoute(
             visibility,
             database
           })
+          if (!status) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
