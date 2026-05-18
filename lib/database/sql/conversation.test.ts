@@ -395,6 +395,72 @@ describe('ConversationDatabase', () => {
       expect(new Date(persistedMembership?.readAt ?? 0).getTime()).toEqual(9000)
     })
 
+    test('bounds fallback status hydration when membership last status is stale', async () => {
+      const getStatusesByIds = jest.fn(async ({ statusIds }) =>
+        statusIds
+          .filter((statusId: string) => statusId === 'status-60')
+          .map(statusForId)
+      )
+      const database = DirectConversationSQLDatabaseMixin(knexDatabase, {
+        getStatusesByIds
+      } as unknown as StatusDatabase)
+      const now = new Date()
+      const conversationId = 'conversation-with-long-stale-tail'
+
+      await knexDatabase('direct_conversations').insert({
+        id: conversationId,
+        rootStatusId: 'status-1',
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_participants').insert({
+        id: 'participant-long-stale-tail',
+        conversationId,
+        actorId: ACTOR1_ID,
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_memberships').insert({
+        actorId: ACTOR1_ID,
+        conversationId,
+        lastStatusId: 'missing-last-status',
+        lastStatusCreatedAt: new Date(121_000),
+        unread: true,
+        readAt: null,
+        hiddenAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('direct_conversation_statuses').insert(
+        Array.from({ length: 120 }, (_, index) => {
+          const statusNumber = index + 1
+          return {
+            conversationId,
+            statusId: `status-${statusNumber}`,
+            createdAt: new Date(statusNumber * 1000),
+            updatedAt: now
+          }
+        })
+      )
+
+      const conversations = await database.getDirectConversations({
+        actorId: ACTOR1_ID
+      })
+      const fallbackCalls = getStatusesByIds.mock.calls
+        .slice(1)
+        .map(([params]) => params.statusIds as string[])
+
+      expect(
+        conversations.map((conversation) => conversation.lastStatusId)
+      ).toEqual(['status-60'])
+      expect(fallbackCalls).toHaveLength(2)
+      expect(fallbackCalls.every((statusIds) => statusIds.length <= 50)).toBe(
+        true
+      )
+      expect(fallbackCalls[0][0]).toEqual('status-120')
+      expect(fallbackCalls[1]).toContain('status-60')
+    })
+
     test('returns empty results for malformed membership cursors', async () => {
       await expect(
         database.getDirectConversations({
