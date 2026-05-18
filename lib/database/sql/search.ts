@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 
 import { getConfiguredHost } from '@/lib/config/configuredHost'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
+import { normalizeAccountSearchQuery } from '@/lib/search/normalizeAccountSearchQuery'
 import {
   buildSearchTermPrefixes,
   normalizeSearchTokens
@@ -58,17 +59,6 @@ type SearchDocumentInput = {
   }[]
 }
 
-type SQLSearchDocument = {
-  id: string
-  entityType: SearchEntityType
-  entityId: string
-  actorId: string | null
-  visibility: string | null
-  searchText: string | null
-  searchable: boolean | number
-  entityCreatedAt: Date | string | number | null
-}
-
 type SQLStatusSearchRow = {
   id: string
   actorId: string
@@ -90,6 +80,13 @@ type KeysetRow = {
   createdAt: Date | string | number
 }
 
+type SearchCursorRow = {
+  entityId: string
+  entityIdHash: string
+  entityCreatedAt: Date | string | number | null
+  searchScore: string | number
+}
+
 const normalizeLimit = (limit?: number) => Math.max(1, limit ?? DEFAULT_LIMIT)
 const normalizeOffset = (offset?: number) => Math.max(0, offset ?? 0)
 const normalizeBatchSize = (batchSize?: number) =>
@@ -99,25 +96,18 @@ const getSearchDocumentId = (entityType: SearchEntityType, entityId: string) =>
   createHash('sha256')
     .update(`${entityType}\0${entityId}`, 'utf8')
     .digest('hex')
+const getSearchEntityIdHash = (entityId: string) =>
+  createHash('sha256').update(entityId, 'utf8').digest('hex')
 
 const getHashtagDisplayName = (name: string) =>
   name.startsWith('#') ? name.slice(1) : name
 
 const getHashtagId = (name: string) => {
   const bareName = getHashtagDisplayName(name)
-  return bareName
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
+  return bareName.trim().toLowerCase()
 }
 
 const getNormalizedStoredHashtagName = (hashtagId: string) => `#${hashtagId}`
-const getStoredHashtagNameCandidates = (hashtagId: string) => [
-  getNormalizedStoredHashtagName(hashtagId),
-  hashtagId
-]
-
 const parseStatusContent = (
   content: string | Record<string, unknown> | null
 ): Record<string, unknown> => {
@@ -216,6 +206,7 @@ export const SearchSQLDatabaseMixin = (
   }: DeleteSearchDocumentParams): Promise<void> {
     const documentId = getSearchDocumentId(entityType, entityId)
     await database.transaction(async (trx) => {
+      // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
       await trx('search_terms').where('documentId', documentId).delete()
       await trx('search_documents').where('id', documentId).delete()
     })
@@ -242,6 +233,7 @@ export const SearchSQLDatabaseMixin = (
       id: documentId,
       entityType,
       entityId,
+      entityIdHash: getSearchEntityIdHash(entityId),
       actorId,
       visibility,
       searchText,
@@ -259,6 +251,7 @@ export const SearchSQLDatabaseMixin = (
         .onConflict('id')
         .merge(documentRow)
 
+      // Replacement upserts the parent row, so cascades do not clear prior terms.
       await trx('search_terms').where('documentId', documentId).delete()
       await trx('search_terms').insert(
         weightedTerms.map(({ term, weight }) => ({
@@ -338,7 +331,10 @@ export const SearchSQLDatabaseMixin = (
     statusId
   }: UpsertSearchStatusParams): Promise<boolean> {
     const status = await database<SQLStatusSearchRow>('statuses')
-      .where('id', statusId)
+      .innerJoin('actors', 'statuses.actorId', 'actors.id')
+      .where('statuses.id', statusId)
+      .whereNull('actors.deletionStatus')
+      .select<SQLStatusSearchRow[]>('statuses.*')
       .first()
 
     if (
@@ -388,11 +384,13 @@ export const SearchSQLDatabaseMixin = (
     return database('tags')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+      .innerJoin('actors', 'statuses.actorId', 'actors.id')
       .where('tags.type', 'hashtag')
       .whereIn('tags.nameNormalized', [normalizedName, hashtagId])
       .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
       .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
       .whereIn('recipients.type', ['to', 'cc'])
+      .whereNull('actors.deletionStatus')
       .select<
         SQLTagSearchRow[]
       >('tags.name', 'tags.value', 'tags.nameNormalized', 'tags.createdAt')
@@ -431,6 +429,7 @@ export const SearchSQLDatabaseMixin = (
 
   async function clearSearchIndex(): Promise<void> {
     await database.transaction(async (trx) => {
+      // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
       await trx('search_terms').delete()
       await trx('search_documents').delete()
     })
@@ -451,7 +450,8 @@ export const SearchSQLDatabaseMixin = (
     following,
     accountId,
     minStatusId,
-    maxStatusId
+    maxStatusId,
+    excludedEntityIds = []
   }: {
     entityType: SearchEntityType
     query: string
@@ -462,26 +462,89 @@ export const SearchSQLDatabaseMixin = (
     accountId?: string
     minStatusId?: string
     maxStatusId?: string
+    excludedEntityIds?: string[]
   }): Promise<string[]> {
     const queryTerms = await getSearchQueryTerms(query)
     if (queryTerms.length === 0) return []
 
-    const matches = database('search_terms')
-      .select('documentId')
-      .sum({ searchScore: 'weight' })
-      .where('entityType', entityType)
-      .whereIn('term', queryTerms)
-      .groupBy('documentId')
-      .havingRaw('COUNT(DISTINCT ??) = ?', ['term', queryTerms.length])
+    const buildTermMatchesQuery = () =>
+      database('search_terms')
+        .select('documentId')
+        .sum({ searchScore: 'weight' })
+        .where('entityType', entityType)
+        .whereIn('term', queryTerms)
+        .groupBy('documentId')
+        .havingRaw('COUNT(DISTINCT ??) = ?', ['term', queryTerms.length])
+
+    const getStatusSearchCursor = async (statusId: string) =>
+      database('search_documents')
+        .innerJoin(
+          buildTermMatchesQuery().as('term_matches'),
+          'search_documents.id',
+          'term_matches.documentId'
+        )
+        .where('search_documents.entityType', 'status')
+        .where('search_documents.searchable', true)
+        .where('search_documents.id', getSearchDocumentId('status', statusId))
+        .select<
+          SearchCursorRow[]
+        >('search_documents.entityId', 'search_documents.entityIdHash', 'search_documents.entityCreatedAt', 'term_matches.searchScore')
+        .first()
+
+    const applyStatusSearchCursor = (
+      direction: 'before' | 'after',
+      cursor: SearchCursorRow
+    ) => {
+      const scoreOperator = direction === 'before' ? '>' : '<'
+      const createdAtOperator = direction === 'before' ? '>' : '<'
+      const entityIdOperator = direction === 'before' ? '>' : '<'
+
+      documentsQuery = documentsQuery.where((builder) => {
+        builder
+          .where('term_matches.searchScore', scoreOperator, cursor.searchScore)
+          .orWhere((sameScore) => {
+            sameScore
+              .where('term_matches.searchScore', '=', cursor.searchScore)
+              .where((sameScoreTie) => {
+                sameScoreTie
+                  .where(
+                    'search_documents.entityCreatedAt',
+                    createdAtOperator,
+                    cursor.entityCreatedAt
+                  )
+                  .orWhere((sameCreatedAt) => {
+                    sameCreatedAt
+                      .where(
+                        'search_documents.entityCreatedAt',
+                        '=',
+                        cursor.entityCreatedAt
+                      )
+                      .where(
+                        'search_documents.entityIdHash',
+                        entityIdOperator,
+                        cursor.entityIdHash
+                      )
+                  })
+              })
+          })
+      })
+    }
 
     let documentsQuery = database('search_documents')
       .innerJoin(
-        matches.as('term_matches'),
+        buildTermMatchesQuery().as('term_matches'),
         'search_documents.id',
         'term_matches.documentId'
       )
       .where('search_documents.entityType', entityType)
       .where('search_documents.searchable', true)
+
+    if (excludedEntityIds.length > 0) {
+      documentsQuery = documentsQuery.whereNotIn(
+        'search_documents.entityId',
+        excludedEntityIds
+      )
+    }
 
     if (entityType === 'account' && following) {
       if (!currentActorId) return []
@@ -503,64 +566,16 @@ export const SearchSQLDatabaseMixin = (
     }
 
     if (entityType === 'status' && minStatusId) {
-      const cursor = await database<SQLSearchDocument>('search_documents')
-        .where({
-          entityType: 'status',
-          entityId: minStatusId
-        })
-        .first()
-
+      const cursor = await getStatusSearchCursor(minStatusId)
       if (cursor?.entityCreatedAt) {
-        // Status pagination uses entityCreatedAt as the primary cursor;
-        // entityId is only a deterministic tie-breaker for equal timestamps.
-        documentsQuery = documentsQuery.where((builder) => {
-          builder
-            .where(
-              'search_documents.entityCreatedAt',
-              '>',
-              cursor.entityCreatedAt
-            )
-            .orWhere((sameCreatedAt) => {
-              sameCreatedAt
-                .where(
-                  'search_documents.entityCreatedAt',
-                  '=',
-                  cursor.entityCreatedAt
-                )
-                .where('search_documents.entityId', '>', minStatusId)
-            })
-        })
+        applyStatusSearchCursor('before', cursor)
       }
     }
 
     if (entityType === 'status' && maxStatusId) {
-      const cursor = await database<SQLSearchDocument>('search_documents')
-        .where({
-          entityType: 'status',
-          entityId: maxStatusId
-        })
-        .first()
-
+      const cursor = await getStatusSearchCursor(maxStatusId)
       if (cursor?.entityCreatedAt) {
-        // Status pagination uses entityCreatedAt as the primary cursor;
-        // entityId is only a deterministic tie-breaker for equal timestamps.
-        documentsQuery = documentsQuery.where((builder) => {
-          builder
-            .where(
-              'search_documents.entityCreatedAt',
-              '<',
-              cursor.entityCreatedAt
-            )
-            .orWhere((sameCreatedAt) => {
-              sameCreatedAt
-                .where(
-                  'search_documents.entityCreatedAt',
-                  '=',
-                  cursor.entityCreatedAt
-                )
-                .where('search_documents.entityId', '<', maxStatusId)
-            })
-        })
+        applyStatusSearchCursor('after', cursor)
       }
     }
 
@@ -568,7 +583,7 @@ export const SearchSQLDatabaseMixin = (
       .select<{ entityId: string }[]>('search_documents.entityId')
       .orderBy('term_matches.searchScore', 'desc')
       .orderBy('search_documents.entityCreatedAt', 'desc')
-      .orderBy('search_documents.entityId', 'desc')
+      .orderBy('search_documents.entityIdHash', 'desc')
       .limit(limit)
       .offset(offset)
 
@@ -578,10 +593,7 @@ export const SearchSQLDatabaseMixin = (
   const getExactAccountActorId = async (
     query: string
   ): Promise<string | null> => {
-    const cleanedQuery = query
-      .trim()
-      .replace(/^acct:/i, '')
-      .replace(/^@/, '')
+    const cleanedQuery = normalizeAccountSearchQuery(query)
     if (!cleanedQuery) return null
 
     const parts = cleanedQuery.split('@')
@@ -629,26 +641,42 @@ export const SearchSQLDatabaseMixin = (
     const exactActorId = shouldTryExactAccount
       ? await getExactAccountActorId(query)
       : null
-    const indexedActorIds = await getMatchedDocumentIds({
-      entityType: 'account',
-      query,
-      limit: normalizedLimit + normalizedOffset + (exactActorId ? 1 : 0),
-      offset: 0,
-      currentActorId,
-      following
-    })
-    const combinedActorIds = [
-      ...new Set([exactActorId, ...indexedActorIds].filter(Boolean) as string[])
-    ]
-    const filteredActorIds = following
-      ? await filterFollowingActorIds(combinedActorIds, currentActorId)
-      : combinedActorIds
-    const actorIds = filteredActorIds.slice(
-      normalizedOffset,
-      normalizedOffset + normalizedLimit
+    const exactActorIds =
+      following && exactActorId
+        ? await filterFollowingActorIds([exactActorId], currentActorId)
+        : exactActorId
+          ? [exactActorId]
+          : []
+    const exactActorIdForResult = exactActorIds[0]
+    const exactResultCount = exactActorIdForResult ? 1 : 0
+    const exactActorIdsForPage =
+      exactActorIdForResult && normalizedOffset === 0
+        ? [exactActorIdForResult]
+        : []
+    const indexedLimit = Math.max(
+      0,
+      normalizedLimit - exactActorIdsForPage.length
     )
+    const indexedOffset = Math.max(0, normalizedOffset - exactResultCount)
+    const indexedActorIds =
+      indexedLimit > 0
+        ? await getMatchedDocumentIds({
+            entityType: 'account',
+            query,
+            limit: indexedLimit,
+            offset: indexedOffset,
+            currentActorId,
+            following,
+            excludedEntityIds: exactActorIdForResult
+              ? [exactActorIdForResult]
+              : []
+          })
+        : []
+    const combinedActorIds = [
+      ...new Set([...exactActorIdsForPage, ...indexedActorIds])
+    ]
 
-    return hydrateAccounts(actorIds)
+    return hydrateAccounts(combinedActorIds)
   }
 
   async function searchStatuses({
@@ -681,36 +709,16 @@ export const SearchSQLDatabaseMixin = (
   }: GetSearchHashtagsByIdsParams): Promise<Mastodon.SearchTag[]> {
     if (hashtagIds.length === 0) return []
 
-    const rows = await database<SQLTagSearchRow>('tags')
-      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-      .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
-      .where('tags.type', 'hashtag')
-      .whereIn(
-        'tags.nameNormalized',
-        hashtagIds.flatMap(getStoredHashtagNameCandidates)
-      )
-      .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
-      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-      .whereIn('recipients.type', ['to', 'cc'])
-      .select(
-        'tags.name',
-        'tags.value',
-        'tags.nameNormalized',
-        'tags.createdAt'
-      )
+    const rows = await mapWithConcurrency(
+      hashtagIds,
+      Math.min(DEFAULT_REBUILD_CONCURRENCY, hashtagIds.length),
+      async (hashtagId) => ({
+        hashtagId,
+        row: await getPublicHashtagRow(hashtagId)
+      })
+    )
 
-    const rowByHashtagId = new Map<string, SQLTagSearchRow>()
-    for (const row of rows) {
-      const id = row.nameNormalized
-        ? getHashtagId(row.nameNormalized)
-        : getHashtagId(row.name)
-      if (id && !rowByHashtagId.has(id)) {
-        rowByHashtagId.set(id, row)
-      }
-    }
-
-    return hashtagIds.flatMap((hashtagId) => {
-      const row = rowByHashtagId.get(hashtagId)
+    return rows.flatMap(({ hashtagId, row }) => {
       if (!row) return []
 
       const name = getHashtagDisplayName(row.name)
@@ -760,23 +768,29 @@ export const SearchSQLDatabaseMixin = (
           .count<{ count: string | number }>('* as count')
           .first(),
         database('statuses')
-          .whereIn('type', SEARCHABLE_STATUS_TYPES)
+          .innerJoin('actors', 'statuses.actorId', 'actors.id')
+          .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
+          .whereNull('actors.deletionStatus')
           .whereIn(
-            'id',
+            'statuses.id',
             database('recipients')
               .select('statusId')
               .whereIn('actorId', PUBLIC_ACTIVITY_RECIPIENTS)
               .whereIn('type', ['to', 'cc'])
           )
-          .count<{ count: string | number }>('* as count')
+          .countDistinct<{ count: string | number }>({
+            count: 'statuses.id'
+          })
           .first(),
         database('tags')
           .innerJoin('statuses', 'tags.statusId', 'statuses.id')
           .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+          .innerJoin('actors', 'statuses.actorId', 'actors.id')
           .where('tags.type', 'hashtag')
           .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
           .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
           .whereIn('recipients.type', ['to', 'cc'])
+          .whereNull('actors.deletionStatus')
           .countDistinct<{ count: string | number }>({
             count: 'tags.nameNormalized'
           })
@@ -820,12 +834,16 @@ export const SearchSQLDatabaseMixin = (
     for (;;) {
       const statuses: KeysetRow[] = await applyKeysetCursor(
         database<SQLStatusSearchRow>('statuses')
-          .whereIn('type', SEARCHABLE_STATUS_TYPES)
-          .select<KeysetRow[]>('id', 'createdAt')
-          .orderBy('createdAt', 'asc')
-          .orderBy('id', 'asc')
+          .innerJoin('actors', 'statuses.actorId', 'actors.id')
+          .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
+          .whereNull('actors.deletionStatus')
+          .select<KeysetRow[]>('statuses.id', 'statuses.createdAt')
+          .orderBy('statuses.createdAt', 'asc')
+          .orderBy('statuses.id', 'asc')
           .limit(normalizedBatchSize),
-        statusCursor
+        statusCursor,
+        'statuses.createdAt',
+        'statuses.id'
       )
       if (statuses.length === 0) break
 
@@ -841,16 +859,23 @@ export const SearchSQLDatabaseMixin = (
     let lastHashtagName: string | null = null
     for (;;) {
       let hashtagsQuery = database('tags')
-        .where('type', 'hashtag')
-        .whereNotNull('nameNormalized')
-        .groupBy('nameNormalized')
-        .select<{ nameNormalized: string }[]>('nameNormalized')
-        .orderBy('nameNormalized', 'asc')
+        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+        .innerJoin('actors', 'statuses.actorId', 'actors.id')
+        .where('tags.type', 'hashtag')
+        .whereNotNull('tags.nameNormalized')
+        .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
+        .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+        .whereIn('recipients.type', ['to', 'cc'])
+        .whereNull('actors.deletionStatus')
+        .groupBy('tags.nameNormalized')
+        .select<{ nameNormalized: string }[]>('tags.nameNormalized')
+        .orderBy('tags.nameNormalized', 'asc')
         .limit(normalizedBatchSize)
 
       if (lastHashtagName) {
         hashtagsQuery = hashtagsQuery.where(
-          'nameNormalized',
+          'tags.nameNormalized',
           '>',
           lastHashtagName
         )

@@ -20,6 +20,7 @@ import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 
 export const getSQLDatabase = (database: Knex): Database => {
   const accountDatabase = AccountSQLDatabaseMixin(database)
@@ -81,16 +82,64 @@ export const getSQLDatabase = (database: Knex): Database => {
       ...new Set(tags.map((tag) => tag.nameNormalized ?? tag.name))
     ].filter(Boolean)
   }
-  const deleteSearchDocumentsForActor = async (actorId: string) => {
-    const documents = await database('search_documents')
-      .where('actorId', actorId)
-      .select<{ id: string }[]>('id')
-    if (documents.length === 0) return
+  const getStatusIdsForDelete = async (statusId: string) => {
+    const statusIds: string[] = []
+    const seen = new Set<string>()
+    let pendingStatusIds = [statusId]
 
-    const documentIds = documents.map((document) => document.id)
+    while (pendingStatusIds.length > 0) {
+      const statuses = await database('statuses')
+        .whereIn('id', pendingStatusIds)
+        .select<{ id: string }[]>('id')
+      const existingStatusIds = statuses
+        .map((status) => status.id)
+        .filter((id) => !seen.has(id))
+
+      if (existingStatusIds.length === 0) break
+
+      for (const id of existingStatusIds) {
+        seen.add(id)
+        statusIds.push(id)
+      }
+
+      const replies = await database('statuses')
+        .whereIn('reply', existingStatusIds)
+        .select<{ id: string }[]>('id')
+      pendingStatusIds = replies
+        .map((reply) => reply.id)
+        .filter((id) => !seen.has(id))
+    }
+
+    return statusIds
+  }
+  const getHashtagTagsForStatuses = async (statusIds: string[]) => {
+    if (statusIds.length === 0) return []
+
+    const tags = await database('tags')
+      .whereIn('statusId', statusIds)
+      .where('type', 'hashtag')
+      .select<
+        { name: string; nameNormalized: string | null; value: string }[]
+      >('name', 'nameNormalized', 'value')
+    return Array.from(
+      tags
+        .reduce((tagByName, tag) => {
+          tagByName.set(tag.nameNormalized ?? tag.name, tag)
+          return tagByName
+        }, new Map<string, (typeof tags)[number]>())
+        .values()
+    )
+  }
+  const deleteSearchDocumentsForActor = async (actorId: string) => {
     await database.transaction(async (trx) => {
-      await trx('search_terms').whereIn('documentId', documentIds).delete()
-      await trx('search_documents').whereIn('id', documentIds).delete()
+      // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
+      await trx('search_terms')
+        .whereIn(
+          'documentId',
+          trx('search_documents').where('actorId', actorId).select('id')
+        )
+        .delete()
+      await trx('search_documents').where('actorId', actorId).delete()
     })
   }
   const indexedAccountDatabase = {
@@ -145,8 +194,14 @@ export const getSQLDatabase = (database: Knex): Database => {
     },
     async deleteActor(...args: Parameters<typeof actorDatabase.deleteActor>) {
       const [params] = args
+      const hashtagNames = await getHashtagNamesForActorStatuses(params.actorId)
       await actorDatabase.deleteActor(...args)
       await deleteSearchDocumentsForActor(params.actorId)
+      await Promise.all(
+        hashtagNames.map((name) =>
+          searchDatabase.upsertHashtagSearchDocument({ name })
+        )
+      )
     },
     async deleteActorData(
       ...args: Parameters<typeof actorDatabase.deleteActorData>
@@ -220,21 +275,42 @@ export const getSQLDatabase = (database: Knex): Database => {
       ...args: Parameters<typeof statusDatabase.deleteStatus>
     ) {
       const [params] = args
-      const tags = await statusDatabase.getTags({ statusId: params.statusId })
-      await statusDatabase.deleteStatus(...args)
-      await searchDatabase.deleteSearchDocument({
-        entityType: 'status',
-        entityId: params.statusId
+      const status = await statusDatabase.getStatus({
+        statusId: params.statusId
       })
+
+      if (params.actorId && status) {
+        const normalizedStoredActorId = normalizeActorId(status.actorId)
+        const normalizedExpectedActorId = normalizeActorId(params.actorId)
+        if (
+          !normalizedStoredActorId ||
+          !normalizedExpectedActorId ||
+          normalizedStoredActorId !== normalizedExpectedActorId
+        ) {
+          return
+        }
+      }
+
+      const statusIds = status
+        ? await getStatusIdsForDelete(params.statusId)
+        : [params.statusId]
+      const tags = await getHashtagTagsForStatuses(statusIds)
+      await statusDatabase.deleteStatus(...args)
       await Promise.all(
-        tags
-          .filter((tag) => tag.type === 'hashtag')
-          .map((tag) =>
-            searchDatabase.upsertHashtagSearchDocument({
-              name: tag.name,
-              url: tag.value
-            })
-          )
+        statusIds.map((statusId) =>
+          searchDatabase.deleteSearchDocument({
+            entityType: 'status',
+            entityId: statusId
+          })
+        )
+      )
+      await Promise.all(
+        tags.map((tag) =>
+          searchDatabase.upsertHashtagSearchDocument({
+            name: tag.name,
+            url: tag.value
+          })
+        )
       )
     }
   }

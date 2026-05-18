@@ -8,6 +8,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -56,6 +57,52 @@ describe('SearchDatabase', () => {
       expect(accounts.map((account) => account.url)).toEqual([EXTERNAL_ACTOR1])
     })
 
+    it('does not overfetch indexed account results when an exact match fills the page', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `exactlimit${suffix}`
+      const domain = 'example.test'
+      const exactActorId = `https://${domain}/users/${username}`
+      const matchingActorId = `https://${domain}/users/exactlimit-peer-${suffix}`
+      const exactAcct = `${username}@${domain}`
+
+      await database.createMastodonActor({
+        actorId: exactActorId,
+        username,
+        domain,
+        followersUrl: `${exactActorId}/followers`,
+        inboxUrl: `${exactActorId}/inbox`,
+        sharedInboxUrl: `${exactActorId}/inbox`,
+        publicKey: `public-exact-${suffix}`,
+        createdAt: Date.now()
+      })
+      await database.createMastodonActor({
+        actorId: matchingActorId,
+        username: `exactlimit-peer-${suffix}`,
+        domain,
+        name: exactAcct,
+        followersUrl: `${matchingActorId}/followers`,
+        inboxUrl: `${matchingActorId}/inbox`,
+        sharedInboxUrl: `${matchingActorId}/inbox`,
+        publicKey: `public-match-${suffix}`,
+        createdAt: Date.now()
+      })
+
+      await expect(
+        database.searchAccounts({
+          query: exactAcct,
+          limit: 1,
+          offset: 0
+        })
+      ).resolves.toMatchObject([{ url: exactActorId }])
+      await expect(
+        database.searchAccounts({
+          query: exactAcct,
+          limit: 1,
+          offset: 1
+        })
+      ).resolves.toMatchObject([{ url: matchingActorId }])
+    })
+
     it('finds only public statuses by indexed text', async () => {
       await database.createNote({
         id: `${ACTOR1_ID}/statuses/search-public-note`,
@@ -86,6 +133,61 @@ describe('SearchDatabase', () => {
       expect(statuses.map((status) => status.id)).not.toContain(
         `${ACTOR1_ID}/statuses/search-private-note`
       )
+    })
+
+    it('paginates status search with the relevance cursor ordering', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const searchText = `ScoreCursor${suffix}`
+      const highScoreStatusId = `${ACTOR1_ID}/statuses/search-cursor-high-${suffix}`
+      const lowScoreStatusId = `${ACTOR1_ID}/statuses/search-cursor-low-${suffix}`
+      const baseTime = Date.now()
+
+      await database.createNote({
+        id: highScoreStatusId,
+        url: highScoreStatusId,
+        actorId: ACTOR1_ID,
+        text: `${searchText} in primary text`,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: baseTime - 1000
+      })
+      await database.createNote({
+        id: lowScoreStatusId,
+        url: lowScoreStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Lower score status',
+        summary: `${searchText} in summary only`,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: baseTime
+      })
+
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toMatchObject([
+        { id: highScoreStatusId },
+        { id: lowScoreStatusId }
+      ])
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0,
+          maxStatusId: highScoreStatusId
+        })
+      ).resolves.toMatchObject([{ id: lowScoreStatusId }])
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0,
+          minStatusId: lowScoreStatusId
+        })
+      ).resolves.toMatchObject([{ id: highScoreStatusId }])
     })
 
     it('finds hashtags with Mastodon tag shape', async () => {
@@ -144,6 +246,46 @@ describe('SearchDatabase', () => {
         id: 'trail-run',
         name: 'Trail-Run',
         url: 'https://llun.test/tags/Trail-Run',
+        history: []
+      })
+    })
+
+    it('preserves accented hashtag ids while matching accent-insensitively', async () => {
+      const status = (await database.createNote({
+        id: `${ACTOR1_ID}/statuses/search-hashtag-accent-note`,
+        url: `${ACTOR1_ID}/statuses/search-hashtag-accent-note`,
+        actorId: ACTOR1_ID,
+        text: 'Accented tag search test',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })) as StatusNote
+      await database.createTag({
+        statusId: status.id,
+        type: 'hashtag',
+        name: '#Café',
+        value: 'https://llun.test/tags/Caf%C3%A9'
+      })
+
+      for (const query of ['cafe', 'café']) {
+        await expect(
+          database.searchHashtags({
+            query,
+            limit: 10,
+            offset: 0
+          })
+        ).resolves.toContainEqual({
+          id: 'café',
+          name: 'Café',
+          url: 'https://llun.test/tags/Caf%C3%A9',
+          history: []
+        })
+      }
+      await expect(
+        database.getSearchHashtagsByIds({ hashtagIds: ['café'] })
+      ).resolves.toContainEqual({
+        id: 'café',
+        name: 'Café',
+        url: 'https://llun.test/tags/Caf%C3%A9',
         history: []
       })
     })
@@ -303,6 +445,206 @@ describe('SearchDatabase', () => {
           })
         ).map((status) => status.id)
       ).not.toContain(statusId)
+    })
+
+    it('reindexes affected hashtags when deleting an actor', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const firstUsername = `search-delete-hashtag-${suffix}`
+      const secondUsername = `search-delete-hashtag-peer-${suffix}`
+      const firstActorId = `https://llun.test/users/${firstUsername}`
+      const secondActorId = `https://llun.test/users/${secondUsername}`
+      const firstStatusId = `${firstActorId}/statuses/delete-hashtag-${suffix}`
+      const secondStatusId = `${secondActorId}/statuses/delete-hashtag-${suffix}`
+      const uniqueHashtag = `#DeleteActorUnique${suffix}`
+      const sharedHashtag = `#DeleteActorShared${suffix}`
+
+      await database.createAccount({
+        email: `${firstUsername}@llun.test`,
+        username: firstUsername,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-first-${suffix}`,
+        publicKey: `public-first-${suffix}`
+      })
+      await database.createAccount({
+        email: `${secondUsername}@llun.test`,
+        username: secondUsername,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-second-${suffix}`,
+        publicKey: `public-second-${suffix}`
+      })
+      await database.createNote({
+        id: firstStatusId,
+        url: firstStatusId,
+        actorId: firstActorId,
+        text: 'Actor delete unique and shared hashtag',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: secondStatusId,
+        url: secondStatusId,
+        actorId: secondActorId,
+        text: 'Actor delete shared hashtag peer',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId: firstStatusId,
+        type: 'hashtag',
+        name: uniqueHashtag,
+        value: `https://llun.test/tags/${uniqueHashtag.slice(1)}`
+      })
+      await database.createTag({
+        statusId: firstStatusId,
+        type: 'hashtag',
+        name: sharedHashtag,
+        value: `https://llun.test/tags/${sharedHashtag.slice(1)}`
+      })
+      await database.createTag({
+        statusId: secondStatusId,
+        type: 'hashtag',
+        name: sharedHashtag,
+        value: `https://llun.test/tags/${sharedHashtag.slice(1)}`
+      })
+
+      await database.deleteActor({ actorId: firstActorId })
+
+      await expect(
+        database.searchHashtags({
+          query: uniqueHashtag,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([])
+      await expect(
+        (
+          await database.searchHashtags({
+            query: sharedHashtag,
+            limit: 10,
+            offset: 0
+          })
+        ).map((tag) => tag.id)
+      ).toContain(sharedHashtag.slice(1).toLowerCase())
+    })
+
+    it('does not deindex a status when scoped deletion is rejected', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const statusId = `${ACTOR1_ID}/statuses/rejected-delete-search-${suffix}`
+      const searchText = `RejectedDeleteSearch${suffix}`
+
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.deleteStatus({
+        statusId,
+        actorId: ACTOR2_ID
+      })
+
+      await expect(database.getStatus({ statusId })).resolves.toMatchObject({
+        id: statusId
+      })
+      await expect(
+        (
+          await database.searchStatuses({
+            query: searchText,
+            limit: 10,
+            offset: 0
+          })
+        ).map((status) => status.id)
+      ).toContain(statusId)
+    })
+
+    it('deindexes recursively deleted replies and their hashtags', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const parentStatusId = `${ACTOR1_ID}/statuses/delete-parent-search-${suffix}`
+      const replyStatusId = `${ACTOR1_ID}/statuses/delete-reply-search-${suffix}`
+      const replySearchText = `DeletedReplySearch${suffix}`
+      const replyHashtag = `#DeletedReplyTag${suffix}`
+
+      await database.createNote({
+        id: parentStatusId,
+        url: parentStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Parent status for recursive delete',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: replyStatusId,
+        url: replyStatusId,
+        actorId: ACTOR1_ID,
+        text: replySearchText,
+        reply: parentStatusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId: replyStatusId,
+        type: 'hashtag',
+        name: replyHashtag,
+        value: `https://llun.test/tags/${replyHashtag.slice(1)}`
+      })
+
+      await database.deleteStatus({ statusId: parentStatusId })
+
+      await expect(
+        database.searchStatuses({
+          query: replySearchText,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchHashtags({
+          query: replyHashtag,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([])
+    })
+
+    it('does not reindex statuses for deleted actors during rebuild', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `search-deleted-rebuild-${suffix}`
+      const actorId = `https://llun.test/users/${username}`
+      const statusId = `${actorId}/statuses/rebuild-orphan-${suffix}`
+      const searchText = `DeletedActorRebuildSearch${suffix}`
+
+      await database.createAccount({
+        email: `${username}@llun.test`,
+        username,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-rebuild-${suffix}`,
+        publicKey: `public-rebuild-${suffix}`
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.deleteActor({ actorId })
+      await database.rebuildSearchIndex({ batchSize: 1 })
+
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([])
     })
 
     it('reindexes affected hashtags when deleting actor data', async () => {
@@ -546,9 +888,15 @@ describe('SearchDatabase', () => {
       await expect(
         rawDatabase('search_documents')
           .where({ entityType: 'account', entityId: actorId })
-          .first<{ id: string }>('id')
+          .first<{
+            id: string
+            entityId: string
+            entityIdHash: string
+          }>('id', 'entityId', 'entityIdHash')
       ).resolves.toMatchObject({
-        id: expect.stringMatching(/^[a-f0-9]{64}$/)
+        id: expect.stringMatching(/^[a-f0-9]{64}$/),
+        entityId: actorId,
+        entityIdHash: expect.stringMatching(/^[a-f0-9]{64}$/)
       })
     })
   })

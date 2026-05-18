@@ -6,7 +6,8 @@ exports.up = async (knex) => {
   await knex.schema.createTable('search_documents', function (table) {
     table.string('id', 64).primary()
     table.string('entityType', 32).notNullable()
-    table.string('entityId').notNullable()
+    table.text('entityId').notNullable()
+    table.string('entityIdHash', 64).notNullable()
     table.string('actorId')
     table.string('visibility', 32)
     table.text('searchText')
@@ -15,11 +16,11 @@ exports.up = async (knex) => {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
-    table.unique(['entityType', 'entityId'], {
+    table.unique(['entityType', 'entityIdHash'], {
       indexName: 'search_documents_entity_unique'
     })
     table.index(
-      ['entityType', 'searchable', 'entityCreatedAt', 'entityId'],
+      ['entityType', 'searchable', 'entityCreatedAt', 'entityIdHash'],
       'search_documents_query_idx'
     )
     table.index(
