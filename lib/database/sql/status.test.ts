@@ -155,19 +155,15 @@ describe('StatusDatabase', () => {
       const postgresDatabase = knex({ client: 'pg' })
       const sqlDatabase = getSQLDatabase(postgresDatabase)
       const queries: string[] = []
+      const onQuery = (query: { sql: string }) => queries.push(query.sql)
 
-      postgresDatabase.client.acquireConnection = jest
-        .fn()
-        .mockResolvedValue({})
-      postgresDatabase.client.releaseConnection = jest.fn()
-      postgresDatabase.client._query = jest
-        .fn()
-        .mockImplementation(async (_connection, query) => {
-          queries.push(query.sql)
-          query.response = { rows: [] }
-          return query
+      postgresDatabase.on('query', onQuery)
+      postgresDatabase.client.acquireConnection = jest.fn().mockResolvedValue({
+        query: jest.fn((_queryConfig, callback) => {
+          callback(null, { command: 'SELECT', rows: [] })
         })
-      postgresDatabase.client.processResponse = (query) => query.response.rows
+      })
+      postgresDatabase.client.releaseConnection = jest.fn()
 
       try {
         await sqlDatabase.getStatusesByIds({
@@ -188,6 +184,7 @@ describe('StatusDatabase', () => {
           '"follows"."targetActorId" = "statuses"."actorId"'
         )
       } finally {
+        postgresDatabase.off('query', onQuery)
         await postgresDatabase.destroy()
       }
     })

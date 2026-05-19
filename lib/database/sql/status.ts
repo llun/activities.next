@@ -229,15 +229,12 @@ export const StatusSQLDatabaseMixin = (
     visibleToActorId: string
   }) => {
     const clientName = String(database.client.config.client)
-    const fallbackFollowersAudienceExpression = clientName.includes('mysql')
-      ? {
-          sql: "?? = CONCAT(??, '/followers')",
-          bindings: ['followers_recipients.actorId', 'statuses.actorId']
-        }
-      : {
-          sql: "?? = ?? || '/followers'",
-          bindings: ['followers_recipients.actorId', 'statuses.actorId']
-        }
+    const fallbackFollowersAudienceExpression = {
+      sql: clientName.includes('mysql')
+        ? "?? = CONCAT(??, '/followers')"
+        : "?? = ?? || '/followers'",
+      bindings: ['followers_recipients.actorId', 'statuses.actorId']
+    }
     const storedFollowersAudienceExpression = {
       sql: `?? = ${statusActorFollowersUrlExpression()}`,
       bindings: ['followers_recipients.actorId']
