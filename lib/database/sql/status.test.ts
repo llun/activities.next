@@ -150,6 +150,49 @@ describe('StatusDatabase', () => {
     })
   })
 
+  describe('potentially readable status SQL', () => {
+    it('quotes camelCase identifiers in PostgreSQL follower audience checks', async () => {
+      const postgresDatabase = knex({ client: 'pg' })
+      const sqlDatabase = getSQLDatabase(postgresDatabase)
+      const queries: string[] = []
+
+      postgresDatabase.client.acquireConnection = jest
+        .fn()
+        .mockResolvedValue({})
+      postgresDatabase.client.releaseConnection = jest.fn()
+      postgresDatabase.client._query = jest
+        .fn()
+        .mockImplementation(async (_connection, query) => {
+          queries.push(query.sql)
+          query.response = { rows: [] }
+          return query
+        })
+      postgresDatabase.client.processResponse = (query) => query.response.rows
+
+      try {
+        await sqlDatabase.getStatusesByIds({
+          statusIds: [`${primaryActorId}/statuses/postgres-readable`],
+          visibleToActorId: replyAuthorId
+        })
+
+        expect(queries[0]).toContain(
+          '"followers_recipients"."statusId" = "statuses"."id"'
+        )
+        expect(queries[0]).toContain(
+          '"followers_recipients"."actorId" = status_actors.settings::jsonb ->> \'followersUrl\''
+        )
+        expect(queries[0]).toContain(
+          '"followers_recipients"."actorId" = "statuses"."actorId" || \'/followers\''
+        )
+        expect(queries[0]).toContain(
+          '"follows"."targetActorId" = "statuses"."actorId"'
+        )
+      } finally {
+        await postgresDatabase.destroy()
+      }
+    })
+  })
+
   describe.each(table)('%s', (_, database) => {
     beforeAll(async () => {
       await seedDatabase(database as Database)

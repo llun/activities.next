@@ -230,9 +230,18 @@ export const StatusSQLDatabaseMixin = (
   }) => {
     const clientName = String(database.client.config.client)
     const fallbackFollowersAudienceExpression = clientName.includes('mysql')
-      ? "followers_recipients.actorId = CONCAT(statuses.actorId, '/followers')"
-      : "followers_recipients.actorId = statuses.actorId || '/followers'"
-    const storedFollowersAudienceExpression = `followers_recipients.actorId = ${statusActorFollowersUrlExpression()}`
+      ? {
+          sql: "?? = CONCAT(??, '/followers')",
+          bindings: ['followers_recipients.actorId', 'statuses.actorId']
+        }
+      : {
+          sql: "?? = ?? || '/followers'",
+          bindings: ['followers_recipients.actorId', 'statuses.actorId']
+        }
+    const storedFollowersAudienceExpression = {
+      sql: `?? = ${statusActorFollowersUrlExpression()}`,
+      bindings: ['followers_recipients.actorId']
+    }
 
     return query.where((qb) => {
       qb.whereIn(
@@ -253,17 +262,27 @@ export const StatusSQLDatabaseMixin = (
               'status_actors.id',
               'statuses.actorId'
             )
-            .whereRaw('followers_recipients.statusId = statuses.id')
+            .whereRaw('?? = ??', [
+              'followers_recipients.statusId',
+              'statuses.id'
+            ])
             .where(function () {
-              this.whereRaw(storedFollowersAudienceExpression).orWhereRaw(
-                fallbackFollowersAudienceExpression
+              this.whereRaw(
+                storedFollowersAudienceExpression.sql,
+                storedFollowersAudienceExpression.bindings
+              ).orWhereRaw(
+                fallbackFollowersAudienceExpression.sql,
+                fallbackFollowersAudienceExpression.bindings
               )
             })
             .whereExists(function () {
               this.select(database.raw('1'))
                 .from('follows')
                 .where('follows.actorId', visibleToActorId)
-                .whereRaw('follows.targetActorId = statuses.actorId')
+                .whereRaw('?? = ??', [
+                  'follows.targetActorId',
+                  'statuses.actorId'
+                ])
                 .where('follows.status', FollowStatus.enum.Accepted)
             })
         })
