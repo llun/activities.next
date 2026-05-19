@@ -144,6 +144,35 @@ describe('GET /api/v1/accounts/lookup', () => {
     expect(await response.json()).toEqual(account)
   })
 
+  it('allows bearer tokens with read:accounts scope to remotely resolve accounts', async () => {
+    const actor = { id: 'https://remote.test/users/person' }
+    const account = {
+      id: 'person',
+      username: 'person',
+      acct: 'person@remote.test'
+    }
+    mockGetActorFromUsername.mockResolvedValue(null)
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: 'https://llun.test/users/oauth-user',
+      scopes: 'read:accounts'
+    })
+    mockGetActorFromId.mockResolvedValue(oauthActor)
+    mockGetWebfingerSelf.mockResolvedValue('https://remote.test/users/person')
+    mockRecordActorIfNeeded.mockResolvedValue(actor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(account)
+  })
+
   it('rejects bearer tokens without read account lookup scope before remote resolution', async () => {
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({

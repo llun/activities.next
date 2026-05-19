@@ -16,7 +16,8 @@ import {
   getConversationStatuses,
   getConversations,
   hideConversation,
-  markConversationRead
+  markConversationRead,
+  searchAccounts
 } from '@/lib/client'
 import type { DirectConversationView } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -166,6 +167,7 @@ describe('MessagesPage', () => {
     ;(getConversations as jest.Mock).mockResolvedValue({ conversations: [] })
     ;(hideConversation as jest.Mock).mockResolvedValue(true)
     ;(markConversationRead as jest.Mock).mockResolvedValue(true)
+    ;(searchAccounts as jest.Mock).mockResolvedValue([])
   })
 
   it('keeps stale thread requests from overwriting the selected conversation', async () => {
@@ -573,6 +575,75 @@ describe('MessagesPage', () => {
         recipients: [expect.objectContaining({ display_name: 'Ada' })],
         replyStatus: expect.objectContaining({ id: 'last-first' })
       })
+    })
+  })
+
+  it('lists recipient search results and adds the chosen account on click', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+    ;(searchAccounts as jest.Mock).mockResolvedValue([
+      account('account-ada', 'Ada'),
+      account('account-adam', 'Adam')
+    ])
+
+    renderMessagesPage([], null)
+
+    const recipientInput = screen.getByPlaceholderText('@user@example.com')
+    fireEvent.change(recipientInput, { target: { value: 'ad' } })
+    fireEvent.keyDown(recipientInput, { key: 'Enter' })
+
+    const resultsList = await screen.findByLabelText('Recipient search results')
+    expect(within(resultsList).getByText('Ada')).toBeInTheDocument()
+    expect(within(resultsList).getByText('Adam')).toBeInTheDocument()
+    expect(searchAccounts).toHaveBeenCalledWith({
+      q: 'ad',
+      resolve: true,
+      limit: 5
+    })
+
+    fireEvent.click(within(resultsList).getByText('Adam'))
+
+    expect(
+      screen.queryByLabelText('Recipient search results')
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Adam')).toBeInTheDocument()
+  })
+
+  it('retries mark-as-read after a transient failure when the user reselects the conversation', async () => {
+    const initialMarkRead = createDeferred<boolean>()
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+    ;(markConversationRead as jest.Mock).mockReturnValueOnce(
+      initialMarkRead.promise
+    )
+
+    renderMessagesPage([
+      conversation({ id: 'first', participantName: 'Ada', unread: true })
+    ])
+
+    await waitFor(() => {
+      expect(markConversationRead).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      initialMarkRead.reject(new Error('read failed'))
+    })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not mark conversation as read'
+    )
+    ;(markConversationRead as jest.Mock).mockResolvedValueOnce(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Ada/i }))
+    })
+
+    await waitFor(() => {
+      expect(markConversationRead).toHaveBeenCalledTimes(2)
     })
   })
 })

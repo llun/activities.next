@@ -650,13 +650,15 @@ export const DirectConversationSQLDatabaseMixin = (
 
   return {
     async syncDirectConversationForStatus({
-      status
+      status,
+      excludedLocalActorIds
     }: SyncDirectConversationForStatusParams) {
       if (!isDirectStatus(status)) return
 
       const rootStatusId = await resolveConversationRootStatusId(status)
       const conversationId = getConversationIdForRootStatusId(rootStatusId)
       const participantActorIds = getDirectStatusParticipantActorIds(status)
+      const excludedActorIdSet = new Set(excludedLocalActorIds ?? [])
       const statusCreatedAt = new Date(status.createdAt)
       const currentTime = new Date()
 
@@ -696,7 +698,7 @@ export const DirectConversationSQLDatabaseMixin = (
           ...new Set(
             await getLocalParticipantActorIds(trx, participantActorIds)
           )
-        ]
+        ].filter((actorId) => !excludedActorIdSet.has(actorId))
         const existingMemberships =
           localParticipantActorIds.length > 0
             ? await trx('direct_conversation_memberships')

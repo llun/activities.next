@@ -628,6 +628,7 @@ export type DirectConversation = {
 
 export type SyncDirectConversationForStatusParams = {
   status: Status
+  excludedLocalActorIds?: string[]
 }
 
 export type GetDirectConversationsParams = {
@@ -1126,6 +1127,7 @@ export const Scope = z.enum([
   'profile',
   'email',
   'read',
+  'read:accounts',
   'read:bookmarks',
   'read:conversations',
   'read:statuses',
@@ -1143,6 +1145,7 @@ export const UsableScopes = [
   Scope.enum.profile,
   Scope.enum.email,
   Scope.enum.read,
+  Scope.enum['read:accounts'],
   Scope.enum['read:bookmarks'],
   Scope.enum['read:conversations'],
   Scope.enum['read:statuses'],

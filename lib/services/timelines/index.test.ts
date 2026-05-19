@@ -184,6 +184,45 @@ describe('#addStatusToTimeline', () => {
     expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
   })
 
+  test('it skips direct conversation memberships when recipient blocks the sender', async () => {
+    await database.createBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR2_ID,
+      uri: `${ACTOR1_ID}#blocks/${randomBytes(8).toString('hex')}`
+    })
+    const id = randomBytes(16).toString('hex')
+    const status = await database.createNote({
+      id: `${ACTOR2_ID}/statuses/blocked-direct-${id}`,
+      url: `${ACTOR2_ID}/statuses/blocked-direct-${id}`,
+      actorId: ACTOR2_ID,
+      to: [ACTOR1_ID],
+      cc: [],
+      text: 'direct to blocker @test1@llun.test'
+    })
+    await database.createTag({
+      statusId: status.id,
+      name: '@test1',
+      value: ACTOR1_ID,
+      type: 'mention'
+    })
+
+    await addStatusToTimelines(database, status)
+
+    const recipientConversations = await database.getDirectConversations({
+      actorId: ACTOR1_ID
+    })
+    expect(
+      recipientConversations.some(
+        (conversation) => conversation.lastStatus.id === status.id
+      )
+    ).toBe(false)
+    const directTimeline = await database.getTimeline({
+      timeline: Timeline.DIRECT,
+      actorId: ACTOR1_ID
+    })
+    expect(directTimeline.some((s) => s.id === status.id)).toBe(false)
+  })
+
   test('it skips timelines when a followed actor announces a blocked author', async () => {
     const id = randomBytes(16).toString('hex')
     const originalStatus = await database.createNote({

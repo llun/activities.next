@@ -43,6 +43,8 @@ interface MessagesPageProps {
   postLineLimit?: PostLineLimit
 }
 
+const READ_RETRY_COOLDOWN_MS = 30_000
+
 const accountLabel = (account: MastodonAccount) =>
   account.display_name || account.acct || account.username
 
@@ -99,6 +101,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     MastodonAccount[]
   >([])
   const [recipientQuery, setRecipientQuery] = useState('')
+  const [recipientSearchResults, setRecipientSearchResults] = useState<
+    MastodonAccount[]
+  >([])
   const [message, setMessage] = useState('')
   const [isResolvingRecipient, setResolvingRecipient] = useState(false)
   const [isSending, setSending] = useState(false)
@@ -108,8 +113,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const latestThreadRequestIdRef = useRef(0)
   const selectedConversationIdRef = useRef(selectedConversationId)
   const threadContainerRef = useRef<HTMLDivElement | null>(null)
-  const failedReadConversationIdsRef = useRef(new Set<string>())
+  const lastFailedReadAtRef = useRef(new Map<string, number>())
   const pendingReadConversationIdsRef = useRef(new Set<string>())
+  const latestReadRequestIdRef = useRef(new Map<string, number>())
   const lastAutoScrolledStatusIdRef = useRef<string | null>(null)
   const pendingOlderScrollAnchorRef = useRef<{
     requestId: number
@@ -134,7 +140,13 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     ? selectedConversation.accounts
     : selectedRecipients
 
+  const [readRetryNonce, setReadRetryNonce] = useState(0)
+
   const selectConversation = useCallback((conversationId: string | null) => {
+    if (conversationId) {
+      const hadFailed = lastFailedReadAtRef.current.delete(conversationId)
+      if (hadFailed) setReadRetryNonce((nonce) => nonce + 1)
+    }
     if (conversationId === selectedConversationIdRef.current) return
     latestThreadRequestIdRef.current += 1
     selectedConversationIdRef.current = conversationId
@@ -276,48 +288,58 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
   useEffect(() => {
     if (!selectedConversationId || !selectedConversation?.unread) return
-    if (
-      failedReadConversationIdsRef.current.has(selectedConversationId) ||
-      pendingReadConversationIdsRef.current.has(selectedConversationId)
-    ) {
+    if (pendingReadConversationIdsRef.current.has(selectedConversationId)) {
+      return
+    }
+    const lastFailedAt =
+      lastFailedReadAtRef.current.get(selectedConversationId) ?? 0
+    if (Date.now() - lastFailedAt < READ_RETRY_COOLDOWN_MS) {
       return
     }
 
-    pendingReadConversationIdsRef.current.add(selectedConversationId)
+    const conversationId = selectedConversationId
+    const requestId =
+      (latestReadRequestIdRef.current.get(conversationId) ?? 0) + 1
+    latestReadRequestIdRef.current.set(conversationId, requestId)
+    pendingReadConversationIdsRef.current.add(conversationId)
     setCurrentConversations((previousConversations) =>
       previousConversations.map((conversation) =>
-        conversation.id === selectedConversationId
+        conversation.id === conversationId
           ? { ...conversation, unread: false }
           : conversation
       )
     )
 
+    const isLatestRequest = () =>
+      latestReadRequestIdRef.current.get(conversationId) === requestId
+
     const restoreUnreadState = () => {
-      failedReadConversationIdsRef.current.add(selectedConversationId)
+      if (!isLatestRequest()) return
+      lastFailedReadAtRef.current.set(conversationId, Date.now())
       setError('Could not mark conversation as read')
       setCurrentConversations((previousConversations) =>
         previousConversations.map((conversation) =>
-          conversation.id === selectedConversationId
+          conversation.id === conversationId
             ? { ...conversation, unread: true }
             : conversation
         )
       )
     }
 
-    void markConversationRead({ conversationId: selectedConversationId })
+    void markConversationRead({ conversationId })
       .then((markedRead) => {
+        if (!isLatestRequest()) return
         if (markedRead) {
-          failedReadConversationIdsRef.current.delete(selectedConversationId)
+          lastFailedReadAtRef.current.delete(conversationId)
           return
         }
-
         restoreUnreadState()
       })
       .catch(restoreUnreadState)
       .finally(() => {
-        pendingReadConversationIdsRef.current.delete(selectedConversationId)
+        pendingReadConversationIdsRef.current.delete(conversationId)
       })
-  }, [selectedConversation?.unread, selectedConversationId])
+  }, [selectedConversation?.unread, selectedConversationId, readRetryNonce])
 
   const refreshConversations = useCallback(async () => {
     const result = await getConversations()
@@ -325,29 +347,39 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     return result.conversations
   }, [])
 
-  const addRecipient = useCallback(async () => {
+  const searchForRecipients = useCallback(async () => {
     const query = recipientQuery.trim()
     if (!query) return
 
     setResolvingRecipient(true)
     setError(null)
     try {
-      const [account] = await searchAccounts({ q: query, resolve: true })
-      if (!account) {
-        setError('Account not found')
-        return
-      }
-      setSelectedRecipients((previousRecipients) => {
-        if (previousRecipients.some((item) => item.id === account.id)) {
-          return previousRecipients
-        }
-        return [...previousRecipients, account]
+      const results = await searchAccounts({
+        q: query,
+        resolve: true,
+        limit: 5
       })
-      setRecipientQuery('')
+      setRecipientSearchResults(results)
+      if (results.length === 0) {
+        setError('Account not found')
+      }
+    } catch (_error) {
+      setError('Could not search for account')
     } finally {
       setResolvingRecipient(false)
     }
   }, [recipientQuery])
+
+  const selectRecipient = useCallback((account: MastodonAccount) => {
+    setSelectedRecipients((previousRecipients) => {
+      if (previousRecipients.some((item) => item.id === account.id)) {
+        return previousRecipients
+      }
+      return [...previousRecipients, account]
+    })
+    setRecipientSearchResults([])
+    setRecipientQuery('')
+  }, [])
 
   const removeRecipient = useCallback((accountId: string) => {
     setSelectedRecipients((previousRecipients) =>
@@ -360,6 +392,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     setThreadStatuses([])
     setNextMaxStatusId(null)
     setSelectedRecipients([])
+    setRecipientSearchResults([])
+    setRecipientQuery('')
     setMessage('')
     setError(null)
   }, [selectConversation])
@@ -404,6 +438,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         })
         setMessage('')
         setSelectedRecipients([])
+        setRecipientSearchResults([])
+        setRecipientQuery('')
         const refreshedConversations = await refreshConversations()
         const nextConversationId =
           selectedConversation?.id ?? refreshedConversations[0]?.id ?? null
@@ -603,7 +639,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         event.preventDefault()
-                        void addRecipient()
+                        void searchForRecipients()
                       }
                     }}
                     placeholder="@user@example.com"
@@ -611,7 +647,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={addRecipient}
+                    onClick={searchForRecipients}
                     disabled={isResolvingRecipient}
                   >
                     {isResolvingRecipient ? (
@@ -621,6 +657,39 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                     )}
                   </Button>
                 </div>
+                {recipientSearchResults.length > 0 && (
+                  <ul
+                    aria-label="Recipient search results"
+                    className="divide-y rounded-md border bg-background"
+                  >
+                    {recipientSearchResults.map((account) => (
+                      <li key={account.id}>
+                        <button
+                          type="button"
+                          onClick={() => selectRecipient(account)}
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted"
+                        >
+                          <Avatar className="size-8 shrink-0">
+                            {account.avatar && (
+                              <AvatarImage src={account.avatar} />
+                            )}
+                            <AvatarFallback>
+                              {getInitial(accountLabel(account))}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">
+                              {accountLabel(account)}
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {accountHandle(account)}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
 

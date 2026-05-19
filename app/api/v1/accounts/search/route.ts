@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -36,73 +36,76 @@ const SearchParams = z.object({
 
 export const GET = traceApiRoute(
   'searchAccounts',
-  OAuthGuard([Scope.enum.read], async (req, context) => {
-    const { database } = context
+  OAuthGuardAnyScope(
+    [Scope.enum.read, Scope.enum['read:accounts']],
+    async (req, context) => {
+      const { database } = context
 
-    const url = new URL(req.url)
-    const queryParams: Record<string, string> = {}
-    url.searchParams.forEach((value, key) => {
-      queryParams[key] = value
-    })
+      const url = new URL(req.url)
+      const queryParams: Record<string, string> = {}
+      url.searchParams.forEach((value, key) => {
+        queryParams[key] = value
+      })
 
-    const parsedParams = SearchParams.safeParse(queryParams)
-    if (!parsedParams.success) {
+      const parsedParams = SearchParams.safeParse(queryParams)
+      if (!parsedParams.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      const { q, limit = 40, resolve = false } = parsedParams.data
+
+      if (!q || q.trim().length === 0) {
+        return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
+      }
+
+      const query = q.trim()
+      const results = []
+
+      // Try exact match first (username@domain or just username)
+      if (query.includes('@')) {
+        const handle = parseAccountHandle(query)
+        if (handle) {
+          let actor = await database.getActorFromUsername(handle)
+          if (!actor && resolve) {
+            const actorId = await getWebfingerSelf({
+              account: `${handle.username}@${handle.domain}`
+            })
+            actor = actorId
+              ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+              : null
+          }
+
+          const mastodonActor = actor
+            ? await database.getMastodonActorFromId({ id: actor.id })
+            : null
+          if (mastodonActor) {
+            results.push(mastodonActor)
+          }
+        }
+      } else {
+        // Try as local username
+        const actor = await database.getActorFromUsername({
+          username: query,
+          domain: getConfig().host
+        })
+        if (actor) {
+          const mastodonActor = await database.getMastodonActorFromId({
+            id: actor.id
+          })
+          if (mastodonActor) results.push(mastodonActor)
+        }
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: results.slice(0, limit)
       })
     }
-
-    const { q, limit = 40, resolve = false } = parsedParams.data
-
-    if (!q || q.trim().length === 0) {
-      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
-    }
-
-    const query = q.trim()
-    const results = []
-
-    // Try exact match first (username@domain or just username)
-    if (query.includes('@')) {
-      const handle = parseAccountHandle(query)
-      if (handle) {
-        let actor = await database.getActorFromUsername(handle)
-        if (!actor && resolve) {
-          const actorId = await getWebfingerSelf({
-            account: `${handle.username}@${handle.domain}`
-          })
-          actor = actorId
-            ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
-            : null
-        }
-
-        const mastodonActor = actor
-          ? await database.getMastodonActorFromId({ id: actor.id })
-          : null
-        if (mastodonActor) {
-          results.push(mastodonActor)
-        }
-      }
-    } else {
-      // Try as local username
-      const actor = await database.getActorFromUsername({
-        username: query,
-        domain: getConfig().host
-      })
-      if (actor) {
-        const mastodonActor = await database.getMastodonActorFromId({
-          id: actor.id
-        })
-        if (mastodonActor) results.push(mastodonActor)
-      }
-    }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: results.slice(0, limit)
-    })
-  })
+  )
 )

@@ -42,12 +42,15 @@ const isBearerAuthorizationHeader = (authorizationHeader: string | null) =>
 const authorizeBearerRemoteLookup = async (req: NextRequest) => {
   let authorized = false
   const response = await OptionalOAuthGuard(
-    [Scope.enum.read],
+    [Scope.enum.read, Scope.enum['read:accounts']],
     async () => {
       authorized = true
       return new Response(null, { status: 204 })
     },
-    { errorResponse: corsErrorResponse(CORS_HEADERS) }
+    {
+      errorResponse: corsErrorResponse(CORS_HEADERS),
+      matchMode: 'any'
+    }
   )(req, { params: Promise.resolve({}) })
 
   return { authorized, response }

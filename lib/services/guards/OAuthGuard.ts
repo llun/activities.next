@@ -327,6 +327,7 @@ export const OptionalOAuthGuard =
     handle: OptionalAuthenticatedApiHandle<P>,
     options: {
       errorResponse?: (req: NextRequest, statusCode: StatusCode) => Response
+      matchMode?: ScopeMatchMode
     } = {}
   ) =>
   async (req: NextRequest, context: AppRouterParams<P>) => {
@@ -334,7 +335,7 @@ export const OptionalOAuthGuard =
       req,
       context,
       scopes,
-      matchMode: 'all'
+      matchMode: options.matchMode ?? 'all'
     })
 
     if (result.authenticated) {

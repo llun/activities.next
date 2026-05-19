@@ -55,7 +55,10 @@ export const addStatusToTimelines = async (
         )
       const isDirect = isDirectStatus(status)
       if (isDirect) {
-        await database.syncDirectConversationForStatus({ status })
+        await database.syncDirectConversationForStatus({
+          status,
+          excludedLocalActorIds: [...blockedRecipientActorIds]
+        })
       }
 
       await Promise.all(
