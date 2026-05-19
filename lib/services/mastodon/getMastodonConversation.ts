@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { Mastodon } from '@/lib/types/activitypub'
 import { DirectConversation } from '@/lib/types/database/operations'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
@@ -27,31 +28,31 @@ export const getMastodonConversationAccountMap = async (
     ids: participantActorIds
   })
 
-  const requestedActorIds = new Set(participantActorIds)
+  // Index by normalized actor URI so accounts can be matched regardless of
+  // URI fragment or host casing differences. The accountMap remains keyed
+  // by the original participantActorId so callers can look up by the value
+  // stored in the conversation row.
+  const requestedActorIdByNormalized = new Map<string, string>()
+  for (const actorId of participantActorIds) {
+    const normalized = normalizeActorId(actorId)
+    if (normalized) requestedActorIdByNormalized.set(normalized, actorId)
+  }
+
   const accountMap: MastodonConversationAccountMap = new Map()
-  const keyedAccounts = new Set<Mastodon.Account>()
 
   for (const account of accounts) {
     const decodedActorId =
       typeof account.id === 'string' ? idToUrl(account.id) : ''
-    if (requestedActorIds.has(decodedActorId)) {
-      accountMap.set(decodedActorId, account)
-      keyedAccounts.add(account)
-      continue
-    }
-
-    if (requestedActorIds.has(account.url)) {
-      accountMap.set(account.url, account)
-      keyedAccounts.add(account)
-    }
-  }
-
-  if (accounts.length === participantActorIds.length) {
-    accounts.forEach((account, index) => {
-      if (!keyedAccounts.has(account)) {
-        accountMap.set(participantActorIds[index], account)
+    const candidates = [decodedActorId, account.url].filter(Boolean)
+    for (const candidate of candidates) {
+      const normalized = normalizeActorId(candidate)
+      if (!normalized) continue
+      const originalActorId = requestedActorIdByNormalized.get(normalized)
+      if (originalActorId && !accountMap.has(originalActorId)) {
+        accountMap.set(originalActorId, account)
+        break
       }
-    })
+    }
   }
 
   return accountMap

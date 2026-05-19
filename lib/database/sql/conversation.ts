@@ -44,6 +44,8 @@ type DirectConversationStatusRow = {
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
 const DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE = 50
 const MAX_DIRECT_CONVERSATION_FALLBACK_STATUS_BATCHES = 4
+const MAX_DIRECT_CONVERSATION_PAGE_SCAN_BATCHES = 20
+const MAX_DIRECT_CONVERSATION_STATUS_SCAN_BATCHES = 20
 const MAX_BIGINT_ID = '9223372036854775807'
 
 const getConversationIdForRootStatusId = (rootStatusId: string) =>
@@ -596,7 +598,12 @@ export const DirectConversationSQLDatabaseMixin = (
     const scanBatchSize = Math.max(limit, PER_PAGE_LIMIT)
     let scannedCursor: DirectConversationMembershipRow | null = null
 
-    while (conversations.length < limit || scannedCursor) {
+    for (
+      let batchIndex = 0;
+      batchIndex < MAX_DIRECT_CONVERSATION_PAGE_SCAN_BATCHES &&
+      (conversations.length < limit || scannedCursor);
+      batchIndex += 1
+    ) {
       const scanQuery = query.clone()
       if (scannedCursor)
         applyMembershipCursor(scanQuery, scannedCursor, 'older')
@@ -917,7 +924,12 @@ export const DirectConversationSQLDatabaseMixin = (
       const scanBatchSize = Math.max(limit, PER_PAGE_LIMIT)
       let scannedCursor: DirectConversationStatusRow | null = null
 
-      while (statuses.length < limit) {
+      for (
+        let batchIndex = 0;
+        batchIndex < MAX_DIRECT_CONVERSATION_STATUS_SCAN_BATCHES &&
+        statuses.length < limit;
+        batchIndex += 1
+      ) {
         const scanQuery = query.clone()
         if (scannedCursor) applyStatusCursor(scanQuery, scannedCursor, 'older')
 

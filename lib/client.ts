@@ -12,10 +12,10 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
-import { normalizeActorId } from '@/lib/utils/activitypub'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
@@ -1870,7 +1870,7 @@ export const getConversations = async ({
 } = {}): Promise<GetConversationsResult> => {
   const url = new URL(`${window.origin}/api/v1/conversations`)
   url.searchParams.set('format', TimelineFormat.enum.activities_next)
-  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (limit !== undefined) url.searchParams.set('limit', `${limit}`)
   if (maxId) url.searchParams.set('max_id', maxId)
   if (minId) url.searchParams.set('min_id', minId)
 

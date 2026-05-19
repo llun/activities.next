@@ -351,13 +351,17 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
   const refreshConversations = useCallback(async () => {
     const result = await getConversations({
-      limit: INITIAL_CONVERSATIONS_LIMIT
+      limit: INITIAL_CONVERSATIONS_LIMIT + 1
     })
-    setCurrentConversations(result.conversations)
-    setHasMoreConversations(
-      result.conversations.length >= INITIAL_CONVERSATIONS_LIMIT
+    const nextConversations = result.conversations.slice(
+      0,
+      INITIAL_CONVERSATIONS_LIMIT
     )
-    return result.conversations
+    setCurrentConversations(nextConversations)
+    setHasMoreConversations(
+      result.conversations.length > INITIAL_CONVERSATIONS_LIMIT
+    )
+    return nextConversations
   }, [])
 
   const loadMoreConversations = useCallback(async () => {
@@ -368,20 +372,24 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     setLoadingMoreConversations(true)
     try {
       const result = await getConversations({
-        limit: LOAD_MORE_CONVERSATIONS_LIMIT,
+        limit: LOAD_MORE_CONVERSATIONS_LIMIT + 1,
         maxId: oldestConversation.id
       })
+      const fetchedConversations = result.conversations.slice(
+        0,
+        LOAD_MORE_CONVERSATIONS_LIMIT
+      )
       setCurrentConversations((previousConversations) => {
         const seenIds = new Set(
           previousConversations.map((conversation) => conversation.id)
         )
-        const newConversations = result.conversations.filter(
+        const newConversations = fetchedConversations.filter(
           (conversation) => !seenIds.has(conversation.id)
         )
         return [...previousConversations, ...newConversations]
       })
       setHasMoreConversations(
-        result.conversations.length >= LOAD_MORE_CONVERSATIONS_LIMIT
+        result.conversations.length > LOAD_MORE_CONVERSATIONS_LIMIT
       )
     } catch (_error) {
       setError('Could not load more conversations')
