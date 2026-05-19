@@ -41,9 +41,12 @@ interface MessagesPageProps {
   currentTime: number
   currentActor: ActorProfile
   postLineLimit?: PostLineLimit
+  initialHasMoreConversations?: boolean
 }
 
 const READ_RETRY_COOLDOWN_MS = 30_000
+export const INITIAL_CONVERSATIONS_LIMIT = 20
+const LOAD_MORE_CONVERSATIONS_LIMIT = 20
 
 const accountLabel = (account: MastodonAccount) =>
   account.display_name || account.acct || account.username
@@ -85,7 +88,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   initialNextMaxStatusId,
   currentTime,
   currentActor,
-  postLineLimit
+  postLineLimit,
+  initialHasMoreConversations = false
 }) => {
   const [currentConversations, setCurrentConversations] =
     useState<DirectConversationView[]>(conversations)
@@ -109,6 +113,12 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const [isSending, setSending] = useState(false)
   const [isThreadLoading, setThreadLoading] = useState(false)
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] = useState(false)
+  const [isLoadingMoreConversations, setLoadingMoreConversations] =
+    useState(false)
+  const [hasMoreConversations, setHasMoreConversations] = useState(
+    initialHasMoreConversations
+  )
+  const [readRetryNonce, setReadRetryNonce] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const latestThreadRequestIdRef = useRef(0)
   const selectedConversationIdRef = useRef(selectedConversationId)
@@ -139,8 +149,6 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const composerRecipients = selectedConversation
     ? selectedConversation.accounts
     : selectedRecipients
-
-  const [readRetryNonce, setReadRetryNonce] = useState(0)
 
   const selectConversation = useCallback((conversationId: string | null) => {
     if (conversationId) {
@@ -342,10 +350,45 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   }, [selectedConversation?.unread, selectedConversationId, readRetryNonce])
 
   const refreshConversations = useCallback(async () => {
-    const result = await getConversations()
+    const result = await getConversations({
+      limit: INITIAL_CONVERSATIONS_LIMIT
+    })
     setCurrentConversations(result.conversations)
+    setHasMoreConversations(
+      result.conversations.length >= INITIAL_CONVERSATIONS_LIMIT
+    )
     return result.conversations
   }, [])
+
+  const loadMoreConversations = useCallback(async () => {
+    const oldestConversation =
+      currentConversations[currentConversations.length - 1]
+    if (!oldestConversation) return
+
+    setLoadingMoreConversations(true)
+    try {
+      const result = await getConversations({
+        limit: LOAD_MORE_CONVERSATIONS_LIMIT,
+        maxId: oldestConversation.id
+      })
+      setCurrentConversations((previousConversations) => {
+        const seenIds = new Set(
+          previousConversations.map((conversation) => conversation.id)
+        )
+        const newConversations = result.conversations.filter(
+          (conversation) => !seenIds.has(conversation.id)
+        )
+        return [...previousConversations, ...newConversations]
+      })
+      setHasMoreConversations(
+        result.conversations.length >= LOAD_MORE_CONVERSATIONS_LIMIT
+      )
+    } catch (_error) {
+      setError('Could not load more conversations')
+    } finally {
+      setLoadingMoreConversations(false)
+    }
+  }, [currentConversations])
 
   const searchForRecipients = useCallback(async () => {
     const query = recipientQuery.trim()
@@ -431,7 +474,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
       setSending(true)
       try {
-        await createDirectMessage({
+        const sentStatus = await createDirectMessage({
           message,
           recipients: composerRecipients,
           replyStatus: selectedConversation?.lastStatus
@@ -441,8 +484,16 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         setRecipientSearchResults([])
         setRecipientQuery('')
         const refreshedConversations = await refreshConversations()
+        const matchedConversation = sentStatus.uri
+          ? refreshedConversations.find(
+              (conversation) => conversation.lastStatus.id === sentStatus.uri
+            )
+          : undefined
         const nextConversationId =
-          selectedConversation?.id ?? refreshedConversations[0]?.id ?? null
+          selectedConversation?.id ??
+          matchedConversation?.id ??
+          refreshedConversations[0]?.id ??
+          null
         selectConversation(nextConversationId)
         if (nextConversationId) {
           await loadThread(nextConversationId, { silent: true })
@@ -530,6 +581,22 @@ export const MessagesPage: FC<MessagesPageProps> = ({
             ) : (
               <div className="p-4 text-sm text-muted-foreground">
                 No messages
+              </div>
+            )}
+            {hasMoreConversations && currentConversations.length > 0 && (
+              <div className="flex justify-center border-t p-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadMoreConversations}
+                  disabled={isLoadingMoreConversations}
+                >
+                  {isLoadingMoreConversations && (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  )}
+                  Load more
+                </Button>
               </div>
             )}
           </div>

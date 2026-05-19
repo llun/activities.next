@@ -15,6 +15,7 @@ import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
@@ -1972,15 +1973,25 @@ const accountMention = (account: MastodonAccount) =>
   `@${account.acct || account.username}`
 
 const getReplyParticipantIds = (replyStatus: Status) =>
-  new Set([replyStatus.actorId, ...replyStatus.to, ...replyStatus.cc])
+  new Set(
+    [replyStatus.actorId, ...replyStatus.to, ...replyStatus.cc]
+      .map((id) => normalizeActorId(id))
+      .filter((id): id is string => Boolean(id))
+  )
 
 const isReplyParticipant = (
   account: MastodonAccount,
   replyParticipantIds: Set<string>
-) =>
-  replyParticipantIds.has(account.id) ||
-  replyParticipantIds.has(idToUrl(account.id)) ||
-  replyParticipantIds.has(account.url)
+) => {
+  const accountActorId = normalizeActorId(idToUrl(account.id))
+  if (!accountActorId) return false
+  return replyParticipantIds.has(accountActorId)
+}
+
+export interface CreateDirectMessageResult {
+  uri: string
+  [key: string]: unknown
+}
 
 export const createDirectMessage = async ({
   message,
@@ -1990,7 +2001,7 @@ export const createDirectMessage = async ({
   message: string
   recipients: MastodonAccount[]
   replyStatus?: Status
-}) => {
+}): Promise<CreateDirectMessageResult> => {
   const normalizedMessage = message.trim()
   if (!normalizedMessage) {
     throw new Error('Message must not be empty')
@@ -2024,5 +2035,5 @@ export const createDirectMessage = async ({
   if (!response.ok) {
     throw new Error('Failed to send message')
   }
-  return response.json()
+  return (await response.json()) as CreateDirectMessageResult
 }

@@ -7,7 +7,8 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   OptionalOAuthGuard,
-  corsErrorResponse
+  corsErrorResponse,
+  isBearerAuthorizationHeader
 } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -35,9 +36,6 @@ const parseAccountHandle = (value: string, localDomain: string) => {
 
   return { username, domain }
 }
-
-const isBearerAuthorizationHeader = (authorizationHeader: string | null) =>
-  authorizationHeader?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer'
 
 const authorizeBearerRemoteLookup = async (req: NextRequest) => {
   let authorized = false

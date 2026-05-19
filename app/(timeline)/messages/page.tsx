@@ -12,7 +12,7 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { MessagesPage } from './MessagesPage'
+import { INITIAL_CONVERSATIONS_LIMIT, MessagesPage } from './MessagesPage'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -34,10 +34,13 @@ const Page = async () => {
   }
 
   const settings = await database.getActorSettings({ actorId: actor.id })
-  const conversations = await database.getDirectConversations({
+  const conversationsPage = await database.getDirectConversations({
     actorId: actor.id,
-    limit: 20
+    limit: INITIAL_CONVERSATIONS_LIMIT + 1
   })
+  const hasMoreInitialConversations =
+    conversationsPage.length > INITIAL_CONVERSATIONS_LIMIT
+  const conversations = conversationsPage.slice(0, INITIAL_CONVERSATIONS_LIMIT)
   const accountsByActorId = await getMastodonConversationAccountMap(
     database,
     conversations,
@@ -76,6 +79,7 @@ const Page = async () => {
       currentTime={Date.now()}
       currentActor={getActorProfile(actor)}
       postLineLimit={settings?.postLineLimit}
+      initialHasMoreConversations={hasMoreInitialConversations}
     />
   )
 }

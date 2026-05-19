@@ -88,7 +88,7 @@ export const getTokenFromHeader = (
   return parts[1] || null
 }
 
-const isBearerAuthorizationHeader = (
+export const isBearerAuthorizationHeader = (
   authorizationHeader: string | null
 ): boolean =>
   authorizationHeader?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer'
