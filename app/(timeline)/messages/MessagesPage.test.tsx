@@ -735,6 +735,19 @@ describe('MessagesPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Could not load more messages'
     )
+    ;(getConversationStatuses as jest.Mock).mockResolvedValueOnce({
+      statuses: [status('older-status', 'Older conversation status')],
+      nextMaxStatusId: null
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(
+      await screen.findByText('Older conversation status')
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
   })
 
   it('retries mark-as-read after a transient failure when the user reselects the conversation', async () => {

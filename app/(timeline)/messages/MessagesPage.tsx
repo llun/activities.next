@@ -231,6 +231,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const loadMoreStatuses = useCallback(async () => {
     if (!selectedConversationId || !nextMaxStatusId) return
 
+    setError(null)
     const requestId = latestThreadRequestIdRef.current + 1
     latestThreadRequestIdRef.current = requestId
     const threadContainer = threadContainerRef.current
