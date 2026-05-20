@@ -175,7 +175,6 @@ describe('Status', () => {
           summary: null,
           inReplyTo: null,
           published: getISOTimeUTC(status?.createdAt ?? 0),
-          updated: getISOTimeUTC(status?.updatedAt ?? 0),
           url: status.url,
           attributedTo: status.actorId,
           to: status.to,
@@ -210,6 +209,32 @@ describe('Status', () => {
             type: 'Collection',
             totalItems: 0
           }
+        })
+        expect(note).not.toHaveProperty('updated')
+      })
+
+      it('includes updated in Note objects after an edit', async () => {
+        const statusId = `${actor1?.id}/statuses/edited-activitypub-object`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actor1?.id ?? ACTOR1_ID,
+          text: 'Original ActivityPub object content',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        const status = (await database.updateNote({
+          statusId,
+          text: 'Edited ActivityPub object content',
+          summary: null
+        })) as StatusNote
+
+        const note = toActivityPubObject(status)
+
+        expect(note).toMatchObject({
+          id: statusId,
+          content: 'Edited ActivityPub object content',
+          updated: getISOTimeUTC(status.updatedAt)
         })
       })
 
