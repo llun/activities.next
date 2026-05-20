@@ -328,7 +328,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
         : {}),
       ...(hasStatusBeenEdited(status)
         ? { updated: getISOTimeUTC(status.updatedAt) }
-        : {})
+        : null)
     })
   }
 
