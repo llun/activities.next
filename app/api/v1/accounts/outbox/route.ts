@@ -70,8 +70,8 @@ export const POST = traceApiRoute(
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: ERROR_404,
-              responseStatusCode: 404
+              data: ERROR_422,
+              responseStatusCode: 422
             })
           return apiResponse({
             req,
