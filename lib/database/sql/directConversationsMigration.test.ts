@@ -105,6 +105,37 @@ describe('direct conversations migration', () => {
     ).resolves.toHaveLength(1)
   })
 
+  test('leaves recipient-less statuses out of the direct backfill', async () => {
+    const publicStatusId = 'https://local.test/users/alice/statuses/public-1'
+    await database('statuses').insert({
+      id: publicStatusId,
+      type: 'Note',
+      actorId: localActorId,
+      reply: '',
+      createdAt: new Date('2026-05-16T00:00:00.000Z')
+    })
+    await database('timelines').insert({
+      actorId: localActorId,
+      timeline: 'main',
+      statusId: publicStatusId,
+      statusActorId: localActorId,
+      createdAt: new Date('2026-05-16T00:00:00.000Z')
+    })
+
+    await migration.up(database)
+
+    await expect(
+      database('timelines')
+        .where({ actorId: localActorId, statusId: publicStatusId })
+        .select('timeline')
+    ).resolves.toEqual([{ timeline: 'main' }])
+    await expect(
+      database('direct_conversation_statuses').where({
+        statusId: publicStatusId
+      })
+    ).resolves.toHaveLength(0)
+  })
+
   test('rollback restores legacy timeline rows from synced conversations', async () => {
     await migration.up(database)
     await migration.down(database)

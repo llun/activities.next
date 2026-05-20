@@ -113,9 +113,11 @@ const attachRecipients = async (knex, statusRows) => {
 
 const isDirectStatusRow = (status) => {
   const recipients = status.recipients.map((recipient) => recipient.actorId)
-  // Older direct rows may not have recipient rows after the status visibility
-  // column was removed, so recipient-less rows need the same cleanup/backfill.
-  return recipients.length === 0 || recipients.every(isDirectRecipient)
+  // Recipient-less rows are ambiguous: statuses created before the recipients
+  // table existed (and before the now-removed visibility column) have no
+  // recipient rows regardless of their original visibility, so they cannot be
+  // safely classified as direct.
+  return recipients.length > 0 && recipients.every(isDirectRecipient)
 }
 
 const getDirectStatusBatch = async (knex, cursor) => {

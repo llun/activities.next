@@ -511,8 +511,13 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           matchedConversation?.id ??
           refreshedConversations[0]?.id ??
           null
+        // When the conversation changes, selectConversation triggers the
+        // thread-loading effect; only reload explicitly when staying on the
+        // same conversation (a reply), where that effect does not re-run.
+        const isSameConversation =
+          selectedConversation?.id === nextConversationId
         selectConversation(nextConversationId)
-        if (nextConversationId) {
+        if (nextConversationId && isSameConversation) {
           await loadThread(nextConversationId, { silent: true })
         }
       } catch (_error) {
