@@ -321,6 +321,47 @@ describe('ConversationDatabase', () => {
       expect(statuses.map((status) => status.id)).toContain(root.id)
       expect(statuses.map((status) => status.id)).not.toContain(reply.id)
     })
+
+    test('includes recipientless direct replies to local non-direct statuses', async () => {
+      const parent = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply`,
+        url: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply`,
+        actorId: ACTOR1_ID,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${ACTOR1_ID}/followers`],
+        text: 'public parent',
+        createdAt: 6500
+      })
+      const directReply = await database.createNote({
+        id: `${EXTERNAL_ACTOR1}/statuses/recipientless-direct-reply`,
+        url: `${EXTERNAL_ACTOR1}/statuses/recipientless-direct-reply`,
+        actorId: EXTERNAL_ACTOR1,
+        to: [],
+        cc: [],
+        text: 'recipientless direct reply',
+        reply: parent.id,
+        createdAt: 6600
+      })
+
+      await database.syncDirectConversationForStatus({ status: directReply })
+
+      const conversation = (
+        await database.getDirectConversations({ actorId: ACTOR1_ID })
+      ).find((item: DirectConversation) => item.lastStatusId === directReply.id)
+
+      expect(conversation).toBeDefined()
+      if (!conversation) fail('Conversation must be defined')
+      expect(conversation.participantActorIds.sort()).toEqual(
+        [ACTOR1_ID, EXTERNAL_ACTOR1].sort()
+      )
+
+      const statuses = await database.getDirectConversationStatuses({
+        actorId: ACTOR1_ID,
+        conversationId: conversation.id
+      })
+
+      expect(statuses.map((status) => status.id)).toContain(directReply.id)
+    })
   })
 
   describe('sqlite implementation details', () => {

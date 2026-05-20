@@ -253,6 +253,29 @@ export const StatusSQLDatabaseMixin = (
         .orWhere('statuses.actorId', visibleToActorId)
         .orWhereExists(function () {
           this.select(database.raw('1'))
+            .from('statuses as reply_parent_statuses')
+            .whereIn('statuses.type', [
+              StatusType.enum.Note,
+              StatusType.enum.Poll
+            ])
+            .where('reply_parent_statuses.actorId', visibleToActorId)
+            .whereRaw('(?? = ?? or ?? = ??)', [
+              'statuses.reply',
+              'reply_parent_statuses.id',
+              'statuses.reply',
+              'reply_parent_statuses.url'
+            ])
+            .whereNotExists(function () {
+              this.select(database.raw('1'))
+                .from('recipients as reply_recipients')
+                .whereRaw('?? = ??', [
+                  'reply_recipients.statusId',
+                  'statuses.id'
+                ])
+            })
+        })
+        .orWhereExists(function () {
+          this.select(database.raw('1'))
             .from('recipients as followers_recipients')
             .leftJoin(
               'actors as status_actors',

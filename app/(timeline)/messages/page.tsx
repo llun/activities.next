@@ -12,7 +12,8 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { INITIAL_CONVERSATIONS_LIMIT, MessagesPage } from './MessagesPage'
+import { MessagesPage } from './MessagesPage'
+import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {

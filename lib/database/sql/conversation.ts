@@ -18,6 +18,7 @@ import {
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import {
   getDirectStatusParticipantActorIds,
+  isDirectAudienceActorId,
   isDirectStatus
 } from '@/lib/utils/directStatus'
 
@@ -278,6 +279,26 @@ export const DirectConversationSQLDatabaseMixin = (
       .select<{ rootStatusId: string }[]>('direct_conversations.rootStatusId')
       .first()
     return row?.rootStatusId ?? null
+  }
+
+  const getDirectConversationParticipantActorIds = async (
+    status: StatusNote | StatusPoll
+  ) => {
+    const participantActorIds = getDirectStatusParticipantActorIds(status)
+    const hasExplicitDirectAudience = [...status.to, ...status.cc].some(
+      isDirectAudienceActorId
+    )
+    if (hasExplicitDirectAudience || !status.reply) {
+      return participantActorIds
+    }
+
+    const parentStatus = await statusDatabase.getStatus({
+      statusId: status.reply,
+      withReplies: false
+    })
+    if (!parentStatus) return participantActorIds
+
+    return [...new Set([...participantActorIds, parentStatus.actorId])]
   }
 
   const resolveConversationRootStatusId = async (
@@ -664,7 +685,8 @@ export const DirectConversationSQLDatabaseMixin = (
 
       const rootStatusId = await resolveConversationRootStatusId(status)
       const conversationId = getConversationIdForRootStatusId(rootStatusId)
-      const participantActorIds = getDirectStatusParticipantActorIds(status)
+      const participantActorIds =
+        await getDirectConversationParticipantActorIds(status)
       const excludedActorIdSet = new Set(excludedLocalActorIds ?? [])
       const statusCreatedAt = new Date(status.createdAt)
       const currentTime = new Date()
