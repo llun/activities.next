@@ -20,12 +20,6 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setIsActorLiked(status.isActorLiked)
-    setTotalLikes(status.totalLikes)
-    setError(null)
-  }, [status.isActorLiked, status.totalLikes])
-
-  useEffect(() => {
     if (!error) return
 
     const timeoutId = setTimeout(() => {

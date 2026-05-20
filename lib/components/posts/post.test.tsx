@@ -686,6 +686,45 @@ describe('Post', () => {
     ).toHaveClass('disabled:opacity-50')
   })
 
+  it('resets like action state when rendering updated status data', () => {
+    const otherActor = {
+      ...status.actor!,
+      id: 'https://activities.local/users/other',
+      username: 'other'
+    }
+    const { rerender } = render(
+      <Post
+        host="activities.local"
+        currentActor={otherActor}
+        currentTime={currentTime}
+        showActions
+        status={status}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Like' })).toBeInTheDocument()
+
+    rerender(
+      <Post
+        host="activities.local"
+        currentActor={otherActor}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          isActorLiked: true,
+          totalLikes: 2
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Unlike, 2 likes' })
+    ).toBeInTheDocument()
+  })
+
   it('keeps visible social action counts in accessible labels', () => {
     render(
       <Post
