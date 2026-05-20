@@ -13,7 +13,7 @@ import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 interface MastodonMention {
   id: string
@@ -146,6 +146,38 @@ const isStatusBookmarked = (status: Status): boolean => {
   }
 
   return status.isActorBookmarked ?? false
+}
+
+const getAccountByActorId = (
+  accounts: Mastodon.Account[],
+  actorIds: string[]
+) => {
+  const requestedActorIds = new Set(actorIds)
+  const accountByActorId = new Map<string, Mastodon.Account>()
+
+  for (const account of accounts) {
+    const decodedActorId =
+      typeof account.id === 'string' ? idToUrl(account.id) : ''
+
+    if (requestedActorIds.has(decodedActorId)) {
+      accountByActorId.set(decodedActorId, account)
+      continue
+    }
+
+    if (requestedActorIds.has(account.url)) {
+      accountByActorId.set(account.url, account)
+    }
+  }
+
+  if (accounts.length === actorIds.length) {
+    accounts.forEach((account, index) => {
+      if (!accountByActorId.has(actorIds[index])) {
+        accountByActorId.set(actorIds[index], account)
+      }
+    })
+  }
+
+  return accountByActorId
 }
 
 const getMastodonStatusFromContext = async (
@@ -348,9 +380,7 @@ export const getMastodonStatuses = async (
     database.getStatusesByIds({ statusIds: replyIds }),
     database.getStatusRepliesCounts({ statusIds })
   ])
-  const accountByActorId = new Map(
-    accounts.map((account) => [account.url, account])
-  )
+  const accountByActorId = getAccountByActorId(accounts, actorIds)
   const replyStatusById = new Map(
     replyStatuses.map((replyStatus) => [replyStatus.id, replyStatus])
   )

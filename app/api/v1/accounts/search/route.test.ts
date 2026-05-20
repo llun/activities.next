@@ -22,7 +22,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       ) => Promise<Response>
     ) =>
     (req: NextRequest) => {
-      expect(scopes).toEqual(['read', 'read:search'])
+      expect(scopes).toEqual(['read', 'read:accounts', 'read:search'])
       return handle(req, {
         database: mockDatabase,
         currentActor: mockCurrentActor,
