@@ -4,7 +4,7 @@ import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
 import {
-  OAuthGuard,
+  OAuthGuardAnyScope,
   OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
 import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
@@ -42,62 +42,66 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute(
   'getStatus',
-  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
+  OptionalOAuthGuard<Params>(
+    [Scope.enum.read, Scope.enum['read:statuses']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      const statusId = idToUrl(encodedStatusId)
+
+      const status = await database.getStatus({
+        statusId,
+        currentActorId: currentActor?.id
+      })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const hasAccess = await canActorReadStatus({
+        database,
+        status,
+        currentActor
+      })
+      if (!hasAccess)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        currentActor?.id
+      )
+      if (!mastodonStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: mastodonStatus
       })
-    const statusId = idToUrl(encodedStatusId)
-
-    const status = await database.getStatus({
-      statusId,
-      currentActorId: currentActor?.id
-    })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    const hasAccess = await canActorReadStatus({
-      database,
-      status,
-      currentActor
-    })
-    if (!hasAccess)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      status,
-      currentActor?.id
-    )
-    if (!mastodonStatus)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
-  })
+    },
+    { matchMode: 'any' }
+  )
 )
 
 const EditNoteSchema = z.object({
@@ -120,111 +124,39 @@ const isFitnessStatusAttachment = (attachment: {
 
 export const PUT = traceApiRoute(
   'updateStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    const { database, currentActor } = context
-    const statusId = idToUrl(encodedStatusId)
-    try {
-      const parsed = EditNoteSchema.safeParse(await req.json())
-      if (!parsed.success) {
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:statuses']],
+    async (req, context) => {
+      const { params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
+          data: ERROR_404,
+          responseStatusCode: 404
         })
-      }
-      const changes = parsed.data
-      const mediaIds =
-        changes.media_ids === undefined
-          ? undefined
-          : [...new Set(changes.media_ids)]
-      if (
-        mediaIds !== undefined &&
-        mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS
-      ) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
-      }
 
-      let updatedNote
-
-      const shouldUpdateContent =
-        changes.status !== undefined ||
-        changes.spoiler_text !== undefined ||
-        mediaIds !== undefined
-      const visibility = changes.visibility
-
-      if (!shouldUpdateContent && visibility === undefined) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
-      }
-
-      const existingStatus = await database.getStatus({ statusId })
-      if (
-        !existingStatus ||
-        existingStatus.type !== StatusType.enum.Note ||
-        existingStatus.actorId !== currentActor.id
-      ) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_403,
-          responseStatusCode: 403
-        })
-      }
-
-      const attachments =
-        mediaIds === undefined
-          ? undefined
-          : await getAttachmentsFromMediaIds(database, currentActor, mediaIds)
-      if (attachments === null) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
-      }
-      const changesTextOrMedia =
-        changes.status !== undefined || mediaIds !== undefined
-      if (changesTextOrMedia) {
-        const effectiveText =
-          changes.status === undefined ? existingStatus.text : changes.status
-        const effectiveAttachments = (
-          attachments === undefined
-            ? existingStatus.attachments
-            : [
-                ...attachments,
-                ...existingStatus.attachments.filter(
-                  (attachment) =>
-                    (attachment.mediaId === null ||
-                      attachment.mediaId === undefined) &&
-                    !isFitnessStatusAttachment(attachment)
-                )
-              ]
-        ).filter((attachment) => !isFitnessStatusAttachment(attachment))
-
+      const { database, currentActor } = context
+      const statusId = idToUrl(encodedStatusId)
+      try {
+        const parsed = EditNoteSchema.safeParse(await req.json())
+        if (!parsed.success) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_400,
+            responseStatusCode: 400
+          })
+        }
+        const changes = parsed.data
+        const mediaIds =
+          changes.media_ids === undefined
+            ? undefined
+            : [...new Set(changes.media_ids)]
         if (
-          effectiveText.trim().length === 0 &&
-          effectiveAttachments.length === 0
+          mediaIds !== undefined &&
+          mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS
         ) {
           return apiResponse({
             req,
@@ -233,17 +165,123 @@ export const PUT = traceApiRoute(
             responseStatusCode: 422
           })
         }
-      }
 
-      if (visibility !== undefined) {
-        updatedNote = await updateNoteVisibilityFromUserInput({
-          statusId,
-          currentActor,
-          visibility,
-          publish: !shouldUpdateContent,
-          status: existingStatus,
-          database
-        })
+        let updatedNote
+
+        const shouldUpdateContent =
+          changes.status !== undefined ||
+          changes.spoiler_text !== undefined ||
+          mediaIds !== undefined
+        const visibility = changes.visibility
+
+        if (!shouldUpdateContent && visibility === undefined) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+
+        const existingStatus = await database.getStatus({ statusId })
+        if (
+          !existingStatus ||
+          existingStatus.type !== StatusType.enum.Note ||
+          existingStatus.actorId !== currentActor.id
+        ) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
+        }
+
+        const attachments =
+          mediaIds === undefined
+            ? undefined
+            : await getAttachmentsFromMediaIds(database, currentActor, mediaIds)
+        if (attachments === null) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+        const changesTextOrMedia =
+          changes.status !== undefined || mediaIds !== undefined
+        if (changesTextOrMedia) {
+          const effectiveText =
+            changes.status === undefined ? existingStatus.text : changes.status
+          const effectiveAttachments = (
+            attachments === undefined
+              ? existingStatus.attachments
+              : [
+                  ...attachments,
+                  ...existingStatus.attachments.filter(
+                    (attachment) =>
+                      (attachment.mediaId === null ||
+                        attachment.mediaId === undefined) &&
+                      !isFitnessStatusAttachment(attachment)
+                  )
+                ]
+          ).filter((attachment) => !isFitnessStatusAttachment(attachment))
+
+          if (
+            effectiveText.trim().length === 0 &&
+            effectiveAttachments.length === 0
+          ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
+        }
+
+        if (visibility !== undefined) {
+          updatedNote = await updateNoteVisibilityFromUserInput({
+            statusId,
+            currentActor,
+            visibility,
+            publish: !shouldUpdateContent,
+            status: existingStatus,
+            database
+          })
+          if (!updatedNote)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_403,
+              responseStatusCode: 403
+            })
+        }
+
+        if (shouldUpdateContent) {
+          updatedNote = await updateNoteFromUserInput({
+            statusId,
+            currentActor,
+            text: changes.status,
+            summary: changes.spoiler_text,
+            attachments,
+            publish: true,
+            status:
+              updatedNote?.type === StatusType.enum.Note
+                ? updatedNote
+                : existingStatus,
+            database
+          })
+          if (!updatedNote)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_403,
+              responseStatusCode: 403
+            })
+        }
+
         if (!updatedNote)
           return apiResponse({
             req,
@@ -251,123 +289,95 @@ export const PUT = traceApiRoute(
             data: ERROR_403,
             responseStatusCode: 403
           })
-      }
-
-      if (shouldUpdateContent) {
-        updatedNote = await updateNoteFromUserInput({
-          statusId,
-          currentActor,
-          text: changes.status,
-          summary: changes.spoiler_text,
-          attachments,
-          publish: true,
-          status:
-            updatedNote?.type === StatusType.enum.Note
-              ? updatedNote
-              : existingStatus,
-          database
-        })
-        if (!updatedNote)
+        if (updatedNote.type === StatusType.enum.Announce) {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: ERROR_403,
-            responseStatusCode: 403
+            data: ERROR_500,
+            responseStatusCode: 500
           })
-      }
+        }
 
-      if (!updatedNote)
+        const mastodonStatus = await getMastodonStatus(
+          database,
+          updatedNote,
+          currentActor.id
+        )
+        if (!mastodonStatus)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_500,
+            responseStatusCode: 500
+          })
+
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: mastodonStatus
+        })
+      } catch {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+    }
+  )
+)
+
+export const DELETE = traceApiRoute(
+  'deleteStatus',
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:statuses']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const statusId = idToUrl(encodedStatusId)
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      // Only owner can delete
+      if (status.actorId !== currentActor.id) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: ERROR_403,
           responseStatusCode: 403
         })
-      if (updatedNote.type === StatusType.enum.Announce) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_500,
-          responseStatusCode: 500
-        })
       }
 
+      // Get the status for return before deletion
       const mastodonStatus = await getMastodonStatus(
         database,
-        updatedNote,
+        status,
         currentActor.id
       )
-      if (!mastodonStatus)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_500,
-          responseStatusCode: 500
-        })
+
+      // Delete the status and send Delete activity
+      await deleteStatusFromUserInput({ currentActor, statusId, database })
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatus
-      })
-    } catch {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: mastodonStatus ?? {}
       })
     }
-  })
-)
-
-export const DELETE = traceApiRoute(
-  'deleteStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    const statusId = idToUrl(encodedStatusId)
-    const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    // Only owner can delete
-    if (status.actorId !== currentActor.id) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_403,
-        responseStatusCode: 403
-      })
-    }
-
-    // Get the status for return before deletion
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      status,
-      currentActor.id
-    )
-
-    // Delete the status and send Delete activity
-    await deleteStatusFromUserInput({ currentActor, statusId, database })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus ?? {}
-    })
-  })
+  )
 )

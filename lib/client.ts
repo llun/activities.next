@@ -2,6 +2,7 @@ import { Duration } from '@/lib/components/post-box/poll-choices'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
+import type { DirectConversation } from '@/lib/types/database/operations'
 import {
   Attachment,
   PostBoxAttachment,
@@ -11,10 +12,11 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
   message: string
@@ -200,8 +202,7 @@ export const createPoll = async ({
     }
   }
 
-  // TODO: Continue on create poll
-  await fetch('/api/v1/accounts/outbox', {
+  const response = await fetch('/api/v1/accounts/outbox', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -217,6 +218,9 @@ export const createPoll = async ({
       visibility
     })
   })
+  if (response.status !== 200) {
+    throw new Error('Fail to create a new poll')
+  }
 }
 
 export interface DefaultStatusParams {
@@ -1845,4 +1849,191 @@ export const getDistinctFitnessActivityTypes = async ({
   )
   if (!response.ok) return []
   return response.json()
+}
+
+export type DirectConversationView = DirectConversation & {
+  accounts: MastodonAccount[]
+}
+
+export interface GetConversationsResult {
+  conversations: DirectConversationView[]
+}
+
+export const getConversations = async ({
+  limit,
+  maxId,
+  minId
+}: {
+  limit?: number
+  maxId?: string
+  minId?: string
+} = {}): Promise<GetConversationsResult> => {
+  const url = new URL(`${window.origin}/api/v1/conversations`)
+  url.searchParams.set('format', TimelineFormat.enum.activities_next)
+  if (limit !== undefined) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (minId) url.searchParams.set('min_id', minId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) return { conversations: [] }
+
+  const data = (await response.json()) as Partial<GetConversationsResult>
+  return { conversations: data.conversations ?? [] }
+}
+
+export interface GetConversationStatusesResult {
+  statuses: Status[]
+  nextMaxStatusId: string | null
+}
+
+export const getConversationStatuses = async ({
+  conversationId,
+  maxStatusId,
+  minStatusId,
+  limit
+}: {
+  conversationId: string
+  maxStatusId?: string
+  minStatusId?: string
+  limit?: number
+}): Promise<GetConversationStatusesResult> => {
+  const url = new URL(
+    `${window.origin}/api/v1/conversations/${conversationId}/statuses`
+  )
+  url.searchParams.set('format', TimelineFormat.enum.activities_next)
+  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
+  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
+  if (limit) url.searchParams.set('limit', `${limit}`)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) {
+    return { statuses: [], nextMaxStatusId: null }
+  }
+
+  const data = (await response.json()) as Partial<GetConversationStatusesResult>
+  return {
+    statuses: data.statuses ?? [],
+    nextMaxStatusId: data.nextMaxStatusId ?? null
+  }
+}
+
+export const markConversationRead = async ({
+  conversationId
+}: {
+  conversationId: string
+}) => {
+  const response = await fetch(`/api/v1/conversations/${conversationId}/read`, {
+    method: 'POST',
+    headers: { Accept: 'application/json' }
+  })
+  return response.ok
+}
+
+export const hideConversation = async ({
+  conversationId
+}: {
+  conversationId: string
+}) => {
+  const response = await fetch(`/api/v1/conversations/${conversationId}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' }
+  })
+  return response.ok
+}
+
+export const searchAccounts = async ({
+  q,
+  limit = 5,
+  resolve = true
+}: {
+  q: string
+  limit?: number
+  resolve?: boolean
+}): Promise<MastodonAccount[]> => {
+  const url = new URL(`${window.origin}/api/v1/accounts/search`)
+  url.searchParams.set('q', q)
+  url.searchParams.set('limit', `${limit}`)
+  url.searchParams.set('resolve', resolve ? 'true' : 'false')
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) return []
+  return (await response.json()) as MastodonAccount[]
+}
+
+const accountMention = (account: MastodonAccount) =>
+  `@${account.acct || account.username}`
+
+const getReplyParticipantIds = (replyStatus: Status) =>
+  new Set(
+    [replyStatus.actorId, ...replyStatus.to, ...replyStatus.cc]
+      .map((id) => normalizeActorId(id))
+      .filter((id): id is string => Boolean(id))
+  )
+
+const isReplyParticipant = (
+  account: MastodonAccount,
+  replyParticipantIds: Set<string>
+) => {
+  const accountActorId = normalizeActorId(idToUrl(account.id))
+  if (!accountActorId) return false
+  return replyParticipantIds.has(accountActorId)
+}
+
+export interface CreateDirectMessageResult {
+  uri: string
+  [key: string]: unknown
+}
+
+export const createDirectMessage = async ({
+  message,
+  recipients,
+  replyStatus
+}: {
+  message: string
+  recipients: MastodonAccount[]
+  replyStatus?: Status
+}): Promise<CreateDirectMessageResult> => {
+  const normalizedMessage = message.trim()
+  if (!normalizedMessage) {
+    throw new Error('Message must not be empty')
+  }
+  if (recipients.length === 0 && !replyStatus) {
+    throw new Error('At least one recipient is required')
+  }
+
+  const replyParticipantIds = replyStatus
+    ? getReplyParticipantIds(replyStatus)
+    : null
+  const recipientsToMention = replyParticipantIds
+    ? recipients.filter(
+        (recipient) => !isReplyParticipant(recipient, replyParticipantIds)
+      )
+    : recipients
+  const mentionPrefix = recipientsToMention.map(accountMention).join(' ')
+  const status = [mentionPrefix, normalizedMessage].filter(Boolean).join(' ')
+  const response = await fetch('/api/v1/statuses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
+    },
+    body: JSON.stringify({
+      status,
+      visibility: 'direct',
+      ...(replyStatus ? { in_reply_to_id: urlToId(replyStatus.id) } : {})
+    })
+  })
+  if (!response.ok) {
+    throw new Error('Failed to send message')
+  }
+  return (await response.json()) as CreateDirectMessageResult
 }

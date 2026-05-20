@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
@@ -98,84 +98,87 @@ const getNoteRequestInput = async (req: Request): Promise<unknown> => {
 
 export const POST = traceApiRoute(
   'createStatus',
-  OAuthGuard([Scope.enum.write], async (req, context) => {
-    const { currentActor, database } = context
-    try {
-      const content = await getNoteRequestInput(req)
-      const parsed = NoteSchema.safeParse(content)
-      if (!parsed.success) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
+  OAuthGuardAnyScope(
+    [Scope.enum.write, Scope.enum['write:statuses']],
+    async (req, context) => {
+      const { currentActor, database } = context
+      try {
+        const content = await getNoteRequestInput(req)
+        const parsed = NoteSchema.safeParse(content)
+        if (!parsed.success) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+        const note = parsed.data
+        const mediaIds = [...new Set(note.media_ids)]
+        if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+        const attachments = await getAttachmentsFromMediaIds(
+          database,
+          currentActor,
+          mediaIds
+        )
+        if (!attachments) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+        const status = await createNoteFromUserInput({
+          currentActor,
+          text: note.status,
+          summary: note.spoiler_text,
+          replyNoteId: note.in_reply_to_id,
+          visibility: note.visibility,
+          attachments,
+          database
         })
-      }
-      const note = parsed.data
-      const mediaIds = [...new Set(note.media_ids)]
-      if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
-      }
-      const attachments = await getAttachmentsFromMediaIds(
-        database,
-        currentActor,
-        mediaIds
-      )
-      if (!attachments) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
-      }
-      const status = await createNoteFromUserInput({
-        currentActor,
-        text: note.status,
-        summary: note.spoiler_text,
-        replyNoteId: note.in_reply_to_id,
-        visibility: note.visibility,
-        attachments,
-        database
-      })
-      if (!status)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_422,
-          responseStatusCode: 422
-        })
+        if (!status)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
 
-      const mastodonStatus = await getMastodonStatus(
-        database,
-        status,
-        currentActor.id
-      )
-      if (!mastodonStatus)
+        const mastodonStatus = await getMastodonStatus(
+          database,
+          status,
+          currentActor.id
+        )
+        if (!mastodonStatus)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_500,
+            responseStatusCode: 500
+          })
+
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_500,
-          responseStatusCode: 500
+          data: mastodonStatus
         })
-
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: mastodonStatus
-      })
-    } catch {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
+      } catch {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
     }
-  })
+  )
 )

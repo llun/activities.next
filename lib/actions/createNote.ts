@@ -20,7 +20,11 @@ import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
-import { Actor, getMention } from '@/lib/types/domain/actor'
+import {
+  Actor,
+  getMention,
+  getMentionFromActorID
+} from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import {
@@ -29,6 +33,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -61,6 +66,75 @@ const getNotificationEligibleActorIds = async (
   )
 }
 
+export const getExplicitMentions = (
+  text: string,
+  mentions: Mention[]
+): Mention[] => {
+  const explicitMentionNames = new Set(
+    Array.from(text.matchAll(MENTION_GLOBAL_REGEX)).map((match) =>
+      match[0].trim()
+    )
+  )
+
+  return mentions.filter((mention) =>
+    explicitMentionNames.has(mention.name || '')
+  )
+}
+
+const isActorRecipient = (recipient: string) =>
+  recipient !== ACTIVITY_STREAM_PUBLIC &&
+  recipient !== ACTIVITY_STREAM_PUBLIC_COMPACT &&
+  !recipient.endsWith('/followers')
+
+export const getMentionTagsForStatus = ({
+  mentions,
+  currentActor,
+  replyStatus,
+  effectiveVisibility,
+  replyVisibility
+}: {
+  mentions: Mention[]
+  currentActor: Actor
+  replyStatus: Status | null
+  effectiveVisibility: MastodonVisibility
+  replyVisibility: MastodonVisibility | null
+}): Mention[] => {
+  if (
+    effectiveVisibility !== 'direct' ||
+    !replyStatus ||
+    replyVisibility !== 'direct'
+  ) {
+    return mentions
+  }
+
+  const mentionsByHref = new Map(
+    mentions.map((mention) => [mention.href, mention])
+  )
+  const inheritedActorIds = [
+    replyStatus.actorId,
+    ...replyStatus.to,
+    ...replyStatus.cc
+  ]
+
+  for (const actorId of inheritedActorIds) {
+    if (
+      actorId === currentActor.id ||
+      !isActorRecipient(actorId) ||
+      mentionsByHref.has(actorId)
+    ) {
+      continue
+    }
+
+    mentionsByHref.set(actorId, {
+      type: 'Mention',
+      href: actorId,
+      name: getMentionFromActorID(actorId, true)
+    })
+  }
+
+  return [...mentionsByHref.values()]
+}
+
 /**
  * Determines the 'to' recipients based on visibility and reply context.
  *
@@ -68,7 +142,7 @@ const getNotificationEligibleActorIds = async (
  * - public: [Public]
  * - unlisted: [followersUrl]
  * - private: [followersUrl]
- * - direct: [specific recipients from mentions]
+ * - direct: [specific recipients from mentions], plus existing direct-thread recipients on direct replies
  *
  * When replying, inherits visibility from the parent status if not specified.
  */
@@ -76,13 +150,20 @@ export const statusRecipientsTo = (
   actor: Actor,
   mentions: Mention[],
   replyStatus: Status | null,
-  visibility: MastodonVisibility = 'public'
+  visibility: MastodonVisibility = 'public',
+  replyVisibility: MastodonVisibility | null = getVisibilityFromReplyStatus(
+    replyStatus
+  )
 ): string[] => {
-  // For direct messages, only send to mentioned users
+  // Direct replies only inherit parent recipients when the parent is already
+  // direct; otherwise explicit direct recipients stay isolated from public or
+  // followers audiences on the parent.
   if (visibility === 'direct') {
     const recipients = mentions.map((item) => item.href)
-    // If replying, also include the original author
-    if (replyStatus) {
+    if (replyStatus && replyVisibility === 'direct') {
+      recipients.push(...replyStatus.to)
+      // If replying to a direct thread, also include the original author even
+      // when they were only in cc.
       recipients.push(replyStatus.actorId)
     }
     return [...new Set(recipients)] // Remove duplicates
@@ -113,19 +194,23 @@ export const statusRecipientsTo = (
  * - public: [followersUrl, ...mentions]
  * - unlisted: [Public, ...mentions]
  * - private: [...mentions only]
- * - direct: [] (no cc for direct messages)
+ * - direct: parent cc for direct-thread replies, otherwise [] (no cc for new direct messages)
  */
 export const statusRecipientsCC = (
   actor: Actor,
   mentions: Mention[],
   replyStatus: Status | null,
-  visibility: MastodonVisibility = 'public'
+  visibility: MastodonVisibility = 'public',
+  replyVisibility: MastodonVisibility | null = getVisibilityFromReplyStatus(
+    replyStatus
+  )
 ): string[] => {
   const mentionHrefs = mentions.map((item) => item.href)
 
-  // For direct messages, no cc recipients
   if (visibility === 'direct') {
-    return []
+    return replyStatus && replyVisibility === 'direct'
+      ? [...new Set(replyStatus.cc)]
+      : []
   }
 
   // For private (followers only), only include mentions
@@ -221,6 +306,7 @@ export const createNoteFromUserInput = async ({
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
+  const explicitMentions = getExplicitMentions(text, mentions)
 
   // Determine effective visibility:
   // 1. Use provided visibility if specified
@@ -228,19 +314,50 @@ export const createNoteFromUserInput = async ({
   // 3. Default to 'public'
   const replyVisibility = getVisibilityFromReplyStatus(replyStatus)
   const effectiveVisibility = visibility ?? replyVisibility ?? 'public'
+  const isReplyingToDirectThread = replyStatus && replyVisibility === 'direct'
+  if (
+    effectiveVisibility === 'direct' &&
+    explicitMentions.length === 0 &&
+    !isReplyingToDirectThread
+  ) {
+    span.end()
+    return null
+  }
+  const recipientMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility !== 'direct'
+      ? explicitMentions
+      : mentions
+  const shouldNotifyReply =
+    Boolean(replyStatus) &&
+    !(
+      effectiveVisibility === 'direct' &&
+      replyStatus &&
+      replyVisibility !== 'direct'
+    )
 
   const to = statusRecipientsTo(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
   const cc = statusRecipientsCC(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
+  const mentionTags = getMentionTagsForStatus({
+    mentions,
+    currentActor,
+    replyStatus,
+    effectiveVisibility,
+    replyVisibility
+  })
 
   const createdStatus = await database.createNote({
     id: statusId,
@@ -261,7 +378,7 @@ export const createNoteFromUserInput = async ({
   // mentionTimelineRule can verify mentions via tags rather than text content.
   const hashtags = getHashtags(text, currentActor.domain)
   await Promise.all([
-    ...mentions.map((mention) =>
+    ...mentionTags.map((mention) =>
       database.createTag({
         statusId,
         name: mention.name || '',
@@ -301,18 +418,28 @@ export const createNoteFromUserInput = async ({
   }
 
   // Create notifications for replies and mentions
+  const notificationMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility === 'direct'
+      ? mentionTags
+      : recipientMentions
   const notificationPromises = []
   const eligibleNotificationActorIds = await getNotificationEligibleActorIds(
     database,
     [
-      ...(replyStatus ? [replyStatus.actorId] : []),
-      ...mentions.map((mention) => mention.href)
+      ...(shouldNotifyReply && replyStatus ? [replyStatus.actorId] : []),
+      ...notificationMentions.map((mention) => mention.href)
     ],
     currentActor.id
   )
 
   // Create reply notification if this is a reply
-  if (replyStatus && eligibleNotificationActorIds.has(replyStatus.actorId)) {
+  if (
+    shouldNotifyReply &&
+    replyStatus &&
+    eligibleNotificationActorIds.has(replyStatus.actorId)
+  ) {
     notificationPromises.push(
       database.createNotification({
         actorId: replyStatus.actorId,
@@ -325,7 +452,7 @@ export const createNoteFromUserInput = async ({
   }
 
   // Create mention notifications
-  for (const mention of mentions) {
+  for (const mention of notificationMentions) {
     const mentionedActorId = mention.href
     // Don't create notification for self-mentions
     if (eligibleNotificationActorIds.has(mentionedActorId)) {
@@ -358,7 +485,11 @@ export const createNoteFromUserInput = async ({
   // Uses the fetched status (with actor info) to build email content.
   const seenActorIds = new Set<string>()
 
-  if (replyStatus && eligibleNotificationActorIds.has(replyStatus.actorId)) {
+  if (
+    shouldNotifyReply &&
+    replyStatus &&
+    eligibleNotificationActorIds.has(replyStatus.actorId)
+  ) {
     seenActorIds.add(replyStatus.actorId)
     database
       .getActorFromId({ id: replyStatus.actorId })
@@ -387,7 +518,7 @@ export const createNoteFromUserInput = async ({
       })
   }
 
-  for (const mention of mentions) {
+  for (const mention of notificationMentions) {
     const mentionedActorId = mention.href
     if (
       !seenActorIds.has(mentionedActorId) &&

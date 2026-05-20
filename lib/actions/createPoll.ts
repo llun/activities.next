@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 
 import {
+  getExplicitMentions,
+  getMentionTagsForStatus,
   getVisibilityFromReplyStatus,
   statusRecipientsCC,
   statusRecipientsTo
@@ -47,26 +49,51 @@ export const createPollFromUserInput = async ({
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
+  const explicitMentions = getExplicitMentions(text, mentions)
 
   // Determine effective visibility:
   // 1. Use explicit visibility if provided
   // 2. Inherit from reply status if replying
   // 3. Default to 'public'
-  const effectiveVisibility =
-    visibility ?? getVisibilityFromReplyStatus(replyStatus) ?? 'public'
+  const replyVisibility = getVisibilityFromReplyStatus(replyStatus)
+  const effectiveVisibility = visibility ?? replyVisibility ?? 'public'
+  const isReplyingToDirectThread = replyStatus && replyVisibility === 'direct'
+  if (
+    effectiveVisibility === 'direct' &&
+    explicitMentions.length === 0 &&
+    !isReplyingToDirectThread
+  ) {
+    span.end()
+    return null
+  }
+  const recipientMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility !== 'direct'
+      ? explicitMentions
+      : mentions
 
   const to = statusRecipientsTo(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
   const cc = statusRecipientsCC(
     currentActor,
-    mentions,
+    recipientMentions,
     replyStatus,
-    effectiveVisibility
+    effectiveVisibility,
+    replyVisibility
   )
+  const mentionTags = getMentionTagsForStatus({
+    mentions,
+    currentActor,
+    replyStatus,
+    effectiveVisibility,
+    replyVisibility
+  })
 
   const createdPoll = await database.createPoll({
     id: statusId,
@@ -84,7 +111,7 @@ export const createPollFromUserInput = async ({
 
   await Promise.all([
     addStatusToTimelines(database, createdPoll),
-    ...mentions.map((mention) =>
+    ...mentionTags.map((mention) =>
       database.createTag({
         statusId,
         name: mention.name || '',
@@ -99,4 +126,7 @@ export const createPollFromUserInput = async ({
     span.end()
     return null
   }
+
+  span.end()
+  return status
 }

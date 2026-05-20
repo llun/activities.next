@@ -7,6 +7,7 @@ describe('buildNavItems', () => {
   it('places bookmarks before notifications in the base navigation', () => {
     expect(itemHrefs({})).toEqual([
       '/',
+      '/messages',
       '/bookmarks',
       '/notifications',
       '/settings'
@@ -16,6 +17,7 @@ describe('buildNavItems', () => {
   it('anchors fitness before notifications', () => {
     expect(itemHrefs({ fitnessUrl: '/@llun@llun.test/fitness' })).toEqual([
       '/',
+      '/messages',
       '/bookmarks',
       '/@llun@llun.test/fitness',
       '/notifications',
@@ -26,6 +28,7 @@ describe('buildNavItems', () => {
   it('anchors admin before settings', () => {
     expect(itemHrefs({ isAdmin: true })).toEqual([
       '/',
+      '/messages',
       '/bookmarks',
       '/notifications',
       '/admin',
@@ -38,6 +41,7 @@ describe('buildNavItems', () => {
       itemHrefs({ fitnessUrl: '/@llun@llun.test/fitness', isAdmin: true })
     ).toEqual([
       '/',
+      '/messages',
       '/bookmarks',
       '/@llun@llun.test/fitness',
       '/notifications',

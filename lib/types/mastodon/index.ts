@@ -3,6 +3,7 @@ export * from './account/field'
 export * from './account/source'
 export * from './account/relationship'
 export * from './customEmoji'
+export * from './conversation'
 export * from './filterResult'
 export * from './previewCard'
 

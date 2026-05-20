@@ -397,7 +397,7 @@ describe('#OAuthGuard', () => {
       expect(mockHandler).toHaveBeenCalled()
       expect(mockVerifyAccessToken).toHaveBeenCalledWith(token, {
         jwksUrl: 'https://llun.test/api/auth/jwks',
-        scopes: [Scope.enum.read],
+        scopes: [],
         verifyOptions: {
           issuer: 'https://llun.test',
           audience: 'https://llun.test'
@@ -640,6 +640,29 @@ describe('#OAuthGuard', () => {
       expect(response.status).toBe(401)
     })
 
+    test('returns 401 when no required scopes are configured', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('empty-required-scopes-opaque'), {
+        token: hashToken('empty-required-scopes-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer empty-required-scopes-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
     test('allows opaque token when any requested scope matches', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
@@ -664,6 +687,98 @@ describe('#OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('allows parent read scope to satisfy read:conversations', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('read-parent-opaque'), {
+        token: hashToken('read-parent-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum['read:conversations']], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer read-parent-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('allows parent read scope to satisfy read:statuses', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('read-parent-statuses-opaque'), {
+        token: hashToken('read-parent-statuses-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum['read:statuses']], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer read-parent-statuses-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('rejects sibling conversation scope for status reads', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('conversation-read-opaque'), {
+        token: hashToken('conversation-read-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read:conversations'])
+      })
+
+      const guard = OAuthGuard([Scope.enum['read:statuses']], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer conversation-read-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    test('rejects child read scope when parent read is required', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('read-conversations-child-opaque'), {
+        token: hashToken('read-conversations-child-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read:conversations'])
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer read-conversations-child-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
     })
 
     test('returns 401 when opaque token has no referenceId', async () => {

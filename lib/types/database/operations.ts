@@ -122,6 +122,7 @@ export interface ActorDatabase {
     params: CreateActorParams
   ): Promise<Mastodon.Account | null>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | null>
+  getActorsFromIds(params: GetActorsFromIdsParams): Promise<Actor[]>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | null>
   getActorFromUsername(
     params: GetActorFromUsernameParams
@@ -606,6 +607,81 @@ export interface StatusDatabase {
 }
 
 // ============================================================================
+// Direct Conversation Database
+// ============================================================================
+
+export type DirectConversation = {
+  id: string
+  actorId: string
+  conversationId: string
+  rootStatusId: string
+  participantActorIds: string[]
+  lastStatusId: string
+  lastStatus: Status
+  lastStatusCreatedAt: number
+  unread: boolean
+  readAt: number | null
+  hiddenAt: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type SyncDirectConversationForStatusParams = {
+  status: Status
+  excludedLocalActorIds?: string[]
+}
+
+export type GetDirectConversationsParams = {
+  actorId: string
+  limit?: number
+  maxId?: string | null
+  minId?: string | null
+}
+
+export type GetDirectConversationParams = {
+  actorId: string
+  conversationId: string
+  includeHidden?: boolean
+}
+
+export type MarkDirectConversationReadParams = {
+  actorId: string
+  conversationId: string
+}
+
+export type HideDirectConversationParams = {
+  actorId: string
+  conversationId: string
+}
+
+export type GetDirectConversationStatusesParams = {
+  actorId: string
+  conversationId: string
+  limit?: number
+  maxStatusId?: string | null
+  minStatusId?: string | null
+}
+
+export interface DirectConversationDatabase {
+  syncDirectConversationForStatus(
+    params: SyncDirectConversationForStatusParams
+  ): Promise<void>
+  getDirectConversations(
+    params: GetDirectConversationsParams
+  ): Promise<DirectConversation[]>
+  getDirectConversation(
+    params: GetDirectConversationParams
+  ): Promise<DirectConversation | null>
+  markDirectConversationRead(
+    params: MarkDirectConversationReadParams
+  ): Promise<DirectConversation | null>
+  hideDirectConversation(params: HideDirectConversationParams): Promise<void>
+  getDirectConversationStatuses(
+    params: GetDirectConversationStatusesParams
+  ): Promise<Status[]>
+}
+
+// ============================================================================
 // Follow Database
 // ============================================================================
 
@@ -1051,9 +1127,14 @@ export const Scope = z.enum([
   'profile',
   'email',
   'read',
+  'read:accounts',
   'read:bookmarks',
+  'read:conversations',
+  'read:statuses',
   'write',
   'write:bookmarks',
+  'write:statuses',
+  'write:conversations',
   'follow',
   'push'
 ])
@@ -1064,9 +1145,14 @@ export const UsableScopes = [
   Scope.enum.profile,
   Scope.enum.email,
   Scope.enum.read,
+  Scope.enum['read:accounts'],
   Scope.enum['read:bookmarks'],
+  Scope.enum['read:conversations'],
+  Scope.enum['read:statuses'],
   Scope.enum.write,
   Scope.enum['write:bookmarks'],
+  Scope.enum['write:statuses'],
+  Scope.enum['write:conversations'],
   Scope.enum.follow
 ]
 
