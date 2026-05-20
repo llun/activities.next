@@ -28,7 +28,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
       aria-label={likeLabel}
       disabled={status.actorId === currentActor?.id}
       className={cn(
-        'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed',
+        'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
         isActorLiked ? 'text-red-500' : 'hover:text-red-500'
       )}
       onClick={async (e) => {

@@ -649,6 +649,33 @@ describe('Post', () => {
     })
   })
 
+  it('uses disabled opacity styling for async-capable status action buttons', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        showActions
+        status={status}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const primaryActions = screen.getByRole('group', {
+      name: 'Post primary actions'
+    })
+
+    expect(
+      within(primaryActions).getByRole('button', { name: 'Repost' })
+    ).toHaveClass('disabled:opacity-50')
+    expect(
+      within(primaryActions).getByRole('button', { name: 'Like' })
+    ).toHaveClass('disabled:opacity-50')
+    expect(
+      within(primaryActions).getByRole('button', { name: 'Bookmark' })
+    ).toHaveClass('disabled:opacity-50')
+  })
+
   it('keeps visible social action counts in accessible labels', () => {
     render(
       <Post

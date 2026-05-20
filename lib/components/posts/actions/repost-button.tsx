@@ -41,7 +41,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
       title={repostLabel}
       aria-label={repostLabel}
       className={cn(
-        'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed',
+        'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
         repostedStatusId !== null ? 'text-green-500' : 'hover:text-green-500'
       )}
       onClick={async (e) => {
