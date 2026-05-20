@@ -1,0 +1,21 @@
+app/api/v1/accounts/search/route.test.ts
+  s_4941627279dc6b::t_a6951e33f1677a 25
+lib/services/mastodon/getMastodonStatus.ts
+  s_4941627279dc6b::t_6497a4ba802cf9 16,151-182,383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "05fa7b89ba74a478512a597b22891f4d6c09a386",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
