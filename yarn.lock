@@ -6004,14 +6004,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@upstash/qstash@npm:^2.10.1":
-  version: 2.10.1
-  resolution: "@upstash/qstash@npm:2.10.1"
+"@upstash/qstash@npm:^2.11.0":
+  version: 2.11.0
+  resolution: "@upstash/qstash@npm:2.11.0"
   dependencies:
     crypto-js: "npm:>=4.2.0"
     jose: "npm:^5.2.3"
     neverthrow: "npm:^7.0.1"
-  checksum: 10c0/d88f30c87ae5549e17b476c2716b50723b5db962a255fc3fb8e36a91f3c910b5037e81698385768bb525fca16a2c18c3e7005e862869d92668f5a73ba3553efc
+  checksum: 10c0/226dc11a5402bf9708a6565d68fd7f8e36208eff260d7baacb5ce03c9e7c681c139e77c4c17e07ed9704e467d345f17b7f836ba08fd0443a924e589ed4749341
   languageName: node
   linkType: hard
 
@@ -6101,7 +6101,7 @@ __metadata:
     "@types/yauzl": "npm:^2.10.3"
     "@typescript-eslint/eslint-plugin": "npm:^8.59.2"
     "@typescript-eslint/parser": "npm:^8.59.1"
-    "@upstash/qstash": "npm:^2.10.1"
+    "@upstash/qstash": "npm:^2.11.0"
     bcrypt: "npm:^6.0.0"
     better-auth: "npm:^1.6.9"
     better-call: "npm:2.0.3"
