@@ -841,18 +841,28 @@ export const DirectConversationSQLDatabaseMixin = (
     }: MarkDirectConversationReadParams) {
       if (!isValidMembershipId(conversationId)) return null
 
-      const row = await buildConversationQuery({ actorId })
-        .where('direct_conversation_memberships.id', conversationId)
-        .first<DirectConversationMembershipRow>()
-      if (!row) return null
+      // Lock the membership row so a concurrent status sync cannot interleave
+      // between the read and the update and have its unread flag overwritten.
+      const updated = await database.transaction(async (trx) => {
+        const row = await trx('direct_conversation_memberships')
+          .where({ id: conversationId, actorId })
+          .whereNull('hiddenAt')
+          .forUpdate()
+          .first<DirectConversationMembershipRow>()
+        if (!row) return false
 
-      await database('direct_conversation_memberships')
-        .where('id', row.id)
-        .update({
-          unread: false,
-          readAt: new Date(),
-          updatedAt: new Date()
-        })
+        const currentTime = new Date()
+        await trx('direct_conversation_memberships')
+          .where('id', row.id)
+          .update({
+            unread: false,
+            readAt: currentTime,
+            updatedAt: currentTime
+          })
+        return true
+      })
+
+      if (!updated) return null
 
       return getDirectConversationByMembershipId({ actorId, conversationId })
     },

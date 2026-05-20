@@ -706,6 +706,37 @@ describe('MessagesPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows an error when the conversation thread fails to load', async () => {
+    ;(getConversationStatuses as jest.Mock).mockRejectedValue(new Error('boom'))
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load messages'
+    )
+  })
+
+  it('shows an error when loading older messages fails', async () => {
+    ;(getConversationStatuses as jest.Mock)
+      .mockResolvedValueOnce({
+        statuses: [status('first-status', 'First conversation status')],
+        nextMaxStatusId: 'older-cursor'
+      })
+      .mockRejectedValueOnce(new Error('boom'))
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    expect(
+      await screen.findByText('First conversation status')
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load more messages'
+    )
+  })
+
   it('retries mark-as-read after a transient failure when the user reselects the conversation', async () => {
     const initialMarkRead = createDeferred<boolean>()
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({

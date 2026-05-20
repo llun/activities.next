@@ -179,6 +179,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         if (latestThreadRequestIdRef.current !== requestId) return
         setThreadStatuses(result.statuses)
         setNextMaxStatusId(result.nextMaxStatusId)
+      } catch (_error) {
+        if (latestThreadRequestIdRef.current === requestId) {
+          setError('Could not load messages')
+        }
       } finally {
         if (latestThreadRequestIdRef.current === requestId) {
           setThreadLoading(false)
@@ -265,6 +269,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         return [...previousStatuses, ...newStatuses]
       })
       setNextMaxStatusId(result.nextMaxStatusId)
+    } catch (_error) {
+      if (latestThreadRequestIdRef.current === requestId) {
+        setError('Could not load more messages')
+      }
     } finally {
       if (
         !shouldPreserveScroll &&
