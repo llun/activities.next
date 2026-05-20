@@ -7,15 +7,24 @@ import {
 import {
   Status,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  hasStatusBeenEdited
 } from '@/lib/types/domain/status'
 import { getMentionFromTag } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-export const getNoteFromStatus = (status: Status): Note | null => {
+interface GetNoteFromStatusOptions {
+  includeUpdated?: boolean
+}
+
+export const getNoteFromStatus = (
+  status: Status,
+  options: GetNoteFromStatusOptions = {}
+): Note | null => {
   const actualStatus = getOriginalStatus(status)
   if (actualStatus.type === StatusType.enum.Poll) return null
+  const includeUpdated = options.includeUpdated || hasStatusBeenEdited(status)
 
   return Note.parse({
     id: actualStatus.id,
@@ -43,7 +52,7 @@ export const getNoteFromStatus = (status: Status): Note | null => {
         getNoteFromStatus(Status.parse(reply))
       )
     },
-    ...(actualStatus.updatedAt
+    ...(includeUpdated
       ? { updated: getISOTimeUTC(actualStatus.updatedAt) }
       : null)
   })

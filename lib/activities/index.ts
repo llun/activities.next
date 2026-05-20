@@ -152,7 +152,7 @@ export const sendUpdateNote = async ({
       }
     },
     async (span) => {
-      const note = getNoteFromStatus(status)
+      const note = getNoteFromStatus(status, { includeUpdated: true })
       if (!note) {
         span.end()
         return

@@ -140,6 +140,21 @@ describe('Create note action', () => {
       })
     })
 
+    it('omits ActivityPub updated timestamp for newly created replies', async () => {
+      const status = (await createNoteFromUserInput({
+        text: '@test2@llun.test Hello from a new reply',
+        currentActor: actor1,
+        replyNoteId: `${actor2?.id}/statuses/post-2`,
+        database
+      })) as StatusNote
+
+      const note = getNoteFromStatus(status) as Note
+
+      expect(note.inReplyTo).toBe(`${actor2?.id}/statuses/post-2`)
+      expect(note.content).toContain('class="u-url mention"')
+      expect(note).not.toHaveProperty('updated')
+    })
+
     it('does not create reply notification or alert when reply target blocks source', async () => {
       await clearSettledNotificationAlerts()
       const originalStatus = (await createNoteFromUserInput({

@@ -2,7 +2,11 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { Mastodon } from '@/lib/types/activitypub'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  hasStatusBeenEdited
+} from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
@@ -142,7 +146,10 @@ export const getMastodonStatus = async (
   const baseData = {
     id: urlToId(status.id),
     created_at: getISOTimeUTC(status.createdAt),
-    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
+    edited_at:
+      status.type !== StatusType.enum.Announce && hasStatusBeenEdited(status)
+        ? getISOTimeUTC(status.updatedAt)
+        : null,
 
     sensitive: false,
     spoiler_text: '',
@@ -226,7 +233,9 @@ export const getMastodonStatus = async (
     favourites_count: status.totalLikes || 0,
     favourited: status.isActorLiked ?? false,
 
-    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
+    edited_at: hasStatusBeenEdited(status)
+      ? getISOTimeUTC(status.updatedAt)
+      : null,
 
     reblogged: status.actorAnnounceStatusId !== null,
     content: processStatusText(host, status),
