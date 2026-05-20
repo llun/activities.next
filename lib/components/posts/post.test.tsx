@@ -655,6 +655,7 @@ describe('Post', () => {
         host="activities.local"
         currentActor={status.actor ?? undefined}
         currentTime={currentTime}
+        editable
         showActions
         status={status}
         onShowAttachment={jest.fn()}
@@ -673,6 +674,15 @@ describe('Post', () => {
     ).toHaveClass('disabled:opacity-50')
     expect(
       within(primaryActions).getByRole('button', { name: 'Bookmark' })
+    ).toHaveClass('disabled:opacity-50')
+
+    const secondaryActions = screen.getByRole('group', {
+      name: 'Post secondary actions'
+    })
+    expect(
+      within(secondaryActions).getByRole('button', {
+        name: 'Visibility: Direct'
+      })
     ).toHaveClass('disabled:opacity-50')
   })
 

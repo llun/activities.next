@@ -285,12 +285,16 @@ export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
  * @see https://docs.joinmastodon.org/methods/statuses/#favourite
  */
 export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
-  await fetch(`/api/v1/statuses/${urlToId(statusId)}/favourite`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/favourite`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     }
-  })
+  )
+  return response.status === 200
 }
 
 export const bookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
@@ -381,12 +385,16 @@ export const getStatusFavouritedBy = async ({
  * @see https://docs.joinmastodon.org/methods/statuses/#unfavourite
  */
 export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
-  await fetch(`/api/v1/statuses/${urlToId(statusId)}/unfavourite`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/unfavourite`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     }
-  })
+  )
+  return response.status === 200
 }
 
 export const undoBookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
