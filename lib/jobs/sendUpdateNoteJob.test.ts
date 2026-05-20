@@ -8,6 +8,7 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 
 enableFetchMocks()
@@ -42,6 +43,8 @@ describe('Send update note job', () => {
       statusId: `${actor1.id}/statuses/post-1`,
       withReplies: false
     })) as Status
+    const note = getNoteFromStatus(status)
+    if (!note) fail('Note is required')
 
     await sendUpdateNoteJob(database, {
       id: 'job-id',
@@ -58,7 +61,10 @@ describe('Send update note job', () => {
       actor: actor1.id,
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
-      object: getNoteFromStatus(status)
+      object: {
+        ...note,
+        updated: getISOTimeUTC(status.updatedAt)
+      }
     })
   })
 

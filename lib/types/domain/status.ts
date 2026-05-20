@@ -123,6 +123,11 @@ export const getOriginalStatus = (status: Status): StatusNote | StatusPoll => {
   return status
 }
 
+export const hasStatusBeenEdited = (status: Status): boolean => {
+  const originalStatus = getOriginalStatus(status)
+  return originalStatus.edits.length > 0
+}
+
 export const EditableStatus = z.union([StatusNote, StatusPoll])
 export type EditableStatus = z.infer<typeof EditableStatus>
 
@@ -321,7 +326,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       ...(status.endAt <= Date.now()
         ? { closed: getISOTimeUTC(status.endAt) }
         : {}),
-      ...(status.updatedAt ? { updated: getISOTimeUTC(status.updatedAt) } : {})
+      ...(hasStatusBeenEdited(status)
+        ? { updated: getISOTimeUTC(status.updatedAt) }
+        : null)
     })
   }
 
@@ -362,7 +369,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     },
 
     published: getISOTimeUTC(originalStatus.createdAt),
-    ...(originalStatus.updatedAt
+    ...(hasStatusBeenEdited(originalStatus)
       ? { updated: getISOTimeUTC(originalStatus.updatedAt) }
       : null)
   })

@@ -9,6 +9,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
@@ -125,8 +126,31 @@ describe('#getMastodonStatus', () => {
       sensitive: false,
       url: `${ACTOR1_ID}/statuses/post-1`,
       created_at: expect.toBeString(),
-      edited_at: expect.toBeString()
+      edited_at: null
     })
+  })
+
+  it('marks an edited status with edited_at', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/mastodon-edited-note`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Original content',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const editedStatus = (await database.updateNote({
+      statusId,
+      text: 'Edited content',
+      summary: null
+    })) as Status
+
+    const mastodonStatus = await getMastodonStatus(database, editedStatus)
+
+    expect(mastodonStatus?.edited_at).toBe(
+      getISOTimeUTC(editedStatus.updatedAt)
+    )
   })
 
   it('processes and returns properly formatted content', async () => {
@@ -290,7 +314,7 @@ describe('#getMastodonStatus', () => {
         visibility: 'public',
         url: `${ACTOR2_ID}/statuses/post-2`,
         created_at: expect.toBeString(),
-        edited_at: expect.toBeString()
+        edited_at: null
       }
     })
   })
@@ -316,6 +340,35 @@ describe('#getMastodonStatus', () => {
       in_reply_to_id: urlToId(`${ACTOR1_ID}/statuses/post-1`),
       in_reply_to_account_id: urlToId(ACTOR1_ID)
     })
+  })
+
+  it('does not mark a newly created reply as edited', async () => {
+    const parentStatus = await database.createNote({
+      id: `${ACTOR2_ID}/statuses/mastodon-unedited-parent`,
+      url: `${ACTOR2_ID}/statuses/mastodon-unedited-parent`,
+      actorId: ACTOR2_ID,
+      text: 'Parent for unedited reply',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const replyStatus = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/mastodon-unedited-reply`,
+      url: `${ACTOR1_ID}/statuses/mastodon-unedited-reply`,
+      actorId: ACTOR1_ID,
+      text: '@test2@llun.test Reply with a linked actor mention',
+      reply: parentStatus.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR2_ID]
+    })
+
+    const mastodonStatus = await getMastodonStatus(database, replyStatus)
+
+    expect(mastodonStatus).toMatchObject({
+      in_reply_to_id: urlToId(parentStatus.id),
+      in_reply_to_account_id: urlToId(ACTOR2_ID),
+      edited_at: null
+    })
+    expect(mastodonStatus?.content).toContain('class="u-url mention"')
   })
 
   it('returns null when account is not found', async () => {
