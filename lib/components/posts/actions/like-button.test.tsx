@@ -123,4 +123,46 @@ describe('LikeButton', () => {
     ).toHaveAttribute('role', 'alert')
     expect(screen.getByRole('button', { name: 'Unlike, 1 like' })).toBeEnabled()
   })
+
+  it('syncs visible like state when status props update', () => {
+    const { rerender } = render(
+      <LikeButton currentActor={currentActor} status={status} />
+    )
+
+    expect(screen.getByRole('button', { name: 'Like' })).toBeEnabled()
+
+    rerender(
+      <LikeButton
+        currentActor={currentActor}
+        status={{ ...status, isActorLiked: true, totalLikes: 3 }}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Unlike, 3 likes' })
+    ).toBeEnabled()
+  })
+
+  it('clears like errors when status props update', async () => {
+    ;(likeStatus as jest.Mock).mockResolvedValue(false)
+    const { rerender } = render(
+      <LikeButton currentActor={currentActor} status={status} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Like' }))
+
+    expect(
+      await screen.findByText('Failed to like post. Please try again.')
+    ).toHaveAttribute('role', 'alert')
+
+    rerender(
+      <LikeButton
+        currentActor={currentActor}
+        status={{ ...status, totalLikes: 1 }}
+      />
+    )
+
+    expect(screen.queryByTestId('like-error')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Like, 1 like' })).toBeEnabled()
+  })
 })

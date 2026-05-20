@@ -783,13 +783,19 @@ describe('Post', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Like' })).toBeDisabled()
+    expect(
+      await screen.findByRole('button', { name: 'Like, 4 likes' })
+    ).toBeDisabled()
     expect(likeStatus).toHaveBeenCalledTimes(1)
 
     await act(async () => {
       resolveLike(true)
       await likePromise
     })
+
+    expect(
+      screen.getByRole('button', { name: 'Unlike, 5 likes' })
+    ).toBeEnabled()
   })
 
   it('keeps visible social action counts in accessible labels', () => {

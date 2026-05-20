@@ -14,10 +14,20 @@ interface LikeButtonProps {
 const LIKE_ERROR_DISMISS_MS = 4000
 
 export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
-  const [isActorLiked, setIsActorLiked] = useState<boolean>(status.isActorLiked)
-  const [totalLikes, setTotalLikes] = useState<number>(status.totalLikes)
+  const [{ isActorLiked, totalLikes }, setLikeState] = useState({
+    isActorLiked: status.isActorLiked,
+    totalLikes: status.totalLikes
+  })
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLikeState({
+      isActorLiked: status.isActorLiked,
+      totalLikes: status.totalLikes
+    })
+    setError(null)
+  }, [status.id, status.isActorLiked, status.totalLikes])
 
   useEffect(() => {
     if (!error) return
@@ -69,10 +79,16 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
               return
             }
 
-            setIsActorLiked(nextIsActorLiked)
-            setTotalLikes((prev) =>
-              nextIsActorLiked ? prev + 1 : Math.max(0, prev - 1)
-            )
+            setLikeState((prev) => {
+              if (prev.isActorLiked === nextIsActorLiked) return prev
+
+              return {
+                isActorLiked: nextIsActorLiked,
+                totalLikes: nextIsActorLiked
+                  ? prev.totalLikes + 1
+                  : Math.max(0, prev.totalLikes - 1)
+              }
+            })
           } catch {
             setError(failureMessage)
           } finally {
