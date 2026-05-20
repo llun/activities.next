@@ -71,7 +71,7 @@
     "pino": "^10.3.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.6",
-    "react-dom": "^19.2.5",
+    "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
     "react-modal": "^3.16.3",
     "rehype-sanitize": "^6.0.0",
