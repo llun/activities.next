@@ -39,7 +39,7 @@ export const EditHistoryButton: FC<Props> = ({
     <div className="relative inline-flex">
       <button
         ref={triggerRef}
-        className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
+        className="flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted"
         onClick={(e) => {
           e.stopPropagation()
           onShowEdits?.(status)

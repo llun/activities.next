@@ -52,7 +52,7 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
         aria-label={bookmarkLabel}
         disabled={isLoading}
         className={cn(
-          'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',
+          'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
           isBookmarked ? 'text-amber-500' : 'hover:text-amber-500'
         )}
         onClick={async (e) => {

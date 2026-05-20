@@ -2,9 +2,10 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReactNode } from 'react'
 
+import { likeStatus } from '@/lib/client'
 import {
   StatusAnnounce,
   StatusNote,
@@ -25,6 +26,17 @@ jest.mock('./poll', () => ({
 
 jest.mock('./attachments', () => ({
   Attachments: () => null
+}))
+
+jest.mock('@/lib/client', () => ({
+  bookmarkStatus: jest.fn(),
+  undoBookmarkStatus: jest.fn(),
+  deleteStatus: jest.fn(),
+  likeStatus: jest.fn(),
+  undoLikeStatus: jest.fn(),
+  repostStatus: jest.fn(),
+  undoRepostStatus: jest.fn(),
+  updateStatusVisibility: jest.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -117,6 +129,10 @@ const boostedStatus: StatusAnnounce = {
 }
 
 describe('Post', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
   it('does not nest long-post collapse inside expanded content warnings', () => {
     render(
       <Post
@@ -613,6 +629,173 @@ describe('Post', () => {
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()
+  })
+
+  it('uses a pointer cursor for status action buttons', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        editable
+        showActions
+        status={{
+          ...status,
+          edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
+        }}
+        onEdit={jest.fn()}
+        onPostDeleted={jest.fn()}
+        onReply={jest.fn()}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const actionButtons = [
+      ...within(
+        screen.getByRole('group', { name: 'Post primary actions' })
+      ).getAllByRole('button'),
+      ...within(
+        screen.getByRole('group', { name: 'Post secondary actions' })
+      ).getAllByRole('button')
+    ]
+
+    expect(actionButtons).toHaveLength(8)
+    actionButtons.forEach((button) => {
+      expect(button).toHaveClass('cursor-pointer')
+    })
+  })
+
+  it('uses disabled opacity styling for async-capable status action buttons', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        editable
+        showActions
+        status={status}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const primaryActions = screen.getByRole('group', {
+      name: 'Post primary actions'
+    })
+
+    expect(
+      within(primaryActions).getByRole('button', { name: 'Repost' })
+    ).toHaveClass('disabled:opacity-50')
+    expect(
+      within(primaryActions).getByRole('button', { name: 'Like' })
+    ).toHaveClass('disabled:opacity-50')
+    expect(
+      within(primaryActions).getByRole('button', { name: 'Bookmark' })
+    ).toHaveClass('disabled:opacity-50')
+
+    const secondaryActions = screen.getByRole('group', {
+      name: 'Post secondary actions'
+    })
+    expect(
+      within(secondaryActions).getByRole('button', {
+        name: 'Visibility: Direct'
+      })
+    ).toHaveClass('disabled:opacity-50')
+  })
+
+  it('resets like action state when rendering a different status', () => {
+    const otherActor = {
+      ...status.actor!,
+      id: 'https://activities.local/users/other',
+      username: 'other'
+    }
+    const { rerender } = render(
+      <Post
+        host="activities.local"
+        currentActor={otherActor}
+        currentTime={currentTime}
+        showActions
+        status={status}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Like' })).toBeInTheDocument()
+
+    rerender(
+      <Post
+        host="activities.local"
+        currentActor={otherActor}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          id: 'https://activities.local/users/llun/statuses/post-2',
+          url: 'https://activities.local/@llun/post-2',
+          isActorLiked: true,
+          totalLikes: 2
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Unlike, 2 likes' })
+    ).toBeInTheDocument()
+  })
+
+  it('keeps pending like action state when the same status receives updated counts', async () => {
+    let resolveLike: (value: boolean) => void = () => {}
+    const likePromise = new Promise<boolean>((resolve) => {
+      resolveLike = resolve
+    })
+    ;(likeStatus as jest.Mock).mockReturnValue(likePromise)
+    const otherActor = {
+      ...status.actor!,
+      id: 'https://activities.local/users/other',
+      username: 'other'
+    }
+    const { rerender } = render(
+      <Post
+        host="activities.local"
+        currentActor={otherActor}
+        currentTime={currentTime}
+        showActions
+        status={status}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Like' }))
+
+    expect(screen.getByRole('button', { name: 'Like' })).toBeDisabled()
+
+    rerender(
+      <Post
+        host="activities.local"
+        currentActor={otherActor}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          totalLikes: 4
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      await screen.findByRole('button', { name: 'Like, 4 likes' })
+    ).toBeDisabled()
+    expect(likeStatus).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveLike(true)
+      await likePromise
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'Unlike, 5 likes' })
+    ).toBeEnabled()
   })
 
   it('keeps visible social action counts in accessible labels', () => {
