@@ -1583,21 +1583,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/passkey@npm:^1.6.9":
-  version: 1.6.9
-  resolution: "@better-auth/passkey@npm:1.6.9"
+"@better-auth/passkey@npm:^1.6.11":
+  version: 1.6.11
+  resolution: "@better-auth/passkey@npm:1.6.11"
   dependencies:
     "@simplewebauthn/browser": "npm:^13.2.2"
     "@simplewebauthn/server": "npm:^13.2.3"
     zod: "npm:^4.3.6"
   peerDependencies:
-    "@better-auth/core": ^1.6.9
+    "@better-auth/core": ^1.6.11
     "@better-auth/utils": 0.4.0
     "@better-fetch/fetch": 1.1.21
-    better-auth: ^1.6.9
+    better-auth: ^1.6.11
     better-call: 1.3.5
     nanostores: ^1.0.1
-  checksum: 10c0/de144ced293b8f160ac5b2b89a9564649b334a01edaad297f71fc7534d8234bba140c10b26f5b975f373e11d10aa00358aa2f11cd046a80f4c7ee07d6f391466
+  checksum: 10c0/cca9106f0c5adf2b3fdbfa60cf1f60d56f7a1c52601052f79b516d103807804e9f474cee3d73de3e1e4d302567209a07cedc3ea81dcc09e9bc8466976f0b6a7f
   languageName: node
   linkType: hard
 
@@ -6052,7 +6052,7 @@ __metadata:
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.6.11"
     "@better-auth/oauth-provider": "npm:^1.6.9"
-    "@better-auth/passkey": "npm:^1.6.9"
+    "@better-auth/passkey": "npm:^1.6.11"
     "@better-auth/utils": "npm:0.4.0"
     "@better-fetch/fetch": "npm:1.1.21"
     "@date-fns/utc": "npm:^2.1.1"
