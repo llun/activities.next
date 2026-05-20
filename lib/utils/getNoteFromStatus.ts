@@ -24,7 +24,7 @@ export const getNoteFromStatus = (
 ): Note | null => {
   const actualStatus = getOriginalStatus(status)
   if (actualStatus.type === StatusType.enum.Poll) return null
-  const includeUpdated = options.includeUpdated || hasStatusBeenEdited(status)
+  const includeUpdated = options.includeUpdated ?? hasStatusBeenEdited(status)
 
   return Note.parse({
     id: actualStatus.id,

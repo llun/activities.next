@@ -155,6 +155,26 @@ describe('Create note action', () => {
       expect(note).not.toHaveProperty('updated')
     })
 
+    it('allows ActivityPub updated timestamp to be explicitly omitted', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'Original note for explicit updated option',
+        currentActor: actor1,
+        database
+      })) as StatusNote
+      const updatedStatus = (await database.updateNote({
+        statusId: status.id,
+        text: 'Edited note for explicit updated option',
+        summary: null
+      })) as StatusNote
+
+      const note = getNoteFromStatus(updatedStatus, {
+        includeUpdated: false
+      }) as Note
+
+      expect(updatedStatus.edits).toHaveLength(1)
+      expect(note).not.toHaveProperty('updated')
+    })
+
     it('does not create reply notification or alert when reply target blocks source', async () => {
       await clearSettledNotificationAlerts()
       const originalStatus = (await createNoteFromUserInput({

@@ -233,10 +233,6 @@ export const getMastodonStatus = async (
     favourites_count: status.totalLikes || 0,
     favourited: status.isActorLiked ?? false,
 
-    edited_at: hasStatusBeenEdited(status)
-      ? getISOTimeUTC(status.updatedAt)
-      : null,
-
     reblogged: status.actorAnnounceStatusId !== null,
     content: processStatusText(host, status),
 
