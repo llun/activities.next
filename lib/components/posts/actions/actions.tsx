@@ -57,7 +57,7 @@ export const Actions: FC<Props> = ({
       status={actualStatus}
     />,
     <LikeButton
-      key={`like-${actualStatus.id}-${actualStatus.isActorLiked}-${actualStatus.totalLikes}`}
+      key={`${actualStatus.id}-like`}
       currentActor={currentActor}
       status={actualStatus}
     />,
