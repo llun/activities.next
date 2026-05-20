@@ -22,7 +22,7 @@
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@better-auth/core": "1.6.11",
     "@better-auth/oauth-provider": "^1.6.9",
-    "@better-auth/passkey": "^1.6.9",
+    "@better-auth/passkey": "^1.6.11",
     "@better-auth/utils": "0.4.0",
     "@better-fetch/fetch": "1.1.21",
     "@date-fns/utc": "^2.1.1",
