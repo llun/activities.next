@@ -1,0 +1,53 @@
+lib/components/posts/post.tsx
+  s_c1e58d433fdf8c::t_1a8cf0ab21c901 248
+  s_c1e58d433fdf8c::t_72044d488f8847 237,239
+app/(timeline)/messages/constants.ts
+  s_c1e58d433fdf8c::t_7766a199ae4609 1
+lib/database/sql/conversation.test.ts
+  s_c1e58d433fdf8c::t_87ef0fbf2b143e 324-349,351-353,357-364
+  s_c1e58d433fdf8c::t_9e8658c8443f33 354-356
+  s_c1e58d433fdf8c::t_a869c9e3868cbd 350
+lib/database/sql/status.ts
+  s_c1e58d433fdf8c::t_a869c9e3868cbd 254-276
+lib/components/posts/posts.tsx
+  s_c1e58d433fdf8c::t_72044d488f8847 94,98
+lib/database/sql/conversation.ts
+  s_c1e58d433fdf8c::t_135d96cfc516d8 21,284-303,688-689
+app/(timeline)/messages/MessagesPage.tsx
+  s_c1e58d433fdf8c::t_4346113b4a90bd 555,557,631,664
+  s_c1e58d433fdf8c::t_7766a199ae4609 35-36
+  s_c1e58d433fdf8c::t_ae9ec72db7dc8d 541,544-545,553-554,556,558,573,577,587,600,632,634,694,704-707,799,801-807
+lib/database/sql/directConversationsMigration.test.ts
+  s_c1e58d433fdf8c::t_a869c9e3868cbd 180-182,196
+  s_c1e58d433fdf8c::t_0358c2bfc28680 4,26,57,115,143-164,177-179,183-195,197-210
+  s_c1e58d433fdf8c::t_a4e820da2a9db0 165-168,170-173,175-176
+  s_c1e58d433fdf8c::t_750cc7e5dd92ec 169,174
+app/(timeline)/messages/page.tsx
+  s_c1e58d433fdf8c::t_7766a199ae4609 15
+  s_c1e58d433fdf8c::t_186a3b59bc5c71 16
+migrations/20260520000000_backfill_recipientless_direct_reply_conversations.js
+  s_c1e58d433fdf8c::t_a869c9e3868cbd 76
+  s_c1e58d433fdf8c::t_0b448091c0a34c 1-4,9-59,73-75,77-211
+  s_c1e58d433fdf8c::t_a4e820da2a9db0 5-8,60-72
+app/(timeline)/messages/page.test.tsx
+  s_c1e58d433fdf8c::t_7766a199ae4609 136-139
+lib/components/posts/actor.tsx
+  s_c1e58d433fdf8c::t_009be215b6ac96 195
+  s_c1e58d433fdf8c::t_6d335c08efd86b 212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "4e90b3b6fea8b4611cd6f8643e54a8a89b7171f3",
+  "prompts": {},
+  "sessions": {
+    "s_c1e58d433fdf8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e46d2-461c-7f93-95a1-f003030922e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
