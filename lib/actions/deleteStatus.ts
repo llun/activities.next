@@ -1,6 +1,8 @@
 import { deleteStatus } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
+import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { Actor } from '@/lib/types/domain/actor'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { getSpan } from '@/lib/utils/trace'
 
 interface DeleteStatusFromUserInputParams {
@@ -23,16 +25,21 @@ export const deleteStatusFromUserInput = async ({
     return
   }
 
-  // TODO: Get inboxes from status, instead of followers?
-  const inboxes = await database.getFollowersInbox({
-    targetActorId: currentActor.id
+  const inboxes = await getFederatedStatusDeliveryInboxes({
+    database,
+    currentActor,
+    status: originalStatus
   })
+  const isDirect =
+    getVisibility(originalStatus.to, originalStatus.cc) === 'direct'
   await Promise.all(
     inboxes.map((inbox) => {
       return deleteStatus({
         currentActor,
         inbox,
-        statusId
+        statusId,
+        to: isDirect ? originalStatus.to : undefined,
+        cc: isDirect ? originalStatus.cc : undefined
       })
     })
   )

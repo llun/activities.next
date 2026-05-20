@@ -7,7 +7,7 @@ import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 interface MastodonMention {
   id: string
@@ -27,6 +27,31 @@ interface MastodonCustomEmoji {
 interface MastodonTag {
   name: string
   url: string
+}
+
+type MastodonAccountCache = Map<string, Promise<Mastodon.Account | null>>
+
+interface GetMastodonStatusOptions {
+  accountCache?: MastodonAccountCache
+}
+
+const getMastodonAccount = (
+  database: Database,
+  actorId: string,
+  options?: GetMastodonStatusOptions
+): Promise<Mastodon.Account | null> => {
+  if (!options?.accountCache) {
+    return database.getMastodonActorFromId({ id: actorId })
+  }
+
+  const cachedAccount = options.accountCache.get(actorId)
+  if (cachedAccount) {
+    return cachedAccount
+  }
+
+  const account = database.getMastodonActorFromId({ id: actorId })
+  options.accountCache.set(actorId, account)
+  return account
 }
 
 const getMentionsFromTags = (tags: Tag[]): MastodonMention[] => {
@@ -84,12 +109,20 @@ const isStatusBookmarked = (status: Status): boolean => {
   return status.isActorBookmarked ?? false
 }
 
+const addStatusActorIds = (status: Status, actorIds: Set<string>) => {
+  actorIds.add(status.actorId)
+  if (status.type === StatusType.enum.Announce) {
+    addStatusActorIds(status.originalStatus, actorIds)
+  }
+}
+
 export const getMastodonStatus = async (
   database: Database,
   status: Status,
-  currentActorId?: string
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
 ): Promise<Mastodon.Status | null> => {
-  const account = await database.getMastodonActorFromId({ id: status.actorId })
+  const account = await getMastodonAccount(database, status.actorId, options)
   if (!account) {
     return null
   }
@@ -160,7 +193,8 @@ export const getMastodonStatus = async (
       reblog: await getMastodonStatus(
         database,
         status.originalStatus,
-        currentActorId
+        currentActorId,
+        options
       ),
       media_attachments: []
     })
@@ -250,4 +284,60 @@ export const getMastodonStatus = async (
     ...mastodonStatus,
     poll: pollData
   })
+}
+
+export const getMastodonStatuses = async (
+  database: Database,
+  statuses: Status[],
+  currentActorId?: string
+): Promise<Mastodon.Status[]> => {
+  if (statuses.length === 0) return []
+
+  const actorIds = new Set<string>()
+  statuses.forEach((status) => addStatusActorIds(status, actorIds))
+  const requestedActorIds = [...actorIds]
+  const accounts = await database.getMastodonActorsFromIds({
+    ids: requestedActorIds
+  })
+  const requestedActorIdSet = new Set(requestedActorIds)
+  const accountCache: MastodonAccountCache = new Map()
+  const keyedAccounts = new Set<Mastodon.Account>()
+
+  for (const account of accounts) {
+    const decodedActorId =
+      typeof account.id === 'string' ? idToUrl(account.id) : ''
+    if (requestedActorIdSet.has(decodedActorId)) {
+      accountCache.set(decodedActorId, Promise.resolve(account))
+      keyedAccounts.add(account)
+      continue
+    }
+
+    if (requestedActorIdSet.has(account.url)) {
+      accountCache.set(account.url, Promise.resolve(account))
+      keyedAccounts.add(account)
+    }
+  }
+
+  if (accounts.length === requestedActorIds.length) {
+    accounts.forEach((account, index) => {
+      if (!keyedAccounts.has(account)) {
+        accountCache.set(requestedActorIds[index], Promise.resolve(account))
+      }
+    })
+  }
+
+  for (const actorId of actorIds) {
+    if (!accountCache.has(actorId)) {
+      accountCache.set(actorId, Promise.resolve(null))
+    }
+  }
+
+  const options: GetMastodonStatusOptions = { accountCache }
+  return (
+    await Promise.all(
+      statuses.map((status) =>
+        getMastodonStatus(database, status, currentActorId, options)
+      )
+    )
+  ).filter((status): status is Mastodon.Status => status !== null)
 }

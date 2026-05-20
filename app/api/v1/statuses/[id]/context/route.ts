@@ -1,5 +1,8 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  getMastodonStatus,
+  getMastodonStatuses
+} from '@/lib/services/mastodon/getMastodonStatus'
 import {
   filterReadableStatuses,
   getReadableStatus
@@ -21,70 +24,71 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getStatusContext',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read, Scope.enum['read:statuses']],
+    async (req, context) => {
+      const { params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const { database, currentActor } = context
+      const statusId = idToUrl(encodedStatusId)
+
+      const status = await getReadableStatus({
+        database,
+        statusId,
+        currentActor
       })
+      if (!status || status.type === StatusType.enum.Announce) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
 
-    const { database, currentActor } = context
-    const statusId = idToUrl(encodedStatusId)
+      const [ancestor, descendants] = await Promise.all([
+        status.reply
+          ? getReadableStatus({
+              database,
+              statusId: status.reply,
+              currentActor
+            }).then((status) =>
+              status
+                ? getMastodonStatus(database, status, currentActor.id)
+                : null
+            )
+          : Promise.resolve(null),
+        database
+          .getStatusReplies({
+            statusId,
+            visibleToActorId: currentActor.id
+          })
+          .then((statuses) =>
+            filterReadableStatuses({ database, statuses, currentActor })
+          )
+          .then((statuses) =>
+            getMastodonStatuses(database, statuses, currentActor.id)
+          )
+      ])
 
-    const status = await getReadableStatus({
-      database,
-      statusId,
-      currentActor
-    })
-    if (!status || status.type === StatusType.enum.Announce) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: {
+          ancestors: ancestor ? [ancestor] : [],
+          descendants: descendants.filter(Boolean)
+        }
       })
     }
-
-    const [ancestor, descendants] = await Promise.all([
-      status.reply
-        ? getReadableStatus({
-            database,
-            statusId: status.reply,
-            currentActor
-          }).then((status) =>
-            status ? getMastodonStatus(database, status, currentActor.id) : null
-          )
-        : Promise.resolve(null),
-      database
-        .getStatusReplies({
-          statusId,
-          visibleToActorId: currentActor.id
-        })
-        .then((statuses) =>
-          filterReadableStatuses({ database, statuses, currentActor })
-        )
-        .then((statuses) =>
-          Promise.all(
-            statuses.map((status) =>
-              getMastodonStatus(database, status, currentActor.id)
-            )
-          )
-        )
-    ])
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {
-        ancestors: ancestor ? [ancestor] : [],
-        descendants: descendants.filter(Boolean)
-      }
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

@@ -3,14 +3,10 @@ import { z } from 'zod'
 import { sendUpdateNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
-import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
+import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { getTracer } from '@/lib/utils/trace'
@@ -59,35 +55,11 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
         return
       }
 
-      const inboxes = []
-      if (
-        status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-        status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
-        status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
-        status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
-      ) {
-        const followersInbox = await database.getFollowersInbox({
-          targetActorId: actor.id
-        })
-        inboxes.push(...followersInbox)
-      }
-
-      const toInboxes = (
-        await Promise.all(
-          [...status.to, ...status.cc]
-            .filter(
-              (item) =>
-                item !== ACTIVITY_STREAM_PUBLIC &&
-                item !== ACTIVITY_STREAM_PUBLIC_COMPACT
-            )
-            .map(async (item) => database.getActorFromId({ id: item }))
-        )
-      )
-        .filter((actor): actor is NonNullable<typeof actor> => Boolean(actor))
-        .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
-      inboxes.push(...toInboxes)
-
-      const uniqueInboxes = await filterFederatedUrls(database, inboxes)
+      const uniqueInboxes = await getFederatedStatusDeliveryInboxes({
+        database,
+        currentActor: actor,
+        status
+      })
       await Promise.all(
         uniqueInboxes.map(async (inbox) => {
           try {

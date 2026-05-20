@@ -6,6 +6,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -46,7 +47,7 @@ describe('Create poll action', () => {
 
   describe('#createPollFromUserInput', () => {
     it('creates a poll with correct recipients', async () => {
-      await createPollFromUserInput({
+      const createdPoll = await createPollFromUserInput({
         text: 'What is your favorite color?',
         currentActor: actor1,
         choices: ['Red', 'Blue', 'Green'],
@@ -63,8 +64,22 @@ describe('Create poll action', () => {
       )
 
       expect(poll).toBeDefined()
+      expect(createdPoll?.id).toBe(poll?.id)
       expect(poll?.to).toContain(ACTIVITY_STREAM_PUBLIC)
       expect(poll?.cc).toContain(`${actor1.id}/followers`)
+    })
+
+    it('returns null for direct polls without explicit recipients', async () => {
+      const createdPoll = await createPollFromUserInput({
+        text: 'Private poll without a recipient',
+        currentActor: actor1,
+        choices: ['Red', 'Blue'],
+        database,
+        endAt: Date.now() + 24 * 60 * 60 * 1000,
+        visibility: 'direct'
+      })
+
+      expect(createdPoll).toBeNull()
     })
 
     it('stores content warning text as poll summary', async () => {
@@ -226,6 +241,60 @@ describe('Create poll action', () => {
         // Should inherit private visibility - no Public in to or cc
         expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
         expect(poll?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+
+      it('stores inherited direct reply recipients as mention tags', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/direct-parent-poll-mention-tags`,
+          url: `${actor1.id}/statuses/direct-parent-poll-mention-tags`,
+          actorId: 'https://remote.test/actors/direct-poll-sender',
+          text: 'Direct parent for poll with multiple recipients',
+          to: [actor1.id, ACTOR2_ID],
+          cc: [ACTOR3_ID]
+        })
+
+        await createPollFromUserInput({
+          text: 'Poll reply without manually rementioning everyone',
+          replyStatusId: parentStatus.id,
+          currentActor: actor1,
+          choices: ['Yes', 'No'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        const poll = statuses.find((status) =>
+          status.text.includes(
+            'Poll reply without manually rementioning everyone'
+          )
+        )
+        const mentionTags = await database.getTags({ statusId: poll?.id || '' })
+
+        expect(poll).toBeDefined()
+        expect(mentionTags).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'mention',
+              value: ACTOR2_ID
+            }),
+            expect.objectContaining({
+              type: 'mention',
+              value: ACTOR3_ID
+            }),
+            expect.objectContaining({
+              type: 'mention',
+              value: parentStatus.actorId
+            })
+          ])
+        )
+        expect(mentionTags).not.toContainEqual(
+          expect.objectContaining({
+            type: 'mention',
+            value: actor1.id
+          })
+        )
       })
     })
   })

@@ -1,4 +1,4 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -16,52 +16,55 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getStatusSource',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read, Scope.enum['read:statuses']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
 
-    const statusId = idToUrl(encodedStatusId)
-    const status = await getReadableStatus({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+      const statusId = idToUrl(encodedStatusId)
+      const status = await getReadableStatus({
+        database,
+        statusId,
+        currentActor,
+        withReplies: false
       })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
 
-    // Only note and poll statuses have text content
-    if (status.type === 'Announce') {
+      // Only note and poll statuses have text content
+      if (status.type === 'Announce') {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: {
+          id: urlToId(status.id),
+          text: status.text ?? '',
+          spoiler_text: status.summary ?? ''
+        }
       })
     }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {
-        id: urlToId(status.id),
-        text: status.text ?? '',
-        spoiler_text: status.summary ?? ''
-      }
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params
