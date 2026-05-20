@@ -3,11 +3,13 @@ import {
   ImageContent,
   Note,
   PageContent,
+  Question,
   VideoContent
 } from '@/lib/types/activitypub'
 
 export type BaseNote =
   | Note
+  | Question
   | ImageContent
   | PageContent
   | ArticleContent

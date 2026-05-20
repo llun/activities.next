@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import knex, { Knex } from 'knex'
 
+import { getConfig } from '@/lib/config'
 import { getSQLDatabase } from '@/lib/database/sql'
 import {
   databaseBeforeAll,
@@ -14,15 +15,31 @@ import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
+const resetConfigCache = () => {
+  const configWithCache = getConfig as typeof getConfig & {
+    cache?: { clear?: () => void }
+  }
+  configWithCache.cache?.clear?.()
+}
+
 describe('SearchDatabase', () => {
   const table = getTestDatabaseTable()
+  const originalActivitiesHost = process.env.ACTIVITIES_HOST
 
   beforeAll(async () => {
+    process.env.ACTIVITIES_HOST = 'llun.test'
+    resetConfigCache()
     await databaseBeforeAll(table)
   })
 
   afterAll(async () => {
     await Promise.all(table.map((item) => item[1].destroy()))
+    if (originalActivitiesHost === undefined) {
+      delete process.env.ACTIVITIES_HOST
+    } else {
+      process.env.ACTIVITIES_HOST = originalActivitiesHost
+    }
+    resetConfigCache()
   })
 
   describe.each(table)('%s', (_, database) => {
@@ -56,6 +73,44 @@ describe('SearchDatabase', () => {
       })
 
       expect(accounts.map((account) => account.url)).toEqual([EXTERNAL_ACTOR1])
+    })
+
+    it('prioritizes exact bare username matches over indexed partial matches', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `exactbare${suffix}`
+      const exactActorId = `https://llun.test/users/${username}`
+      const matchingActorId = `https://remote.test/users/exactbare-peer-${suffix}`
+
+      await database.createAccount({
+        email: `${username}@llun.test`,
+        username,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-${suffix}`,
+        publicKey: `public-${suffix}`
+      })
+      await database.createMastodonActor({
+        actorId: matchingActorId,
+        username: `exactbare-peer-${suffix}`,
+        domain: 'remote.test',
+        name: username,
+        followersUrl: `${matchingActorId}/followers`,
+        inboxUrl: `${matchingActorId}/inbox`,
+        sharedInboxUrl: `${matchingActorId}/inbox`,
+        publicKey: `public-match-${suffix}`,
+        createdAt: Date.now()
+      })
+
+      await expect(
+        database.searchAccounts({
+          query: username,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toMatchObject([
+        { url: exactActorId },
+        { url: matchingActorId }
+      ])
     })
 
     it('does not overfetch indexed account results when an exact match fills the page', async () => {
@@ -125,16 +180,14 @@ describe('SearchDatabase', () => {
         database.searchAccounts({
           query: `https://${domain}/@${username}`,
           limit: 10,
-          offset: 0,
-          resolve: true
+          offset: 0
         })
       ).resolves.toMatchObject([{ url: actorId }])
       await expect(
         database.searchAccounts({
           query: actorId,
           limit: 10,
-          offset: 0,
-          resolve: true
+          offset: 0
         })
       ).resolves.toMatchObject([{ url: actorId }])
     })
@@ -224,6 +277,52 @@ describe('SearchDatabase', () => {
           minStatusId: lowScoreStatusId
         })
       ).resolves.toMatchObject([{ id: highScoreStatusId }])
+    })
+
+    it('paginates min status cursors from the closest newer indexed match', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const searchText = `AscendingCursor${suffix}`
+      const baseTime = Date.now()
+      const oldestStatusId = `${ACTOR1_ID}/statuses/min-cursor-oldest-${suffix}`
+      const middleStatusId = `${ACTOR1_ID}/statuses/min-cursor-middle-${suffix}`
+      const newestStatusId = `${ACTOR1_ID}/statuses/min-cursor-newest-${suffix}`
+
+      await database.createNote({
+        id: oldestStatusId,
+        url: oldestStatusId,
+        actorId: ACTOR1_ID,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: baseTime - 3000
+      })
+      await database.createNote({
+        id: middleStatusId,
+        url: middleStatusId,
+        actorId: ACTOR1_ID,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: baseTime - 2000
+      })
+      await database.createNote({
+        id: newestStatusId,
+        url: newestStatusId,
+        actorId: ACTOR1_ID,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: baseTime - 1000
+      })
+
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 1,
+          offset: 0,
+          minStatusId: oldestStatusId
+        })
+      ).resolves.toMatchObject([{ id: middleStatusId }])
     })
 
     it('finds hashtags with Mastodon tag shape', async () => {
@@ -519,6 +618,92 @@ describe('SearchDatabase', () => {
           })
         ).map((status) => status.id)
       ).not.toContain(statusId)
+    })
+
+    it('deindexes and reindexes actor-owned search documents as deletion state changes', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `search-deletion-state-${suffix}`
+      const actorId = `https://llun.test/users/${username}`
+      const statusId = `${actorId}/statuses/deletion-state-${suffix}`
+      const searchText = `DeletionStateSearch${suffix}`
+      const hashtag = `#DeletionStateTag${suffix}`
+
+      await database.createAccount({
+        email: `${username}@llun.test`,
+        username,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-${suffix}`,
+        publicKey: `public-${suffix}`
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: hashtag,
+        value: `https://llun.test/tags/${hashtag.slice(1)}`
+      })
+
+      await database.scheduleActorDeletion({
+        actorId,
+        scheduledAt: null
+      })
+
+      await expect(
+        database.searchAccounts({ query: username, limit: 10, offset: 0 })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchStatuses({ query: searchText, limit: 10, offset: 0 })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchHashtags({ query: hashtag, limit: 10, offset: 0 })
+      ).resolves.toEqual([])
+
+      await database.cancelActorDeletion({ actorId })
+
+      await expect(
+        (
+          await database.searchAccounts({
+            query: username,
+            limit: 10,
+            offset: 0
+          })
+        ).map((account) => account.url)
+      ).toContain(actorId)
+      await expect(
+        (
+          await database.searchStatuses({
+            query: searchText,
+            limit: 10,
+            offset: 0
+          })
+        ).map((status) => status.id)
+      ).toContain(statusId)
+      await expect(
+        (
+          await database.searchHashtags({
+            query: hashtag,
+            limit: 10,
+            offset: 0
+          })
+        ).map((tag) => tag.id)
+      ).toContain(hashtag.slice(1).toLowerCase())
+
+      await database.startActorDeletion({ actorId })
+
+      await expect(
+        database.searchAccounts({ query: username, limit: 10, offset: 0 })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchStatuses({ query: searchText, limit: 10, offset: 0 })
+      ).resolves.toEqual([])
     })
 
     it('reindexes affected hashtags when deleting an actor', async () => {

@@ -213,6 +213,16 @@ export const getSQLDatabase = (database: Knex): Database => {
     query('search_documents')
       .where('actorId', actorId)
       .select<SearchDocumentReference[]>('entityType', 'entityId')
+  const getSearchableStatusIdsForActor = async (
+    actorId: string,
+    query: Knex | Knex.Transaction = database
+  ) => {
+    const statuses = await query('statuses')
+      .where('actorId', actorId)
+      .whereIn('type', SEARCH_DOCUMENT_STATUS_TYPES)
+      .select<{ id: string }[]>('id')
+    return statuses.map((status) => status.id)
+  }
   const deleteActorSearchDocumentsInTransaction = async (
     trx: Knex.Transaction,
     documents: SearchDocumentReference[]
@@ -234,15 +244,50 @@ export const getSQLDatabase = (database: Knex): Database => {
   const syncDeletedSearchDocuments = async (
     documents: SearchDocumentReference[]
   ) => {
-    await Promise.all(
-      documents.map((document) =>
-        searchDatabase.deleteSearchDocument({
-          entityType: document.entityType,
-          entityId: document.entityId,
-          deleteSql: false
-        })
+    await searchDatabase.deleteSearchDocuments({
+      documents,
+      deleteSql: false
+    })
+  }
+  const reindexActorSearchDocuments = async (actorId: string) => {
+    const [statusIds, hashtagNames] = await Promise.all([
+      getSearchableStatusIdsForActor(actorId),
+      getHashtagNamesForActorStatuses(actorId)
+    ])
+
+    await searchDatabase.upsertActorSearchDocument({ actorId })
+    for (const statusIdChunk of chunkArray(
+      statusIds,
+      SQL_WHERE_IN_BATCH_SIZE
+    )) {
+      await Promise.all(
+        statusIdChunk.map((statusId) =>
+          searchDatabase.upsertStatusSearchDocument({ statusId })
+        )
       )
+    }
+    await searchDatabase.upsertHashtagSearchDocuments({ names: hashtagNames })
+  }
+  const deindexActorSearchDocuments = async (
+    actorId: string,
+    updateActor: (trx: Knex.Transaction) => Promise<void>
+  ) => {
+    const { hashtagNames, documents } = await database.transaction(
+      async (trx) => {
+        const [hashtagNames, documents] = await Promise.all([
+          getHashtagNamesForActorStatuses(actorId, trx),
+          getSearchDocumentsForActor(actorId, trx)
+        ])
+
+        await updateActor(trx)
+        await deleteActorSearchDocumentsInTransaction(trx, documents)
+
+        return { hashtagNames, documents }
+      }
     )
+
+    await syncDeletedSearchDocuments(documents)
+    await searchDatabase.upsertHashtagSearchDocuments({ names: hashtagNames })
   }
   const indexedAccountDatabase = {
     ...accountDatabase,
@@ -293,6 +338,33 @@ export const getSQLDatabase = (database: Knex): Database => {
         await searchDatabase.upsertActorSearchDocument({ actorId: actor.id })
       }
       return actor
+    },
+    async scheduleActorDeletion(
+      ...args: Parameters<typeof actorDatabase.scheduleActorDeletion>
+    ) {
+      const [params] = args
+      await deindexActorSearchDocuments(params.actorId, (trx) =>
+        actorDatabase.scheduleActorDeletion({ ...params, trx } as Parameters<
+          typeof actorDatabase.scheduleActorDeletion
+        >[0] & { trx: Knex.Transaction })
+      )
+    },
+    async cancelActorDeletion(
+      ...args: Parameters<typeof actorDatabase.cancelActorDeletion>
+    ) {
+      await actorDatabase.cancelActorDeletion(...args)
+      const [params] = args
+      await reindexActorSearchDocuments(params.actorId)
+    },
+    async startActorDeletion(
+      ...args: Parameters<typeof actorDatabase.startActorDeletion>
+    ) {
+      const [params] = args
+      await deindexActorSearchDocuments(params.actorId, (trx) =>
+        actorDatabase.startActorDeletion({ ...params, trx } as Parameters<
+          typeof actorDatabase.startActorDeletion
+        >[0] & { trx: Knex.Transaction })
+      )
     },
     async deleteActor(...args: Parameters<typeof actorDatabase.deleteActor>) {
       const [params] = args

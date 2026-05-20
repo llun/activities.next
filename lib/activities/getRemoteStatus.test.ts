@@ -191,6 +191,55 @@ describe('#getRemoteStatus', () => {
     })
   })
 
+  it('defaults missing remote poll vote counts to zero', async () => {
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === STATUS_ID) {
+        return JSON.stringify({
+          id: STATUS_ID,
+          type: 'Question',
+          attributedTo: ACTOR_ID,
+          content: 'Pick one',
+          to: [PUBLIC_STREAM],
+          cc: [`${ACTOR_ID}/followers`],
+          oneOf: [
+            {
+              type: 'Note',
+              name: 'One'
+            },
+            {
+              type: 'Note',
+              name: 'Two',
+              replies: null
+            }
+          ],
+          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+        })
+      }
+
+      if (req.url === ACTOR_ID) {
+        return { status: 503, body: 'Unavailable' }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    await expect(
+      getRemoteStatus({ statusId: STATUS_ID })
+    ).resolves.toMatchObject({
+      type: StatusType.enum.Poll,
+      choices: [
+        {
+          title: 'One',
+          totalVotes: 0
+        },
+        {
+          title: 'Two',
+          totalVotes: 0
+        }
+      ]
+    })
+  })
+
   it('does not return unsupported remote objects', async () => {
     fetchMock.mockResponseOnce(
       JSON.stringify({

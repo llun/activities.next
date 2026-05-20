@@ -142,10 +142,12 @@ export type Note = z.infer<typeof Note>
 export const QuestionOption = z.object({
   type: z.literal('Note'),
   name: z.string().describe('The text of the poll option'),
-  replies: z.object({
-    type: z.literal('Collection'),
-    totalItems: z.number().describe('The number of votes for this option')
-  })
+  replies: z
+    .object({
+      type: z.literal('Collection'),
+      totalItems: z.number().describe('The number of votes for this option')
+    })
+    .nullish()
 })
 
 export type QuestionOption = z.infer<typeof QuestionOption>

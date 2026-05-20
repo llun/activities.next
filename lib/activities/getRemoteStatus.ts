@@ -60,8 +60,8 @@ const fromQuestion = (question: Question): StatusPoll => {
     actorId: question.attributedTo,
     actor: null,
     type: StatusType.enum.Poll,
-    text: getContent(question as unknown as Note),
-    summary: getSummary(question as unknown as Note),
+    text: getContent(question),
+    summary: getSummary(question),
     to: getStringArray(question.to),
     cc: getStringArray(question.cc),
     edits: [],
@@ -77,7 +77,7 @@ const fromQuestion = (question: Question): StatusPoll => {
     choices: choices.map((choice) => ({
       statusId: question.id,
       title: choice.name,
-      totalVotes: choice.replies.totalItems,
+      totalVotes: choice.replies?.totalItems ?? 0,
       createdAt: currentTime,
       updatedAt: currentTime
     })),

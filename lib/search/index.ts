@@ -179,7 +179,7 @@ export const search = async (params: SearchParams): Promise<SearchResult> => {
         })
       : null
 
-  if (params.includeAccounts && params.resolve) {
+  if (params.includeAccounts && params.resolve && params.offset === 0) {
     await resolveAccountForSearch({
       database: params.database,
       query: params.query

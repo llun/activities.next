@@ -16,7 +16,7 @@ const REMOTE_ACTOR_ID = 'https://somewhere.test/actors/pollcreator'
 interface QuestionOption {
   type: string
   name: string
-  replies: { type: string; totalItems: number }
+  replies?: { type: string; totalItems: number } | null
 }
 
 const createOption = (name: string, votes = 0): QuestionOption => ({
@@ -168,6 +168,47 @@ describe('updatePollJob', () => {
     expect(status.choices).toHaveLength(2)
     expect(status.choices[0].totalVotes).toEqual(10)
     expect(status.choices[1].totalVotes).toEqual(7)
+  })
+
+  it('defaults missing poll answer vote counts to zero', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/${Date.now()}`
+    const originalPoll = MockActivityPubQuestion(pollId, {
+      oneOf: [createOption('Option A', 0), createOption('Option B', 0)]
+    })
+
+    await createPollJob(database, {
+      id: 'id',
+      name: CREATE_POLL_JOB_NAME,
+      data: originalPoll
+    })
+
+    const updatedPoll = MockActivityPubQuestion(pollId, {
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Option A'
+        },
+        {
+          type: 'Note',
+          name: 'Option B',
+          replies: null
+        }
+      ]
+    })
+
+    await updatePollJob(database, {
+      id: 'id',
+      name: UPDATE_POLL_JOB_NAME,
+      data: updatedPoll
+    })
+
+    const status = await database.getStatus({ statusId: pollId })
+    if (status?.type !== StatusType.enum.Poll) {
+      fail('Status type must be Poll')
+    }
+    expect(status.choices).toHaveLength(2)
+    expect(status.choices[0].totalVotes).toEqual(0)
+    expect(status.choices[1].totalVotes).toEqual(0)
   })
 
   it('updates poll content', async () => {

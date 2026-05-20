@@ -132,6 +132,42 @@ describe('search service', () => {
     })
   })
 
+  it('does not resolve remote accounts on paginated account searches', async () => {
+    const database = {
+      searchAccounts: jest.fn().mockResolvedValue([{ id: 'account-2' }]),
+      searchStatuses: jest.fn(),
+      searchHashtags: jest.fn()
+    } as unknown as Database
+
+    await expect(
+      search({
+        database,
+        query: 'alice@example.com',
+        limit: 10,
+        offset: 10,
+        includeAccounts: true,
+        includeStatuses: false,
+        includeHashtags: false,
+        resolve: true
+      })
+    ).resolves.toEqual({
+      accounts: [{ id: 'account-2' }],
+      statuses: [],
+      hashtags: []
+    })
+
+    expect(mockResolveAccountForSearch).not.toHaveBeenCalled()
+    expect(mockSearchMeilisearch).not.toHaveBeenCalled()
+    expect(database.searchAccounts).toHaveBeenCalledWith({
+      query: 'alice@example.com',
+      limit: 10,
+      offset: 10,
+      currentActorId: undefined,
+      following: undefined,
+      resolve: true
+    })
+  })
+
   it('prepends resolved statuses for status URL searches', async () => {
     const resolvedStatus = { id: 'https://remote.test/statuses/1' }
     const indexedStatus = { id: 'https://remote.test/statuses/2' }

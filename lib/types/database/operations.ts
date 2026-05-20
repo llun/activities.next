@@ -758,6 +758,12 @@ export type DeleteSearchDocumentParams = {
   syncMeilisearch?: boolean
 }
 
+export type DeleteSearchDocumentsParams = {
+  documents: Pick<DeleteSearchDocumentParams, 'entityType' | 'entityId'>[]
+  deleteSql?: boolean
+  syncMeilisearch?: boolean
+}
+
 export type GetSearchHashtagsByIdsParams = {
   hashtagIds: string[]
 }
@@ -777,6 +783,7 @@ export interface SearchDatabase {
     params: UpsertSearchHashtagsParams
   ): Promise<boolean[]>
   deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
+  deleteSearchDocuments(params: DeleteSearchDocumentsParams): Promise<void>
   getSearchHashtagsByIds(
     params: GetSearchHashtagsByIdsParams
   ): Promise<Mastodon.SearchTag[]>

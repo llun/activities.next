@@ -34,6 +34,13 @@ type DeleteMeilisearchDocumentParams = Pick<
   documentId: string
 }
 
+type DeleteMeilisearchDocumentIdsParams = Pick<
+  WriteMeilisearchDocumentsParams,
+  'config' | 'type'
+> & {
+  documentIds: string[]
+}
+
 const EXISTING_INDEX_STATUS = 409
 const TASK_POLL_INITIAL_INTERVAL_MS = 100
 const TASK_POLL_MAX_INTERVAL_MS = 1000
@@ -148,6 +155,13 @@ const waitForMeilisearchTask = async ({
       )
     }
 
+    const fetchRemainingMs = deadline - Date.now()
+    if (fetchRemainingMs <= 0) {
+      throw new Error(
+        `Meilisearch ${operationLabel} task ${taskUid} timed out after ${config.timeoutMs}ms`
+      )
+    }
+
     const response = await fetchWithTimeout(
       config,
       getUrl(config, `/tasks/${taskUid}`),
@@ -155,7 +169,7 @@ const waitForMeilisearchTask = async ({
         method: 'GET',
         headers: getHeaders(config)
       },
-      remainingMs
+      fetchRemainingMs
     )
 
     if (!response.ok) {
@@ -356,6 +370,40 @@ export const deleteMeilisearchDocument = async ({
   }
   if (response.status !== 404) {
     await waitForMeilisearchResponseTask(config, response, 'document delete')
+  }
+}
+
+export const deleteMeilisearchDocumentIds = async ({
+  config,
+  type,
+  documentIds
+}: DeleteMeilisearchDocumentIdsParams) => {
+  if (documentIds.length === 0) return
+
+  const response = await fetchWithTimeout(
+    config,
+    getUrl(
+      config,
+      `/indexes/${getIndexUid(config, type)}/documents/delete-batch`
+    ),
+    {
+      method: 'POST',
+      headers: getHeaders(config),
+      body: JSON.stringify(documentIds)
+    }
+  )
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error(
+      `Meilisearch document batch delete failed with status ${response.status}`
+    )
+  }
+  if (response.status !== 404) {
+    await waitForMeilisearchResponseTask(
+      config,
+      response,
+      'document batch delete'
+    )
   }
 }
 

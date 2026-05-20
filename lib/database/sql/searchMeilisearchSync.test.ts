@@ -5,6 +5,7 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 import {
   deleteMeilisearchDocument,
+  deleteMeilisearchDocumentIds,
   deleteMeilisearchDocuments,
   writeMeilisearchDocuments
 } from '@/lib/search/meilisearch'
@@ -15,6 +16,7 @@ jest.mock('@/lib/config', () => ({
 
 jest.mock('@/lib/search/meilisearch', () => ({
   deleteMeilisearchDocument: jest.fn(),
+  deleteMeilisearchDocumentIds: jest.fn(),
   deleteMeilisearchDocuments: jest.fn(),
   writeMeilisearchDocuments: jest.fn()
 }))
@@ -28,6 +30,10 @@ describe('SearchSQLDatabase Meilisearch synchronization', () => {
   const mockDeleteMeilisearchDocument =
     deleteMeilisearchDocument as jest.MockedFunction<
       typeof deleteMeilisearchDocument
+    >
+  const mockDeleteMeilisearchDocumentIds =
+    deleteMeilisearchDocumentIds as jest.MockedFunction<
+      typeof deleteMeilisearchDocumentIds
     >
   const mockDeleteMeilisearchDocuments =
     deleteMeilisearchDocuments as jest.MockedFunction<
@@ -55,6 +61,7 @@ describe('SearchSQLDatabase Meilisearch synchronization', () => {
     } as ReturnType<typeof getConfig>)
     mockWriteMeilisearchDocuments.mockResolvedValue(undefined)
     mockDeleteMeilisearchDocument.mockResolvedValue(undefined)
+    mockDeleteMeilisearchDocumentIds.mockResolvedValue(undefined)
     mockDeleteMeilisearchDocuments.mockResolvedValue(undefined)
 
     rawDatabase = knex({
@@ -118,5 +125,42 @@ describe('SearchSQLDatabase Meilisearch synchronization', () => {
       })
     )
     expect(mockDeleteMeilisearchDocuments).toHaveBeenCalledTimes(3)
+  })
+
+  it('publishes bulk search document deletes to Meilisearch', async () => {
+    await database.deleteSearchDocuments({
+      deleteSql: false,
+      documents: [
+        {
+          entityType: 'account',
+          entityId: 'https://remote.test/users/alice'
+        },
+        {
+          entityType: 'account',
+          entityId: 'https://remote.test/users/bob'
+        },
+        {
+          entityType: 'status',
+          entityId: 'https://remote.test/users/alice/statuses/1'
+        }
+      ]
+    })
+    await flushQueuedMeilisearchSync()
+
+    expect(mockDeleteMeilisearchDocumentIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'accounts',
+        documentIds: [
+          expect.stringMatching(/^[a-f0-9]{64}$/),
+          expect.stringMatching(/^[a-f0-9]{64}$/)
+        ]
+      })
+    )
+    expect(mockDeleteMeilisearchDocumentIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'statuses',
+        documentIds: [expect.stringMatching(/^[a-f0-9]{64}$/)]
+      })
+    )
   })
 })

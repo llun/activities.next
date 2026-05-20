@@ -7,6 +7,7 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   deleteMeilisearchDocument,
+  deleteMeilisearchDocumentIds,
   deleteMeilisearchDocuments,
   writeMeilisearchDocuments
 } from '@/lib/search/meilisearch'
@@ -22,6 +23,7 @@ import {
 import {
   ActorDatabase,
   DeleteSearchDocumentParams,
+  DeleteSearchDocumentsParams,
   GetSearchHashtagsByIdsParams,
   SearchAccountsParams,
   SearchDatabase,
@@ -200,7 +202,7 @@ const getWeightedTerms = ({
 
 const getMeilisearchWriteConfig = () => {
   const config = getConfig().search
-  return config.backend === 'meilisearch' ? config : null
+  return config?.backend === 'meilisearch' ? config : null
 }
 
 const toMeilisearchDocument = ({
@@ -385,6 +387,42 @@ export const SearchSQLDatabaseMixin = (
     }
   }
 
+  async function syncMeilisearchDeleteMany(
+    documents: Pick<DeleteSearchDocumentParams, 'entityType' | 'entityId'>[]
+  ) {
+    try {
+      const config = getMeilisearchWriteConfig()
+      if (!config || documents.length === 0) return
+
+      const documentIdsByType = documents.reduce((typeMap, document) => {
+        const documentsForType = typeMap.get(document.entityType) ?? []
+        documentsForType.push(
+          getSearchDocumentId(document.entityType, document.entityId)
+        )
+        typeMap.set(document.entityType, documentsForType)
+        return typeMap
+      }, new Map<SearchEntityType, string[]>())
+
+      for (const [entityType, documentIds] of documentIdsByType) {
+        for (const documentIdChunk of chunkArray(
+          documentIds,
+          SQL_WHERE_IN_BATCH_SIZE
+        )) {
+          await deleteMeilisearchDocumentIds({
+            config,
+            type: toMeilisearchType(entityType),
+            documentIds: documentIdChunk
+          })
+        }
+      }
+    } catch (error) {
+      warnMeilisearchWriteFailure({
+        action: 'delete',
+        error
+      })
+    }
+  }
+
   async function syncMeilisearchClear() {
     try {
       const config = getMeilisearchWriteConfig()
@@ -433,6 +471,36 @@ export const SearchSQLDatabaseMixin = (
       enqueueMeilisearchSync(() =>
         syncMeilisearchDelete({ entityType, entityId, documentId })
       )
+    }
+  }
+
+  async function deleteSearchDocuments({
+    documents,
+    deleteSql = true,
+    syncMeilisearch = true
+  }: DeleteSearchDocumentsParams): Promise<void> {
+    if (documents.length === 0) return
+
+    if (deleteSql) {
+      const documentIds = documents.map((document) =>
+        getSearchDocumentId(document.entityType, document.entityId)
+      )
+      await database.transaction(async (trx) => {
+        for (const documentIdChunk of chunkArray(
+          documentIds,
+          SQL_WHERE_IN_BATCH_SIZE
+        )) {
+          // Keep child deletes explicit for SQLite connections without PRAGMA foreign_keys.
+          await trx('search_terms')
+            .whereIn('documentId', documentIdChunk)
+            .delete()
+          await trx('search_documents').whereIn('id', documentIdChunk).delete()
+        }
+      })
+    }
+
+    if (syncMeilisearch) {
+      enqueueMeilisearchSync(() => syncMeilisearchDeleteMany(documents))
     }
   }
 
@@ -796,13 +864,12 @@ export const SearchSQLDatabaseMixin = (
 
     const rowGroups = await Promise.all(
       chunkArray(uniqueHashtagIds, SQL_WHERE_IN_BATCH_SIZE).map(
-        (hashtagIdChunk) => {
+        async (hashtagIdChunk) => {
           const normalizedNames = hashtagIdChunk.map(
             getNormalizedStoredHashtagName
           )
-          return database('tags')
+          const rows = await database('tags')
             .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-            .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
             .innerJoin('actors', 'statuses.actorId', 'actors.id')
             .where('tags.type', 'hashtag')
             .whereIn('tags.nameNormalized', [
@@ -810,16 +877,23 @@ export const SearchSQLDatabaseMixin = (
               ...hashtagIdChunk
             ])
             .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
-            .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-            .whereIn('recipients.type', ['to', 'cc'])
+            .whereExists(function () {
+              this.select(database.raw('1'))
+                .from('recipients')
+                .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
+                .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+                .whereIn('recipients.type', ['to', 'cc'])
+            })
             .whereNull('actors.deletionStatus')
+            .groupBy('tags.nameNormalized', 'tags.name', 'tags.value')
             .select<SQLTagSearchRow[]>(
               'tags.name',
               'tags.value',
-              'tags.nameNormalized',
-              'tags.createdAt'
+              'tags.nameNormalized'
             )
-            .orderBy('tags.createdAt', 'asc')
+            .min({ createdAt: 'tags.createdAt' })
+            .orderBy('createdAt', 'asc')
+          return rows as SQLTagSearchRow[]
         }
       )
     )
@@ -1037,6 +1111,9 @@ export const SearchSQLDatabaseMixin = (
       )
     }
 
+    const isPagingUp =
+      entityType === 'status' && Boolean(minStatusId && !maxStatusId)
+
     if (entityType === 'status' && minStatusId) {
       const cursor = await getStatusSearchCursor(minStatusId)
       if (cursor) {
@@ -1051,15 +1128,17 @@ export const SearchSQLDatabaseMixin = (
       }
     }
 
+    const orderDirection = isPagingUp ? 'asc' : 'desc'
     const rows = await documentsQuery
       .select<{ entityId: string }[]>('search_documents.entityId')
-      .orderBy('term_matches.searchScore', 'desc')
-      .orderBy('search_documents.entityCreatedAt', 'desc')
-      .orderBy('search_documents.entityIdHash', 'desc')
+      .orderBy('term_matches.searchScore', orderDirection)
+      .orderBy('search_documents.entityCreatedAt', orderDirection)
+      .orderBy('search_documents.entityIdHash', orderDirection)
       .limit(limit)
       .offset(offset)
 
-    return rows.map((row) => row.entityId)
+    const entityIds = rows.map((row) => row.entityId)
+    return isPagingUp ? entityIds.reverse() : entityIds
   }
 
   const getExactAccountActorId = async (
@@ -1151,12 +1230,11 @@ export const SearchSQLDatabaseMixin = (
     limit,
     offset,
     currentActorId,
-    following = false,
-    resolve = false
+    following = false
   }: SearchAccountsParams): Promise<Mastodon.Account[]> {
     const normalizedLimit = normalizeLimit(limit)
     const normalizedOffset = normalizeOffset(offset)
-    const shouldTryExactAccount = resolve || query.includes('@')
+    const shouldTryExactAccount = Boolean(query.trim())
     const exactActorId = shouldTryExactAccount
       ? await getExactAccountActorId(query)
       : null
@@ -1250,24 +1328,7 @@ export const SearchSQLDatabaseMixin = (
   }: GetSearchHashtagsByIdsParams): Promise<Mastodon.SearchTag[]> {
     if (hashtagIds.length === 0) return []
 
-    const normalizedNames = hashtagIds.map(getNormalizedStoredHashtagName)
-    const rows = await database('tags')
-      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-      .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
-      .innerJoin('actors', 'statuses.actorId', 'actors.id')
-      .where('tags.type', 'hashtag')
-      .whereIn('tags.nameNormalized', [...normalizedNames, ...hashtagIds])
-      .whereIn('statuses.type', SEARCHABLE_STATUS_TYPES)
-      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-      .whereIn('recipients.type', ['to', 'cc'])
-      .whereNull('actors.deletionStatus')
-      .select<SQLTagSearchRow[]>(
-        'tags.name',
-        'tags.value',
-        'tags.nameNormalized',
-        'tags.createdAt'
-      )
-      .orderBy('tags.createdAt', 'asc')
+    const rows = await getPublicHashtagRows(hashtagIds)
     const rowByHashtagId = rows.reduce((tagMap, row) => {
       const hashtagId = getHashtagId(row.name)
       if (!tagMap.has(hashtagId)) {
@@ -1281,12 +1342,13 @@ export const SearchSQLDatabaseMixin = (
       if (!row) return []
 
       const name = getHashtagDisplayName(row.name)
-      return Mastodon.SearchTag.parse({
+      const parsed = Mastodon.SearchTag.safeParse({
         id: hashtagId,
         name,
         url: row.value || `https://${getConfiguredHost()}/tags/${name}`,
         history: []
       })
+      return parsed.success ? [parsed.data] : []
     })
   }
 
@@ -1445,15 +1507,10 @@ export const SearchSQLDatabaseMixin = (
       const hashtags = await hashtagsQuery
       if (hashtags.length === 0) break
 
-      const indexed = await mapWithConcurrency(
-        hashtags,
-        rebuildConcurrency,
-        (hashtag) =>
-          upsertHashtagSearchDocument({
-            name: hashtag.nameNormalized,
-            syncMeilisearch
-          })
-      )
+      const indexed = await upsertHashtagSearchDocuments({
+        names: hashtags.map((hashtag) => hashtag.nameNormalized),
+        syncMeilisearch
+      })
       result.hashtags += indexed.filter(Boolean).length
       lastHashtagName = hashtags[hashtags.length - 1].nameNormalized
     }
@@ -1472,6 +1529,7 @@ export const SearchSQLDatabaseMixin = (
     upsertHashtagSearchDocument,
     upsertHashtagSearchDocuments,
     deleteSearchDocument,
+    deleteSearchDocuments,
     getSearchHashtagsByIds
   }
 }
