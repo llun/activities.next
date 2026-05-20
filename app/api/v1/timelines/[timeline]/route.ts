@@ -1,7 +1,7 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   getFilteredTimelinePage,
@@ -109,16 +109,16 @@ export const GET = traceApiRoute(
         ? `<https://${host}/api/v1/timelines/${timeline}?limit=${pageLimit}&min_id=${urlToId(prevMinStatusId)}>; rel="prev"`
         : null
       const links = [nextLink, prevLink].filter(Boolean).join(', ')
-      const mastodonStatuses = await Promise.all(
-        statuses.map((item) =>
-          getMastodonStatus(database, item, currentActor.id)
-        )
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        statuses,
+        currentActor.id
       )
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses.filter(Boolean),
+        data: mastodonStatuses,
         additionalHeaders: [
           ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
         ]

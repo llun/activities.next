@@ -1,5 +1,8 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import {
+  getMastodonStatus,
+  getMastodonStatuses
+} from '@/lib/services/mastodon/getMastodonStatus'
 import {
   filterReadableStatuses,
   getReadableStatus
@@ -72,11 +75,7 @@ export const GET = traceApiRoute(
             filterReadableStatuses({ database, statuses, currentActor })
           )
           .then((statuses) =>
-            Promise.all(
-              statuses.map((status) =>
-                getMastodonStatus(database, status, currentActor.id)
-              )
-            )
+            getMastodonStatuses(database, statuses, currentActor.id)
           )
       ])
 
