@@ -615,6 +615,40 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('uses a pointer cursor for status action buttons', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        editable
+        showActions
+        status={{
+          ...status,
+          edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
+        }}
+        onEdit={jest.fn()}
+        onPostDeleted={jest.fn()}
+        onReply={jest.fn()}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const actionButtons = [
+      ...within(
+        screen.getByRole('group', { name: 'Post primary actions' })
+      ).getAllByRole('button'),
+      ...within(
+        screen.getByRole('group', { name: 'Post secondary actions' })
+      ).getAllByRole('button')
+    ]
+
+    expect(actionButtons).toHaveLength(8)
+    actionButtons.forEach((button) => {
+      expect(button).toHaveClass('cursor-pointer')
+    })
+  })
+
   it('keeps visible social action counts in accessible labels', () => {
     render(
       <Post

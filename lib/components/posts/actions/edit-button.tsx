@@ -12,7 +12,7 @@ export const EditButton: FC<Props> = ({ status, onEdit }) => {
   if (status.type === StatusType.enum.Announce) return null
   return (
     <button
-      className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
+      className="flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted"
       title="Edit"
       aria-label="Edit post"
       onClick={(e) => {

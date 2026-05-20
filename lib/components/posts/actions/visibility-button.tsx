@@ -84,7 +84,7 @@ export const VisibilityButton: FC<Props> = ({ status }) => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors disabled:opacity-50"
+          className="flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           title={currentOption.label}
           aria-label={`Visibility: ${currentOption.label}`}
           disabled={saving}

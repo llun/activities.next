@@ -12,7 +12,7 @@ interface Props {
 export const DeleteButton: FC<Props> = ({ status, onPostDeleted }) => {
   return (
     <button
-      className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted hover:text-red-500 transition-colors"
+      className="flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted hover:text-red-500"
       title="Delete post"
       aria-label="Delete post"
       onClick={async (e) => {
