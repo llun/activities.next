@@ -116,7 +116,7 @@
     "@typescript-eslint/parser": "^8.59.1",
     "dotenv-flow": "^4.1.0",
     "eslint": "^10.2.1",
-    "eslint-config-next": "^16.2.4",
+    "eslint-config-next": "^16.2.6",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-import": "^2.32.0",
