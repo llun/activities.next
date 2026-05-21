@@ -239,18 +239,20 @@ export const StatusSQLDatabaseMixin = (
       sql: `?? = ${statusActorFollowersUrlExpression()}`,
       bindings: ['followers_recipients.actorId']
     }
-    const applyRecipientlessReplyFilter = (
-      builder: Knex.QueryBuilder,
-      parentReferenceColumn: string
-    ) => {
+    const applyRecipientlessReplyBaseFilter = (builder: Knex.QueryBuilder) => {
       builder
         .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-        .whereRaw('?? = ??', ['statuses.reply', parentReferenceColumn])
         .whereNotExists(function () {
           this.select(database.raw('1'))
             .from('recipients as reply_recipients')
             .whereRaw('?? = ??', ['reply_recipients.statusId', 'statuses.id'])
         })
+    }
+    const applyRecipientlessReplyParentReferenceFilter = (
+      builder: Knex.QueryBuilder,
+      parentReferenceColumn: string
+    ) => {
+      builder.whereRaw('?? = ??', ['statuses.reply', parentReferenceColumn])
     }
     const applyRecipientlessReplyParentAuthorFilter = (
       builder: Knex.QueryBuilder,
@@ -260,7 +262,10 @@ export const StatusSQLDatabaseMixin = (
         .select(database.raw('1'))
         .from('statuses as reply_parent_statuses')
         .where('reply_parent_statuses.actorId', visibleToActorId)
-      applyRecipientlessReplyFilter(builder, parentReferenceColumn)
+      applyRecipientlessReplyParentReferenceFilter(
+        builder,
+        parentReferenceColumn
+      )
     }
     const applyRecipientlessReplyParentConversationParticipantFilter = (
       builder: Knex.QueryBuilder,
@@ -280,7 +285,10 @@ export const StatusSQLDatabaseMixin = (
           'reply_parent_direct_statuses.conversationId'
         )
         .where('reply_parent_direct_participants.actorId', visibleToActorId)
-      applyRecipientlessReplyFilter(builder, parentReferenceColumn)
+      applyRecipientlessReplyParentReferenceFilter(
+        builder,
+        parentReferenceColumn
+      )
     }
 
     return query.where((qb) => {
@@ -294,29 +302,35 @@ export const StatusSQLDatabaseMixin = (
           ])
       )
         .orWhere('statuses.actorId', visibleToActorId)
-        .orWhereExists(function () {
-          applyRecipientlessReplyParentAuthorFilter(
-            this,
-            'reply_parent_statuses.id'
-          )
-        })
-        .orWhereExists(function () {
-          applyRecipientlessReplyParentAuthorFilter(
-            this,
-            'reply_parent_statuses.url'
-          )
-        })
-        .orWhereExists(function () {
-          applyRecipientlessReplyParentConversationParticipantFilter(
-            this,
-            'reply_parent_statuses.id'
-          )
-        })
-        .orWhereExists(function () {
-          applyRecipientlessReplyParentConversationParticipantFilter(
-            this,
-            'reply_parent_statuses.url'
-          )
+        .orWhere((recipientlessReplyQb) => {
+          applyRecipientlessReplyBaseFilter(recipientlessReplyQb)
+          recipientlessReplyQb.andWhere((parentVisibilityQb) => {
+            parentVisibilityQb
+              .whereExists(function () {
+                applyRecipientlessReplyParentAuthorFilter(
+                  this,
+                  'reply_parent_statuses.id'
+                )
+              })
+              .orWhereExists(function () {
+                applyRecipientlessReplyParentAuthorFilter(
+                  this,
+                  'reply_parent_statuses.url'
+                )
+              })
+              .orWhereExists(function () {
+                applyRecipientlessReplyParentConversationParticipantFilter(
+                  this,
+                  'reply_parent_statuses.id'
+                )
+              })
+              .orWhereExists(function () {
+                applyRecipientlessReplyParentConversationParticipantFilter(
+                  this,
+                  'reply_parent_statuses.url'
+                )
+              })
+          })
         })
         .orWhereExists(function () {
           this.select(database.raw('1'))
