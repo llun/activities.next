@@ -20,6 +20,7 @@ describe('direct conversations migration', () => {
     await database.schema.createTable('actors', (table) => {
       table.string('id').primary()
       table.string('privateKey')
+      table.jsonb('settings')
     })
     await database.schema.createTable('statuses', (table) => {
       table.string('id').primary()
@@ -209,6 +210,46 @@ describe('direct conversations migration', () => {
         timeline: 'direct'
       })
     ).resolves.toHaveLength(1)
+  })
+
+  test('does not backfill recipientless replies from unrelated followers audiences', async () => {
+    const parentStatusId =
+      'https://local.test/users/alice/statuses/unrelated-followers'
+    const replyStatusId =
+      'https://remote.test/users/bob/statuses/unrelated-followers-reply'
+
+    await database('statuses').insert([
+      {
+        id: parentStatusId,
+        url: parentStatusId,
+        type: 'Note',
+        actorId: localActorId,
+        reply: '',
+        createdAt: new Date('2026-05-16T00:00:00.000Z')
+      },
+      {
+        id: replyStatusId,
+        url: replyStatusId,
+        type: 'Note',
+        actorId: remoteActorId,
+        reply: parentStatusId,
+        createdAt: new Date('2026-05-17T01:00:00.000Z')
+      }
+    ])
+    await database('recipients').insert({
+      statusId: parentStatusId,
+      actorId: `${remoteActorId}/followers`,
+      type: 'cc'
+    })
+
+    await migration.up(database)
+    await recipientlessReplyMigration.up(database)
+
+    await expect(
+      database('direct_conversation_statuses').where({
+        statusId: replyStatusId
+      })
+    ).resolves.toHaveLength(0)
   })
 
   test('backfills chained recipientless direct replies in the same conversation', async () => {

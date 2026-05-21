@@ -7,6 +7,25 @@ const PUBLIC_AUDIENCES = [
   'as:Public'
 ]
 
+const getStoredFollowersAudienceExpression = (knex) => {
+  const clientName = String(knex.client.config.client)
+  if (clientName.includes('pg')) {
+    return "?? = parent_actors.settings::jsonb ->> 'followersUrl'"
+  }
+  if (clientName.includes('mysql')) {
+    return "?? = JSON_UNQUOTE(JSON_EXTRACT(parent_actors.settings, '$.followersUrl'))"
+  }
+  return "?? = json_extract(parent_actors.settings, '$.followersUrl')"
+}
+
+const getFallbackFollowersAudienceExpression = (knex) => {
+  const clientName = String(knex.client.config.client)
+  if (clientName.includes('mysql')) {
+    return "?? = CONCAT(??, '/followers')"
+  }
+  return "?? = ?? || '/followers'"
+}
+
 const conversationIdForRoot = (rootStatusId) =>
   crypto.createHash('sha256').update(rootStatusId).digest('hex')
 
@@ -102,7 +121,13 @@ const getRecipientlessDirectReplyQuery = (knex, parentReferenceColumn) =>
                 .where((recipientBuilder) => {
                   recipientBuilder
                     .whereIn('parent_recipients.actorId', PUBLIC_AUDIENCES)
-                    .orWhere('parent_recipients.actorId', 'like', '%/followers')
+                    .orWhereRaw(getStoredFollowersAudienceExpression(knex), [
+                      'parent_recipients.actorId'
+                    ])
+                    .orWhereRaw(getFallbackFollowersAudienceExpression(knex), [
+                      'parent_recipients.actorId',
+                      'parent_statuses.actorId'
+                    ])
                 })
             })
         })
