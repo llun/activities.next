@@ -1228,22 +1228,37 @@ describe('ConversationDatabase', () => {
         type: 'to'
       })
 
-      await database.syncDirectConversationForStatus({
-        status: {
-          ...statusForId('lightweight-reply'),
-          actorId: ACTOR2_ID,
-          reply: parentUrl,
-          to: [ACTOR1_ID],
-          cc: [],
-          createdAt: 2000
-        } as StatusNote
-      })
+      const statusLookupQueries: string[] = []
+      const trackStatusLookupQuery = (query: { sql: string }) => {
+        if (
+          query.sql.toLowerCase().startsWith('select') &&
+          query.sql.includes('from `statuses`')
+        ) {
+          statusLookupQueries.push(query.sql)
+        }
+      }
+      knexDatabase.on('query', trackStatusLookupQuery)
+      try {
+        await database.syncDirectConversationForStatus({
+          status: {
+            ...statusForId('lightweight-reply'),
+            actorId: ACTOR2_ID,
+            reply: parentUrl,
+            to: [ACTOR1_ID],
+            cc: [],
+            createdAt: 2000
+          } as StatusNote
+        })
+      } finally {
+        knexDatabase.off('query', trackStatusLookupQuery)
+      }
 
       const conversation = await knexDatabase('direct_conversations')
         .where({ rootStatusId: 'lightweight-parent' })
         .first<{ id: string }>()
 
       expect(conversation).toBeDefined()
+      expect(statusLookupQueries).toHaveLength(1)
       expect(getStatus).not.toHaveBeenCalled()
       expect(getStatusFromUrl).not.toHaveBeenCalled()
     })

@@ -354,31 +354,45 @@ export const DirectConversationSQLDatabaseMixin = (
   }
 
   const getStatusByIdOrUrl = async (statusReference: string) => {
-    const queryStatusLookupRows = () =>
-      database('statuses')
-        .leftJoin('recipients', 'recipients.statusId', 'statuses.id')
-        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-        .select<DirectConversationStatusLookupRow[]>({
-          id: 'statuses.id',
-          url: 'statuses.url',
-          actorId: 'statuses.actorId',
-          type: 'statuses.type',
-          reply: 'statuses.reply',
-          recipientActorId: 'recipients.actorId',
-          recipientType: 'recipients.type'
+    const urlHash = getHashFromString(statusReference)
+    // Limit before joining recipients so id matches keep precedence without
+    // dropping recipient rows from the chosen status.
+    const matchingStatusQuery = database('statuses')
+      .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      .where((builder) => {
+        builder.where('statuses.id', statusReference).orWhere((urlBuilder) => {
+          urlBuilder
+            .where('statuses.urlHash', urlHash)
+            .where('statuses.url', statusReference)
         })
+      })
+      .orderByRaw('case when ?? = ? then 0 else 1 end', [
+        'statuses.id',
+        statusReference
+      ])
+      .limit(1)
+      .select({
+        id: 'statuses.id',
+        url: 'statuses.url',
+        actorId: 'statuses.actorId',
+        type: 'statuses.type',
+        reply: 'statuses.reply'
+      })
+      .as('status_lookup')
 
-    const rowsById = await queryStatusLookupRows().where(
-      'statuses.id',
-      statusReference
-    )
-    const statusById = buildDirectConversationStatusLookup(rowsById)
-    if (statusById) return statusById
-
-    const rowsByUrl = await queryStatusLookupRows()
-      .where('statuses.urlHash', getHashFromString(statusReference))
-      .where('statuses.url', statusReference)
-    return buildDirectConversationStatusLookup(rowsByUrl)
+    const rows = await database
+      .from(matchingStatusQuery)
+      .leftJoin('recipients', 'recipients.statusId', 'status_lookup.id')
+      .select<DirectConversationStatusLookupRow[]>({
+        id: 'status_lookup.id',
+        url: 'status_lookup.url',
+        actorId: 'status_lookup.actorId',
+        type: 'status_lookup.type',
+        reply: 'status_lookup.reply',
+        recipientActorId: 'recipients.actorId',
+        recipientType: 'recipients.type'
+      })
+    return buildDirectConversationStatusLookup(rows)
   }
 
   const isLocalActorId = async (actorId: string) => {
