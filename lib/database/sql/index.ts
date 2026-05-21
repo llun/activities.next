@@ -28,6 +28,7 @@ import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
 const MAX_STATUS_DELETE_REPLY_DEPTH = 256
+const MAX_STATUS_DELETE_REPLY_ROWS = 10_000
 const SQL_WHERE_IN_BATCH_SIZE = 500
 const SEARCH_DOCUMENT_STATUS_TYPES: StatusType[] = [
   StatusType.enum.Note,
@@ -147,11 +148,31 @@ export const getSQLDatabase = (database: Knex): Database => {
         break
       }
 
-      for (const row of nextRows) {
+      const remainingRowCount = Math.max(
+        0,
+        MAX_STATUS_DELETE_REPLY_ROWS - statusRows.length
+      )
+      const rowsToCollect = nextRows.slice(0, remainingRowCount)
+      const exceededRowLimit = rowsToCollect.length < nextRows.length
+      if (exceededRowLimit) {
+        logger.warn({
+          message:
+            'Status delete reply traversal exceeded maximum row count; continuing with partial search index cleanup',
+          statusId,
+          maxStatusCount: MAX_STATUS_DELETE_REPLY_ROWS,
+          collectedStatusCount: statusRows.length,
+          pendingParentCount: pendingParentIds.length,
+          overflowChildCount: nextRows.length - rowsToCollect.length
+        })
+      }
+
+      for (const row of rowsToCollect) {
         seen.add(row.id)
         statusRows.push(row)
       }
-      pendingParentIds = nextRows.map((row) => row.id)
+      if (exceededRowLimit) break
+
+      pendingParentIds = rowsToCollect.map((row) => row.id)
       depth += 1
     }
 
