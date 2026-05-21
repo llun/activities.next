@@ -27,7 +27,7 @@ import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
-const MAX_STATUS_DELETE_REPLY_DEPTH = 10000
+const MAX_STATUS_DELETE_REPLY_DEPTH = 256
 const SQL_WHERE_IN_BATCH_SIZE = 500
 const SEARCH_DOCUMENT_STATUS_TYPES: StatusType[] = [
   StatusType.enum.Note,

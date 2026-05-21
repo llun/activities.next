@@ -30,6 +30,12 @@ ACTIVITIES_SEARCH_MEILISEARCH_TIMEOUT_MS=2000
 
 If Meilisearch is configured but a search request fails, the server logs a warning and falls back to the SQL search index for that request.
 
+## Account Fallback Search
+
+Account search first uses the SQL search index. If the indexed account search returns no rows for the requested page, the server falls back to a bounded `LIKE` query over known actors so older instances can still find accounts before the search index has been rebuilt.
+
+The fallback is intentionally not mixed into pages that already have indexed results. During partial hydration this can make account result ordering differ from the fallback query, so operators should run a SQL reindex after enabling search or after restoring/importing actor data.
+
 ## Rebuilding
 
 Run migrations first:

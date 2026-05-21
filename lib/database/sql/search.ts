@@ -1043,32 +1043,69 @@ export const SearchSQLDatabaseMixin = (
               .where((sameScoreTie) => {
                 sameScoreTie.where((sameCreatedAt) => {
                   if (entityCreatedAt === null) {
-                    sameCreatedAt.where(
-                      'search_documents.entityIdHash',
-                      cursorOperator,
-                      cursor.entityIdHash
-                    )
-                    return
-                  }
-
-                  sameCreatedAt
-                    .where(
-                      'search_documents.entityCreatedAt',
-                      cursorOperator,
-                      entityCreatedAt
-                    )
-                    .orWhere((sameNonNullCreatedAt) => {
-                      sameNonNullCreatedAt
-                        .where(
-                          'search_documents.entityCreatedAt',
-                          '=',
-                          entityCreatedAt
-                        )
+                    sameCreatedAt.where((sameNullCreatedAt) => {
+                      sameNullCreatedAt
+                        .whereNull('search_documents.entityCreatedAt')
                         .where(
                           'search_documents.entityIdHash',
                           cursorOperator,
                           cursor.entityIdHash
                         )
+                    })
+                    if (direction === 'before') {
+                      sameCreatedAt.orWhereNotNull(
+                        'search_documents.entityCreatedAt'
+                      )
+                    }
+                    return
+                  }
+
+                  if (direction === 'after') {
+                    sameCreatedAt
+                      .whereNull('search_documents.entityCreatedAt')
+                      .orWhere(
+                        'search_documents.entityCreatedAt',
+                        cursorOperator,
+                        entityCreatedAt
+                      )
+                      .orWhere((sameNonNullCreatedAt) => {
+                        sameNonNullCreatedAt
+                          .where(
+                            'search_documents.entityCreatedAt',
+                            '=',
+                            entityCreatedAt
+                          )
+                          .where(
+                            'search_documents.entityIdHash',
+                            cursorOperator,
+                            cursor.entityIdHash
+                          )
+                      })
+                    return
+                  }
+
+                  sameCreatedAt
+                    .whereNotNull('search_documents.entityCreatedAt')
+                    .where((sameNonNullCreatedAt) => {
+                      sameNonNullCreatedAt
+                        .where(
+                          'search_documents.entityCreatedAt',
+                          cursorOperator,
+                          entityCreatedAt
+                        )
+                        .orWhere((sameTimestamp) => {
+                          sameTimestamp
+                            .where(
+                              'search_documents.entityCreatedAt',
+                              '=',
+                              entityCreatedAt
+                            )
+                            .where(
+                              'search_documents.entityIdHash',
+                              cursorOperator,
+                              cursor.entityIdHash
+                            )
+                        })
                     })
                 })
               })
@@ -1129,9 +1166,13 @@ export const SearchSQLDatabaseMixin = (
     }
 
     const orderDirection = isPagingUp ? 'asc' : 'desc'
+    const nullOrderDirection = isPagingUp ? 'desc' : 'asc'
     const rows = await documentsQuery
       .select<{ entityId: string }[]>('search_documents.entityId')
       .orderBy('term_matches.searchScore', orderDirection)
+      .orderByRaw(`?? IS NULL ${nullOrderDirection}`, [
+        'search_documents.entityCreatedAt'
+      ])
       .orderBy('search_documents.entityCreatedAt', orderDirection)
       .orderBy('search_documents.entityIdHash', orderDirection)
       .limit(limit)

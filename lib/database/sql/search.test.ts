@@ -1294,12 +1294,13 @@ describe('SearchDatabase', () => {
       })
     })
 
-    it('applies status cursors when the cursor timestamp is null', async () => {
+    it('applies status cursors with deterministic null timestamp ordering', async () => {
       const suffix = crypto.randomUUID().slice(0, 8)
       const searchText = `NullCursor${suffix}`
       const actorId = `https://cursor.test/users/cursor-${suffix}`
-      const firstStatusId = `${actorId}/statuses/null-cursor-a`
-      const secondStatusId = `${actorId}/statuses/null-cursor-b`
+      const nonNullStatusId = `${actorId}/statuses/non-null-cursor`
+      const firstNullStatusId = `${actorId}/statuses/null-cursor-a`
+      const secondNullStatusId = `${actorId}/statuses/null-cursor-b`
       await database.createMastodonActor({
         actorId,
         username: `cursor-${suffix}`,
@@ -1311,16 +1312,25 @@ describe('SearchDatabase', () => {
         createdAt: Date.now()
       })
       await database.createNote({
-        id: firstStatusId,
-        url: firstStatusId,
+        id: nonNullStatusId,
+        url: nonNullStatusId,
+        actorId,
+        text: searchText,
+        createdAt: Date.now(),
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: firstNullStatusId,
+        url: firstNullStatusId,
         actorId,
         text: searchText,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
       await database.createNote({
-        id: secondStatusId,
-        url: secondStatusId,
+        id: secondNullStatusId,
+        url: secondNullStatusId,
         actorId,
         text: searchText,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -1328,13 +1338,14 @@ describe('SearchDatabase', () => {
       })
       await rawDatabase('search_documents')
         .where('entityType', 'status')
-        .whereIn('entityId', [firstStatusId, secondStatusId])
+        .whereIn('entityId', [firstNullStatusId, secondNullStatusId])
         .update({ entityCreatedAt: null })
-      const orderedStatusIds = [firstStatusId, secondStatusId].sort((a, b) =>
-        createHash('sha256')
-          .update(b, 'utf8')
-          .digest('hex')
-          .localeCompare(createHash('sha256').update(a, 'utf8').digest('hex'))
+      const orderedNullStatusIds = [firstNullStatusId, secondNullStatusId].sort(
+        (a, b) =>
+          createHash('sha256')
+            .update(b, 'utf8')
+            .digest('hex')
+            .localeCompare(createHash('sha256').update(a, 'utf8').digest('hex'))
       )
 
       await expect(
@@ -1342,17 +1353,31 @@ describe('SearchDatabase', () => {
           query: searchText,
           limit: 10,
           offset: 0,
-          maxStatusId: orderedStatusIds[0]
+          maxStatusId: nonNullStatusId
         })
-      ).resolves.toMatchObject([{ id: orderedStatusIds[1] }])
+      ).resolves.toMatchObject([
+        { id: orderedNullStatusIds[0] },
+        { id: orderedNullStatusIds[1] }
+      ])
       await expect(
         database.searchStatuses({
           query: searchText,
           limit: 10,
           offset: 0,
-          minStatusId: orderedStatusIds[1]
+          maxStatusId: orderedNullStatusIds[0]
         })
-      ).resolves.toMatchObject([{ id: orderedStatusIds[0] }])
+      ).resolves.toMatchObject([{ id: orderedNullStatusIds[1] }])
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0,
+          minStatusId: orderedNullStatusIds[1]
+        })
+      ).resolves.toMatchObject([
+        { id: nonNullStatusId },
+        { id: orderedNullStatusIds[0] }
+      ])
     })
   })
 })
