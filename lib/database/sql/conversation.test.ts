@@ -19,6 +19,7 @@ import {
   StatusDatabase
 } from '@/lib/types/database/operations'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const createMemoryKnex = () =>
   knex({
@@ -74,6 +75,26 @@ const createDirectConversationTables = async (database: Knex) => {
       table.unique(['actorId', 'conversationId'])
     }
   )
+}
+
+const createStatusLookupTables = async (database: Knex) => {
+  await database.schema.createTable('statuses', (table) => {
+    table.string('id').primary()
+    table.text('url')
+    table.string('urlHash', 64)
+    table.string('actorId').notNullable()
+    table.string('type').notNullable()
+    table.string('reply').notNullable().defaultTo('')
+    table.timestamp('createdAt', { useTz: true })
+    table.timestamp('updatedAt', { useTz: true })
+    table.index('urlHash')
+  })
+  await database.schema.createTable('recipients', (table) => {
+    table.string('id').primary()
+    table.string('statusId').notNullable()
+    table.string('actorId').notNullable()
+    table.string('type').notNullable()
+  })
 }
 
 const statusForId = (id: string): Status =>
@@ -1166,6 +1187,65 @@ describe('ConversationDatabase', () => {
         'status-3'
       ])
       expect(secondPage.map((status) => status.id)).toEqual(['status-1'])
+    })
+
+    test('resolves reply roots from lightweight status rows without full hydration', async () => {
+      await createStatusLookupTables(knexDatabase)
+      const parentUrl = 'https://remote.test/statuses/lightweight-parent'
+      const getStatus = jest.fn(async () => null)
+      const getStatusFromUrl = jest.fn(async () => null)
+      const statusDatabase = {
+        getStatus,
+        getStatusFromUrl,
+        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+          statusIds.map(statusForId)
+        )
+      } as unknown as StatusDatabase
+      const database = DirectConversationSQLDatabaseMixin(
+        knexDatabase,
+        statusDatabase
+      )
+      const now = new Date()
+
+      await knexDatabase('actors').insert([
+        { id: ACTOR1_ID, privateKey: 'private-key-1' },
+        { id: ACTOR2_ID, privateKey: 'private-key-2' }
+      ])
+      await knexDatabase('statuses').insert({
+        id: 'lightweight-parent',
+        url: parentUrl,
+        urlHash: getHashFromString(parentUrl),
+        actorId: ACTOR1_ID,
+        type: StatusType.enum.Note,
+        reply: '',
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('recipients').insert({
+        id: 'lightweight-parent-recipient',
+        statusId: 'lightweight-parent',
+        actorId: ACTOR2_ID,
+        type: 'to'
+      })
+
+      await database.syncDirectConversationForStatus({
+        status: {
+          ...statusForId('lightweight-reply'),
+          actorId: ACTOR2_ID,
+          reply: parentUrl,
+          to: [ACTOR1_ID],
+          cc: [],
+          createdAt: 2000
+        } as StatusNote
+      })
+
+      const conversation = await knexDatabase('direct_conversations')
+        .where({ rootStatusId: 'lightweight-parent' })
+        .first<{ id: string }>()
+
+      expect(conversation).toBeDefined()
+      expect(getStatus).not.toHaveBeenCalled()
+      expect(getStatusFromUrl).not.toHaveBeenCalled()
     })
 
     test('resolves reply roots from synced direct conversation rows before hydrating parents', async () => {

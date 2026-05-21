@@ -15,12 +15,19 @@ import {
   StatusDatabase,
   SyncDirectConversationForStatusParams
 } from '@/lib/types/database/operations'
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import {
   getDirectStatusParticipantActorIds,
   isDirectAudienceActorId,
   isDirectStatus
 } from '@/lib/utils/directStatus'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getVisibility } from '@/lib/utils/getVisibility'
 
 type DirectConversationMembershipRow = {
   id: string | number
@@ -42,6 +49,26 @@ type DirectConversationStatusRow = {
   createdAt: Date | string | number
 }
 
+type DirectConversationStatusLookup = {
+  id: string
+  url: string
+  actorId: string
+  type: StatusType
+  to: string[]
+  cc: string[]
+  reply: string
+}
+
+type DirectConversationStatusLookupRow = {
+  id: string
+  url: string | null
+  actorId: string
+  type: StatusType
+  reply: string | null
+  recipientActorId: string | null
+  recipientType: string | null
+}
+
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
 const DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE = 50
 const MAX_DIRECT_CONVERSATION_FALLBACK_STATUS_BATCHES = 4
@@ -51,6 +78,38 @@ const MAX_BIGINT_ID = '9223372036854775807'
 
 const getConversationIdForRootStatusId = (rootStatusId: string) =>
   createHash('sha256').update(rootStatusId).digest('hex')
+
+const isDirectStatusLookup = (status: DirectConversationStatusLookup) =>
+  status.type !== StatusType.enum.Announce &&
+  getVisibility(status.to, status.cc) === 'direct'
+
+const buildDirectConversationStatusLookup = (
+  rows: DirectConversationStatusLookupRow[]
+): DirectConversationStatusLookup | null => {
+  if (rows.length === 0) return null
+
+  const [status] = rows
+  return rows.reduce<DirectConversationStatusLookup>(
+    (output, row) => {
+      if (row.recipientType === 'to' && row.recipientActorId) {
+        output.to.push(row.recipientActorId)
+      }
+      if (row.recipientType === 'cc' && row.recipientActorId) {
+        output.cc.push(row.recipientActorId)
+      }
+      return output
+    },
+    {
+      id: status.id,
+      url: status.url ?? status.id,
+      actorId: status.actorId,
+      type: status.type,
+      to: [],
+      cc: [],
+      reply: status.reply ?? ''
+    }
+  )
+}
 
 const normalizeMembershipId = (id: string) => {
   if (!/^[0-9]+$/.test(id)) return null
@@ -295,13 +354,31 @@ export const DirectConversationSQLDatabaseMixin = (
   }
 
   const getStatusByIdOrUrl = async (statusReference: string) => {
-    const status = await statusDatabase.getStatus({
-      statusId: statusReference,
-      withReplies: false
-    })
-    if (status) return status
+    const queryStatusLookupRows = () =>
+      database('statuses')
+        .leftJoin('recipients', 'recipients.statusId', 'statuses.id')
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+        .select<DirectConversationStatusLookupRow[]>({
+          id: 'statuses.id',
+          url: 'statuses.url',
+          actorId: 'statuses.actorId',
+          type: 'statuses.type',
+          reply: 'statuses.reply',
+          recipientActorId: 'recipients.actorId',
+          recipientType: 'recipients.type'
+        })
 
-    return statusDatabase.getStatusFromUrl({ url: statusReference })
+    const rowsById = await queryStatusLookupRows().where(
+      'statuses.id',
+      statusReference
+    )
+    const statusById = buildDirectConversationStatusLookup(rowsById)
+    if (statusById) return statusById
+
+    const rowsByUrl = await queryStatusLookupRows()
+      .where('statuses.urlHash', getHashFromString(statusReference))
+      .where('statuses.url', statusReference)
+    return buildDirectConversationStatusLookup(rowsByUrl)
   }
 
   const isLocalActorId = async (actorId: string) => {
@@ -345,7 +422,7 @@ export const DirectConversationSQLDatabaseMixin = (
   const resolveConversationRootStatusId = async (
     status: StatusNote | StatusPoll
   ) => {
-    let root = status
+    let root: DirectConversationStatusLookup = status
     const seen = new Set([status.id])
 
     for (
@@ -359,7 +436,7 @@ export const DirectConversationSQLDatabaseMixin = (
       const parentStatus = await getStatusByIdOrUrl(root.reply)
       // Empty to/cc statuses are direct, so recipientless reply chains keep
       // walking through this check.
-      if (!parentStatus || !isDirectStatus(parentStatus)) break
+      if (!parentStatus || !isDirectStatusLookup(parentStatus)) break
       if (seen.has(parentStatus.id)) break
       seen.add(parentStatus.id)
       root = parentStatus
