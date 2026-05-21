@@ -928,6 +928,52 @@ describe('SearchDatabase', () => {
       ).resolves.toEqual([])
     })
 
+    it('continues deleting statuses when search cleanup reaches the reply depth limit', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const rootStatusId = `${ACTOR1_ID}/statuses/depth-limit-root-${suffix}`
+      const deepestSearchText = `DepthLimitDeletedReplySearch${suffix}`
+      let previousStatusId = rootStatusId
+
+      await database.createNote({
+        id: rootStatusId,
+        url: rootStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Root status for depth-limit recursive delete',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      for (let depth = 1; depth <= 258; depth += 1) {
+        const statusId = `${ACTOR1_ID}/statuses/depth-limit-${depth}-${suffix}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text:
+            depth === 258
+              ? deepestSearchText
+              : `Intermediate depth-limit reply ${depth}`,
+          reply: previousStatusId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        previousStatusId = statusId
+      }
+
+      await database.deleteStatus({ statusId: rootStatusId })
+
+      await expect(
+        database.getStatus({ statusId: previousStatusId })
+      ).resolves.toBeNull()
+      await expect(
+        database.searchStatuses({
+          query: deepestSearchText,
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([])
+    })
+
     it('does not reindex statuses for deleted actors during rebuild', async () => {
       const suffix = crypto.randomUUID().slice(0, 8)
       const username = `search-deleted-rebuild-${suffix}`

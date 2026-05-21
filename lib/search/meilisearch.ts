@@ -45,6 +45,7 @@ const EXISTING_INDEX_STATUS = 409
 const TASK_POLL_INITIAL_INTERVAL_MS = 100
 const TASK_POLL_MAX_INTERVAL_MS = 1000
 const TASK_POLL_JITTER_RATIO = 0.25
+const TASK_WAIT_TIMEOUT_MS = 30000
 // Index configuration is expected to stay valid for the process lifetime.
 // Restart the process if indexes are deleted externally while writes are active.
 const configuredIndexPromises = new Map<string, Promise<void>>()
@@ -114,6 +115,10 @@ const getTaskPollDelayMs = (attempt: number, remainingMs: number) => {
   return Math.min(baseDelayMs + jitterMs, Math.max(0, remainingMs))
 }
 
+const getTaskWaitTimeoutMs = (
+  config: Extract<SearchConfig, { backend: 'meilisearch' }>
+) => Math.max(config.timeoutMs, TASK_WAIT_TIMEOUT_MS)
+
 const getMeilisearchTaskUid = async (
   response: Response,
   operationLabel: string
@@ -144,21 +149,15 @@ const waitForMeilisearchTask = async ({
   taskUid: number
   operationLabel: string
 }) => {
-  const deadline = Date.now() + config.timeoutMs
+  const timeoutMs = getTaskWaitTimeoutMs(config)
+  const deadline = Date.now() + timeoutMs
   let attempt = 0
 
   for (;;) {
     const remainingMs = deadline - Date.now()
     if (remainingMs <= 0) {
       throw new Error(
-        `Meilisearch ${operationLabel} task ${taskUid} timed out after ${config.timeoutMs}ms`
-      )
-    }
-
-    const fetchRemainingMs = deadline - Date.now()
-    if (fetchRemainingMs <= 0) {
-      throw new Error(
-        `Meilisearch ${operationLabel} task ${taskUid} timed out after ${config.timeoutMs}ms`
+        `Meilisearch ${operationLabel} task ${taskUid} timed out after ${timeoutMs}ms`
       )
     }
 
@@ -169,7 +168,7 @@ const waitForMeilisearchTask = async ({
         method: 'GET',
         headers: getHeaders(config)
       },
-      fetchRemainingMs
+      Math.min(config.timeoutMs, remainingMs)
     )
 
     if (!response.ok) {

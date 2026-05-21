@@ -321,6 +321,31 @@ describe('Meilisearch search backend', () => {
     expect(deleteFetchMock).toHaveBeenCalledTimes(4)
   })
 
+  it('uses a longer task deadline than individual status requests', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0)
+    const deleteFetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(taskResponse(1))
+      .mockResolvedValueOnce(
+        fetchResponse(200, {
+          uid: 1,
+          status: 'processing'
+        })
+      )
+      .mockResolvedValueOnce(completedTaskResponse(1))
+    global.fetch = deleteFetchMock as unknown as typeof fetch
+
+    await deleteMeilisearchDocuments({
+      config: {
+        ...config('delete_task_deadline'),
+        timeoutMs: 1
+      },
+      type: 'accounts'
+    })
+
+    expect(deleteFetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('deletes individual documents by id', async () => {
     const deleteFetchMock = jest
       .fn()

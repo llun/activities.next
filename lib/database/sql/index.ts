@@ -136,14 +136,15 @@ export const getSQLDatabase = (database: Knex): Database => {
 
       if (depth >= MAX_STATUS_DELETE_REPLY_DEPTH) {
         logger.warn({
-          message: 'Status delete reply traversal exceeded maximum depth',
+          message:
+            'Status delete reply traversal exceeded maximum depth; continuing with partial search index cleanup',
           statusId,
           maxDepth: MAX_STATUS_DELETE_REPLY_DEPTH,
           collectedStatusCount: statusRows.length,
           pendingParentCount: pendingParentIds.length,
           overflowChildCount: nextRows.length
         })
-        throw new Error('Status reply tree exceeds maximum delete depth')
+        break
       }
 
       for (const row of nextRows) {
