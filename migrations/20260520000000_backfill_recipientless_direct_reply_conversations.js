@@ -127,6 +127,19 @@ exports.up = async (knex) => {
     cursor = batch.cursor
     if (directReplies.length === 0) continue
 
+    const batchParticipantActorIds = [
+      ...new Set(
+        directReplies.flatMap((status) => [
+          status.actorId,
+          status.parentActorId
+        ])
+      )
+    ]
+    const batchLocalActorIds = await getLocalActorIds(
+      knex,
+      batchParticipantActorIds
+    )
+
     await knex.transaction(async (trx) => {
       for (const status of directReplies) {
         const conversationId = conversationIdForRoot(status.id)
@@ -134,7 +147,9 @@ exports.up = async (knex) => {
         const participantActorIds = [
           ...new Set([status.actorId, status.parentActorId])
         ]
-        const localActorIds = await getLocalActorIds(trx, participantActorIds)
+        const localActorIds = participantActorIds.filter((actorId) =>
+          batchLocalActorIds.has(actorId)
+        )
 
         await insertIfMissing(
           trx,

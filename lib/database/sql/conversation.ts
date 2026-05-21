@@ -281,6 +281,16 @@ export const DirectConversationSQLDatabaseMixin = (
     return row?.rootStatusId ?? null
   }
 
+  const getStatusByIdOrUrl = async (statusReference: string) => {
+    const status = await statusDatabase.getStatus({
+      statusId: statusReference,
+      withReplies: false
+    })
+    if (status) return status
+
+    return statusDatabase.getStatusFromUrl({ url: statusReference })
+  }
+
   const getDirectConversationParticipantActorIds = async (
     status: StatusNote | StatusPoll
   ) => {
@@ -292,10 +302,7 @@ export const DirectConversationSQLDatabaseMixin = (
       return participantActorIds
     }
 
-    const parentStatus = await statusDatabase.getStatus({
-      statusId: status.reply,
-      withReplies: false
-    })
+    const parentStatus = await getStatusByIdOrUrl(status.reply)
     if (!parentStatus) return participantActorIds
 
     return [...new Set([...participantActorIds, parentStatus.actorId])]
@@ -315,10 +322,7 @@ export const DirectConversationSQLDatabaseMixin = (
       const syncedRootStatusId = await getSyncedRootStatusId(root.reply)
       if (syncedRootStatusId) return syncedRootStatusId
 
-      const parentStatus = await statusDatabase.getStatus({
-        statusId: root.reply,
-        withReplies: false
-      })
+      const parentStatus = await getStatusByIdOrUrl(root.reply)
       if (!parentStatus || !isDirectStatus(parentStatus)) break
       if (seen.has(parentStatus.id)) break
       seen.add(parentStatus.id)

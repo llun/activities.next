@@ -324,8 +324,8 @@ describe('ConversationDatabase', () => {
 
     test('includes recipientless direct replies to local non-direct statuses', async () => {
       const parent = await database.createNote({
-        id: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply`,
-        url: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply`,
+        id: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply-id`,
+        url: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply-url`,
         actorId: ACTOR1_ID,
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: [`${ACTOR1_ID}/followers`],
@@ -339,7 +339,7 @@ describe('ConversationDatabase', () => {
         to: [],
         cc: [],
         text: 'recipientless direct reply',
-        reply: parent.id,
+        reply: parent.url,
         createdAt: 6600
       })
 
