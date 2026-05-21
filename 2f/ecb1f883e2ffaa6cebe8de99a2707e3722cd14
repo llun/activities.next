@@ -1,0 +1,22 @@
+lib/database/sql/directConversationsMigration.test.ts
+  s_c1e58d433fdf8c::t_30ce2599b072f7 215-254
+  s_c1e58d433fdf8c::t_38b7b5ad8e8d71 23
+migrations/20260520000000_backfill_recipientless_direct_reply_conversations.js
+  s_c1e58d433fdf8c::t_6ff903e4fc0364 10-28,124-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "2fecb1f883e2ffaa6cebe8de99a2707e3722cd14",
+  "prompts": {},
+  "sessions": {
+    "s_c1e58d433fdf8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e46d2-461c-7f93-95a1-f003030922e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
