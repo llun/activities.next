@@ -239,6 +239,72 @@ export const StatusSQLDatabaseMixin = (
       sql: `?? = ${statusActorFollowersUrlExpression()}`,
       bindings: ['followers_recipients.actorId']
     }
+    const applyRecipientlessReplyBaseFilter = (builder: Knex.QueryBuilder) => {
+      builder
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+        .whereNotExists(function () {
+          this.select(database.raw('1'))
+            .from('recipients as reply_recipients')
+            .whereRaw('?? = ??', ['reply_recipients.statusId', 'statuses.id'])
+        })
+    }
+    const applyRecipientlessReplyParentReferenceFilter = ({
+      builder,
+      parentReferenceColumn,
+      parentReferenceHashColumn
+    }: {
+      builder: Knex.QueryBuilder
+      parentReferenceColumn: string
+      parentReferenceHashColumn?: string
+    }) => {
+      if (parentReferenceHashColumn) {
+        builder.whereRaw('?? = ??', [
+          'statuses.replyHash',
+          parentReferenceHashColumn
+        ])
+      }
+      builder.whereRaw('?? = ??', ['statuses.reply', parentReferenceColumn])
+    }
+    const applyRecipientlessReplyParentAuthorFilter = (
+      builder: Knex.QueryBuilder,
+      parentReferenceColumn: string,
+      parentReferenceHashColumn?: string
+    ) => {
+      builder
+        .select(database.raw('1'))
+        .from('statuses as reply_parent_statuses')
+        .where('reply_parent_statuses.actorId', visibleToActorId)
+      applyRecipientlessReplyParentReferenceFilter({
+        builder,
+        parentReferenceColumn,
+        parentReferenceHashColumn
+      })
+    }
+    const applyRecipientlessReplyParentConversationParticipantFilter = (
+      builder: Knex.QueryBuilder,
+      parentReferenceColumn: string,
+      parentReferenceHashColumn?: string
+    ) => {
+      builder
+        .select(database.raw('1'))
+        .from('statuses as reply_parent_statuses')
+        .innerJoin(
+          'direct_conversation_statuses as reply_parent_direct_statuses',
+          'reply_parent_direct_statuses.statusId',
+          'reply_parent_statuses.id'
+        )
+        .innerJoin(
+          'direct_conversation_participants as reply_parent_direct_participants',
+          'reply_parent_direct_participants.conversationId',
+          'reply_parent_direct_statuses.conversationId'
+        )
+        .where('reply_parent_direct_participants.actorId', visibleToActorId)
+      applyRecipientlessReplyParentReferenceFilter({
+        builder,
+        parentReferenceColumn,
+        parentReferenceHashColumn
+      })
+    }
 
     return query.where((qb) => {
       qb.whereIn(
@@ -251,6 +317,38 @@ export const StatusSQLDatabaseMixin = (
           ])
       )
         .orWhere('statuses.actorId', visibleToActorId)
+        .orWhere((recipientlessReplyQb) => {
+          applyRecipientlessReplyBaseFilter(recipientlessReplyQb)
+          recipientlessReplyQb.andWhere((parentVisibilityQb) => {
+            parentVisibilityQb
+              .whereExists(function () {
+                applyRecipientlessReplyParentAuthorFilter(
+                  this,
+                  'reply_parent_statuses.id'
+                )
+              })
+              .orWhereExists(function () {
+                applyRecipientlessReplyParentAuthorFilter(
+                  this,
+                  'reply_parent_statuses.url',
+                  'reply_parent_statuses.urlHash'
+                )
+              })
+              .orWhereExists(function () {
+                applyRecipientlessReplyParentConversationParticipantFilter(
+                  this,
+                  'reply_parent_statuses.id'
+                )
+              })
+              .orWhereExists(function () {
+                applyRecipientlessReplyParentConversationParticipantFilter(
+                  this,
+                  'reply_parent_statuses.url',
+                  'reply_parent_statuses.urlHash'
+                )
+              })
+          })
+        })
         .orWhereExists(function () {
           this.select(database.raw('1'))
             .from('recipients as followers_recipients')
@@ -362,6 +460,8 @@ export const StatusSQLDatabaseMixin = (
     originalStatusId || getOriginalStatusIdFromAnnounceContent(content)
 
   const getStatusUrlHash = (url: string): string => getHashFromString(url)
+  const getStatusReplyHash = (reply: string): string | null =>
+    reply ? getHashFromString(reply) : null
 
   const resolveParentStatusIdByReply = async (
     reply: string,
@@ -466,6 +566,7 @@ export const StatusSQLDatabaseMixin = (
           summary
         }),
         reply,
+        replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
@@ -693,6 +794,7 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Announce,
         reply: '',
+        replyHash: null,
         content: originalStatusId,
         originalStatusId,
         createdAt: statusCreatedAt,
@@ -789,6 +891,7 @@ export const StatusSQLDatabaseMixin = (
           pollType
         }),
         reply,
+        replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })

@@ -1,0 +1,1 @@
+export const INITIAL_CONVERSATIONS_LIMIT = 20

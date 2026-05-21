@@ -133,6 +133,10 @@ describe('messages page', () => {
 
     const element = await Page()
 
+    expect(database.getDirectConversations).toHaveBeenCalledWith({
+      actorId: currentActor.id,
+      limit: 21
+    })
     expect(database.getMastodonActorsFromIds).toHaveBeenCalledTimes(1)
     expect(database.getMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://example.com/users/ada', 'https://example.com/users/bea']

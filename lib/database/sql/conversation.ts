@@ -15,11 +15,19 @@ import {
   StatusDatabase,
   SyncDirectConversationForStatusParams
 } from '@/lib/types/database/operations'
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import {
   getDirectStatusParticipantActorIds,
+  isDirectAudienceActorId,
   isDirectStatus
 } from '@/lib/utils/directStatus'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getVisibility } from '@/lib/utils/getVisibility'
 
 type DirectConversationMembershipRow = {
   id: string | number
@@ -41,6 +49,26 @@ type DirectConversationStatusRow = {
   createdAt: Date | string | number
 }
 
+type DirectConversationStatusLookup = {
+  id: string
+  url: string
+  actorId: string
+  type: StatusType
+  to: string[]
+  cc: string[]
+  reply: string
+}
+
+type DirectConversationStatusLookupRow = {
+  id: string
+  url: string | null
+  actorId: string
+  type: StatusType
+  reply: string | null
+  recipientActorId: string | null
+  recipientType: string | null
+}
+
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
 const DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE = 50
 const MAX_DIRECT_CONVERSATION_FALLBACK_STATUS_BATCHES = 4
@@ -50,6 +78,38 @@ const MAX_BIGINT_ID = '9223372036854775807'
 
 const getConversationIdForRootStatusId = (rootStatusId: string) =>
   createHash('sha256').update(rootStatusId).digest('hex')
+
+const isDirectStatusLookup = (status: DirectConversationStatusLookup) =>
+  status.type !== StatusType.enum.Announce &&
+  getVisibility(status.to, status.cc) === 'direct'
+
+const buildDirectConversationStatusLookup = (
+  rows: DirectConversationStatusLookupRow[]
+): DirectConversationStatusLookup | null => {
+  if (rows.length === 0) return null
+
+  const [status] = rows
+  return rows.reduce<DirectConversationStatusLookup>(
+    (output, row) => {
+      if (row.recipientType === 'to' && row.recipientActorId) {
+        output.to.push(row.recipientActorId)
+      }
+      if (row.recipientType === 'cc' && row.recipientActorId) {
+        output.cc.push(row.recipientActorId)
+      }
+      return output
+    },
+    {
+      id: status.id,
+      url: status.url ?? status.id,
+      actorId: status.actorId,
+      type: status.type,
+      to: [],
+      cc: [],
+      reply: status.reply ?? ''
+    }
+  )
+}
 
 const normalizeMembershipId = (id: string) => {
   if (!/^[0-9]+$/.test(id)) return null
@@ -280,10 +340,103 @@ export const DirectConversationSQLDatabaseMixin = (
     return row?.rootStatusId ?? null
   }
 
+  const getSyncedConversationParticipantActorIds = async (statusId: string) => {
+    const rows = await database('direct_conversation_statuses')
+      .innerJoin(
+        'direct_conversation_participants',
+        'direct_conversation_statuses.conversationId',
+        'direct_conversation_participants.conversationId'
+      )
+      .where('direct_conversation_statuses.statusId', statusId)
+      .select<{ actorId: string }[]>('direct_conversation_participants.actorId')
+
+    return rows.map((row) => row.actorId)
+  }
+
+  const getStatusByIdOrUrl = async (statusReference: string) => {
+    const urlHash = getHashFromString(statusReference)
+    // Limit before joining recipients so id matches keep precedence without
+    // dropping recipient rows from the chosen status.
+    const matchingStatusQuery = database('statuses')
+      .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      .where((builder) => {
+        builder.where('statuses.id', statusReference).orWhere((urlBuilder) => {
+          urlBuilder
+            .where('statuses.urlHash', urlHash)
+            .where('statuses.url', statusReference)
+        })
+      })
+      .orderByRaw('case when ?? = ? then 0 else 1 end', [
+        'statuses.id',
+        statusReference
+      ])
+      .limit(1)
+      .select({
+        id: 'statuses.id',
+        url: 'statuses.url',
+        actorId: 'statuses.actorId',
+        type: 'statuses.type',
+        reply: 'statuses.reply'
+      })
+      .as('status_lookup')
+
+    const rows = await database
+      .from(matchingStatusQuery)
+      .leftJoin('recipients', 'recipients.statusId', 'status_lookup.id')
+      .select<DirectConversationStatusLookupRow[]>({
+        id: 'status_lookup.id',
+        url: 'status_lookup.url',
+        actorId: 'status_lookup.actorId',
+        type: 'status_lookup.type',
+        reply: 'status_lookup.reply',
+        recipientActorId: 'recipients.actorId',
+        recipientType: 'recipients.type'
+      })
+    return buildDirectConversationStatusLookup(rows)
+  }
+
+  const isLocalActorId = async (actorId: string) => {
+    const row = await database('actors')
+      .where({ id: actorId })
+      .whereNotNull('privateKey')
+      .whereNot('privateKey', '')
+      .first<{ id: string }>('id')
+    return Boolean(row)
+  }
+
+  const getDirectConversationParticipantActorIds = async (
+    status: StatusNote | StatusPoll
+  ) => {
+    const participantActorIds = getDirectStatusParticipantActorIds(status)
+    const hasExplicitDirectAudience = [...status.to, ...status.cc].some(
+      isDirectAudienceActorId
+    )
+    if (hasExplicitDirectAudience || !status.reply) {
+      return participantActorIds
+    }
+
+    const parentStatus = await getStatusByIdOrUrl(status.reply)
+    // A recipientless reply is only a direct conversation when the parent
+    // proves it targets a local actor or an existing direct conversation.
+    if (!parentStatus) return []
+
+    const parentParticipantActorIds =
+      await getSyncedConversationParticipantActorIds(parentStatus.id)
+    if (parentParticipantActorIds.length > 0) {
+      return [
+        ...new Set([...participantActorIds, ...parentParticipantActorIds])
+      ]
+    }
+
+    if (!(await isLocalActorId(parentStatus.actorId))) return []
+
+    return [...new Set([...participantActorIds, parentStatus.actorId])]
+  }
+
   const resolveConversationRootStatusId = async (
     status: StatusNote | StatusPoll
   ) => {
-    let root = status
+    let root: DirectConversationStatusLookup = status
     const seen = new Set([status.id])
 
     for (
@@ -294,11 +447,10 @@ export const DirectConversationSQLDatabaseMixin = (
       const syncedRootStatusId = await getSyncedRootStatusId(root.reply)
       if (syncedRootStatusId) return syncedRootStatusId
 
-      const parentStatus = await statusDatabase.getStatus({
-        statusId: root.reply,
-        withReplies: false
-      })
-      if (!parentStatus || !isDirectStatus(parentStatus)) break
+      const parentStatus = await getStatusByIdOrUrl(root.reply)
+      // Empty to/cc statuses are direct, so recipientless reply chains keep
+      // walking through this check.
+      if (!parentStatus || !isDirectStatusLookup(parentStatus)) break
       if (seen.has(parentStatus.id)) break
       seen.add(parentStatus.id)
       root = parentStatus
@@ -664,12 +816,26 @@ export const DirectConversationSQLDatabaseMixin = (
 
       const rootStatusId = await resolveConversationRootStatusId(status)
       const conversationId = getConversationIdForRootStatusId(rootStatusId)
-      const participantActorIds = getDirectStatusParticipantActorIds(status)
+      const participantActorIds =
+        await getDirectConversationParticipantActorIds(status)
       const excludedActorIdSet = new Set(excludedLocalActorIds ?? [])
       const statusCreatedAt = new Date(status.createdAt)
       const currentTime = new Date()
 
       await database.transaction(async (trx) => {
+        const unfilteredLocalParticipantActorIds = [
+          ...new Set(
+            await getLocalParticipantActorIds(trx, participantActorIds)
+          )
+        ]
+
+        if (unfilteredLocalParticipantActorIds.length === 0) return
+
+        const localParticipantActorIds =
+          unfilteredLocalParticipantActorIds.filter(
+            (actorId) => !excludedActorIdSet.has(actorId)
+          )
+
         await insertIfMissing({
           trx,
           table: 'direct_conversations',
@@ -701,11 +867,6 @@ export const DirectConversationSQLDatabaseMixin = (
           currentTime
         })
 
-        const localParticipantActorIds = [
-          ...new Set(
-            await getLocalParticipantActorIds(trx, participantActorIds)
-          )
-        ].filter((actorId) => !excludedActorIdSet.has(actorId))
         const existingMemberships =
           localParticipantActorIds.length > 0
             ? await trx('direct_conversation_memberships')

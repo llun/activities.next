@@ -192,7 +192,7 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
     const { handle, domain, href } = getActorIdParts(actorId || '', statusUrl)
     return (
       <div
-        className="flex items-center gap-1 min-w-0"
+        className="flex min-w-0 max-w-full items-center gap-1"
         onClick={(e) => e.stopPropagation()}
       >
         {href ? (
@@ -209,7 +209,7 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
 
   return (
     <div
-      className="flex items-center gap-1 min-w-0"
+      className="flex min-w-0 max-w-full items-center gap-1"
       onClick={(e) => e.stopPropagation()}
     >
       <Link

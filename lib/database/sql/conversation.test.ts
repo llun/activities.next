@@ -19,6 +19,7 @@ import {
   StatusDatabase
 } from '@/lib/types/database/operations'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const createMemoryKnex = () =>
   knex({
@@ -74,6 +75,26 @@ const createDirectConversationTables = async (database: Knex) => {
       table.unique(['actorId', 'conversationId'])
     }
   )
+}
+
+const createStatusLookupTables = async (database: Knex) => {
+  await database.schema.createTable('statuses', (table) => {
+    table.string('id').primary()
+    table.text('url')
+    table.string('urlHash', 64)
+    table.string('actorId').notNullable()
+    table.string('type').notNullable()
+    table.string('reply').notNullable().defaultTo('')
+    table.timestamp('createdAt', { useTz: true })
+    table.timestamp('updatedAt', { useTz: true })
+    table.index('urlHash')
+  })
+  await database.schema.createTable('recipients', (table) => {
+    table.string('id').primary()
+    table.string('statusId').notNullable()
+    table.string('actorId').notNullable()
+    table.string('type').notNullable()
+  })
 }
 
 const statusForId = (id: string): Status =>
@@ -321,6 +342,130 @@ describe('ConversationDatabase', () => {
       expect(statuses.map((status) => status.id)).toContain(root.id)
       expect(statuses.map((status) => status.id)).not.toContain(reply.id)
     })
+
+    test('includes recipientless direct replies to local non-direct statuses', async () => {
+      const parent = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply-id`,
+        url: `${ACTOR1_ID}/statuses/public-parent-for-direct-reply-url`,
+        actorId: ACTOR1_ID,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${ACTOR1_ID}/followers`],
+        text: 'public parent',
+        createdAt: 6500
+      })
+      const directReply = await database.createNote({
+        id: `${EXTERNAL_ACTOR1}/statuses/recipientless-direct-reply`,
+        url: `${EXTERNAL_ACTOR1}/statuses/recipientless-direct-reply`,
+        actorId: EXTERNAL_ACTOR1,
+        to: [],
+        cc: [],
+        text: 'recipientless direct reply',
+        reply: parent.url,
+        createdAt: 6600
+      })
+
+      await database.syncDirectConversationForStatus({ status: directReply })
+
+      const conversation = (
+        await database.getDirectConversations({ actorId: ACTOR1_ID })
+      ).find((item: DirectConversation) => item.lastStatusId === directReply.id)
+
+      expect(conversation).toBeDefined()
+      if (!conversation) fail('Conversation must be defined')
+      expect(conversation.participantActorIds.sort()).toEqual(
+        [ACTOR1_ID, EXTERNAL_ACTOR1].sort()
+      )
+
+      const statuses = await database.getDirectConversationStatuses({
+        actorId: ACTOR1_ID,
+        conversationId: conversation.id
+      })
+
+      expect(statuses.map((status) => status.id)).toContain(directReply.id)
+    })
+
+    test('does not create direct conversations for recipientless replies to remote non-direct statuses', async () => {
+      const suffix = randomBytes(8).toString('hex')
+      const parent = await database.createNote({
+        id: `${EXTERNAL_ACTOR1}/statuses/remote-public-parent-${suffix}`,
+        url: `${EXTERNAL_ACTOR1}/statuses/remote-public-parent-${suffix}`,
+        actorId: EXTERNAL_ACTOR1,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${EXTERNAL_ACTOR1}/followers`],
+        text: 'remote public parent',
+        createdAt: 6650
+      })
+      const recipientlessReply = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/recipientless-remote-parent-reply-${suffix}`,
+        url: `${ACTOR1_ID}/statuses/recipientless-remote-parent-reply-${suffix}`,
+        actorId: ACTOR1_ID,
+        to: [],
+        cc: [],
+        text: 'recipientless reply to remote public parent',
+        reply: parent.id,
+        createdAt: 6660
+      })
+
+      await database.syncDirectConversationForStatus({
+        status: recipientlessReply
+      })
+
+      const actor1Conversation = (
+        await database.getDirectConversations({ actorId: ACTOR1_ID })
+      ).find(
+        (item: DirectConversation) =>
+          item.lastStatusId === recipientlessReply.id
+      )
+
+      expect(actor1Conversation).toBeUndefined()
+    })
+
+    test('inherits parent conversation participants for recipientless direct replies', async () => {
+      const root = await createDirectStatus({
+        database,
+        actorId: ACTOR2_ID,
+        recipientActorIds: [ACTOR1_ID, ACTOR3_ID],
+        text: 'group root for recipientless reply',
+        createdAt: 6700
+      })
+      const recipientlessReply = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/recipientless-group-reply`,
+        url: `${ACTOR1_ID}/statuses/recipientless-group-reply`,
+        actorId: ACTOR1_ID,
+        to: [],
+        cc: [],
+        text: 'recipientless group reply',
+        reply: root.url,
+        createdAt: 6800
+      })
+
+      await database.syncDirectConversationForStatus({
+        status: recipientlessReply
+      })
+
+      const actor3Conversation = (
+        await database.getDirectConversations({ actorId: ACTOR3_ID })
+      ).find(
+        (item: DirectConversation) =>
+          item.lastStatusId === recipientlessReply.id
+      )
+
+      expect(actor3Conversation).toBeDefined()
+      if (!actor3Conversation) fail('Actor3 conversation must be defined')
+      expect(actor3Conversation.rootStatusId).toEqual(root.id)
+      expect(actor3Conversation.participantActorIds.sort()).toEqual(
+        [ACTOR1_ID, ACTOR2_ID, ACTOR3_ID].sort()
+      )
+      expect(actor3Conversation.unread).toBe(true)
+
+      const statuses = await database.getDirectConversationStatuses({
+        actorId: ACTOR3_ID,
+        conversationId: actor3Conversation.id
+      })
+      expect(statuses.map((status) => status.id)).toContain(
+        recipientlessReply.id
+      )
+    })
   })
 
   describe('sqlite implementation details', () => {
@@ -393,6 +538,46 @@ describe('ConversationDatabase', () => {
       expect(persistedMembership?.lastStatusId).toEqual(`${reply.id}/missing`)
       expect(Boolean(persistedMembership?.unread)).toBe(true)
       expect(new Date(persistedMembership?.readAt ?? 0).getTime()).toEqual(9000)
+    })
+
+    test('keeps conversation rows when local participants are excluded from memberships', async () => {
+      const suffix = randomBytes(8).toString('hex')
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/excluded-local-direct-${suffix}`,
+        url: `${ACTOR1_ID}/statuses/excluded-local-direct-${suffix}`,
+        actorId: ACTOR1_ID,
+        to: [EXTERNAL_ACTOR1],
+        cc: [],
+        text: 'local to remote direct with excluded local membership',
+        createdAt: 8500
+      })
+
+      await database.syncDirectConversationForStatus({
+        status,
+        excludedLocalActorIds: [ACTOR1_ID]
+      })
+
+      const conversationStatus = await knexDatabase(
+        'direct_conversation_statuses'
+      )
+        .where({ statusId: status.id })
+        .first<{ conversationId: string }>()
+      expect(conversationStatus).toBeDefined()
+      if (!conversationStatus) fail('Conversation status must be defined')
+
+      const participantRows = await knexDatabase(
+        'direct_conversation_participants'
+      )
+        .where({ conversationId: conversationStatus.conversationId })
+        .select<{ actorId: string }[]>('actorId')
+      const membershipRows = await knexDatabase(
+        'direct_conversation_memberships'
+      ).where({ conversationId: conversationStatus.conversationId })
+
+      expect(participantRows.map((row) => row.actorId).sort()).toEqual(
+        [ACTOR1_ID, EXTERNAL_ACTOR1].sort()
+      )
+      expect(membershipRows).toEqual([])
     })
 
     test('bounds fallback status hydration when membership last status is stale', async () => {
@@ -1002,6 +1187,80 @@ describe('ConversationDatabase', () => {
         'status-3'
       ])
       expect(secondPage.map((status) => status.id)).toEqual(['status-1'])
+    })
+
+    test('resolves reply roots from lightweight status rows without full hydration', async () => {
+      await createStatusLookupTables(knexDatabase)
+      const parentUrl = 'https://remote.test/statuses/lightweight-parent'
+      const getStatus = jest.fn(async () => null)
+      const getStatusFromUrl = jest.fn(async () => null)
+      const statusDatabase = {
+        getStatus,
+        getStatusFromUrl,
+        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+          statusIds.map(statusForId)
+        )
+      } as unknown as StatusDatabase
+      const database = DirectConversationSQLDatabaseMixin(
+        knexDatabase,
+        statusDatabase
+      )
+      const now = new Date()
+
+      await knexDatabase('actors').insert([
+        { id: ACTOR1_ID, privateKey: 'private-key-1' },
+        { id: ACTOR2_ID, privateKey: 'private-key-2' }
+      ])
+      await knexDatabase('statuses').insert({
+        id: 'lightweight-parent',
+        url: parentUrl,
+        urlHash: getHashFromString(parentUrl),
+        actorId: ACTOR1_ID,
+        type: StatusType.enum.Note,
+        reply: '',
+        createdAt: now,
+        updatedAt: now
+      })
+      await knexDatabase('recipients').insert({
+        id: 'lightweight-parent-recipient',
+        statusId: 'lightweight-parent',
+        actorId: ACTOR2_ID,
+        type: 'to'
+      })
+
+      const statusLookupQueries: string[] = []
+      const trackStatusLookupQuery = (query: { sql: string }) => {
+        if (
+          query.sql.toLowerCase().startsWith('select') &&
+          query.sql.includes('from `statuses`')
+        ) {
+          statusLookupQueries.push(query.sql)
+        }
+      }
+      knexDatabase.on('query', trackStatusLookupQuery)
+      try {
+        await database.syncDirectConversationForStatus({
+          status: {
+            ...statusForId('lightweight-reply'),
+            actorId: ACTOR2_ID,
+            reply: parentUrl,
+            to: [ACTOR1_ID],
+            cc: [],
+            createdAt: 2000
+          } as StatusNote
+        })
+      } finally {
+        knexDatabase.off('query', trackStatusLookupQuery)
+      }
+
+      const conversation = await knexDatabase('direct_conversations')
+        .where({ rootStatusId: 'lightweight-parent' })
+        .first<{ id: string }>()
+
+      expect(conversation).toBeDefined()
+      expect(statusLookupQueries).toHaveLength(1)
+      expect(getStatus).not.toHaveBeenCalled()
+      expect(getStatusFromUrl).not.toHaveBeenCalled()
     })
 
     test('resolves reply roots from synced direct conversation rows before hydrating parents', async () => {
