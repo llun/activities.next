@@ -168,6 +168,61 @@ describe('search service', () => {
     })
   })
 
+  it('starts account and status resolution concurrently', async () => {
+    const resolvedStatus = { id: 'https://remote.test/statuses/1' }
+    const indexedStatus = { id: 'https://remote.test/statuses/2' }
+    const database = {
+      searchAccounts: jest.fn().mockResolvedValue([{ id: 'account-1' }]),
+      searchStatuses: jest.fn().mockResolvedValue([indexedStatus]),
+      searchHashtags: jest.fn()
+    } as unknown as Database
+    const calls: string[] = []
+    let resolveAccount!: (value: string | null) => void
+    let resolveStatus!: (value: typeof resolvedStatus) => void
+    const accountPromise = new Promise<string | null>((resolve) => {
+      resolveAccount = resolve
+    })
+    const statusPromise = new Promise<typeof resolvedStatus>((resolve) => {
+      resolveStatus = resolve
+    })
+    mockResolveAccountForSearch.mockImplementation(() => {
+      calls.push('account-start')
+      return accountPromise
+    })
+    mockResolveStatusForSearch.mockImplementation(() => {
+      calls.push('status-start')
+      return statusPromise as never
+    })
+
+    const searchPromise = search({
+      database,
+      query: 'https://remote.test/statuses/1',
+      limit: 10,
+      offset: 0,
+      includeAccounts: true,
+      includeStatuses: true,
+      includeHashtags: false,
+      resolve: true
+    })
+
+    await Promise.resolve()
+    expect(calls).toEqual(['status-start', 'account-start'])
+    expect(database.searchAccounts).not.toHaveBeenCalled()
+    expect(database.searchStatuses).not.toHaveBeenCalled()
+
+    resolveStatus(resolvedStatus)
+    await Promise.resolve()
+    expect(database.searchAccounts).not.toHaveBeenCalled()
+    expect(database.searchStatuses).not.toHaveBeenCalled()
+
+    resolveAccount(null)
+    await expect(searchPromise).resolves.toEqual({
+      accounts: [{ id: 'account-1' }],
+      statuses: [resolvedStatus, indexedStatus],
+      hashtags: []
+    })
+  })
+
   it('prepends resolved statuses for status URL searches', async () => {
     const resolvedStatus = { id: 'https://remote.test/statuses/1' }
     const indexedStatus = { id: 'https://remote.test/statuses/2' }

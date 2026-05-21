@@ -171,20 +171,20 @@ export const search = async (params: SearchParams): Promise<SearchResult> => {
   // params.excludeUnreviewed is intentionally ignored: no reviewed/unreviewed
   // tag state exists in this implementation.
 
-  const resolvedStatus =
+  const [resolvedStatus] = await Promise.all([
     params.includeStatuses && params.resolve && params.offset === 0
-      ? await resolveStatusForSearch({
+      ? resolveStatusForSearch({
           database: params.database,
           query: params.query
         })
-      : null
-
-  if (params.includeAccounts && params.resolve && params.offset === 0) {
-    await resolveAccountForSearch({
-      database: params.database,
-      query: params.query
-    })
-  }
+      : Promise.resolve(null),
+    params.includeAccounts && params.resolve && params.offset === 0
+      ? resolveAccountForSearch({
+          database: params.database,
+          query: params.query
+        })
+      : Promise.resolve(null)
+  ])
 
   const config = getConfig().search
   if (config.backend !== 'meilisearch' || !canUseMeilisearch(params)) {
