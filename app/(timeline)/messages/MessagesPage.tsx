@@ -1,6 +1,15 @@
 'use client'
 
-import { Archive, Loader2, Mail, Plus, Search, Send, X } from 'lucide-react'
+import {
+  Archive,
+  ArrowLeft,
+  Loader2,
+  Mail,
+  Plus,
+  Search,
+  Send,
+  X
+} from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -119,6 +128,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const [hasMoreConversations, setHasMoreConversations] = useState(
     initialHasMoreConversations
   )
+  const [showConversationListOnMobile, setShowConversationListOnMobile] =
+    useState(!initialConversationId)
   const [readRetryNonce, setReadRetryNonce] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const latestThreadRequestIdRef = useRef(0)
@@ -152,6 +163,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     : selectedRecipients
 
   const selectConversation = useCallback((conversationId: string | null) => {
+    if (conversationId) {
+      setShowConversationListOnMobile(false)
+    }
     if (conversationId) {
       const hadFailed = lastFailedReadAtRef.current.delete(conversationId)
       if (hadFailed) setReadRetryNonce((nonce) => nonce + 1)
@@ -449,6 +463,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   }, [])
 
   const startNewConversation = useCallback(() => {
+    setShowConversationListOnMobile(false)
     selectConversation(null)
     setThreadStatuses([])
     setNextMaxStatusId(null)
@@ -554,8 +569,14 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         aria-label="Direct messages"
         className="grid min-w-0 overflow-hidden rounded-lg border bg-background md:grid-cols-[minmax(260px,32%)_minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]"
       >
-        <aside className="min-w-0 border-b md:min-h-0 md:border-b-0 md:border-r">
-          <div className="max-h-72 overflow-y-auto md:h-full md:max-h-none">
+        <aside
+          aria-label="Conversation list"
+          className={cn(
+            'min-w-0 border-b md:min-h-0 md:border-b-0 md:border-r',
+            !showConversationListOnMobile && 'max-md:hidden'
+          )}
+        >
+          <div className="md:h-full md:overflow-y-auto">
             {currentConversations.length > 0 ? (
               currentConversations.map((conversation) => {
                 const isSelected = conversation.id === selectedConversationId
@@ -628,9 +649,26 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           </div>
         </aside>
 
-        <div className="flex min-h-[60svh] min-w-0 flex-col md:min-h-[calc(100svh-10rem)]">
+        <div
+          aria-label="Conversation thread"
+          className={cn(
+            'flex min-h-[60svh] min-w-0 flex-col md:min-h-[calc(100svh-10rem)]',
+            showConversationListOnMobile && 'max-md:hidden'
+          )}
+        >
           <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4 md:min-h-16 md:px-5">
-            <div className="min-w-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Back to conversations"
+              aria-label="Back to conversations"
+              className="md:hidden"
+              onClick={() => setShowConversationListOnMobile(true)}
+            >
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div className="min-w-0 flex-1">
               <h2 className="truncate text-base font-semibold md:text-lg">
                 {selectedConversation
                   ? conversationTitle(selectedConversation)

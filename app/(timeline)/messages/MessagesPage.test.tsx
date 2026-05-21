@@ -750,6 +750,42 @@ describe('MessagesPage', () => {
     })
   })
 
+  it('uses a single-pane mobile layout when a conversation is selected', async () => {
+    const initialThread = createDeferred<{
+      statuses: Status[]
+      nextMaxStatusId: string | null
+    }>()
+    ;(getConversationStatuses as jest.Mock).mockReturnValue(
+      initialThread.promise
+    )
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const conversationList = screen.getByLabelText('Conversation list')
+    const conversationThread = screen.getByLabelText('Conversation thread')
+
+    expect(conversationList).toHaveClass('max-md:hidden')
+    expect(conversationThread).not.toHaveClass('max-md:hidden')
+    expect(conversationList.firstElementChild).toHaveClass('md:overflow-y-auto')
+    expect(conversationList.firstElementChild).not.toHaveClass(
+      'overflow-y-auto'
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Back to conversations' })
+    )
+
+    expect(conversationList).not.toHaveClass('max-md:hidden')
+    expect(conversationThread).toHaveClass('max-md:hidden')
+
+    await act(async () => {
+      initialThread.resolve({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+    })
+  })
+
   it('retries mark-as-read after a transient failure when the user reselects the conversation', async () => {
     const initialMarkRead = createDeferred<boolean>()
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({

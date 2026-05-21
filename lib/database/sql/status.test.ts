@@ -85,6 +85,110 @@ describe('StatusDatabase', () => {
       await mysqlDatabase.destroy()
     })
 
+    it('stores reply hashes for created replies', async () => {
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+
+      try {
+        await sqlDatabase.migrate()
+
+        const reply = 'https://remote.test/users/alice/statuses/1'
+        const noteId = `${replyAuthorId}/statuses/reply-hash-note`
+        const pollId = `${replyAuthorId}/statuses/reply-hash-poll`
+
+        await sqlDatabase.createNote({
+          id: noteId,
+          url: noteId,
+          actorId: replyAuthorId,
+          text: 'Reply hash note',
+          to: [],
+          cc: [],
+          reply
+        })
+        await sqlDatabase.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: replyAuthorId,
+          text: 'Reply hash poll',
+          to: [],
+          cc: [],
+          reply,
+          choices: ['Yes', 'No'],
+          endAt: Date.now()
+        })
+
+        await expect(
+          knexDatabase('statuses')
+            .whereIn('id', [noteId, pollId])
+            .select('id', 'replyHash')
+            .orderBy('id', 'asc')
+        ).resolves.toEqual([
+          { id: noteId, replyHash: getHashFromString(reply) },
+          { id: pollId, replyHash: getHashFromString(reply) }
+        ])
+      } finally {
+        await knexDatabase.destroy()
+      }
+    })
+
+    it('uses reply hashes for recipientless parent URL visibility lookups', async () => {
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+
+      try {
+        await sqlDatabase.migrate()
+
+        const visibleActorId = 'https://local.test/users/visible'
+        const replyActorId = 'https://remote.test/users/reply'
+        const parentStatusId = `${visibleActorId}/statuses/reply-hash-parent`
+        const parentStatusUrl = `${parentStatusId}/canonical`
+        const replyStatusId = `${replyActorId}/statuses/reply-hash-child`
+
+        const parent = await sqlDatabase.createNote({
+          id: parentStatusId,
+          url: parentStatusUrl,
+          actorId: visibleActorId,
+          text: 'Reply hash parent',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          reply: ''
+        })
+        await sqlDatabase.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: replyActorId,
+          text: 'Reply hash child',
+          to: [],
+          cc: [],
+          reply: parent.url
+        })
+        await knexDatabase('statuses')
+          .where('id', replyStatusId)
+          .update({ replyHash: null })
+
+        const results = await sqlDatabase.getStatusesByIds({
+          statusIds: [replyStatusId],
+          visibleToActorId: visibleActorId
+        })
+
+        expect(results).toEqual([])
+      } finally {
+        await knexDatabase.destroy()
+      }
+    })
+
     it('includes publicly readable legacy Announces that only store the target in content', async () => {
       const knexDatabase = knex({
         client: 'better-sqlite3',

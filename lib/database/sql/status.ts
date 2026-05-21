@@ -248,28 +248,42 @@ export const StatusSQLDatabaseMixin = (
             .whereRaw('?? = ??', ['reply_recipients.statusId', 'statuses.id'])
         })
     }
-    const applyRecipientlessReplyParentReferenceFilter = (
-      builder: Knex.QueryBuilder,
+    const applyRecipientlessReplyParentReferenceFilter = ({
+      builder,
+      parentReferenceColumn,
+      parentReferenceHashColumn
+    }: {
+      builder: Knex.QueryBuilder
       parentReferenceColumn: string
-    ) => {
+      parentReferenceHashColumn?: string
+    }) => {
+      if (parentReferenceHashColumn) {
+        builder.whereRaw('?? = ??', [
+          'statuses.replyHash',
+          parentReferenceHashColumn
+        ])
+      }
       builder.whereRaw('?? = ??', ['statuses.reply', parentReferenceColumn])
     }
     const applyRecipientlessReplyParentAuthorFilter = (
       builder: Knex.QueryBuilder,
-      parentReferenceColumn: string
+      parentReferenceColumn: string,
+      parentReferenceHashColumn?: string
     ) => {
       builder
         .select(database.raw('1'))
         .from('statuses as reply_parent_statuses')
         .where('reply_parent_statuses.actorId', visibleToActorId)
-      applyRecipientlessReplyParentReferenceFilter(
+      applyRecipientlessReplyParentReferenceFilter({
         builder,
-        parentReferenceColumn
-      )
+        parentReferenceColumn,
+        parentReferenceHashColumn
+      })
     }
     const applyRecipientlessReplyParentConversationParticipantFilter = (
       builder: Knex.QueryBuilder,
-      parentReferenceColumn: string
+      parentReferenceColumn: string,
+      parentReferenceHashColumn?: string
     ) => {
       builder
         .select(database.raw('1'))
@@ -285,10 +299,11 @@ export const StatusSQLDatabaseMixin = (
           'reply_parent_direct_statuses.conversationId'
         )
         .where('reply_parent_direct_participants.actorId', visibleToActorId)
-      applyRecipientlessReplyParentReferenceFilter(
+      applyRecipientlessReplyParentReferenceFilter({
         builder,
-        parentReferenceColumn
-      )
+        parentReferenceColumn,
+        parentReferenceHashColumn
+      })
     }
 
     return query.where((qb) => {
@@ -315,7 +330,8 @@ export const StatusSQLDatabaseMixin = (
               .orWhereExists(function () {
                 applyRecipientlessReplyParentAuthorFilter(
                   this,
-                  'reply_parent_statuses.url'
+                  'reply_parent_statuses.url',
+                  'reply_parent_statuses.urlHash'
                 )
               })
               .orWhereExists(function () {
@@ -327,7 +343,8 @@ export const StatusSQLDatabaseMixin = (
               .orWhereExists(function () {
                 applyRecipientlessReplyParentConversationParticipantFilter(
                   this,
-                  'reply_parent_statuses.url'
+                  'reply_parent_statuses.url',
+                  'reply_parent_statuses.urlHash'
                 )
               })
           })
@@ -443,6 +460,8 @@ export const StatusSQLDatabaseMixin = (
     originalStatusId || getOriginalStatusIdFromAnnounceContent(content)
 
   const getStatusUrlHash = (url: string): string => getHashFromString(url)
+  const getStatusReplyHash = (reply: string): string | null =>
+    reply ? getHashFromString(reply) : null
 
   const resolveParentStatusIdByReply = async (
     reply: string,
@@ -547,6 +566,7 @@ export const StatusSQLDatabaseMixin = (
           summary
         }),
         reply,
+        replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
@@ -774,6 +794,7 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Announce,
         reply: '',
+        replyHash: null,
         content: originalStatusId,
         originalStatusId,
         createdAt: statusCreatedAt,
@@ -870,6 +891,7 @@ export const StatusSQLDatabaseMixin = (
           pollType
         }),
         reply,
+        replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
