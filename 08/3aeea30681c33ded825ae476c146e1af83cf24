@@ -1,0 +1,40 @@
+lib/types/database/operations.ts
+  s_4941627279dc6b::t_98df5930fdffae 524-526,605-607
+lib/database/sql/search.ts
+  s_4941627279dc6b::t_5412698a0daddc 978-1003,1008-1011,1013-1105,1135-1137,1153-1159,1162
+  s_4941627279dc6b::t_aa9cb93829e8e6 1362-1368,1378-1383
+  s_4941627279dc6b::t_7e3c57fbc04e82 1313-1341,1385-1390,1392-1395,1397-1400,1441,1446-1448,1474-1476,1478-1488,1494
+  s_4941627279dc6b::t_9f7a8f6e7a27d6 1012
+  s_4941627279dc6b::t_21ef790267501d 1152,1160-1161
+  s_4941627279dc6b::t_29149a45166722 1512,1531
+  s_4941627279dc6b::t_ec23ea21758ac0 1144-1149
+  s_4941627279dc6b::t_7136c74cdfb36d 1004-1007,1391,1396
+lib/database/sql/status.ts
+  s_4941627279dc6b::t_dc11ef29f3b4cd 36,1867-1884,2218
+lib/services/mastodon/getMastodonStatus.ts
+  s_4941627279dc6b::t_ec23ea21758ac0 384-390
+  s_4941627279dc6b::t_8bc613c3f13497 41,203-205,245-248,395,397-402
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_4941627279dc6b::t_9a52b2911d5bd4 70-89,91-93,99-101,107-108
+  s_4941627279dc6b::t_3c8893a0d7e851 68-69,90,94-98,102-106,109-134
+lib/database/sql/search.test.ts
+  s_4941627279dc6b::t_842f3991a8d3eb 78-138,223-224,228-261,327-375
+  s_4941627279dc6b::t_d4adf09cd98e47 225
+  s_4941627279dc6b::t_ec23ea21758ac0 226-227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "083aeea30681c33ded825ae476c146e1af83cf24",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
