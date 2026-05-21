@@ -81,13 +81,24 @@ const insertTimelineStatusIfMissing = async ({
     }
   )
 
-const getRecipientlessDirectReplyQuery = (knex, parentReferenceColumn) =>
+const getRecipientlessDirectReplyQuery = (
+  knex,
+  parentReferenceColumn,
+  parentReferenceHashColumn
+) =>
   knex('statuses as direct_replies')
-    .innerJoin(
-      'statuses as parent_statuses',
-      'direct_replies.reply',
-      parentReferenceColumn
-    )
+    .innerJoin('statuses as parent_statuses', function () {
+      if (parentReferenceHashColumn) {
+        this.on(
+          'direct_replies.replyHash',
+          '=',
+          parentReferenceHashColumn
+        ).andOn('direct_replies.reply', '=', parentReferenceColumn)
+        return
+      }
+
+      this.on('direct_replies.reply', '=', parentReferenceColumn)
+    })
     .leftJoin('actors as parent_actors', function () {
       this.on('parent_actors.id', '=', 'parent_statuses.actorId')
     })
@@ -160,7 +171,11 @@ const getRecipientlessDirectReplyQuery = (knex, parentReferenceColumn) =>
 const getRecipientlessDirectReplyBatch = async (knex) => {
   const statusesByParentReference = await Promise.all([
     getRecipientlessDirectReplyQuery(knex, 'parent_statuses.id'),
-    getRecipientlessDirectReplyQuery(knex, 'parent_statuses.url')
+    getRecipientlessDirectReplyQuery(
+      knex,
+      'parent_statuses.url',
+      'parent_statuses.urlHash'
+    )
   ])
 
   return uniqueStatusesById(statusesByParentReference.flat())

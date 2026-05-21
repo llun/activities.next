@@ -1,6 +1,8 @@
 import knex from 'knex'
 
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import * as migration from '@/migrations/20260517002000_add_direct_conversations'
+import * as replyHashMigration from '@/migrations/20260519000000_add_status_reply_hash'
 import * as recipientlessReplyMigration from '@/migrations/20260520000000_backfill_recipientless_direct_reply_conversations'
 
 describe('direct conversations migration', () => {
@@ -25,9 +27,11 @@ describe('direct conversations migration', () => {
     await database.schema.createTable('statuses', (table) => {
       table.string('id').primary()
       table.string('url')
+      table.string('urlHash')
       table.string('type')
       table.string('actorId')
       table.string('reply')
+      table.string('replyHash')
       table.timestamp('createdAt')
     })
     await database.schema.createTable('recipients', (table) => {
@@ -150,6 +154,7 @@ describe('direct conversations migration', () => {
       {
         id: parentStatusId,
         url: parentStatusUrl,
+        urlHash: getHashFromString(parentStatusUrl),
         type: 'Note',
         actorId: localActorId,
         reply: '',
@@ -184,6 +189,7 @@ describe('direct conversations migration', () => {
       })
     ).resolves.toHaveLength(0)
 
+    await replyHashMigration.up(database)
     await recipientlessReplyMigration.up(database)
 
     const [conversationStatus] = await database('direct_conversation_statuses')
@@ -210,6 +216,50 @@ describe('direct conversations migration', () => {
         timeline: 'direct'
       })
     ).resolves.toHaveLength(1)
+  })
+
+  test('does not backfill url-based recipientless replies without matching reply hash', async () => {
+    const parentStatusId = 'https://local.test/users/alice/statuses/public-hash'
+    const parentStatusUrl = 'https://local.test/@alice/public-hash'
+    const replyStatusId =
+      'https://remote.test/users/bob/statuses/recipientless-reply-hash'
+
+    await database('statuses').insert([
+      {
+        id: parentStatusId,
+        url: parentStatusUrl,
+        urlHash: getHashFromString(parentStatusUrl),
+        type: 'Note',
+        actorId: localActorId,
+        reply: '',
+        replyHash: null,
+        createdAt: new Date('2026-05-16T00:00:00.000Z')
+      },
+      {
+        id: replyStatusId,
+        url: replyStatusId,
+        urlHash: getHashFromString(replyStatusId),
+        type: 'Note',
+        actorId: remoteActorId,
+        reply: parentStatusUrl,
+        replyHash: null,
+        createdAt: new Date('2026-05-17T01:00:00.000Z')
+      }
+    ])
+    await database('recipients').insert({
+      statusId: parentStatusId,
+      actorId: 'https://www.w3.org/ns/activitystreams#Public',
+      type: 'to'
+    })
+
+    await migration.up(database)
+    await recipientlessReplyMigration.up(database)
+
+    await expect(
+      database('direct_conversation_statuses').where({
+        statusId: replyStatusId
+      })
+    ).resolves.toHaveLength(0)
   })
 
   test('does not backfill recipientless replies from unrelated followers audiences', async () => {

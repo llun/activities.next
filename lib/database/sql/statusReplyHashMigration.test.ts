@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260521000000_add_status_reply_hash'
+import * as migration from '@/migrations/20260519000000_add_status_reply_hash'
 
 const getHash = (value: string) =>
   crypto.createHash('sha256').update(value).digest('hex')
