@@ -1523,11 +1523,12 @@ export const SearchSQLDatabaseMixin = (
     minStatusId,
     maxStatusId
   }: SearchStatusesParams): Promise<Status[]> {
+    const usesCursor = Boolean(minStatusId || maxStatusId)
     const statusIds = await getMatchedDocumentIds({
       entityType: 'status',
       query,
       limit: normalizeLimit(limit),
-      offset: normalizeOffset(offset),
+      offset: usesCursor ? 0 : normalizeOffset(offset),
       currentActorId,
       accountId,
       minStatusId,

@@ -428,6 +428,22 @@ describe('SearchDatabase', () => {
           minStatusId: lowScoreStatusId
         })
       ).resolves.toMatchObject([{ id: highScoreStatusId }])
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 99,
+          maxStatusId: highScoreStatusId
+        })
+      ).resolves.toMatchObject([{ id: lowScoreStatusId }])
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 99,
+          minStatusId: lowScoreStatusId
+        })
+      ).resolves.toMatchObject([{ id: highScoreStatusId }])
     })
 
     it('paginates min status cursors from the closest newer indexed match', async () => {

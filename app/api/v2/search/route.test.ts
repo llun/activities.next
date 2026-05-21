@@ -236,6 +236,22 @@ describe('GET /api/v2/search', () => {
     )
   })
 
+  it('ignores offset for typed status searches when a cursor is present', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://local.test/api/v2/search?q=trail&type=statuses&offset=5&max_id=status-1'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offset: 0,
+        maxStatusId: 'status-1'
+      })
+    )
+  })
+
   it('preserves explicit false boolean params', async () => {
     const response = await GET(
       new NextRequest(

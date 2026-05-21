@@ -106,7 +106,12 @@ export const GET = traceApiRoute(
       const includeAccounts = type ? type === 'accounts' : true
       const includeStatuses = type ? type === 'statuses' : Boolean(currentActor)
       const includeHashtags = type ? type === 'hashtags' : true
-      const effectiveOffset = type ? offset : 0
+      const minStatusId = decodeSearchId(min_id)
+      const maxStatusId = decodeSearchId(max_id)
+      const effectiveOffset =
+        type && !(type === 'statuses' && (minStatusId || maxStatusId))
+          ? offset
+          : 0
 
       const results = await search({
         database,
@@ -118,8 +123,8 @@ export const GET = traceApiRoute(
         includeStatuses,
         includeHashtags,
         accountId: decodeSearchId(account_id),
-        maxStatusId: decodeSearchId(max_id),
-        minStatusId: decodeSearchId(min_id),
+        maxStatusId,
+        minStatusId,
         following,
         resolve,
         excludeUnreviewed: exclude_unreviewed
