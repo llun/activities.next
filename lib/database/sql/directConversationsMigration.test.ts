@@ -1,6 +1,9 @@
 import knex from 'knex'
 
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import * as migration from '@/migrations/20260517002000_add_direct_conversations'
+import * as replyHashMigration from '@/migrations/20260519000000_add_status_reply_hash'
+import * as recipientlessReplyMigration from '@/migrations/20260520000000_backfill_recipientless_direct_reply_conversations'
 
 describe('direct conversations migration', () => {
   let database: knex.Knex
@@ -19,12 +22,16 @@ describe('direct conversations migration', () => {
     await database.schema.createTable('actors', (table) => {
       table.string('id').primary()
       table.string('privateKey')
+      table.jsonb('settings')
     })
     await database.schema.createTable('statuses', (table) => {
       table.string('id').primary()
+      table.string('url')
+      table.string('urlHash')
       table.string('type')
       table.string('actorId')
       table.string('reply')
+      table.string('replyHash')
       table.timestamp('createdAt')
     })
     await database.schema.createTable('recipients', (table) => {
@@ -52,6 +59,7 @@ describe('direct conversations migration', () => {
     })
     await database('statuses').insert({
       id: statusId,
+      url: statusId,
       type: 'Note',
       actorId: remoteActorId,
       reply: '',
@@ -109,6 +117,7 @@ describe('direct conversations migration', () => {
     const publicStatusId = 'https://local.test/users/alice/statuses/public-1'
     await database('statuses').insert({
       id: publicStatusId,
+      url: publicStatusId,
       type: 'Note',
       actorId: localActorId,
       reply: '',
@@ -134,6 +143,258 @@ describe('direct conversations migration', () => {
         statusId: publicStatusId
       })
     ).resolves.toHaveLength(0)
+  })
+
+  test('backfills recipientless direct replies to local non-direct statuses', async () => {
+    const parentStatusId = 'https://local.test/users/alice/statuses/public-1'
+    const parentStatusUrl = 'https://local.test/@alice/public-1'
+    const replyStatusId =
+      'https://remote.test/users/bob/statuses/recipientless-reply'
+    await database('statuses').insert([
+      {
+        id: parentStatusId,
+        url: parentStatusUrl,
+        urlHash: getHashFromString(parentStatusUrl),
+        type: 'Note',
+        actorId: localActorId,
+        reply: '',
+        createdAt: new Date('2026-05-16T00:00:00.000Z')
+      },
+      {
+        id: replyStatusId,
+        url: replyStatusId,
+        type: 'Note',
+        actorId: remoteActorId,
+        reply: parentStatusUrl,
+        createdAt: new Date('2026-05-17T01:00:00.000Z')
+      }
+    ])
+    await database('recipients').insert([
+      {
+        statusId: parentStatusId,
+        actorId: 'https://www.w3.org/ns/activitystreams#Public',
+        type: 'to'
+      },
+      {
+        statusId: parentStatusId,
+        actorId: `${localActorId}/followers`,
+        type: 'cc'
+      }
+    ])
+
+    await migration.up(database)
+    await expect(
+      database('direct_conversation_statuses').where({
+        statusId: replyStatusId
+      })
+    ).resolves.toHaveLength(0)
+
+    await replyHashMigration.up(database)
+    await recipientlessReplyMigration.up(database)
+
+    const [conversationStatus] = await database('direct_conversation_statuses')
+      .where({ statusId: replyStatusId })
+      .select<{ conversationId: string }[]>('conversationId')
+    expect(conversationStatus).toBeDefined()
+    await expect(
+      database('direct_conversation_participants')
+        .where({ conversationId: conversationStatus.conversationId })
+        .select('actorId')
+        .orderBy('actorId', 'asc')
+    ).resolves.toEqual([{ actorId: localActorId }, { actorId: remoteActorId }])
+    await expect(
+      database('direct_conversation_memberships').where({
+        actorId: localActorId,
+        conversationId: conversationStatus.conversationId,
+        lastStatusId: replyStatusId
+      })
+    ).resolves.toHaveLength(1)
+    await expect(
+      database('timelines').where({
+        actorId: localActorId,
+        statusId: replyStatusId,
+        timeline: 'direct'
+      })
+    ).resolves.toHaveLength(1)
+  })
+
+  test('does not backfill url-based recipientless replies without matching reply hash', async () => {
+    const parentStatusId = 'https://local.test/users/alice/statuses/public-hash'
+    const parentStatusUrl = 'https://local.test/@alice/public-hash'
+    const replyStatusId =
+      'https://remote.test/users/bob/statuses/recipientless-reply-hash'
+
+    await database('statuses').insert([
+      {
+        id: parentStatusId,
+        url: parentStatusUrl,
+        urlHash: getHashFromString(parentStatusUrl),
+        type: 'Note',
+        actorId: localActorId,
+        reply: '',
+        replyHash: null,
+        createdAt: new Date('2026-05-16T00:00:00.000Z')
+      },
+      {
+        id: replyStatusId,
+        url: replyStatusId,
+        urlHash: getHashFromString(replyStatusId),
+        type: 'Note',
+        actorId: remoteActorId,
+        reply: parentStatusUrl,
+        replyHash: null,
+        createdAt: new Date('2026-05-17T01:00:00.000Z')
+      }
+    ])
+    await database('recipients').insert({
+      statusId: parentStatusId,
+      actorId: 'https://www.w3.org/ns/activitystreams#Public',
+      type: 'to'
+    })
+
+    await migration.up(database)
+    await recipientlessReplyMigration.up(database)
+
+    await expect(
+      database('direct_conversation_statuses').where({
+        statusId: replyStatusId
+      })
+    ).resolves.toHaveLength(0)
+  })
+
+  test('does not backfill recipientless replies from unrelated followers audiences', async () => {
+    const parentStatusId =
+      'https://local.test/users/alice/statuses/unrelated-followers'
+    const replyStatusId =
+      'https://remote.test/users/bob/statuses/unrelated-followers-reply'
+
+    await database('statuses').insert([
+      {
+        id: parentStatusId,
+        url: parentStatusId,
+        type: 'Note',
+        actorId: localActorId,
+        reply: '',
+        createdAt: new Date('2026-05-16T00:00:00.000Z')
+      },
+      {
+        id: replyStatusId,
+        url: replyStatusId,
+        type: 'Note',
+        actorId: remoteActorId,
+        reply: parentStatusId,
+        createdAt: new Date('2026-05-17T01:00:00.000Z')
+      }
+    ])
+    await database('recipients').insert({
+      statusId: parentStatusId,
+      actorId: `${remoteActorId}/followers`,
+      type: 'cc'
+    })
+
+    await migration.up(database)
+    await recipientlessReplyMigration.up(database)
+
+    await expect(
+      database('direct_conversation_statuses').where({
+        statusId: replyStatusId
+      })
+    ).resolves.toHaveLength(0)
+  })
+
+  test('backfills chained recipientless direct replies in the same conversation', async () => {
+    const parentStatusId = 'https://local.test/users/alice/statuses/public-2'
+    const firstReplyStatusId =
+      'https://remote.test/users/bob/statuses/recipientless-reply-1'
+    const secondReplyStatusId =
+      'https://remote.test/users/bob/statuses/recipientless-reply-2'
+
+    await database('statuses').insert([
+      {
+        id: parentStatusId,
+        url: parentStatusId,
+        type: 'Note',
+        actorId: localActorId,
+        reply: '',
+        createdAt: new Date('2026-05-16T00:00:00.000Z')
+      },
+      {
+        id: firstReplyStatusId,
+        url: firstReplyStatusId,
+        type: 'Note',
+        actorId: remoteActorId,
+        reply: parentStatusId,
+        createdAt: new Date('2026-05-17T01:00:00.000Z')
+      },
+      {
+        id: secondReplyStatusId,
+        url: secondReplyStatusId,
+        type: 'Note',
+        actorId: remoteActorId,
+        reply: firstReplyStatusId,
+        createdAt: new Date('2026-05-17T02:00:00.000Z')
+      }
+    ])
+    await database('recipients').insert([
+      {
+        statusId: parentStatusId,
+        actorId: 'https://www.w3.org/ns/activitystreams#Public',
+        type: 'to'
+      },
+      {
+        statusId: parentStatusId,
+        actorId: `${localActorId}/followers`,
+        type: 'cc'
+      }
+    ])
+
+    await migration.up(database)
+    await expect(
+      database('direct_conversation_statuses')
+        .whereIn('statusId', [firstReplyStatusId, secondReplyStatusId])
+        .select('statusId')
+    ).resolves.toHaveLength(0)
+
+    await recipientlessReplyMigration.up(database)
+
+    const conversationStatuses = await database('direct_conversation_statuses')
+      .whereIn('statusId', [firstReplyStatusId, secondReplyStatusId])
+      .select<
+        { conversationId: string; statusId: string }[]
+      >('conversationId', 'statusId')
+      .orderBy('statusId', 'asc')
+    const conversationIds = new Set(
+      conversationStatuses.map((status) => status.conversationId)
+    )
+    const [conversationId] = conversationIds
+
+    expect(conversationStatuses).toHaveLength(2)
+    expect(conversationIds.size).toEqual(1)
+    await expect(
+      database('direct_conversations')
+        .where({ id: conversationId, rootStatusId: firstReplyStatusId })
+        .select('id')
+    ).resolves.toHaveLength(1)
+    await expect(
+      database('direct_conversation_participants')
+        .where({ conversationId })
+        .select('actorId')
+        .orderBy('actorId', 'asc')
+    ).resolves.toEqual([{ actorId: localActorId }, { actorId: remoteActorId }])
+    await expect(
+      database('direct_conversation_memberships').where({
+        actorId: localActorId,
+        conversationId,
+        lastStatusId: secondReplyStatusId
+      })
+    ).resolves.toHaveLength(1)
+    await expect(
+      database('timelines').where({
+        actorId: localActorId,
+        statusId: secondReplyStatusId,
+        timeline: 'direct'
+      })
+    ).resolves.toHaveLength(1)
   })
 
   test('rollback restores legacy timeline rows from synced conversations', async () => {

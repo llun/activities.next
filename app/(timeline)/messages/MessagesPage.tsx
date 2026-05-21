@@ -1,6 +1,15 @@
 'use client'
 
-import { Archive, Loader2, Mail, Plus, Search, Send, X } from 'lucide-react'
+import {
+  Archive,
+  ArrowLeft,
+  Loader2,
+  Mail,
+  Plus,
+  Search,
+  Send,
+  X
+} from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -32,6 +41,8 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { cn } from '@/lib/utils'
 
+import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
+
 interface MessagesPageProps {
   host: string
   conversations: DirectConversationView[]
@@ -45,7 +56,6 @@ interface MessagesPageProps {
 }
 
 const READ_RETRY_COOLDOWN_MS = 30_000
-export const INITIAL_CONVERSATIONS_LIMIT = 20
 const LOAD_MORE_CONVERSATIONS_LIMIT = 20
 
 const accountLabel = (account: MastodonAccount) =>
@@ -118,6 +128,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const [hasMoreConversations, setHasMoreConversations] = useState(
     initialHasMoreConversations
   )
+  const [showConversationListOnMobile, setShowConversationListOnMobile] =
+    useState(!initialConversationId)
   const [readRetryNonce, setReadRetryNonce] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const latestThreadRequestIdRef = useRef(0)
@@ -151,6 +163,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     : selectedRecipients
 
   const selectConversation = useCallback((conversationId: string | null) => {
+    if (conversationId) {
+      setShowConversationListOnMobile(false)
+    }
     if (conversationId) {
       const hadFailed = lastFailedReadAtRef.current.delete(conversationId)
       if (hadFailed) setReadRetryNonce((nonce) => nonce + 1)
@@ -448,6 +463,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   }, [])
 
   const startNewConversation = useCallback(() => {
+    setShowConversationListOnMobile(false)
     selectConversation(null)
     setThreadStatuses([])
     setNextMaxStatusId(null)
@@ -537,11 +553,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   )
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 md:space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Mail className="size-6 text-muted-foreground" />
-          <h1 className="text-2xl font-semibold">Messages</h1>
+          <Mail className="size-6 text-muted-foreground md:size-7" />
+          <h1 className="text-2xl font-semibold md:text-3xl">Messages</h1>
         </div>
         <Button variant="outline" size="sm" onClick={startNewConversation}>
           <Plus className="mr-2 size-4" />
@@ -549,9 +565,18 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         </Button>
       </div>
 
-      <section className="grid overflow-hidden rounded-lg border bg-background md:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="border-b md:border-b-0 md:border-r">
-          <div className="max-h-[420px] overflow-y-auto">
+      <section
+        aria-label="Direct messages"
+        className="grid min-w-0 overflow-hidden rounded-lg border bg-background md:grid-cols-[minmax(260px,32%)_minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]"
+      >
+        <aside
+          aria-label="Conversation list"
+          className={cn(
+            'min-w-0 border-b md:min-h-0 md:border-b-0 md:border-r',
+            !showConversationListOnMobile && 'max-md:hidden'
+          )}
+        >
+          <div className="md:h-full md:overflow-y-auto">
             {currentConversations.length > 0 ? (
               currentConversations.map((conversation) => {
                 const isSelected = conversation.id === selectedConversationId
@@ -566,11 +591,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                       setError(null)
                     }}
                     className={cn(
-                      'flex w-full items-start gap-3 border-b px-3 py-3 text-left last:border-b-0',
+                      'flex w-full items-start gap-3 border-b px-3 py-3 text-left last:border-b-0 md:px-4 md:py-4',
                       isSelected ? 'bg-muted' : 'hover:bg-muted/60'
                     )}
                   >
-                    <Avatar className="mt-0.5 size-9 shrink-0">
+                    <Avatar className="mt-0.5 size-9 shrink-0 md:size-11">
                       {avatarAccount?.avatar && (
                         <AvatarImage src={avatarAccount.avatar} />
                       )}
@@ -580,7 +605,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                       <span className="flex items-center gap-2">
                         <span
                           className={cn(
-                            'truncate text-sm',
+                            'truncate text-sm md:text-base',
                             conversation.unread && 'font-semibold'
                           )}
                         >
@@ -593,7 +618,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                       <span className="block truncate text-xs text-muted-foreground">
                         {conversationSubtitle(conversation)}
                       </span>
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block text-xs text-muted-foreground md:mt-1">
                         {formatTimestamp(conversation.lastStatusCreatedAt)}
                       </span>
                     </span>
@@ -624,10 +649,27 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           </div>
         </aside>
 
-        <div className="flex min-h-[520px] flex-col">
-          <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4">
-            <div className="min-w-0">
-              <h2 className="truncate text-base font-semibold">
+        <div
+          aria-label="Conversation thread"
+          className={cn(
+            'flex min-h-[60svh] min-w-0 flex-col md:min-h-[calc(100svh-10rem)]',
+            showConversationListOnMobile && 'max-md:hidden'
+          )}
+        >
+          <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4 md:min-h-16 md:px-5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Back to conversations"
+              aria-label="Back to conversations"
+              className="md:hidden"
+              onClick={() => setShowConversationListOnMobile(true)}
+            >
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-base font-semibold md:text-lg">
                 {selectedConversation
                   ? conversationTitle(selectedConversation)
                   : 'New message'}
@@ -657,7 +699,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           <div
             ref={threadContainerRef}
             aria-label="Message thread"
-            className="min-h-0 flex-1 overflow-y-auto"
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto"
           >
             {isThreadLoading ? (
               <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -687,6 +729,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                   statuses={displayStatuses}
                   currentActor={currentActor}
                   postLineLimit={postLineLimit}
+                  className="md:[&>article]:p-6"
                 />
               </>
             ) : (
@@ -696,7 +739,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
             )}
           </div>
 
-          <form onSubmit={sendMessage} className="space-y-3 border-t p-4">
+          <form
+            onSubmit={sendMessage}
+            className="space-y-3 border-t p-4 md:p-5"
+          >
             {!selectedConversation && (
               <div className="space-y-2">
                 {selectedRecipients.length > 0 && (
@@ -788,9 +834,15 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                 onChange={(event) => setMessage(event.target.value)}
                 onKeyDown={handleMessageKeyDown}
                 placeholder="Write a message"
-                className="min-h-24 resize-y"
+                className="min-h-24 resize-y md:min-h-28"
               />
-              <Button type="submit" disabled={isSending || !message.trim()}>
+              <Button
+                type="submit"
+                size="icon"
+                disabled={isSending || !message.trim()}
+                aria-label="Send message"
+                title="Send message"
+              >
                 {isSending ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (

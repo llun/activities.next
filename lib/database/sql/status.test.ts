@@ -85,6 +85,110 @@ describe('StatusDatabase', () => {
       await mysqlDatabase.destroy()
     })
 
+    it('stores reply hashes for created replies', async () => {
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+
+      try {
+        await sqlDatabase.migrate()
+
+        const reply = 'https://remote.test/users/alice/statuses/1'
+        const noteId = `${replyAuthorId}/statuses/reply-hash-note`
+        const pollId = `${replyAuthorId}/statuses/reply-hash-poll`
+
+        await sqlDatabase.createNote({
+          id: noteId,
+          url: noteId,
+          actorId: replyAuthorId,
+          text: 'Reply hash note',
+          to: [],
+          cc: [],
+          reply
+        })
+        await sqlDatabase.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: replyAuthorId,
+          text: 'Reply hash poll',
+          to: [],
+          cc: [],
+          reply,
+          choices: ['Yes', 'No'],
+          endAt: Date.now()
+        })
+
+        await expect(
+          knexDatabase('statuses')
+            .whereIn('id', [noteId, pollId])
+            .select('id', 'replyHash')
+            .orderBy('id', 'asc')
+        ).resolves.toEqual([
+          { id: noteId, replyHash: getHashFromString(reply) },
+          { id: pollId, replyHash: getHashFromString(reply) }
+        ])
+      } finally {
+        await knexDatabase.destroy()
+      }
+    })
+
+    it('uses reply hashes for recipientless parent URL visibility lookups', async () => {
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+
+      try {
+        await sqlDatabase.migrate()
+
+        const visibleActorId = 'https://local.test/users/visible'
+        const replyActorId = 'https://remote.test/users/reply'
+        const parentStatusId = `${visibleActorId}/statuses/reply-hash-parent`
+        const parentStatusUrl = `${parentStatusId}/canonical`
+        const replyStatusId = `${replyActorId}/statuses/reply-hash-child`
+
+        const parent = await sqlDatabase.createNote({
+          id: parentStatusId,
+          url: parentStatusUrl,
+          actorId: visibleActorId,
+          text: 'Reply hash parent',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          reply: ''
+        })
+        await sqlDatabase.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: replyActorId,
+          text: 'Reply hash child',
+          to: [],
+          cc: [],
+          reply: parent.url
+        })
+        await knexDatabase('statuses')
+          .where('id', replyStatusId)
+          .update({ replyHash: null })
+
+        const results = await sqlDatabase.getStatusesByIds({
+          statusIds: [replyStatusId],
+          visibleToActorId: visibleActorId
+        })
+
+        expect(results).toEqual([])
+      } finally {
+        await knexDatabase.destroy()
+      }
+    })
+
     it('includes publicly readable legacy Announces that only store the target in content', async () => {
       const knexDatabase = knex({
         client: 'better-sqlite3',
@@ -464,6 +568,30 @@ describe('StatusDatabase', () => {
     })
 
     describe('getStatusesByIds', () => {
+      const createVisibilityActor = async ({
+        name,
+        suffix,
+        local = false
+      }: {
+        name: string
+        suffix: string
+        local?: boolean
+      }) => {
+        const actorId = `https://status-visibility.test/users/${name}-${suffix}`
+        await database.createActor({
+          actorId,
+          username: `${name}-${suffix}`,
+          domain: 'status-visibility.test',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: 'https://status-visibility.test/inbox',
+          publicKey: `public-key-${name}-${suffix}`,
+          privateKey: local ? `private-key-${name}-${suffix}` : undefined,
+          createdAt: Date.now()
+        })
+        return actorId
+      }
+
       it('hydrates actor flags for the current actor', async () => {
         const suffix = `${Date.now()}-${Math.random()}`
         const bookmarkedStatusId = `${emptyActorId}/statuses/bookmarked-${suffix}`
@@ -605,6 +733,135 @@ describe('StatusDatabase', () => {
           directStatusId,
           publicStatusId
         ])
+      })
+
+      it('includes recipientless replies to statuses authored by the visible actor', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const visibleActorId = await createVisibilityActor({
+          name: 'visible-parent',
+          suffix
+        })
+        const replyActorId = await createVisibilityActor({
+          name: 'visible-reply',
+          suffix
+        })
+        const parentStatusId = `${visibleActorId}/statuses/recipientless-visible-parent`
+        const replyStatusId = `${replyActorId}/statuses/recipientless-visible-reply`
+
+        const parent = await database.createNote({
+          id: parentStatusId,
+          url: `${parentStatusId}/canonical`,
+          actorId: visibleActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${visibleActorId}/followers`],
+          text: 'Recipientless reply parent'
+        })
+        await database.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: replyActorId,
+          to: [],
+          cc: [],
+          reply: parent.url,
+          text: 'Recipientless reply to visible actor'
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [replyStatusId],
+          visibleToActorId: visibleActorId
+        })
+
+        expect(results.map((status) => status.id)).toEqual([replyStatusId])
+      })
+
+      it('includes recipientless replies for inherited direct conversation participants', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const rootActorId = await createVisibilityActor({
+          name: 'dm-root',
+          suffix,
+          local: true
+        })
+        const replyActorId = await createVisibilityActor({
+          name: 'dm-reply',
+          suffix,
+          local: true
+        })
+        const participantActorId = await createVisibilityActor({
+          name: 'dm-participant',
+          suffix,
+          local: true
+        })
+        const rootStatusId = `${rootActorId}/statuses/recipientless-dm-root`
+        const replyStatusId = `${replyActorId}/statuses/recipientless-dm-reply`
+
+        const root = await database.createNote({
+          id: rootStatusId,
+          url: `${rootStatusId}/canonical`,
+          actorId: rootActorId,
+          to: [replyActorId, participantActorId],
+          cc: [],
+          text: 'Direct conversation root'
+        })
+        await database.syncDirectConversationForStatus({ status: root })
+        await database.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: replyActorId,
+          to: [],
+          cc: [],
+          reply: root.url,
+          text: 'Recipientless reply in synced direct conversation'
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [replyStatusId],
+          visibleToActorId: participantActorId
+        })
+
+        expect(results.map((status) => status.id)).toEqual([replyStatusId])
+      })
+
+      it('excludes recipientless replies for unrelated visible actors', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const parentActorId = await createVisibilityActor({
+          name: 'hidden-parent',
+          suffix
+        })
+        const replyActorId = await createVisibilityActor({
+          name: 'hidden-reply',
+          suffix
+        })
+        const visibleActorId = await createVisibilityActor({
+          name: 'unrelated-visible',
+          suffix
+        })
+        const parentStatusId = `${parentActorId}/statuses/recipientless-hidden-parent`
+        const replyStatusId = `${replyActorId}/statuses/recipientless-hidden-reply`
+
+        const parent = await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId: parentActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Unrelated recipientless parent'
+        })
+        await database.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: replyActorId,
+          to: [],
+          cc: [],
+          reply: parent.id,
+          text: 'Recipientless reply hidden from unrelated actors'
+        })
+
+        const results = await database.getStatusesByIds({
+          statusIds: [replyStatusId],
+          visibleToActorId: visibleActorId
+        })
+
+        expect(results).toEqual([])
       })
 
       it('includes followers-only statuses from followed actors when filtering by visible actor', async () => {
