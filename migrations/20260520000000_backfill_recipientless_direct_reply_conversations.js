@@ -19,6 +19,21 @@ const isMembershipOlderThanStatus = (membership, status) => {
   return String(membership.lastStatusId) < String(status.id)
 }
 
+const compareStatusOrder = (left, right) => {
+  const leftTime = asDate(left.createdAt).getTime()
+  const rightTime = asDate(right.createdAt).getTime()
+  if (leftTime !== rightTime) return leftTime - rightTime
+  return String(left.id).localeCompare(String(right.id))
+}
+
+const uniqueStatusesById = (statuses) => {
+  const statusesById = new Map()
+  for (const status of statuses) {
+    if (!statusesById.has(status.id)) statusesById.set(status.id, status)
+  }
+  return [...statusesById.values()]
+}
+
 const insertIfMissing = async (knex, table, where, values) => {
   await knex(table).insert(values).onConflict(Object.keys(where)).ignore()
 }
@@ -47,15 +62,13 @@ const insertTimelineStatusIfMissing = async ({
     }
   )
 
-const getRecipientlessDirectReplyBatch = async (knex) => {
-  const statuses = await knex('statuses as direct_replies')
-    .innerJoin('statuses as parent_statuses', function () {
-      this.on('direct_replies.reply', '=', 'parent_statuses.id').orOn(
-        'direct_replies.reply',
-        '=',
-        'parent_statuses.url'
-      )
-    })
+const getRecipientlessDirectReplyQuery = (knex, parentReferenceColumn) =>
+  knex('statuses as direct_replies')
+    .innerJoin(
+      'statuses as parent_statuses',
+      'direct_replies.reply',
+      parentReferenceColumn
+    )
     .leftJoin('actors as parent_actors', function () {
       this.on('parent_actors.id', '=', 'parent_statuses.actorId')
     })
@@ -119,7 +132,15 @@ const getRecipientlessDirectReplyBatch = async (knex) => {
       'parent_conversations.rootStatusId as parentRootStatusId'
     )
 
-  return statuses
+const getRecipientlessDirectReplyBatch = async (knex) => {
+  const statusesByParentReference = await Promise.all([
+    getRecipientlessDirectReplyQuery(knex, 'parent_statuses.id'),
+    getRecipientlessDirectReplyQuery(knex, 'parent_statuses.url')
+  ])
+
+  return uniqueStatusesById(statusesByParentReference.flat())
+    .sort(compareStatusOrder)
+    .slice(0, DIRECT_STATUS_BATCH_SIZE)
 }
 
 const getParticipantActorIdsByConversationId = async (

@@ -142,12 +142,13 @@ describe('direct conversations migration', () => {
 
   test('backfills recipientless direct replies to local non-direct statuses', async () => {
     const parentStatusId = 'https://local.test/users/alice/statuses/public-1'
+    const parentStatusUrl = 'https://local.test/@alice/public-1'
     const replyStatusId =
       'https://remote.test/users/bob/statuses/recipientless-reply'
     await database('statuses').insert([
       {
         id: parentStatusId,
-        url: parentStatusId,
+        url: parentStatusUrl,
         type: 'Note',
         actorId: localActorId,
         reply: '',
@@ -158,7 +159,7 @@ describe('direct conversations migration', () => {
         url: replyStatusId,
         type: 'Note',
         actorId: remoteActorId,
-        reply: parentStatusId,
+        reply: parentStatusUrl,
         createdAt: new Date('2026-05-17T01:00:00.000Z')
       }
     ])
