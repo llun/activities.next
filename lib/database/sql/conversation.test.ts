@@ -362,6 +362,53 @@ describe('ConversationDatabase', () => {
 
       expect(statuses.map((status) => status.id)).toContain(directReply.id)
     })
+
+    test('inherits parent conversation participants for recipientless direct replies', async () => {
+      const root = await createDirectStatus({
+        database,
+        actorId: ACTOR2_ID,
+        recipientActorIds: [ACTOR1_ID, ACTOR3_ID],
+        text: 'group root for recipientless reply',
+        createdAt: 6700
+      })
+      const recipientlessReply = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/recipientless-group-reply`,
+        url: `${ACTOR1_ID}/statuses/recipientless-group-reply`,
+        actorId: ACTOR1_ID,
+        to: [],
+        cc: [],
+        text: 'recipientless group reply',
+        reply: root.url,
+        createdAt: 6800
+      })
+
+      await database.syncDirectConversationForStatus({
+        status: recipientlessReply
+      })
+
+      const actor3Conversation = (
+        await database.getDirectConversations({ actorId: ACTOR3_ID })
+      ).find(
+        (item: DirectConversation) =>
+          item.lastStatusId === recipientlessReply.id
+      )
+
+      expect(actor3Conversation).toBeDefined()
+      if (!actor3Conversation) fail('Actor3 conversation must be defined')
+      expect(actor3Conversation.rootStatusId).toEqual(root.id)
+      expect(actor3Conversation.participantActorIds.sort()).toEqual(
+        [ACTOR1_ID, ACTOR2_ID, ACTOR3_ID].sort()
+      )
+      expect(actor3Conversation.unread).toBe(true)
+
+      const statuses = await database.getDirectConversationStatuses({
+        actorId: ACTOR3_ID,
+        conversationId: actor3Conversation.id
+      })
+      expect(statuses.map((status) => status.id)).toContain(
+        recipientlessReply.id
+      )
+    })
   })
 
   describe('sqlite implementation details', () => {

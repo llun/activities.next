@@ -12,6 +12,13 @@ const conversationIdForRoot = (rootStatusId) =>
 
 const asDate = (value) => (value instanceof Date ? value : new Date(value))
 
+const isMembershipOlderThanStatus = (membership, status) => {
+  const membershipTime = asDate(membership.lastStatusCreatedAt).getTime()
+  const statusTime = asDate(status.createdAt).getTime()
+  if (membershipTime !== statusTime) return membershipTime < statusTime
+  return String(membership.lastStatusId) < String(status.id)
+}
+
 const insertIfMissing = async (knex, table, where, values) => {
   await knex(table).insert(values).onConflict(Object.keys(where)).ignore()
 }
@@ -40,8 +47,8 @@ const insertTimelineStatusIfMissing = async ({
     }
   )
 
-const getRecipientlessDirectReplyBatch = async (knex, cursor) => {
-  let query = knex('statuses as direct_replies')
+const getRecipientlessDirectReplyBatch = async (knex) => {
+  const statuses = await knex('statuses as direct_replies')
     .innerJoin('statuses as parent_statuses', function () {
       this.on('direct_replies.reply', '=', 'parent_statuses.id').orOn(
         'direct_replies.reply',
@@ -49,31 +56,56 @@ const getRecipientlessDirectReplyBatch = async (knex, cursor) => {
         'parent_statuses.url'
       )
     })
-    .innerJoin('actors as parent_actors', function () {
+    .leftJoin('actors as parent_actors', function () {
       this.on('parent_actors.id', '=', 'parent_statuses.actorId')
     })
+    .leftJoin(
+      'direct_conversation_statuses as parent_conversation_statuses',
+      'parent_conversation_statuses.statusId',
+      'parent_statuses.id'
+    )
+    .leftJoin(
+      'direct_conversations as parent_conversations',
+      'parent_conversations.id',
+      'parent_conversation_statuses.conversationId'
+    )
     .whereIn('direct_replies.type', ['Note', 'Poll'])
     .whereNotNull('direct_replies.reply')
     .whereNot('direct_replies.reply', '')
-    .whereNotNull('parent_actors.privateKey')
-    .whereNot('parent_actors.privateKey', '')
-    .whereExists(function () {
-      this.select(knex.raw('1'))
-        .from('recipients as parent_recipients')
-        .whereRaw('?? = ??', [
-          'parent_recipients.statusId',
-          'parent_statuses.id'
-        ])
-        .where((builder) => {
-          builder
-            .whereIn('parent_recipients.actorId', PUBLIC_AUDIENCES)
-            .orWhere('parent_recipients.actorId', 'like', '%/followers')
+    .where((builder) => {
+      builder
+        .whereNotNull('parent_conversation_statuses.conversationId')
+        .orWhere((rootParent) => {
+          rootParent
+            .whereNotNull('parent_actors.privateKey')
+            .whereNot('parent_actors.privateKey', '')
+            .whereExists(function () {
+              this.select(knex.raw('1'))
+                .from('recipients as parent_recipients')
+                .whereRaw('?? = ??', [
+                  'parent_recipients.statusId',
+                  'parent_statuses.id'
+                ])
+                .where((recipientBuilder) => {
+                  recipientBuilder
+                    .whereIn('parent_recipients.actorId', PUBLIC_AUDIENCES)
+                    .orWhere('parent_recipients.actorId', 'like', '%/followers')
+                })
+            })
         })
     })
     .whereNotExists(function () {
       this.select(knex.raw('1'))
         .from('recipients as reply_recipients')
         .whereRaw('?? = ??', ['reply_recipients.statusId', 'direct_replies.id'])
+    })
+    .whereNotExists(function () {
+      this.select(knex.raw('1'))
+        .from('direct_conversation_statuses as reply_conversation_statuses')
+        .whereRaw('?? = ??', [
+          'reply_conversation_statuses.statusId',
+          'direct_replies.id'
+        ])
     })
     .orderBy('direct_replies.createdAt', 'asc')
     .orderBy('direct_replies.id', 'asc')
@@ -82,26 +114,220 @@ const getRecipientlessDirectReplyBatch = async (knex, cursor) => {
       'direct_replies.id',
       'direct_replies.actorId',
       'direct_replies.createdAt',
-      'parent_statuses.actorId as parentActorId'
+      'parent_statuses.actorId as parentActorId',
+      'parent_conversation_statuses.conversationId as parentConversationId',
+      'parent_conversations.rootStatusId as parentRootStatusId'
     )
 
-  if (cursor) {
-    query = query.where((builder) => {
-      builder
-        .where('direct_replies.createdAt', '>', cursor.createdAt)
-        .orWhere((sameTime) => {
-          sameTime
-            .where('direct_replies.createdAt', cursor.createdAt)
-            .where('direct_replies.id', '>', cursor.id)
-        })
+  return statuses
+}
+
+const getParticipantActorIdsByConversationId = async (
+  knex,
+  conversationIds
+) => {
+  if (conversationIds.length === 0) return new Map()
+
+  const rows = await knex('direct_conversation_participants')
+    .whereIn('conversationId', conversationIds)
+    .select('conversationId', 'actorId')
+  return rows.reduce((output, row) => {
+    const participantActorIds = output.get(row.conversationId) || []
+    participantActorIds.push(row.actorId)
+    output.set(row.conversationId, participantActorIds)
+    return output
+  }, new Map())
+}
+
+const buildDirectReplySyncData = ({
+  directReplies,
+  participantActorIdsByConversationId
+}) =>
+  directReplies.map((status) => {
+    const conversationId =
+      status.parentConversationId || conversationIdForRoot(status.id)
+    const inheritedParticipantActorIds = status.parentConversationId
+      ? participantActorIdsByConversationId.get(status.parentConversationId) ||
+        []
+      : []
+
+    return {
+      ...status,
+      conversationId,
+      rootStatusId: status.parentRootStatusId || status.id,
+      participantActorIds: [
+        ...new Set([
+          status.actorId,
+          ...(inheritedParticipantActorIds.length > 0
+            ? inheritedParticipantActorIds
+            : [status.parentActorId])
+        ])
+      ]
+    }
+  })
+
+const upsertMembershipForStatus = async ({
+  trx,
+  actorId,
+  conversationId,
+  status,
+  currentTime
+}) => {
+  const statusCreatedAt = asDate(status.createdAt)
+  const unread = actorId !== status.actorId
+  const existingMembership = await trx('direct_conversation_memberships')
+    .where({ actorId, conversationId })
+    .first()
+
+  if (!existingMembership) {
+    await insertIfMissing(
+      trx,
+      'direct_conversation_memberships',
+      { actorId, conversationId },
+      {
+        actorId,
+        conversationId,
+        lastStatusId: status.id,
+        lastStatusCreatedAt: statusCreatedAt,
+        unread,
+        readAt: unread ? null : statusCreatedAt,
+        hiddenAt: null,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      }
+    )
+    return
+  }
+
+  if (!isMembershipOlderThanStatus(existingMembership, status)) return
+
+  await trx('direct_conversation_memberships')
+    .where('id', existingMembership.id)
+    .update({
+      lastStatusId: status.id,
+      lastStatusCreatedAt: statusCreatedAt,
+      unread,
+      ...(unread ? {} : { readAt: statusCreatedAt }),
+      hiddenAt: null,
+      updatedAt: currentTime
+    })
+}
+
+const getNextRecipientlessDirectReplyBatch = async (knex) => {
+  const directReplies = await getRecipientlessDirectReplyBatch(knex)
+  const parentConversationIds = [
+    ...new Set(
+      directReplies.map((status) => status.parentConversationId).filter(Boolean)
+    )
+  ]
+  const participantActorIdsByConversationId =
+    await getParticipantActorIdsByConversationId(knex, parentConversationIds)
+
+  return buildDirectReplySyncData({
+    directReplies,
+    participantActorIdsByConversationId
+  })
+}
+
+const getBatchLocalActorIds = (knex, directReplies) => {
+  const batchParticipantActorIds = [
+    ...new Set(directReplies.flatMap((status) => status.participantActorIds))
+  ]
+  return getLocalActorIds(knex, batchParticipantActorIds)
+}
+
+const getStatusLocalActorIds = (status, batchLocalActorIds) =>
+  status.participantActorIds.filter((actorId) =>
+    batchLocalActorIds.has(actorId)
+  )
+
+const insertDirectConversationParticipantIfMissing = async ({
+  trx,
+  conversationId,
+  actorId,
+  currentTime
+}) => {
+  await insertIfMissing(
+    trx,
+    'direct_conversation_participants',
+    { conversationId, actorId },
+    {
+      id: crypto.randomUUID(),
+      conversationId,
+      actorId,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+  )
+}
+
+const insertDirectConversationIfMissing = async ({
+  trx,
+  status,
+  currentTime
+}) =>
+  insertIfMissing(
+    trx,
+    'direct_conversations',
+    { id: status.conversationId },
+    {
+      id: status.conversationId,
+      rootStatusId: status.rootStatusId,
+      createdAt: asDate(status.createdAt),
+      updatedAt: currentTime
+    }
+  )
+
+const insertDirectConversationStatusIfMissing = async ({
+  trx,
+  status,
+  currentTime
+}) =>
+  insertIfMissing(
+    trx,
+    'direct_conversation_statuses',
+    { conversationId: status.conversationId, statusId: status.id },
+    {
+      conversationId: status.conversationId,
+      statusId: status.id,
+      createdAt: asDate(status.createdAt),
+      updatedAt: currentTime
+    }
+  )
+
+const syncRecipientlessDirectReply = async ({
+  trx,
+  status,
+  batchLocalActorIds
+}) => {
+  const currentTime = new Date()
+  await insertDirectConversationIfMissing({ trx, status, currentTime })
+  await insertDirectConversationStatusIfMissing({ trx, status, currentTime })
+
+  for (const actorId of status.participantActorIds) {
+    await insertDirectConversationParticipantIfMissing({
+      trx,
+      conversationId: status.conversationId,
+      actorId,
+      currentTime
     })
   }
 
-  const statuses = await query
-  return {
-    cursor: statuses[statuses.length - 1] || cursor,
-    hasMore: statuses.length === DIRECT_STATUS_BATCH_SIZE,
-    statuses
+  for (const actorId of getStatusLocalActorIds(status, batchLocalActorIds)) {
+    await insertTimelineStatusIfMissing({
+      knex: trx,
+      actorId,
+      status,
+      currentTime
+    })
+
+    await upsertMembershipForStatus({
+      trx,
+      actorId,
+      conversationId: status.conversationId,
+      status,
+      currentTime
+    })
   }
 }
 
@@ -117,105 +343,14 @@ const getLocalActorIds = async (knex, actorIds) => {
 }
 
 exports.up = async (knex) => {
-  let cursor = null
-  let hasMore = true
-
-  while (hasMore) {
-    const batch = await getRecipientlessDirectReplyBatch(knex, cursor)
-    const directReplies = batch.statuses
-    hasMore = batch.hasMore
-    cursor = batch.cursor
-    if (directReplies.length === 0) continue
-
-    const batchParticipantActorIds = [
-      ...new Set(
-        directReplies.flatMap((status) => [
-          status.actorId,
-          status.parentActorId
-        ])
-      )
-    ]
-    const batchLocalActorIds = await getLocalActorIds(
-      knex,
-      batchParticipantActorIds
-    )
+  while (true) {
+    const directReplies = await getNextRecipientlessDirectReplyBatch(knex)
+    if (directReplies.length === 0) break
+    const batchLocalActorIds = await getBatchLocalActorIds(knex, directReplies)
 
     await knex.transaction(async (trx) => {
       for (const status of directReplies) {
-        const conversationId = conversationIdForRoot(status.id)
-        const currentTime = new Date()
-        const participantActorIds = [
-          ...new Set([status.actorId, status.parentActorId])
-        ]
-        const localActorIds = participantActorIds.filter((actorId) =>
-          batchLocalActorIds.has(actorId)
-        )
-
-        await insertIfMissing(
-          trx,
-          'direct_conversations',
-          { id: conversationId },
-          {
-            id: conversationId,
-            rootStatusId: status.id,
-            createdAt: asDate(status.createdAt),
-            updatedAt: currentTime
-          }
-        )
-
-        await insertIfMissing(
-          trx,
-          'direct_conversation_statuses',
-          { conversationId, statusId: status.id },
-          {
-            conversationId,
-            statusId: status.id,
-            createdAt: asDate(status.createdAt),
-            updatedAt: currentTime
-          }
-        )
-
-        for (const actorId of participantActorIds) {
-          await insertIfMissing(
-            trx,
-            'direct_conversation_participants',
-            { conversationId, actorId },
-            {
-              id: crypto.randomUUID(),
-              conversationId,
-              actorId,
-              createdAt: currentTime,
-              updatedAt: currentTime
-            }
-          )
-        }
-
-        for (const actorId of localActorIds) {
-          await insertTimelineStatusIfMissing({
-            knex: trx,
-            actorId,
-            status,
-            currentTime
-          })
-
-          const unread = actorId !== status.actorId
-          await insertIfMissing(
-            trx,
-            'direct_conversation_memberships',
-            { actorId, conversationId },
-            {
-              actorId,
-              conversationId,
-              lastStatusId: status.id,
-              lastStatusCreatedAt: asDate(status.createdAt),
-              unread,
-              readAt: unread ? null : asDate(status.createdAt),
-              hiddenAt: null,
-              createdAt: currentTime,
-              updatedAt: currentTime
-            }
-          )
-        }
+        await syncRecipientlessDirectReply({ trx, status, batchLocalActorIds })
       }
     })
   }

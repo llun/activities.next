@@ -239,21 +239,48 @@ export const StatusSQLDatabaseMixin = (
       sql: `?? = ${statusActorFollowersUrlExpression()}`,
       bindings: ['followers_recipients.actorId']
     }
-    const applyRecipientlessReplyParentFilter = (
+    const applyRecipientlessReplyFilter = (
       builder: Knex.QueryBuilder,
       parentReferenceColumn: string
     ) => {
       builder
-        .select(database.raw('1'))
-        .from('statuses as reply_parent_statuses')
         .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-        .where('reply_parent_statuses.actorId', visibleToActorId)
         .whereRaw('?? = ??', ['statuses.reply', parentReferenceColumn])
         .whereNotExists(function () {
           this.select(database.raw('1'))
             .from('recipients as reply_recipients')
             .whereRaw('?? = ??', ['reply_recipients.statusId', 'statuses.id'])
         })
+    }
+    const applyRecipientlessReplyParentAuthorFilter = (
+      builder: Knex.QueryBuilder,
+      parentReferenceColumn: string
+    ) => {
+      builder
+        .select(database.raw('1'))
+        .from('statuses as reply_parent_statuses')
+        .where('reply_parent_statuses.actorId', visibleToActorId)
+      applyRecipientlessReplyFilter(builder, parentReferenceColumn)
+    }
+    const applyRecipientlessReplyParentConversationParticipantFilter = (
+      builder: Knex.QueryBuilder,
+      parentReferenceColumn: string
+    ) => {
+      builder
+        .select(database.raw('1'))
+        .from('statuses as reply_parent_statuses')
+        .innerJoin(
+          'direct_conversation_statuses as reply_parent_direct_statuses',
+          'reply_parent_direct_statuses.statusId',
+          'reply_parent_statuses.id'
+        )
+        .innerJoin(
+          'direct_conversation_participants as reply_parent_direct_participants',
+          'reply_parent_direct_participants.conversationId',
+          'reply_parent_direct_statuses.conversationId'
+        )
+        .where('reply_parent_direct_participants.actorId', visibleToActorId)
+      applyRecipientlessReplyFilter(builder, parentReferenceColumn)
     }
 
     return query.where((qb) => {
@@ -268,10 +295,28 @@ export const StatusSQLDatabaseMixin = (
       )
         .orWhere('statuses.actorId', visibleToActorId)
         .orWhereExists(function () {
-          applyRecipientlessReplyParentFilter(this, 'reply_parent_statuses.id')
+          applyRecipientlessReplyParentAuthorFilter(
+            this,
+            'reply_parent_statuses.id'
+          )
         })
         .orWhereExists(function () {
-          applyRecipientlessReplyParentFilter(this, 'reply_parent_statuses.url')
+          applyRecipientlessReplyParentAuthorFilter(
+            this,
+            'reply_parent_statuses.url'
+          )
+        })
+        .orWhereExists(function () {
+          applyRecipientlessReplyParentConversationParticipantFilter(
+            this,
+            'reply_parent_statuses.id'
+          )
+        })
+        .orWhereExists(function () {
+          applyRecipientlessReplyParentConversationParticipantFilter(
+            this,
+            'reply_parent_statuses.url'
+          )
         })
         .orWhereExists(function () {
           this.select(database.raw('1'))

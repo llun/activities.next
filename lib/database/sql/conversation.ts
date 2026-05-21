@@ -281,6 +281,19 @@ export const DirectConversationSQLDatabaseMixin = (
     return row?.rootStatusId ?? null
   }
 
+  const getSyncedConversationParticipantActorIds = async (statusId: string) => {
+    const rows = await database('direct_conversation_statuses')
+      .innerJoin(
+        'direct_conversation_participants',
+        'direct_conversation_statuses.conversationId',
+        'direct_conversation_participants.conversationId'
+      )
+      .where('direct_conversation_statuses.statusId', statusId)
+      .select<{ actorId: string }[]>('direct_conversation_participants.actorId')
+
+    return rows.map((row) => row.actorId)
+  }
+
   const getStatusByIdOrUrl = async (statusReference: string) => {
     const status = await statusDatabase.getStatus({
       statusId: statusReference,
@@ -304,6 +317,14 @@ export const DirectConversationSQLDatabaseMixin = (
 
     const parentStatus = await getStatusByIdOrUrl(status.reply)
     if (!parentStatus) return participantActorIds
+
+    const parentParticipantActorIds =
+      await getSyncedConversationParticipantActorIds(parentStatus.id)
+    if (parentParticipantActorIds.length > 0) {
+      return [
+        ...new Set([...participantActorIds, ...parentParticipantActorIds])
+      ]
+    }
 
     return [...new Set([...participantActorIds, parentStatus.actorId])]
   }
