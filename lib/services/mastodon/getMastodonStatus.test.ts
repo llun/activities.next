@@ -65,6 +65,73 @@ describe('#getMastodonStatus', () => {
       })
     })
 
+    it('hydrates reblog counts in bulk for multiple statuses', async () => {
+      const suffix = crypto.randomUUID()
+      const authorUsername = `bulk-reblog-author-${suffix}`
+      const rebloggerUsername = `bulk-reblogger-${suffix}`
+      const authorActorId = `https://llun.test/users/${authorUsername}`
+      const rebloggerActorId = `https://llun.test/users/${rebloggerUsername}`
+      await database.createAccount({
+        email: `${authorUsername}@llun.test`,
+        username: authorUsername,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-author-${suffix}`,
+        publicKey: `public-author-${suffix}`
+      })
+      await database.createAccount({
+        email: `${rebloggerUsername}@llun.test`,
+        username: rebloggerUsername,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-reblogger-${suffix}`,
+        publicKey: `public-reblogger-${suffix}`
+      })
+      const firstStatus = await database.createNote({
+        id: `${authorActorId}/statuses/bulk-reblog-count-first-${suffix}`,
+        url: `${authorActorId}/statuses/bulk-reblog-count-first-${suffix}`,
+        actorId: authorActorId,
+        text: 'Bulk reblog count first',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const secondStatus = await database.createNote({
+        id: `${authorActorId}/statuses/bulk-reblog-count-second-${suffix}`,
+        url: `${authorActorId}/statuses/bulk-reblog-count-second-${suffix}`,
+        actorId: authorActorId,
+        text: 'Bulk reblog count second',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createAnnounce({
+        id: `${rebloggerActorId}/statuses/bulk-reblog-count-${suffix}`,
+        actorId: rebloggerActorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: firstStatus.id
+      })
+      const getStatusReblogsCounts = jest.spyOn(
+        database,
+        'getStatusReblogsCounts'
+      )
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(database, [
+          { ...firstStatus, totalShares: 0 },
+          { ...secondStatus, totalShares: 99 }
+        ])
+
+        expect(getStatusReblogsCounts).toHaveBeenCalledWith({
+          statusIds: [firstStatus.id, secondStatus.id]
+        })
+        expect(mastodonStatuses.map((status) => status.reblogs_count)).toEqual([
+          1, 0
+        ])
+      } finally {
+        getStatusReblogsCounts.mockRestore()
+      }
+    })
+
     it('keys hydrated account cache by actor id when account url is a profile url', async () => {
       const status = (await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`

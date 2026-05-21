@@ -75,6 +75,67 @@ describe('SearchDatabase', () => {
       expect(accounts.map((account) => account.url)).toEqual([EXTERNAL_ACTOR1])
     })
 
+    it('filters account search when either actor blocks the other', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const query = `BlockFilter${suffix}`
+      const blockedByCurrentActorId = `https://remote.test/users/block-filter-current-${suffix}`
+      const blockingCurrentActorId = `https://remote.test/users/block-filter-target-${suffix}`
+      const visibleActorId = `https://remote.test/users/block-filter-visible-${suffix}`
+
+      await database.createMastodonActor({
+        actorId: blockedByCurrentActorId,
+        username: `block-filter-current-${suffix}`,
+        domain: 'remote.test',
+        name: query,
+        followersUrl: `${blockedByCurrentActorId}/followers`,
+        inboxUrl: `${blockedByCurrentActorId}/inbox`,
+        sharedInboxUrl: `${blockedByCurrentActorId}/inbox`,
+        publicKey: `public-blocked-current-${suffix}`,
+        createdAt: Date.now()
+      })
+      await database.createMastodonActor({
+        actorId: blockingCurrentActorId,
+        username: `block-filter-target-${suffix}`,
+        domain: 'remote.test',
+        name: query,
+        followersUrl: `${blockingCurrentActorId}/followers`,
+        inboxUrl: `${blockingCurrentActorId}/inbox`,
+        sharedInboxUrl: `${blockingCurrentActorId}/inbox`,
+        publicKey: `public-blocking-current-${suffix}`,
+        createdAt: Date.now()
+      })
+      await database.createMastodonActor({
+        actorId: visibleActorId,
+        username: `block-filter-visible-${suffix}`,
+        domain: 'remote.test',
+        name: query,
+        followersUrl: `${visibleActorId}/followers`,
+        inboxUrl: `${visibleActorId}/inbox`,
+        sharedInboxUrl: `${visibleActorId}/inbox`,
+        publicKey: `public-visible-${suffix}`,
+        createdAt: Date.now()
+      })
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: blockedByCurrentActorId,
+        uri: `${ACTOR1_ID}#blocks/account-search-${suffix}-outgoing`
+      })
+      await database.createBlock({
+        actorId: blockingCurrentActorId,
+        targetActorId: ACTOR1_ID,
+        uri: `${blockingCurrentActorId}#blocks/account-search-${suffix}-incoming`
+      })
+
+      const accounts = await database.searchAccounts({
+        query,
+        limit: 10,
+        offset: 0,
+        currentActorId: ACTOR1_ID
+      })
+
+      expect(accounts.map((account) => account.url)).toEqual([visibleActorId])
+    })
+
     it('prioritizes exact bare username matches over indexed partial matches', async () => {
       const suffix = crypto.randomUUID().slice(0, 8)
       const username = `exactbare${suffix}`
@@ -159,6 +220,45 @@ describe('SearchDatabase', () => {
       ).resolves.toMatchObject([{ url: matchingActorId }])
     })
 
+    it('applies fallback account offsets after indexed matches', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const query = `hybrid${suffix}`
+      const indexedUsernames = [`${query}indexeda`, `${query}indexedb`]
+      const fallbackUsernames = [`${query}fallbacka`, `${query}fallbackb`]
+      const fallbackActorIds = fallbackUsernames.map(
+        (username) => `https://llun.test/users/${username}`
+      )
+
+      for (const username of [...indexedUsernames, ...fallbackUsernames]) {
+        await database.createAccount({
+          email: `${username}@llun.test`,
+          username,
+          passwordHash: `hash-${suffix}`,
+          domain: 'llun.test',
+          privateKey: `private-${username}`,
+          publicKey: `public-${username}`,
+          name: query
+        })
+      }
+      for (const actorId of fallbackActorIds) {
+        await database.deleteSearchDocument({
+          entityType: 'account',
+          entityId: actorId,
+          syncMeilisearch: false
+        })
+      }
+
+      const secondPage = await database.searchAccounts({
+        query,
+        limit: 2,
+        offset: 2
+      })
+
+      expect(new Set(secondPage.map((account) => account.url))).toEqual(
+        new Set(fallbackActorIds)
+      )
+    })
+
     it('resolves account URL queries through exact account lookup', async () => {
       const suffix = crypto.randomUUID().slice(0, 8)
       const username = `exact-url-${suffix}`
@@ -222,6 +322,57 @@ describe('SearchDatabase', () => {
       expect(statuses.map((status) => status.id)).not.toContain(
         `${ACTOR1_ID}/statuses/search-private-note`
       )
+    })
+
+    it('filters status search results by block relationships', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `blocked-status-${suffix}`
+      const actorId = `https://llun.test/users/${username}`
+      const statusId = `${actorId}/statuses/block-filter-${suffix}`
+      const searchText = `BlockedStatusSearch${suffix}`
+
+      await database.createAccount({
+        email: `${username}@llun.test`,
+        username,
+        passwordHash: `hash-${suffix}`,
+        domain: 'llun.test',
+        privateKey: `private-${suffix}`,
+        publicKey: `public-${suffix}`
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        text: searchText,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      expect(
+        (
+          await database.searchStatuses({
+            query: searchText,
+            limit: 10,
+            offset: 0,
+            currentActorId: ACTOR1_ID
+          })
+        ).map((status) => status.id)
+      ).toContain(statusId)
+
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: actorId,
+        uri: `${ACTOR1_ID}#blocks/status-search-${suffix}`
+      })
+
+      await expect(
+        database.searchStatuses({
+          query: searchText,
+          limit: 10,
+          offset: 0,
+          currentActorId: ACTOR1_ID
+        })
+      ).resolves.toEqual([])
     })
 
     it('paginates status search with the relevance cursor ordering', async () => {

@@ -38,6 +38,7 @@ interface MastodonTag {
 type MastodonStatusHydrationContext = {
   accountByActorId: Map<string, Mastodon.Account>
   replyStatusById: Map<string, Status>
+  reblogCountByStatusId: Map<string, number>
   replyCountByStatusId: Map<string, number>
 }
 
@@ -199,7 +200,9 @@ const getMastodonStatusFromContext = async (
       : getVisibility(status.to, status.cc)
 
   const reblogsCount =
-    status.type !== StatusType.enum.Announce ? status.totalShares : 0
+    status.type !== StatusType.enum.Announce
+      ? (context.reblogCountByStatusId.get(status.id) ?? status.totalShares)
+      : 0
 
   const baseData = {
     id: urlToId(status.id),
@@ -239,7 +242,10 @@ const getMastodonStatusFromContext = async (
 
   if (status.type === StatusType.enum.Announce) {
     const reblogTarget = getReblogTargetStatus(status)
-    const originalReblogsCount = reblogTarget ? reblogTarget.totalShares : 0
+    const originalReblogsCount = reblogTarget
+      ? (context.reblogCountByStatusId.get(reblogTarget.id) ??
+        reblogTarget.totalShares)
+      : 0
 
     const originalVisibility = reblogTarget
       ? getVisibility(reblogTarget.to, reblogTarget.cc)
@@ -375,17 +381,25 @@ export const getMastodonStatuses = async (
     )
   ]
 
-  const [accounts, replyStatuses, replyCounts] = await Promise.all([
-    database.getMastodonActorsFromIds({ ids: actorIds }),
-    database.getStatusesByIds({ statusIds: replyIds }),
-    database.getStatusRepliesCounts({ statusIds })
-  ])
+  const [accounts, replyStatuses, reblogCounts, replyCounts] =
+    await Promise.all([
+      database.getMastodonActorsFromIds({ ids: actorIds }),
+      database.getStatusesByIds({ statusIds: replyIds }),
+      database.getStatusReblogsCounts({ statusIds }),
+      database.getStatusRepliesCounts({ statusIds })
+    ])
   const accountByActorId = getAccountByActorId(accounts, actorIds)
   const replyStatusById = new Map(
     replyStatuses.map((replyStatus) => [replyStatus.id, replyStatus])
   )
+  const reblogCountByStatusId = new Map(Object.entries(reblogCounts))
   const replyCountByStatusId = new Map(Object.entries(replyCounts))
-  const context = { accountByActorId, replyStatusById, replyCountByStatusId }
+  const context = {
+    accountByActorId,
+    replyStatusById,
+    reblogCountByStatusId,
+    replyCountByStatusId
+  }
   const mastodonStatuses = await Promise.all(
     statuses.map((status) =>
       getMastodonStatusFromContext(database, status, context, currentActorId)

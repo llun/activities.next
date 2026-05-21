@@ -33,6 +33,7 @@ import {
   GetStatusFromUrlParams,
   GetStatusParams,
   GetStatusReblogsCountParams,
+  GetStatusReblogsCountsParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesCountsParams,
   GetStatusRepliesParams,
@@ -1863,6 +1864,24 @@ export const StatusSQLDatabaseMixin = (
     return getCounterValue(database, CounterKey.totalReblog(statusId))
   }
 
+  async function getStatusReblogsCounts({
+    statusIds
+  }: GetStatusReblogsCountsParams): Promise<Record<string, number>> {
+    const uniqueStatusIds = [...new Set(statusIds)]
+    if (uniqueStatusIds.length === 0) return {}
+
+    const counters = await getCounterValues(
+      database,
+      uniqueStatusIds.map((statusId) => CounterKey.totalReblog(statusId))
+    )
+    return Object.fromEntries(
+      uniqueStatusIds.map((statusId) => [
+        statusId,
+        counters[CounterKey.totalReblog(statusId)] ?? 0
+      ])
+    )
+  }
+
   async function getStatusRepliesCount({
     statusId,
     url,
@@ -2196,6 +2215,7 @@ export const StatusSQLDatabaseMixin = (
     increaseHashtagCounter,
     decreaseHashtagCounter,
     getStatusReblogsCount,
+    getStatusReblogsCounts,
     getStatusRepliesCount,
     getStatusRepliesCounts,
     createPollAnswer,

@@ -975,6 +975,134 @@ export const SearchSQLDatabaseMixin = (
       .slice(0, MAX_QUERY_TERMS)
   }
 
+  const buildTermMatchesQuery = ({
+    entityType,
+    queryTerms
+  }: {
+    entityType: SearchEntityType
+    queryTerms: string[]
+  }) =>
+    database('search_terms')
+      .select('documentId')
+      .sum({ searchScore: 'weight' })
+      .where('entityType', entityType)
+      .whereIn('term', queryTerms)
+      .groupBy('documentId')
+      .havingRaw('COUNT(*) = ?', [queryTerms.length])
+
+  const applyBlockFilter = (
+    documentsQuery: Knex.QueryBuilder,
+    currentActorId?: string
+  ) => {
+    if (!currentActorId) return documentsQuery
+
+    return documentsQuery
+      .whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('blocks')
+          .where('blocks.actorId', currentActorId)
+          .whereRaw('?? = ??', [
+            'blocks.targetActorId',
+            'search_documents.actorId'
+          ])
+      })
+      .whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('blocks')
+          .whereRaw('?? = ??', ['blocks.actorId', 'search_documents.actorId'])
+          .where('blocks.targetActorId', currentActorId)
+      })
+  }
+
+  const buildMatchedDocumentsQuery = ({
+    entityType,
+    queryTerms,
+    currentActorId,
+    following,
+    accountId,
+    excludedEntityIds = []
+  }: {
+    entityType: SearchEntityType
+    queryTerms: string[]
+    currentActorId?: string
+    following?: boolean
+    accountId?: string
+    excludedEntityIds?: string[]
+  }) => {
+    let documentsQuery = database('search_documents')
+      .innerJoin(
+        buildTermMatchesQuery({ entityType, queryTerms }).as('term_matches'),
+        'search_documents.id',
+        'term_matches.documentId'
+      )
+      .where('search_documents.entityType', entityType)
+      .where('search_documents.searchable', true)
+
+    if (excludedEntityIds.length > 0) {
+      documentsQuery = documentsQuery.whereNotIn(
+        'search_documents.entityId',
+        excludedEntityIds
+      )
+    }
+
+    documentsQuery = applyBlockFilter(documentsQuery, currentActorId)
+
+    if (entityType === 'account' && following) {
+      if (!currentActorId) return null
+      documentsQuery = documentsQuery
+        .innerJoin(
+          'follows',
+          'follows.targetActorId',
+          'search_documents.actorId'
+        )
+        .where('follows.actorId', currentActorId)
+        .where('follows.status', FollowStatus.enum.Accepted)
+    }
+
+    if (entityType === 'status' && accountId) {
+      documentsQuery = documentsQuery.where(
+        'search_documents.actorId',
+        accountId
+      )
+    }
+
+    return documentsQuery
+  }
+
+  async function getMatchedDocumentCount({
+    entityType,
+    query,
+    currentActorId,
+    following,
+    accountId,
+    excludedEntityIds = []
+  }: {
+    entityType: SearchEntityType
+    query: string
+    currentActorId?: string
+    following?: boolean
+    accountId?: string
+    excludedEntityIds?: string[]
+  }): Promise<number> {
+    const queryTerms = await getSearchQueryTerms(query)
+    if (queryTerms.length === 0) return 0
+
+    const documentsQuery = buildMatchedDocumentsQuery({
+      entityType,
+      queryTerms,
+      currentActorId,
+      following,
+      accountId,
+      excludedEntityIds
+    })
+    if (!documentsQuery) return 0
+
+    const row = await documentsQuery
+      .count<{ count: string | number }>({ count: '*' })
+      .first()
+    return Number(row?.count ?? 0)
+  }
+
   async function getMatchedDocumentIds({
     entityType,
     query,
@@ -1001,29 +1129,36 @@ export const SearchSQLDatabaseMixin = (
     const queryTerms = await getSearchQueryTerms(query)
     if (queryTerms.length === 0) return []
 
-    const buildTermMatchesQuery = () =>
-      database('search_terms')
-        .select('documentId')
-        .sum({ searchScore: 'weight' })
-        .where('entityType', entityType)
-        .whereIn('term', queryTerms)
-        .groupBy('documentId')
-        .havingRaw('COUNT(*) = ?', [queryTerms.length])
-
     const getStatusSearchCursor = async (statusId: string) =>
       database('search_documents')
         .innerJoin(
-          buildTermMatchesQuery().as('term_matches'),
+          buildTermMatchesQuery({ entityType: 'status', queryTerms }).as(
+            'term_matches'
+          ),
           'search_documents.id',
           'term_matches.documentId'
         )
         .where('search_documents.entityType', 'status')
         .where('search_documents.searchable', true)
         .where('search_documents.id', getSearchDocumentId('status', statusId))
-        .select<
-          SearchCursorRow[]
-        >('search_documents.entityId', 'search_documents.entityIdHash', 'search_documents.entityCreatedAt', 'term_matches.searchScore')
+        .select<SearchCursorRow[]>(
+          'search_documents.entityId',
+          'search_documents.entityIdHash',
+          'search_documents.entityCreatedAt',
+          'term_matches.searchScore'
+        )
         .first()
+
+    const baseDocumentsQuery = buildMatchedDocumentsQuery({
+      entityType,
+      queryTerms,
+      currentActorId,
+      following,
+      accountId,
+      excludedEntityIds
+    })
+    if (!baseDocumentsQuery) return []
+    let documentsQuery = baseDocumentsQuery
 
     const applyStatusSearchCursor = (
       direction: 'before' | 'after',
@@ -1113,41 +1248,6 @@ export const SearchSQLDatabaseMixin = (
       })
     }
 
-    let documentsQuery = database('search_documents')
-      .innerJoin(
-        buildTermMatchesQuery().as('term_matches'),
-        'search_documents.id',
-        'term_matches.documentId'
-      )
-      .where('search_documents.entityType', entityType)
-      .where('search_documents.searchable', true)
-
-    if (excludedEntityIds.length > 0) {
-      documentsQuery = documentsQuery.whereNotIn(
-        'search_documents.entityId',
-        excludedEntityIds
-      )
-    }
-
-    if (entityType === 'account' && following) {
-      if (!currentActorId) return []
-      documentsQuery = documentsQuery
-        .innerJoin(
-          'follows',
-          'follows.targetActorId',
-          'search_documents.entityId'
-        )
-        .where('follows.actorId', currentActorId)
-        .where('follows.status', FollowStatus.enum.Accepted)
-    }
-
-    if (entityType === 'status' && accountId) {
-      documentsQuery = documentsQuery.where(
-        'search_documents.actorId',
-        accountId
-      )
-    }
-
     const isPagingUp =
       entityType === 'status' && Boolean(minStatusId && !maxStatusId)
 
@@ -1210,6 +1310,35 @@ export const SearchSQLDatabaseMixin = (
     return actorIds.filter((actorId) => followedActorIds.has(actorId))
   }
 
+  const filterUnblockedActorIds = async (
+    actorIds: string[],
+    currentActorId?: string
+  ) => {
+    if (!currentActorId || actorIds.length === 0) return actorIds
+
+    const rows = await database('blocks')
+      .where((builder) => {
+        builder
+          .where('actorId', currentActorId)
+          .whereIn('targetActorId', actorIds)
+      })
+      .orWhere((builder) => {
+        builder
+          .whereIn('actorId', actorIds)
+          .where('targetActorId', currentActorId)
+      })
+      .select<{ actorId: string; targetActorId: string }[]>(
+        'actorId',
+        'targetActorId'
+      )
+    const blockedActorIds = new Set(
+      rows.map((row) =>
+        row.actorId === currentActorId ? row.targetActorId : row.actorId
+      )
+    )
+    return actorIds.filter((actorId) => !blockedActorIds.has(actorId))
+  }
+
   async function getFallbackAccountActorIds({
     query,
     limit,
@@ -1230,6 +1359,13 @@ export const SearchSQLDatabaseMixin = (
 
     const queryTerms = await getSearchQueryTerms(query)
     if (queryTerms.length === 0) return []
+    const indexedDocumentsQuery = buildMatchedDocumentsQuery({
+      entityType: 'account',
+      queryTerms,
+      currentActorId,
+      following,
+      excludedEntityIds: excludedActorIds
+    })
 
     let fallbackQuery = database<SQLActor>('actors')
       .whereNull('actors.deletionStatus')
@@ -1238,6 +1374,29 @@ export const SearchSQLDatabaseMixin = (
           builder.whereNotIn('actors.id', excludedActorIds)
         }
       })
+
+    if (indexedDocumentsQuery) {
+      fallbackQuery = fallbackQuery.whereNotIn(
+        'actors.id',
+        indexedDocumentsQuery.select('search_documents.entityId')
+      )
+    }
+
+    if (currentActorId) {
+      fallbackQuery = fallbackQuery
+        .whereNotExists(function () {
+          this.select(database.raw('1'))
+            .from('blocks')
+            .where('blocks.actorId', currentActorId)
+            .whereRaw('?? = ??', ['blocks.targetActorId', 'actors.id'])
+        })
+        .whereNotExists(function () {
+          this.select(database.raw('1'))
+            .from('blocks')
+            .whereRaw('?? = ??', ['blocks.actorId', 'actors.id'])
+            .where('blocks.targetActorId', currentActorId)
+        })
+    }
 
     if (following) {
       fallbackQuery = fallbackQuery
@@ -1279,12 +1438,14 @@ export const SearchSQLDatabaseMixin = (
     const exactActorId = shouldTryExactAccount
       ? await getExactAccountActorId(query)
       : null
-    const exactActorIds =
+    const exactActorIds = await filterUnblockedActorIds(
       following && exactActorId
         ? await filterFollowingActorIds([exactActorId], currentActorId)
         : exactActorId
           ? [exactActorId]
-          : []
+          : [],
+      currentActorId
+    )
     const exactActorIdForResult = exactActorIds[0]
     const exactResultCount = exactActorIdForResult ? 1 : 0
     const exactActorIdsForPage =
@@ -1310,13 +1471,27 @@ export const SearchSQLDatabaseMixin = (
               : []
           })
         : []
+    const excludedIndexedEntityIds = exactActorIdForResult
+      ? [exactActorIdForResult]
+      : []
     const fallbackLimit = indexedActorIds.length === 0 ? indexedLimit : 0
+    const indexedTotal =
+      fallbackLimit > 0 && indexedOffset > 0
+        ? await getMatchedDocumentCount({
+            entityType: 'account',
+            query,
+            currentActorId,
+            following,
+            excludedEntityIds: excludedIndexedEntityIds
+          })
+        : indexedActorIds.length
+    const fallbackOffset = Math.max(0, indexedOffset - indexedTotal)
     const fallbackActorIds =
       fallbackLimit > 0
         ? await getFallbackAccountActorIds({
             query,
             limit: fallbackLimit,
-            offset: indexedActorIds.length === 0 ? indexedOffset : 0,
+            offset: fallbackOffset,
             currentActorId,
             following,
             excludedActorIds: [
@@ -1334,7 +1509,7 @@ export const SearchSQLDatabaseMixin = (
         ...indexedActorIds,
         ...fallbackActorIds
       ])
-    ]
+    ].slice(0, normalizedLimit)
 
     return hydrateAccounts(combinedActorIds)
   }
@@ -1353,6 +1528,7 @@ export const SearchSQLDatabaseMixin = (
       query,
       limit: normalizeLimit(limit),
       offset: normalizeOffset(offset),
+      currentActorId,
       accountId,
       minStatusId,
       maxStatusId
