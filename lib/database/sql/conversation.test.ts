@@ -363,6 +363,42 @@ describe('ConversationDatabase', () => {
       expect(statuses.map((status) => status.id)).toContain(directReply.id)
     })
 
+    test('does not create direct conversations for recipientless replies to remote non-direct statuses', async () => {
+      const suffix = randomBytes(8).toString('hex')
+      const parent = await database.createNote({
+        id: `${EXTERNAL_ACTOR1}/statuses/remote-public-parent-${suffix}`,
+        url: `${EXTERNAL_ACTOR1}/statuses/remote-public-parent-${suffix}`,
+        actorId: EXTERNAL_ACTOR1,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${EXTERNAL_ACTOR1}/followers`],
+        text: 'remote public parent',
+        createdAt: 6650
+      })
+      const recipientlessReply = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/recipientless-remote-parent-reply-${suffix}`,
+        url: `${ACTOR1_ID}/statuses/recipientless-remote-parent-reply-${suffix}`,
+        actorId: ACTOR1_ID,
+        to: [],
+        cc: [],
+        text: 'recipientless reply to remote public parent',
+        reply: parent.id,
+        createdAt: 6660
+      })
+
+      await database.syncDirectConversationForStatus({
+        status: recipientlessReply
+      })
+
+      const actor1Conversation = (
+        await database.getDirectConversations({ actorId: ACTOR1_ID })
+      ).find(
+        (item: DirectConversation) =>
+          item.lastStatusId === recipientlessReply.id
+      )
+
+      expect(actor1Conversation).toBeUndefined()
+    })
+
     test('inherits parent conversation participants for recipientless direct replies', async () => {
       const root = await createDirectStatus({
         database,

@@ -223,7 +223,7 @@ const upsertMembershipForStatus = async ({
   if (!isMembershipOlderThanStatus(existingMembership, status)) return
 
   await trx('direct_conversation_memberships')
-    .where('id', existingMembership.id)
+    .where({ actorId, conversationId })
     .update({
       lastStatusId: status.id,
       lastStatusCreatedAt: statusCreatedAt,
@@ -248,6 +248,17 @@ const getNextRecipientlessDirectReplyBatch = async (knex) => {
     directReplies,
     participantActorIdsByConversationId
   })
+}
+
+const getLocalActorIds = async (knex, actorIds) => {
+  if (actorIds.length === 0) return new Set()
+
+  const rows = await knex('actors')
+    .whereIn('id', actorIds)
+    .whereNotNull('privateKey')
+    .whereNot('privateKey', '')
+    .select('id')
+  return new Set(rows.map((row) => row.id))
 }
 
 const getBatchLocalActorIds = (knex, directReplies) => {
@@ -350,17 +361,6 @@ const syncRecipientlessDirectReply = async ({
       currentTime
     })
   }
-}
-
-const getLocalActorIds = async (knex, actorIds) => {
-  if (actorIds.length === 0) return new Set()
-
-  const rows = await knex('actors')
-    .whereIn('id', actorIds)
-    .whereNotNull('privateKey')
-    .whereNot('privateKey', '')
-    .select('id')
-  return new Set(rows.map((row) => row.id))
 }
 
 exports.up = async (knex) => {

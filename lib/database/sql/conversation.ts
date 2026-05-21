@@ -304,6 +304,15 @@ export const DirectConversationSQLDatabaseMixin = (
     return statusDatabase.getStatusFromUrl({ url: statusReference })
   }
 
+  const isLocalActorId = async (actorId: string) => {
+    const row = await database('actors')
+      .where({ id: actorId })
+      .whereNotNull('privateKey')
+      .whereNot('privateKey', '')
+      .first<{ id: string }>('id')
+    return Boolean(row)
+  }
+
   const getDirectConversationParticipantActorIds = async (
     status: StatusNote | StatusPoll
   ) => {
@@ -316,7 +325,7 @@ export const DirectConversationSQLDatabaseMixin = (
     }
 
     const parentStatus = await getStatusByIdOrUrl(status.reply)
-    if (!parentStatus) return participantActorIds
+    if (!parentStatus) return []
 
     const parentParticipantActorIds =
       await getSyncedConversationParticipantActorIds(parentStatus.id)
@@ -325,6 +334,8 @@ export const DirectConversationSQLDatabaseMixin = (
         ...new Set([...participantActorIds, ...parentParticipantActorIds])
       ]
     }
+
+    if (!(await isLocalActorId(parentStatus.actorId))) return []
 
     return [...new Set([...participantActorIds, parentStatus.actorId])]
   }
@@ -717,6 +728,14 @@ export const DirectConversationSQLDatabaseMixin = (
       const currentTime = new Date()
 
       await database.transaction(async (trx) => {
+        const localParticipantActorIds = [
+          ...new Set(
+            await getLocalParticipantActorIds(trx, participantActorIds)
+          )
+        ].filter((actorId) => !excludedActorIdSet.has(actorId))
+
+        if (localParticipantActorIds.length === 0) return
+
         await insertIfMissing({
           trx,
           table: 'direct_conversations',
@@ -748,18 +767,10 @@ export const DirectConversationSQLDatabaseMixin = (
           currentTime
         })
 
-        const localParticipantActorIds = [
-          ...new Set(
-            await getLocalParticipantActorIds(trx, participantActorIds)
-          )
-        ].filter((actorId) => !excludedActorIdSet.has(actorId))
-        const existingMemberships =
-          localParticipantActorIds.length > 0
-            ? await trx('direct_conversation_memberships')
-                .where('conversationId', conversationId)
-                .whereIn('actorId', localParticipantActorIds)
-                .select<DirectConversationMembershipRow[]>()
-            : []
+        const existingMemberships = await trx('direct_conversation_memberships')
+          .where('conversationId', conversationId)
+          .whereIn('actorId', localParticipantActorIds)
+          .select<DirectConversationMembershipRow[]>()
         const existingMembershipByActorId = new Map(
           existingMemberships.map((membership) => [
             membership.actorId,
