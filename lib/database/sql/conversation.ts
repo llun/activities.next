@@ -325,6 +325,8 @@ export const DirectConversationSQLDatabaseMixin = (
     }
 
     const parentStatus = await getStatusByIdOrUrl(status.reply)
+    // A recipientless reply is only a direct conversation when the parent
+    // proves it targets a local actor or an existing direct conversation.
     if (!parentStatus) return []
 
     const parentParticipantActorIds =
@@ -355,6 +357,8 @@ export const DirectConversationSQLDatabaseMixin = (
       if (syncedRootStatusId) return syncedRootStatusId
 
       const parentStatus = await getStatusByIdOrUrl(root.reply)
+      // Empty to/cc statuses are direct, so recipientless reply chains keep
+      // walking through this check.
       if (!parentStatus || !isDirectStatus(parentStatus)) break
       if (seen.has(parentStatus.id)) break
       seen.add(parentStatus.id)
@@ -728,13 +732,18 @@ export const DirectConversationSQLDatabaseMixin = (
       const currentTime = new Date()
 
       await database.transaction(async (trx) => {
-        const localParticipantActorIds = [
+        const unfilteredLocalParticipantActorIds = [
           ...new Set(
             await getLocalParticipantActorIds(trx, participantActorIds)
           )
-        ].filter((actorId) => !excludedActorIdSet.has(actorId))
+        ]
 
-        if (localParticipantActorIds.length === 0) return
+        if (unfilteredLocalParticipantActorIds.length === 0) return
+
+        const localParticipantActorIds =
+          unfilteredLocalParticipantActorIds.filter(
+            (actorId) => !excludedActorIdSet.has(actorId)
+          )
 
         await insertIfMissing({
           trx,
@@ -767,10 +776,13 @@ export const DirectConversationSQLDatabaseMixin = (
           currentTime
         })
 
-        const existingMemberships = await trx('direct_conversation_memberships')
-          .where('conversationId', conversationId)
-          .whereIn('actorId', localParticipantActorIds)
-          .select<DirectConversationMembershipRow[]>()
+        const existingMemberships =
+          localParticipantActorIds.length > 0
+            ? await trx('direct_conversation_memberships')
+                .where('conversationId', conversationId)
+                .whereIn('actorId', localParticipantActorIds)
+                .select<DirectConversationMembershipRow[]>()
+            : []
         const existingMembershipByActorId = new Map(
           existingMemberships.map((membership) => [
             membership.actorId,

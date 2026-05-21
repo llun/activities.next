@@ -519,6 +519,46 @@ describe('ConversationDatabase', () => {
       expect(new Date(persistedMembership?.readAt ?? 0).getTime()).toEqual(9000)
     })
 
+    test('keeps conversation rows when local participants are excluded from memberships', async () => {
+      const suffix = randomBytes(8).toString('hex')
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/excluded-local-direct-${suffix}`,
+        url: `${ACTOR1_ID}/statuses/excluded-local-direct-${suffix}`,
+        actorId: ACTOR1_ID,
+        to: [EXTERNAL_ACTOR1],
+        cc: [],
+        text: 'local to remote direct with excluded local membership',
+        createdAt: 8500
+      })
+
+      await database.syncDirectConversationForStatus({
+        status,
+        excludedLocalActorIds: [ACTOR1_ID]
+      })
+
+      const conversationStatus = await knexDatabase(
+        'direct_conversation_statuses'
+      )
+        .where({ statusId: status.id })
+        .first<{ conversationId: string }>()
+      expect(conversationStatus).toBeDefined()
+      if (!conversationStatus) fail('Conversation status must be defined')
+
+      const participantRows = await knexDatabase(
+        'direct_conversation_participants'
+      )
+        .where({ conversationId: conversationStatus.conversationId })
+        .select<{ actorId: string }[]>('actorId')
+      const membershipRows = await knexDatabase(
+        'direct_conversation_memberships'
+      ).where({ conversationId: conversationStatus.conversationId })
+
+      expect(participantRows.map((row) => row.actorId).sort()).toEqual(
+        [ACTOR1_ID, EXTERNAL_ACTOR1].sort()
+      )
+      expect(membershipRows).toEqual([])
+    })
+
     test('bounds fallback status hydration when membership last status is stale', async () => {
       const getStatusesByIds = jest.fn(async ({ statusIds }) =>
         statusIds
