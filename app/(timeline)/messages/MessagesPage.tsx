@@ -885,7 +885,6 @@ export const MessagesPage: FC<MessagesPageProps> = ({
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  size="icon"
                   disabled={isSending || !message.trim()}
                   aria-label="Send message"
                   title="Send message"
@@ -895,6 +894,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                   ) : (
                     <Send className="size-4" />
                   )}
+                  <span>Send</span>
                 </Button>
               </div>
             </div>

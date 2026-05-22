@@ -786,6 +786,9 @@ describe('MessagesPage', () => {
     const messageInput = screen.getByRole('textbox', { name: 'Message text' })
     expect(messageInput).toHaveClass('w-full')
     expect(
+      screen.getByRole('button', { name: 'Send message' })
+    ).toHaveTextContent('Send')
+    expect(
       screen.getByRole('button', { name: 'Send message' }).parentElement
     ).toHaveClass('justify-end')
   })
