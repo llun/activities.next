@@ -1958,11 +1958,13 @@ export const hideConversation = async ({
 export const searchAccounts = async ({
   q,
   limit = 5,
-  resolve = true
+  resolve = true,
+  signal
 }: {
   q: string
   limit?: number
   resolve?: boolean
+  signal?: AbortSignal
 }): Promise<MastodonAccount[]> => {
   const url = new URL(`${window.origin}/api/v1/accounts/search`)
   url.searchParams.set('q', q)
@@ -1971,7 +1973,8 @@ export const searchAccounts = async ({
 
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: { Accept: 'application/json' }
+    headers: { Accept: 'application/json' },
+    signal
   })
   if (!response.ok) return []
   return (await response.json()) as MastodonAccount[]
