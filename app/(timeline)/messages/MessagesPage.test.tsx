@@ -743,6 +743,71 @@ describe('MessagesPage', () => {
     }
   })
 
+  it('ignores stale recipient search results when the query changes during an in-flight lookup', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      const adaSearch = createDeferred<MastodonAccount[]>()
+      const bobSearch = createDeferred<MastodonAccount[]>()
+      ;(searchAccounts as jest.Mock)
+        .mockReturnValueOnce(adaSearch.promise)
+        .mockReturnValueOnce(bobSearch.promise)
+
+      renderMessagesPage([], null)
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+      fireEvent.change(recipientInput, { target: { value: 'ada' } })
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledWith({
+        q: 'ada',
+        resolve: true,
+        limit: 5
+      })
+
+      fireEvent.change(recipientInput, { target: { value: 'bob' } })
+
+      await act(async () => {
+        adaSearch.resolve([account('account-ada', 'Ada')])
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenLastCalledWith({
+        q: 'bob',
+        resolve: true,
+        limit: 5
+      })
+
+      await act(async () => {
+        bobSearch.resolve([account('account-bob', 'Bob')])
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(screen.getByText('Bob')).toBeInTheDocument()
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('loads additional conversations when the user clicks Load more in the sidebar', async () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],

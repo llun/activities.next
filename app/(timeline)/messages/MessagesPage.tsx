@@ -141,7 +141,6 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const latestReadRequestIdRef = useRef(new Map<string, number>())
   const latestRecipientSearchRequestIdRef = useRef(0)
   const recipientSearchTimeoutRef = useRef<number | null>(null)
-  const immediateRecipientSearchQueryRef = useRef<string | null>(null)
   const lastAutoScrolledStatusIdRef = useRef<string | null>(null)
   const pendingOlderScrollAnchorRef = useRef<{
     requestId: number
@@ -474,9 +473,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
   const searchForRecipients = useCallback(() => {
     const query = recipientQuery.trim()
-    immediateRecipientSearchQueryRef.current = query || null
     clearRecipientSearchTimeout()
-    void runRecipientSearch(recipientQuery, { showNotFoundError: true })
+    void runRecipientSearch(query, { showNotFoundError: true })
   }, [clearRecipientSearchTimeout, recipientQuery, runRecipientSearch])
 
   useEffect(() => {
@@ -487,16 +485,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     setError(null)
     clearRecipientSearchTimeout()
 
-    if (!query) {
-      immediateRecipientSearchQueryRef.current = null
-      return
-    }
-
-    if (immediateRecipientSearchQueryRef.current === query) {
-      immediateRecipientSearchQueryRef.current = null
-      return
-    }
-    immediateRecipientSearchQueryRef.current = null
+    if (!query) return
 
     recipientSearchTimeoutRef.current = window.setTimeout(() => {
       recipientSearchTimeoutRef.current = null
