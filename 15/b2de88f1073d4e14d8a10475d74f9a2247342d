@@ -1,0 +1,25 @@
+app/(timeline)/messages/MessagesPage.tsx
+  s_7f472818687c46::t_ba1c17f1ff727e 383-385
+  s_7f472818687c46::t_e26456bc169a0d 189,206,208
+lib/utils/text/htmlToPlainText.test.ts
+  s_7f472818687c46::t_73df13809ed002 15-33
+lib/utils/text/htmlToPlainText.ts
+  s_7f472818687c46::t_a55d8dc04e6e91 2-6,27-33,45,47,52
+  s_7f472818687c46::t_2908fcdea86790 48,53-54,59-63,65-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "15b2de88f1073d4e14d8a10475d74f9a2247342d",
+  "prompts": {},
+  "sessions": {
+    "s_7f472818687c46": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4fb7-61d0-7a01-ba3a-8e29cd612e43",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
