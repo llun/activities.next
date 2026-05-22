@@ -469,12 +469,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
   useEffect(() => {
     const query = recipientQuery.trim()
-    if (!query) {
-      latestRecipientSearchRequestIdRef.current += 1
-      setRecipientSearchResults([])
-      setResolvingRecipient(false)
-      return
-    }
+    latestRecipientSearchRequestIdRef.current += 1
+    setRecipientSearchResults([])
+    setResolvingRecipient(false)
+
+    if (!query) return
 
     const timeout = window.setTimeout(() => {
       void runRecipientSearch(query)
@@ -597,7 +596,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   )
 
   return (
-    <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-7xl -translate-x-1/2 space-y-5 md:w-[calc(100vw-72px-3rem)] md:space-y-6 xl:w-[calc(100vw-280px-3rem)]">
+    <div
+      data-layout-width="wide"
+      className="flex min-h-0 flex-1 flex-col gap-5 md:gap-6"
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Mail className="size-6 text-muted-foreground md:size-7" />
@@ -611,7 +613,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
       <section
         aria-label="Direct messages"
-        className="grid min-w-0 overflow-hidden rounded-lg border bg-background md:h-[calc(100svh-8.5rem)] md:min-h-[34rem] md:grid-cols-[minmax(260px,34%)_minmax(0,1fr)] lg:grid-cols-[minmax(320px,30%)_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]"
+        className="grid min-w-0 flex-1 overflow-hidden rounded-lg border bg-background md:min-h-0 md:grid-cols-[minmax(260px,34%)_minmax(0,1fr)] lg:grid-cols-[minmax(320px,30%)_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]"
       >
         <aside
           aria-label="Conversation list"

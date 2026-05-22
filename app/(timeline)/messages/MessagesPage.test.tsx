@@ -650,6 +650,17 @@ describe('MessagesPage', () => {
         screen.getByLabelText('Recipient search results')
       ).toBeInTheDocument()
       expect(screen.getByText('Ada')).toBeInTheDocument()
+
+      fireEvent.change(
+        screen.getByRole('textbox', { name: 'Search recipients' }),
+        { target: { value: 'bob' } }
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
     } finally {
       jest.useRealTimers()
     }
@@ -751,13 +762,15 @@ describe('MessagesPage', () => {
   it('uses a wide desktop layout with aligned composer controls', () => {
     const { container } = renderMessagesPage([], null)
 
-    expect(container.firstElementChild).toHaveClass('max-w-7xl')
-    expect(container.firstElementChild?.className).toContain(
-      'md:w-[calc(100vw-72px-3rem)]'
+    expect(container.firstElementChild).toHaveAttribute(
+      'data-layout-width',
+      'wide'
     )
+    expect(container.firstElementChild).toHaveClass('flex-1')
 
     const directMessages = screen.getByLabelText('Direct messages')
-    expect(directMessages.className).toContain('md:h-[calc(100svh-8.5rem)]')
+    expect(directMessages).toHaveClass('flex-1')
+    expect(directMessages.className).not.toContain('100svh')
     expect(directMessages.className).toContain(
       '2xl:grid-cols-[380px_minmax(0,1fr)]'
     )

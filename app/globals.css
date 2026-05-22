@@ -177,6 +177,10 @@
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
+
+  .timeline-content:has([data-layout-width='wide']) {
+    max-width: none;
+  }
 }
 
 /* Markdown content styles for PostBox preview and Status display */
