@@ -40,6 +40,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { cn } from '@/lib/utils'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
 
@@ -53,6 +54,11 @@ interface MessagesPageProps {
   currentActor: ActorProfile
   postLineLimit?: PostLineLimit
   initialHasMoreConversations?: boolean
+}
+
+interface ConversationPreviewCacheEntry {
+  key: string
+  preview: string
 }
 
 const READ_RETRY_COOLDOWN_MS = 30_000
@@ -78,9 +84,26 @@ const conversationSubtitle = (conversation: DirectConversationView) => {
     conversation.lastStatus.type === 'Note' ||
     conversation.lastStatus.type === 'Poll'
   ) {
-    return conversation.lastStatus.text || 'Message'
+    return htmlToPlainText(conversation.lastStatus.text) || 'Message'
   }
   return 'Message'
+}
+
+const conversationSubtitleCacheKey = (conversation: DirectConversationView) => {
+  if (
+    conversation.lastStatus.type === 'Note' ||
+    conversation.lastStatus.type === 'Poll'
+  ) {
+    return [
+      conversation.lastStatus.type,
+      conversation.lastStatus.id,
+      conversation.lastStatus.text ?? ''
+    ].join('\u0000')
+  }
+
+  return [conversation.lastStatus.type, conversation.lastStatus.id].join(
+    '\u0000'
+  )
 }
 
 const formatTimestamp = (timestamp: number) =>
@@ -148,6 +171,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     scrollHeight: number
     scrollTop: number
   } | null>(null)
+  const conversationPreviewCacheRef = useRef(
+    new Map<string, ConversationPreviewCacheEntry>()
+  )
 
   const selectedConversation = useMemo(
     () =>
@@ -160,6 +186,26 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     () => [...threadStatuses].reverse(),
     [threadStatuses]
   )
+  const conversationPreviewData = useMemo(() => {
+    const previousCache = conversationPreviewCacheRef.current
+    const nextCache = new Map<string, ConversationPreviewCacheEntry>()
+    const previews = new Map<string, string>()
+
+    currentConversations.forEach((conversation) => {
+      const cacheKey = conversationSubtitleCacheKey(conversation)
+      const cachedPreview = previousCache.get(conversation.id)
+      const preview =
+        cachedPreview?.key === cacheKey
+          ? cachedPreview.preview
+          : conversationSubtitle(conversation)
+
+      nextCache.set(conversation.id, { key: cacheKey, preview })
+      previews.set(conversation.id, preview)
+    })
+
+    return { cache: nextCache, previews }
+  }, [currentConversations])
+  const conversationPreviews = conversationPreviewData.previews
   const newestDisplayedStatusId =
     displayStatuses[displayStatuses.length - 1]?.id ?? null
   const composerRecipients = selectedConversation
@@ -332,6 +378,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId
   }, [selectedConversationId])
+
+  useEffect(() => {
+    conversationPreviewCacheRef.current = conversationPreviewData.cache
+  }, [conversationPreviewData])
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -712,7 +762,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                         )}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {conversationSubtitle(conversation)}
+                        {conversationPreviews.get(conversation.id)}
                       </span>
                       <span className="block text-xs text-muted-foreground md:mt-1">
                         {formatTimestamp(conversation.lastStatusCreatedAt)}
