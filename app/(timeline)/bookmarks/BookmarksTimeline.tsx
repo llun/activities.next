@@ -1,9 +1,9 @@
 'use client'
 
-import { Bookmark } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getBookmarks } from '@/lib/client'
+import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
@@ -149,15 +149,10 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <div>
-        <div className="flex items-center gap-2">
-          <Bookmark className="size-6 text-muted-foreground" />
-          <h1 className="text-2xl font-semibold">Bookmarks</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Saved posts from your timelines.
-        </p>
-      </div>
+      <PageHeader
+        title="Bookmarks"
+        description="Saved posts from your timelines."
+      />
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         {currentStatuses.length > 0 ? (

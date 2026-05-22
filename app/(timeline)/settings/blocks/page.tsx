@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { getDatabase } from '@/lib/database'
 import { getFallbackBlockedAccount } from '@/lib/services/accounts/getFallbackBlockedAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -42,12 +43,10 @@ const Page = async () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Blocked Accounts</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage actors hidden from your timelines and notifications.
-        </p>
-      </div>
+      <PageHeader
+        title="Blocked Accounts"
+        description="Manage actors hidden from your timelines and notifications."
+      />
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <BlocksList

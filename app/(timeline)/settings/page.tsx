@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { ActorsSection } from '@/lib/components/settings/ActorsSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
@@ -50,12 +51,10 @@ const Page = async () => {
   })
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your profile and account settings.
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Manage your profile and account settings."
+      />
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <div>

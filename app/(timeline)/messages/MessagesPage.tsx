@@ -4,7 +4,6 @@ import {
   Archive,
   ArrowLeft,
   Loader2,
-  Mail,
   Plus,
   Search,
   Send,
@@ -30,6 +29,7 @@ import {
   searchAccounts
 } from '@/lib/client'
 import type { DirectConversationView } from '@/lib/client'
+import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -650,16 +650,16 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       data-layout-width="wide"
       className="flex min-h-0 flex-1 flex-col gap-5 md:gap-6"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Mail className="size-6 text-muted-foreground md:size-7" />
-          <h1 className="text-2xl font-semibold md:text-3xl">Messages</h1>
-        </div>
-        <Button variant="outline" size="sm" onClick={startNewConversation}>
-          <Plus className="mr-2 size-4" />
-          New
-        </Button>
-      </div>
+      <PageHeader
+        title="Messages"
+        description="Direct conversations with people you follow."
+        actions={
+          <Button variant="outline" size="sm" onClick={startNewConversation}>
+            <Plus className="mr-2 size-4" />
+            New
+          </Button>
+        }
+      />
 
       <section
         aria-label="Direct messages"

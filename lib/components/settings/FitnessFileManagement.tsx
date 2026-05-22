@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
 import { deleteFitnessFile } from '@/lib/client'
+import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -133,12 +134,10 @@ export function FitnessFileManagement({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Fitness Files</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your uploaded fitness files and storage quota.
-        </p>
-      </div>
+      <PageHeader
+        title="Fitness Files"
+        description="Manage your uploaded fitness files and storage quota."
+      />
 
       <Card>
         <CardHeader>

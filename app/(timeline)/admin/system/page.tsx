@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -20,12 +21,7 @@ const Page = async () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">System</h1>
-        <p className="text-sm text-muted-foreground">
-          Version and configuration
-        </p>
-      </div>
+      <PageHeader title="System" description="Version and configuration." />
 
       <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold">Version</h2>
