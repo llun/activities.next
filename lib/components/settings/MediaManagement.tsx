@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -131,12 +132,10 @@ export function MediaManagement({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Media Storage</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your media uploads and storage quota.
-        </p>
-      </div>
+      <PageHeader
+        title="Media Storage"
+        description="Manage your media uploads and storage quota."
+      />
 
       <Card>
         <CardHeader>

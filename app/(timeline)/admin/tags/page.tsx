@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Hash } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { HashtagSortOrder } from '@/lib/types/database/operations'
@@ -58,12 +59,10 @@ const Page = async ({ searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Hashtags</h1>
-        <p className="text-sm text-muted-foreground">
-          {total} hashtag{total !== 1 ? 's' : ''} in the system
-        </p>
-      </div>
+      <PageHeader
+        title="Hashtags"
+        description={`${total} hashtag${total !== 1 ? 's' : ''} in the system.`}
+      />
 
       <div className="flex gap-2">
         {SORT_OPTIONS.map((option) => (

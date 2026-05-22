@@ -1,7 +1,8 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Hash } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -46,7 +47,7 @@ const Page = async ({ params, searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <Link
           href="/admin/tags"
           aria-label="Back to hashtags list"
@@ -54,15 +55,10 @@ const Page = async ({ params, searchParams }: Props) => {
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div>
-          <div className="flex items-center gap-2">
-            <Hash className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-2xl font-bold">{tag.replace(/^#+/, '')}</h1>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {total} public post{total !== 1 ? 's' : ''}
-          </p>
-        </div>
+        <PageHeader
+          title={tag.replace(/^#+/, '')}
+          description={`${total} public post${total !== 1 ? 's' : ''}.`}
+        />
       </div>
 
       {statuses.length === 0 ? (

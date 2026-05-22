@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { LogoutButton } from '@/app/(timeline)/settings/LogoutButton'
+import { PageHeader } from '@/lib/components/page-header'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
@@ -45,12 +46,10 @@ const Page = async ({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Account Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your account details, email and password.
-        </p>
-      </div>
+      <PageHeader
+        title="Account Settings"
+        description="Manage your account details, email and password."
+      />
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <div>

@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react'
 import { FC, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
+import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { Posts } from '@/lib/components/posts/posts'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
@@ -222,23 +223,23 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Timeline</h1>
-          <p className="text-sm text-muted-foreground">
-            Latest posts from your network.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={refreshTimeline}
-          disabled={isRefreshing}
-          aria-label="Refresh timeline"
-        >
-          <RefreshCw className={cn('size-4', isRefreshing && 'animate-spin')} />
-        </Button>
-      </div>
+      <PageHeader
+        title="Timeline"
+        description="Latest posts from your network."
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={refreshTimeline}
+            disabled={isRefreshing}
+            aria-label="Refresh timeline"
+          >
+            <RefreshCw
+              className={cn('size-4', isRefreshing && 'animate-spin')}
+            />
+          </Button>
+        }
+      />
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <div className="p-4 pb-2">

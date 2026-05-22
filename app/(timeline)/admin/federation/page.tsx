@@ -16,6 +16,7 @@ import {
   deleteDomainBlockAction,
   importKnownDomainBlocklistAction
 } from '@/app/(timeline)/admin/federation/actions'
+import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
@@ -186,14 +187,14 @@ const Page = async ({ searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Federation</h1>
-        <p className="text-sm text-muted-foreground">
-          {federationMode === 'allowlist'
-            ? 'Limited federation mode'
-            : 'Open federation mode'}
-        </p>
-      </div>
+      <PageHeader
+        title="Federation"
+        description={
+          federationMode === 'allowlist'
+            ? 'Limited federation mode.'
+            : 'Open federation mode.'
+        }
+      />
 
       {statusMessage && (
         <div

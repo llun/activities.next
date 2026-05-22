@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMention } from '@/lib/types/domain/actor'
@@ -29,7 +30,7 @@ const Page = async ({ params }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <Link
           href="/admin/accounts"
           aria-label="Back to accounts list"
@@ -37,17 +38,18 @@ const Page = async ({ params }: Props) => {
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div>
-          <h1 className="text-2xl font-bold">
-            {account.name || account.email}
-          </h1>
-          <p className="text-sm text-muted-foreground">{account.email}</p>
-        </div>
-        {account.role === 'admin' && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            Admin
-          </span>
-        )}
+        <PageHeader
+          className="flex-1"
+          title={account.name || account.email}
+          description={account.email}
+          actions={
+            account.role === 'admin' && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                Admin
+              </span>
+            )
+          }
+        />
       </div>
 
       <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
