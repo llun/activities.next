@@ -599,11 +599,14 @@ describe('MessagesPage', () => {
     const resultsList = await screen.findByLabelText('Recipient search results')
     expect(within(resultsList).getByText('Ada')).toBeInTheDocument()
     expect(within(resultsList).getByText('Adam')).toBeInTheDocument()
-    expect(searchAccounts).toHaveBeenCalledWith({
-      q: 'ad',
-      resolve: true,
-      limit: 5
-    })
+    expect(searchAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: 'ad',
+        resolve: true,
+        limit: 5,
+        signal: expect.any(AbortSignal)
+      })
+    )
 
     fireEvent.click(within(resultsList).getByText('Adam'))
 
@@ -611,6 +614,250 @@ describe('MessagesPage', () => {
       screen.queryByLabelText('Recipient search results')
     ).not.toBeInTheDocument()
     expect(screen.getByText('Adam')).toBeInTheDocument()
+  })
+
+  it('searches recipients as the query changes without a search button', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([
+        account('account-ada', 'Ada')
+      ])
+
+      renderMessagesPage([], null)
+
+      expect(
+        screen.queryByRole('button', { name: 'Search recipients' })
+      ).not.toBeInTheDocument()
+
+      fireEvent.change(
+        screen.getByRole('textbox', { name: 'Search recipients' }),
+        { target: { value: 'ada' } }
+      )
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'ada',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
+      expect(
+        screen.getByLabelText('Recipient search results')
+      ).toBeInTheDocument()
+      expect(screen.getByText('Ada')).toBeInTheDocument()
+
+      fireEvent.change(
+        screen.getByRole('textbox', { name: 'Search recipients' }),
+        { target: { value: 'bob' } }
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('shows and clears not-found feedback for debounced recipient searches', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([])
+
+      renderMessagesPage([], null)
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+
+      fireEvent.change(recipientInput, { target: { value: 'missing' } })
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('alert')).toHaveTextContent('Account not found')
+
+      fireEvent.change(recipientInput, { target: { value: 'next' } })
+
+      expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('cancels the pending debounced recipient search when Enter searches immediately', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([
+        account('account-ada', 'Ada')
+      ])
+
+      renderMessagesPage([], null)
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+      fireEvent.change(recipientInput, { target: { value: 'ada' } })
+      fireEvent.keyDown(recipientInput, { key: 'Enter' })
+
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledTimes(1)
+      expect(searchAccounts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'ada',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledTimes(1)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('cancels a pending recipient search when selecting an existing conversation', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([])
+
+      renderMessagesPage(
+        [conversation({ id: 'first', participantName: 'Ada' })],
+        null
+      )
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+      fireEvent.change(recipientInput, { target: { value: 'missing' } })
+      fireEvent.click(screen.getByRole('button', { name: /Ada/ }))
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).not.toHaveBeenCalled()
+      expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('ignores stale recipient search results when the query changes during an in-flight lookup', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      const adaSearch = createDeferred<MastodonAccount[]>()
+      const bobSearch = createDeferred<MastodonAccount[]>()
+      ;(searchAccounts as jest.Mock)
+        .mockReturnValueOnce(adaSearch.promise)
+        .mockReturnValueOnce(bobSearch.promise)
+
+      renderMessagesPage([], null)
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+      fireEvent.change(recipientInput, { target: { value: 'ada' } })
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'ada',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
+      const firstSearchSignal = (searchAccounts as jest.Mock).mock.calls[0][0]
+        .signal as AbortSignal
+
+      fireEvent.change(recipientInput, { target: { value: 'bob' } })
+
+      expect(firstSearchSignal.aborted).toBe(true)
+
+      await act(async () => {
+        adaSearch.resolve([account('account-ada', 'Ada')])
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: 'bob',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
+
+      await act(async () => {
+        bobSearch.resolve([account('account-bob', 'Bob')])
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(screen.getByText('Bob')).toBeInTheDocument()
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   it('loads additional conversations when the user clicks Load more in the sidebar', async () => {
@@ -704,6 +951,40 @@ describe('MessagesPage', () => {
     expect(
       screen.getByRole('button', { name: 'Load more' })
     ).toBeInTheDocument()
+  })
+
+  it('uses a wide desktop layout with aligned composer controls', () => {
+    const { container } = renderMessagesPage([], null)
+
+    expect(container.firstElementChild).toHaveAttribute(
+      'data-layout-width',
+      'wide'
+    )
+    expect(container.firstElementChild).toHaveClass('flex-1')
+
+    const directMessages = screen.getByLabelText('Direct messages')
+    expect(directMessages).toHaveClass('flex-1')
+    expect(directMessages.className).not.toContain('100svh')
+    expect(directMessages.className).toContain(
+      '2xl:grid-cols-[380px_minmax(0,1fr)]'
+    )
+
+    const recipientInput = screen.getByRole('textbox', {
+      name: 'Search recipients'
+    })
+    expect(recipientInput.parentElement).toHaveClass('relative')
+    expect(
+      screen.queryByRole('button', { name: 'Search recipients' })
+    ).not.toBeInTheDocument()
+
+    const messageInput = screen.getByRole('textbox', { name: 'Message text' })
+    expect(messageInput).toHaveClass('w-full')
+    expect(
+      screen.getByRole('button', { name: 'Send message' })
+    ).toHaveTextContent('Send')
+    expect(
+      screen.getByRole('button', { name: 'Send message' }).parentElement
+    ).toHaveClass('justify-end')
   })
 
   it('shows an error when the conversation thread fails to load', async () => {
