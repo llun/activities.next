@@ -10,6 +10,7 @@ import {
   updateEmailNotifications,
   updatePushNotifications
 } from '@/lib/client'
+import { PageHeader } from '@/lib/components/page-header'
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
 import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
@@ -249,19 +250,21 @@ export const NotificationSettings: FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Notification Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Control which notifications are sent and how. Email notifications go
-          to <span className="font-medium">{accountEmail}</span>.{' '}
-          <Link
-            href="/settings"
-            className="text-blue-600 hover:text-blue-800 underline"
-          >
-            Change email address
-          </Link>
-        </p>
-      </div>
+      <PageHeader
+        title="Notification Settings"
+        description={
+          <>
+            Control which notifications are sent and how. Email notifications go
+            to <span className="font-medium">{accountEmail}</span>.{' '}
+            <Link
+              href="/settings"
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              Change email address
+            </Link>
+          </>
+        }
+      />
 
       <ActorSelector actors={actors} selectedActorId={actorId} />
 

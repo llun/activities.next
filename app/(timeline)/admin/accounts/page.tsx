@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
@@ -35,12 +36,10 @@ const Page = async ({ searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Accounts</h1>
-        <p className="text-sm text-muted-foreground">
-          {total} account{total !== 1 ? 's' : ''} registered
-        </p>
-      </div>
+      <PageHeader
+        title="Accounts"
+        description={`${total} account${total !== 1 ? 's' : ''} registered.`}
+      />
 
       {accounts.length === 0 ? (
         <div className="rounded-xl border border-dashed p-6 text-center text-muted-foreground">

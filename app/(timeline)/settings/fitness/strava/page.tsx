@@ -1,5 +1,6 @@
 import { FC } from 'react'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { Card } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -24,23 +25,25 @@ const StravaPage: FC = async () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Strava Integration</h1>
-        <p className="mt-2 text-muted-foreground">
-          Connect your Strava account to sync fitness activities. You&apos;ll
-          need to create an application in the{' '}
-          <a
-            href="https://www.strava.com/settings/api"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            Strava API settings
-          </a>
-          . You can also import historical activities from a Strava export
-          archive.
-        </p>
-      </div>
+      <PageHeader
+        title="Strava Integration"
+        description={
+          <>
+            Connect your Strava account to sync fitness activities. You&apos;ll
+            need to create an application in the{' '}
+            <a
+              href="https://www.strava.com/settings/api"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              Strava API settings
+            </a>
+            . You can also import historical activities from a Strava export
+            archive.
+          </>
+        }
+      />
 
       <Card className="p-6">
         <StravaSettingsForm serverActorHandle={actorHandle} />

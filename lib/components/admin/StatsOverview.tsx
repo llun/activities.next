@@ -19,6 +19,7 @@ import {
 } from 'react'
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
+import { PageHeader } from '@/lib/components/page-header'
 import {
   ALL_COUNTER_TYPES,
   ServiceStatCounterType,
@@ -211,35 +212,33 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Overview</h1>
-          <p className="text-sm text-muted-foreground">
-            Service usage statistics
-          </p>
-        </div>
-        <div
-          className="flex items-center gap-1 rounded-lg border bg-background p-1"
-          role="tablist"
-        >
-          {RANGES.map((r) => (
-            <button
-              key={r.value}
-              role="tab"
-              aria-selected={(pendingRange ?? range) === r.value}
-              onClick={() => handleRangeChange(r.value)}
-              disabled={isPending}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                (pendingRange ?? range) === r.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              } disabled:opacity-50`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Overview"
+        description="Service usage statistics."
+        actions={
+          <div
+            className="flex items-center gap-1 rounded-lg border bg-background p-1"
+            role="tablist"
+          >
+            {RANGES.map((r) => (
+              <button
+                key={r.value}
+                role="tab"
+                aria-selected={(pendingRange ?? range) === r.value}
+                onClick={() => handleRangeChange(r.value)}
+                disabled={isPending}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  (pendingRange ?? range) === r.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                } disabled:opacity-50`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       <div
         className={`transition-opacity ${isPending ? 'opacity-60' : 'opacity-100'}`}

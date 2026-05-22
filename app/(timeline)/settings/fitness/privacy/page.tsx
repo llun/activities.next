@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { FitnessPrivacyLocationSettings } from '@/lib/components/settings/FitnessPrivacyLocationSettings'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -32,6 +33,10 @@ const Page = async () => {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Fitness Privacy"
+        description="Manage hidden locations for imported fitness routes."
+      />
       <FitnessPrivacyLocationSettings mapboxAccessToken={mapboxAccessToken} />
     </div>
   )

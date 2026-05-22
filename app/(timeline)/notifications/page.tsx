@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { Pagination } from '@/lib/components/pagination/Pagination'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -78,9 +79,10 @@ const Page = async ({ searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Notifications</h1>
-      </div>
+      <PageHeader
+        title="Notifications"
+        description="Recent follows, replies, mentions and activity updates."
+      />
 
       {notificationsWithData.length === 0 ? (
         <div className="rounded-xl border bg-background/80 p-8 text-center text-muted-foreground">

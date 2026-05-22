@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { SessionsList } from '@/lib/components/settings/SessionsList'
 import { getDatabase } from '@/lib/database'
 import {
@@ -45,16 +46,18 @@ const Page = async () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Sessions</h1>
-        <p className="text-sm text-muted-foreground">
-          Review active sessions and revoke access you no longer need.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {sessions.length} session{sessions.length === 1 ? '' : 's'} linked to
-          your account.
-        </p>
-      </div>
+      <PageHeader
+        title="Sessions"
+        description={
+          <>
+            <p>Review active sessions and revoke access you no longer need.</p>
+            <p>
+              {sessions.length} session{sessions.length === 1 ? '' : 's'} linked
+              to your account.
+            </p>
+          </>
+        }
+      />
 
       <SessionsList
         sessions={sessions}
