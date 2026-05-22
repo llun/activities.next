@@ -613,6 +613,48 @@ describe('MessagesPage', () => {
     expect(screen.getByText('Adam')).toBeInTheDocument()
   })
 
+  it('searches recipients as the query changes without a search button', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([
+        account('account-ada', 'Ada')
+      ])
+
+      renderMessagesPage([], null)
+
+      expect(
+        screen.queryByRole('button', { name: 'Search recipients' })
+      ).not.toBeInTheDocument()
+
+      fireEvent.change(
+        screen.getByRole('textbox', { name: 'Search recipients' }),
+        { target: { value: 'ada' } }
+      )
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledWith({
+        q: 'ada',
+        resolve: true,
+        limit: 5
+      })
+      expect(
+        screen.getByLabelText('Recipient search results')
+      ).toBeInTheDocument()
+      expect(screen.getByText('Ada')).toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('loads additional conversations when the user clicks Load more in the sidebar', async () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],
@@ -704,6 +746,35 @@ describe('MessagesPage', () => {
     expect(
       screen.getByRole('button', { name: 'Load more' })
     ).toBeInTheDocument()
+  })
+
+  it('uses a wide desktop layout with aligned composer controls', () => {
+    const { container } = renderMessagesPage([], null)
+
+    expect(container.firstElementChild).toHaveClass('max-w-7xl')
+    expect(container.firstElementChild?.className).toContain(
+      'md:w-[calc(100vw-72px-3rem)]'
+    )
+
+    const directMessages = screen.getByLabelText('Direct messages')
+    expect(directMessages.className).toContain('md:h-[calc(100svh-8.5rem)]')
+    expect(directMessages.className).toContain(
+      '2xl:grid-cols-[380px_minmax(0,1fr)]'
+    )
+
+    const recipientInput = screen.getByRole('textbox', {
+      name: 'Search recipients'
+    })
+    expect(recipientInput.parentElement).toHaveClass('relative')
+    expect(
+      screen.queryByRole('button', { name: 'Search recipients' })
+    ).not.toBeInTheDocument()
+
+    const messageInput = screen.getByRole('textbox', { name: 'Message text' })
+    expect(messageInput).toHaveClass('w-full')
+    expect(
+      screen.getByRole('button', { name: 'Send message' }).parentElement
+    ).toHaveClass('justify-end')
   })
 
   it('shows an error when the conversation thread fails to load', async () => {

@@ -57,6 +57,7 @@ interface MessagesPageProps {
 
 const READ_RETRY_COOLDOWN_MS = 30_000
 const LOAD_MORE_CONVERSATIONS_LIMIT = 20
+const RECIPIENT_SEARCH_DEBOUNCE_MS = 300
 
 const accountLabel = (account: MastodonAccount) =>
   account.display_name || account.acct || account.username
@@ -138,6 +139,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const lastFailedReadAtRef = useRef(new Map<string, number>())
   const pendingReadConversationIdsRef = useRef(new Set<string>())
   const latestReadRequestIdRef = useRef(new Map<string, number>())
+  const latestRecipientSearchRequestIdRef = useRef(0)
   const lastAutoScrolledStatusIdRef = useRef<string | null>(null)
   const pendingOlderScrollAnchorRef = useRef<{
     requestId: number
@@ -422,30 +424,68 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     }
   }, [currentConversations])
 
-  const searchForRecipients = useCallback(async () => {
-    const query = recipientQuery.trim()
-    if (!query) return
-
-    setResolvingRecipient(true)
-    setError(null)
-    try {
-      const results = await searchAccounts({
-        q: query,
-        resolve: true,
-        limit: 5
-      })
-      setRecipientSearchResults(results)
-      if (results.length === 0) {
-        setError('Account not found')
+  const runRecipientSearch = useCallback(
+    async (value: string, options: { showNotFoundError?: boolean } = {}) => {
+      const query = value.trim()
+      if (!query) {
+        latestRecipientSearchRequestIdRef.current += 1
+        setRecipientSearchResults([])
+        setResolvingRecipient(false)
+        return
       }
-    } catch (_error) {
-      setError('Could not search for account')
-    } finally {
+
+      const requestId = latestRecipientSearchRequestIdRef.current + 1
+      latestRecipientSearchRequestIdRef.current = requestId
+
+      setResolvingRecipient(true)
+      setError(null)
+      try {
+        const results = await searchAccounts({
+          q: query,
+          resolve: true,
+          limit: 5
+        })
+        if (latestRecipientSearchRequestIdRef.current !== requestId) return
+        setRecipientSearchResults(results)
+        if (results.length === 0 && options.showNotFoundError) {
+          setError('Account not found')
+        }
+      } catch (_error) {
+        if (latestRecipientSearchRequestIdRef.current === requestId) {
+          setError('Could not search for account')
+        }
+      } finally {
+        if (latestRecipientSearchRequestIdRef.current === requestId) {
+          setResolvingRecipient(false)
+        }
+      }
+    },
+    []
+  )
+
+  const searchForRecipients = useCallback(() => {
+    void runRecipientSearch(recipientQuery, { showNotFoundError: true })
+  }, [recipientQuery, runRecipientSearch])
+
+  useEffect(() => {
+    const query = recipientQuery.trim()
+    if (!query) {
+      latestRecipientSearchRequestIdRef.current += 1
+      setRecipientSearchResults([])
       setResolvingRecipient(false)
+      return
     }
-  }, [recipientQuery])
+
+    const timeout = window.setTimeout(() => {
+      void runRecipientSearch(query)
+    }, RECIPIENT_SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [recipientQuery, runRecipientSearch])
 
   const selectRecipient = useCallback((account: MastodonAccount) => {
+    latestRecipientSearchRequestIdRef.current += 1
+    setResolvingRecipient(false)
     setSelectedRecipients((previousRecipients) => {
       if (previousRecipients.some((item) => item.id === account.id)) {
         return previousRecipients
@@ -470,6 +510,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     setSelectedRecipients([])
     setRecipientSearchResults([])
     setRecipientQuery('')
+    latestRecipientSearchRequestIdRef.current += 1
+    setResolvingRecipient(false)
     setMessage('')
     setError(null)
   }, [selectConversation])
@@ -516,6 +558,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         setSelectedRecipients([])
         setRecipientSearchResults([])
         setRecipientQuery('')
+        latestRecipientSearchRequestIdRef.current += 1
+        setResolvingRecipient(false)
         const refreshedConversations = await refreshConversations()
         const matchedConversation = sentStatus.uri
           ? refreshedConversations.find(
@@ -553,7 +597,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   )
 
   return (
-    <div className="space-y-5 md:space-y-6">
+    <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-7xl -translate-x-1/2 space-y-5 md:w-[calc(100vw-72px-3rem)] md:space-y-6 xl:w-[calc(100vw-280px-3rem)]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Mail className="size-6 text-muted-foreground md:size-7" />
@@ -567,7 +611,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
       <section
         aria-label="Direct messages"
-        className="grid min-w-0 overflow-hidden rounded-lg border bg-background md:grid-cols-[minmax(260px,32%)_minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]"
+        className="grid min-w-0 overflow-hidden rounded-lg border bg-background md:h-[calc(100svh-8.5rem)] md:min-h-[34rem] md:grid-cols-[minmax(260px,34%)_minmax(0,1fr)] lg:grid-cols-[minmax(320px,30%)_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]"
       >
         <aside
           aria-label="Conversation list"
@@ -591,7 +635,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                       setError(null)
                     }}
                     className={cn(
-                      'flex w-full items-start gap-3 border-b px-3 py-3 text-left last:border-b-0 md:px-4 md:py-4',
+                      'flex w-full items-start gap-3 border-b px-3 py-3 text-left last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 md:px-4 md:py-4',
                       isSelected ? 'bg-muted' : 'hover:bg-muted/60'
                     )}
                   >
@@ -652,7 +696,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         <div
           aria-label="Conversation thread"
           className={cn(
-            'flex min-h-[60svh] min-w-0 flex-col md:min-h-[calc(100svh-10rem)]',
+            'flex min-h-[60svh] min-w-0 flex-col md:min-h-0',
             showConversationListOnMobile && 'max-md:hidden'
           )}
         >
@@ -729,7 +773,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                   statuses={displayStatuses}
                   currentActor={currentActor}
                   postLineLimit={postLineLimit}
-                  className="md:[&>article]:p-6"
+                  className="md:[&>article]:p-6 xl:[&>article]:px-8"
                 />
               </>
             ) : (
@@ -767,7 +811,12 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="relative">
+                  {isResolvingRecipient ? (
+                    <Loader2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  )}
                   <Input
                     value={recipientQuery}
                     onChange={(event) => setRecipientQuery(event.target.value)}
@@ -777,20 +826,12 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                         void searchForRecipients()
                       }
                     }}
+                    name="recipient"
+                    aria-label="Search recipients"
+                    autoComplete="off"
                     placeholder="@user@example.com"
+                    className="pl-9"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={searchForRecipients}
-                    disabled={isResolvingRecipient}
-                  >
-                    {isResolvingRecipient ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Search className="size-4" />
-                    )}
-                  </Button>
                 </div>
                 {recipientSearchResults.length > 0 && (
                   <ul
@@ -802,7 +843,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                         <button
                           type="button"
                           onClick={() => selectRecipient(account)}
-                          className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted"
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                         >
                           <Avatar className="size-8 shrink-0">
                             {account.avatar && (
@@ -828,27 +869,32 @@ export const MessagesPage: FC<MessagesPageProps> = ({
               </div>
             )}
 
-            <div className="flex items-end gap-2">
+            <div className="space-y-2">
               <Textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 onKeyDown={handleMessageKeyDown}
+                name="message"
+                aria-label="Message text"
+                autoComplete="off"
                 placeholder="Write a message"
                 className="min-h-24 resize-y md:min-h-28"
               />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={isSending || !message.trim()}
-                aria-label="Send message"
-                title="Send message"
-              >
-                {isSending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-              </Button>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={isSending || !message.trim()}
+                  aria-label="Send message"
+                  title="Send message"
+                >
+                  {isSending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                </Button>
+              </div>
             </div>
             {error && (
               <p
