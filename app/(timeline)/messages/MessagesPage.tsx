@@ -80,7 +80,7 @@ const conversationSubtitle = (conversation: DirectConversationView) => {
     conversation.lastStatus.type === 'Poll'
   ) {
     return (
-      sanitizeHtml(conversation.lastStatus.text, {
+      sanitizeHtml(conversation.lastStatus.text ?? '', {
         allowedTags: [],
         allowedAttributes: {}
       }).trim() || 'Message'
@@ -165,6 +165,16 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const displayStatuses = useMemo(
     () => [...threadStatuses].reverse(),
     [threadStatuses]
+  )
+  const conversationPreviews = useMemo(
+    () =>
+      new Map(
+        currentConversations.map((conversation) => [
+          conversation.id,
+          conversationSubtitle(conversation)
+        ])
+      ),
+    [currentConversations]
   )
   const newestDisplayedStatusId =
     displayStatuses[displayStatuses.length - 1]?.id ?? null
@@ -718,7 +728,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                         )}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {conversationSubtitle(conversation)}
+                        {conversationPreviews.get(conversation.id) ?? 'Message'}
                       </span>
                       <span className="block text-xs text-muted-foreground md:mt-1">
                         {formatTimestamp(conversation.lastStatusCreatedAt)}
