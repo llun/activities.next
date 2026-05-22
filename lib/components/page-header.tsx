@@ -19,9 +19,9 @@ export const PageHeader = ({
     <div className="min-w-0">
       <h1 className="text-2xl font-semibold">{title}</h1>
       {description && (
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="text-sm text-muted-foreground">{description}</div>
       )}
     </div>
-    {actions && <div className="shrink-0">{actions}</div>}
+    {actions && <div className="shrink-0 self-center">{actions}</div>}
   </div>
 )

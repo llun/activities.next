@@ -56,6 +56,7 @@ const Page = async ({ params, searchParams }: Props) => {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <PageHeader
+          className="flex-1"
           title={tag.replace(/^#+/, '')}
           description={`${total} public post${total !== 1 ? 's' : ''}.`}
         />

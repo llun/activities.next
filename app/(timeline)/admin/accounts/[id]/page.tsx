@@ -40,15 +40,17 @@ const Page = async ({ params }: Props) => {
         </Link>
         <PageHeader
           className="flex-1"
-          title={account.name || account.email}
-          description={account.email}
-          actions={
-            account.role === 'admin' && (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                Admin
-              </span>
-            )
+          title={
+            <span className="flex flex-wrap items-center gap-3">
+              {account.name || account.email}
+              {account.role === 'admin' ? (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  Admin
+                </span>
+              ) : undefined}
+            </span>
           }
+          description={account.name ? account.email : undefined}
         />
       </div>
 

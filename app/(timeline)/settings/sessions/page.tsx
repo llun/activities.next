@@ -50,10 +50,11 @@ const Page = async () => {
         title="Sessions"
         description={
           <>
-            Review active sessions and revoke access you no longer need.
-            <br />
-            {sessions.length} session{sessions.length === 1 ? '' : 's'} linked
-            to your account.
+            <p>Review active sessions and revoke access you no longer need.</p>
+            <p>
+              {sessions.length} session{sessions.length === 1 ? '' : 's'} linked
+              to your account.
+            </p>
           </>
         }
       />
