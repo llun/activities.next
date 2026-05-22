@@ -178,6 +178,7 @@
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
+  /* Child pages opt into a wider timeline wrapper with data-layout-width="wide". */
   .timeline-content:has([data-layout-width='wide']) {
     max-width: none;
   }

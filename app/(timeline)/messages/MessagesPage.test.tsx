@@ -666,6 +666,83 @@ describe('MessagesPage', () => {
     }
   })
 
+  it('shows and clears not-found feedback for debounced recipient searches', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([])
+
+      renderMessagesPage([], null)
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+
+      fireEvent.change(recipientInput, { target: { value: 'missing' } })
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('alert')).toHaveTextContent('Account not found')
+
+      fireEvent.change(recipientInput, { target: { value: 'next' } })
+
+      expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('cancels the pending debounced recipient search when Enter searches immediately', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([
+        account('account-ada', 'Ada')
+      ])
+
+      renderMessagesPage([], null)
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+      fireEvent.change(recipientInput, { target: { value: 'ada' } })
+      fireEvent.keyDown(recipientInput, { key: 'Enter' })
+
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledTimes(1)
+      expect(searchAccounts).toHaveBeenCalledWith({
+        q: 'ada',
+        resolve: true,
+        limit: 5
+      })
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).toHaveBeenCalledTimes(1)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('loads additional conversations when the user clicks Load more in the sidebar', async () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],

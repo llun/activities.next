@@ -140,6 +140,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const pendingReadConversationIdsRef = useRef(new Set<string>())
   const latestReadRequestIdRef = useRef(new Map<string, number>())
   const latestRecipientSearchRequestIdRef = useRef(0)
+  const recipientSearchTimeoutRef = useRef<number | null>(null)
+  const immediateRecipientSearchQueryRef = useRef<string | null>(null)
   const lastAutoScrolledStatusIdRef = useRef<string | null>(null)
   const pendingOlderScrollAnchorRef = useRef<{
     requestId: number
@@ -431,6 +433,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         latestRecipientSearchRequestIdRef.current += 1
         setRecipientSearchResults([])
         setResolvingRecipient(false)
+        setError(null)
         return
       }
 
@@ -463,24 +466,45 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     []
   )
 
+  const clearRecipientSearchTimeout = useCallback(() => {
+    if (recipientSearchTimeoutRef.current === null) return
+    window.clearTimeout(recipientSearchTimeoutRef.current)
+    recipientSearchTimeoutRef.current = null
+  }, [])
+
   const searchForRecipients = useCallback(() => {
+    const query = recipientQuery.trim()
+    immediateRecipientSearchQueryRef.current = query || null
+    clearRecipientSearchTimeout()
     void runRecipientSearch(recipientQuery, { showNotFoundError: true })
-  }, [recipientQuery, runRecipientSearch])
+  }, [clearRecipientSearchTimeout, recipientQuery, runRecipientSearch])
 
   useEffect(() => {
     const query = recipientQuery.trim()
     latestRecipientSearchRequestIdRef.current += 1
     setRecipientSearchResults([])
     setResolvingRecipient(false)
+    setError(null)
+    clearRecipientSearchTimeout()
 
-    if (!query) return
+    if (!query) {
+      immediateRecipientSearchQueryRef.current = null
+      return
+    }
 
-    const timeout = window.setTimeout(() => {
-      void runRecipientSearch(query)
+    if (immediateRecipientSearchQueryRef.current === query) {
+      immediateRecipientSearchQueryRef.current = null
+      return
+    }
+    immediateRecipientSearchQueryRef.current = null
+
+    recipientSearchTimeoutRef.current = window.setTimeout(() => {
+      recipientSearchTimeoutRef.current = null
+      void runRecipientSearch(query, { showNotFoundError: true })
     }, RECIPIENT_SEARCH_DEBOUNCE_MS)
 
-    return () => window.clearTimeout(timeout)
-  }, [recipientQuery, runRecipientSearch])
+    return clearRecipientSearchTimeout
+  }, [clearRecipientSearchTimeout, recipientQuery, runRecipientSearch])
 
   const selectRecipient = useCallback((account: MastodonAccount) => {
     latestRecipientSearchRequestIdRef.current += 1
@@ -595,6 +619,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     ]
   )
 
+  // Opts the timeline wrapper into the wide-layout rule in globals.css.
   return (
     <div
       data-layout-width="wide"
