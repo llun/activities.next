@@ -1,0 +1,19 @@
+app/(timeline)/messages/MessagesPage.tsx
+  s_7f472818687c46::t_36c78f6303f063 82,165-174,635
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "f2974d5c513f09c963aac848246fd777b19a1954",
+  "prompts": {},
+  "sessions": {
+    "s_7f472818687c46": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4fb7-61d0-7a01-ba3a-8e29cd612e43",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
