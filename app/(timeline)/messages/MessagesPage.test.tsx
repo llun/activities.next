@@ -599,11 +599,14 @@ describe('MessagesPage', () => {
     const resultsList = await screen.findByLabelText('Recipient search results')
     expect(within(resultsList).getByText('Ada')).toBeInTheDocument()
     expect(within(resultsList).getByText('Adam')).toBeInTheDocument()
-    expect(searchAccounts).toHaveBeenCalledWith({
-      q: 'ad',
-      resolve: true,
-      limit: 5
-    })
+    expect(searchAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: 'ad',
+        resolve: true,
+        limit: 5,
+        signal: expect.any(AbortSignal)
+      })
+    )
 
     fireEvent.click(within(resultsList).getByText('Adam'))
 
@@ -641,11 +644,14 @@ describe('MessagesPage', () => {
         await Promise.resolve()
       })
 
-      expect(searchAccounts).toHaveBeenCalledWith({
-        q: 'ada',
-        resolve: true,
-        limit: 5
-      })
+      expect(searchAccounts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'ada',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
       expect(
         screen.getByLabelText('Recipient search results')
       ).toBeInTheDocument()
@@ -725,11 +731,14 @@ describe('MessagesPage', () => {
       })
 
       expect(searchAccounts).toHaveBeenCalledTimes(1)
-      expect(searchAccounts).toHaveBeenCalledWith({
-        q: 'ada',
-        resolve: true,
-        limit: 5
-      })
+      expect(searchAccounts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'ada',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
 
       await act(async () => {
         jest.advanceTimersByTime(300)
@@ -801,13 +810,20 @@ describe('MessagesPage', () => {
         await Promise.resolve()
       })
 
-      expect(searchAccounts).toHaveBeenCalledWith({
-        q: 'ada',
-        resolve: true,
-        limit: 5
-      })
+      expect(searchAccounts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'ada',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
+      const firstSearchSignal = (searchAccounts as jest.Mock).mock.calls[0][0]
+        .signal as AbortSignal
 
       fireEvent.change(recipientInput, { target: { value: 'bob' } })
+
+      expect(firstSearchSignal.aborted).toBe(true)
 
       await act(async () => {
         adaSearch.resolve([account('account-ada', 'Ada')])
@@ -822,11 +838,14 @@ describe('MessagesPage', () => {
         await Promise.resolve()
       })
 
-      expect(searchAccounts).toHaveBeenLastCalledWith({
-        q: 'bob',
-        resolve: true,
-        limit: 5
-      })
+      expect(searchAccounts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: 'bob',
+          resolve: true,
+          limit: 5,
+          signal: expect.any(AbortSignal)
+        })
+      )
 
       await act(async () => {
         bobSearch.resolve([account('account-bob', 'Bob')])

@@ -141,6 +141,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const latestReadRequestIdRef = useRef(new Map<string, number>())
   const latestRecipientSearchRequestIdRef = useRef(0)
   const recipientSearchTimeoutRef = useRef<number | null>(null)
+  const recipientSearchAbortControllerRef = useRef<AbortController | null>(null)
   const lastAutoScrolledStatusIdRef = useRef<string | null>(null)
   const pendingOlderScrollAnchorRef = useRef<{
     requestId: number
@@ -171,6 +172,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     recipientSearchTimeoutRef.current = null
   }, [])
 
+  const abortRecipientSearch = useCallback(() => {
+    recipientSearchAbortControllerRef.current?.abort()
+    recipientSearchAbortControllerRef.current = null
+  }, [])
+
   const selectConversation = useCallback(
     (conversationId: string | null) => {
       if (conversationId) {
@@ -183,6 +189,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       if (conversationId === selectedConversationIdRef.current) return
       if (conversationId) {
         clearRecipientSearchTimeout()
+        abortRecipientSearch()
         latestRecipientSearchRequestIdRef.current += 1
         setResolvingRecipient(false)
         setSelectedRecipients([])
@@ -195,7 +202,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       pendingOlderScrollAnchorRef.current = null
       setSelectedConversationId(conversationId)
     },
-    [clearRecipientSearchTimeout]
+    [abortRecipientSearch, clearRecipientSearchTimeout]
   )
 
   const loadThread = useCallback(
@@ -447,6 +454,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       const query = value.trim()
       if (!query) {
         latestRecipientSearchRequestIdRef.current += 1
+        abortRecipientSearch()
         setRecipientSearchResults([])
         setResolvingRecipient(false)
         setError(null)
@@ -455,6 +463,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
       const requestId = latestRecipientSearchRequestIdRef.current + 1
       latestRecipientSearchRequestIdRef.current = requestId
+      abortRecipientSearch()
+      const abortController = new AbortController()
+      recipientSearchAbortControllerRef.current = abortController
 
       setResolvingRecipient(true)
       setError(null)
@@ -462,7 +473,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         const results = await searchAccounts({
           q: query,
           resolve: true,
-          limit: 5
+          limit: 5,
+          signal: abortController.signal
         })
         if (latestRecipientSearchRequestIdRef.current !== requestId) return
         setRecipientSearchResults(results)
@@ -470,16 +482,20 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           setError('Account not found')
         }
       } catch (_error) {
+        if (abortController.signal.aborted) return
         if (latestRecipientSearchRequestIdRef.current === requestId) {
           setError('Could not search for account')
         }
       } finally {
+        if (recipientSearchAbortControllerRef.current === abortController) {
+          recipientSearchAbortControllerRef.current = null
+        }
         if (latestRecipientSearchRequestIdRef.current === requestId) {
           setResolvingRecipient(false)
         }
       }
     },
-    []
+    [abortRecipientSearch]
   )
 
   const searchForRecipients = useCallback(() => {
@@ -495,6 +511,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     setResolvingRecipient(false)
     setError(null)
     clearRecipientSearchTimeout()
+    abortRecipientSearch()
 
     if (!query) return
 
@@ -503,8 +520,16 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       void runRecipientSearch(query, { showNotFoundError: true })
     }, RECIPIENT_SEARCH_DEBOUNCE_MS)
 
-    return clearRecipientSearchTimeout
-  }, [clearRecipientSearchTimeout, recipientQuery, runRecipientSearch])
+    return () => {
+      clearRecipientSearchTimeout()
+      abortRecipientSearch()
+    }
+  }, [
+    abortRecipientSearch,
+    clearRecipientSearchTimeout,
+    recipientQuery,
+    runRecipientSearch
+  ])
 
   const selectRecipient = useCallback((account: MastodonAccount) => {
     latestRecipientSearchRequestIdRef.current += 1
