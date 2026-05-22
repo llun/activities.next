@@ -743,6 +743,39 @@ describe('MessagesPage', () => {
     }
   })
 
+  it('cancels a pending recipient search when selecting an existing conversation', async () => {
+    jest.useFakeTimers()
+    try {
+      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      })
+      ;(searchAccounts as jest.Mock).mockResolvedValue([])
+
+      renderMessagesPage(
+        [conversation({ id: 'first', participantName: 'Ada' })],
+        null
+      )
+
+      const recipientInput = screen.getByRole('textbox', {
+        name: 'Search recipients'
+      })
+      fireEvent.change(recipientInput, { target: { value: 'missing' } })
+      fireEvent.click(screen.getByRole('button', { name: /Ada/ }))
+
+      await act(async () => {
+        jest.advanceTimersByTime(300)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(searchAccounts).not.toHaveBeenCalled()
+      expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('ignores stale recipient search results when the query changes during an in-flight lookup', async () => {
     jest.useFakeTimers()
     try {

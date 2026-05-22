@@ -165,21 +165,38 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     ? selectedConversation.accounts
     : selectedRecipients
 
-  const selectConversation = useCallback((conversationId: string | null) => {
-    if (conversationId) {
-      setShowConversationListOnMobile(false)
-    }
-    if (conversationId) {
-      const hadFailed = lastFailedReadAtRef.current.delete(conversationId)
-      if (hadFailed) setReadRetryNonce((nonce) => nonce + 1)
-    }
-    if (conversationId === selectedConversationIdRef.current) return
-    latestThreadRequestIdRef.current += 1
-    selectedConversationIdRef.current = conversationId
-    lastAutoScrolledStatusIdRef.current = null
-    pendingOlderScrollAnchorRef.current = null
-    setSelectedConversationId(conversationId)
+  const clearRecipientSearchTimeout = useCallback(() => {
+    if (recipientSearchTimeoutRef.current === null) return
+    window.clearTimeout(recipientSearchTimeoutRef.current)
+    recipientSearchTimeoutRef.current = null
   }, [])
+
+  const selectConversation = useCallback(
+    (conversationId: string | null) => {
+      if (conversationId) {
+        setShowConversationListOnMobile(false)
+      }
+      if (conversationId) {
+        const hadFailed = lastFailedReadAtRef.current.delete(conversationId)
+        if (hadFailed) setReadRetryNonce((nonce) => nonce + 1)
+      }
+      if (conversationId === selectedConversationIdRef.current) return
+      if (conversationId) {
+        clearRecipientSearchTimeout()
+        latestRecipientSearchRequestIdRef.current += 1
+        setResolvingRecipient(false)
+        setSelectedRecipients([])
+        setRecipientSearchResults([])
+        setRecipientQuery('')
+      }
+      latestThreadRequestIdRef.current += 1
+      selectedConversationIdRef.current = conversationId
+      lastAutoScrolledStatusIdRef.current = null
+      pendingOlderScrollAnchorRef.current = null
+      setSelectedConversationId(conversationId)
+    },
+    [clearRecipientSearchTimeout]
+  )
 
   const loadThread = useCallback(
     async (conversationId: string, options: { silent?: boolean } = {}) => {
@@ -464,12 +481,6 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     },
     []
   )
-
-  const clearRecipientSearchTimeout = useCallback(() => {
-    if (recipientSearchTimeoutRef.current === null) return
-    window.clearTimeout(recipientSearchTimeoutRef.current)
-    recipientSearchTimeoutRef.current = null
-  }, [])
 
   const searchForRecipients = useCallback(() => {
     const query = recipientQuery.trim()
