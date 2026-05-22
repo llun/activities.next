@@ -1,0 +1,21 @@
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_61860ab70b1df4::t_12ab411c249ecd 788-790
+app/(timeline)/messages/MessagesPage.tsx
+  s_61860ab70b1df4::t_dba2efaf30cfe0 897
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "64f85c5dcfd995107fd24bccbd374dba115a0949",
+  "prompts": {},
+  "sessions": {
+    "s_61860ab70b1df4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4e6a-d572-72e3-98fd-a516f33326d2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
