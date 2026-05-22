@@ -6,7 +6,7 @@
  *
  * Resolution logic per stuck file:
  *   - Activity data already parsed (totalDistanceMeters is set)
- *     → mark 'completed' (data is usable; map can be retried via Settings)
+ *     → regenerate the route map image and mark 'completed'
  *   - Activity data not yet parsed
  *     → mark 'pending' so the job will be re-queued on the next page load
  *
@@ -22,6 +22,8 @@ import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { REGENERATE_FITNESS_MAPS_JOB_NAME } from '@/lib/jobs/names'
+import { regenerateFitnessMapsJob } from '@/lib/jobs/regenerateFitnessMapsJob'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
 const projectDir = process.cwd()
@@ -75,6 +77,23 @@ const parseArgs = (args: string[]) => {
 const resolveTargetStatus = (file: FitnessFile): 'completed' | 'pending' =>
   typeof file.totalDistanceMeters === 'number' ? 'completed' : 'pending'
 
+const regenerateRouteMap = async (
+  database: NonNullable<ReturnType<typeof getDatabase>>,
+  file: FitnessFile
+) => {
+  await regenerateFitnessMapsJob(database, {
+    id: `fix-stuck-fitness-map:${file.id}`,
+    name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+    data: {
+      actorId: file.actorId,
+      fitnessFileIds: [file.id]
+    }
+  })
+
+  const refreshedFile = await database.getFitnessFile({ id: file.id })
+  return refreshedFile?.processingStatus === 'completed'
+}
+
 async function fixFile(
   database: Awaited<ReturnType<typeof getDatabase>>,
   file: FitnessFile
@@ -91,7 +110,23 @@ async function fixFile(
   const target = resolveTargetStatus(file)
 
   try {
-    await database.updateFitnessFileProcessingStatus(file.id, target)
+    if (target === 'completed') {
+      console.log(
+        `  [${file.id}] ${file.fileName} → regenerating route map` +
+          (file.activityType ? ` (${file.activityType})` : '')
+      )
+
+      const regenerated = await regenerateRouteMap(database, file)
+      if (!regenerated) {
+        console.error(
+          `  [${file.id}] ${file.fileName} — route map regeneration failed`
+        )
+        return 'error'
+      }
+    } else {
+      await database.updateFitnessFileProcessingStatus(file.id, target)
+    }
+
     console.log(
       `  [${file.id}] ${file.fileName} → ${target}` +
         (file.activityType ? ` (${file.activityType})` : '')
@@ -106,7 +141,7 @@ async function fixFile(
   }
 }
 
-async function fixStuckFitnessProcessing(args = process.argv.slice(2)) {
+export async function fixStuckFitnessProcessing(args = process.argv.slice(2)) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(USAGE)
     return 0
@@ -191,8 +226,7 @@ async function fixStuckFitnessProcessing(args = process.argv.slice(2)) {
 
   if (counts.completed > 0) {
     console.log(
-      '\nFiles marked completed have activity data but no map image.\n' +
-        'Use Settings → Fitness → Regenerate Maps to generate maps (after fixing the OOM issue).'
+      '\nFiles marked completed had route map regeneration attempted.'
     )
   }
 
