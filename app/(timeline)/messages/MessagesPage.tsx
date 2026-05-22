@@ -19,6 +19,7 @@ import {
   useRef,
   useState
 } from 'react'
+import sanitizeHtml from 'sanitize-html'
 
 import {
   createDirectMessage,
@@ -78,7 +79,12 @@ const conversationSubtitle = (conversation: DirectConversationView) => {
     conversation.lastStatus.type === 'Note' ||
     conversation.lastStatus.type === 'Poll'
   ) {
-    return conversation.lastStatus.text || 'Message'
+    return (
+      sanitizeHtml(conversation.lastStatus.text, {
+        allowedTags: [],
+        allowedAttributes: {}
+      }).trim() || 'Message'
+    )
   }
   return 'Message'
 }

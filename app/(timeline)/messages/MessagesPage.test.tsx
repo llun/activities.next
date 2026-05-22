@@ -172,6 +172,30 @@ describe('MessagesPage', () => {
     ;(searchAccounts as jest.Mock).mockResolvedValue([])
   })
 
+  it('strips HTML tags from conversation preview text', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+
+    const htmlConversation = conversation({
+      id: 'first',
+      participantName: 'Ada'
+    })
+    htmlConversation.lastStatus = {
+      ...htmlConversation.lastStatus,
+      text: '<p>Hello <strong>Ada</strong></p>'
+    }
+
+    renderMessagesPage([htmlConversation], null)
+
+    const conversationButton = screen.getByRole('button', { name: /Ada/i })
+
+    expect(conversationButton).toHaveTextContent('Hello Ada')
+    expect(conversationButton).not.toHaveTextContent('<p>')
+    expect(conversationButton).not.toHaveTextContent('</strong>')
+  })
+
   it('keeps stale thread requests from overwriting the selected conversation', async () => {
     const firstThread = createDeferred<{
       statuses: Status[]
