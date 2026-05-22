@@ -1,5 +1,9 @@
 import { htmlToDOM } from 'html-react-parser'
-import type { DOMNode } from 'html-react-parser'
+import type {
+  DOMNode,
+  Element as HtmlElement,
+  Text as HtmlText
+} from 'html-react-parser'
 import sanitizeHtml from 'sanitize-html'
 
 const BLOCK_TAGS = new Set([
@@ -20,12 +24,13 @@ const BLOCK_TAGS = new Set([
 
 const ALLOWED_STRUCTURE_TAGS = ['br', ...BLOCK_TAGS]
 
-type PlainTextNode = DOMNode & {
-  type?: string
-  data?: string
-  name?: string
-  children?: DOMNode[]
-}
+type PlainTextDomNode = DOMNode | HtmlElement['children'][number]
+
+const isTextNode = (node: PlainTextDomNode): node is HtmlText =>
+  node.type === 'text'
+
+const isElementNode = (node: PlainTextDomNode): node is HtmlElement =>
+  node.type === 'tag' || node.type === 'script' || node.type === 'style'
 
 const appendSpace = (parts: string[]) => {
   if (parts.length === 0 || parts[parts.length - 1] === ' ') return
@@ -37,30 +42,28 @@ const appendText = (parts: string[], text: string) => {
   parts.push(text)
 }
 
-const collectText = (nodes: DOMNode[], parts: string[]) => {
+const collectText = (nodes: PlainTextDomNode[], parts: string[]) => {
   nodes.forEach((node) => {
-    const plainTextNode = node as PlainTextNode
-
-    if (plainTextNode.type === 'text') {
-      appendText(parts, plainTextNode.data ?? '')
+    if (isTextNode(node)) {
+      appendText(parts, node.data)
       return
     }
 
-    if (plainTextNode.name === 'br') {
+    if (!isElementNode(node)) return
+
+    if (node.name === 'br') {
       appendSpace(parts)
       return
     }
 
-    if (plainTextNode.children) {
-      if (plainTextNode.name && BLOCK_TAGS.has(plainTextNode.name)) {
-        appendSpace(parts)
-        collectText(plainTextNode.children, parts)
-        appendSpace(parts)
-        return
-      }
-
-      collectText(plainTextNode.children, parts)
+    if (BLOCK_TAGS.has(node.name)) {
+      appendSpace(parts)
+      collectText(node.children, parts)
+      appendSpace(parts)
+      return
     }
+
+    collectText(node.children, parts)
   })
 }
 

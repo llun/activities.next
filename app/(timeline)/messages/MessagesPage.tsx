@@ -186,7 +186,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     () => [...threadStatuses].reverse(),
     [threadStatuses]
   )
-  const conversationPreviews = useMemo(() => {
+  const conversationPreviewData = useMemo(() => {
     const previousCache = conversationPreviewCacheRef.current
     const nextCache = new Map<string, ConversationPreviewCacheEntry>()
     const previews = new Map<string, string>()
@@ -203,9 +203,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       previews.set(conversation.id, preview)
     })
 
-    conversationPreviewCacheRef.current = nextCache
-    return previews
+    return { cache: nextCache, previews }
   }, [currentConversations])
+  const conversationPreviews = conversationPreviewData.previews
   const newestDisplayedStatusId =
     displayStatuses[displayStatuses.length - 1]?.id ?? null
   const composerRecipients = selectedConversation
@@ -378,6 +378,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId
   }, [selectedConversationId])
+
+  useEffect(() => {
+    conversationPreviewCacheRef.current = conversationPreviewData.cache
+  }, [conversationPreviewData])
 
   useEffect(() => {
     if (!selectedConversationId) {
