@@ -836,21 +836,23 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       updatedAt: currentTime
     }
 
-    await database<SQLActor>('actors')
-      .where('id', actorId)
-      .update({
-        ...(type ? { type } : null),
-        ...(name ? { name } : null),
-        ...(summary ? { summary } : null),
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors')
+        .where('id', actorId)
+        .update({
+          ...(type ? { type } : null),
+          ...(name ? { name } : null),
+          ...(summary ? { summary } : null),
 
-        ...(publicKey ? { publicKey } : null),
+          ...(publicKey ? { publicKey } : null),
 
-        settings: JSON.stringify(settings),
-        updatedAt: currentTime
+          settings: JSON.stringify(settings),
+          updatedAt: currentTime
+        })
+      await indexActorSearchDocument(trx, {
+        id: actorId,
+        actor: updatedActor
       })
-    await indexActorSearchDocument(database, {
-      id: actorId,
-      actor: updatedActor
     })
     return this.getActorFromId({ id: actorId })
   },
@@ -943,31 +945,37 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     scheduledAt
   }: ScheduleActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors').where('id', actorId).update({
-      deletionStatus: 'scheduled',
-      deletionScheduledAt: scheduledAt,
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors').where('id', actorId).update({
+        deletionStatus: 'scheduled',
+        deletionScheduledAt: scheduledAt,
+        updatedAt: currentTime
+      })
+      await indexActorSearchDocument(trx, { id: actorId })
     })
-    await indexActorSearchDocument(database, { id: actorId })
   },
 
   async cancelActorDeletion({ actorId }: CancelActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors').where('id', actorId).update({
-      deletionStatus: null,
-      deletionScheduledAt: null,
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors').where('id', actorId).update({
+        deletionStatus: null,
+        deletionScheduledAt: null,
+        updatedAt: currentTime
+      })
+      await indexActorSearchDocument(trx, { id: actorId })
     })
-    await indexActorSearchDocument(database, { id: actorId })
   },
 
   async startActorDeletion({ actorId }: StartActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors').where('id', actorId).update({
-      deletionStatus: 'deleting',
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors').where('id', actorId).update({
+        deletionStatus: 'deleting',
+        updatedAt: currentTime
+      })
+      await indexActorSearchDocument(trx, { id: actorId })
     })
-    await indexActorSearchDocument(database, { id: actorId })
   },
 
   async getActorsScheduledForDeletion({

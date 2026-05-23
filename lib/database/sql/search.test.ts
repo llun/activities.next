@@ -1082,12 +1082,19 @@ describe('SearchDatabase foundation', () => {
     })
     const database = getSQLDatabase(knexDatabase)
     const insertQueries: string[] = []
+    const actorSelectQueries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
       if (
         sql.includes('insert into `search_documents`') ||
         sql.includes('insert into "search_documents"')
       ) {
         insertQueries.push(sql)
+      }
+      if (
+        sql.toLowerCase().startsWith('select') &&
+        (sql.includes('from `actors`') || sql.includes('from "actors"'))
+      ) {
+        actorSelectQueries.push(sql)
       }
     }
 
@@ -1109,6 +1116,8 @@ describe('SearchDatabase foundation', () => {
       knexDatabase.off('query', handleQuery)
 
       expect(insertQueries).toHaveLength(1)
+      expect(actorSelectQueries).toHaveLength(1)
+      expect(actorSelectQueries[0]).not.toContain('select *')
       await expect(
         database.searchAccountIds({ q: 'runner', limit: 10 })
       ).resolves.toEqual([

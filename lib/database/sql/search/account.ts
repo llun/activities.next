@@ -321,7 +321,20 @@ export const reindexSearchAccounts = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
-  const query = database<SQLActor>('actors').select('*').orderBy('id', 'asc')
+  const query = database<SQLActor>('actors')
+    .select(
+      'id',
+      'username',
+      'domain',
+      'settings',
+      'createdAt',
+      'type',
+      'accountId',
+      'name',
+      'summary',
+      'deletionStatus'
+    )
+    .orderBy('id', 'asc')
   if (afterId) query.where('id', '>', afterId)
 
   const rows = await query.limit(limit)
