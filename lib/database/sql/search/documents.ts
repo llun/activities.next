@@ -8,6 +8,7 @@ import {
   SearchDocumentsParams,
   UpsertSearchDocumentParams
 } from '@/lib/types/database/operations'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 type SQLSearchDocument = Omit<
   SearchDocument,
@@ -56,6 +57,59 @@ const isMySQL = (database: Knex) => getClientName(database).includes('mysql')
 
 const escapeLikePattern = (value: string) => value.replace(/[\\%_]/g, '\\$&')
 
+const DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE = 4
+const mysqlFullTextMinTokenSizeCache = new WeakMap<Knex, Promise<number>>()
+
+const getRawRows = (rawResult: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(rawResult)) {
+    return Array.isArray(rawResult[0])
+      ? (rawResult[0] as Record<string, unknown>[])
+      : (rawResult as Record<string, unknown>[])
+  }
+
+  if (
+    rawResult &&
+    typeof rawResult === 'object' &&
+    'rows' in rawResult &&
+    Array.isArray(rawResult.rows)
+  ) {
+    return rawResult.rows as Record<string, unknown>[]
+  }
+
+  return []
+}
+
+const parseFullTextMinTokenSize = (value: unknown) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+const getMySQLFullTextMinTokenSize = async (database: Knex) => {
+  const cached = mysqlFullTextMinTokenSizeCache.get(database)
+  if (cached) return cached
+
+  const minTokenSize = database
+    .raw(
+      'select @@innodb_ft_min_token_size as innodbFtMinTokenSize, @@ft_min_word_len as ftMinWordLen'
+    )
+    .then((result) => {
+      const row = getRawRows(result)[0] ?? {}
+      const innodbMinTokenSize = parseFullTextMinTokenSize(
+        row.innodbFtMinTokenSize
+      )
+      const myisamMinTokenSize = parseFullTextMinTokenSize(row.ftMinWordLen)
+
+      return Math.max(
+        innodbMinTokenSize ?? DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE,
+        myisamMinTokenSize ?? DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE
+      )
+    })
+    .catch(() => DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE)
+
+  mysqlFullTextMinTokenSizeCache.set(database, minTokenSize)
+  return minTokenSize
+}
+
 const applyPartialTokenMatch = ({
   query,
   tokens
@@ -66,13 +120,13 @@ const applyPartialTokenMatch = ({
   tokens.forEach((token) => {
     query.whereRaw("LOWER(??) LIKE ? ESCAPE '\\'", [
       'search_documents.documentText',
-      `${escapeLikePattern(token)}%`
+      `%${escapeLikePattern(token)}%`
     ])
   })
   return query
 }
 
-export const applySearchDocumentFilter = ({
+export const applySearchDocumentFilter = async ({
   database,
   query,
   q
@@ -84,7 +138,7 @@ export const applySearchDocumentFilter = ({
   const tokens = getSearchTokens(q)
   if (tokens.length === 0) {
     query.whereRaw('1 = 0')
-    return query
+    return
   }
 
   if (isSQLite(database)) {
@@ -94,7 +148,7 @@ export const applySearchDocumentFilter = ({
         'inner join search_documents_fts on search_documents_fts.rowid = search_documents.rowid'
       )
       .whereRaw('search_documents_fts match ?', [matchQuery])
-    return query
+    return
   }
 
   if (isPostgres(database)) {
@@ -103,22 +157,24 @@ export const applySearchDocumentFilter = ({
       'documentText',
       tsQuery
     ])
-    return query
+    return
   }
 
   if (isMySQL(database)) {
     const booleanQuery = tokens.map((token) => `+${token}*`).join(' ')
-    if (tokens.some((token) => token.length < 3)) {
-      return applyPartialTokenMatch({ query, tokens })
+    const minTokenSize = await getMySQLFullTextMinTokenSize(database)
+    if (tokens.some((token) => token.length < minTokenSize)) {
+      applyPartialTokenMatch({ query, tokens })
+      return
     }
     query.whereRaw('MATCH(??) AGAINST (? IN BOOLEAN MODE)', [
       'search_documents.documentText',
       booleanQuery
     ])
-    return query
+    return
   }
 
-  return applyPartialTokenMatch({ query, tokens })
+  applyPartialTokenMatch({ query, tokens })
 }
 
 export const applySearchDocumentOrdering = ({
@@ -159,11 +215,13 @@ export const applySearchDocumentOrdering = ({
 }
 
 const applySearchDocumentAccessFilters = ({
+  database,
   query,
   entityType,
   includeNonDiscoverable = false,
   visibleToActorId
 }: {
+  database: Knex
   query: Knex.QueryBuilder
   entityType?: SearchDocumentEntityType
   includeNonDiscoverable?: boolean
@@ -176,10 +234,71 @@ const applySearchDocumentAccessFilters = ({
   }
 
   const applyStatusFilter = (builder: Knex.QueryBuilder) => {
+    const clientName = getClientName(database)
+    const fallbackFollowersAudienceExpression = {
+      sql: clientName.includes('mysql')
+        ? "?? = CONCAT(??, '/followers')"
+        : "?? = ?? || '/followers'",
+      bindings: ['followers_recipients.actorId', 'search_documents.actorId']
+    }
+    const storedFollowersAudienceExpression = {
+      sql: clientName.includes('pg')
+        ? "?? = search_document_actors.settings::jsonb ->> 'followersUrl'"
+        : clientName.includes('mysql')
+          ? "?? = JSON_UNQUOTE(JSON_EXTRACT(search_document_actors.settings, '$.followersUrl'))"
+          : "?? = json_extract(search_document_actors.settings, '$.followersUrl')",
+      bindings: ['followers_recipients.actorId']
+    }
+
     builder.where((statusBuilder) => {
-      statusBuilder.where('search_documents.visibility', 'public')
+      statusBuilder.whereIn('search_documents.visibility', [
+        'public',
+        'unlisted'
+      ])
       if (visibleToActorId) {
-        statusBuilder.orWhere('search_documents.actorId', visibleToActorId)
+        statusBuilder
+          .orWhere('search_documents.actorId', visibleToActorId)
+          .orWhereExists(function () {
+            this.select(database.raw('1'))
+              .from('recipients as direct_recipients')
+              .whereRaw('?? = ??', [
+                'direct_recipients.statusId',
+                'search_documents.entityId'
+              ])
+              .where('direct_recipients.actorId', visibleToActorId)
+          })
+          .orWhereExists(function () {
+            this.select(database.raw('1'))
+              .from('recipients as followers_recipients')
+              .leftJoin(
+                'actors as search_document_actors',
+                'search_document_actors.id',
+                'search_documents.actorId'
+              )
+              .whereRaw('?? = ??', [
+                'followers_recipients.statusId',
+                'search_documents.entityId'
+              ])
+              .where(function () {
+                this.whereRaw(
+                  storedFollowersAudienceExpression.sql,
+                  storedFollowersAudienceExpression.bindings
+                ).orWhereRaw(
+                  fallbackFollowersAudienceExpression.sql,
+                  fallbackFollowersAudienceExpression.bindings
+                )
+              })
+              .whereExists(function () {
+                this.select(database.raw('1'))
+                  .from('follows')
+                  .where('follows.actorId', visibleToActorId)
+                  .whereRaw('?? = ??', [
+                    'follows.targetActorId',
+                    'search_documents.actorId'
+                  ])
+                  .where('follows.status', FollowStatus.enum.Accepted)
+              })
+          })
       }
     })
   }
@@ -290,12 +409,13 @@ export const searchDocuments = async (
   }
 
   applySearchDocumentAccessFilters({
+    database,
     query,
     entityType,
     includeNonDiscoverable,
     visibleToActorId
   })
-  applySearchDocumentFilter({ database, query, q })
+  await applySearchDocumentFilter({ database, query, q })
   applySearchDocumentOrdering({ query, q })
 
   const rows = await query.limit(limit).offset(offset)

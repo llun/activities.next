@@ -2,6 +2,8 @@ import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getSearchTokens } from '@/lib/database/sql/search'
+import { applySearchDocumentFilter } from '@/lib/database/sql/search/documents'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 describe('SearchDatabase foundation', () => {
   it('tokenizes Unicode search text', () => {
@@ -93,26 +95,92 @@ describe('SearchDatabase foundation', () => {
       })
       await database.upsertSearchDocument({
         entityType: 'status',
+        entityId: 'https://remote.test/users/unlisted-runner/statuses/1',
+        documentText: 'runner unlisted status',
+        actorId: 'https://remote.test/users/unlisted-runner',
+        visibility: 'unlisted'
+      })
+      await database.upsertSearchDocument({
+        entityType: 'status',
         entityId: 'https://remote.test/users/hidden-runner/statuses/1',
         documentText: 'runner private status',
         actorId: 'https://remote.test/users/hidden-runner',
         visibility: 'private'
       })
-
-      await expect(
-        database.searchDocuments({
-          q: 'runner',
-          limit: 10,
-          offset: 0
-        })
-      ).resolves.toEqual([
-        expect.objectContaining({
-          entityId: 'https://remote.test/users/public-runner/statuses/1'
-        }),
-        expect.objectContaining({
-          entityId: 'https://remote.test/users/public-runner'
-        })
+      await database.upsertSearchDocument({
+        entityType: 'status',
+        entityId: 'https://remote.test/users/direct-runner/statuses/1',
+        documentText: 'runner direct status',
+        actorId: 'https://remote.test/users/direct-runner',
+        visibility: 'direct'
+      })
+      await database.upsertSearchDocument({
+        entityType: 'status',
+        entityId: 'https://remote.test/users/followed-runner/statuses/1',
+        documentText: 'runner followed private status',
+        actorId: 'https://remote.test/users/followed-runner',
+        visibility: 'private'
+      })
+      await database.upsertSearchDocument({
+        entityType: 'status',
+        entityId: 'https://remote.test/users/unfollowed-runner/statuses/1',
+        documentText: 'runner unfollowed private status',
+        actorId: 'https://remote.test/users/unfollowed-runner',
+        visibility: 'private'
+      })
+      await knexDatabase('recipients').insert([
+        {
+          id: 'search-direct-recipient',
+          statusId: 'https://remote.test/users/direct-runner/statuses/1',
+          actorId: 'https://remote.test/users/current-runner',
+          type: 'to'
+        },
+        {
+          id: 'search-followed-recipient',
+          statusId: 'https://remote.test/users/followed-runner/statuses/1',
+          actorId: 'https://remote.test/users/followed-runner/followers',
+          type: 'to'
+        },
+        {
+          id: 'search-unfollowed-recipient',
+          statusId: 'https://remote.test/users/unfollowed-runner/statuses/1',
+          actorId: 'https://remote.test/users/unfollowed-runner/followers',
+          type: 'to'
+        }
       ])
+      await knexDatabase('follows').insert({
+        id: 'search-followed-runner-follow',
+        actorId: 'https://remote.test/users/current-runner',
+        actorHost: 'remote.test',
+        targetActorId: 'https://remote.test/users/followed-runner',
+        targetActorHost: 'remote.test',
+        status: FollowStatus.enum.Accepted
+      })
+
+      const anonymousResults = await database.searchDocuments({
+        q: 'runner',
+        limit: 20,
+        offset: 0
+      })
+      expect(anonymousResults.map((result) => result.entityId)).toEqual(
+        expect.arrayContaining([
+          'https://remote.test/users/public-runner',
+          'https://remote.test/users/public-runner/statuses/1',
+          'https://remote.test/users/unlisted-runner/statuses/1'
+        ])
+      )
+      expect(anonymousResults.map((result) => result.entityId)).not.toContain(
+        'https://remote.test/users/hidden-runner/statuses/1'
+      )
+      expect(anonymousResults.map((result) => result.entityId)).not.toContain(
+        'https://remote.test/users/direct-runner/statuses/1'
+      )
+      expect(anonymousResults.map((result) => result.entityId)).not.toContain(
+        'https://remote.test/users/followed-runner/statuses/1'
+      )
+      expect(anonymousResults.map((result) => result.entityId)).not.toContain(
+        'https://remote.test/users/unfollowed-runner/statuses/1'
+      )
 
       await expect(
         database.searchDocuments({
@@ -130,23 +198,76 @@ describe('SearchDatabase foundation', () => {
         })
       ])
 
-      await expect(
-        database.searchDocuments({
-          entityType: 'status',
-          q: 'runner',
-          limit: 10,
-          visibleToActorId: 'https://remote.test/users/hidden-runner'
-        })
-      ).resolves.toEqual([
-        expect.objectContaining({
-          entityId: 'https://remote.test/users/public-runner/statuses/1'
-        }),
-        expect.objectContaining({
-          entityId: 'https://remote.test/users/hidden-runner/statuses/1'
-        })
-      ])
+      const hiddenRunnerResults = await database.searchDocuments({
+        entityType: 'status',
+        q: 'runner',
+        limit: 10,
+        visibleToActorId: 'https://remote.test/users/hidden-runner'
+      })
+      expect(hiddenRunnerResults.map((result) => result.entityId)).toEqual(
+        expect.arrayContaining([
+          'https://remote.test/users/public-runner/statuses/1',
+          'https://remote.test/users/unlisted-runner/statuses/1',
+          'https://remote.test/users/hidden-runner/statuses/1'
+        ])
+      )
+
+      const currentRunnerResults = await database.searchDocuments({
+        entityType: 'status',
+        q: 'runner',
+        limit: 20,
+        visibleToActorId: 'https://remote.test/users/current-runner'
+      })
+      expect(currentRunnerResults.map((result) => result.entityId)).toEqual(
+        expect.arrayContaining([
+          'https://remote.test/users/public-runner/statuses/1',
+          'https://remote.test/users/unlisted-runner/statuses/1',
+          'https://remote.test/users/direct-runner/statuses/1',
+          'https://remote.test/users/followed-runner/statuses/1'
+        ])
+      )
+      expect(
+        currentRunnerResults.map((result) => result.entityId)
+      ).not.toContain('https://remote.test/users/hidden-runner/statuses/1')
+      expect(
+        currentRunnerResults.map((result) => result.entityId)
+      ).not.toContain('https://remote.test/users/unfollowed-runner/statuses/1')
     } finally {
       await database.destroy()
+    }
+  })
+
+  it('uses the MySQL LIKE fallback for tokens below the active full-text minimum', async () => {
+    const mysqlDatabase = knex({ client: 'mysql2' })
+    const raw = jest.fn().mockResolvedValue([
+      [
+        {
+          innodbFtMinTokenSize: 4,
+          ftMinWordLen: 4
+        }
+      ]
+    ])
+    const mysqlConfigDatabase = {
+      client: mysqlDatabase.client,
+      raw
+    } as unknown as typeof mysqlDatabase
+
+    try {
+      const query = mysqlDatabase('search_documents').select('*')
+      await applySearchDocumentFilter({
+        database: mysqlConfigDatabase,
+        query,
+        q: 'al runner'
+      })
+
+      const sql = query.toSQL()
+      expect(sql.sql).toContain('LOWER(`search_documents`.`documentText`) LIKE')
+      expect(sql.bindings).toEqual(['%al%', '%runner%'])
+      expect(raw).toHaveBeenCalledWith(
+        'select @@innodb_ft_min_token_size as innodbFtMinTokenSize, @@ft_min_word_len as ftMinWordLen'
+      )
+    } finally {
+      await mysqlDatabase.destroy()
     }
   })
 
