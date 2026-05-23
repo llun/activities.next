@@ -1,0 +1,82 @@
+import knex from 'knex'
+
+import { getSQLDatabase } from '@/lib/database/sql'
+
+describe('SearchDatabase foundation', () => {
+  it('creates SQLite FTS search documents and returns full-text matches', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+      await database.upsertSearchDocument({
+        entityType: 'account',
+        entityId: 'https://remote.test/users/alice',
+        documentText: 'alice alice@remote.test Trail runner',
+        actorId: 'https://remote.test/users/alice',
+        discoverable: true
+      })
+
+      const ftsRows = await knexDatabase.raw(
+        'select id from search_documents_fts where search_documents_fts match ?',
+        ['runner']
+      )
+      expect(ftsRows).toEqual([
+        { id: 'account:https://remote.test/users/alice' }
+      ])
+
+      await expect(
+        database.searchDocuments({
+          entityType: 'account',
+          q: 'runner',
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          entityType: 'account',
+          entityId: 'https://remote.test/users/alice'
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('generates PostgreSQL and MySQL full-text index DDL', async () => {
+    const migration =
+      await import('@/migrations/20260523000000_add_search_documents.js')
+
+    const pgRaw = jest.fn().mockResolvedValue(undefined)
+    const pgSchema = {
+      createTable: jest.fn().mockResolvedValue(undefined)
+    }
+    await migration.up({
+      client: { config: { client: 'pg' } },
+      schema: pgSchema,
+      raw: pgRaw,
+      fn: { now: jest.fn() }
+    })
+    expect(pgRaw).toHaveBeenCalledWith(expect.stringContaining('USING GIN'))
+
+    const mysqlRaw = jest.fn().mockResolvedValue(undefined)
+    const mysqlSchema = {
+      createTable: jest.fn().mockResolvedValue(undefined)
+    }
+    await migration.up({
+      client: { config: { client: 'mysql2' } },
+      schema: mysqlSchema,
+      raw: mysqlRaw,
+      fn: { now: jest.fn() }
+    })
+    expect(mysqlRaw).toHaveBeenCalledWith(
+      expect.stringContaining('FULLTEXT INDEX')
+    )
+  })
+})

@@ -607,6 +607,119 @@ export interface StatusDatabase {
 }
 
 // ============================================================================
+// Search Database
+// ============================================================================
+
+export const SearchDocumentEntityType = z.enum(['account', 'status', 'hashtag'])
+export type SearchDocumentEntityType = z.infer<typeof SearchDocumentEntityType>
+
+export type SearchDocument = {
+  id: string
+  entityType: SearchDocumentEntityType
+  entityId: string
+  documentText: string
+  actorId: string | null
+  visibility: string | null
+  entityCreatedAt: number | null
+  discoverable: boolean | null
+  postCount: number | null
+  lastPostAt: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type UpsertSearchDocumentParams = {
+  entityType: SearchDocumentEntityType
+  entityId: string
+  documentText: string
+  actorId?: string | null
+  visibility?: string | null
+  entityCreatedAt?: number | null
+  discoverable?: boolean | null
+  postCount?: number | null
+  lastPostAt?: number | null
+}
+
+export type DeleteSearchDocumentParams = {
+  entityType: SearchDocumentEntityType
+  entityId: string
+}
+
+export type SearchDocumentsParams = {
+  entityType?: SearchDocumentEntityType
+  q: string
+  limit: number
+  offset?: number
+}
+
+export type SearchAccountsParams = {
+  q: string
+  limit: number
+  offset?: number
+  followingActorId?: string | null
+}
+
+export type SearchHashtagsParams = {
+  q: string
+  limit: number
+  offset?: number
+  excludeUnreviewed?: boolean
+}
+
+export type SearchHashtag = {
+  name: string
+  url: string
+  history: { day: string; uses: string; accounts: string }[]
+  following?: boolean
+  postCount: number
+  lastPostAt: number | null
+}
+
+export type SearchStatusesParams = {
+  q: string
+  limit: number
+  offset?: number
+  currentActorId: string
+  accountId?: string | null
+  minId?: string | null
+  maxId?: string | null
+}
+
+export type ReindexSearchDocumentsParams = {
+  afterId?: string | null
+  limit?: number
+}
+
+export type ReindexSearchDocumentsResult = {
+  indexed: number
+  nextCursor: string | null
+}
+
+export interface SearchDatabase {
+  upsertSearchDocument(params: UpsertSearchDocumentParams): Promise<void>
+  deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
+  searchDocuments(params: SearchDocumentsParams): Promise<SearchDocument[]>
+  searchAccountIds(params: SearchAccountsParams): Promise<string[]>
+  indexActorSearchDocument(params: GetActorFromIdParams): Promise<void>
+  deleteActorSearchDocument(params: GetActorFromIdParams): Promise<void>
+  reindexSearchAccounts(
+    params?: ReindexSearchDocumentsParams
+  ): Promise<ReindexSearchDocumentsResult>
+  searchHashtags(params: SearchHashtagsParams): Promise<SearchHashtag[]>
+  indexHashtagSearchDocument(params: { hashtag: string }): Promise<void>
+  deleteHashtagSearchDocument(params: { hashtag: string }): Promise<void>
+  reindexSearchHashtags(
+    params?: ReindexSearchDocumentsParams
+  ): Promise<ReindexSearchDocumentsResult>
+  searchStatusIds(params: SearchStatusesParams): Promise<string[]>
+  indexStatusSearchDocument(params: BaseStatusParams): Promise<void>
+  deleteStatusSearchDocument(params: BaseStatusParams): Promise<void>
+  reindexSearchStatuses(
+    params?: ReindexSearchDocumentsParams
+  ): Promise<ReindexSearchDocumentsResult>
+}
+
+// ============================================================================
 // Direct Conversation Database
 // ============================================================================
 
@@ -1130,6 +1243,7 @@ export const Scope = z.enum([
   'read:accounts',
   'read:bookmarks',
   'read:conversations',
+  'read:search',
   'read:statuses',
   'write',
   'write:bookmarks',
@@ -1148,6 +1262,7 @@ export const UsableScopes = [
   Scope.enum['read:accounts'],
   Scope.enum['read:bookmarks'],
   Scope.enum['read:conversations'],
+  Scope.enum['read:search'],
   Scope.enum['read:statuses'],
   Scope.enum.write,
   Scope.enum['write:bookmarks'],

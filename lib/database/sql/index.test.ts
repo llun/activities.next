@@ -11,6 +11,7 @@ import { LikeSQLDatabaseMixin } from './like'
 import { MediaSQLDatabaseMixin } from './media'
 import { NotificationSQLDatabaseMixin } from './notification'
 import { OAuthSQLDatabaseMixin } from './oauth'
+import { SearchSQLDatabaseMixin } from './search'
 import { StatusSQLDatabaseMixin } from './status'
 import { TimelineSQLDatabaseMixin } from './timeline'
 
@@ -54,6 +55,10 @@ jest.mock('@/lib/database/sql/oauth', () => ({
   OAuthSQLDatabaseMixin: jest.fn()
 }))
 
+jest.mock('@/lib/database/sql/search', () => ({
+  SearchSQLDatabaseMixin: jest.fn()
+}))
+
 jest.mock('@/lib/database/sql/status', () => ({
   StatusSQLDatabaseMixin: jest.fn()
 }))
@@ -75,6 +80,7 @@ describe('getSQLDatabase', () => {
   const notificationMixinMock =
     NotificationSQLDatabaseMixin as unknown as jest.Mock
   const oauthMixinMock = OAuthSQLDatabaseMixin as unknown as jest.Mock
+  const searchMixinMock = SearchSQLDatabaseMixin as unknown as jest.Mock
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
   const timelineMixinMock = TimelineSQLDatabaseMixin as unknown as jest.Mock
 
@@ -124,6 +130,9 @@ describe('getSQLDatabase', () => {
     const oauthDatabase = {
       getClientFromName: jest.fn()
     }
+    const searchDatabase = {
+      searchDocuments: jest.fn()
+    }
     const statusDatabase = {
       getStatus: jest.fn()
     }
@@ -143,6 +152,7 @@ describe('getSQLDatabase', () => {
     mediaMixinMock.mockReturnValue(mediaDatabase)
     notificationMixinMock.mockReturnValue(notificationDatabase)
     oauthMixinMock.mockReturnValue(oauthDatabase)
+    searchMixinMock.mockReturnValue(searchDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
     timelineMixinMock.mockReturnValue(timelineDatabase)
 
@@ -161,6 +171,7 @@ describe('getSQLDatabase', () => {
       mediaDatabase,
       notificationDatabase,
       oauthDatabase,
+      searchDatabase,
       statusDatabase,
       timelineDatabase
     }
@@ -186,6 +197,7 @@ describe('getSQLDatabase', () => {
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(notificationMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(oauthMixinMock).toHaveBeenCalledWith(knexDatabase)
+    expect(searchMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
@@ -209,6 +221,7 @@ describe('getSQLDatabase', () => {
       mediaDatabase,
       notificationDatabase,
       oauthDatabase,
+      searchDatabase,
       statusDatabase,
       timelineDatabase
     } = createComposedDatabase()
@@ -227,6 +240,7 @@ describe('getSQLDatabase', () => {
       notificationDatabase.createNotification
     )
     expect(database.getClientFromName).toBe(oauthDatabase.getClientFromName)
+    expect(database.searchDocuments).toBe(searchDatabase.searchDocuments)
     expect(database.getStatus).toBe(statusDatabase.getStatus)
     expect(database.getTimeline).toBe(timelineDatabase.getTimeline)
   })
