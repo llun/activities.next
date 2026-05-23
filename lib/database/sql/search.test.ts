@@ -1608,7 +1608,8 @@ describe('SearchDatabase foundation', () => {
     })
     const database = getSQLDatabase(knexDatabase)
     const actorId = 'https://remote.test/users/alice'
-    const statusId = `${actorId}/statuses/duplicate-hashtag`
+    const firstStatusId = `${actorId}/statuses/duplicate-hashtag-1`
+    const secondStatusId = `${actorId}/statuses/duplicate-hashtag-2`
     const distinctTagQueries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
       if (
@@ -1626,18 +1627,27 @@ describe('SearchDatabase foundation', () => {
         username: 'alice'
       })
       await database.createNote({
-        id: statusId,
-        url: statusId,
+        id: firstStatusId,
+        url: firstStatusId,
         actorId,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
-        text: 'Duplicate hashtag day',
+        text: 'Duplicate hashtag day 1',
         createdAt: 1
+      })
+      await database.createNote({
+        id: secondStatusId,
+        url: secondStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Duplicate hashtag day 2',
+        createdAt: 3
       })
       await knexDatabase('tags').insert([
         {
           id: crypto.randomUUID(),
-          statusId,
+          statusId: firstStatusId,
           type: 'hashtag',
           name: '#Cycling',
           value: 'https://remote.test/tags/cycling',
@@ -1647,7 +1657,7 @@ describe('SearchDatabase foundation', () => {
         },
         {
           id: crypto.randomUUID(),
-          statusId,
+          statusId: secondStatusId,
           type: 'hashtag',
           name: '#Cycling',
           value: 'https://remote.test/tags/cycling',
@@ -1674,11 +1684,35 @@ describe('SearchDatabase foundation', () => {
       ).resolves.toEqual([
         expect.objectContaining({
           name: 'cycling',
-          postCount: 1
+          postCount: 2,
+          lastPostAt: 3
         })
       ])
     } finally {
       knexDatabase.off('query', handleQuery)
+      await database.destroy()
+    }
+  })
+
+  it('chunks hashtag reindex queries below SQLite bind limits', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+
+      await expect(
+        database.indexHashtagSearchDocuments({
+          hashtags: Array.from({ length: 999 }, (_, index) => `tag${index}`)
+        })
+      ).resolves.toBeUndefined()
+    } finally {
       await database.destroy()
     }
   })

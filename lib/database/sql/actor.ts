@@ -73,10 +73,13 @@ const SQLITE_MAX_BINDINGS = 999
 const getClientName = (database: Knex | Knex.Transaction) =>
   String(database.client.config.client)
 
-const getWhereInBatchSize = (database: Knex | Knex.Transaction) => {
+const getWhereInBatchSize = (
+  database: Knex | Knex.Transaction,
+  reservedBindings = 0
+) => {
   if (!getClientName(database).includes('sqlite'))
     return Number.POSITIVE_INFINITY
-  return SQLITE_MAX_BINDINGS
+  return Math.max(1, SQLITE_MAX_BINDINGS - reservedBindings)
 }
 
 const chunkArray = <T>(items: T[], size: number) => {
@@ -93,7 +96,10 @@ const selectHashtagTagsByStatusIds = async (
   statusIds: string[]
 ) => {
   const rows: { name: string; nameNormalized: string | null }[] = []
-  for (const statusIdChunk of chunkArray(statusIds, getWhereInBatchSize(trx))) {
+  for (const statusIdChunk of chunkArray(
+    statusIds,
+    getWhereInBatchSize(trx, 1)
+  )) {
     rows.push(
       ...(await trx('tags')
         .whereIn('statusId', statusIdChunk)

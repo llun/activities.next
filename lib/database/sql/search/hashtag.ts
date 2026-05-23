@@ -41,6 +41,9 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
+const HASHTAG_AGGREGATE_FIXED_BINDINGS =
+  1 + PUBLIC_ACTIVITY_RECIPIENTS.length + 2
+const HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME = 2
 
 export const normalizeHashtagSearchName = (hashtag: string) => {
   const bare = hashtag.trim().replace(/^#+/, '').toLowerCase()
@@ -63,10 +66,10 @@ const getTagUrl = (name: string) => {
 
 const getClientName = (database: Knex) => String(database.client.config.client)
 
-const getWhereInBatchSize = (database: Knex) => {
+const getWhereInBatchSize = (database: Knex, reservedBindings = 0) => {
   if (!getClientName(database).includes('sqlite'))
     return Number.POSITIVE_INFINITY
-  return SQLITE_MAX_BINDINGS
+  return Math.max(1, SQLITE_MAX_BINDINGS - reservedBindings)
 }
 
 const chunkArray = <T>(items: T[], size: number) => {
@@ -85,31 +88,21 @@ const getHashtagSearchAggregates = async (
   if (hashtagNames.length === 0) return []
 
   const requestedNames = new Set(hashtagNames)
-  const normalizedNameSQL =
-    'case when substr(??, 1, 1) = ? then substr(??, 2) else ?? end'
-  const normalizedNameBindings = [
-    'tags.nameNormalized',
-    '#',
-    'tags.nameNormalized',
-    'tags.nameNormalized'
-  ]
   const hashtagBatchSize = Math.max(
     1,
-    Math.floor(getWhereInBatchSize(database) / 2)
+    Math.floor(
+      getWhereInBatchSize(database, HASHTAG_AGGREGATE_FIXED_BINDINGS) /
+        HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME
+    )
   )
-  const aggregates: HashtagSearchAggregate[] = []
+  const aggregateByName = new Map<string, HashtagSearchAggregate>()
 
   for (const hashtagNameChunk of chunkArray(hashtagNames, hashtagBatchSize)) {
     const lookupNames = [
       ...new Set(hashtagNameChunk.flatMap(getHashtagStorageNames))
     ]
     const rows = (await database('tags')
-      .select(
-        database.raw(`${normalizedNameSQL} as ??`, [
-          ...normalizedNameBindings,
-          'name'
-        ])
-      )
+      .select({ name: 'tags.nameNormalized' })
       .countDistinct({ postCount: 'statuses.id' })
       .max({ lastPostAt: 'statuses.createdAt' })
       .innerJoin('statuses', 'statuses.id', 'tags.statusId')
@@ -122,24 +115,34 @@ const getHashtagSearchAggregates = async (
           .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
       })
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-      .groupByRaw(
-        normalizedNameSQL,
-        normalizedNameBindings
-      )) as HashtagSearchAggregateRow[]
+      .groupBy('tags.nameNormalized')) as HashtagSearchAggregateRow[]
 
     for (const row of rows) {
       const name = normalizeHashtagSearchName(row.name)
       if (!requestedNames.has(name)) continue
 
-      aggregates.push({
-        name,
-        postCount: Number(row.postCount ?? 0),
-        lastPostAt: row.lastPostAt ? getCompatibleTime(row.lastPostAt) : null
-      })
+      const existingAggregate = aggregateByName.get(name)
+      const lastPostAt = row.lastPostAt
+        ? getCompatibleTime(row.lastPostAt)
+        : null
+      if (!existingAggregate) {
+        aggregateByName.set(name, {
+          name,
+          postCount: Number(row.postCount ?? 0),
+          lastPostAt
+        })
+        continue
+      }
+
+      existingAggregate.postCount += Number(row.postCount ?? 0)
+      existingAggregate.lastPostAt =
+        existingAggregate.lastPostAt && lastPostAt
+          ? Math.max(existingAggregate.lastPostAt, lastPostAt)
+          : (existingAggregate.lastPostAt ?? lastPostAt)
     }
   }
 
-  return aggregates
+  return [...aggregateByName.values()]
 }
 
 const getSearchDocumentInsertBatchSize = (
@@ -180,7 +183,7 @@ const reindexHashtagSearchDocuments = async (
   if (namesToDelete.length > 0) {
     for (const nameChunk of chunkArray(
       namesToDelete,
-      getWhereInBatchSize(database)
+      getWhereInBatchSize(database, 1)
     )) {
       await database(SEARCH_DOCUMENTS_TABLE)
         .where('entityType', 'hashtag')
