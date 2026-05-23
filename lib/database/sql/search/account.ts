@@ -90,6 +90,17 @@ const applyAccountOrdering = ({
     .orderBy('search_documents.entityId', 'asc')
 }
 
+const upsertActorSearchDocument = async (database: Knex, actor: SQLActor) => {
+  await upsertSearchDocument(database, {
+    entityType: 'account',
+    entityId: actor.id,
+    documentText: getAccountDocumentText(actor),
+    actorId: actor.id,
+    entityCreatedAt: getCompatibleTime(actor.createdAt),
+    discoverable: isDiscoverableAccount(actor)
+  })
+}
+
 export const indexActorSearchDocument = async (
   database: Knex,
   { id }: { id: string }
@@ -100,14 +111,7 @@ export const indexActorSearchDocument = async (
     return
   }
 
-  await upsertSearchDocument(database, {
-    entityType: 'account',
-    entityId: actor.id,
-    documentText: getAccountDocumentText(actor),
-    actorId: actor.id,
-    entityCreatedAt: getCompatibleTime(actor.createdAt),
-    discoverable: isDiscoverableAccount(actor)
-  })
+  await upsertActorSearchDocument(database, actor)
 }
 
 export const searchAccountIds = async (
@@ -161,13 +165,11 @@ export const reindexSearchAccounts = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
-  const query = database<SQLActor>('actors').select('id').orderBy('id', 'asc')
+  const query = database<SQLActor>('actors').select('*').orderBy('id', 'asc')
   if (afterId) query.where('id', '>', afterId)
 
   const rows = await query.limit(limit)
-  for (const row of rows) {
-    await indexActorSearchDocument(database, { id: row.id })
-  }
+  await Promise.all(rows.map((row) => upsertActorSearchDocument(database, row)))
 
   return {
     indexed: rows.length,

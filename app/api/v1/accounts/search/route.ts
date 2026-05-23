@@ -102,8 +102,16 @@ export const GET = traceApiRoute(
           username: query,
           domain: getConfig().host
         })
-        if (actor && !following) {
-          resultIds.push(actor.id)
+        if (actor) {
+          const canIncludeExact =
+            !following ||
+            (await database.isCurrentActorFollowing({
+              currentActorId: context.currentActor.id,
+              followingActorId: actor.id
+            }))
+          if (canIncludeExact) {
+            resultIds.push(actor.id)
+          }
         }
       }
 
@@ -113,7 +121,9 @@ export const GET = traceApiRoute(
         offset,
         ...(following ? { followingActorId: context.currentActor.id } : {})
       })
-      const ids = [...new Set([...resultIds, ...indexedIds])].slice(0, limit)
+      const ids = [
+        ...new Set([...(offset === 0 ? resultIds : []), ...indexedIds])
+      ].slice(0, limit)
       const results = await database.getMastodonActorsFromIds({ ids })
 
       return apiResponse({

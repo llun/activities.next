@@ -81,6 +81,7 @@ describe('GET /api/v1/accounts/search', () => {
       'https://remote.test/users/alice',
       'https://remote.test/users/bob'
     ])
+    mockIsCurrentActorFollowing.mockResolvedValue(false)
     mockGetMastodonActorsFromIds.mockImplementation(({ ids }) =>
       Promise.resolve(ids.map((id: string) => ({ id, username: id })))
     )
@@ -127,6 +128,50 @@ describe('GET /api/v1/accounts/search', () => {
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: [resolvedActor.id, 'https://remote.test/users/alice']
+    })
+  })
+
+  it('includes followed local exact matches when following is true', async () => {
+    const localActor = { id: 'https://llun.test/users/local-runner' }
+    mockGetActorFromUsername.mockResolvedValue(localActor)
+    mockIsCurrentActorFollowing.mockResolvedValue(true)
+    mockSearchAccountIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=local-runner&following=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockIsCurrentActorFollowing).toHaveBeenCalledWith({
+      currentActorId: oauthActor.id,
+      followingActorId: localActor.id
+    })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: [localActor.id]
+    })
+  })
+
+  it('does not prepend exact matches after the first page', async () => {
+    const resolvedActor = { id: 'https://remote.test/users/charlie' }
+    mockGetWebfingerSelf.mockResolvedValue(resolvedActor.id)
+    mockRecordActorIfNeeded.mockResolvedValue(resolvedActor)
+    mockSearchAccountIds.mockResolvedValue(['https://remote.test/users/alice'])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=@charlie@remote.test&resolve=true&offset=1',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: ['https://remote.test/users/alice']
     })
   })
 })
