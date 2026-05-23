@@ -16,13 +16,14 @@ import {
   applySearchDocumentFilter,
   applySearchDocumentOrdering,
   deleteSearchDocument,
+  getSearchDocumentId,
   normalizeSearchText,
-  toSearchDocument,
-  upsertSearchDocument
+  toSearchDocument
 } from './documents'
 
 type SQLSearchDocumentRow = Parameters<typeof toSearchDocument>[0]
 type HashtagSearchAggregate = {
+  nameNormalized: string
   postCount: number | string
   lastPostAt: number | Date | null
 }
@@ -41,42 +42,99 @@ const getTagUrl = (name: string) => {
   return `${baseURL}/tags/${encodeURIComponent(name)}`
 }
 
-export const indexHashtagSearchDocument = async (
+const getHashtagSearchAggregates = async (
   database: Knex,
-  { hashtag }: { hashtag: string }
-): Promise<void> => {
-  const name = getHashtagEntityId(hashtag)
-  if (!name) return
+  normalizedTagNames: string[]
+) => {
+  if (normalizedTagNames.length === 0) return []
 
-  const normalizedTagName = `#${name}`
-  const aggregate = await database('tags')
+  return database('tags')
+    .select<{ nameNormalized: string }[]>('tags.nameNormalized')
     .innerJoin('statuses', 'statuses.id', 'tags.statusId')
     .innerJoin('recipients', 'recipients.statusId', 'statuses.id')
     .where('tags.type', 'hashtag')
-    .where('tags.nameNormalized', normalizedTagName)
+    .whereIn('tags.nameNormalized', normalizedTagNames)
     .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
     .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
     .countDistinct('statuses.id as postCount')
     .max('statuses.createdAt as lastPostAt')
-    .first<HashtagSearchAggregate>()
+    .groupBy('tags.nameNormalized') as Promise<HashtagSearchAggregate[]>
+}
 
-  const postCount = Number(aggregate?.postCount ?? 0)
-  if (postCount === 0) {
-    await deleteHashtagSearchDocument(database, { hashtag: name })
+const reindexHashtagSearchDocuments = async (
+  database: Knex,
+  hashtags: string[]
+) => {
+  const normalizedTagNames = [
+    ...new Set(
+      hashtags
+        .map((hashtag) => getHashtagEntityId(hashtag))
+        .filter((name) => name.length > 0)
+        .map((name) => `#${name}`)
+    )
+  ]
+  if (normalizedTagNames.length === 0) return
+
+  const aggregates = await getHashtagSearchAggregates(
+    database,
+    normalizedTagNames
+  )
+  const aggregateByName = new Map(
+    aggregates.map((aggregate) => [aggregate.nameNormalized, aggregate])
+  )
+  const namesToDelete = normalizedTagNames
+    .filter((name) => Number(aggregateByName.get(name)?.postCount ?? 0) === 0)
+    .map((name) => normalizeHashtagSearchName(name))
+
+  if (namesToDelete.length > 0) {
+    await database(SEARCH_DOCUMENTS_TABLE)
+      .where('entityType', 'hashtag')
+      .whereIn('entityId', namesToDelete)
+      .delete()
+  }
+
+  const currentTime = new Date()
+  const rows = aggregates
+    .filter((aggregate) => Number(aggregate.postCount ?? 0) > 0)
+    .map((aggregate) => {
+      const name = normalizeHashtagSearchName(aggregate.nameNormalized)
+      const lastPostAt = aggregate.lastPostAt
+        ? new Date(getCompatibleTime(aggregate.lastPostAt))
+        : null
+      return {
+        id: getSearchDocumentId({
+          entityType: 'hashtag',
+          entityId: name
+        }),
+        entityType: 'hashtag',
+        entityId: name,
+        documentText: normalizeSearchText(`${name} #${name}`),
+        actorId: null,
+        visibility: null,
+        entityCreatedAt: null,
+        discoverable: null,
+        postCount: Number(aggregate.postCount ?? 0),
+        lastPostAt,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      }
+    })
+
+  if (rows.length === 0) {
     return
   }
 
-  const lastPostAt = aggregate?.lastPostAt
-    ? getCompatibleTime(aggregate.lastPostAt)
-    : null
+  await database(SEARCH_DOCUMENTS_TABLE)
+    .insert(rows)
+    .onConflict(['entityType', 'entityId'])
+    .merge(['documentText', 'postCount', 'lastPostAt', 'updatedAt'])
+}
 
-  await upsertSearchDocument(database, {
-    entityType: 'hashtag',
-    entityId: name,
-    documentText: normalizeSearchText(`${name} #${name}`),
-    postCount,
-    lastPostAt
-  })
+export const indexHashtagSearchDocument = async (
+  database: Knex,
+  { hashtag }: { hashtag: string }
+): Promise<void> => {
+  await reindexHashtagSearchDocuments(database, [hashtag])
 }
 
 export const deleteHashtagSearchDocument = async (
@@ -127,9 +185,10 @@ export const reindexSearchHashtags = async (
   if (afterId) query.where('nameNormalized', '>', `#${afterId}`)
 
   const rows = await query.limit(limit)
-  for (const row of rows) {
-    await indexHashtagSearchDocument(database, { hashtag: row.nameNormalized })
-  }
+  await reindexHashtagSearchDocuments(
+    database,
+    rows.map((row) => row.nameNormalized)
+  )
 
   return {
     indexed: rows.length,
