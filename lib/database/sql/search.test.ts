@@ -165,15 +165,25 @@ describe('SearchDatabase foundation', () => {
         actorId: 'https://remote.test/users/unfollowed-runner',
         visibility: 'private'
       })
-      await database.createActor({
-        actorId: 'https://remote.test/users/followed-runner',
+      await knexDatabase('actors').insert({
+        id: 'https://remote.test/users/followed-runner',
+        type: 'Person',
         username: 'followed-runner',
         domain: 'remote.test',
-        followersUrl: 'https://remote.test/users/followed-runner/followers',
-        inboxUrl: 'https://remote.test/users/followed-runner/inbox',
-        sharedInboxUrl: 'https://remote.test/inbox',
+        name: null,
+        summary: null,
+        accountId: null,
+        settings: JSON.stringify({
+          followersUrl: 'https://remote.test/users/followed-runner/followers',
+          inboxUrl: 'https://remote.test/users/followed-runner/inbox',
+          sharedInboxUrl: 'https://remote.test/inbox'
+        }),
         publicKey: 'public-key',
-        createdAt: 1
+        privateKey: null,
+        deletionStatus: null,
+        deletionScheduledAt: null,
+        createdAt: new Date(1),
+        updatedAt: new Date(1)
       })
       await knexDatabase('recipients').insert([
         {
