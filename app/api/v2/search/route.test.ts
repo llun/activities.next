@@ -217,6 +217,7 @@ describe('GET /api/v2/search', () => {
   })
 
   it('prepends a resolved readable status URL before indexed results', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/resolved'
     const resolvedStatus = {
       id: 'https://remote.test/users/alice/statuses/resolved',
       actorId: 'https://remote.test/users/alice'
@@ -229,7 +230,7 @@ describe('GET /api/v2/search', () => {
 
     const response = await GET(
       new NextRequest(
-        `https://llun.test/api/v2/search?q=${encodeURIComponent(resolvedStatus.id)}&type=statuses&resolve=true`,
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true`,
         { headers: { Authorization: 'Bearer read-search-token' } }
       ),
       context
@@ -242,10 +243,115 @@ describe('GET /api/v2/search', () => {
       currentActor: oauthActor
     })
     expect(mockGetStatusesByIds).toHaveBeenCalledWith({
-      statusIds: [
-        resolvedStatus.id,
-        'https://remote.test/users/alice/statuses/indexed'
+      statusIds: ['https://remote.test/users/alice/statuses/indexed'],
+      currentActorId: oauthActor.id,
+      visibleToActorId: oauthActor.id
+    })
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+      expect.any(Object),
+      [
+        resolvedStatus,
+        {
+          id: 'https://remote.test/users/alice/statuses/indexed',
+          actorId: 'https://remote.test/users/alice'
+        }
       ],
+      oauthActor.id
+    )
+  })
+
+  it('resolves account URLs only on the first page and preserves hydration order', async () => {
+    const accountUrl = 'http://remote.test/users/resolved'
+    mockGetActorFromId.mockImplementation(({ id }) =>
+      Promise.resolve(
+        id === oauthActor.id
+          ? oauthActor
+          : id === accountUrl
+            ? { id: 'https://remote.test/users/resolved' }
+            : null
+      )
+    )
+    mockSearchAccountIds.mockResolvedValue([
+      'https://remote.test/users/indexed'
+    ])
+    mockGetMastodonActorsFromIds.mockResolvedValue([
+      {
+        id: 'https://remote.test/users/indexed',
+        url: 'https://remote.test/@indexed',
+        username: 'indexed'
+      },
+      {
+        id: 'https://remote.test/users/resolved',
+        url: accountUrl,
+        username: 'resolved'
+      }
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: [
+        'https://remote.test/users/resolved',
+        'https://remote.test/users/indexed'
+      ]
+    })
+    expect(data.accounts).toEqual([
+      {
+        id: 'https://remote.test/users/resolved',
+        url: accountUrl,
+        username: 'resolved'
+      },
+      {
+        id: 'https://remote.test/users/indexed',
+        url: 'https://remote.test/@indexed',
+        username: 'indexed'
+      }
+    ])
+  })
+
+  it('does not resolve account URLs after the first page', async () => {
+    const accountUrl = 'http://remote.test/users/resolved'
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=true&offset=1`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromId).toHaveBeenCalledTimes(1)
+    expect(mockGetActorFromId).toHaveBeenCalledWith({ id: oauthActor.id })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: ['https://remote.test/users/alice']
+    })
+  })
+
+  it('does not resolve status URLs after the first page', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/resolved'
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true&offset=1`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetStatus).not.toHaveBeenCalled()
+    expect(mockGetStatusFromUrl).not.toHaveBeenCalled()
+    expect(mockGetStatusesByIds).toHaveBeenCalledWith({
+      statusIds: ['https://remote.test/users/alice/statuses/1'],
       currentActorId: oauthActor.id,
       visibleToActorId: oauthActor.id
     })

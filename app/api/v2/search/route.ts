@@ -11,6 +11,7 @@ import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
+import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -73,9 +74,10 @@ const getQueryParams = (req: NextRequest) => {
   return queryParams
 }
 
-const isHttpsUrl = (value: string) => {
+const isUrl = (value: string) => {
   try {
-    return new URL(value).protocol === 'https:'
+    const protocol = new URL(value).protocol
+    return protocol === 'https:' || protocol === 'http:'
   } catch {
     return false
   }
@@ -89,6 +91,29 @@ const normalizeUrlId = (value?: string | null) => {
 
 const dedupeStrings = (values: string[]) => [...new Set(values)]
 
+const normalizeLookupId = (value?: string | null) => normalizeUrlId(value) ?? ''
+
+const orderAccountsByIds = ({
+  accounts,
+  ids
+}: {
+  accounts: MastodonAccount[]
+  ids: string[]
+}) => {
+  const accountsByLookupId = new Map<string, MastodonAccount>()
+
+  for (const account of accounts) {
+    for (const key of [account.id, account.url]) {
+      const lookupId = normalizeLookupId(key)
+      if (lookupId) accountsByLookupId.set(lookupId, account)
+    }
+  }
+
+  return ids
+    .map((id) => accountsByLookupId.get(normalizeLookupId(id)))
+    .filter((account): account is MastodonAccount => Boolean(account))
+}
+
 const resolveAccountId = async ({
   database,
   query,
@@ -98,7 +123,7 @@ const resolveAccountId = async ({
   query: string
   resolve: boolean
 }) => {
-  if (!resolve || !isHttpsUrl(query)) return null
+  if (!resolve || !isUrl(query)) return null
 
   const actor = await database.getActorFromId({ id: query })
   return actor?.id ?? null
@@ -115,7 +140,7 @@ const getResolvedStatus = async ({
   query: string
   resolve: boolean
 }) => {
-  if (!resolve || !isHttpsUrl(query)) return null
+  if (!resolve || !isUrl(query)) return null
 
   const status =
     (await database.getStatus({
@@ -148,26 +173,31 @@ const searchAccounts = async ({
   limit: number
   offset: number
 }) => {
-  const resolvedAccountId = await resolveAccountId({
-    database,
-    query,
-    resolve: params.resolve ?? false
-  })
-  const indexedIds = await database.searchAccountIds({
-    q: query,
-    limit,
-    offset,
-    ...(params.following && currentActor
-      ? { followingActorId: currentActor.id }
-      : {})
-  })
+  const [resolvedAccountId, indexedIds] = await Promise.all([
+    offset === 0
+      ? resolveAccountId({
+          database,
+          query,
+          resolve: params.resolve ?? false
+        })
+      : Promise.resolve(null),
+    database.searchAccountIds({
+      q: query,
+      limit,
+      offset,
+      ...(params.following && currentActor
+        ? { followingActorId: currentActor.id }
+        : {})
+    })
+  ])
   const ids = dedupeStrings(
     [resolvedAccountId, ...indexedIds].filter(
       (id): id is string => typeof id === 'string'
     )
   ).slice(0, limit)
 
-  return database.getMastodonActorsFromIds({ ids })
+  const accounts = await database.getMastodonActorsFromIds({ ids })
+  return orderAccountsByIds({ accounts, ids })
 }
 
 const searchHashtags = async ({
@@ -209,12 +239,14 @@ const searchStatuses = async ({
   offset: number
 }) => {
   const [resolvedStatus, indexedIds] = await Promise.all([
-    getResolvedStatus({
-      database,
-      currentActor,
-      query,
-      resolve: params.resolve ?? false
-    }),
+    offset === 0
+      ? getResolvedStatus({
+          database,
+          currentActor,
+          query,
+          resolve: params.resolve ?? false
+        })
+      : Promise.resolve(null),
     database.searchStatusIds({
       q: query,
       limit,
@@ -226,17 +258,24 @@ const searchStatuses = async ({
     })
   ])
 
+  const resolvedStatusId = normalizeLookupId(resolvedStatus?.id)
   const ids = dedupeStrings(
-    [resolvedStatus?.id, ...indexedIds].filter(
-      (id): id is string => typeof id === 'string'
-    )
-  ).slice(0, limit)
+    indexedIds.filter((id): id is string => typeof id === 'string')
+  )
+    .filter((id) => normalizeLookupId(id) !== resolvedStatusId)
+    .slice(0, resolvedStatus ? limit - 1 : limit)
   const statuses = await database.getStatusesByIds({
     statusIds: ids,
     currentActorId: currentActor.id,
     visibleToActorId: currentActor.id
   })
-  return getMastodonStatuses(database, statuses as Status[], currentActor.id)
+  return getMastodonStatuses(
+    database,
+    [resolvedStatus, ...(statuses as Status[])].filter(
+      (status): status is Status => Boolean(status)
+    ),
+    currentActor.id
+  )
 }
 
 const requiresAuthentication = ({
