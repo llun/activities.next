@@ -1567,4 +1567,186 @@ describe('SearchDatabase foundation', () => {
       await database.destroy()
     }
   })
+
+  it('rebuilds hashtag search aggregates from legacy bare normalized tag names', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/legacy-hashtag`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Legacy hashtag day',
+        createdAt: 1
+      })
+      await knexDatabase('tags').insert({
+        id: crypto.randomUUID(),
+        statusId,
+        type: 'hashtag',
+        name: '#Legacy',
+        value: 'https://remote.test/tags/legacy',
+        nameNormalized: 'legacy',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+
+      await expect(
+        database.reindexSearchHashtags({
+          limit: 10
+        })
+      ).resolves.toEqual({ indexed: 1, nextCursor: null })
+      await expect(
+        database.searchHashtags({
+          q: 'legacy',
+          limit: 10
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          name: 'legacy',
+          postCount: 1
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('refreshes hashtag search aggregates after visibility changes', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/visibility-hashtag`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [],
+        cc: [],
+        text: 'Private hashtag day',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#Visibility',
+        value: 'https://remote.test/tags/visibility'
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'visibility',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+
+      await database.updateNoteVisibility({
+        statusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await expect(
+        database.searchHashtags({
+          q: 'visibility',
+          limit: 10
+        })
+      ).resolves.toHaveLength(1)
+
+      await database.updateNoteVisibility({
+        statusId,
+        to: [],
+        cc: []
+      })
+      await expect(
+        database.searchHashtags({
+          q: 'visibility',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('refreshes hashtag search aggregates when deleting actor data', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/actor-delete-hashtag`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Actor deletion hashtag day',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#Cleanup',
+        value: 'https://remote.test/tags/cleanup'
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'cleanup',
+          limit: 10
+        })
+      ).resolves.toHaveLength(1)
+
+      await database.deleteActorData({ actorId })
+
+      await expect(
+        database.searchHashtags({
+          q: 'cleanup',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
 })

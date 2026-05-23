@@ -3,7 +3,8 @@ import { Knex } from 'knex'
 import { getConfig } from '@/lib/config'
 import {
   deleteActorSearchDocument,
-  indexActorSearchDocument
+  indexActorSearchDocument,
+  indexHashtagSearchDocuments
 } from '@/lib/database/sql/search'
 import {
   CounterKey,
@@ -1269,6 +1270,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       }
 
       if (statusIds.length > 0) {
+        const hashtagTags = await trx('tags')
+          .whereIn('statusId', statusIds)
+          .where('type', 'hashtag')
+          .select<
+            { name: string; nameNormalized: string | null }[]
+          >('name', 'nameNormalized')
+        const affectedHashtags = [
+          ...new Set(hashtagTags.map((tag) => tag.nameNormalized ?? tag.name))
+        ]
+
         // Get poll choice IDs before deleting them
         const pollChoices = await trx('poll_choices')
           .whereIn('statusId', statusIds)
@@ -1288,6 +1299,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           await trx('poll_answers').whereIn('answerId', choiceIds).delete()
         }
         await trx('poll_choices').whereIn('statusId', statusIds).delete()
+        if (affectedHashtags.length > 0) {
+          await indexHashtagSearchDocuments(trx, {
+            hashtags: affectedHashtags
+          })
+        }
       }
 
       // Delete timeline entries for this actor

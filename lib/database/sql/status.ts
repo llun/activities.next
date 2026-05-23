@@ -747,6 +747,9 @@ export const StatusSQLDatabaseMixin = (
     if (!status) return null
     if (status.type !== StatusType.enum.Note) return null
 
+    const affectedHashtags = status.tags
+      .filter((tag) => tag.type === 'hashtag')
+      .map((tag) => tag.name)
     const currentTime = new Date()
     await database.transaction(async (trx) => {
       await trx('recipients').where('statusId', status.id).delete()
@@ -776,6 +779,11 @@ export const StatusSQLDatabaseMixin = (
         )
       )
     })
+    if (affectedHashtags.length > 0) {
+      await indexHashtagSearchDocuments(database, {
+        hashtags: affectedHashtags
+      })
+    }
     return getStatus({ statusId })
   }
 
@@ -1652,11 +1660,9 @@ export const StatusSQLDatabaseMixin = (
     )
   }
 
-  // Normalise a caller-supplied hashtag value to the form stored in
-  // tags.nameNormalized: strip any leading '#' then re-add exactly one.
-  function normalizeHashtagName(hashtag: string): string {
-    const bare = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
-    return `#${bare.toLowerCase()}`
+  function getHashtagLookupNames(hashtag: string): string[] {
+    const bare = normalizeHashtagSearchName(hashtag)
+    return bare ? [bare, `#${bare}`] : []
   }
 
   async function getStatusesByHashtag({
@@ -1664,12 +1670,12 @@ export const StatusSQLDatabaseMixin = (
     limit = PER_PAGE_LIMIT,
     maxStatusId
   }: GetStatusesByHashtagParams): Promise<Status[]> {
-    const normalizedName = normalizeHashtagName(hashtag)
+    const normalizedNames = getHashtagLookupNames(hashtag)
     let query = database('tags')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
       .where('tags.type', 'hashtag')
-      .where('tags.nameNormalized', normalizedName)
+      .whereIn('tags.nameNormalized', normalizedNames)
       .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .select('statuses.id', 'statuses.createdAt')
@@ -1716,13 +1722,13 @@ export const StatusSQLDatabaseMixin = (
     limit,
     offset
   }: GetHashtagStatusesPageParams) {
-    const normalizedName = normalizeHashtagName(hashtag)
+    const normalizedNames = getHashtagLookupNames(hashtag)
     const baseQuery = () =>
       database('tags')
         .innerJoin('statuses', 'tags.statusId', 'statuses.id')
         .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
         .where('tags.type', 'hashtag')
-        .where('tags.nameNormalized', normalizedName)
+        .whereIn('tags.nameNormalized', normalizedNames)
         .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
         .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
 
