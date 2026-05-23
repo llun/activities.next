@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 import { getConfig } from '@/lib/config'
 import {
   deleteActorSearchDocument,
+  deleteStatusSearchDocument,
   indexActorSearchDocument,
   indexHashtagSearchDocuments,
   normalizeHashtagSearchName
@@ -1364,6 +1365,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Delete statuses
       await trx('statuses').where('actorId', actorId).delete()
+      await Promise.all(
+        statusIds.map((statusId) =>
+          deleteStatusSearchDocument(trx, { statusId })
+        )
+      )
 
       // Delete follows (both directions)
       await trx('follows').where('actorId', actorId).delete()

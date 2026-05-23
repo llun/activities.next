@@ -1864,6 +1864,200 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('indexes status text, strips HTML, and updates status search documents on edits', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/status-search-update`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: '<p>Original <strong>trailblazer</strong></p>',
+        createdAt: 1
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'trailblazer',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([statusId])
+
+      await database.updateNote({
+        statusId,
+        text: '<p>Edited summitmarker</p>',
+        summary: ''
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'trailblazer',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchStatusIds({
+          q: 'summitmarker',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([statusId])
+
+      await database.deleteStatus({ statusId })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'summitmarker',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('requires status search matches to be interacted-with or owned', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const viewerId = 'https://remote.test/users/viewer'
+    const authorId = 'https://remote.test/users/author'
+    const statusId = `${authorId}/statuses/public-search`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: viewerId,
+        username: 'viewer'
+      })
+      await createSearchActor(database, {
+        id: authorId,
+        username: 'author'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: authorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public but not broadly searchable keyworddelta',
+        createdAt: 1
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'keyworddelta',
+          limit: 10,
+          currentActorId: viewerId
+        })
+      ).resolves.toEqual([])
+
+      await database.createLike({
+        actorId: viewerId,
+        statusId
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'keyworddelta',
+          limit: 10,
+          currentActorId: viewerId
+        })
+      ).resolves.toEqual([statusId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('returns mentioned statuses and filters blocked authors', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const viewerId = 'https://remote.test/users/viewer'
+    const authorId = 'https://remote.test/users/author'
+    const statusId = `${authorId}/statuses/mention-search`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: viewerId,
+        username: 'viewer'
+      })
+      await createSearchActor(database, {
+        id: authorId,
+        username: 'author'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: authorId,
+        to: [viewerId],
+        cc: [],
+        text: 'Direct mention searchword',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'mention',
+        name: '@viewer',
+        value: 'https://remote.test/@viewer'
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'searchword',
+          limit: 10,
+          currentActorId: viewerId
+        })
+      ).resolves.toEqual([statusId])
+
+      await database.createBlock({
+        actorId: viewerId,
+        targetActorId: authorId,
+        uri: `${viewerId}#blocks/${encodeURIComponent(authorId)}`
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'searchword',
+          limit: 10,
+          currentActorId: viewerId
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('rebuilds hashtag search aggregates from legacy bare normalized tag names', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

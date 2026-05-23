@@ -79,8 +79,10 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
 import {
+  deleteStatusSearchDocument,
   indexHashtagSearchDocument,
   indexHashtagSearchDocuments,
+  indexStatusSearchDocument,
   normalizeHashtagSearchName
 } from './search'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
@@ -644,6 +646,8 @@ export const StatusSQLDatabaseMixin = (
       )
     })
 
+    await indexStatusSearchDocument(database, { statusId: id })
+
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusNote.parse({
       id,
@@ -762,6 +766,7 @@ export const StatusSQLDatabaseMixin = (
         )
       }
     })
+    await indexStatusSearchDocument(database, { statusId })
     return getStatus({ statusId })
   }
 
@@ -811,6 +816,7 @@ export const StatusSQLDatabaseMixin = (
         hashtags: affectedHashtags
       })
     }
+    await indexStatusSearchDocument(database, { statusId })
     return getStatus({ statusId })
   }
 
@@ -990,6 +996,8 @@ export const StatusSQLDatabaseMixin = (
       )
     })
 
+    await indexStatusSearchDocument(database, { statusId: id })
+
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusPoll.parse({
       id,
@@ -1073,6 +1081,7 @@ export const StatusSQLDatabaseMixin = (
           })
       }
     })
+    await indexStatusSearchDocument(database, { statusId })
     return getStatus({ statusId })
   }
 
@@ -1861,6 +1870,16 @@ export const StatusSQLDatabaseMixin = (
       statuses: statusesToDelete,
       trx
     })
+    for (const statusIdChunk of chunkArray(
+      statusIdsToDelete,
+      getWhereInBatchSize(trx)
+    )) {
+      await Promise.all(
+        statusIdChunk.map((statusId) =>
+          deleteStatusSearchDocument(trx, { statusId })
+        )
+      )
+    }
     await deleteCounterValues(
       trx,
       statusIdsToDelete.flatMap((statusId) => [
