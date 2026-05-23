@@ -37,7 +37,7 @@ const SearchParams = z.object({
 export const GET = traceApiRoute(
   'searchAccounts',
   OAuthGuardAnyScope(
-    [Scope.enum.read, Scope.enum['read:accounts']],
+    [Scope.enum.read, Scope.enum['read:accounts'], Scope.enum['read:search']],
     async (req, context) => {
       const { database } = context
 

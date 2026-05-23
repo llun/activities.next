@@ -60,6 +60,43 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('preserves zero-valued search document timestamps', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+      await database.upsertSearchDocument({
+        entityType: 'hashtag',
+        entityId: 'epoch',
+        documentText: 'epoch runner',
+        entityCreatedAt: 0,
+        lastPostAt: 0
+      })
+
+      await expect(
+        database.searchDocuments({
+          entityType: 'hashtag',
+          q: 'runner',
+          limit: 10
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          entityCreatedAt: 0,
+          lastPostAt: 0
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('filters generic search documents by discoverability and status visibility', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
@@ -268,6 +305,60 @@ describe('SearchDatabase foundation', () => {
       )
     } finally {
       await mysqlDatabase.destroy()
+    }
+  })
+
+  it('uses the InnoDB MySQL full-text minimum when it differs from MyISAM', async () => {
+    const mysqlDatabase = knex({ client: 'mysql2' })
+    const raw = jest.fn().mockResolvedValue([
+      [
+        {
+          innodbFtMinTokenSize: 3,
+          ftMinWordLen: 4
+        }
+      ]
+    ])
+    const mysqlConfigDatabase = {
+      client: mysqlDatabase.client,
+      raw
+    } as unknown as typeof mysqlDatabase
+
+    try {
+      const query = mysqlDatabase('search_documents').select('*')
+      await applySearchDocumentFilter({
+        database: mysqlConfigDatabase,
+        query,
+        q: 'run trail'
+      })
+
+      const sql = query.toSQL()
+      expect(sql.sql).toContain('MATCH(`search_documents`.`documentText`)')
+      expect(sql.sql).not.toContain(
+        'LOWER(`search_documents`.`documentText`) LIKE'
+      )
+      expect(sql.bindings).toEqual(['+run* +trail*'])
+    } finally {
+      await mysqlDatabase.destroy()
+    }
+  })
+
+  it('qualifies the PostgreSQL full-text document column', async () => {
+    const postgresDatabase = knex({ client: 'pg' })
+
+    try {
+      const query = postgresDatabase('search_documents').select('*')
+      await applySearchDocumentFilter({
+        database: postgresDatabase,
+        query,
+        q: 'trail'
+      })
+
+      const sql = query.toSQL()
+      expect(sql.sql).toContain(
+        `to_tsvector('simple', "search_documents"."documentText")`
+      )
+    } finally {
+      await postgresDatabase.destroy()
     }
   })
 

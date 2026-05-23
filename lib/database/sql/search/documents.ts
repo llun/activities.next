@@ -97,11 +97,10 @@ const getMySQLFullTextMinTokenSize = async (database: Knex) => {
       const innodbMinTokenSize = parseFullTextMinTokenSize(
         row.innodbFtMinTokenSize
       )
-      const myisamMinTokenSize = parseFullTextMinTokenSize(row.ftMinWordLen)
-
-      return Math.max(
-        innodbMinTokenSize ?? DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE,
-        myisamMinTokenSize ?? DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE
+      return (
+        innodbMinTokenSize ??
+        parseFullTextMinTokenSize(row.ftMinWordLen) ??
+        DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE
       )
     })
     .catch(() => DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE)
@@ -154,7 +153,7 @@ export const applySearchDocumentFilter = async ({
   if (isPostgres(database)) {
     const tsQuery = tokens.map((token) => `${token}:*`).join(' & ')
     query.whereRaw(`to_tsvector('simple', ??) @@ to_tsquery('simple', ?)`, [
-      'documentText',
+      'search_documents.documentText',
       tsQuery
     ])
     return
@@ -335,10 +334,14 @@ export const toSearchDocument = (row: SQLSearchDocument): SearchDocument => ({
     row.discoverable === null || row.discoverable === undefined
       ? null
       : Boolean(row.discoverable),
-  entityCreatedAt: row.entityCreatedAt
-    ? getCompatibleTime(row.entityCreatedAt)
-    : null,
-  lastPostAt: row.lastPostAt ? getCompatibleTime(row.lastPostAt) : null,
+  entityCreatedAt:
+    row.entityCreatedAt !== null && row.entityCreatedAt !== undefined
+      ? getCompatibleTime(row.entityCreatedAt)
+      : null,
+  lastPostAt:
+    row.lastPostAt !== null && row.lastPostAt !== undefined
+      ? getCompatibleTime(row.lastPostAt)
+      : null,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -355,12 +358,16 @@ export const upsertSearchDocument = async (
     documentText: normalizeSearchText(params.documentText),
     actorId: params.actorId ?? null,
     visibility: params.visibility ?? null,
-    entityCreatedAt: params.entityCreatedAt
-      ? new Date(params.entityCreatedAt)
-      : null,
+    entityCreatedAt:
+      params.entityCreatedAt !== null && params.entityCreatedAt !== undefined
+        ? new Date(params.entityCreatedAt)
+        : null,
     discoverable: params.discoverable ?? null,
     postCount: params.postCount ?? null,
-    lastPostAt: params.lastPostAt ? new Date(params.lastPostAt) : null,
+    lastPostAt:
+      params.lastPostAt !== null && params.lastPostAt !== undefined
+        ? new Date(params.lastPostAt)
+        : null,
     createdAt: currentTime,
     updatedAt: currentTime
   }
