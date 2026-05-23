@@ -137,6 +137,13 @@ export const indexHashtagSearchDocument = async (
   await reindexHashtagSearchDocuments(database, [hashtag])
 }
 
+export const indexHashtagSearchDocuments = async (
+  database: Knex,
+  { hashtags }: { hashtags: string[] }
+): Promise<void> => {
+  await reindexHashtagSearchDocuments(database, hashtags)
+}
+
 export const deleteHashtagSearchDocument = async (
   database: Knex,
   { hashtag }: { hashtag: string }

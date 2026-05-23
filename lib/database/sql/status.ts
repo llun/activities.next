@@ -68,6 +68,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import {
   indexHashtagSearchDocument,
+  indexHashtagSearchDocuments,
   normalizeHashtagSearchName
 } from './search'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
@@ -1443,11 +1444,9 @@ export const StatusSQLDatabaseMixin = (
       trx('poll_choices').where('statusId', statusId).delete(),
       trx('timelines').where('statusId', statusId).delete()
     ])
-    await Promise.all(
-      hashtagTags.map((tag: { name: string }) =>
-        indexHashtagSearchDocument(trx, { hashtag: tag.name })
-      )
-    )
+    await indexHashtagSearchDocuments(trx, {
+      hashtags: hashtagTags.map((tag: { name: string }) => tag.name)
+    })
   }
 
   async function getFavouritedBy({

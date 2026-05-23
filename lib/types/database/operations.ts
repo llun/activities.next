@@ -711,6 +711,7 @@ export interface SearchDatabase {
   ): Promise<ReindexSearchDocumentsResult>
   searchHashtags(params: SearchHashtagsParams): Promise<SearchHashtag[]>
   indexHashtagSearchDocument(params: { hashtag: string }): Promise<void>
+  indexHashtagSearchDocuments(params: { hashtags: string[] }): Promise<void>
   deleteHashtagSearchDocument(params: { hashtag: string }): Promise<void>
   reindexSearchHashtags(
     params?: ReindexSearchDocumentsParams
