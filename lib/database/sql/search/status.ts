@@ -30,7 +30,13 @@ type SQLStatusRow = {
   createdAt: number | Date
 }
 
+type StatusCursor = {
+  entityId: string
+  entityCreatedAt: number | Date
+}
+
 const SQLITE_MAX_BINDINGS = 999
+const STATUS_REINDEX_CURSOR_PREFIX = 'status-created-at:'
 
 const getClientName = (database: Knex) => String(database.client.config.client)
 
@@ -51,7 +57,9 @@ const chunkArray = <T>(items: T[], size: number) => {
 
 const getStatusDocumentText = (status: SQLStatusRow) => {
   const content = parseStatusContent(status.content)
-  if (!content || typeof content === 'string') return ''
+  if (!content) return ''
+  if (typeof content === 'string')
+    return normalizeSearchText(htmlToPlainText(content))
 
   const text = typeof content.text === 'string' ? content.text : ''
   const summary = typeof content.summary === 'string' ? content.summary : ''
@@ -59,6 +67,9 @@ const getStatusDocumentText = (status: SQLStatusRow) => {
     [htmlToPlainText(text), htmlToPlainText(summary)].join(' ')
   )
 }
+
+const toDatabaseTimestamp = (value: number | Date) =>
+  new Date(getCompatibleTime(value))
 
 const getStatusVisibilityFromRecipientIds = (recipientIds: string[]) => {
   if (
@@ -241,10 +252,7 @@ const applyCursorFilter = async ({
   const cursorIds = [
     ...new Set([maxId, minId].filter((id): id is string => Boolean(id)))
   ]
-  const cursors = new Map<
-    string,
-    { entityCreatedAt: number | Date; entityId: string }
-  >()
+  const cursors = new Map<string, StatusCursor>()
 
   if (cursorIds.length > 0) {
     const rows = await database(SEARCH_DOCUMENTS_TABLE)
@@ -256,11 +264,26 @@ const applyCursorFilter = async ({
     for (const row of rows) {
       cursors.set(row.entityId, row)
     }
+
+    const missingCursorIds = cursorIds.filter((id) => !cursors.has(id))
+    if (missingCursorIds.length > 0) {
+      const statusRows = await database('statuses')
+        .whereIn('id', missingCursorIds)
+        .select<{ id: string; createdAt: number | Date }[]>('id', 'createdAt')
+      for (const row of statusRows) {
+        cursors.set(row.id, {
+          entityId: row.id,
+          entityCreatedAt: toDatabaseTimestamp(row.createdAt)
+        })
+      }
+    }
   }
 
   if (maxId) {
     const cursor = cursors.get(maxId)
-    if (cursor) {
+    if (!cursor) {
+      query.whereRaw('1 = 0')
+    } else {
       query.where((builder) => {
         builder
           .where(
@@ -279,7 +302,9 @@ const applyCursorFilter = async ({
 
   if (minId) {
     const cursor = cursors.get(minId)
-    if (cursor) {
+    if (!cursor) {
+      query.whereRaw('1 = 0')
+    } else {
       query.where((builder) => {
         builder
           .where(
@@ -403,25 +428,69 @@ const applyStatusReindexCursor = async ({
 }) => {
   if (!afterId) return
 
-  const cursor = await database<SQLStatusRow>('statuses')
-    .where('id', afterId)
-    .first('id', 'createdAt')
+  let cursor = parseStatusReindexCursor(afterId)
 
   if (!cursor) {
-    query.where('id', '>', afterId)
+    cursor =
+      (await database<SQLStatusRow>('statuses')
+        .where('id', afterId)
+        .first('id', 'createdAt')) ?? null
+  }
+
+  if (!cursor) {
+    const searchDocumentCursor = await database(SEARCH_DOCUMENTS_TABLE)
+      .where('entityType', 'status')
+      .where('entityId', afterId)
+      .first<{
+        entityId: string
+        entityCreatedAt: number | Date
+      }>('entityId', 'entityCreatedAt')
+    if (searchDocumentCursor) {
+      cursor = {
+        id: searchDocumentCursor.entityId,
+        createdAt: searchDocumentCursor.entityCreatedAt
+      }
+    }
+  }
+
+  if (!cursor) {
+    query.whereRaw('1 = 0')
     return
   }
 
   query.where((builder) => {
     builder
-      .where('createdAt', '>', cursor.createdAt)
+      .where('createdAt', '>', toDatabaseTimestamp(cursor.createdAt))
       .orWhere((sameTimeBuilder) => {
         sameTimeBuilder
-          .where('createdAt', cursor.createdAt)
+          .where('createdAt', toDatabaseTimestamp(cursor.createdAt))
           .where('id', '>', cursor.id)
       })
   })
 }
+
+const parseStatusReindexCursor = (
+  cursor: string
+): { id: string; createdAt: number | Date } | null => {
+  if (!cursor.startsWith(STATUS_REINDEX_CURSOR_PREFIX)) return null
+
+  const payload = cursor.slice(STATUS_REINDEX_CURSOR_PREFIX.length)
+  const separatorIndex = payload.indexOf(':')
+  if (separatorIndex < 1) return null
+
+  const createdAt = Number(payload.slice(0, separatorIndex))
+  if (!Number.isFinite(createdAt)) return null
+
+  return {
+    createdAt,
+    id: decodeURIComponent(payload.slice(separatorIndex + 1))
+  }
+}
+
+const getStatusReindexCursor = (status: SQLStatusRow) =>
+  `${STATUS_REINDEX_CURSOR_PREFIX}${getCompatibleTime(
+    status.createdAt
+  )}:${encodeURIComponent(status.id)}`
 
 export const searchStatusIds = async (
   database: Knex,
@@ -491,6 +560,9 @@ export const reindexSearchStatuses = async (
 
   return {
     indexed: rows.length,
-    nextCursor: rows.length === limit ? rows[rows.length - 1].id : null
+    nextCursor:
+      rows.length === limit
+        ? getStatusReindexCursor(rows[rows.length - 1])
+        : null
   }
 }

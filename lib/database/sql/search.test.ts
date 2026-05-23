@@ -2031,6 +2031,59 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('indexes legacy raw-string status content', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/raw-string-search`
+    const currentTime = new Date()
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await knexDatabase('statuses').insert({
+        id: statusId,
+        url: statusId,
+        actorId,
+        type: StatusType.enum.Note,
+        content: '<p>Legacy raw string summitlegacy</p>',
+        reply: '',
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      await knexDatabase('recipients').insert({
+        id: crypto.randomUUID(),
+        statusId,
+        actorId: ACTIVITY_STREAM_PUBLIC,
+        type: 'to',
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+
+      await expect(
+        database.reindexSearchStatuses({ limit: 10 })
+      ).resolves.toEqual({ indexed: 1, nextCursor: null })
+      await expect(
+        database.searchStatusIds({
+          q: 'summitlegacy',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([statusId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('uses status creation time for stable reindex pagination', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
@@ -2061,7 +2114,9 @@ describe('SearchDatabase foundation', () => {
       })
 
       const firstPage = await database.reindexSearchStatuses({ limit: 1 })
-      expect(firstPage).toEqual({ indexed: 1, nextCursor: firstStatusId })
+      expect(firstPage.indexed).toBe(1)
+      expect(firstPage.nextCursor).toContain('status-created-at:')
+      expect(firstPage.nextCursor).not.toBe(firstStatusId)
 
       await database.createNote({
         id: secondStatusId,
@@ -2072,6 +2127,7 @@ describe('SearchDatabase foundation', () => {
         text: 'secondcursorword',
         createdAt: 2
       })
+      await database.deleteStatus({ statusId: firstStatusId })
       await database.deleteStatusSearchDocument({ statusId: secondStatusId })
 
       await expect(
@@ -2087,6 +2143,76 @@ describe('SearchDatabase foundation', () => {
           currentActorId: actorId
         })
       ).resolves.toEqual([secondStatusId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('bounds status search pagination when cursor search documents are missing', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const newestStatusId = `${actorId}/statuses/pagination-newest`
+    const cursorStatusId = `${actorId}/statuses/pagination-cursor`
+    const oldestStatusId = `${actorId}/statuses/pagination-oldest`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: oldestStatusId,
+        url: oldestStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'paginationboundword oldest',
+        createdAt: 1
+      })
+      await database.createNote({
+        id: cursorStatusId,
+        url: cursorStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'paginationboundword cursor',
+        createdAt: 2
+      })
+      await database.createNote({
+        id: newestStatusId,
+        url: newestStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'paginationboundword newest',
+        createdAt: 3
+      })
+      await database.deleteStatusSearchDocument({ statusId: cursorStatusId })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'paginationboundword',
+          limit: 10,
+          currentActorId: actorId,
+          maxId: cursorStatusId
+        })
+      ).resolves.toEqual([oldestStatusId])
+      await expect(
+        database.searchStatusIds({
+          q: 'paginationboundword',
+          limit: 10,
+          currentActorId: actorId,
+          maxId: `${actorId}/statuses/missing-cursor`
+        })
+      ).resolves.toEqual([])
     } finally {
       await database.destroy()
     }
