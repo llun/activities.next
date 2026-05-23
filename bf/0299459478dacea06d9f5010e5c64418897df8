@@ -1,0 +1,21 @@
+lib/database/sql/search.test.ts
+  s_555d5c39b84f2a::t_5b9225d453430f 168-177,321-354
+lib/database/sql/search/documents.ts
+  s_555d5c39b84f2a::t_842927388102f9 61,167-174,280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "bf0299459478dacea06d9f5010e5c64418897df8",
+  "prompts": {},
+  "sessions": {
+    "s_555d5c39b84f2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e53aa-9189-7e11-90ee-4e9fbaac8bf1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
