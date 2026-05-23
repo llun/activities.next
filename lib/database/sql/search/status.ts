@@ -1,5 +1,11 @@
 import { Knex } from 'knex'
 
+import {
+  SQLITE_MAX_BINDINGS,
+  chunkArray,
+  getClientName,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import {
@@ -12,6 +18,7 @@ import {
   SearchStatusesParams
 } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import {
@@ -35,25 +42,7 @@ type StatusCursor = {
   entityCreatedAt: number | Date
 }
 
-const SQLITE_MAX_BINDINGS = 999
 const STATUS_REINDEX_CURSOR_PREFIX = 'status-created-at:'
-
-const getClientName = (database: Knex) => String(database.client.config.client)
-
-const getWhereInBatchSize = (database: Knex) => {
-  if (!getClientName(database).includes('sqlite'))
-    return Number.POSITIVE_INFINITY
-  return SQLITE_MAX_BINDINGS
-}
-
-const chunkArray = <T>(items: T[], size: number) => {
-  const chunkSize = Number.isFinite(size) ? size : Math.max(items.length, 1)
-  const chunks: T[][] = []
-  for (let start = 0; start < items.length; start += chunkSize) {
-    chunks.push(items.slice(start, start + chunkSize))
-  }
-  return chunks
-}
 
 const getStatusDocumentText = (status: SQLStatusRow) => {
   const content = parseStatusContent(status.content)
@@ -125,13 +114,13 @@ const getSearchDocumentInsertBatchSize = (
   return Math.max(1, Math.floor(SQLITE_MAX_BINDINGS / columnCount))
 }
 
-const deleteStatusSearchDocumentsByStatusIds = async (
-  database: Knex,
+export const deleteStatusSearchDocumentsByStatusIds = async (
+  database: Knex | Knex.Transaction,
   statusIds: string[]
 ) => {
   for (const statusIdChunk of chunkArray(
     statusIds,
-    getWhereInBatchSize(database)
+    getWhereInBatchSize(database, 1)
   )) {
     await database(SEARCH_DOCUMENTS_TABLE)
       .where('entityType', 'status')
@@ -333,24 +322,33 @@ const getMentionSearchValues = async (
     'currentActorId' | 'currentActorUsername' | 'currentActorDomain'
   >
 ) => {
+  const normalizeMentionValues = (values: string[]) => [
+    ...new Set(
+      values.flatMap((value) => {
+        const normalizedValue = normalizeActorId(value)
+        return normalizedValue ? [value, normalizedValue] : [value]
+      })
+    )
+  ]
+
   if (currentActorUsername && currentActorDomain) {
-    return [
+    return normalizeMentionValues([
       currentActorId,
       `https://${currentActorDomain}/@${currentActorUsername}`,
       `https://${currentActorDomain}/@${currentActorUsername}@${currentActorDomain}`
-    ]
+    ])
   }
 
   const actor = await database('actors')
     .where('id', currentActorId)
     .first<{ username: string; domain: string }>('username', 'domain')
-  if (!actor) return [currentActorId]
+  if (!actor) return normalizeMentionValues([currentActorId])
 
-  return [
+  return normalizeMentionValues([
     currentActorId,
     `https://${actor.domain}/@${actor.username}`,
     `https://${actor.domain}/@${actor.username}@${actor.domain}`
-  ]
+  ])
 }
 
 const applyRestrictiveStatusSearchPolicy = ({

@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 import { getConfig } from '@/lib/config'
 import {
   deleteActorSearchDocument,
+  deleteStatusSearchDocumentsByStatusIds,
   indexActorSearchDocument,
   indexHashtagSearchDocuments,
   normalizeHashtagSearchName
@@ -76,18 +77,6 @@ export interface SQLActorDatabase extends ActorDatabase {
   ) => Actor
   getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
-}
-
-const deleteStatusSearchDocumentsByStatusIds = async (
-  trx: Knex.Transaction,
-  statusIds: string[]
-) => {
-  for (const statusIdChunk of chunkArray(statusIds, getWhereInBatchSize(trx))) {
-    await trx('search_documents')
-      .where('entityType', 'status')
-      .whereIn('entityId', statusIdChunk)
-      .delete()
-  }
 }
 
 const getActorCounterSummary = async (

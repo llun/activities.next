@@ -2373,7 +2373,7 @@ describe('SearchDatabase foundation', () => {
         id: statusId,
         url: statusId,
         actorId: authorId,
-        to: [viewerId],
+        to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         text: 'Direct mention searchword',
         createdAt: 1
@@ -2382,7 +2382,7 @@ describe('SearchDatabase foundation', () => {
         statusId,
         type: 'mention',
         name: '@viewer',
-        value: 'https://remote.test/@viewer'
+        value: viewerId
       })
 
       await expect(
@@ -2390,6 +2390,16 @@ describe('SearchDatabase foundation', () => {
           q: 'searchword',
           limit: 10,
           currentActorId: viewerId,
+          currentActorUsername: 'viewer',
+          currentActorDomain: 'remote.test'
+        })
+      ).resolves.toEqual([statusId])
+
+      await expect(
+        database.searchStatusIds({
+          q: 'searchword',
+          limit: 10,
+          currentActorId: `${viewerId}#main-key`,
           currentActorUsername: 'viewer',
           currentActorDomain: 'remote.test'
         })
