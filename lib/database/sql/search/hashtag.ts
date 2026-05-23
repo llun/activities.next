@@ -43,7 +43,7 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
 ]
 
 export const normalizeHashtagSearchName = (hashtag: string) => {
-  const bare = hashtag.trim().replace(/^#/, '').toLowerCase()
+  const bare = hashtag.trim().replace(/^#+/, '').toLowerCase()
   return bare
 }
 
@@ -113,10 +113,14 @@ const getHashtagSearchAggregates = async (
       .countDistinct({ postCount: 'statuses.id' })
       .max({ lastPostAt: 'statuses.createdAt' })
       .innerJoin('statuses', 'statuses.id', 'tags.statusId')
-      .innerJoin('recipients', 'recipients.statusId', 'statuses.id')
       .where('tags.type', 'hashtag')
       .whereIn('tags.nameNormalized', lookupNames)
-      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+      .whereExists(function () {
+        this.select(database.raw('1'))
+          .from('recipients')
+          .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
+          .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+      })
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .groupByRaw(
         normalizedNameSQL,
@@ -278,42 +282,31 @@ export const reindexSearchHashtags = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
-  const normalizedNameSQL = 'case when ?? like ? then substr(??, 2) else ?? end'
-  const normalizedNameBindings = [
-    'tags.nameNormalized',
-    '#%',
-    'tags.nameNormalized',
-    'tags.nameNormalized'
-  ]
   const query = database('tags')
     .where('type', 'hashtag')
     .whereNotNull('nameNormalized')
-    .distinct<{ normalizedName: string }[]>(
-      database.raw(`${normalizedNameSQL} as ??`, [
-        ...normalizedNameBindings,
-        'normalizedName'
-      ])
-    )
-    .orderBy('normalizedName', 'asc')
+    .distinct<{ normalizedName: string }[]>({
+      normalizedName: 'tags.nameNormalized'
+    })
+    .orderBy('tags.nameNormalized', 'asc')
 
   if (afterId) {
-    query.whereRaw(`${normalizedNameSQL} > ?`, [
-      ...normalizedNameBindings,
-      normalizeHashtagSearchName(afterId)
-    ])
+    query.where('tags.nameNormalized', '>', afterId)
   }
 
   const rows = await query.limit(limit)
-  await reindexHashtagSearchDocuments(
-    database,
-    rows.map((row) => row.normalizedName)
-  )
+  const normalizedNames = [
+    ...new Set(
+      rows
+        .map((row) => normalizeHashtagSearchName(row.normalizedName))
+        .filter((name) => name.length > 0)
+    )
+  ]
+  await reindexHashtagSearchDocuments(database, normalizedNames)
 
   return {
-    indexed: rows.length,
+    indexed: normalizedNames.length,
     nextCursor:
-      rows.length === limit
-        ? normalizeHashtagSearchName(rows[rows.length - 1].normalizedName)
-        : null
+      rows.length === limit ? rows[rows.length - 1].normalizedName : null
   }
 }

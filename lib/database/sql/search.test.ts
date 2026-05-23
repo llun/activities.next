@@ -1,7 +1,10 @@
 import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
-import { getSearchTokens } from '@/lib/database/sql/search'
+import {
+  getSearchTokens,
+  normalizeHashtagSearchName
+} from '@/lib/database/sql/search'
 import {
   applySearchDocumentFilter,
   applySearchDocumentOrdering
@@ -73,42 +76,10 @@ describe('SearchDatabase foundation', () => {
     ])
   })
 
-  it('fails loudly for per-entity search methods that are not implemented yet', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
-
-    try {
-      await expect(
-        database.searchHashtags({ q: 'runner', limit: 10 })
-      ).rejects.toThrow('not implemented: searchHashtags')
-      await expect(
-        database.indexHashtagSearchDocument({ hashtag: 'runner' })
-      ).rejects.toThrow('not implemented: indexHashtagSearchDocument')
-      await expect(database.reindexSearchHashtags()).rejects.toThrow(
-        'not implemented: reindexSearchHashtags'
-      )
-      await expect(
-        database.searchStatusIds({
-          q: 'runner',
-          limit: 10,
-          currentActorId: 'https://remote.test/users/alice'
-        })
-      ).rejects.toThrow('not implemented: searchStatusIds')
-      await expect(
-        database.indexStatusSearchDocument({ statusId: 'status-1' })
-      ).rejects.toThrow('not implemented: indexStatusSearchDocument')
-      await expect(database.reindexSearchStatuses()).rejects.toThrow(
-        'not implemented: reindexSearchStatuses'
-      )
-    } finally {
-      await database.destroy()
-    }
+  it('normalizes hashtag search names with repeated leading hashes', () => {
+    expect(normalizeHashtagSearchName('  ##TrailRunning  ')).toBe(
+      'trailrunning'
+    )
   })
 
   it('creates SQLite FTS search documents and returns full-text matches', async () => {
@@ -1638,6 +1609,15 @@ describe('SearchDatabase foundation', () => {
     const database = getSQLDatabase(knexDatabase)
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/duplicate-hashtag`
+    const distinctTagQueries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      if (
+        sql.toLowerCase().startsWith('select distinct') &&
+        (sql.includes('from `tags`') || sql.includes('from "tags"'))
+      ) {
+        distinctTagQueries.push(sql)
+      }
+    }
 
     try {
       await database.migrate()
@@ -1677,9 +1657,14 @@ describe('SearchDatabase foundation', () => {
         }
       ])
 
+      knexDatabase.on('query', handleQuery)
       await database.reindexSearchHashtags({
         limit: 10
       })
+      knexDatabase.off('query', handleQuery)
+
+      expect(distinctTagQueries).toHaveLength(1)
+      expect(distinctTagQueries[0]).not.toContain('case when')
 
       await expect(
         database.searchHashtags({
@@ -1693,6 +1678,7 @@ describe('SearchDatabase foundation', () => {
         })
       ])
     } finally {
+      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
