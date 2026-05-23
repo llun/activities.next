@@ -166,14 +166,24 @@ const applyFollowingFilter = ({
 
 const getExactAccountIds = async ({
   database,
+  handle,
   exactActorIds,
   followingActorId
 }: {
   database: Knex
+  handle: ReturnType<typeof parseAccountHandle>
   exactActorIds: string[]
   followingActorId?: string | null
 }) => {
-  const normalizedExactActorIds = [...new Set(exactActorIds)]
+  const handleActorRows = handle
+    ? await database('actors')
+        .select<{ id: string }[]>('actors.id')
+        .where('actors.username', handle.username)
+        .where('actors.domain', handle.domain)
+    : []
+  const normalizedExactActorIds = [
+    ...new Set([...exactActorIds, ...handleActorRows.map((row) => row.id)])
+  ]
   if (normalizedExactActorIds.length === 0) return []
 
   const query = database('actors')
@@ -224,7 +234,7 @@ const upsertActorSearchDocuments = async (
   for (const chunk of chunkArray(rows, ACCOUNT_SEARCH_DOCUMENT_BATCH_SIZE)) {
     await database(SEARCH_DOCUMENTS_TABLE)
       .insert(chunk)
-      .onConflict(['entityType', 'entityId'])
+      .onConflict('id')
       .merge(SEARCH_DOCUMENT_MERGE_COLUMNS)
   }
 }
@@ -259,6 +269,7 @@ export const searchAccountIds = async (
   const normalizedExactActorIds = [...new Set(exactActorIds)]
   const exactResultIds = await getExactAccountIds({
     database,
+    handle,
     exactActorIds: normalizedExactActorIds,
     followingActorId
   })
@@ -281,22 +292,9 @@ export const searchAccountIds = async (
     query.whereNotIn('search_documents.entityId', exactResultIds)
   }
 
-  query.where((builder) => {
-    builder.where('search_documents.discoverable', true)
-    if (handle) {
-      builder.orWhere((exactBuilder) => {
-        exactBuilder
-          .whereRaw('LOWER(??) = ?', [
-            'actors.username',
-            handle.username.toLowerCase()
-          ])
-          .whereRaw('LOWER(??) = ?', ['actors.domain', handle.domain])
-      })
-    }
-    if (normalizedExactActorIds.length > 0) {
-      builder.orWhereIn('search_documents.entityId', normalizedExactActorIds)
-    }
-  })
+  if (!followingActorId) {
+    query.where('search_documents.discoverable', true)
+  }
 
   applyFollowingFilter({ database, query, followingActorId })
 

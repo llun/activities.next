@@ -7,6 +7,7 @@ import {
   applySearchDocumentOrdering
 } from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { getLocalActorId } from '@/lib/utils/activitypubId'
 
 const createSearchActor = async (
   database: ReturnType<typeof getSQLDatabase>,
@@ -79,17 +80,6 @@ describe('SearchDatabase foundation', () => {
     const database = getSQLDatabase(knexDatabase)
 
     try {
-      await expect(
-        database.searchAccountIds({ q: 'runner', limit: 10 })
-      ).rejects.toThrow('not implemented: searchAccountIds')
-      await expect(
-        database.indexActorSearchDocument({
-          id: 'https://remote.test/users/alice'
-        })
-      ).rejects.toThrow('not implemented: indexActorSearchDocument')
-      await expect(database.reindexSearchAccounts()).rejects.toThrow(
-        'not implemented: reindexSearchAccounts'
-      )
       await expect(
         database.searchHashtags({ q: 'runner', limit: 10 })
       ).rejects.toThrow('not implemented: searchHashtags')
@@ -841,6 +831,8 @@ describe('SearchDatabase foundation', () => {
       }
     })
     const database = getSQLDatabase(knexDatabase)
+    const aliceId = 'https://remote.test/users/alice'
+    const bobId = 'https://remote.test/users/bob'
 
     try {
       await database.migrate()
@@ -849,18 +841,29 @@ describe('SearchDatabase foundation', () => {
         username: 'viewer'
       })
       await createSearchActor(database, {
-        id: 'https://remote.test/users/alice',
+        id: aliceId,
         username: 'alice',
         summary: 'Runner'
       })
       await createSearchActor(database, {
-        id: 'https://remote.test/users/bob',
+        id: bobId,
         username: 'bob',
         summary: 'Runner'
       })
+      await knexDatabase('actors')
+        .where('id', bobId)
+        .update({
+          settings: JSON.stringify({
+            followersUrl: `${bobId}/followers`,
+            inboxUrl: `${bobId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            noindex: true
+          })
+        })
+      await database.indexActorSearchDocument({ id: bobId })
       await database.createFollow({
         actorId: 'https://remote.test/users/viewer',
-        targetActorId: 'https://remote.test/users/bob',
+        targetActorId: bobId,
         status: FollowStatus.enum.Accepted,
         inbox: 'https://remote.test/users/bob/inbox',
         sharedInbox: 'https://remote.test/inbox'
@@ -869,10 +872,16 @@ describe('SearchDatabase foundation', () => {
       await expect(
         database.searchAccountIds({
           q: 'runner',
+          limit: 10
+        })
+      ).resolves.toEqual([aliceId])
+      await expect(
+        database.searchAccountIds({
+          q: 'runner',
           limit: 10,
           followingActorId: 'https://remote.test/users/viewer'
         })
-      ).resolves.toEqual(['https://remote.test/users/bob'])
+      ).resolves.toEqual([bobId])
     } finally {
       await database.destroy()
     }
@@ -920,7 +929,58 @@ describe('SearchDatabase foundation', () => {
           limit: 10
         })
       ).resolves.toEqual([actorId])
+      await database.deleteActorSearchDocument({ id: actorId })
+      await expect(
+        database.searchAccountIds({
+          q: '@secret@remote.test',
+          limit: 10
+        })
+      ).resolves.toEqual([actorId])
     } finally {
+      await database.destroy()
+    }
+  })
+
+  it('indexes local account creation without reloading the inserted actor', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorSelectQueries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      if (
+        sql.toLowerCase().startsWith('select') &&
+        (sql.includes('from `actors`') || sql.includes('from "actors"'))
+      ) {
+        actorSelectQueries.push(sql)
+      }
+    }
+
+    try {
+      await database.migrate()
+      knexDatabase.on('query', handleQuery)
+      await database.createAccount({
+        email: 'local-runner@remote.test',
+        username: 'local-runner',
+        passwordHash: 'password-hash',
+        domain: 'remote.test',
+        privateKey: 'private-key',
+        publicKey: 'public-key'
+      })
+      knexDatabase.off('query', handleQuery)
+
+      expect(actorSelectQueries).toHaveLength(0)
+      await expect(
+        database.searchAccountIds({ q: 'local-runner', limit: 10 })
+      ).resolves.toEqual([
+        getLocalActorId({ domain: 'remote.test', username: 'local-runner' })
+      ])
+    } finally {
+      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
