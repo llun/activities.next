@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
@@ -16,6 +17,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
+import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   ERROR_400,
@@ -43,9 +45,20 @@ const SearchTypeParam = z
     return value
   })
 
-const BooleanParam = z
-  .enum(['true', 'false'])
-  .transform((value) => value === 'true')
+const TRUE_VALUES = new Set(['true', '1', 't', 'yes', 'y', 'on'])
+const FALSE_VALUES = new Set(['false', '0', 'f', 'no', 'n', 'off'])
+
+const BooleanParam = z.string().transform((value, ctx) => {
+  const normalized = value.trim().toLowerCase()
+  if (TRUE_VALUES.has(normalized)) return true
+  if (FALSE_VALUES.has(normalized)) return false
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: 'Invalid boolean value'
+  })
+  return z.NEVER
+})
 
 const SearchParams = z.object({
   q: z.string(),
@@ -68,14 +81,8 @@ const emptySearchResult = {
   hashtags: []
 }
 
-const getQueryParams = (req: NextRequest) => {
-  const url = new URL(req.url)
-  const queryParams: Record<string, string> = {}
-  url.searchParams.forEach((value, key) => {
-    queryParams[key] = value
-  })
-  return queryParams
-}
+const getQueryParams = (req: NextRequest) =>
+  Object.fromEntries(new URL(req.url).searchParams)
 
 const isUrl = (value: string) => {
   try {
@@ -95,13 +102,6 @@ const normalizeUrlId = (value?: string | null) => {
 const dedupeStrings = (values: string[]) => [...new Set(values)]
 
 const normalizeLookupId = (value?: string | null) => normalizeUrlId(value) ?? ''
-
-const parseAccountHandle = (value: string) => {
-  const normalized = value.trim().replace(/^@/, '')
-  const [username, domain, ...rest] = normalized.split('@')
-  if (!username || !domain || rest.length > 0) return null
-  return { username, domain }
-}
 
 const orderAccountsByIds = ({
   accounts,
@@ -187,7 +187,14 @@ const resolveAccountId = async ({
   if (!resolve) return null
 
   if (isUrl(query)) {
-    const actor = await database.getActorFromId({ id: query })
+    const actor =
+      (await database.getActorFromId({ id: query })) ??
+      ((await recordActorIfNeeded({
+        actorId: query,
+        database,
+        signingActor: currentActor ?? undefined
+      })) ||
+        null)
     if (
       actor &&
       (await canIncludeAccount({
@@ -213,7 +220,11 @@ const resolveAccountId = async ({
       account: `${handle.username}@${handle.domain}`
     })
     actor = actorId
-      ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+      ? ((await recordActorIfNeeded({
+          actorId,
+          database,
+          signingActor: currentActor ?? undefined
+        })) ?? null)
       : null
   }
 
@@ -249,7 +260,12 @@ const getResolvedStatus = async ({
     (await database.getStatus({
       statusId: query,
       currentActorId: currentActor.id
-    })) ?? (await database.getStatusFromUrl({ url: query }))
+    })) ??
+    (await database.getStatusFromUrl({ url: query })) ??
+    (await getRemoteStatus({
+      statusId: query,
+      signingActor: currentActor
+    }))
 
   if (!status) return null
 
@@ -378,7 +394,7 @@ const searchStatuses = async ({
     visibleToActorId: currentActor.id
   })
   const orderedStatuses = orderStatusesByIds({
-    statuses: statuses as Status[],
+    statuses,
     ids
   })
   return getMastodonStatuses(
@@ -390,17 +406,11 @@ const searchStatuses = async ({
   )
 }
 
-const requiresAuthentication = ({
-  params,
-  offset
-}: {
-  params: ParsedSearchParams
-  offset: number
-}) =>
+const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) =>
   params.type === 'statuses' ||
   params.resolve === true ||
   params.following === true ||
-  offset > 0
+  params.offset !== undefined
 
 export const GET = traceApiRoute(
   'search',
@@ -423,7 +433,7 @@ export const GET = traceApiRoute(
       const limit = params.limit ?? 20
       const offset = params.type ? (params.offset ?? 0) : 0
 
-      if (!currentActor && requiresAuthentication({ params, offset })) {
+      if (!currentActor && requiresAuthentication({ params })) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

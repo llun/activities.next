@@ -18,6 +18,7 @@ const mockGetMastodonStatuses = jest.fn()
 const mockCanActorReadStatus = jest.fn()
 const mockGetWebfingerSelf = jest.fn()
 const mockRecordActorIfNeeded = jest.fn()
+const mockGetRemoteStatus = jest.fn()
 
 const oauthActor = {
   id: 'https://llun.test/users/searcher',
@@ -78,6 +79,10 @@ jest.mock('@/lib/services/statusAccess', () => ({
 
 jest.mock('@/lib/activities/getWebfingerSelf', () => ({
   getWebfingerSelf: (...args: unknown[]) => mockGetWebfingerSelf(...args)
+}))
+
+jest.mock('@/lib/activities/getRemoteStatus', () => ({
+  getRemoteStatus: (...args: unknown[]) => mockGetRemoteStatus(...args)
 }))
 
 jest.mock('@/lib/actions/utils', () => ({
@@ -142,6 +147,7 @@ describe('GET /api/v2/search', () => {
     mockCanActorReadStatus.mockResolvedValue(true)
     mockGetWebfingerSelf.mockResolvedValue(null)
     mockRecordActorIfNeeded.mockResolvedValue(null)
+    mockGetRemoteStatus.mockResolvedValue(null)
   })
 
   it('allows anonymous account and hashtag search but omits statuses', async () => {
@@ -222,7 +228,7 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
-  it('ignores offset for anonymous multi-type search', async () => {
+  it('requires authentication when offset is passed without type', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v2/search?q=trail&limit=3&offset=5'
@@ -230,19 +236,33 @@ describe('GET /api/v2/search', () => {
       context
     )
 
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ status: 'Unauthorized' })
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(mockSearchHashtags).not.toHaveBeenCalled()
+    expect(mockSearchStatusIds).not.toHaveBeenCalled()
+  })
+
+  it('accepts Mastodon-style false boolean query values', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&following=0&exclude_unreviewed=off'
+      ),
+      context
+    )
+
     expect(response.status).toBe(200)
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'trail',
-      limit: 3,
+      limit: 20,
       offset: 0
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
-      limit: 3,
+      limit: 20,
       offset: 0,
       excludeUnreviewed: false
     })
-    expect(mockSearchStatusIds).not.toHaveBeenCalled()
   })
 
   it('does not require authentication solely for account_id on multi-type search', async () => {
@@ -311,6 +331,35 @@ describe('GET /api/v2/search', () => {
           actorId: 'https://remote.test/users/alice'
         }
       ],
+      oauthActor.id
+    )
+  })
+
+  it('resolves uncached remote status URLs', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const remoteStatus = {
+      id: statusUrl,
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=1`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetRemoteStatus).toHaveBeenCalledWith({
+      statusId: statusUrl,
+      signingActor: oauthActor
+    })
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+      expect.any(Object),
+      [remoteStatus],
       oauthActor.id
     )
   })
@@ -415,6 +464,44 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
+  it('resolves uncached account URLs', async () => {
+    const accountUrl = 'http://remote.test/users/remote-resolved'
+    mockSearchAccountIds.mockResolvedValue([])
+    mockRecordActorIfNeeded.mockResolvedValue({
+      id: 'https://remote.test/users/remote-resolved'
+    })
+    mockGetMastodonActorsFromIds.mockResolvedValue([
+      {
+        id: 'https://remote.test/users/remote-resolved',
+        url: accountUrl,
+        username: 'remote-resolved'
+      }
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=on`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: accountUrl,
+      database: expect.any(Object),
+      signingActor: oauthActor
+    })
+    expect(data.accounts).toEqual([
+      {
+        id: 'https://remote.test/users/remote-resolved',
+        url: accountUrl,
+        username: 'remote-resolved'
+      }
+    ])
+  })
+
   it('applies the following filter before including resolved accounts', async () => {
     const accountUrl = 'http://remote.test/users/resolved'
     mockGetActorFromId.mockImplementation(({ id }) =>
@@ -456,7 +543,7 @@ describe('GET /api/v2/search', () => {
 
     const response = await GET(
       new NextRequest(
-        'https://llun.test/api/v2/search?q=%40charlie%40remote.test&type=accounts&resolve=true',
+        'https://llun.test/api/v2/search?q=%40Charlie%40Remote.test&type=accounts&resolve=true',
         { headers: { Authorization: 'Bearer read-search-token' } }
       ),
       context
@@ -472,7 +559,8 @@ describe('GET /api/v2/search', () => {
     })
     expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
       actorId: 'https://remote.test/users/charlie',
-      database: expect.any(Object)
+      database: expect.any(Object),
+      signingActor: oauthActor
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://remote.test/users/charlie']
@@ -512,6 +600,7 @@ describe('GET /api/v2/search', () => {
     expect(response.status).toBe(200)
     expect(mockGetStatus).not.toHaveBeenCalled()
     expect(mockGetStatusFromUrl).not.toHaveBeenCalled()
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(mockGetStatusesByIds).toHaveBeenCalledWith({
       statusIds: ['https://remote.test/users/alice/statuses/1'],
       currentActorId: oauthActor.id,
