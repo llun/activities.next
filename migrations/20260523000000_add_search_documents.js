@@ -1,14 +1,17 @@
 const SEARCH_DOCUMENTS_TABLE = 'search_documents'
 const SQLITE_FTS_TABLE = 'search_documents_fts'
 
-const isSQLite = (knex) => {
-  const client = String(knex.client.config.client)
-  return client.includes('sqlite') || client.includes('better-sqlite3')
-}
+const SQLITE_CLIENTS = new Set(['sqlite3', 'better-sqlite3'])
+const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
+const MYSQL_CLIENTS = new Set(['mysql', 'mysql2'])
 
-const isPostgres = (knex) => String(knex.client.config.client).includes('pg')
+const getClientName = (knex) => String(knex.client.config.client).toLowerCase()
 
-const isMySQL = (knex) => String(knex.client.config.client).includes('mysql')
+const isSQLite = (knex) => SQLITE_CLIENTS.has(getClientName(knex))
+
+const isPostgres = (knex) => POSTGRES_CLIENTS.has(getClientName(knex))
+
+const isMySQL = (knex) => MYSQL_CLIENTS.has(getClientName(knex))
 
 /**
  * @param { import("knex").Knex } knex
@@ -16,6 +19,11 @@ const isMySQL = (knex) => String(knex.client.config.client).includes('mysql')
  */
 exports.up = async (knex) => {
   await knex.schema.createTable(SEARCH_DOCUMENTS_TABLE, (table) => {
+    if (isMySQL(knex)) {
+      table.charset('utf8mb4')
+      table.collate('utf8mb4_unicode_ci')
+    }
+
     table.string('id', 320).primary()
     table.string('entityType', 32).notNullable()
     table.string('entityId', 255).notNullable()
@@ -29,9 +37,6 @@ exports.up = async (knex) => {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
-    table.unique(['entityType', 'entityId'], {
-      indexName: 'search_documents_entity_unique'
-    })
     table.index(['entityType'], 'search_documents_entity_type')
     table.index(['actorId'], 'search_documents_actor')
     table.index(['entityCreatedAt'], 'search_documents_entity_created')

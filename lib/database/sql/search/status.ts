@@ -6,16 +6,17 @@ import {
 } from '@/lib/types/database/operations'
 
 import { deleteSearchDocument } from './documents'
+import { throwUnimplementedSearchMethod } from './notImplemented'
 
 export const searchStatusIds = async (
   _database: Knex,
   _params: SearchStatusesParams
-): Promise<string[]> => []
+): Promise<string[]> => throwUnimplementedSearchMethod('searchStatusIds')
 
 export const indexStatusSearchDocument = async (
   _database: Knex,
   _params: { statusId: string }
-): Promise<void> => {}
+): Promise<void> => throwUnimplementedSearchMethod('indexStatusSearchDocument')
 
 export const deleteStatusSearchDocument = async (
   database: Knex,
@@ -30,7 +31,5 @@ export const deleteStatusSearchDocument = async (
 export const reindexSearchStatuses = async (
   _database?: Knex,
   _params?: unknown
-): Promise<ReindexSearchDocumentsResult> => ({
-  indexed: 0,
-  nextCursor: null
-})
+): Promise<ReindexSearchDocumentsResult> =>
+  throwUnimplementedSearchMethod('reindexSearchStatuses')

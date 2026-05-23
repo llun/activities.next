@@ -9,6 +9,7 @@ import {
   UpsertSearchDocumentParams
 } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { logger } from '@/lib/utils/logger'
 
 type SQLSearchDocument = Omit<
   SearchDocument,
@@ -44,16 +45,19 @@ export const getSearchTokens = (value: string): string[] =>
     )
   )
 
-const getClientName = (database: Knex) => String(database.client.config.client)
+const SQLITE_CLIENTS = new Set(['sqlite3', 'better-sqlite3'])
+const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
+const MYSQL_CLIENTS = new Set(['mysql', 'mysql2'])
 
-const isSQLite = (database: Knex) => {
-  const clientName = getClientName(database)
-  return clientName.includes('sqlite') || clientName.includes('better-sqlite3')
-}
+const getClientName = (database: Knex) =>
+  String(database.client.config.client).toLowerCase()
 
-const isPostgres = (database: Knex) => getClientName(database).includes('pg')
+const isSQLite = (database: Knex) => SQLITE_CLIENTS.has(getClientName(database))
 
-const isMySQL = (database: Knex) => getClientName(database).includes('mysql')
+const isPostgres = (database: Knex) =>
+  POSTGRES_CLIENTS.has(getClientName(database))
+
+const isMySQL = (database: Knex) => MYSQL_CLIENTS.has(getClientName(database))
 
 const escapeLikePattern = (value: string) => value.replace(/[\\%_]/g, '\\$&')
 
@@ -104,7 +108,11 @@ const getMySQLFullTextMinTokenSize = async (database: Knex) => {
         DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE
       )
     })
-    .catch(() => DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE)
+    .catch((err) => {
+      mysqlFullTextMinTokenSizeCache.delete(database)
+      logger.debug({ err }, 'Failed to read MySQL full-text minimum token size')
+      return DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE
+    })
 
   mysqlFullTextMinTokenSizeCache.set(database, minTokenSize)
   return minTokenSize
@@ -154,7 +162,7 @@ export const applySearchDocumentFilter = async ({
   if (isPostgres(database)) {
     const tsQuery = tokens.map((token) => `${token}:*`).join(' & ')
     query.whereRaw(`to_tsvector('simple', ??) @@ to_tsquery('simple', ?)`, [
-      'search_documents.documentText',
+      'documentText',
       tsQuery
     ])
     return
@@ -186,15 +194,17 @@ export const applySearchDocumentFilter = async ({
 
 export const applySearchDocumentOrdering = ({
   query,
+  entityType,
   q
 }: {
   query: Knex.QueryBuilder
+  entityType?: SearchDocumentEntityType
   q: string
 }) => {
   const normalizedQuery = q.trim().replace(/^[@#]/, '').toLowerCase()
 
-  query
-    .orderByRaw(
+  if (entityType === 'hashtag') {
+    query.orderByRaw(
       `case
         when lower(??) = ? then 0
         when lower(??) like ? then 1
@@ -207,8 +217,14 @@ export const applySearchDocumentOrdering = ({
         `${normalizedQuery}%`
       ]
     )
+  }
+
+  query
+    .orderByRaw('?? is null', ['search_documents.postCount'])
     .orderBy('search_documents.postCount', 'desc')
+    .orderByRaw('?? is null', ['search_documents.lastPostAt'])
     .orderBy('search_documents.lastPostAt', 'desc')
+    .orderByRaw('?? is null', ['search_documents.entityCreatedAt'])
     .orderBy('search_documents.entityCreatedAt', 'desc')
     .orderBy('search_documents.entityId', 'desc')
 
@@ -237,15 +253,15 @@ const applySearchDocumentAccessFilters = ({
   const applyStatusFilter = (builder: Knex.QueryBuilder) => {
     const clientName = getClientName(database)
     const fallbackFollowersAudienceExpression = {
-      sql: clientName.includes('mysql')
+      sql: MYSQL_CLIENTS.has(clientName)
         ? "?? = CONCAT(??, '/followers')"
         : "?? = ?? || '/followers'",
       bindings: ['followers_recipients.actorId', 'search_documents.actorId']
     }
     const storedFollowersAudienceExpression = {
-      sql: clientName.includes('pg')
+      sql: POSTGRES_CLIENTS.has(clientName)
         ? "?? = search_document_actors.settings::jsonb ->> 'followersUrl'"
-        : clientName.includes('mysql')
+        : MYSQL_CLIENTS.has(clientName)
           ? "?? = JSON_UNQUOTE(JSON_EXTRACT(search_document_actors.settings, '$.followersUrl'))"
           : "?? = json_extract(search_document_actors.settings, '$.followersUrl')",
       bindings: ['followers_recipients.actorId']
@@ -374,19 +390,16 @@ export const upsertSearchDocument = async (
     updatedAt: currentTime
   }
 
-  await database(SEARCH_DOCUMENTS_TABLE)
-    .insert(row)
-    .onConflict(['entityType', 'entityId'])
-    .merge({
-      documentText: row.documentText,
-      actorId: row.actorId,
-      visibility: row.visibility,
-      entityCreatedAt: row.entityCreatedAt,
-      discoverable: row.discoverable,
-      postCount: row.postCount,
-      lastPostAt: row.lastPostAt,
-      updatedAt: currentTime
-    })
+  await database(SEARCH_DOCUMENTS_TABLE).insert(row).onConflict('id').merge({
+    documentText: row.documentText,
+    actorId: row.actorId,
+    visibility: row.visibility,
+    entityCreatedAt: row.entityCreatedAt,
+    discoverable: row.discoverable,
+    postCount: row.postCount,
+    lastPostAt: row.lastPostAt,
+    updatedAt: currentTime
+  })
 }
 
 export const deleteSearchDocument = async (
@@ -425,7 +438,7 @@ export const searchDocuments = async (
     visibleToActorId
   })
   await applySearchDocumentFilter({ database, query, q })
-  applySearchDocumentOrdering({ query, q })
+  applySearchDocumentOrdering({ query, entityType, q })
 
   const rows = await query.limit(limit).offset(offset)
   return rows.map(toSearchDocument)
