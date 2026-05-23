@@ -307,9 +307,9 @@ export const reindexSearchStatuses = async (
   if (afterId) query.where('id', '>', afterId)
 
   const rows = await query.limit(limit)
-  for (const row of rows) {
-    await indexStatusSearchDocument(database, { statusId: row.id })
-  }
+  await Promise.all(
+    rows.map((row) => indexStatusSearchDocument(database, { statusId: row.id }))
+  )
 
   return {
     indexed: rows.length,
