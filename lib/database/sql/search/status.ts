@@ -1,19 +1,18 @@
 import { Knex } from 'knex'
 import sanitizeHtml from 'sanitize-html'
 
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
+import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
+import {
+  PUBLIC_ACTIVITY_RECIPIENTS,
+  applyPotentiallyReadableStatusFilter
+} from '@/lib/database/sql/utils/statusVisibility'
 import {
   ReindexSearchDocumentsParams,
   ReindexSearchDocumentsResult,
   SearchStatusesParams
 } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/activitystream'
 
 import {
   SEARCH_DOCUMENTS_TABLE,
@@ -31,19 +30,7 @@ type SQLStatusRow = {
   createdAt: number | Date
 }
 
-const parseStatusContent = (
-  content: SQLStatusRow['content']
-): Record<string, unknown> | string | null => {
-  if (!content) return null
-  if (typeof content === 'string') {
-    try {
-      return getCompatibleJSON(content)
-    } catch {
-      return content
-    }
-  }
-  return content
-}
+const SQLITE_MAX_BINDINGS = 999
 
 const stripHTML = (value: string) =>
   sanitizeHtml(value, {
@@ -62,9 +49,7 @@ const getStatusDocumentText = (status: SQLStatusRow) => {
 
 const getStatusVisibilityFromRecipientIds = (recipientIds: string[]) => {
   if (
-    recipientIds.some((actorId) =>
-      [ACTIVITY_STREAM_PUBLIC, ACTIVITY_STREAM_PUBLIC_COMPACT].includes(actorId)
-    )
+    recipientIds.some((actorId) => PUBLIC_ACTIVITY_RECIPIENTS.includes(actorId))
   ) {
     return 'public'
   }
@@ -92,56 +77,68 @@ const getStatusRecipientIdsByStatusId = async (
   return recipientIdsByStatusId
 }
 
+const getSearchDocumentInsertBatchSize = (
+  database: Knex,
+  row: Record<string, unknown>
+) => {
+  const clientName = String(database.client.config.client)
+  if (!clientName.includes('sqlite')) return Number.POSITIVE_INFINITY
+
+  const columnCount = Math.max(1, Object.keys(row).length)
+  return Math.max(1, Math.floor(SQLITE_MAX_BINDINGS / columnCount))
+}
+
 const reindexStatusSearchDocuments = async (
   database: Knex,
   statuses: SQLStatusRow[]
 ) => {
-  const statusIds = statuses.map((status) => status.id)
-  if (statusIds.length === 0) return
+  if (statuses.length === 0) return
 
-  const recipientIdsByStatusId = await getStatusRecipientIdsByStatusId(
-    database,
-    statusIds
-  )
   const currentTime = new Date()
   const statusIdsToDelete: string[] = []
-  const rows = statuses.flatMap((status) => {
+  const candidates: { status: SQLStatusRow; documentText: string }[] = []
+
+  for (const status of statuses) {
     if (
       status.type !== StatusType.enum.Note &&
       status.type !== StatusType.enum.Poll
     ) {
       statusIdsToDelete.push(status.id)
-      return []
+      continue
     }
 
     const documentText = getStatusDocumentText(status)
     if (!documentText) {
       statusIdsToDelete.push(status.id)
-      return []
+      continue
     }
 
-    return [
-      {
-        id: getSearchDocumentId({
-          entityType: 'status',
-          entityId: status.id
-        }),
-        entityType: 'status',
-        entityId: status.id,
-        documentText,
-        actorId: status.actorId,
-        visibility: getStatusVisibilityFromRecipientIds(
-          recipientIdsByStatusId.get(status.id) ?? []
-        ),
-        entityCreatedAt: new Date(getCompatibleTime(status.createdAt)),
-        discoverable: null,
-        postCount: null,
-        lastPostAt: null,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      }
-    ]
-  })
+    candidates.push({ status, documentText })
+  }
+
+  const recipientIdsByStatusId = await getStatusRecipientIdsByStatusId(
+    database,
+    candidates.map(({ status }) => status.id)
+  )
+  const rows = candidates.map(({ status, documentText }) => ({
+    id: getSearchDocumentId({
+      entityType: 'status',
+      entityId: status.id
+    }),
+    entityType: 'status',
+    entityId: status.id,
+    documentText,
+    actorId: status.actorId,
+    visibility: getStatusVisibilityFromRecipientIds(
+      recipientIdsByStatusId.get(status.id) ?? []
+    ),
+    entityCreatedAt: new Date(getCompatibleTime(status.createdAt)),
+    discoverable: null,
+    postCount: null,
+    lastPostAt: null,
+    createdAt: currentTime,
+    updatedAt: currentTime
+  }))
 
   if (statusIdsToDelete.length > 0) {
     await database(SEARCH_DOCUMENTS_TABLE)
@@ -152,16 +149,19 @@ const reindexStatusSearchDocuments = async (
 
   if (rows.length === 0) return
 
-  await database(SEARCH_DOCUMENTS_TABLE)
-    .insert(rows)
-    .onConflict(['entityType', 'entityId'])
-    .merge([
-      'documentText',
-      'actorId',
-      'visibility',
-      'entityCreatedAt',
-      'updatedAt'
-    ])
+  const batchSize = getSearchDocumentInsertBatchSize(database, rows[0])
+  for (let start = 0; start < rows.length; start += batchSize) {
+    await database(SEARCH_DOCUMENTS_TABLE)
+      .insert(rows.slice(start, start + batchSize))
+      .onConflict(['entityType', 'entityId'])
+      .merge([
+        'documentText',
+        'actorId',
+        'visibility',
+        'entityCreatedAt',
+        'updatedAt'
+      ])
+  }
 }
 
 export const indexStatusSearchDocument = async (

@@ -20,6 +20,7 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import {
   chunkArray,
   deleteRowsByColumnChunks,
@@ -146,21 +147,6 @@ const insertActorWithSearchIndex = async (
     await trx('actors').insert(actor)
     await indexActorSearchDocument(trx, { id: actorId, actor })
   })
-}
-
-const parseStatusContent = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  content: any
-): string | Record<string, unknown> | null => {
-  if (!content) return null
-  if (typeof content === 'string') {
-    try {
-      return getCompatibleJSON(content)
-    } catch {
-      return content
-    }
-  }
-  return content
 }
 
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
