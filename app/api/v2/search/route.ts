@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import {
   OptionalOAuthGuard,
@@ -93,6 +96,13 @@ const dedupeStrings = (values: string[]) => [...new Set(values)]
 
 const normalizeLookupId = (value?: string | null) => normalizeUrlId(value) ?? ''
 
+const parseAccountHandle = (value: string) => {
+  const normalized = value.trim().replace(/^@/, '')
+  const [username, domain, ...rest] = normalized.split('@')
+  if (!username || !domain || rest.length > 0) return null
+  return { username, domain }
+}
+
 const orderAccountsByIds = ({
   accounts,
   ids
@@ -114,19 +124,112 @@ const orderAccountsByIds = ({
     .filter((account): account is MastodonAccount => Boolean(account))
 }
 
-const resolveAccountId = async ({
+const getStatusLookupIds = (status: Status) => {
+  const ids = [status.id]
+  if ('url' in status && typeof status.url === 'string') ids.push(status.url)
+  return ids
+}
+
+const orderStatusesByIds = ({
+  statuses,
+  ids
+}: {
+  statuses: Status[]
+  ids: string[]
+}) => {
+  const statusesByLookupId = new Map<string, Status>()
+
+  for (const status of statuses) {
+    for (const key of getStatusLookupIds(status)) {
+      const lookupId = normalizeLookupId(key)
+      if (lookupId) statusesByLookupId.set(lookupId, status)
+    }
+  }
+
+  return ids
+    .map((id) => statusesByLookupId.get(normalizeLookupId(id)))
+    .filter((status): status is Status => Boolean(status))
+}
+
+const canIncludeAccount = async ({
   database,
-  query,
-  resolve
+  actorId,
+  currentActor,
+  following
 }: {
   database: Database
+  actorId: string
+  currentActor: Actor | null
+  following: boolean
+}) => {
+  if (!following) return true
+  if (!currentActor) return false
+
+  return database.isCurrentActorFollowing({
+    currentActorId: currentActor.id,
+    followingActorId: actorId
+  })
+}
+
+const resolveAccountId = async ({
+  database,
+  currentActor,
+  query,
+  resolve,
+  following
+}: {
+  database: Database
+  currentActor: Actor | null
   query: string
   resolve: boolean
+  following: boolean
 }) => {
-  if (!resolve || !isUrl(query)) return null
+  if (!resolve) return null
 
-  const actor = await database.getActorFromId({ id: query })
-  return actor?.id ?? null
+  if (isUrl(query)) {
+    const actor = await database.getActorFromId({ id: query })
+    if (
+      actor &&
+      (await canIncludeAccount({
+        database,
+        actorId: actor.id,
+        currentActor,
+        following
+      }))
+    ) {
+      return actor.id
+    }
+    return null
+  }
+
+  const handle = query.includes('@')
+    ? parseAccountHandle(query)
+    : { username: query, domain: getConfig().host }
+  if (!handle) return null
+
+  let actor = await database.getActorFromUsername(handle)
+  if (!actor && query.includes('@')) {
+    const actorId = await getWebfingerSelf({
+      account: `${handle.username}@${handle.domain}`
+    })
+    actor = actorId
+      ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+      : null
+  }
+
+  if (
+    actor &&
+    (await canIncludeAccount({
+      database,
+      actorId: actor.id,
+      currentActor,
+      following
+    }))
+  ) {
+    return actor.id
+  }
+
+  return null
 }
 
 const getResolvedStatus = async ({
@@ -177,8 +280,10 @@ const searchAccounts = async ({
     offset === 0
       ? resolveAccountId({
           database,
+          currentActor,
           query,
-          resolve: params.resolve ?? false
+          resolve: params.resolve ?? false,
+          following: params.following ?? false
         })
       : Promise.resolve(null),
     database.searchAccountIds({
@@ -220,7 +325,10 @@ const searchHashtags = async ({
     excludeUnreviewed: params.exclude_unreviewed ?? false
   })
 
-  return hashtags.map((hashtag) => Tag.parse(hashtag))
+  return hashtags.flatMap((hashtag) => {
+    const parsed = Tag.safeParse(hashtag)
+    return parsed.success ? [parsed.data] : []
+  })
 }
 
 const searchStatuses = async ({
@@ -269,10 +377,14 @@ const searchStatuses = async ({
     currentActorId: currentActor.id,
     visibleToActorId: currentActor.id
   })
+  const orderedStatuses = orderStatusesByIds({
+    statuses: statuses as Status[],
+    ids
+  })
   return getMastodonStatuses(
     database,
-    [resolvedStatus, ...(statuses as Status[])].filter(
-      (status): status is Status => Boolean(status)
+    [resolvedStatus, ...orderedStatuses].filter((status): status is Status =>
+      Boolean(status)
     ),
     currentActor.id
   )
@@ -288,7 +400,6 @@ const requiresAuthentication = ({
   params.type === 'statuses' ||
   params.resolve === true ||
   params.following === true ||
-  Boolean(params.account_id) ||
   offset > 0
 
 export const GET = traceApiRoute(
@@ -310,7 +421,7 @@ export const GET = traceApiRoute(
       const params = parsedParams.data
       const query = params.q.trim()
       const limit = params.limit ?? 20
-      const offset = params.offset ?? 0
+      const offset = params.type ? (params.offset ?? 0) : 0
 
       if (!currentActor && requiresAuthentication({ params, offset })) {
         return apiResponse({
