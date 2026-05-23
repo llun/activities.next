@@ -78,6 +78,18 @@ export interface SQLActorDatabase extends ActorDatabase {
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
 }
 
+const deleteStatusSearchDocumentsByStatusIds = async (
+  trx: Knex.Transaction,
+  statusIds: string[]
+) => {
+  for (const statusIdChunk of chunkArray(statusIds, getWhereInBatchSize(trx))) {
+    await trx('search_documents')
+      .where('entityType', 'status')
+      .whereIn('entityId', statusIdChunk)
+      .delete()
+  }
+}
+
 const getActorCounterSummary = async (
   trx: Knex.Transaction,
   actorId: string
@@ -1351,10 +1363,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete statuses
       await trx('statuses').where('actorId', actorId).delete()
       if (statusIds.length > 0) {
-        await trx('search_documents')
-          .where('entityType', 'status')
-          .whereIn('entityId', statusIds)
-          .delete()
+        await deleteStatusSearchDocumentsByStatusIds(trx, statusIds)
       }
 
       // Delete follows (both directions)

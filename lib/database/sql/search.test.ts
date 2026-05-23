@@ -1,4 +1,4 @@
-import knex from 'knex'
+import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import {
@@ -7,7 +7,8 @@ import {
 } from '@/lib/database/sql/search'
 import {
   applySearchDocumentFilter,
-  applySearchDocumentOrdering
+  applySearchDocumentOrdering,
+  getSearchDocumentId
 } from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
@@ -46,6 +47,17 @@ const createSearchActor = async (
     privateKey: 'private-key',
     createdAt: 1
   })
+}
+
+const insertRowsInChunks = async (
+  knexDatabase: Knex,
+  tableName: string,
+  rows: Record<string, unknown>[],
+  chunkSize: number
+) => {
+  for (let start = 0; start < rows.length; start += chunkSize) {
+    await knexDatabase(tableName).insert(rows.slice(start, start + chunkSize))
+  }
 }
 
 describe('SearchDatabase foundation', () => {
@@ -1979,6 +1991,80 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('deletes stale status search documents in SQLite-safe batches', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusCount = 1005
+    const currentTime = new Date()
+    const statuses = Array.from({ length: statusCount }, (_, index) => {
+      const statusId = `${actorId}/statuses/stale-empty-${index}`
+      return {
+        id: statusId,
+        url: statusId,
+        actorId,
+        type: StatusType.enum.Note,
+        content: JSON.stringify({
+          url: statusId,
+          text: '',
+          summary: ''
+        }),
+        reply: '',
+        createdAt: currentTime,
+        updatedAt: currentTime
+      }
+    })
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await insertRowsInChunks(knexDatabase, 'statuses', statuses, 100)
+      await insertRowsInChunks(
+        knexDatabase,
+        'search_documents',
+        statuses.map((status) => ({
+          id: getSearchDocumentId({
+            entityType: 'status',
+            entityId: status.id
+          }),
+          entityType: 'status',
+          entityId: status.id,
+          documentText: 'stale text',
+          actorId,
+          visibility: 'public',
+          entityCreatedAt: currentTime,
+          discoverable: null,
+          postCount: null,
+          lastPostAt: null,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })),
+        80
+      )
+
+      await expect(
+        database.reindexSearchStatuses({ limit: statusCount + 1 })
+      ).resolves.toEqual({ indexed: statusCount, nextCursor: null })
+
+      const countRow = await knexDatabase('search_documents')
+        .where('entityType', 'status')
+        .count<{ count: number | string }>({ count: 'id' })
+        .first()
+      expect(Number(countRow?.count ?? 0)).toBe(0)
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('requires status search matches to be interacted-with or owned', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
@@ -2666,6 +2752,88 @@ describe('SearchDatabase foundation', () => {
       expect(hashtagSearchWriteIndex).toBeGreaterThan(actorCommitIndex)
     } finally {
       knexDatabase.off('query', handleQuery)
+      await database.destroy()
+    }
+  })
+
+  it('deletes actor status search documents in SQLite-safe batches', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusCount = 1005
+    const currentTime = new Date()
+    const statuses = Array.from({ length: statusCount }, (_, index) => {
+      const statusId = `${actorId}/statuses/delete-search-${index}`
+      return {
+        id: statusId,
+        url: statusId,
+        actorId,
+        type: StatusType.enum.Note,
+        content: JSON.stringify({
+          url: statusId,
+          text: `Delete searchable status ${index}`,
+          summary: ''
+        }),
+        reply: '',
+        createdAt: currentTime,
+        updatedAt: currentTime
+      }
+    })
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await insertRowsInChunks(knexDatabase, 'statuses', statuses, 100)
+      await insertRowsInChunks(
+        knexDatabase,
+        'search_documents',
+        statuses.map((status) => ({
+          id: getSearchDocumentId({
+            entityType: 'status',
+            entityId: status.id
+          }),
+          entityType: 'status',
+          entityId: status.id,
+          documentText: 'delete searchable status',
+          actorId,
+          visibility: 'public',
+          entityCreatedAt: currentTime,
+          discoverable: null,
+          postCount: null,
+          lastPostAt: null,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })),
+        80
+      )
+
+      await expect(database.deleteActorData({ actorId })).resolves.toBe(
+        undefined
+      )
+
+      const [statusCountRow, searchDocumentCountRow] = await Promise.all([
+        knexDatabase('statuses')
+          .where('actorId', actorId)
+          .count<{ count: number | string }>({ count: 'id' })
+          .first(),
+        knexDatabase('search_documents')
+          .where('entityType', 'status')
+          .where('actorId', actorId)
+          .count<{ count: number | string }>({ count: 'id' })
+          .first()
+      ])
+      expect(Number(statusCountRow?.count ?? 0)).toBe(0)
+      expect(Number(searchDocumentCountRow?.count ?? 0)).toBe(0)
+    } finally {
       await database.destroy()
     }
   })

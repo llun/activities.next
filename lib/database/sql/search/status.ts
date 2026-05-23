@@ -118,6 +118,21 @@ const getSearchDocumentInsertBatchSize = (
   return Math.max(1, Math.floor(SQLITE_MAX_BINDINGS / columnCount))
 }
 
+const deleteStatusSearchDocumentsByStatusIds = async (
+  database: Knex,
+  statusIds: string[]
+) => {
+  for (const statusIdChunk of chunkArray(
+    statusIds,
+    getWhereInBatchSize(database)
+  )) {
+    await database(SEARCH_DOCUMENTS_TABLE)
+      .where('entityType', 'status')
+      .whereIn('entityId', statusIdChunk)
+      .delete()
+  }
+}
+
 const reindexStatusSearchDocuments = async (
   database: Knex,
   statuses: SQLStatusRow[]
@@ -171,10 +186,7 @@ const reindexStatusSearchDocuments = async (
   }))
 
   if (statusIdsToDelete.length > 0) {
-    await database(SEARCH_DOCUMENTS_TABLE)
-      .where('entityType', 'status')
-      .whereIn('entityId', statusIdsToDelete)
-      .delete()
+    await deleteStatusSearchDocumentsByStatusIds(database, statusIdsToDelete)
   }
 
   if (rows.length === 0) return
@@ -409,7 +421,7 @@ export const searchStatusIds = async (
     .where('search_documents.entityType', 'status')
     .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
 
-  applySearchDocumentFilter({ database, query, q })
+  await applySearchDocumentFilter({ database, query, q })
   if (accountId) query.where('statuses.actorId', accountId)
 
   applyPotentiallyReadableStatusFilter({
