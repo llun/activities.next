@@ -1935,6 +1935,50 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('rebuilds status search documents in batches', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/status-search-reindex`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: '<p>Batch reindexable summitword</p>',
+        createdAt: 1
+      })
+      await database.deleteStatusSearchDocument({ statusId })
+
+      await expect(
+        database.reindexSearchStatuses({ limit: 10 })
+      ).resolves.toEqual({ indexed: 1, nextCursor: null })
+      await expect(
+        database.searchStatusIds({
+          q: 'summitword',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([statusId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('requires status search matches to be interacted-with or owned', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

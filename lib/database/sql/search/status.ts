@@ -19,8 +19,8 @@ import {
   SEARCH_DOCUMENTS_TABLE,
   applySearchDocumentFilter,
   deleteSearchDocument,
-  normalizeSearchText,
-  upsertSearchDocument
+  getSearchDocumentId,
+  normalizeSearchText
 } from './documents'
 
 type SQLStatusRow = {
@@ -60,9 +60,7 @@ const getStatusDocumentText = (status: SQLStatusRow) => {
   return normalizeSearchText([stripHTML(text), stripHTML(summary)].join(' '))
 }
 
-const getStatusVisibility = async (database: Knex, statusId: string) => {
-  const recipients = await database('recipients').where('statusId', statusId)
-  const recipientIds = recipients.map((recipient) => String(recipient.actorId))
+const getStatusVisibilityFromRecipientIds = (recipientIds: string[]) => {
   if (
     recipientIds.some((actorId) =>
       [ACTIVITY_STREAM_PUBLIC, ACTIVITY_STREAM_PUBLIC_COMPACT].includes(actorId)
@@ -74,6 +72,98 @@ const getStatusVisibility = async (database: Knex, statusId: string) => {
   return 'private'
 }
 
+const getStatusRecipientIdsByStatusId = async (
+  database: Knex,
+  statusIds: string[]
+) => {
+  const recipientIdsByStatusId = new Map<string, string[]>()
+  if (statusIds.length === 0) return recipientIdsByStatusId
+
+  const rows = await database('recipients')
+    .whereIn('statusId', statusIds)
+    .select<{ statusId: string; actorId: string }[]>('statusId', 'actorId')
+
+  for (const row of rows) {
+    const recipientIds = recipientIdsByStatusId.get(row.statusId) ?? []
+    recipientIds.push(String(row.actorId))
+    recipientIdsByStatusId.set(row.statusId, recipientIds)
+  }
+
+  return recipientIdsByStatusId
+}
+
+const reindexStatusSearchDocuments = async (
+  database: Knex,
+  statuses: SQLStatusRow[]
+) => {
+  const statusIds = statuses.map((status) => status.id)
+  if (statusIds.length === 0) return
+
+  const recipientIdsByStatusId = await getStatusRecipientIdsByStatusId(
+    database,
+    statusIds
+  )
+  const currentTime = new Date()
+  const statusIdsToDelete: string[] = []
+  const rows = statuses.flatMap((status) => {
+    if (
+      status.type !== StatusType.enum.Note &&
+      status.type !== StatusType.enum.Poll
+    ) {
+      statusIdsToDelete.push(status.id)
+      return []
+    }
+
+    const documentText = getStatusDocumentText(status)
+    if (!documentText) {
+      statusIdsToDelete.push(status.id)
+      return []
+    }
+
+    return [
+      {
+        id: getSearchDocumentId({
+          entityType: 'status',
+          entityId: status.id
+        }),
+        entityType: 'status',
+        entityId: status.id,
+        documentText,
+        actorId: status.actorId,
+        visibility: getStatusVisibilityFromRecipientIds(
+          recipientIdsByStatusId.get(status.id) ?? []
+        ),
+        entityCreatedAt: new Date(getCompatibleTime(status.createdAt)),
+        discoverable: null,
+        postCount: null,
+        lastPostAt: null,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      }
+    ]
+  })
+
+  if (statusIdsToDelete.length > 0) {
+    await database(SEARCH_DOCUMENTS_TABLE)
+      .where('entityType', 'status')
+      .whereIn('entityId', statusIdsToDelete)
+      .delete()
+  }
+
+  if (rows.length === 0) return
+
+  await database(SEARCH_DOCUMENTS_TABLE)
+    .insert(rows)
+    .onConflict(['entityType', 'entityId'])
+    .merge([
+      'documentText',
+      'actorId',
+      'visibility',
+      'entityCreatedAt',
+      'updatedAt'
+    ])
+}
+
 export const indexStatusSearchDocument = async (
   database: Knex,
   { statusId }: { statusId: string }
@@ -81,29 +171,12 @@ export const indexStatusSearchDocument = async (
   const status = await database<SQLStatusRow>('statuses')
     .where('id', statusId)
     .first()
-  if (
-    !status ||
-    (status.type !== StatusType.enum.Note &&
-      status.type !== StatusType.enum.Poll)
-  ) {
+  if (!status) {
     await deleteStatusSearchDocument(database, { statusId })
     return
   }
 
-  const documentText = getStatusDocumentText(status)
-  if (!documentText) {
-    await deleteStatusSearchDocument(database, { statusId })
-    return
-  }
-
-  await upsertSearchDocument(database, {
-    entityType: 'status',
-    entityId: status.id,
-    documentText,
-    actorId: status.actorId,
-    visibility: await getStatusVisibility(database, status.id),
-    entityCreatedAt: getCompatibleTime(status.createdAt)
-  })
+  await reindexStatusSearchDocuments(database, [status])
 }
 
 export const deleteStatusSearchDocument = async (
@@ -300,16 +373,14 @@ export const reindexSearchStatuses = async (
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
   const query = database<SQLStatusRow>('statuses')
-    .select('id')
+    .select('id', 'actorId', 'type', 'content', 'createdAt')
     .whereIn('type', [StatusType.enum.Note, StatusType.enum.Poll])
     .orderBy('id', 'asc')
 
   if (afterId) query.where('id', '>', afterId)
 
   const rows = await query.limit(limit)
-  await Promise.all(
-    rows.map((row) => indexStatusSearchDocument(database, { statusId: row.id }))
-  )
+  await reindexStatusSearchDocuments(database, rows)
 
   return {
     indexed: rows.length,
