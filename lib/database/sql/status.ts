@@ -1381,13 +1381,23 @@ export const StatusSQLDatabaseMixin = (
 
   async function deleteStatus({
     actorId,
+    affectedHashtags,
     statusId,
     trx
-  }: DeleteStatusParams & { trx?: Knex.Transaction }) {
+  }: DeleteStatusParams & {
+    affectedHashtags?: string[]
+    trx?: Knex.Transaction
+  }) {
     if (!trx) {
+      const affectedHashtags: string[] = []
       await database.transaction(async (trx) => {
-        await deleteStatus({ actorId, statusId, trx })
+        await deleteStatus({ actorId, affectedHashtags, statusId, trx })
       })
+      if (affectedHashtags.length > 0) {
+        await indexHashtagSearchDocuments(database, {
+          hashtags: [...new Set(affectedHashtags)]
+        })
+      }
       return
     }
 
@@ -1408,7 +1418,9 @@ export const StatusSQLDatabaseMixin = (
 
     const replies = await trx('statuses').where('reply', statusId).select('id')
     await Promise.all(
-      replies.map(({ id }) => deleteStatus({ statusId: id, trx }))
+      replies.map(({ id }) =>
+        deleteStatus({ affectedHashtags, statusId: id, trx })
+      )
     )
     await updateStatusCounters({
       actorId: status.actorId,
@@ -1444,9 +1456,9 @@ export const StatusSQLDatabaseMixin = (
       trx('poll_choices').where('statusId', statusId).delete(),
       trx('timelines').where('statusId', statusId).delete()
     ])
-    await indexHashtagSearchDocuments(trx, {
-      hashtags: hashtagTags.map((tag: { name: string }) => tag.name)
-    })
+    affectedHashtags?.push(
+      ...hashtagTags.map((tag: { name: string }) => tag.name)
+    )
   }
 
   async function getFavouritedBy({

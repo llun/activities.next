@@ -9,7 +9,10 @@ import {
   SearchHashtagsParams
 } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 
 import {
   SEARCH_DOCUMENTS_TABLE,
@@ -27,6 +30,12 @@ type HashtagSearchAggregate = {
   postCount: number | string
   lastPostAt: number | Date | null
 }
+
+const SQLITE_MAX_BINDINGS = 999
+const PUBLIC_ACTIVITY_RECIPIENTS = [
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+]
 
 export const normalizeHashtagSearchName = (hashtag: string) => {
   const bare = hashtag.trim().replace(/^#/, '').toLowerCase()
@@ -54,11 +63,22 @@ const getHashtagSearchAggregates = async (
     .innerJoin('recipients', 'recipients.statusId', 'statuses.id')
     .where('tags.type', 'hashtag')
     .whereIn('tags.nameNormalized', normalizedTagNames)
-    .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+    .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
     .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
     .countDistinct('statuses.id as postCount')
     .max('statuses.createdAt as lastPostAt')
     .groupBy('tags.nameNormalized') as Promise<HashtagSearchAggregate[]>
+}
+
+const getSearchDocumentInsertBatchSize = (
+  database: Knex,
+  row: Record<string, unknown>
+) => {
+  const clientName = String(database.client.config.client)
+  if (!clientName.includes('sqlite')) return Number.POSITIVE_INFINITY
+
+  const columnCount = Math.max(1, Object.keys(row).length)
+  return Math.max(1, Math.floor(SQLITE_MAX_BINDINGS / columnCount))
 }
 
 const reindexHashtagSearchDocuments = async (
@@ -124,10 +144,13 @@ const reindexHashtagSearchDocuments = async (
     return
   }
 
-  await database(SEARCH_DOCUMENTS_TABLE)
-    .insert(rows)
-    .onConflict(['entityType', 'entityId'])
-    .merge(['documentText', 'postCount', 'lastPostAt', 'updatedAt'])
+  const batchSize = getSearchDocumentInsertBatchSize(database, rows[0])
+  for (let start = 0; start < rows.length; start += batchSize) {
+    await database(SEARCH_DOCUMENTS_TABLE)
+      .insert(rows.slice(start, start + batchSize))
+      .onConflict(['entityType', 'entityId'])
+      .merge(['documentText', 'postCount', 'lastPostAt', 'updatedAt'])
+  }
 }
 
 export const indexHashtagSearchDocument = async (

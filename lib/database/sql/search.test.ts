@@ -7,7 +7,10 @@ import {
   applySearchDocumentOrdering
 } from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 
 const createSearchActor = async (
@@ -1474,7 +1477,7 @@ describe('SearchDatabase foundation', () => {
         id: statusId,
         url: statusId,
         actorId,
-        to: [ACTIVITY_STREAM_PUBLIC],
+        to: [ACTIVITY_STREAM_PUBLIC_COMPACT],
         cc: [],
         text: 'Trail day',
         createdAt: 1
