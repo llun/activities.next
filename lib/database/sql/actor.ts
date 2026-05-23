@@ -2,6 +2,10 @@ import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
 import {
+  deleteActorSearchDocument,
+  indexActorSearchDocument
+} from '@/lib/database/sql/search'
+import {
   CounterKey,
   decreaseCounterValue,
   deleteCounterValue,
@@ -283,6 +287,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       createdAt: new Date(createdAt),
       updatedAt: currentTime
     })
+    await indexActorSearchDocument(database, { id: actorId })
     return this.getActorFromId({ id: actorId })
   },
 
@@ -327,6 +332,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       createdAt: new Date(createdAt),
       updatedAt: currentTime
     })
+    await indexActorSearchDocument(database, { id: actorId })
     return this.getMastodonActor(actorId)
   },
 
@@ -819,11 +825,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         settings: JSON.stringify(settings),
         updatedAt: new Date()
       })
+    await indexActorSearchDocument(database, { id: actorId })
     return this.getActorFromId({ id: actorId })
   },
 
   async deleteActor({ actorId }: DeleteActorParams) {
     await database('actors').where('id', actorId).delete()
+    await deleteActorSearchDocument(database, { id: actorId })
   },
 
   async updateActorFollowersCount(actorId: string) {
@@ -1384,5 +1392,6 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Finally delete the actor
       await trx('actors').where('id', actorId).delete()
     })
+    await deleteActorSearchDocument(database, { id: actorId })
   }
 })

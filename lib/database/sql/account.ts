@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { indexActorSearchDocument } from '@/lib/database/sql/search'
 import {
   CounterKey,
   getCounterValues,
@@ -143,6 +144,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       await incrementBucket(trx, 'accounts', 1, currentTime)
       await incrementBucket(trx, 'actors', 1, currentTime)
     })
+
+    await indexActorSearchDocument(database, { id: actorId })
 
     return accountId
   },
@@ -401,6 +404,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       currentTime
     )
     await incrementBucket(database, 'actors', 1, currentTime)
+
+    await indexActorSearchDocument(database, { id: actorId })
 
     return actorId
   },

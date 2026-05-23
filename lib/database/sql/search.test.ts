@@ -8,6 +8,37 @@ import {
 } from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
+const createSearchActor = async (
+  database: ReturnType<typeof getSQLDatabase>,
+  {
+    id,
+    username,
+    domain = 'remote.test',
+    name,
+    summary
+  }: {
+    id: string
+    username: string
+    domain?: string
+    name?: string
+    summary?: string
+  }
+) => {
+  await database.createActor({
+    actorId: id,
+    username,
+    domain,
+    name,
+    summary,
+    inboxUrl: `${id}/inbox`,
+    sharedInboxUrl: `https://${domain}/inbox`,
+    followersUrl: `${id}/followers`,
+    publicKey: 'public-key',
+    privateKey: 'private-key',
+    createdAt: 1
+  })
+}
+
 describe('SearchDatabase foundation', () => {
   const createTableMock = () => {
     const column = {
@@ -763,5 +794,134 @@ describe('SearchDatabase foundation', () => {
       fn: { now: jest.fn() }
     })
     expect(raw).not.toHaveBeenCalled()
+  })
+
+  it('indexes actors and searches accounts by profile text', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/alice',
+        username: 'alice',
+        name: 'Alice Runner',
+        summary: 'Trail running logs'
+      })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/bob',
+        username: 'bob',
+        name: 'Bob Builder'
+      })
+
+      await expect(
+        database.searchAccountIds({
+          q: 'runner',
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual(['https://remote.test/users/alice'])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('filters account search to followed actors when requested', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/viewer',
+        username: 'viewer'
+      })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/alice',
+        username: 'alice',
+        summary: 'Runner'
+      })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/bob',
+        username: 'bob',
+        summary: 'Runner'
+      })
+      await database.createFollow({
+        actorId: 'https://remote.test/users/viewer',
+        targetActorId: 'https://remote.test/users/bob',
+        status: FollowStatus.enum.Accepted,
+        inbox: 'https://remote.test/users/bob/inbox',
+        sharedInbox: 'https://remote.test/inbox'
+      })
+
+      await expect(
+        database.searchAccountIds({
+          q: 'runner',
+          limit: 10,
+          followingActorId: 'https://remote.test/users/viewer'
+        })
+      ).resolves.toEqual(['https://remote.test/users/bob'])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('only returns non-discoverable accounts for exact handle matches', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/secret'
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'secret',
+        summary: 'Hidden account'
+      })
+      await knexDatabase('actors')
+        .where('id', actorId)
+        .update({
+          settings: JSON.stringify({
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            noindex: true
+          })
+        })
+      await database.indexActorSearchDocument({ id: actorId })
+
+      await expect(
+        database.searchAccountIds({
+          q: 'hidden',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchAccountIds({
+          q: '@secret@remote.test',
+          limit: 10
+        })
+      ).resolves.toEqual([actorId])
+    } finally {
+      await database.destroy()
+    }
   })
 })

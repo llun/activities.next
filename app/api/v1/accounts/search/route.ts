@@ -57,16 +57,21 @@ export const GET = traceApiRoute(
         })
       }
 
-      const { q, limit = 40, resolve = false } = parsedParams.data
+      const {
+        q,
+        limit = 40,
+        offset = 0,
+        resolve = false,
+        following = false
+      } = parsedParams.data
 
       if (!q || q.trim().length === 0) {
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
       const query = q.trim()
-      const results = []
+      const resultIds: string[] = []
 
-      // Try exact match first (username@domain or just username)
       if (query.includes('@')) {
         const handle = parseAccountHandle(query)
         if (handle) {
@@ -80,31 +85,41 @@ export const GET = traceApiRoute(
               : null
           }
 
-          const mastodonActor = actor
-            ? await database.getMastodonActorFromId({ id: actor.id })
-            : null
-          if (mastodonActor) {
-            results.push(mastodonActor)
+          if (actor) {
+            const canIncludeExact =
+              !following ||
+              (await database.isCurrentActorFollowing({
+                currentActorId: context.currentActor.id,
+                followingActorId: actor.id
+              }))
+            if (canIncludeExact) {
+              resultIds.push(actor.id)
+            }
           }
         }
       } else {
-        // Try as local username
         const actor = await database.getActorFromUsername({
           username: query,
           domain: getConfig().host
         })
-        if (actor) {
-          const mastodonActor = await database.getMastodonActorFromId({
-            id: actor.id
-          })
-          if (mastodonActor) results.push(mastodonActor)
+        if (actor && !following) {
+          resultIds.push(actor.id)
         }
       }
+
+      const indexedIds = await database.searchAccountIds({
+        q: query,
+        limit,
+        offset,
+        ...(following ? { followingActorId: context.currentActor.id } : {})
+      })
+      const ids = [...new Set([...resultIds, ...indexedIds])].slice(0, limit)
+      const results = await database.getMastodonActorsFromIds({ ids })
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: results.slice(0, limit)
+        data: results
       })
     }
   )
