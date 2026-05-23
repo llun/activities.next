@@ -19,6 +19,7 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_401,
@@ -96,6 +97,60 @@ const normalizeUrlId = (value?: string | null) => {
 const dedupeStrings = (values: string[]) => [...new Set(values)]
 
 const normalizeLookupId = (value?: string | null) => normalizeUrlId(value) ?? ''
+
+const getProfileUrlAccountHandle = (query: string) => {
+  try {
+    const url = new URL(query)
+    const match = /^\/@([^/]+)\/?$/.exec(url.pathname)
+    if (!match) return null
+
+    const profileHandle = decodeURIComponent(match[1])
+    const handle = profileHandle.includes('@')
+      ? `@${profileHandle.replace(/^@/, '')}`
+      : `@${profileHandle}@${url.hostname}`
+    return parseAccountHandle(handle)
+  } catch {
+    return null
+  }
+}
+
+const getCanonicalAccountActorId = async (query: string) => {
+  const handle = getProfileUrlAccountHandle(query)
+  if (!handle) return query
+
+  return (
+    (await getWebfingerSelf({
+      account: `${handle.username}@${handle.domain}`
+    })) ?? query
+  )
+}
+
+const recordResolvedActorIfNeeded = async ({
+  actorId,
+  database,
+  signingActor
+}: {
+  actorId: string
+  database: Database
+  signingActor?: Actor
+}) => {
+  try {
+    return (
+      (await recordActorIfNeeded({
+        actorId,
+        database,
+        signingActor
+      })) ?? null
+    )
+  } catch (err) {
+    logger.warn({
+      message: 'Failed to record resolved search actor',
+      actorId,
+      err
+    })
+    return null
+  }
+}
 
 const orderAccountsByIds = ({
   accounts,
@@ -181,14 +236,20 @@ const resolveAccountId = async ({
   if (!resolve) return null
 
   if (isUrl(query)) {
+    const existingActor = await database.getActorFromId({ id: query })
+    const canonicalActorId = existingActor
+      ? query
+      : await getCanonicalAccountActorId(query)
     const actor =
-      (await database.getActorFromId({ id: query })) ??
-      ((await recordActorIfNeeded({
-        actorId: query,
+      existingActor ??
+      (canonicalActorId === query
+        ? null
+        : await database.getActorFromId({ id: canonicalActorId })) ??
+      (await recordResolvedActorIfNeeded({
+        actorId: canonicalActorId,
         database,
         signingActor: currentActor ?? undefined
-      })) ||
-        null)
+      }))
     if (
       actor &&
       (await canIncludeAccount({
@@ -214,11 +275,11 @@ const resolveAccountId = async ({
       account: `${handle.username}@${handle.domain}`
     })
     actor = actorId
-      ? ((await recordActorIfNeeded({
+      ? await recordResolvedActorIfNeeded({
           actorId,
           database,
           signingActor: currentActor ?? undefined
-        })) ?? null)
+        })
       : null
   }
 
@@ -266,11 +327,12 @@ const getResolvedStatus = async ({
   if (!status) return null
 
   if (!localStatus) {
-    await recordActorIfNeeded({
+    const actor = await recordResolvedActorIfNeeded({
       actorId: status.actorId,
       database,
       signingActor: currentActor
     })
+    if (!actor) return null
   }
 
   const canRead = await canActorReadStatus({

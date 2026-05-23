@@ -19,6 +19,7 @@ const mockCanActorReadStatus = jest.fn()
 const mockGetWebfingerSelf = jest.fn()
 const mockRecordActorIfNeeded = jest.fn()
 const mockGetRemoteStatus = jest.fn()
+const mockLoggerWarn = jest.fn()
 
 const oauthActor = {
   id: 'https://llun.test/users/searcher',
@@ -87,6 +88,12 @@ jest.mock('@/lib/activities/getRemoteStatus', () => ({
 
 jest.mock('@/lib/actions/utils', () => ({
   recordActorIfNeeded: (...args: unknown[]) => mockRecordActorIfNeeded(...args)
+}))
+
+jest.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: (...args: unknown[]) => mockLoggerWarn(...args)
+  }
 }))
 
 const context = { params: Promise.resolve({}) }
@@ -371,6 +378,9 @@ describe('GET /api/v2/search', () => {
       actorId: 'https://remote.test/users/alice'
     }
     mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockRecordActorIfNeeded.mockResolvedValue({
+      id: remoteStatus.actorId
+    })
     mockSearchStatusIds.mockResolvedValue([])
 
     const response = await GET(
@@ -395,6 +405,41 @@ describe('GET /api/v2/search', () => {
       expect.any(Object),
       [remoteStatus],
       oauthActor.id
+    )
+  })
+
+  it('omits resolved remote statuses when actor recording fails', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const remoteStatus = {
+      id: statusUrl,
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockRecordActorIfNeeded.mockRejectedValue(new Error('blocked'))
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=2`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockCanActorReadStatus).not.toHaveBeenCalled()
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+      expect.any(Object),
+      [],
+      oauthActor.id
+    )
+    expect(data.statuses).toEqual([])
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to record resolved search actor',
+        actorId: remoteStatus.actorId
+      })
     )
   })
 
@@ -534,6 +579,113 @@ describe('GET /api/v2/search', () => {
         username: 'remote-resolved'
       }
     ])
+  })
+
+  it('canonicalizes Mastodon account profile URLs before recording actors', async () => {
+    const accountUrl = 'https://remote.test/@remote-resolved'
+    const canonicalActorId = 'https://remote.test/users/remote-resolved'
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetWebfingerSelf.mockResolvedValue(canonicalActorId)
+    mockRecordActorIfNeeded.mockResolvedValue({
+      id: canonicalActorId
+    })
+    mockGetMastodonActorsFromIds.mockResolvedValue([
+      {
+        id: canonicalActorId,
+        url: accountUrl,
+        username: 'remote-resolved'
+      }
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=on`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+      account: 'remote-resolved@remote.test'
+    })
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: canonicalActorId,
+      database: expect.any(Object),
+      signingActor: oauthActor
+    })
+    expect(data.accounts).toEqual([
+      {
+        id: canonicalActorId,
+        url: accountUrl,
+        username: 'remote-resolved'
+      }
+    ])
+  })
+
+  it('uses existing canonical actors for Mastodon account profile URLs', async () => {
+    const accountUrl = 'https://remote.test/@remote-resolved'
+    const canonicalActorId = 'https://remote.test/users/remote-resolved'
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetWebfingerSelf.mockResolvedValue(canonicalActorId)
+    mockGetActorFromId.mockImplementation(({ id }) =>
+      Promise.resolve(
+        id === oauthActor.id
+          ? oauthActor
+          : id === canonicalActorId
+            ? { id: canonicalActorId }
+            : null
+      )
+    )
+    mockGetMastodonActorsFromIds.mockResolvedValue([
+      {
+        id: canonicalActorId,
+        url: accountUrl,
+        username: 'remote-resolved'
+      }
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=on`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: [canonicalActorId]
+    })
+  })
+
+  it('omits resolved accounts when actor recording fails', async () => {
+    const accountUrl = 'https://remote.test/@blocked'
+    const canonicalActorId = 'https://remote.test/users/blocked'
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetWebfingerSelf.mockResolvedValue(canonicalActorId)
+    mockRecordActorIfNeeded.mockRejectedValue(new Error('blocked'))
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=on`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({ ids: [] })
+    expect(data.accounts).toEqual([])
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to record resolved search actor',
+        actorId: canonicalActorId
+      })
+    )
   })
 
   it('applies the following filter before including resolved accounts', async () => {

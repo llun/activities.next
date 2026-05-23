@@ -1332,6 +1332,17 @@ describe('StatusDatabase', () => {
           [statuses.primary.post]: 0
         })
       })
+
+      it('returns bulk reblog counts in SQLite-safe batches', async () => {
+        const statusIds = Array.from(
+          { length: 1005 },
+          (_, index) => `${emptyActorId}/statuses/bulk-reblog-count-${index}`
+        )
+        const counts = await database.getStatusReblogsCounts({ statusIds })
+
+        expect(Object.keys(counts)).toHaveLength(statusIds.length)
+        expect(Object.values(counts).every((count) => count === 0)).toBe(true)
+      })
     })
 
     describe('getStatusRepliesCount', () => {
