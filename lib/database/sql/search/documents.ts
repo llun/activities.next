@@ -98,7 +98,7 @@ export const applySearchDocumentFilter = ({
   if (isPostgres(database)) {
     const tsQuery = tokens.map((token) => `${token}:*`).join(' & ')
     query.whereRaw(
-      `to_tsvector('simple', "search_documents"."documentText") @@ to_tsquery('simple', ?)`,
+      `to_tsvector('simple', "documentText") @@ to_tsquery('simple', ?)`,
       [tsQuery]
     )
     return query
