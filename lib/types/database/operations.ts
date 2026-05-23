@@ -650,6 +650,8 @@ export type SearchDocumentsParams = {
   q: string
   limit: number
   offset?: number
+  includeNonDiscoverable?: boolean
+  visibleToActorId?: string | null
 }
 
 export type SearchAccountsParams = {

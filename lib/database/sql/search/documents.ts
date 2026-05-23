@@ -66,7 +66,7 @@ const applyPartialTokenMatch = ({
   tokens.forEach((token) => {
     query.whereRaw("LOWER(??) LIKE ? ESCAPE '\\'", [
       'search_documents.documentText',
-      `%${escapeLikePattern(token)}%`
+      `${escapeLikePattern(token)}%`
     ])
   })
   return query
@@ -108,7 +108,7 @@ export const applySearchDocumentFilter = ({
 
   if (isMySQL(database)) {
     const booleanQuery = tokens.map((token) => `+${token}*`).join(' ')
-    if (tokens.some((token) => token.length < 4)) {
+    if (tokens.some((token) => token.length < 3)) {
       return applyPartialTokenMatch({ query, tokens })
     }
     query.whereRaw('MATCH(??) AGAINST (? IN BOOLEAN MODE)', [
@@ -132,11 +132,21 @@ export const applySearchDocumentOrdering = ({
 
   query
     .orderByRaw(
-      'case when lower(??) = ? then 0 when lower(??) like ? then 1 else 2 end',
+      `case
+        when lower(??) = ? then 0
+        when lower(??) = ? then 1
+        when lower(??) like ? then 2
+        when lower(??) like ? then 3
+        else 4
+      end`,
       [
         'search_documents.entityId',
         normalizedQuery,
+        'search_documents.documentText',
+        normalizedQuery,
         'search_documents.entityId',
+        `${normalizedQuery}%`,
+        'search_documents.documentText',
         `${normalizedQuery}%`
       ]
     )
@@ -146,6 +156,58 @@ export const applySearchDocumentOrdering = ({
     .orderBy('search_documents.entityId', 'desc')
 
   return query
+}
+
+const applySearchDocumentAccessFilters = ({
+  query,
+  entityType,
+  includeNonDiscoverable = false,
+  visibleToActorId
+}: {
+  query: Knex.QueryBuilder
+  entityType?: SearchDocumentEntityType
+  includeNonDiscoverable?: boolean
+  visibleToActorId?: string | null
+}) => {
+  const applyAccountFilter = (builder: Knex.QueryBuilder) => {
+    if (!includeNonDiscoverable) {
+      builder.where('search_documents.discoverable', true)
+    }
+  }
+
+  const applyStatusFilter = (builder: Knex.QueryBuilder) => {
+    builder.where((statusBuilder) => {
+      statusBuilder.where('search_documents.visibility', 'public')
+      if (visibleToActorId) {
+        statusBuilder.orWhere('search_documents.actorId', visibleToActorId)
+      }
+    })
+  }
+
+  if (entityType === 'account') {
+    applyAccountFilter(query)
+    return
+  }
+
+  if (entityType === 'status') {
+    applyStatusFilter(query)
+    return
+  }
+
+  if (entityType === 'hashtag') return
+
+  query.where((builder) => {
+    builder
+      .where((accountBuilder) => {
+        accountBuilder.where('search_documents.entityType', 'account')
+        applyAccountFilter(accountBuilder)
+      })
+      .orWhere((statusBuilder) => {
+        statusBuilder.where('search_documents.entityType', 'status')
+        applyStatusFilter(statusBuilder)
+      })
+      .orWhere('search_documents.entityType', 'hashtag')
+  })
 }
 
 export const toSearchDocument = (row: SQLSearchDocument): SearchDocument => ({
@@ -210,7 +272,14 @@ export const deleteSearchDocument = async (
 
 export const searchDocuments = async (
   database: Knex,
-  { entityType, q, limit, offset = 0 }: SearchDocumentsParams
+  {
+    entityType,
+    q,
+    limit,
+    offset = 0,
+    includeNonDiscoverable,
+    visibleToActorId
+  }: SearchDocumentsParams
 ): Promise<SearchDocument[]> => {
   const query = database<SQLSearchDocument>(SEARCH_DOCUMENTS_TABLE).select(
     'search_documents.*'
@@ -220,6 +289,12 @@ export const searchDocuments = async (
     query.where('search_documents.entityType', entityType)
   }
 
+  applySearchDocumentAccessFilters({
+    query,
+    entityType,
+    includeNonDiscoverable,
+    visibleToActorId
+  })
   applySearchDocumentFilter({ database, query, q })
   applySearchDocumentOrdering({ query, q })
 

@@ -58,6 +58,98 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('filters generic search documents by discoverability and status visibility', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+      await database.upsertSearchDocument({
+        entityType: 'account',
+        entityId: 'https://remote.test/users/public-runner',
+        documentText: 'runner public account',
+        actorId: 'https://remote.test/users/public-runner',
+        discoverable: true
+      })
+      await database.upsertSearchDocument({
+        entityType: 'account',
+        entityId: 'https://remote.test/users/hidden-runner',
+        documentText: 'runner hidden account',
+        actorId: 'https://remote.test/users/hidden-runner',
+        discoverable: false
+      })
+      await database.upsertSearchDocument({
+        entityType: 'status',
+        entityId: 'https://remote.test/users/public-runner/statuses/1',
+        documentText: 'runner public status',
+        actorId: 'https://remote.test/users/public-runner',
+        visibility: 'public'
+      })
+      await database.upsertSearchDocument({
+        entityType: 'status',
+        entityId: 'https://remote.test/users/hidden-runner/statuses/1',
+        documentText: 'runner private status',
+        actorId: 'https://remote.test/users/hidden-runner',
+        visibility: 'private'
+      })
+
+      await expect(
+        database.searchDocuments({
+          q: 'runner',
+          limit: 10,
+          offset: 0
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          entityId: 'https://remote.test/users/public-runner/statuses/1'
+        }),
+        expect.objectContaining({
+          entityId: 'https://remote.test/users/public-runner'
+        })
+      ])
+
+      await expect(
+        database.searchDocuments({
+          entityType: 'account',
+          q: 'runner',
+          limit: 10,
+          includeNonDiscoverable: true
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          entityId: 'https://remote.test/users/public-runner'
+        }),
+        expect.objectContaining({
+          entityId: 'https://remote.test/users/hidden-runner'
+        })
+      ])
+
+      await expect(
+        database.searchDocuments({
+          entityType: 'status',
+          q: 'runner',
+          limit: 10,
+          visibleToActorId: 'https://remote.test/users/hidden-runner'
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          entityId: 'https://remote.test/users/public-runner/statuses/1'
+        }),
+        expect.objectContaining({
+          entityId: 'https://remote.test/users/hidden-runner/statuses/1'
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('generates PostgreSQL and MySQL full-text index DDL', async () => {
     const migration =
       await import('@/migrations/20260523000000_add_search_documents.js')
