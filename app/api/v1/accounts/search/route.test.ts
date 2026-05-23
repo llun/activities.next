@@ -127,8 +127,12 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'Charlie',
+      domain: 'remote.test'
+    })
     expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
-      account: 'charlie@remote.test'
+      account: 'Charlie@remote.test'
     })
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: '@Charlie@Remote.test',

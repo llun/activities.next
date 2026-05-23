@@ -248,7 +248,10 @@ export const searchAccountIds = async (
     if (handle) {
       builder.orWhere((exactBuilder) => {
         exactBuilder
-          .whereRaw('LOWER(??) = ?', ['actors.username', handle.username])
+          .whereRaw('LOWER(??) = ?', [
+            'actors.username',
+            handle.username.toLowerCase()
+          ])
           .whereRaw('LOWER(??) = ?', ['actors.domain', handle.domain])
       })
     }
