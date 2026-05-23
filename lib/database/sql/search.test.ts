@@ -1627,6 +1627,76 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('deduplicates hashtag search aggregates across legacy tag name variants', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/duplicate-hashtag`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Duplicate hashtag day',
+        createdAt: 1
+      })
+      await knexDatabase('tags').insert([
+        {
+          id: crypto.randomUUID(),
+          statusId,
+          type: 'hashtag',
+          name: '#Cycling',
+          value: 'https://remote.test/tags/cycling',
+          nameNormalized: '#cycling',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: crypto.randomUUID(),
+          statusId,
+          type: 'hashtag',
+          name: '#Cycling',
+          value: 'https://remote.test/tags/cycling',
+          nameNormalized: 'cycling',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ])
+
+      await database.reindexSearchHashtags({
+        limit: 10
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'cycling',
+          limit: 10
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          name: 'cycling',
+          postCount: 1
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('refreshes hashtag search aggregates after visibility changes', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

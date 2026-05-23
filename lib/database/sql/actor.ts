@@ -68,6 +68,70 @@ export interface SQLActorDatabase extends ActorDatabase {
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
 }
 
+const SQLITE_MAX_BINDINGS = 999
+
+const getClientName = (database: Knex | Knex.Transaction) =>
+  String(database.client.config.client)
+
+const getWhereInBatchSize = (database: Knex | Knex.Transaction) => {
+  if (!getClientName(database).includes('sqlite'))
+    return Number.POSITIVE_INFINITY
+  return SQLITE_MAX_BINDINGS
+}
+
+const chunkArray = <T>(items: T[], size: number) => {
+  const chunkSize = Number.isFinite(size) ? size : Math.max(items.length, 1)
+  const chunks: T[][] = []
+  for (let start = 0; start < items.length; start += chunkSize) {
+    chunks.push(items.slice(start, start + chunkSize))
+  }
+  return chunks
+}
+
+const selectHashtagTagsByStatusIds = async (
+  trx: Knex.Transaction,
+  statusIds: string[]
+) => {
+  const rows: { name: string; nameNormalized: string | null }[] = []
+  for (const statusIdChunk of chunkArray(statusIds, getWhereInBatchSize(trx))) {
+    rows.push(
+      ...(await trx('tags')
+        .whereIn('statusId', statusIdChunk)
+        .where('type', 'hashtag')
+        .select<
+          { name: string; nameNormalized: string | null }[]
+        >('name', 'nameNormalized'))
+    )
+  }
+  return rows
+}
+
+const selectPollChoiceIdsByStatusIds = async (
+  trx: Knex.Transaction,
+  statusIds: string[]
+) => {
+  const rows: { choiceId: string }[] = []
+  for (const statusIdChunk of chunkArray(statusIds, getWhereInBatchSize(trx))) {
+    rows.push(
+      ...(await trx('poll_choices')
+        .whereIn('statusId', statusIdChunk)
+        .select('choiceId'))
+    )
+  }
+  return rows
+}
+
+const deleteRowsByColumnChunks = async (
+  trx: Knex.Transaction,
+  tableName: string,
+  columnName: string,
+  values: string[]
+) => {
+  for (const valueChunk of chunkArray(values, getWhereInBatchSize(trx))) {
+    await trx(tableName).whereIn(columnName, valueChunk).delete()
+  }
+}
+
 const getActorCounterSummary = async (
   trx: Knex.Transaction,
   actorId: string
@@ -1270,35 +1334,48 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       }
 
       if (statusIds.length > 0) {
-        const hashtagTags = await trx('tags')
-          .whereIn('statusId', statusIds)
-          .where('type', 'hashtag')
-          .select<
-            { name: string; nameNormalized: string | null }[]
-          >('name', 'nameNormalized')
+        const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
         const affectedHashtags = [
           ...new Set(hashtagTags.map((tag) => tag.nameNormalized ?? tag.name))
         ]
 
         // Get poll choice IDs before deleting them
-        const pollChoices = await trx('poll_choices')
-          .whereIn('statusId', statusIds)
-          .select('choiceId')
+        const pollChoices = await selectPollChoiceIdsByStatusIds(trx, statusIds)
         const choiceIds = pollChoices.map((choice) => choice.choiceId)
 
         // Delete status-related data
-        await trx('tags').whereIn('statusId', statusIds).delete()
-        await trx('recipients').whereIn('statusId', statusIds).delete()
-        await trx('likes').whereIn('statusId', statusIds).delete()
-        await trx('bookmarks').whereIn('statusId', statusIds).delete()
-        await trx('attachments').whereIn('statusId', statusIds).delete()
-        await trx('status_history').whereIn('statusId', statusIds).delete()
+        await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(trx, 'recipients', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(trx, 'bookmarks', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(
+          trx,
+          'attachments',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'status_history',
+          'statusId',
+          statusIds
+        )
 
         // Delete poll answers before deleting poll choices
         if (choiceIds.length > 0) {
-          await trx('poll_answers').whereIn('answerId', choiceIds).delete()
+          await deleteRowsByColumnChunks(
+            trx,
+            'poll_answers',
+            'answerId',
+            choiceIds
+          )
         }
-        await trx('poll_choices').whereIn('statusId', statusIds).delete()
+        await deleteRowsByColumnChunks(
+          trx,
+          'poll_choices',
+          'statusId',
+          statusIds
+        )
         if (affectedHashtags.length > 0) {
           await indexHashtagSearchDocuments(trx, {
             hashtags: affectedHashtags

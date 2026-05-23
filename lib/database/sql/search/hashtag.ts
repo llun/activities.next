@@ -31,9 +31,9 @@ type HashtagSearchAggregate = {
   lastPostAt: number | null
 }
 type HashtagSearchAggregateRow = {
-  nameNormalized: string
-  statusId: string
-  statusCreatedAt: number | Date
+  name: string
+  postCount: number | string
+  lastPostAt: number | Date | null
 }
 
 const SQLITE_MAX_BINDINGS = 999
@@ -85,52 +85,57 @@ const getHashtagSearchAggregates = async (
   if (hashtagNames.length === 0) return []
 
   const requestedNames = new Set(hashtagNames)
-  const lookupNames = [...new Set(hashtagNames.flatMap(getHashtagStorageNames))]
-  const aggregateByName = new Map<
-    string,
-    { statusIds: Set<string>; lastPostAt: number | null }
-  >()
+  const normalizedNameSQL =
+    'case when substr(??, 1, 1) = ? then substr(??, 2) else ?? end'
+  const normalizedNameBindings = [
+    'tags.nameNormalized',
+    '#',
+    'tags.nameNormalized',
+    'tags.nameNormalized'
+  ]
+  const hashtagBatchSize = Math.max(
+    1,
+    Math.floor(getWhereInBatchSize(database) / 2)
+  )
+  const aggregates: HashtagSearchAggregate[] = []
 
-  for (const lookupNameChunk of chunkArray(
-    lookupNames,
-    getWhereInBatchSize(database)
-  )) {
-    const rows = await database('tags')
-      .distinct<
-        HashtagSearchAggregateRow[]
-      >('tags.nameNormalized', 'statuses.id as statusId', 'statuses.createdAt as statusCreatedAt')
+  for (const hashtagNameChunk of chunkArray(hashtagNames, hashtagBatchSize)) {
+    const lookupNames = [
+      ...new Set(hashtagNameChunk.flatMap(getHashtagStorageNames))
+    ]
+    const rows = (await database('tags')
+      .select(
+        database.raw(`${normalizedNameSQL} as ??`, [
+          ...normalizedNameBindings,
+          'name'
+        ])
+      )
+      .countDistinct({ postCount: 'statuses.id' })
+      .max({ lastPostAt: 'statuses.createdAt' })
       .innerJoin('statuses', 'statuses.id', 'tags.statusId')
       .innerJoin('recipients', 'recipients.statusId', 'statuses.id')
       .where('tags.type', 'hashtag')
-      .whereIn('tags.nameNormalized', lookupNameChunk)
+      .whereIn('tags.nameNormalized', lookupNames)
       .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      .groupByRaw(
+        normalizedNameSQL,
+        normalizedNameBindings
+      )) as HashtagSearchAggregateRow[]
 
     for (const row of rows) {
-      const name = normalizeHashtagSearchName(row.nameNormalized)
+      const name = normalizeHashtagSearchName(row.name)
       if (!requestedNames.has(name)) continue
 
-      const aggregate = aggregateByName.get(name) ?? {
-        statusIds: new Set<string>(),
-        lastPostAt: null
-      }
-      aggregate.statusIds.add(row.statusId)
-      const statusCreatedAt = getCompatibleTime(row.statusCreatedAt)
-      aggregate.lastPostAt =
-        aggregate.lastPostAt === null
-          ? statusCreatedAt
-          : Math.max(aggregate.lastPostAt, statusCreatedAt)
-      aggregateByName.set(name, aggregate)
+      aggregates.push({
+        name,
+        postCount: Number(row.postCount ?? 0),
+        lastPostAt: row.lastPostAt ? getCompatibleTime(row.lastPostAt) : null
+      })
     }
   }
 
-  return [...aggregateByName.entries()].map(
-    ([name, aggregate]): HashtagSearchAggregate => ({
-      name,
-      postCount: aggregate.statusIds.size,
-      lastPostAt: aggregate.lastPostAt
-    })
-  )
+  return aggregates
 }
 
 const getSearchDocumentInsertBatchSize = (
@@ -252,7 +257,7 @@ export const searchHashtags = async (
     .select('search_documents.*')
     .where('search_documents.entityType', 'hashtag')
 
-  applySearchDocumentFilter({ database, query, q })
+  await applySearchDocumentFilter({ database, query, q })
   applySearchDocumentOrdering({ query, q })
 
   const rows = await query.limit(limit).offset(offset)
