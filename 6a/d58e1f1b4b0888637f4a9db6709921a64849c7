@@ -1,0 +1,24 @@
+app/api/v2/search/route.ts
+  s_555d5c39b84f2a::t_9360558c5790e3 4-6,99-105,127-173,176,178-179,182,185,187-204,207-218,220-232,283,285-286,328-331,380-382,424
+  s_555d5c39b84f2a::t_d98af98ec6e690 205-206,386-387
+app/api/v2/search/route.test.ts
+  s_555d5c39b84f2a::t_7d5c62642d6553 185,200,206
+  s_555d5c39b84f2a::t_f54896ad68623b 11-12,19-20,46-47,79-86,101-102,143-144,225-261,318-335,339-360,418-451,453-481,522-548
+  s_555d5c39b84f2a::t_d98af98ec6e690 336-338,452
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "6ad58e1f1b4b0888637f4a9db6709921a64849c7",
+  "prompts": {},
+  "sessions": {
+    "s_555d5c39b84f2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e53aa-9189-7e11-90ee-4e9fbaac8bf1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
