@@ -986,6 +986,57 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('returns exact account matches without existing search documents', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const exactActorId = 'https://remote.test/users/legacy-runner'
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: exactActorId,
+        username: 'legacy-runner',
+        summary: 'Legacy runner'
+      })
+      await database.deleteActorSearchDocument({ id: exactActorId })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/alice',
+        username: 'alice',
+        summary: 'Runner'
+      })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/bob',
+        username: 'bob',
+        summary: 'Runner'
+      })
+
+      await expect(
+        database.searchAccountIds({
+          q: 'runner',
+          limit: 2,
+          offset: 0,
+          exactActorIds: [exactActorId]
+        })
+      ).resolves.toEqual([exactActorId, 'https://remote.test/users/alice'])
+      await expect(
+        database.searchAccountIds({
+          q: 'runner',
+          limit: 2,
+          offset: 2,
+          exactActorIds: [exactActorId]
+        })
+      ).resolves.toEqual(['https://remote.test/users/bob'])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('updates account search discoverability during deletion transitions', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

@@ -14,6 +14,7 @@ import {
 } from '@/lib/types/database/operations'
 import { SQLActor } from '@/lib/types/database/rows'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { parseAccountHandle } from '@/lib/utils/accountHandle'
 
 import {
   SEARCH_DOCUMENTS_TABLE,
@@ -32,13 +33,6 @@ type AccountSearchActor = Pick<
   Partial<
     Pick<SQLActor, 'type' | 'accountId' | 'name' | 'summary' | 'deletionStatus'>
   >
-
-const parseAccountHandle = (value: string) => {
-  const normalized = value.trim().replace(/^@/, '').toLowerCase()
-  const [username, domain, ...rest] = normalized.split('@')
-  if (!username || !domain || rest.length > 0) return null
-  return { username, domain }
-}
 
 const getAccountDocumentText = (actor: AccountSearchActor) => {
   const acct = `${actor.username}@${actor.domain}`
@@ -122,6 +116,67 @@ const applyAccountOrdering = ({
     .orderBy('search_documents.entityId', 'asc')
 }
 
+const applySearchableAccountFilters = (query: Knex.QueryBuilder) => {
+  query
+    .where((builder) => {
+      builder
+        .whereNull('actors.deletionStatus')
+        .orWhereNot('actors.deletionStatus', 'deleting')
+    })
+    .whereNot((builder) => {
+      builder
+        .where('actors.type', FEDERATION_SIGNING_ACTOR_TYPE)
+        .whereRaw("?? LIKE ? ESCAPE '\\'", [
+          'actors.username',
+          FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
+        ])
+        .whereNull('actors.accountId')
+    })
+}
+
+const applyFollowingFilter = ({
+  database,
+  query,
+  followingActorId
+}: {
+  database: Knex
+  query: Knex.QueryBuilder
+  followingActorId?: string | null
+}) => {
+  if (!followingActorId) return
+
+  query.whereExists(function () {
+    this.select(database.raw('1'))
+      .from('follows')
+      .where('follows.actorId', followingActorId)
+      .whereRaw('?? = ??', ['follows.targetActorId', 'actors.id'])
+      .where('follows.status', FollowStatus.enum.Accepted)
+  })
+}
+
+const getExactAccountIds = async ({
+  database,
+  exactActorIds,
+  followingActorId
+}: {
+  database: Knex
+  exactActorIds: string[]
+  followingActorId?: string | null
+}) => {
+  const normalizedExactActorIds = [...new Set(exactActorIds)]
+  if (normalizedExactActorIds.length === 0) return []
+
+  const query = database('actors')
+    .select<{ id: string }[]>('actors.id')
+    .whereIn('actors.id', normalizedExactActorIds)
+  applySearchableAccountFilters(query)
+  applyFollowingFilter({ database, query, followingActorId })
+
+  const rows = await query
+  const visibleActorIds = new Set(rows.map((row) => row.id))
+  return normalizedExactActorIds.filter((id) => visibleActorIds.has(id))
+}
+
 const upsertActorSearchDocument = async (
   database: Knex,
   actor: AccountSearchActor
@@ -164,26 +219,29 @@ export const searchAccountIds = async (
   const handle = parseAccountHandle(q)
   const normalizedQuery = q.trim().replace(/^@/, '').toLowerCase()
   const normalizedExactActorIds = [...new Set(exactActorIds)]
+  const exactResultIds = await getExactAccountIds({
+    database,
+    exactActorIds: normalizedExactActorIds,
+    followingActorId
+  })
+  const exactPageIds =
+    offset < exactResultIds.length
+      ? exactResultIds.slice(offset, offset + limit)
+      : []
+  const indexedLimit = limit - exactPageIds.length
+  if (indexedLimit <= 0) return exactPageIds
+  const indexedOffset = Math.max(offset - exactResultIds.length, 0)
+
   const query = database(SEARCH_DOCUMENTS_TABLE)
     .innerJoin('actors', 'actors.id', 'search_documents.entityId')
     .select<{ entityId: string }[]>('search_documents.entityId')
     .where('search_documents.entityType', 'account')
-    .where((builder) => {
-      builder
-        .whereNull('actors.deletionStatus')
-        .orWhereNot('actors.deletionStatus', 'deleting')
-    })
-    .whereNot((builder) => {
-      builder
-        .where('actors.type', FEDERATION_SIGNING_ACTOR_TYPE)
-        .whereRaw("?? LIKE ? ESCAPE '\\'", [
-          'actors.username',
-          FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
-        ])
-        .whereNull('actors.accountId')
-    })
+  applySearchableAccountFilters(query)
 
   await applySearchDocumentFilter({ database, query, q })
+  if (exactResultIds.length > 0) {
+    query.whereNotIn('search_documents.entityId', exactResultIds)
+  }
 
   query.where((builder) => {
     builder.where('search_documents.discoverable', true)
@@ -199,15 +257,7 @@ export const searchAccountIds = async (
     }
   })
 
-  if (followingActorId) {
-    query.whereExists(function () {
-      this.select(database.raw('1'))
-        .from('follows')
-        .where('follows.actorId', followingActorId)
-        .whereRaw('?? = ??', ['follows.targetActorId', 'actors.id'])
-        .where('follows.status', FollowStatus.enum.Accepted)
-    })
-  }
+  applyFollowingFilter({ database, query, followingActorId })
 
   applyAccountOrdering({
     database,
@@ -216,8 +266,8 @@ export const searchAccountIds = async (
     exactActorIds: normalizedExactActorIds
   })
 
-  const rows = await query.limit(limit).offset(offset)
-  return rows.map((row) => row.entityId)
+  const rows = await query.limit(indexedLimit).offset(indexedOffset)
+  return [...exactPageIds, ...rows.map((row) => row.entityId)]
 }
 
 export const deleteActorSearchDocument = async (
@@ -235,7 +285,9 @@ export const reindexSearchAccounts = async (
   if (afterId) query.where('id', '>', afterId)
 
   const rows = await query.limit(limit)
-  await Promise.all(rows.map((row) => upsertActorSearchDocument(database, row)))
+  for (const row of rows) {
+    await upsertActorSearchDocument(database, row)
+  }
 
   return {
     indexed: rows.length,

@@ -120,7 +120,7 @@ describe('GET /api/v1/accounts/search', () => {
 
     const response = await GET(
       new NextRequest(
-        'https://llun.test/api/v1/accounts/search?q=@charlie@remote.test&resolve=true',
+        'https://llun.test/api/v1/accounts/search?q=@Charlie@Remote.test&resolve=true',
         { headers: { Authorization: 'Bearer read-accounts-token' } }
       ),
       context
@@ -131,7 +131,7 @@ describe('GET /api/v1/accounts/search', () => {
       account: 'charlie@remote.test'
     })
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
-      q: '@charlie@remote.test',
+      q: '@Charlie@Remote.test',
       limit: 40,
       offset: 0,
       exactActorIds: [resolvedActor.id]
