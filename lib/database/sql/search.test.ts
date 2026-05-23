@@ -2053,10 +2053,6 @@ describe('SearchDatabase foundation', () => {
     try {
       await database.migrate()
       await createSearchActor(database, {
-        id: viewerId,
-        username: 'viewer'
-      })
-      await createSearchActor(database, {
         id: authorId,
         username: 'author'
       })
@@ -2080,7 +2076,9 @@ describe('SearchDatabase foundation', () => {
         database.searchStatusIds({
           q: 'searchword',
           limit: 10,
-          currentActorId: viewerId
+          currentActorId: viewerId,
+          currentActorUsername: 'viewer',
+          currentActorDomain: 'remote.test'
         })
       ).resolves.toEqual([statusId])
 
@@ -2094,7 +2092,9 @@ describe('SearchDatabase foundation', () => {
         database.searchStatusIds({
           q: 'searchword',
           limit: 10,
-          currentActorId: viewerId
+          currentActorId: viewerId,
+          currentActorUsername: 'viewer',
+          currentActorDomain: 'remote.test'
         })
       ).resolves.toEqual([])
     } finally {

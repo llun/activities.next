@@ -32,6 +32,23 @@ type SQLStatusRow = {
 
 const SQLITE_MAX_BINDINGS = 999
 
+const getClientName = (database: Knex) => String(database.client.config.client)
+
+const getWhereInBatchSize = (database: Knex) => {
+  if (!getClientName(database).includes('sqlite'))
+    return Number.POSITIVE_INFINITY
+  return SQLITE_MAX_BINDINGS
+}
+
+const chunkArray = <T>(items: T[], size: number) => {
+  const chunkSize = Number.isFinite(size) ? size : Math.max(items.length, 1)
+  const chunks: T[][] = []
+  for (let start = 0; start < items.length; start += chunkSize) {
+    chunks.push(items.slice(start, start + chunkSize))
+  }
+  return chunks
+}
+
 const stripHTML = (value: string) =>
   sanitizeHtml(value, {
     allowedTags: [],
@@ -64,9 +81,22 @@ const getStatusRecipientIdsByStatusId = async (
   const recipientIdsByStatusId = new Map<string, string[]>()
   if (statusIds.length === 0) return recipientIdsByStatusId
 
-  const rows = await database('recipients')
-    .whereIn('statusId', statusIds)
-    .select<{ statusId: string; actorId: string }[]>('statusId', 'actorId')
+  const statusIdChunks = chunkArray(
+    [...new Set(statusIds)],
+    getWhereInBatchSize(database)
+  )
+
+  const rows = (
+    await Promise.all(
+      statusIdChunks.map((statusIdChunk) =>
+        database('recipients')
+          .whereIn('statusId', statusIdChunk)
+          .select<
+            { statusId: string; actorId: string }[]
+          >('statusId', 'actorId')
+      )
+    )
+  ).flat()
 
   for (const row of rows) {
     const recipientIds = recipientIdsByStatusId.get(row.statusId) ?? []
@@ -81,7 +111,7 @@ const getSearchDocumentInsertBatchSize = (
   database: Knex,
   row: Record<string, unknown>
 ) => {
-  const clientName = String(database.client.config.client)
+  const clientName = getClientName(database)
   if (!clientName.includes('sqlite')) return Number.POSITIVE_INFINITY
 
   const columnCount = Math.max(1, Object.keys(row).length)
@@ -200,10 +230,28 @@ const applyCursorFilter = async ({
   maxId?: string | null
   minId?: string | null
 }) => {
+  const cursorIds = [
+    ...new Set([maxId, minId].filter((id): id is string => Boolean(id)))
+  ]
+  const cursors = new Map<
+    string,
+    { entityCreatedAt: number | Date; entityId: string }
+  >()
+
+  if (cursorIds.length > 0) {
+    const rows = await database(SEARCH_DOCUMENTS_TABLE)
+      .where('entityType', 'status')
+      .whereIn('entityId', cursorIds)
+      .select<
+        { entityCreatedAt: number | Date; entityId: string }[]
+      >('entityCreatedAt', 'entityId')
+    for (const row of rows) {
+      cursors.set(row.entityId, row)
+    }
+  }
+
   if (maxId) {
-    const cursor = await database(SEARCH_DOCUMENTS_TABLE)
-      .where({ entityType: 'status', entityId: maxId })
-      .first<{ entityCreatedAt: number | Date; entityId: string }>()
+    const cursor = cursors.get(maxId)
     if (cursor) {
       query.where((builder) => {
         builder
@@ -222,9 +270,7 @@ const applyCursorFilter = async ({
   }
 
   if (minId) {
-    const cursor = await database(SEARCH_DOCUMENTS_TABLE)
-      .where({ entityType: 'status', entityId: minId })
-      .first<{ entityCreatedAt: number | Date; entityId: string }>()
+    const cursor = cursors.get(minId)
     if (cursor) {
       query.where((builder) => {
         builder
@@ -245,8 +291,23 @@ const applyCursorFilter = async ({
 
 const getMentionSearchValues = async (
   database: Knex,
-  currentActorId: string
+  {
+    currentActorId,
+    currentActorUsername,
+    currentActorDomain
+  }: Pick<
+    SearchStatusesParams,
+    'currentActorId' | 'currentActorUsername' | 'currentActorDomain'
+  >
 ) => {
+  if (currentActorUsername && currentActorDomain) {
+    return [
+      currentActorId,
+      `https://${currentActorDomain}/@${currentActorUsername}`,
+      `https://${currentActorDomain}/@${currentActorUsername}@${currentActorDomain}`
+    ]
+  }
+
   const actor = await database('actors')
     .where('id', currentActorId)
     .first<{ username: string; domain: string }>('username', 'domain')
@@ -330,12 +391,18 @@ export const searchStatusIds = async (
     limit,
     offset = 0,
     currentActorId,
+    currentActorUsername,
+    currentActorDomain,
     accountId,
     minId,
     maxId
   }: SearchStatusesParams
 ): Promise<string[]> => {
-  const mentionValues = await getMentionSearchValues(database, currentActorId)
+  const mentionValues = await getMentionSearchValues(database, {
+    currentActorId,
+    currentActorUsername,
+    currentActorDomain
+  })
   const query = database(SEARCH_DOCUMENTS_TABLE)
     .innerJoin('statuses', 'statuses.id', 'search_documents.entityId')
     .select<{ entityId: string }[]>('search_documents.entityId')
