@@ -250,18 +250,28 @@ const getResolvedStatus = async ({
 }) => {
   if (!resolve || !isUrl(query)) return null
 
-  const status =
+  const localStatus =
     (await database.getStatus({
       statusId: query,
       currentActorId: currentActor.id
-    })) ??
-    (await database.getStatusFromUrl({ url: query })) ??
+    })) ?? (await database.getStatusFromUrl({ url: query }))
+
+  const status =
+    localStatus ??
     (await getRemoteStatus({
       statusId: query,
       signingActor: currentActor
     }))
 
   if (!status) return null
+
+  if (!localStatus) {
+    await recordActorIfNeeded({
+      actorId: status.actorId,
+      database,
+      signingActor: currentActor
+    })
+  }
 
   const canRead = await canActorReadStatus({
     database,
@@ -405,7 +415,9 @@ const searchStatuses = async ({
 const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) =>
   params.type === 'statuses' ||
   params.resolve === true ||
-  params.following === true
+  params.following === true ||
+  Boolean(params.account_id) ||
+  (params.offset !== undefined && params.offset > 0)
 
 export const GET = traceApiRoute(
   'search',

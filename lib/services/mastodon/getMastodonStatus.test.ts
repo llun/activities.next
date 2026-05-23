@@ -124,6 +124,43 @@ describe('#getMastodonStatus', () => {
         getMastodonActorFromId.mockRestore()
       }
     })
+
+    it('hydrates reply parents in bulk while serializing status lists', async () => {
+      const parentId = `${ACTOR1_ID}/statuses/post-1`
+      const replyOne = (await database.getStatus({
+        statusId: `${ACTOR2_ID}/statuses/post-2`
+      })) as Status
+      const replyTwo = (await database.getStatus({
+        statusId: `${ACTOR2_ID}/statuses/reply-1`
+      })) as Status
+      const getStatusesByIds = jest.spyOn(database, 'getStatusesByIds')
+      const getStatus = jest.spyOn(database, 'getStatus')
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(
+          database,
+          [replyOne, replyTwo],
+          ACTOR1_ID
+        )
+
+        expect(mastodonStatuses).toHaveLength(2)
+        expect(mastodonStatuses.map((status) => status.in_reply_to_id)).toEqual(
+          [urlToId(parentId), urlToId(parentId)]
+        )
+        expect(
+          mastodonStatuses.map((status) => status.in_reply_to_account_id)
+        ).toEqual([urlToId(ACTOR1_ID), urlToId(ACTOR1_ID)])
+        expect(getStatusesByIds).toHaveBeenCalledWith({
+          statusIds: [parentId],
+          currentActorId: ACTOR1_ID,
+          visibleToActorId: ACTOR1_ID
+        })
+        expect(getStatus).not.toHaveBeenCalled()
+      } finally {
+        getStatusesByIds.mockRestore()
+        getStatus.mockRestore()
+      }
+    })
   })
 
   it('returns mastodon status from status model', async () => {

@@ -236,26 +236,19 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
-  it('allows anonymous offset paging without including statuses', async () => {
+  it('requires authentication for offset paging', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v2/search?q=trail&limit=3&offset=5'
       ),
       context
     )
+    const data = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(mockSearchAccountIds).toHaveBeenCalledWith({
-      q: 'trail',
-      limit: 3,
-      offset: 5
-    })
-    expect(mockSearchHashtags).toHaveBeenCalledWith({
-      q: 'trail',
-      limit: 3,
-      offset: 5,
-      excludeUnreviewed: false
-    })
+    expect(response.status).toBe(401)
+    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(mockSearchHashtags).not.toHaveBeenCalled()
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
   })
 
@@ -299,17 +292,19 @@ describe('GET /api/v2/search', () => {
     })
   })
 
-  it('does not require authentication solely for account_id on multi-type search', async () => {
+  it('requires authentication for account-scoped search', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v2/search?q=trail&account_id=https%3A%2F%2Fremote.test%2Fusers%2Falice'
       ),
       context
     )
+    const data = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(mockSearchAccountIds).toHaveBeenCalled()
-    expect(mockSearchHashtags).toHaveBeenCalled()
+    expect(response.status).toBe(401)
+    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(mockSearchHashtags).not.toHaveBeenCalled()
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
   })
 
@@ -389,6 +384,11 @@ describe('GET /api/v2/search', () => {
     expect(response.status).toBe(200)
     expect(mockGetRemoteStatus).toHaveBeenCalledWith({
       statusId: statusUrl,
+      signingActor: oauthActor
+    })
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: remoteStatus.actorId,
+      database: expect.any(Object),
       signingActor: oauthActor
     })
     expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
