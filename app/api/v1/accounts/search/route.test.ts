@@ -145,10 +145,9 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  it('includes followed local exact matches when following is true', async () => {
+  it('passes exact matches through indexed following filters', async () => {
     const localActor = { id: 'https://llun.test/users/local-runner' }
     mockGetActorFromUsername.mockResolvedValue(localActor)
-    mockIsCurrentActorFollowing.mockResolvedValue(true)
     mockSearchAccountIds.mockResolvedValue([localActor.id])
 
     const response = await GET(
@@ -160,10 +159,7 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockIsCurrentActorFollowing).toHaveBeenCalledWith({
-      currentActorId: oauthActor.id,
-      followingActorId: localActor.id
-    })
+    expect(mockIsCurrentActorFollowing).not.toHaveBeenCalled()
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'local-runner',
       limit: 40,

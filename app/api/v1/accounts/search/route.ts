@@ -5,7 +5,6 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
-import { Actor } from '@/lib/types/domain/actor'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -66,17 +65,9 @@ export const GET = traceApiRoute(
 
       const query = q.trim()
       const exactActorIds: string[] = []
-      const addExactActorId = async (actor: Actor | null | undefined) => {
+      const addExactActorId = (actor: { id: string } | null | undefined) => {
         if (!actor) return
-        const canIncludeExact =
-          !following ||
-          (await database.isCurrentActorFollowing({
-            currentActorId: context.currentActor.id,
-            followingActorId: actor.id
-          }))
-        if (canIncludeExact) {
-          exactActorIds.push(actor.id)
-        }
+        exactActorIds.push(actor.id)
       }
 
       if (query.includes('@')) {
@@ -92,14 +83,14 @@ export const GET = traceApiRoute(
               : null
           }
 
-          await addExactActorId(actor)
+          addExactActorId(actor)
         }
       } else {
         const actor = await database.getActorFromUsername({
           username: query,
           domain: getConfig().host
         })
-        await addExactActorId(actor)
+        addExactActorId(actor)
       }
 
       const indexedIds = await database.searchAccountIds({
