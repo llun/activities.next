@@ -195,7 +195,7 @@ describe('GET /api/v2/search', () => {
     })
   })
 
-  it('delegates authenticated full search with filters and honors offset without type', async () => {
+  it('delegates authenticated full search with filters and ignores offset without type', async () => {
     const accountId = encodeURIComponent('https://remote.test/users/alice')
     const response = await GET(
       new NextRequest(
@@ -210,19 +210,19 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 2,
-      offset: 1,
+      offset: 0,
       followingActorId: oauthActor.id
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
       limit: 2,
-      offset: 1,
+      offset: 0,
       excludeUnreviewed: false
     })
     expect(mockSearchStatusIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 2,
-      offset: 1,
+      offset: 0,
       currentActorId: oauthActor.id,
       currentActorUsername: oauthActor.username,
       currentActorDomain: oauthActor.domain,
@@ -243,10 +243,35 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
-  it('requires authentication for offset paging', async () => {
+  it('ignores offset without an explicit search type', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v2/search?q=trail&limit=3&offset=5'
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 3,
+      offset: 0
+    })
+    expect(mockSearchHashtags).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 3,
+      offset: 0,
+      excludeUnreviewed: false
+    })
+    expect(mockSearchStatusIds).not.toHaveBeenCalled()
+    expect(data.statuses).toEqual([])
+  })
+
+  it('requires authentication for typed offset paging', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=hashtags&limit=3&offset=5'
       ),
       context
     )
@@ -299,7 +324,7 @@ describe('GET /api/v2/search', () => {
     })
   })
 
-  it('requires authentication for account-scoped search', async () => {
+  it('does not require authentication for account_id without status search', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v2/search?q=trail&account_id=https%3A%2F%2Fremote.test%2Fusers%2Falice'
@@ -308,11 +333,20 @@ describe('GET /api/v2/search', () => {
     )
     const data = await response.json()
 
-    expect(response.status).toBe(401)
-    expect(data).toEqual({ status: 'Unauthorized' })
-    expect(mockSearchAccountIds).not.toHaveBeenCalled()
-    expect(mockSearchHashtags).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 20,
+      offset: 0
+    })
+    expect(mockSearchHashtags).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 20,
+      offset: 0,
+      excludeUnreviewed: false
+    })
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
+    expect(data.statuses).toEqual([])
   })
 
   it('requires authentication for explicit status search', async () => {

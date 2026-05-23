@@ -478,8 +478,9 @@ const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) =>
   params.type === 'statuses' ||
   params.resolve === true ||
   params.following === true ||
-  Boolean(params.account_id) ||
-  (params.offset !== undefined && params.offset > 0)
+  (params.type !== undefined &&
+    params.offset !== undefined &&
+    params.offset > 0)
 
 export const GET = traceApiRoute(
   'search',
@@ -500,7 +501,7 @@ export const GET = traceApiRoute(
       const params = parsedParams.data
       const query = params.q.trim()
       const limit = params.limit ?? 20
-      const offset = params.offset ?? 0
+      const offset = params.type ? (params.offset ?? 0) : 0
 
       if (!currentActor && requiresAuthentication({ params })) {
         return apiResponse({
