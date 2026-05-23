@@ -197,19 +197,13 @@ export const applySearchDocumentOrdering = ({
     .orderByRaw(
       `case
         when lower(??) = ? then 0
-        when lower(??) = ? then 1
-        when lower(??) like ? then 2
-        when lower(??) like ? then 3
-        else 4
+        when lower(??) like ? then 1
+        else 2
       end`,
       [
         'search_documents.entityId',
         normalizedQuery,
-        'search_documents.documentText',
-        normalizedQuery,
         'search_documents.entityId',
-        `${normalizedQuery}%`,
-        'search_documents.documentText',
         `${normalizedQuery}%`
       ]
     )
@@ -277,7 +271,7 @@ const applySearchDocumentAccessFilters = ({
           .orWhereExists(function () {
             this.select(database.raw('1'))
               .from('recipients as followers_recipients')
-              .innerJoin(
+              .leftJoin(
                 'actors as search_document_actors',
                 'search_document_actors.id',
                 'search_documents.actorId'

@@ -2,7 +2,10 @@ import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getSearchTokens } from '@/lib/database/sql/search'
-import { applySearchDocumentFilter } from '@/lib/database/sql/search/documents'
+import {
+  applySearchDocumentFilter,
+  applySearchDocumentOrdering
+} from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 describe('SearchDatabase foundation', () => {
@@ -165,6 +168,13 @@ describe('SearchDatabase foundation', () => {
         actorId: 'https://remote.test/users/unfollowed-runner',
         visibility: 'private'
       })
+      await database.upsertSearchDocument({
+        entityType: 'status',
+        entityId: 'https://remote.test/users/missing-runner/statuses/1',
+        documentText: 'runner missing actor private status',
+        actorId: 'https://remote.test/users/missing-runner',
+        visibility: 'private'
+      })
       await knexDatabase('actors').insert({
         id: 'https://remote.test/users/followed-runner',
         type: 'Person',
@@ -203,16 +213,32 @@ describe('SearchDatabase foundation', () => {
           statusId: 'https://remote.test/users/unfollowed-runner/statuses/1',
           actorId: 'https://remote.test/users/unfollowed-runner/followers',
           type: 'to'
+        },
+        {
+          id: 'search-missing-actor-recipient',
+          statusId: 'https://remote.test/users/missing-runner/statuses/1',
+          actorId: 'https://remote.test/users/missing-runner/followers',
+          type: 'to'
         }
       ])
-      await knexDatabase('follows').insert({
-        id: 'search-followed-runner-follow',
-        actorId: 'https://remote.test/users/current-runner',
-        actorHost: 'remote.test',
-        targetActorId: 'https://remote.test/users/followed-runner',
-        targetActorHost: 'remote.test',
-        status: FollowStatus.enum.Accepted
-      })
+      await knexDatabase('follows').insert([
+        {
+          id: 'search-followed-runner-follow',
+          actorId: 'https://remote.test/users/current-runner',
+          actorHost: 'remote.test',
+          targetActorId: 'https://remote.test/users/followed-runner',
+          targetActorHost: 'remote.test',
+          status: FollowStatus.enum.Accepted
+        },
+        {
+          id: 'search-missing-runner-follow',
+          actorId: 'https://remote.test/users/current-runner',
+          actorHost: 'remote.test',
+          targetActorId: 'https://remote.test/users/missing-runner',
+          targetActorHost: 'remote.test',
+          status: FollowStatus.enum.Accepted
+        }
+      ])
 
       const anonymousResults = await database.searchDocuments({
         q: 'runner',
@@ -280,7 +306,8 @@ describe('SearchDatabase foundation', () => {
           'https://remote.test/users/public-runner/statuses/1',
           'https://remote.test/users/unlisted-runner/statuses/1',
           'https://remote.test/users/direct-runner/statuses/1',
-          'https://remote.test/users/followed-runner/statuses/1'
+          'https://remote.test/users/followed-runner/statuses/1',
+          'https://remote.test/users/missing-runner/statuses/1'
         ])
       )
       expect(
@@ -325,6 +352,24 @@ describe('SearchDatabase foundation', () => {
       )
     } finally {
       await mysqlDatabase.destroy()
+    }
+  })
+
+  it('does not rank generic results with document text string scans', async () => {
+    const postgresDatabase = knex({ client: 'pg' })
+
+    try {
+      const query = postgresDatabase('search_documents').select('*')
+      applySearchDocumentOrdering({
+        query,
+        q: 'runner'
+      })
+
+      const sql = query.toSQL()
+      expect(sql.sql).not.toContain('documentText')
+      expect(sql.bindings).toEqual(['runner', 'runner%'])
+    } finally {
+      await postgresDatabase.destroy()
     }
   })
 
