@@ -101,6 +101,7 @@ describe('GET /api/v1/accounts/search', () => {
       q: 'runner',
       limit: 2,
       offset: 1,
+      exactActorIds: [],
       followingActorId: oauthActor.id
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
@@ -112,7 +113,10 @@ describe('GET /api/v1/accounts/search', () => {
     const resolvedActor = { id: 'https://remote.test/users/charlie' }
     mockGetWebfingerSelf.mockResolvedValue(resolvedActor.id)
     mockRecordActorIfNeeded.mockResolvedValue(resolvedActor)
-    mockSearchAccountIds.mockResolvedValue(['https://remote.test/users/alice'])
+    mockSearchAccountIds.mockResolvedValue([
+      resolvedActor.id,
+      'https://remote.test/users/alice'
+    ])
 
     const response = await GET(
       new NextRequest(
@@ -126,6 +130,12 @@ describe('GET /api/v1/accounts/search', () => {
     expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
       account: 'charlie@remote.test'
     })
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: '@charlie@remote.test',
+      limit: 40,
+      offset: 0,
+      exactActorIds: [resolvedActor.id]
+    })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: [resolvedActor.id, 'https://remote.test/users/alice']
     })
@@ -135,7 +145,7 @@ describe('GET /api/v1/accounts/search', () => {
     const localActor = { id: 'https://llun.test/users/local-runner' }
     mockGetActorFromUsername.mockResolvedValue(localActor)
     mockIsCurrentActorFollowing.mockResolvedValue(true)
-    mockSearchAccountIds.mockResolvedValue([])
+    mockSearchAccountIds.mockResolvedValue([localActor.id])
 
     const response = await GET(
       new NextRequest(
@@ -149,6 +159,13 @@ describe('GET /api/v1/accounts/search', () => {
     expect(mockIsCurrentActorFollowing).toHaveBeenCalledWith({
       currentActorId: oauthActor.id,
       followingActorId: localActor.id
+    })
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'local-runner',
+      limit: 40,
+      offset: 0,
+      exactActorIds: [localActor.id],
+      followingActorId: oauthActor.id
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: [localActor.id]
@@ -170,6 +187,12 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: '@charlie@remote.test',
+      limit: 40,
+      offset: 1,
+      exactActorIds: [resolvedActor.id]
+    })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://remote.test/users/alice']
     })

@@ -274,20 +274,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       inboxUrl,
       sharedInboxUrl
     }
-    await database('actors').insert({
+    const actor = {
       id: actorId,
       type,
       username,
       domain,
       name,
       summary,
+      accountId: null,
       settings: JSON.stringify(settings),
       publicKey,
       privateKey,
+      deletionStatus: null,
+      deletionScheduledAt: null,
       createdAt: new Date(createdAt),
       updatedAt: currentTime
-    })
-    await indexActorSearchDocument(database, { id: actorId })
+    }
+    await database('actors').insert(actor)
+    await indexActorSearchDocument(database, { id: actorId, actor })
     return this.getActorFromId({ id: actorId })
   },
 
@@ -319,20 +323,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       inboxUrl,
       sharedInboxUrl
     }
-    await database('actors').insert({
+    const actor = {
       id: actorId,
       type,
       username,
       domain,
       name,
       summary,
+      accountId: null,
       settings: JSON.stringify(settings),
       publicKey,
       privateKey,
+      deletionStatus: null,
+      deletionScheduledAt: null,
       createdAt: new Date(createdAt),
       updatedAt: currentTime
-    })
-    await indexActorSearchDocument(database, { id: actorId })
+    }
+    await database('actors').insert(actor)
+    await indexActorSearchDocument(database, { id: actorId, actor })
     return this.getMastodonActor(actorId)
   },
 
@@ -813,6 +821,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(sharedInboxUrl ? { sharedInboxUrl } : null)
     }
 
+    const currentTime = new Date()
+    const updatedActor: SQLActor = {
+      ...persistedActor,
+      ...(type ? { type } : null),
+      ...(name ? { name } : null),
+      ...(summary ? { summary } : null),
+      ...(publicKey ? { publicKey } : null),
+      settings: JSON.stringify(settings),
+      updatedAt: currentTime
+    }
+
     await database<SQLActor>('actors')
       .where('id', actorId)
       .update({
@@ -823,9 +842,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ...(publicKey ? { publicKey } : null),
 
         settings: JSON.stringify(settings),
-        updatedAt: new Date()
+        updatedAt: currentTime
       })
-    await indexActorSearchDocument(database, { id: actorId })
+    await indexActorSearchDocument(database, {
+      id: actorId,
+      actor: updatedActor
+    })
     return this.getActorFromId({ id: actorId })
   },
 
@@ -920,6 +942,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       deletionScheduledAt: scheduledAt,
       updatedAt: currentTime
     })
+    await indexActorSearchDocument(database, { id: actorId })
   },
 
   async cancelActorDeletion({ actorId }: CancelActorDeletionParams) {
@@ -929,6 +952,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       deletionScheduledAt: null,
       updatedAt: currentTime
     })
+    await indexActorSearchDocument(database, { id: actorId })
   },
 
   async startActorDeletion({ actorId }: StartActorDeletionParams) {
@@ -937,6 +961,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       deletionStatus: 'deleting',
       updatedAt: currentTime
     })
+    await indexActorSearchDocument(database, { id: actorId })
   },
 
   async getActorsScheduledForDeletion({

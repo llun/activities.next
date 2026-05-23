@@ -659,6 +659,7 @@ export type SearchAccountsParams = {
   limit: number
   offset?: number
   followingActorId?: string | null
+  exactActorIds?: string[]
 }
 
 export type SearchHashtagsParams = {

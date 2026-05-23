@@ -3,6 +3,11 @@ import { Knex } from 'knex'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  FEDERATION_SIGNING_ACTOR_TYPE,
+  FEDERATION_SIGNING_ACTOR_USERNAME,
+  isFederationSigningActorUsername
+} from '@/lib/services/federation/instanceActor'
+import {
   ReindexSearchDocumentsParams,
   ReindexSearchDocumentsResult,
   SearchAccountsParams
@@ -18,6 +23,16 @@ import {
   upsertSearchDocument
 } from './documents'
 
+const FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN = `${FEDERATION_SIGNING_ACTOR_USERNAME.replace(/[\\%_]/g, '\\$&')}%`
+
+type AccountSearchActor = Pick<
+  SQLActor,
+  'id' | 'username' | 'domain' | 'settings' | 'createdAt'
+> &
+  Partial<
+    Pick<SQLActor, 'type' | 'accountId' | 'name' | 'summary' | 'deletionStatus'>
+  >
+
 const parseAccountHandle = (value: string) => {
   const normalized = value.trim().replace(/^@/, '').toLowerCase()
   const [username, domain, ...rest] = normalized.split('@')
@@ -25,7 +40,7 @@ const parseAccountHandle = (value: string) => {
   return { username, domain }
 }
 
-const getAccountDocumentText = (actor: SQLActor) => {
+const getAccountDocumentText = (actor: AccountSearchActor) => {
   const acct = `${actor.username}@${actor.domain}`
   return normalizeSearchText(
     [
@@ -38,11 +53,19 @@ const getAccountDocumentText = (actor: SQLActor) => {
   )
 }
 
-const isDiscoverableAccount = (actor: SQLActor) => {
+const isDiscoverableAccount = (actor: AccountSearchActor) => {
   const settings = getCompatibleJSON<Record<string, unknown>>(
     actor.settings as string | Record<string, unknown>
   )
-  return settings.noindex !== true && actor.deletionStatus !== 'deleting'
+  const isInternalFederationActor =
+    actor.type === FEDERATION_SIGNING_ACTOR_TYPE &&
+    isFederationSigningActorUsername(actor.username) &&
+    !actor.accountId
+  return (
+    settings.noindex !== true &&
+    actor.deletionStatus !== 'deleting' &&
+    !isInternalFederationActor
+  )
 }
 
 const getLowerAccountHandleSQL = (database: Knex) => {
@@ -56,13 +79,22 @@ const getLowerAccountHandleSQL = (database: Knex) => {
 const applyAccountOrdering = ({
   database,
   query,
-  normalizedQuery
+  normalizedQuery,
+  exactActorIds
 }: {
   database: Knex
   query: Knex.QueryBuilder
   normalizedQuery: string
+  exactActorIds: string[]
 }) => {
   const lowerHandleSQL = getLowerAccountHandleSQL(database)
+
+  if (exactActorIds.length > 0) {
+    query.orderByRaw(
+      `case when ?? in (${exactActorIds.map(() => '?').join(', ')}) then 0 else 1 end`,
+      ['search_documents.entityId', ...exactActorIds]
+    )
+  }
 
   query
     .orderByRaw(
@@ -90,7 +122,10 @@ const applyAccountOrdering = ({
     .orderBy('search_documents.entityId', 'asc')
 }
 
-const upsertActorSearchDocument = async (database: Knex, actor: SQLActor) => {
+const upsertActorSearchDocument = async (
+  database: Knex,
+  actor: AccountSearchActor
+) => {
   await upsertSearchDocument(database, {
     entityType: 'account',
     entityId: actor.id,
@@ -103,9 +138,11 @@ const upsertActorSearchDocument = async (database: Knex, actor: SQLActor) => {
 
 export const indexActorSearchDocument = async (
   database: Knex,
-  { id }: { id: string }
+  { id, actor: providedActor }: { id: string; actor?: AccountSearchActor }
 ): Promise<void> => {
-  const actor = await database<SQLActor>('actors').where('id', id).first()
+  const actor =
+    providedActor ??
+    (await database<SQLActor>('actors').where('id', id).first())
   if (!actor) {
     await deleteActorSearchDocument(database, { id })
     return
@@ -116,14 +153,35 @@ export const indexActorSearchDocument = async (
 
 export const searchAccountIds = async (
   database: Knex,
-  { q, limit, offset = 0, followingActorId }: SearchAccountsParams
+  {
+    q,
+    limit,
+    offset = 0,
+    followingActorId,
+    exactActorIds = []
+  }: SearchAccountsParams
 ): Promise<string[]> => {
   const handle = parseAccountHandle(q)
   const normalizedQuery = q.trim().replace(/^@/, '').toLowerCase()
+  const normalizedExactActorIds = [...new Set(exactActorIds)]
   const query = database(SEARCH_DOCUMENTS_TABLE)
     .innerJoin('actors', 'actors.id', 'search_documents.entityId')
     .select<{ entityId: string }[]>('search_documents.entityId')
     .where('search_documents.entityType', 'account')
+    .where((builder) => {
+      builder
+        .whereNull('actors.deletionStatus')
+        .orWhereNot('actors.deletionStatus', 'deleting')
+    })
+    .whereNot((builder) => {
+      builder
+        .where('actors.type', FEDERATION_SIGNING_ACTOR_TYPE)
+        .whereRaw("?? LIKE ? ESCAPE '\\'", [
+          'actors.username',
+          FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
+        ])
+        .whereNull('actors.accountId')
+    })
 
   await applySearchDocumentFilter({ database, query, q })
 
@@ -135,6 +193,9 @@ export const searchAccountIds = async (
           .whereRaw('LOWER(??) = ?', ['actors.username', handle.username])
           .whereRaw('LOWER(??) = ?', ['actors.domain', handle.domain])
       })
+    }
+    if (normalizedExactActorIds.length > 0) {
+      builder.orWhereIn('search_documents.entityId', normalizedExactActorIds)
     }
   })
 
@@ -148,7 +209,12 @@ export const searchAccountIds = async (
     })
   }
 
-  applyAccountOrdering({ database, query, normalizedQuery })
+  applyAccountOrdering({
+    database,
+    query,
+    normalizedQuery,
+    exactActorIds: normalizedExactActorIds
+  })
 
   const rows = await query.limit(limit).offset(offset)
   return rows.map((row) => row.entityId)

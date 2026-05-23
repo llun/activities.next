@@ -924,4 +924,143 @@ describe('SearchDatabase foundation', () => {
       await database.destroy()
     }
   })
+
+  it('paginates exact account matches with indexed results without skipping', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const exactActorId = 'https://remote.test/users/runner'
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: exactActorId,
+        username: 'runner',
+        summary: 'Hidden runner'
+      })
+      await knexDatabase('actors')
+        .where('id', exactActorId)
+        .update({
+          settings: JSON.stringify({
+            followersUrl: `${exactActorId}/followers`,
+            inboxUrl: `${exactActorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            noindex: true
+          })
+        })
+      await database.indexActorSearchDocument({ id: exactActorId })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/alice',
+        username: 'alice',
+        summary: 'Runner'
+      })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/bob',
+        username: 'bob',
+        summary: 'Runner'
+      })
+
+      await expect(
+        database.searchAccountIds({
+          q: 'runner',
+          limit: 2,
+          offset: 0,
+          exactActorIds: [exactActorId]
+        })
+      ).resolves.toEqual([exactActorId, 'https://remote.test/users/alice'])
+      await expect(
+        database.searchAccountIds({
+          q: 'runner',
+          limit: 2,
+          offset: 2,
+          exactActorIds: [exactActorId]
+        })
+      ).resolves.toEqual(['https://remote.test/users/bob'])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('updates account search discoverability during deletion transitions', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/deleting-runner'
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'deleting-runner',
+        summary: 'Runner'
+      })
+
+      await expect(
+        database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([actorId])
+      await database.startActorDeletion({ actorId })
+      await expect(
+        database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([])
+      await database.cancelActorDeletion({ actorId })
+      await expect(
+        database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([actorId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('excludes internal federation signing actors from account search', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/__instance__'
+
+    try {
+      await database.migrate()
+      await database.createActor({
+        actorId,
+        type: 'Service',
+        username: '__instance__',
+        domain: 'remote.test',
+        name: 'Instance actor',
+        summary: 'Service actor used for ActivityPub federation signing.',
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: 'https://remote.test/inbox',
+        followersUrl: `${actorId}/followers`,
+        publicKey: 'public-key',
+        privateKey: 'private-key',
+        createdAt: 1
+      })
+
+      await expect(
+        database.searchAccountIds({ q: 'instance', limit: 10 })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchAccountIds({
+          q: '@__instance__@remote.test',
+          limit: 10,
+          exactActorIds: [actorId]
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
 })

@@ -70,7 +70,7 @@ export const GET = traceApiRoute(
       }
 
       const query = q.trim()
-      const resultIds: string[] = []
+      const exactActorIds: string[] = []
 
       if (query.includes('@')) {
         const handle = parseAccountHandle(query)
@@ -93,7 +93,7 @@ export const GET = traceApiRoute(
                 followingActorId: actor.id
               }))
             if (canIncludeExact) {
-              resultIds.push(actor.id)
+              exactActorIds.push(actor.id)
             }
           }
         }
@@ -110,7 +110,7 @@ export const GET = traceApiRoute(
               followingActorId: actor.id
             }))
           if (canIncludeExact) {
-            resultIds.push(actor.id)
+            exactActorIds.push(actor.id)
           }
         }
       }
@@ -119,12 +119,12 @@ export const GET = traceApiRoute(
         q: query,
         limit,
         offset,
+        exactActorIds,
         ...(following ? { followingActorId: context.currentActor.id } : {})
       })
-      const ids = [
-        ...new Set([...(offset === 0 ? resultIds : []), ...indexedIds])
-      ].slice(0, limit)
-      const results = await database.getMastodonActorsFromIds({ ids })
+      const results = await database.getMastodonActorsFromIds({
+        ids: indexedIds
+      })
 
       return apiResponse({
         req,
