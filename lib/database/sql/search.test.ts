@@ -1947,6 +1947,46 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('preserves word boundaries when indexing status HTML', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/status-search-html-spacing`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: '<p>alpineword</p><p>ridgeword</p>',
+        createdAt: 1
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'ridgeword',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([statusId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('rebuilds status search documents in batches', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
@@ -1986,6 +2026,67 @@ describe('SearchDatabase foundation', () => {
           currentActorId: actorId
         })
       ).resolves.toEqual([statusId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('uses status creation time for stable reindex pagination', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const firstStatusId = `${actorId}/statuses/m-cursor`
+    const secondStatusId = `${actorId}/statuses/a-newer-status`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: firstStatusId,
+        url: firstStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'firstcursorword',
+        createdAt: 1
+      })
+
+      const firstPage = await database.reindexSearchStatuses({ limit: 1 })
+      expect(firstPage).toEqual({ indexed: 1, nextCursor: firstStatusId })
+
+      await database.createNote({
+        id: secondStatusId,
+        url: secondStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'secondcursorword',
+        createdAt: 2
+      })
+      await database.deleteStatusSearchDocument({ statusId: secondStatusId })
+
+      await expect(
+        database.reindexSearchStatuses({
+          afterId: firstPage.nextCursor,
+          limit: 10
+        })
+      ).resolves.toEqual({ indexed: 1, nextCursor: null })
+      await expect(
+        database.searchStatusIds({
+          q: 'secondcursorword',
+          limit: 10,
+          currentActorId: actorId
+        })
+      ).resolves.toEqual([secondStatusId])
     } finally {
       await database.destroy()
     }

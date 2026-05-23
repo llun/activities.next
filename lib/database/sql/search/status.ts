@@ -1,5 +1,4 @@
 import { Knex } from 'knex'
-import sanitizeHtml from 'sanitize-html'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
@@ -13,6 +12,7 @@ import {
   SearchStatusesParams
 } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import {
   SEARCH_DOCUMENTS_TABLE,
@@ -49,19 +49,15 @@ const chunkArray = <T>(items: T[], size: number) => {
   return chunks
 }
 
-const stripHTML = (value: string) =>
-  sanitizeHtml(value, {
-    allowedTags: [],
-    allowedAttributes: {}
-  })
-
 const getStatusDocumentText = (status: SQLStatusRow) => {
   const content = parseStatusContent(status.content)
   if (!content || typeof content === 'string') return ''
 
   const text = typeof content.text === 'string' ? content.text : ''
   const summary = typeof content.summary === 'string' ? content.summary : ''
-  return normalizeSearchText([stripHTML(text), stripHTML(summary)].join(' '))
+  return normalizeSearchText(
+    [htmlToPlainText(text), htmlToPlainText(summary)].join(' ')
+  )
 }
 
 const getStatusVisibilityFromRecipientIds = (recipientIds: string[]) => {
@@ -396,6 +392,37 @@ const applyBlockedAccountFilter = ({
   })
 }
 
+const applyStatusReindexCursor = async ({
+  database,
+  query,
+  afterId
+}: {
+  database: Knex
+  query: Knex.QueryBuilder
+  afterId: string | null
+}) => {
+  if (!afterId) return
+
+  const cursor = await database<SQLStatusRow>('statuses')
+    .where('id', afterId)
+    .first('id', 'createdAt')
+
+  if (!cursor) {
+    query.where('id', '>', afterId)
+    return
+  }
+
+  query.where((builder) => {
+    builder
+      .where('createdAt', '>', cursor.createdAt)
+      .orWhere((sameTimeBuilder) => {
+        sameTimeBuilder
+          .where('createdAt', cursor.createdAt)
+          .where('id', '>', cursor.id)
+      })
+  })
+}
+
 export const searchStatusIds = async (
   database: Knex,
   {
@@ -454,9 +481,10 @@ export const reindexSearchStatuses = async (
   const query = database<SQLStatusRow>('statuses')
     .select('id', 'actorId', 'type', 'content', 'createdAt')
     .whereIn('type', [StatusType.enum.Note, StatusType.enum.Poll])
+    .orderBy('createdAt', 'asc')
     .orderBy('id', 'asc')
 
-  if (afterId) query.where('id', '>', afterId)
+  await applyStatusReindexCursor({ database, query, afterId })
 
   const rows = await query.limit(limit)
   await reindexStatusSearchDocuments(database, rows)
