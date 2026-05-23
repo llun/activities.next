@@ -66,6 +66,10 @@ import {
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
+import {
+  indexHashtagSearchDocument,
+  normalizeHashtagSearchName
+} from './search'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
 const PUBLIC_ACTIVITY_RECIPIENTS = [
@@ -1439,6 +1443,11 @@ export const StatusSQLDatabaseMixin = (
       trx('poll_choices').where('statusId', statusId).delete(),
       trx('timelines').where('statusId', statusId).delete()
     ])
+    await Promise.all(
+      hashtagTags.map((tag: { name: string }) =>
+        indexHashtagSearchDocument(trx, { hashtag: tag.name })
+      )
+    )
   }
 
   async function getFavouritedBy({
@@ -1610,11 +1619,14 @@ export const StatusSQLDatabaseMixin = (
     await database('tags').insert({
       ...data,
       ...(type === 'hashtag'
-        ? { nameNormalized: name.toLowerCase() }
+        ? { nameNormalized: `#${normalizeHashtagSearchName(name)}` }
         : undefined),
       createdAt: currentTime,
       updatedAt: currentTime
     })
+    if (type === 'hashtag') {
+      await indexHashtagSearchDocument(database, { hashtag: name })
+    }
     return data
   }
 
@@ -2241,9 +2253,15 @@ export const StatusSQLDatabaseMixin = (
       type,
       name,
       value,
+      ...(type === 'hashtag'
+        ? { nameNormalized: `#${normalizeHashtagSearchName(name)}` }
+        : undefined),
       createdAt: new Date(),
       updatedAt: new Date()
     })
+    if (type === 'hashtag') {
+      await indexHashtagSearchDocument(database, { hashtag: name })
+    }
   }
 
   return {

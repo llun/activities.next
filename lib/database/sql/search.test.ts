@@ -7,6 +7,7 @@ import {
   applySearchDocumentOrdering
 } from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 
 const createSearchActor = async (
@@ -1444,6 +1445,119 @@ describe('SearchDatabase foundation', () => {
           q: '@__instance__@remote.test',
           limit: 10,
           exactActorIds: [actorId]
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('indexes public hashtags and returns Mastodon tag-shaped results', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/hashtag-search`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Trail day',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#Running',
+        value: 'https://remote.test/tags/running'
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'run',
+          limit: 10
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          name: 'running',
+          history: [],
+          following: false,
+          postCount: 1,
+          lastPostAt: 1
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('rebuilds and removes hashtag search aggregates as statuses change', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/reindex-hashtag`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Trail day',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#Cycling',
+        value: 'https://remote.test/tags/cycling'
+      })
+      await database.deleteHashtagSearchDocument({ hashtag: 'cycling' })
+
+      await expect(
+        database.reindexSearchHashtags({
+          limit: 10
+        })
+      ).resolves.toEqual({ indexed: 1, nextCursor: null })
+      await expect(
+        database.searchHashtags({
+          q: 'cycling',
+          limit: 10
+        })
+      ).resolves.toHaveLength(1)
+
+      await database.deleteStatus({ statusId })
+
+      await expect(
+        database.searchHashtags({
+          q: 'cycling',
+          limit: 10
         })
       ).resolves.toEqual([])
     } finally {
