@@ -16,7 +16,7 @@ const isMySQL = (knex) => String(knex.client.config.client).includes('mysql')
  */
 exports.up = async (knex) => {
   await knex.schema.createTable(SEARCH_DOCUMENTS_TABLE, (table) => {
-    table.string('id', 255).primary()
+    table.string('id', 320).primary()
     table.string('entityType', 32).notNullable()
     table.string('entityId', 255).notNullable()
     table.text('documentText').notNullable()

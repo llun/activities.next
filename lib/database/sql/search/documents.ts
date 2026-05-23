@@ -36,8 +36,9 @@ export const getSearchTokens = (value: string): string[] =>
   Array.from(
     new Set(
       value
+        .trim()
         .toLowerCase()
-        .match(/[a-z0-9_]+/g)
+        .match(/[\p{L}\p{N}_]+/gu)
         ?.filter((token) => token.length > 0) ?? []
     )
   )
@@ -52,6 +53,22 @@ const isSQLite = (database: Knex) => {
 const isPostgres = (database: Knex) => getClientName(database).includes('pg')
 
 const isMySQL = (database: Knex) => getClientName(database).includes('mysql')
+
+const applyPartialTokenMatch = ({
+  query,
+  tokens
+}: {
+  query: Knex.QueryBuilder
+  tokens: string[]
+}) => {
+  tokens.forEach((token) => {
+    query.whereRaw('LOWER(??) LIKE ?', [
+      'search_documents.documentText',
+      `%${token}%`
+    ])
+  })
+  return query
+}
 
 export const applySearchDocumentFilter = ({
   database,
@@ -90,11 +107,7 @@ export const applySearchDocumentFilter = ({
   if (isMySQL(database)) {
     const booleanQuery = tokens.map((token) => `+${token}*`).join(' ')
     if (tokens.some((token) => token.length < 3)) {
-      query.whereRaw('LOWER(??) LIKE ?', [
-        'search_documents.documentText',
-        `${q.trim().toLowerCase()}%`
-      ])
-      return query
+      return applyPartialTokenMatch({ query, tokens })
     }
     query.whereRaw('MATCH(??) AGAINST (? IN BOOLEAN MODE)', [
       'search_documents.documentText',
@@ -103,11 +116,7 @@ export const applySearchDocumentFilter = ({
     return query
   }
 
-  query.whereRaw('LOWER(??) LIKE ?', [
-    'search_documents.documentText',
-    `${tokens[0]}%`
-  ])
-  return query
+  return applyPartialTokenMatch({ query, tokens })
 }
 
 export const applySearchDocumentOrdering = ({

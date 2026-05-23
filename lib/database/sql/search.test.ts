@@ -1,8 +1,17 @@
 import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { getSearchTokens } from '@/lib/database/sql/search'
 
 describe('SearchDatabase foundation', () => {
+  it('tokenizes Unicode search text', () => {
+    expect(getSearchTokens('  Café 東京 runner_1  ')).toEqual([
+      'café',
+      '東京',
+      'runner_1'
+    ])
+  })
+
   it('creates SQLite FTS search documents and returns full-text matches', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

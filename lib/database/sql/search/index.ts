@@ -10,6 +10,7 @@ import {
 } from './account'
 import {
   deleteSearchDocument,
+  getSearchTokens,
   searchDocuments,
   upsertSearchDocument
 } from './documents'
@@ -56,6 +57,7 @@ export {
   deleteHashtagSearchDocument,
   deleteSearchDocument,
   deleteStatusSearchDocument,
+  getSearchTokens,
   indexActorSearchDocument,
   indexHashtagSearchDocument,
   indexStatusSearchDocument,
