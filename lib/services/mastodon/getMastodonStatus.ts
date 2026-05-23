@@ -34,9 +34,14 @@ interface MastodonTag {
 }
 
 type MastodonAccountCache = Map<string, Promise<Mastodon.Account | null>>
+type StatusMetricsCache = {
+  reblogs: Map<string, number>
+  replies: Map<string, number>
+}
 
 interface GetMastodonStatusOptions {
   accountCache?: MastodonAccountCache
+  statusMetricsCache?: StatusMetricsCache
 }
 
 const getMastodonAccount = (
@@ -120,6 +125,37 @@ const addStatusActorIds = (status: Status, actorIds: Set<string>) => {
   }
 }
 
+const addStatusMetricIds = (status: Status, statusIds: Set<string>) => {
+  if (status.type === StatusType.enum.Announce) {
+    addStatusMetricIds(status.originalStatus, statusIds)
+    return
+  }
+
+  statusIds.add(status.id)
+}
+
+const getStatusReblogsCount = async (
+  database: Database,
+  statusId: string,
+  options?: GetMastodonStatusOptions
+) => {
+  const reblogsCache = options?.statusMetricsCache?.reblogs
+  if (reblogsCache?.has(statusId)) return reblogsCache.get(statusId) ?? 0
+
+  return database.getStatusReblogsCount({ statusId })
+}
+
+const getStatusRepliesCount = async (
+  database: Database,
+  statusId: string,
+  options?: GetMastodonStatusOptions
+) => {
+  const repliesCache = options?.statusMetricsCache?.replies
+  if (repliesCache?.has(statusId)) return repliesCache.get(statusId) ?? 0
+
+  return database.getStatusRepliesCount({ statusId })
+}
+
 export const getMastodonStatus = async (
   database: Database,
   status: Status,
@@ -140,7 +176,7 @@ export const getMastodonStatus = async (
 
   const reblogsCount =
     status.type !== StatusType.enum.Announce
-      ? await database.getStatusReblogsCount({ statusId: status.id })
+      ? await getStatusReblogsCount(database, status.id, options)
       : 0
 
   const baseData = {
@@ -180,9 +216,11 @@ export const getMastodonStatus = async (
   }
 
   if (status.type === StatusType.enum.Announce) {
-    const originalReblogsCount = await database.getStatusReblogsCount({
-      statusId: status.originalStatus.id
-    })
+    const originalReblogsCount = await getStatusReblogsCount(
+      database,
+      status.originalStatus.id,
+      options
+    )
 
     const originalVisibility = getVisibility(
       status.originalStatus.to,
@@ -210,9 +248,7 @@ export const getMastodonStatus = async (
   const replyStatus = status.reply
     ? await database.getStatus({ statusId: status.reply })
     : null
-  const repliesCount = await database.getStatusRepliesCount({
-    statusId: status.id
-  })
+  const repliesCount = await getStatusRepliesCount(database, status.id, options)
 
   const mentions = getMentionsFromTags(status.tags)
   const emojis = getEmojisFromTags(status.tags)
@@ -300,10 +336,21 @@ export const getMastodonStatuses = async (
 
   const actorIds = new Set<string>()
   statuses.forEach((status) => addStatusActorIds(status, actorIds))
+  const metricStatusIds = new Set<string>()
+  statuses.forEach((status) => addStatusMetricIds(status, metricStatusIds))
   const requestedActorIds = [...actorIds]
-  const accounts = await database.getMastodonActorsFromIds({
-    ids: requestedActorIds
-  })
+  const requestedMetricStatusIds = [...metricStatusIds]
+  const [accounts, reblogCounts, replyCounts] = await Promise.all([
+    database.getMastodonActorsFromIds({
+      ids: requestedActorIds
+    }),
+    database.getStatusReblogsCounts({
+      statusIds: requestedMetricStatusIds
+    }),
+    database.getStatusRepliesCounts({
+      statusIds: requestedMetricStatusIds
+    })
+  ])
   const requestedActorIdSet = new Set(requestedActorIds)
   const accountCache: MastodonAccountCache = new Map()
   const keyedAccounts = new Set<Mastodon.Account>()
@@ -337,7 +384,23 @@ export const getMastodonStatuses = async (
     }
   }
 
-  const options: GetMastodonStatusOptions = { accountCache }
+  const options: GetMastodonStatusOptions = {
+    accountCache,
+    statusMetricsCache: {
+      reblogs: new Map(
+        requestedMetricStatusIds.map((statusId) => [
+          statusId,
+          reblogCounts[statusId] ?? 0
+        ])
+      ),
+      replies: new Map(
+        requestedMetricStatusIds.map((statusId) => [
+          statusId,
+          replyCounts[statusId] ?? 0
+        ])
+      )
+    }
+  }
   return (
     await Promise.all(
       statuses.map((status) =>

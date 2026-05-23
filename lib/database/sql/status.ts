@@ -6,6 +6,7 @@ import {
   decreaseCounterValue,
   deleteCounterValues,
   getCounterValue,
+  getCounterValues,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
@@ -44,6 +45,7 @@ import {
   GetFavouritedByParams,
   GetHashtagStatusesPageParams,
   GetRebloggedByParams,
+  GetStatusCountsParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
   GetStatusParams,
@@ -2259,6 +2261,32 @@ export const StatusSQLDatabaseMixin = (
     return getCounterValue(database, CounterKey.totalReblog(statusId))
   }
 
+  async function getStatusCounterValues(
+    { statusIds }: GetStatusCountsParams,
+    getCounterId: (statusId: string) => string
+  ): Promise<Record<string, number>> {
+    const uniqueStatusIds = [...new Set(statusIds)]
+    const counterIdsByStatusId = new Map(
+      uniqueStatusIds.map((statusId) => [statusId, getCounterId(statusId)])
+    )
+    const counterValues = await getCounterValues(database, [
+      ...counterIdsByStatusId.values()
+    ])
+
+    return Object.fromEntries(
+      uniqueStatusIds.map((statusId) => [
+        statusId,
+        counterValues[counterIdsByStatusId.get(statusId) ?? ''] ?? 0
+      ])
+    )
+  }
+
+  async function getStatusReblogsCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>> {
+    return getStatusCounterValues(params, CounterKey.totalReblog)
+  }
+
   async function getStatusRepliesCount({
     statusId,
     url,
@@ -2288,6 +2316,12 @@ export const StatusSQLDatabaseMixin = (
       .first()
 
     return parseInt(String(result?.count ?? '0'), 10)
+  }
+
+  async function getStatusRepliesCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>> {
+    return getStatusCounterValues(params, CounterKey.totalReply)
   }
 
   async function recordPollVotes({
@@ -2577,7 +2611,9 @@ export const StatusSQLDatabaseMixin = (
     increaseHashtagCounter,
     decreaseHashtagCounter,
     getStatusReblogsCount,
+    getStatusReblogsCounts,
     getStatusRepliesCount,
+    getStatusRepliesCounts,
     createPollAnswer,
     hasActorVoted,
     getActorPollVotes,

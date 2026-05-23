@@ -533,6 +533,9 @@ export type DecreaseHashtagCounterParams = {
 export type GetStatusReblogsCountParams = {
   statusId: string
 }
+export type GetStatusCountsParams = {
+  statusIds: string[]
+}
 export type GetStatusRepliesCountParams = {
   statusId: string
   url?: string
@@ -608,7 +611,13 @@ export interface StatusDatabase {
   increaseHashtagCounter(params: IncreaseHashtagCounterParams): Promise<void>
   decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
+  getStatusReblogsCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>>
   getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
+  getStatusRepliesCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>>
   createPollAnswer(params: CreatePollAnswerParams): Promise<void>
   hasActorVoted(params: HasActorVotedParams): Promise<boolean>
   getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>

@@ -48,6 +48,22 @@ describe('#getMastodonStatus', () => {
         database,
         'getMastodonActorsFromIds'
       )
+      const getStatusReblogsCounts = jest.spyOn(
+        database,
+        'getStatusReblogsCounts'
+      )
+      const getStatusRepliesCounts = jest.spyOn(
+        database,
+        'getStatusRepliesCounts'
+      )
+      const getStatusReblogsCount = jest.spyOn(
+        database,
+        'getStatusReblogsCount'
+      )
+      const getStatusRepliesCount = jest.spyOn(
+        database,
+        'getStatusRepliesCount'
+      )
 
       const mastodonStatuses = await getMastodonStatuses(database, [
         firstStatus,
@@ -63,6 +79,14 @@ describe('#getMastodonStatus', () => {
       expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
         ids: [ACTOR1_ID]
       })
+      expect(getStatusReblogsCounts).toHaveBeenCalledWith({
+        statusIds: [firstStatus.id, secondStatus.id]
+      })
+      expect(getStatusRepliesCounts).toHaveBeenCalledWith({
+        statusIds: [firstStatus.id, secondStatus.id]
+      })
+      expect(getStatusReblogsCount).not.toHaveBeenCalled()
+      expect(getStatusRepliesCount).not.toHaveBeenCalled()
     })
 
     it('keys hydrated account cache by actor id when account url is a profile url', async () => {

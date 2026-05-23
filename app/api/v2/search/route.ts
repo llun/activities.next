@@ -45,19 +45,13 @@ const SearchTypeParam = z
     return value
   })
 
-const TRUE_VALUES = new Set(['true', '1', 't', 'yes', 'y', 'on'])
 const FALSE_VALUES = new Set(['false', '0', 'f', 'no', 'n', 'off'])
 
-const BooleanParam = z.string().transform((value, ctx) => {
+const BooleanParam = z.string().transform((value) => {
   const normalized = value.trim().toLowerCase()
-  if (TRUE_VALUES.has(normalized)) return true
+  if (normalized.length === 0) return undefined
   if (FALSE_VALUES.has(normalized)) return false
-
-  ctx.addIssue({
-    code: z.ZodIssueCode.custom,
-    message: 'Invalid boolean value'
-  })
-  return z.NEVER
+  return true
 })
 
 const SearchParams = z.object({
@@ -376,6 +370,8 @@ const searchStatuses = async ({
       limit,
       offset,
       currentActorId: currentActor.id,
+      currentActorUsername: currentActor.username,
+      currentActorDomain: currentActor.domain,
       accountId: normalizeUrlId(params.account_id),
       maxId: normalizeUrlId(params.max_id),
       minId: normalizeUrlId(params.min_id)
@@ -409,8 +405,7 @@ const searchStatuses = async ({
 const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) =>
   params.type === 'statuses' ||
   params.resolve === true ||
-  params.following === true ||
-  params.offset !== undefined
+  params.following === true
 
 export const GET = traceApiRoute(
   'search',
@@ -431,7 +426,7 @@ export const GET = traceApiRoute(
       const params = parsedParams.data
       const query = params.q.trim()
       const limit = params.limit ?? 20
-      const offset = params.type ? (params.offset ?? 0) : 0
+      const offset = params.offset ?? 0
 
       if (!currentActor && requiresAuthentication({ params })) {
         return apiResponse({

@@ -1319,6 +1319,19 @@ describe('StatusDatabase', () => {
         })
         expect(count).toBe(0)
       })
+
+      it('returns reblog counts for multiple statuses', async () => {
+        const counts = await database.getStatusReblogsCounts({
+          statusIds: [
+            statuses.primary.postWithAttachments,
+            statuses.primary.post
+          ]
+        })
+        expect(counts).toEqual({
+          [statuses.primary.postWithAttachments]: 1,
+          [statuses.primary.post]: 0
+        })
+      })
     })
 
     describe('getStatusRepliesCount', () => {
@@ -1334,6 +1347,16 @@ describe('StatusDatabase', () => {
           statusId: statuses.primary.secondPost
         })
         expect(count).toBe(0)
+      })
+
+      it('returns reply counts for multiple statuses', async () => {
+        const counts = await database.getStatusRepliesCounts({
+          statusIds: [statuses.primary.post, statuses.primary.secondPost]
+        })
+        expect(counts).toEqual({
+          [statuses.primary.post]: 2,
+          [statuses.primary.secondPost]: 0
+        })
       })
 
       it('counts replies that reference parent URL', async () => {

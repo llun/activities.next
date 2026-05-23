@@ -188,7 +188,7 @@ describe('GET /api/v2/search', () => {
     })
   })
 
-  it('delegates authenticated full search with filters and ignores offset without type', async () => {
+  it('delegates authenticated full search with filters and honors offset without type', async () => {
     const accountId = encodeURIComponent('https://remote.test/users/alice')
     const response = await GET(
       new NextRequest(
@@ -203,14 +203,22 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 2,
-      offset: 0,
+      offset: 1,
       followingActorId: oauthActor.id
+    })
+    expect(mockSearchHashtags).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 2,
+      offset: 1,
+      excludeUnreviewed: false
     })
     expect(mockSearchStatusIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 2,
-      offset: 0,
+      offset: 1,
       currentActorId: oauthActor.id,
+      currentActorUsername: oauthActor.username,
+      currentActorDomain: oauthActor.domain,
       accountId: 'https://remote.test/users/alice',
       maxId: 'https://remote.test/users/alice/statuses/9',
       minId: 'https://remote.test/users/alice/statuses/1'
@@ -228,7 +236,7 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
-  it('requires authentication when offset is passed without type', async () => {
+  it('allows anonymous offset paging without including statuses', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v2/search?q=trail&limit=3&offset=5'
@@ -236,10 +244,18 @@ describe('GET /api/v2/search', () => {
       context
     )
 
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ status: 'Unauthorized' })
-    expect(mockSearchAccountIds).not.toHaveBeenCalled()
-    expect(mockSearchHashtags).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 3,
+      offset: 5
+    })
+    expect(mockSearchHashtags).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 3,
+      offset: 5,
+      excludeUnreviewed: false
+    })
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
   })
 
@@ -262,6 +278,24 @@ describe('GET /api/v2/search', () => {
       limit: 20,
       offset: 0,
       excludeUnreviewed: false
+    })
+  })
+
+  it('accepts Mastodon-style truthy boolean query values', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&following=2&resolve=',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 20,
+      offset: 0,
+      followingActorId: oauthActor.id
     })
   })
 
@@ -346,7 +380,7 @@ describe('GET /api/v2/search', () => {
 
     const response = await GET(
       new NextRequest(
-        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=1`,
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=2`,
         { headers: { Authorization: 'Bearer read-search-token' } }
       ),
       context
@@ -551,11 +585,11 @@ describe('GET /api/v2/search', () => {
 
     expect(response.status).toBe(200)
     expect(mockGetActorFromUsername).toHaveBeenCalledWith({
-      username: 'charlie',
+      username: 'Charlie',
       domain: 'remote.test'
     })
     expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
-      account: 'charlie@remote.test'
+      account: 'Charlie@remote.test'
     })
     expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
       actorId: 'https://remote.test/users/charlie',
