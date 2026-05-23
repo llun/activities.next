@@ -63,7 +63,16 @@ const escapeLikePattern = (value: string) => value.replace(/[\\%_]/g, '\\$&')
 
 const DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE = 4
 const MIN_MYSQL_LIKE_FALLBACK_TOKEN_LENGTH = 2
+const MYSQL_FULL_TEXT_MIN_TOKEN_SIZE_FAILURES_BEFORE_COOLDOWN = 2
+const MYSQL_FULL_TEXT_MIN_TOKEN_SIZE_FAILURE_COOLDOWN_MS = 5 * 60 * 1000
 const mysqlFullTextMinTokenSizeCache = new WeakMap<Knex, Promise<number>>()
+const mysqlFullTextMinTokenSizeFailures = new WeakMap<
+  Knex,
+  {
+    failures: number
+    retryAfter: number
+  }
+>()
 
 const getRawRows = (rawResult: unknown): Record<string, unknown>[] => {
   if (Array.isArray(rawResult)) {
@@ -90,6 +99,14 @@ const parseFullTextMinTokenSize = (value: unknown) => {
 }
 
 const getMySQLFullTextMinTokenSize = async (database: Knex) => {
+  const failure = mysqlFullTextMinTokenSizeFailures.get(database)
+  if (failure?.retryAfter && failure.retryAfter > Date.now()) {
+    return DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE
+  }
+  if (failure?.retryAfter) {
+    mysqlFullTextMinTokenSizeFailures.delete(database)
+  }
+
   const cached = mysqlFullTextMinTokenSizeCache.get(database)
   if (cached) return cached
 
@@ -102,6 +119,7 @@ const getMySQLFullTextMinTokenSize = async (database: Knex) => {
       const innodbMinTokenSize = parseFullTextMinTokenSize(
         row.innodbFtMinTokenSize
       )
+      mysqlFullTextMinTokenSizeFailures.delete(database)
       return (
         innodbMinTokenSize ??
         parseFullTextMinTokenSize(row.ftMinWordLen) ??
@@ -110,6 +128,16 @@ const getMySQLFullTextMinTokenSize = async (database: Knex) => {
     })
     .catch((err) => {
       mysqlFullTextMinTokenSizeCache.delete(database)
+      const current = mysqlFullTextMinTokenSizeFailures.get(database)
+      const failures = (current?.failures ?? 0) + 1
+      const retryAfter =
+        failures >= MYSQL_FULL_TEXT_MIN_TOKEN_SIZE_FAILURES_BEFORE_COOLDOWN
+          ? Date.now() + MYSQL_FULL_TEXT_MIN_TOKEN_SIZE_FAILURE_COOLDOWN_MS
+          : 0
+      mysqlFullTextMinTokenSizeFailures.set(database, {
+        failures,
+        retryAfter
+      })
       logger.debug({ err }, 'Failed to read MySQL full-text minimum token size')
       return DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE
     })
@@ -193,10 +221,12 @@ export const applySearchDocumentFilter = async ({
 }
 
 export const applySearchDocumentOrdering = ({
+  database,
   query,
   entityType,
   q
 }: {
+  database: Knex
   query: Knex.QueryBuilder
   entityType?: SearchDocumentEntityType
   q: string
@@ -219,14 +249,24 @@ export const applySearchDocumentOrdering = ({
     )
   }
 
-  query
-    .orderByRaw('?? is null', ['search_documents.postCount'])
-    .orderBy('search_documents.postCount', 'desc')
-    .orderByRaw('?? is null', ['search_documents.lastPostAt'])
-    .orderBy('search_documents.lastPostAt', 'desc')
-    .orderByRaw('?? is null', ['search_documents.entityCreatedAt'])
-    .orderBy('search_documents.entityCreatedAt', 'desc')
-    .orderBy('search_documents.entityId', 'desc')
+  // Postgres can express stable null placement in the indexed DESC sort.
+  // MySQL and SQLite need a boolean pre-sort for portable NULLS LAST behavior.
+  if (isPostgres(database)) {
+    query
+      .orderByRaw('?? desc nulls last', ['search_documents.postCount'])
+      .orderByRaw('?? desc nulls last', ['search_documents.lastPostAt'])
+      .orderByRaw('?? desc nulls last', ['search_documents.entityCreatedAt'])
+  } else {
+    query
+      .orderByRaw('?? is null', ['search_documents.postCount'])
+      .orderBy('search_documents.postCount', 'desc')
+      .orderByRaw('?? is null', ['search_documents.lastPostAt'])
+      .orderBy('search_documents.lastPostAt', 'desc')
+      .orderByRaw('?? is null', ['search_documents.entityCreatedAt'])
+      .orderBy('search_documents.entityCreatedAt', 'desc')
+  }
+
+  query.orderBy('search_documents.entityId', 'desc')
 
   return query
 }
@@ -438,7 +478,7 @@ export const searchDocuments = async (
     visibleToActorId
   })
   await applySearchDocumentFilter({ database, query, q })
-  applySearchDocumentOrdering({ query, entityType, q })
+  applySearchDocumentOrdering({ database, query, entityType, q })
 
   const rows = await query.limit(limit).offset(offset)
   return rows.map(toSearchDocument)

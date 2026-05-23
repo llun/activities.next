@@ -251,6 +251,13 @@ describe('SearchDatabase foundation', () => {
         actorId: 'https://remote.test/users/forged-runner',
         visibility: 'private'
       })
+      await database.upsertSearchDocument({
+        entityType: 'status',
+        entityId: 'https://remote.test/users/self-forged-runner/statuses/1',
+        documentText: 'runner self forged private status',
+        actorId: 'https://remote.test/users/self-forged-runner',
+        visibility: 'private'
+      })
       await knexDatabase('actors').insert({
         id: 'https://remote.test/users/followed-runner',
         type: 'Person',
@@ -262,6 +269,26 @@ describe('SearchDatabase foundation', () => {
         settings: JSON.stringify({
           followersUrl: 'https://remote.test/users/followed-runner/followers',
           inboxUrl: 'https://remote.test/users/followed-runner/inbox',
+          sharedInboxUrl: 'https://remote.test/inbox'
+        }),
+        publicKey: 'public-key',
+        privateKey: null,
+        deletionStatus: null,
+        deletionScheduledAt: null,
+        createdAt: new Date(1),
+        updatedAt: new Date(1)
+      })
+      await knexDatabase('actors').insert({
+        id: 'https://remote.test/users/self-forged-runner',
+        type: 'Person',
+        username: 'self-forged-runner',
+        domain: 'remote.test',
+        name: null,
+        summary: null,
+        accountId: null,
+        settings: JSON.stringify({
+          followersUrl: 'https://remote.test/users/followed-runner/followers',
+          inboxUrl: 'https://remote.test/users/self-forged-runner/inbox',
           sharedInboxUrl: 'https://remote.test/inbox'
         }),
         publicKey: 'public-key',
@@ -301,6 +328,12 @@ describe('SearchDatabase foundation', () => {
           statusId: 'https://remote.test/users/forged-runner/statuses/1',
           actorId: 'https://remote.test/users/followed-runner/followers',
           type: 'to'
+        },
+        {
+          id: 'search-self-forged-recipient',
+          statusId: 'https://remote.test/users/self-forged-runner/statuses/1',
+          actorId: 'https://remote.test/users/followed-runner/followers',
+          type: 'to'
         }
       ])
       await knexDatabase('follows').insert([
@@ -317,6 +350,14 @@ describe('SearchDatabase foundation', () => {
           actorId: 'https://remote.test/users/current-runner',
           actorHost: 'remote.test',
           targetActorId: 'https://remote.test/users/missing-runner',
+          targetActorHost: 'remote.test',
+          status: FollowStatus.enum.Accepted
+        },
+        {
+          id: 'search-self-forged-runner-follow',
+          actorId: 'https://remote.test/users/current-runner',
+          actorHost: 'remote.test',
+          targetActorId: 'https://remote.test/users/self-forged-runner',
           targetActorHost: 'remote.test',
           status: FollowStatus.enum.Accepted
         }
@@ -389,7 +430,8 @@ describe('SearchDatabase foundation', () => {
           'https://remote.test/users/unlisted-runner/statuses/1',
           'https://remote.test/users/direct-runner/statuses/1',
           'https://remote.test/users/followed-runner/statuses/1',
-          'https://remote.test/users/missing-runner/statuses/1'
+          'https://remote.test/users/missing-runner/statuses/1',
+          'https://remote.test/users/self-forged-runner/statuses/1'
         ])
       )
       expect(
@@ -484,12 +526,47 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('cools down repeated MySQL full-text minimum lookup failures', async () => {
+    const mysqlDatabase = knex({ client: 'mysql2' })
+    const raw = jest.fn().mockRejectedValue(new Error('variables unavailable'))
+    const mysqlConfigDatabase = {
+      client: mysqlDatabase.client,
+      raw
+    } as unknown as typeof mysqlDatabase
+
+    try {
+      for (const q of ['run', 'jog', 'row']) {
+        const query = mysqlDatabase('search_documents').select('*')
+        await applySearchDocumentFilter({
+          database: mysqlConfigDatabase,
+          query,
+          q
+        })
+        expect(query.toSQL().sql).toContain(
+          'LOWER(`search_documents`.`documentText`) LIKE'
+        )
+      }
+
+      expect(raw).toHaveBeenCalledTimes(2)
+    } finally {
+      await mysqlDatabase.destroy()
+    }
+  })
+
   it('only applies entityId ranking boosts to hashtag searches', async () => {
     const postgresDatabase = knex({ client: 'pg' })
+    const sqliteDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
 
     try {
       const query = postgresDatabase('search_documents').select('*')
       applySearchDocumentOrdering({
+        database: postgresDatabase,
         query,
         q: 'runner'
       })
@@ -497,13 +574,21 @@ describe('SearchDatabase foundation', () => {
       const sql = query.toSQL()
       expect(sql.sql).not.toContain('documentText')
       expect(sql.sql).not.toContain('lower("search_documents"."entityId")')
-      expect(sql.sql).toContain('"search_documents"."postCount" is null')
-      expect(sql.sql).toContain('"search_documents"."lastPostAt" is null')
-      expect(sql.sql).toContain('"search_documents"."entityCreatedAt" is null')
+      expect(sql.sql).toContain(
+        '"search_documents"."postCount" desc nulls last'
+      )
+      expect(sql.sql).toContain(
+        '"search_documents"."lastPostAt" desc nulls last'
+      )
+      expect(sql.sql).toContain(
+        '"search_documents"."entityCreatedAt" desc nulls last'
+      )
+      expect(sql.sql).not.toContain('"search_documents"."postCount" is null')
       expect(sql.bindings).toEqual([])
 
       const hashtagQuery = postgresDatabase('search_documents').select('*')
       applySearchDocumentOrdering({
+        database: postgresDatabase,
         query: hashtagQuery,
         q: '#runner',
         entityType: 'hashtag'
@@ -511,8 +596,22 @@ describe('SearchDatabase foundation', () => {
       const hashtagSql = hashtagQuery.toSQL()
       expect(hashtagSql.sql).toContain('lower("search_documents"."entityId")')
       expect(hashtagSql.bindings).toEqual(['runner', 'runner%'])
+
+      const sqliteQuery = sqliteDatabase('search_documents').select('*')
+      applySearchDocumentOrdering({
+        database: sqliteDatabase,
+        query: sqliteQuery,
+        q: 'runner'
+      })
+      const sqliteSql = sqliteQuery.toSQL()
+      expect(sqliteSql.sql).toContain('`search_documents`.`postCount` is null')
+      expect(sqliteSql.sql).toContain('`search_documents`.`lastPostAt` is null')
+      expect(sqliteSql.sql).toContain(
+        '`search_documents`.`entityCreatedAt` is null'
+      )
     } finally {
       await postgresDatabase.destroy()
+      await sqliteDatabase.destroy()
     }
   })
 
