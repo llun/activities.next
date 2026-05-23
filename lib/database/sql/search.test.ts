@@ -165,6 +165,16 @@ describe('SearchDatabase foundation', () => {
         actorId: 'https://remote.test/users/unfollowed-runner',
         visibility: 'private'
       })
+      await database.createActor({
+        actorId: 'https://remote.test/users/followed-runner',
+        username: 'followed-runner',
+        domain: 'remote.test',
+        followersUrl: 'https://remote.test/users/followed-runner/followers',
+        inboxUrl: 'https://remote.test/users/followed-runner/inbox',
+        sharedInboxUrl: 'https://remote.test/inbox',
+        publicKey: 'public-key',
+        createdAt: 1
+      })
       await knexDatabase('recipients').insert([
         {
           id: 'search-direct-recipient',
@@ -303,6 +313,45 @@ describe('SearchDatabase foundation', () => {
       expect(raw).toHaveBeenCalledWith(
         'select @@innodb_ft_min_token_size as innodbFtMinTokenSize, @@ft_min_word_len as ftMinWordLen'
       )
+    } finally {
+      await mysqlDatabase.destroy()
+    }
+  })
+
+  it('skips one-character MySQL LIKE fallback tokens', async () => {
+    const mysqlDatabase = knex({ client: 'mysql2' })
+    const raw = jest.fn().mockResolvedValue([
+      [
+        {
+          innodbFtMinTokenSize: 4,
+          ftMinWordLen: 4
+        }
+      ]
+    ])
+    const mysqlConfigDatabase = {
+      client: mysqlDatabase.client,
+      raw
+    } as unknown as typeof mysqlDatabase
+
+    try {
+      const query = mysqlDatabase('search_documents').select('*')
+      await applySearchDocumentFilter({
+        database: mysqlConfigDatabase,
+        query,
+        q: 'a runner'
+      })
+
+      const sql = query.toSQL()
+      expect(sql.sql).toContain('LOWER(`search_documents`.`documentText`) LIKE')
+      expect(sql.bindings).toEqual(['%runner%'])
+
+      const oneCharacterQuery = mysqlDatabase('search_documents').select('*')
+      await applySearchDocumentFilter({
+        database: mysqlConfigDatabase,
+        query: oneCharacterQuery,
+        q: 'a'
+      })
+      expect(oneCharacterQuery.toSQL().sql).toContain('1 = 0')
     } finally {
       await mysqlDatabase.destroy()
     }

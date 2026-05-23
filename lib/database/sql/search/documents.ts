@@ -58,6 +58,7 @@ const isMySQL = (database: Knex) => getClientName(database).includes('mysql')
 const escapeLikePattern = (value: string) => value.replace(/[\\%_]/g, '\\$&')
 
 const DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE = 4
+const MIN_MYSQL_LIKE_FALLBACK_TOKEN_LENGTH = 2
 const mysqlFullTextMinTokenSizeCache = new WeakMap<Knex, Promise<number>>()
 
 const getRawRows = (rawResult: unknown): Record<string, unknown>[] => {
@@ -163,7 +164,14 @@ export const applySearchDocumentFilter = async ({
     const booleanQuery = tokens.map((token) => `+${token}*`).join(' ')
     const minTokenSize = await getMySQLFullTextMinTokenSize(database)
     if (tokens.some((token) => token.length < minTokenSize)) {
-      applyPartialTokenMatch({ query, tokens })
+      const fallbackTokens = tokens.filter(
+        (token) => token.length >= MIN_MYSQL_LIKE_FALLBACK_TOKEN_LENGTH
+      )
+      if (fallbackTokens.length === 0) {
+        query.whereRaw('1 = 0')
+        return
+      }
+      applyPartialTokenMatch({ query, tokens: fallbackTokens })
       return
     }
     query.whereRaw('MATCH(??) AGAINST (? IN BOOLEAN MODE)', [
@@ -269,7 +277,7 @@ const applySearchDocumentAccessFilters = ({
           .orWhereExists(function () {
             this.select(database.raw('1'))
               .from('recipients as followers_recipients')
-              .leftJoin(
+              .innerJoin(
                 'actors as search_document_actors',
                 'search_document_actors.id',
                 'search_documents.actorId'
