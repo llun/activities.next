@@ -1072,6 +1072,55 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('reindexes account search documents with a batched upsert', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const insertQueries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      if (
+        sql.includes('insert into `search_documents`') ||
+        sql.includes('insert into "search_documents"')
+      ) {
+        insertQueries.push(sql)
+      }
+    }
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/alice',
+        username: 'alice',
+        summary: 'Runner'
+      })
+      await createSearchActor(database, {
+        id: 'https://remote.test/users/bob',
+        username: 'bob',
+        summary: 'Runner'
+      })
+
+      knexDatabase.on('query', handleQuery)
+      await database.reindexSearchAccounts({ limit: 10 })
+      knexDatabase.off('query', handleQuery)
+
+      expect(insertQueries).toHaveLength(1)
+      await expect(
+        database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([
+        'https://remote.test/users/alice',
+        'https://remote.test/users/bob'
+      ])
+    } finally {
+      knexDatabase.off('query', handleQuery)
+      await database.destroy()
+    }
+  })
+
   it('excludes internal federation signing actors from account search', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

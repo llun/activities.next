@@ -20,11 +20,22 @@ import {
   SEARCH_DOCUMENTS_TABLE,
   applySearchDocumentFilter,
   deleteSearchDocument,
-  normalizeSearchText,
-  upsertSearchDocument
+  getSearchDocumentId,
+  normalizeSearchText
 } from './documents'
 
 const FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN = `${FEDERATION_SIGNING_ACTOR_USERNAME.replace(/[\\%_]/g, '\\$&')}%`
+const ACCOUNT_SEARCH_DOCUMENT_BATCH_SIZE = 80
+const SEARCH_DOCUMENT_MERGE_COLUMNS = [
+  'documentText',
+  'actorId',
+  'visibility',
+  'entityCreatedAt',
+  'discoverable',
+  'postCount',
+  'lastPostAt',
+  'updatedAt'
+]
 
 type AccountSearchActor = Pick<
   SQLActor,
@@ -73,22 +84,13 @@ const getLowerAccountHandleSQL = (database: Knex) => {
 const applyAccountOrdering = ({
   database,
   query,
-  normalizedQuery,
-  exactActorIds
+  normalizedQuery
 }: {
   database: Knex
   query: Knex.QueryBuilder
   normalizedQuery: string
-  exactActorIds: string[]
 }) => {
   const lowerHandleSQL = getLowerAccountHandleSQL(database)
-
-  if (exactActorIds.length > 0) {
-    query.orderByRaw(
-      `case when ?? in (${exactActorIds.map(() => '?').join(', ')}) then 0 else 1 end`,
-      ['search_documents.entityId', ...exactActorIds]
-    )
-  }
 
   query
     .orderByRaw(
@@ -114,6 +116,14 @@ const applyAccountOrdering = ({
     )
     .orderByRaw('LOWER(??)', ['actors.username'])
     .orderBy('search_documents.entityId', 'asc')
+}
+
+const chunkArray = <T>(items: T[], size: number) => {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
 }
 
 const applySearchableAccountFilters = (query: Knex.QueryBuilder) => {
@@ -177,18 +187,46 @@ const getExactAccountIds = async ({
   return normalizedExactActorIds.filter((id) => visibleActorIds.has(id))
 }
 
-const upsertActorSearchDocument = async (
-  database: Knex,
-  actor: AccountSearchActor
-) => {
-  await upsertSearchDocument(database, {
+const getActorSearchDocumentRow = (
+  actor: AccountSearchActor,
+  currentTime: Date
+) => ({
+  id: getSearchDocumentId({
     entityType: 'account',
-    entityId: actor.id,
-    documentText: getAccountDocumentText(actor),
-    actorId: actor.id,
-    entityCreatedAt: getCompatibleTime(actor.createdAt),
-    discoverable: isDiscoverableAccount(actor)
-  })
+    entityId: actor.id
+  }),
+  entityType: 'account',
+  entityId: actor.id,
+  documentText: getAccountDocumentText(actor),
+  actorId: actor.id,
+  visibility: null,
+  entityCreatedAt: actor.createdAt
+    ? new Date(getCompatibleTime(actor.createdAt))
+    : null,
+  discoverable: isDiscoverableAccount(actor),
+  postCount: null,
+  lastPostAt: null,
+  createdAt: currentTime,
+  updatedAt: currentTime
+})
+
+const upsertActorSearchDocuments = async (
+  database: Knex,
+  actors: AccountSearchActor[]
+) => {
+  if (actors.length === 0) return
+
+  const currentTime = new Date()
+  const rows = actors.map((actor) =>
+    getActorSearchDocumentRow(actor, currentTime)
+  )
+
+  for (const chunk of chunkArray(rows, ACCOUNT_SEARCH_DOCUMENT_BATCH_SIZE)) {
+    await database(SEARCH_DOCUMENTS_TABLE)
+      .insert(chunk)
+      .onConflict(['entityType', 'entityId'])
+      .merge(SEARCH_DOCUMENT_MERGE_COLUMNS)
+  }
 }
 
 export const indexActorSearchDocument = async (
@@ -203,7 +241,7 @@ export const indexActorSearchDocument = async (
     return
   }
 
-  await upsertActorSearchDocument(database, actor)
+  await upsertActorSearchDocuments(database, [actor])
 }
 
 export const searchAccountIds = async (
@@ -265,8 +303,7 @@ export const searchAccountIds = async (
   applyAccountOrdering({
     database,
     query,
-    normalizedQuery,
-    exactActorIds: normalizedExactActorIds
+    normalizedQuery
   })
 
   const rows = await query.limit(indexedLimit).offset(indexedOffset)
@@ -288,9 +325,7 @@ export const reindexSearchAccounts = async (
   if (afterId) query.where('id', '>', afterId)
 
   const rows = await query.limit(limit)
-  for (const row of rows) {
-    await upsertActorSearchDocument(database, row)
-  }
+  await upsertActorSearchDocuments(database, rows)
 
   return {
     indexed: rows.length,
