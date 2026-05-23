@@ -35,6 +35,8 @@ exports.up = async (knex) => {
     table.index(['entityType'], 'search_documents_entity_type')
     table.index(['actorId'], 'search_documents_actor')
     table.index(['entityCreatedAt'], 'search_documents_entity_created')
+    table.index(['postCount'], 'search_documents_post_count')
+    table.index(['lastPostAt'], 'search_documents_last_post')
   })
 
   if (isSQLite(knex)) {

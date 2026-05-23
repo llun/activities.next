@@ -54,6 +54,8 @@ const isPostgres = (database: Knex) => getClientName(database).includes('pg')
 
 const isMySQL = (database: Knex) => getClientName(database).includes('mysql')
 
+const escapeLikePattern = (value: string) => value.replace(/[\\%_]/g, '\\$&')
+
 const applyPartialTokenMatch = ({
   query,
   tokens
@@ -62,9 +64,9 @@ const applyPartialTokenMatch = ({
   tokens: string[]
 }) => {
   tokens.forEach((token) => {
-    query.whereRaw('LOWER(??) LIKE ?', [
+    query.whereRaw("LOWER(??) LIKE ? ESCAPE '\\'", [
       'search_documents.documentText',
-      `%${token}%`
+      `%${escapeLikePattern(token)}%`
     ])
   })
   return query
@@ -97,16 +99,16 @@ export const applySearchDocumentFilter = ({
 
   if (isPostgres(database)) {
     const tsQuery = tokens.map((token) => `${token}:*`).join(' & ')
-    query.whereRaw(
-      `to_tsvector('simple', "documentText") @@ to_tsquery('simple', ?)`,
-      [tsQuery]
-    )
+    query.whereRaw(`to_tsvector('simple', ??) @@ to_tsquery('simple', ?)`, [
+      'documentText',
+      tsQuery
+    ])
     return query
   }
 
   if (isMySQL(database)) {
     const booleanQuery = tokens.map((token) => `+${token}*`).join(' ')
-    if (tokens.some((token) => token.length < 3)) {
+    if (tokens.some((token) => token.length < 4)) {
       return applyPartialTokenMatch({ query, tokens })
     }
     query.whereRaw('MATCH(??) AGAINST (? IN BOOLEAN MODE)', [

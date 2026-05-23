@@ -9,7 +9,6 @@
     "lint": "eslint .",
     "test": "jest",
     "prettier": "prettier --write app migrations lib",
-    "search:reindex": "node -r @swc-node/register scripts/rebuildSearchIndex.ts",
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make",
     "prepare": "husky"
