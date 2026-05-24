@@ -18,7 +18,11 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { deleteRowsByColumnChunks } from '@/lib/database/sql/utils/knex'
+import {
+  chunkArray,
+  deleteRowsByColumnChunks,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
 import {
   deleteRowsByOwnedStatusIdChunks,
   selectHashtagTagsByStatusIds
@@ -1374,21 +1378,64 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete bookmarks made by this actor
       await trx('bookmarks').where('actorId', actorId).delete()
 
-      const pollAnswersMadeByActor = await trx('poll_answers')
-        .where('actorId', actorId)
-        .select<{ statusId: string; choice: number }[]>('statusId', 'choice')
-      for (const answer of pollAnswersMadeByActor) {
-        const choice = await trx('poll_choices')
-          .where({ statusId: answer.statusId })
-          .orderBy('choiceId', 'asc')
-          .offset(Number(answer.choice))
-          .first<{ choiceId: number }>('choiceId')
-        if (!choice) continue
+      const pollAnswersMadeByActor: { statusId: string; choice: number }[] =
+        await trx('poll_answers')
+          .where('actorId', actorId)
+          .select('statusId', 'choice')
+      if (pollAnswersMadeByActor.length > 0) {
+        const choiceIdsByStatusId = new Map<string, number[]>()
+        const votedStatusIds = [
+          ...new Set(pollAnswersMadeByActor.map((answer) => answer.statusId))
+        ]
 
-        await trx('poll_choices')
-          .where({ statusId: answer.statusId, choiceId: choice.choiceId })
-          .where('totalVotes', '>', 0)
-          .decrement('totalVotes', 1)
+        for (const statusIdChunk of chunkArray(
+          votedStatusIds,
+          getWhereInBatchSize(trx)
+        )) {
+          const pollChoices: { statusId: string; choiceId: number }[] =
+            await trx('poll_choices')
+              .whereIn('statusId', statusIdChunk)
+              .orderBy('statusId', 'asc')
+              .orderBy('choiceId', 'asc')
+              .select('statusId', 'choiceId')
+
+          for (const choice of pollChoices) {
+            const choices = choiceIdsByStatusId.get(choice.statusId) ?? []
+            choices.push(choice.choiceId)
+            choiceIdsByStatusId.set(choice.statusId, choices)
+          }
+        }
+
+        const pollChoiceDecrements = new Map<
+          string,
+          { statusId: string; choiceId: number; count: number }
+        >()
+        for (const answer of pollAnswersMadeByActor) {
+          const choiceId = choiceIdsByStatusId.get(answer.statusId)?.[
+            Number(answer.choice)
+          ]
+          if (choiceId === undefined) continue
+
+          const key = `${answer.statusId}:${choiceId}`
+          const existing = pollChoiceDecrements.get(key) ?? {
+            statusId: answer.statusId,
+            choiceId,
+            count: 0
+          }
+          existing.count += 1
+          pollChoiceDecrements.set(key, existing)
+        }
+
+        for (const {
+          statusId,
+          choiceId,
+          count
+        } of pollChoiceDecrements.values()) {
+          await trx('poll_choices')
+            .where({ statusId, choiceId })
+            .where('totalVotes', '>', 0)
+            .decrement('totalVotes', count)
+        }
       }
 
       // Delete poll votes cast by this actor on other actors' polls
