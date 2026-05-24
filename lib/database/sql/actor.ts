@@ -2,6 +2,10 @@ import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
 import {
+  deleteActorSearchDocument,
+  indexActorSearchDocument
+} from '@/lib/database/sql/search'
+import {
   CounterKey,
   decreaseCounterValue,
   deleteCounterValue,
@@ -82,6 +86,56 @@ const getActorCounterSummary = async (
     followingCount: counters[CounterKey.totalFollowing(actorId)] ?? 0,
     statusCount: counters[CounterKey.totalStatus(actorId)] ?? 0
   }
+}
+
+const insertActorWithSearchIndex = async (
+  database: Knex,
+  {
+    actorId,
+    type = 'Person',
+    username,
+    domain,
+    name,
+    summary,
+    iconUrl,
+    headerImageUrl,
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl,
+    publicKey,
+    privateKey,
+    createdAt
+  }: CreateActorParams
+) => {
+  const currentTime = new Date()
+  const settings: ActorSettings = {
+    iconUrl,
+    headerImageUrl,
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl
+  }
+  const actor = {
+    id: actorId,
+    type,
+    username,
+    domain,
+    name,
+    summary,
+    accountId: null,
+    settings: JSON.stringify(settings),
+    publicKey,
+    privateKey,
+    deletionStatus: null,
+    deletionScheduledAt: null,
+    createdAt: new Date(createdAt),
+    updatedAt: currentTime
+  }
+
+  await database.transaction(async (trx) => {
+    await trx('actors').insert(actor)
+    await indexActorSearchDocument(trx, { id: actorId, actor })
+  })
 }
 
 const parseStatusContent = (
@@ -242,91 +296,17 @@ const getMastodonAccountFromSQLActor = ({
 }
 
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
-  async createActor({
-    actorId,
-    type = 'Person',
-
-    username,
-    domain,
-    name,
-    summary,
-    iconUrl,
-    headerImageUrl,
-    followersUrl,
-    inboxUrl,
-    sharedInboxUrl,
-
-    publicKey,
-    privateKey,
-
-    createdAt
-  }: CreateActorParams) {
-    const currentTime = new Date()
-
-    const settings: ActorSettings = {
-      iconUrl,
-      headerImageUrl,
-      followersUrl,
-      inboxUrl,
-      sharedInboxUrl
-    }
-    await database('actors').insert({
-      id: actorId,
-      type,
-      username,
-      domain,
-      name,
-      summary,
-      settings: JSON.stringify(settings),
-      publicKey,
-      privateKey,
-      createdAt: new Date(createdAt),
-      updatedAt: currentTime
-    })
+  async createActor(params: CreateActorParams) {
+    await insertActorWithSearchIndex(database, params)
+    const { actorId } = params
     return this.getActorFromId({ id: actorId })
   },
 
-  async createMastodonActor({
-    actorId,
-    type = 'Person',
-
-    username,
-    domain,
-    name,
-    summary,
-    iconUrl,
-    headerImageUrl,
-    followersUrl,
-    inboxUrl,
-    sharedInboxUrl,
-
-    publicKey,
-    privateKey,
-
-    createdAt
-  }: CreateActorParams): Promise<Mastodon.Account | null> {
-    const currentTime = new Date()
-
-    const settings: ActorSettings = {
-      iconUrl,
-      headerImageUrl,
-      followersUrl,
-      inboxUrl,
-      sharedInboxUrl
-    }
-    await database('actors').insert({
-      id: actorId,
-      type,
-      username,
-      domain,
-      name,
-      summary,
-      settings: JSON.stringify(settings),
-      publicKey,
-      privateKey,
-      createdAt: new Date(createdAt),
-      updatedAt: currentTime
-    })
+  async createMastodonActor(
+    params: CreateActorParams
+  ): Promise<Mastodon.Account | null> {
+    await insertActorWithSearchIndex(database, params)
+    const { actorId } = params
     return this.getMastodonActor(actorId)
   },
 
@@ -807,23 +787,43 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(sharedInboxUrl ? { sharedInboxUrl } : null)
     }
 
-    await database<SQLActor>('actors')
-      .where('id', actorId)
-      .update({
-        ...(type ? { type } : null),
-        ...(name ? { name } : null),
-        ...(summary ? { summary } : null),
+    const currentTime = new Date()
+    const updatedActor: SQLActor = {
+      ...persistedActor,
+      ...(type ? { type } : null),
+      ...(name ? { name } : null),
+      ...(summary ? { summary } : null),
+      ...(publicKey ? { publicKey } : null),
+      settings: JSON.stringify(settings),
+      updatedAt: currentTime
+    }
 
-        ...(publicKey ? { publicKey } : null),
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors')
+        .where('id', actorId)
+        .update({
+          ...(type ? { type } : null),
+          ...(name ? { name } : null),
+          ...(summary ? { summary } : null),
 
-        settings: JSON.stringify(settings),
-        updatedAt: new Date()
+          ...(publicKey ? { publicKey } : null),
+
+          settings: JSON.stringify(settings),
+          updatedAt: currentTime
+        })
+      await indexActorSearchDocument(trx, {
+        id: actorId,
+        actor: updatedActor
       })
+    })
     return this.getActorFromId({ id: actorId })
   },
 
   async deleteActor({ actorId }: DeleteActorParams) {
-    await database('actors').where('id', actorId).delete()
+    await database.transaction(async (trx) => {
+      await trx('actors').where('id', actorId).delete()
+      await deleteActorSearchDocument(trx, { id: actorId })
+    })
   },
 
   async updateActorFollowersCount(actorId: string) {
@@ -907,27 +907,36 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     scheduledAt
   }: ScheduleActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors').where('id', actorId).update({
-      deletionStatus: 'scheduled',
-      deletionScheduledAt: scheduledAt,
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors').where('id', actorId).update({
+        deletionStatus: 'scheduled',
+        deletionScheduledAt: scheduledAt,
+        updatedAt: currentTime
+      })
+      await indexActorSearchDocument(trx, { id: actorId })
     })
   },
 
   async cancelActorDeletion({ actorId }: CancelActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors').where('id', actorId).update({
-      deletionStatus: null,
-      deletionScheduledAt: null,
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors').where('id', actorId).update({
+        deletionStatus: null,
+        deletionScheduledAt: null,
+        updatedAt: currentTime
+      })
+      await indexActorSearchDocument(trx, { id: actorId })
     })
   },
 
   async startActorDeletion({ actorId }: StartActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors').where('id', actorId).update({
-      deletionStatus: 'deleting',
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx<SQLActor>('actors').where('id', actorId).update({
+        deletionStatus: 'deleting',
+        updatedAt: currentTime
+      })
+      await indexActorSearchDocument(trx, { id: actorId })
     })
   },
 
@@ -1383,6 +1392,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Finally delete the actor
       await trx('actors').where('id', actorId).delete()
+      await deleteActorSearchDocument(trx, { id: actorId })
     })
   }
 })
