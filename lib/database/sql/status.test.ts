@@ -1,6 +1,7 @@
 import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { CounterKey } from '@/lib/database/sql/utils/counter'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -2850,6 +2851,147 @@ describe('StatusDatabase', () => {
           expect(hasDirectStatusIdDelete('status_history')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_voters')).toBe(true)
+        } finally {
+          knexDatabase.off('query', handleQuery)
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('deletes auxiliary status references with bounded cleanup', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const actorId = 'https://remote.test/users/delete-aux-status-data'
+        const statusId = `${actorId}/statuses/aux-cleanup`
+        const queries: string[] = []
+        const handleQuery = ({ sql }: { sql: string }) => {
+          queries.push(sql.toLowerCase())
+        }
+        const currentTime = new Date()
+        const countRows = async (tableName: string, statusId: string) => {
+          const row = await knexDatabase(tableName)
+            .where({ statusId })
+            .count<{ count: number | string }>('* as count')
+            .first()
+          return Number(row?.count ?? 0)
+        }
+
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId,
+            username: 'delete-aux-status-data',
+            domain: 'remote.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createNote({
+            id: statusId,
+            url: statusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Auxiliary cleanup note'
+          })
+          await knexDatabase('notifications').insert({
+            id: 'aux-status-notification',
+            actorId,
+            type: 'mention',
+            sourceActorId: actorId,
+            statusId,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('direct_conversation_statuses').insert({
+            conversationId: 'aux-status-conversation',
+            statusId,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('fitness_files').insert({
+            id: 'aux-status-fitness-file',
+            actorId,
+            statusId,
+            path: '/tmp/aux-status.fit',
+            fileName: 'aux-status.fit',
+            fileType: 'fit',
+            mimeType: 'application/octet-stream',
+            bytes: 100,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('counters').insert(
+            [
+              CounterKey.totalLike(statusId),
+              CounterKey.totalReblog(statusId),
+              CounterKey.totalReply(statusId)
+            ].map((id) => ({
+              id,
+              value: 1,
+              createdAt: currentTime,
+              updatedAt: currentTime
+            }))
+          )
+
+          await expect(countRows('notifications', statusId)).resolves.toBe(1)
+          await expect(
+            countRows('direct_conversation_statuses', statusId)
+          ).resolves.toBe(1)
+          await expect(countRows('fitness_files', statusId)).resolves.toBe(1)
+
+          knexDatabase.on('query', handleQuery)
+          await sqlDatabase.deleteStatus({ statusId, actorId })
+          knexDatabase.off('query', handleQuery)
+
+          await expect(countRows('notifications', statusId)).resolves.toBe(0)
+          await expect(
+            countRows('direct_conversation_statuses', statusId)
+          ).resolves.toBe(0)
+          await expect(countRows('fitness_files', statusId)).resolves.toBe(0)
+          await expect(
+            knexDatabase('fitness_files')
+              .where({ id: 'aux-status-fitness-file' })
+              .first('statusId')
+          ).resolves.toEqual({ statusId: null })
+          await expect(
+            knexDatabase('counters')
+              .whereIn('id', [
+                CounterKey.totalLike(statusId),
+                CounterKey.totalReblog(statusId),
+                CounterKey.totalReply(statusId)
+              ])
+              .count<{ count: number | string }>('* as count')
+              .first()
+              .then((row) => Number(row?.count ?? 0))
+          ).resolves.toBe(0)
+
+          const hasDirectStatusIdDelete = (tableName: string) =>
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes(`\`${tableName}\``) &&
+                sql.includes('`statusid` in')
+            )
+          expect(hasDirectStatusIdDelete('notifications')).toBe(true)
+          expect(hasDirectStatusIdDelete('direct_conversation_statuses')).toBe(
+            true
+          )
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('update') &&
+                sql.includes('`fitness_files`') &&
+                sql.includes('`statusid` in')
+            )
+          ).toBe(true)
         } finally {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()

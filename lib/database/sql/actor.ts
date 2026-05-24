@@ -1316,6 +1316,26 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           'statusId',
           statusIds
         )
+        await deleteRowsByColumnChunks(
+          trx,
+          'notifications',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'direct_conversation_statuses',
+          'statusId',
+          statusIds
+        )
+        for (const statusIdChunk of chunkArray(
+          statusIds,
+          getWhereInBatchSize(trx)
+        )) {
+          await trx('fitness_files')
+            .whereIn('statusId', statusIdChunk)
+            .update({ statusId: null })
+        }
       }
 
       // Delete timeline entries for this actor

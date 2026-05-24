@@ -4,6 +4,7 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import {
   CounterKey,
   decreaseCounterValue,
+  deleteCounterValue,
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
@@ -1591,11 +1592,8 @@ export const StatusSQLDatabaseMixin = (
     const adjustments = new Map<string, number>()
 
     for (const tag of tags) {
-      const tagName = tag.name.startsWith('#') ? tag.name.slice(1) : tag.name
-      addCounterAdjustment(
-        adjustments,
-        CounterKey.totalHashtag(tagName.toLowerCase())
-      )
+      const tagName = normalizeHashtagSearchName(tag.name)
+      addCounterAdjustment(adjustments, CounterKey.totalHashtag(tagName))
     }
 
     for (const [counterKey, amount] of adjustments) {
@@ -1786,11 +1784,36 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    await deleteRowsByColumnChunks(
+      trx,
+      'notifications',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'direct_conversation_statuses',
+      'statusId',
+      statusIdsToDelete
+    )
+    for (const statusIdChunk of chunkArray(
+      statusIdsToDelete,
+      getWhereInBatchSize(trx)
+    )) {
+      await trx('fitness_files')
+        .whereIn('statusId', statusIdChunk)
+        .update({ statusId: null })
+    }
     await deleteStatusRowsByIdChunks({
       actorId,
       statuses: statusesToDelete,
       trx
     })
+    for (const statusId of statusIdsToDelete) {
+      await deleteCounterValue(trx, CounterKey.totalLike(statusId))
+      await deleteCounterValue(trx, CounterKey.totalReblog(statusId))
+      await deleteCounterValue(trx, CounterKey.totalReply(statusId))
+    }
   }
 
   async function getFavouritedBy({

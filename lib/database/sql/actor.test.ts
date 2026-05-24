@@ -1306,6 +1306,7 @@ describe('ActorDatabase', () => {
         const handleQuery = ({ sql }: { sql: string }) => {
           queries.push(sql.toLowerCase())
         }
+        const currentTime = new Date()
         const countRows = async (tableName: string, statusId: string) => {
           const row = await knexDatabase(tableName)
             .where({ statusId })
@@ -1363,10 +1364,42 @@ describe('ActorDatabase', () => {
             actorId: voterId,
             choices: [0]
           })
+          await knexDatabase('notifications').insert({
+            id: 'delete-actor-status-notification',
+            actorId: voterId,
+            type: 'mention',
+            sourceActorId: voterId,
+            statusId: noteId,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('direct_conversation_statuses').insert({
+            conversationId: 'delete-actor-status-conversation',
+            statusId: noteId,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('fitness_files').insert({
+            id: 'delete-actor-status-fitness-file',
+            actorId: voterId,
+            statusId: noteId,
+            path: '/tmp/delete-actor-status.fit',
+            fileName: 'delete-actor-status.fit',
+            fileType: 'fit',
+            mimeType: 'application/octet-stream',
+            bytes: 100,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
 
           await expect(countRows('status_history', noteId)).resolves.toBe(1)
           await expect(countRows('poll_answers', pollId)).resolves.toBe(1)
           await expect(countRows('poll_voters', pollId)).resolves.toBe(1)
+          await expect(countRows('notifications', noteId)).resolves.toBe(1)
+          await expect(
+            countRows('direct_conversation_statuses', noteId)
+          ).resolves.toBe(1)
+          await expect(countRows('fitness_files', noteId)).resolves.toBe(1)
 
           knexDatabase.on('query', handleQuery)
           await sqlDatabase.deleteActorData({ actorId })
@@ -1375,6 +1408,16 @@ describe('ActorDatabase', () => {
           await expect(countRows('status_history', noteId)).resolves.toBe(0)
           await expect(countRows('poll_answers', pollId)).resolves.toBe(0)
           await expect(countRows('poll_voters', pollId)).resolves.toBe(0)
+          await expect(countRows('notifications', noteId)).resolves.toBe(0)
+          await expect(
+            countRows('direct_conversation_statuses', noteId)
+          ).resolves.toBe(0)
+          await expect(countRows('fitness_files', noteId)).resolves.toBe(0)
+          await expect(
+            knexDatabase('fitness_files')
+              .where({ id: 'delete-actor-status-fitness-file' })
+              .first('statusId')
+          ).resolves.toEqual({ statusId: null })
           const hasDirectStatusIdDelete = (tableName: string) =>
             queries.some(
               (sql) =>
@@ -1386,6 +1429,18 @@ describe('ActorDatabase', () => {
           expect(hasDirectStatusIdDelete('status_history')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_voters')).toBe(true)
+          expect(hasDirectStatusIdDelete('notifications')).toBe(true)
+          expect(hasDirectStatusIdDelete('direct_conversation_statuses')).toBe(
+            true
+          )
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('update') &&
+                sql.includes('`fitness_files`') &&
+                sql.includes('`statusid` in')
+            )
+          ).toBe(true)
         } finally {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
