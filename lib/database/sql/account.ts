@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { indexActorSearchDocument } from '@/lib/database/sql/search'
 import {
   CounterKey,
   getCounterValues,
@@ -88,6 +89,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       inboxUrl: getLocalActorInboxId(actorId),
       sharedInboxUrl: getLocalActorSharedInboxId(domain)
     }
+    const actor = {
+      id: actorId,
+      type: 'Person' as const,
+      accountId,
+      username,
+      domain,
+      settings: JSON.stringify(actorSettings),
+      publicKey,
+      privateKey,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
 
     await database.transaction(async (trx) => {
       await trx('accounts').insert({
@@ -101,18 +114,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         createdAt: currentTime,
         updatedAt: currentTime
       })
-      await trx('actors').insert({
-        id: actorId,
-        type: 'Person',
-        accountId,
-        username,
-        domain,
-        settings: JSON.stringify(actorSettings),
-        publicKey,
-        privateKey,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
+      await trx('actors').insert(actor)
       await trx('account_providers').insert({
         id: `credential_${accountId}`,
         accountId,
@@ -142,6 +144,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       )
       await incrementBucket(trx, 'accounts', 1, currentTime)
       await incrementBucket(trx, 'actors', 1, currentTime)
+      await indexActorSearchDocument(trx, { id: actorId, actor })
     })
 
     return accountId
@@ -381,10 +384,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       inboxUrl: getLocalActorInboxId(actorId),
       sharedInboxUrl: getLocalActorSharedInboxId(domain)
     }
-
-    await database('actors').insert({
+    const actor = {
       id: actorId,
-      type: 'Person',
+      type: 'Person' as const,
       accountId,
       username,
       domain,
@@ -393,14 +395,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       privateKey,
       createdAt: currentTime,
       updatedAt: currentTime
+    }
+
+    await database.transaction(async (trx) => {
+      await trx('actors').insert(actor)
+      await increaseCounterValue(
+        trx,
+        CounterKey.serviceTotalActors(),
+        1,
+        currentTime
+      )
+      await incrementBucket(trx, 'actors', 1, currentTime)
+      await indexActorSearchDocument(trx, { id: actorId, actor })
     })
-    await increaseCounterValue(
-      database,
-      CounterKey.serviceTotalActors(),
-      1,
-      currentTime
-    )
-    await incrementBucket(database, 'actors', 1, currentTime)
 
     return actorId
   },

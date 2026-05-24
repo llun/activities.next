@@ -5,6 +5,7 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
+import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -13,17 +14,10 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const parseAccountHandle = (value: string) => {
-  const normalized = value.trim().replace(/^@/, '')
-  const [username, domain, ...rest] = normalized.split('@')
-  if (!username || !domain || rest.length > 0) return null
-  return { username, domain }
-}
-
 const SearchParams = z.object({
   q: z.string(),
-  limit: z.coerce.number().min(1).max(80).default(40).optional(),
-  offset: z.coerce.number().min(0).default(0).optional(),
+  limit: z.coerce.number().int().min(1).max(80).default(40).optional(),
+  offset: z.coerce.number().int().min(0).max(10000).default(0).optional(),
   resolve: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -57,54 +51,65 @@ export const GET = traceApiRoute(
         })
       }
 
-      const { q, limit = 40, resolve = false } = parsedParams.data
+      const {
+        q,
+        limit = 40,
+        offset = 0,
+        resolve = false,
+        following = false
+      } = parsedParams.data
 
       if (!q || q.trim().length === 0) {
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
       const query = q.trim()
-      const results = []
-
-      // Try exact match first (username@domain or just username)
-      if (query.includes('@')) {
-        const handle = parseAccountHandle(query)
-        if (handle) {
-          let actor = await database.getActorFromUsername(handle)
-          if (!actor && resolve) {
-            const actorId = await getWebfingerSelf({
-              account: `${handle.username}@${handle.domain}`
-            })
-            actor = actorId
-              ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
-              : null
-          }
-
-          const mastodonActor = actor
-            ? await database.getMastodonActorFromId({ id: actor.id })
-            : null
-          if (mastodonActor) {
-            results.push(mastodonActor)
-          }
+      const localDomain = getConfig().host
+      const getSearchParams = (exactActorIds: string[] = []) => {
+        return {
+          q: query,
+          limit,
+          offset,
+          localDomain,
+          exactActorIds,
+          ...(following ? { followingActorId: context.currentActor.id } : {})
         }
-      } else {
-        // Try as local username
-        const actor = await database.getActorFromUsername({
-          username: query,
-          domain: getConfig().host
+      }
+
+      let indexedIds = await database.searchAccountIds(getSearchParams())
+      let results = await database.getMastodonActorsFromIds({
+        ids: indexedIds
+      })
+
+      const handle = resolve && offset === 0 ? parseAccountHandle(query) : null
+      const exactAcct = handle
+        ? `${handle.username}@${handle.domain}`.toLowerCase()
+        : null
+      const hasExactHandle = exactAcct
+        ? results.some((actor) => actor.acct.toLowerCase() === exactAcct)
+        : false
+
+      if (handle && !hasExactHandle) {
+        const actorId = await getWebfingerSelf({
+          account: `${handle.username}@${handle.domain}`
         })
+        const actor = actorId
+          ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+          : null
         if (actor) {
-          const mastodonActor = await database.getMastodonActorFromId({
-            id: actor.id
+          indexedIds = await database.searchAccountIds(
+            getSearchParams([actor.id])
+          )
+          results = await database.getMastodonActorsFromIds({
+            ids: indexedIds
           })
-          if (mastodonActor) results.push(mastodonActor)
         }
       }
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: results.slice(0, limit)
+        data: results
       })
     }
   )
