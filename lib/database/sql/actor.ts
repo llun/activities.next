@@ -10,6 +10,7 @@ import {
   CounterKey,
   decreaseCounterValue,
   deleteCounterValue,
+  deleteCounterValues,
   getCounterValue,
   getCounterValues,
   increaseCounterValue,
@@ -1494,11 +1495,14 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         }
       }
 
-      for (const statusId of statusIds) {
-        await deleteCounterValue(trx, CounterKey.totalLike(statusId))
-        await deleteCounterValue(trx, CounterKey.totalReblog(statusId))
-        await deleteCounterValue(trx, CounterKey.totalReply(statusId))
-      }
+      await deleteCounterValues(
+        trx,
+        statusIds.flatMap((statusId) => [
+          CounterKey.totalLike(statusId),
+          CounterKey.totalReblog(statusId),
+          CounterKey.totalReply(statusId)
+        ])
+      )
 
       // Delete notifications table entries if exists
       try {

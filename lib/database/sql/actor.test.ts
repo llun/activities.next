@@ -3,6 +3,7 @@ import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { type SQLActorDatabase } from '@/lib/database/sql/actor'
+import { CounterKey } from '@/lib/database/sql/utils/counter'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -1391,6 +1392,20 @@ describe('ActorDatabase', () => {
             createdAt: currentTime,
             updatedAt: currentTime
           })
+          await knexDatabase('counters').insert(
+            [noteId, pollId]
+              .flatMap((statusId) => [
+                CounterKey.totalLike(statusId),
+                CounterKey.totalReblog(statusId),
+                CounterKey.totalReply(statusId)
+              ])
+              .map((id) => ({
+                id,
+                value: 1,
+                createdAt: currentTime,
+                updatedAt: currentTime
+              }))
+          )
 
           await expect(countRows('status_history', noteId)).resolves.toBe(1)
           await expect(countRows('poll_answers', pollId)).resolves.toBe(1)
@@ -1418,6 +1433,20 @@ describe('ActorDatabase', () => {
               .where({ id: 'delete-actor-status-fitness-file' })
               .first('statusId')
           ).resolves.toEqual({ statusId: null })
+          await expect(
+            knexDatabase('counters')
+              .whereIn(
+                'id',
+                [noteId, pollId].flatMap((statusId) => [
+                  CounterKey.totalLike(statusId),
+                  CounterKey.totalReblog(statusId),
+                  CounterKey.totalReply(statusId)
+                ])
+              )
+              .count<{ count: number | string }>('* as count')
+              .first()
+              .then((row) => Number(row?.count ?? 0))
+          ).resolves.toBe(0)
           const hasDirectStatusIdDelete = (tableName: string) =>
             queries.some(
               (sql) =>
@@ -1439,6 +1468,14 @@ describe('ActorDatabase', () => {
                 sql.startsWith('update') &&
                 sql.includes('`fitness_files`') &&
                 sql.includes('`statusid` in')
+            )
+          ).toBe(true)
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes('`counters`') &&
+                sql.includes('`id` in')
             )
           ).toBe(true)
         } finally {

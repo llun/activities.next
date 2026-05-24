@@ -4,7 +4,7 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import {
   CounterKey,
   decreaseCounterValue,
-  deleteCounterValue,
+  deleteCounterValues,
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
@@ -1809,11 +1809,14 @@ export const StatusSQLDatabaseMixin = (
       statuses: statusesToDelete,
       trx
     })
-    for (const statusId of statusIdsToDelete) {
-      await deleteCounterValue(trx, CounterKey.totalLike(statusId))
-      await deleteCounterValue(trx, CounterKey.totalReblog(statusId))
-      await deleteCounterValue(trx, CounterKey.totalReply(statusId))
-    }
+    await deleteCounterValues(
+      trx,
+      statusIdsToDelete.flatMap((statusId) => [
+        CounterKey.totalLike(statusId),
+        CounterKey.totalReblog(statusId),
+        CounterKey.totalReply(statusId)
+      ])
+    )
   }
 
   async function getFavouritedBy({

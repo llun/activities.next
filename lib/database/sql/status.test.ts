@@ -2992,6 +2992,14 @@ describe('StatusDatabase', () => {
                 sql.includes('`statusid` in')
             )
           ).toBe(true)
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes('`counters`') &&
+                sql.includes('`id` in')
+            )
+          ).toBe(true)
         } finally {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
