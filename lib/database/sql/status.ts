@@ -88,6 +88,8 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
+// Counts breadth-first reply levels from the deleted root, not total replies.
+// This bounds transaction size while still allowing wide conversation cleanup.
 const MAX_STATUS_REPLY_DELETE_DEPTH = 100
 
 type StatusDeletionRow = {
@@ -98,6 +100,10 @@ type StatusDeletionRow = {
   content: unknown
   originalStatusId: string | null
 }
+
+const statusReplyDeletionDepthError = (statusId: string) =>
+  new Error(`Status reply deletion depth limit exceeded for status ${statusId}`)
+
 const isReplaceableMediaAttachment = (
   attachment: Attachment
 ): attachment is Attachment & { mediaId: string } =>
@@ -1641,14 +1647,14 @@ export const StatusSQLDatabaseMixin = (
       }
 
       if (nextStatusIds.length > 0 && depth >= MAX_STATUS_REPLY_DELETE_DEPTH) {
-        throw new Error('Status reply deletion depth limit exceeded')
+        throw statusReplyDeletionDepthError(statusId)
       }
 
       currentStatusIds = nextStatusIds
     }
 
     if (currentStatusIds.length > 0) {
-      throw new Error('Status reply deletion depth limit exceeded')
+      throw statusReplyDeletionDepthError(statusId)
     }
 
     return levels.reverse().flat()

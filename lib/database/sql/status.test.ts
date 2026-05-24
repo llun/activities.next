@@ -2552,7 +2552,9 @@ describe('StatusDatabase', () => {
 
           await expect(
             sqlDatabase.deleteStatus({ statusId: rootStatusId })
-          ).rejects.toThrow('Status reply deletion depth limit exceeded')
+          ).rejects.toThrow(
+            `Status reply deletion depth limit exceeded for status ${rootStatusId}`
+          )
           await expect(
             knexDatabase('statuses').where('id', rootStatusId).first('id')
           ).resolves.toEqual({ id: rootStatusId })

@@ -1483,13 +1483,13 @@ describe('SearchDatabase foundation', () => {
       ])
       const aggregateSql =
         queries.find((sql) => sql.includes('as `hashtag_statuses`')) ?? ''
-      expect(aggregateSql).toContain('inner join `recipients`')
+      expect(aggregateSql).not.toContain('inner join `recipients`')
       expect(aggregateSql).toContain(
         '`recipients`.`statusid` = `statuses`.`id`'
       )
       expect(aggregateSql).toContain('`recipients`.`actorid` in')
       expect(aggregateSql).not.toContain('`statuses`.`id` in (select')
-      expect(aggregateSql).not.toContain('exists')
+      expect(aggregateSql).toContain('exists')
     } finally {
       knexDatabase.off('query', handleQuery)
       await database.destroy()

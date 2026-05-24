@@ -131,10 +131,14 @@ const getHashtagSearchAggregates = async (
         database.raw('?? as ??', ['statuses.createdAt', 'statusCreatedAt'])
       )
       .innerJoin('statuses', 'statuses.id', 'tags.statusId')
-      .innerJoin('recipients', 'recipients.statusId', 'statuses.id')
       .where('tags.type', 'hashtag')
       .whereIn('tags.nameNormalized', lookupNames)
-      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+      .whereExists(function () {
+        this.select(database.raw('1'))
+          .from('recipients')
+          .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
+          .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+      })
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .as('hashtag_statuses')
 
