@@ -1438,6 +1438,10 @@ describe('SearchDatabase foundation', () => {
     const database = getSQLDatabase(knexDatabase)
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/hashtag-search`
+    const queries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      queries.push(sql.toLowerCase())
+    }
 
     try {
       await database.migrate()
@@ -1454,12 +1458,14 @@ describe('SearchDatabase foundation', () => {
         text: 'Trail day',
         createdAt: 1
       })
+      knexDatabase.on('query', handleQuery)
       await database.createTag({
         statusId,
         type: 'hashtag',
         name: '#Running',
         value: 'https://remote.test/tags/running'
       })
+      knexDatabase.off('query', handleQuery)
 
       await expect(
         database.searchHashtags({
@@ -1475,7 +1481,13 @@ describe('SearchDatabase foundation', () => {
           lastPostAt: 1
         })
       ])
+      const aggregateSql =
+        queries.find((sql) => sql.includes('as `hashtag_statuses`')) ?? ''
+      expect(aggregateSql).toContain('`statuses`.`id` in (select `statusid`')
+      expect(aggregateSql).toContain('from `recipients`')
+      expect(aggregateSql).not.toContain('exists')
     } finally {
+      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })

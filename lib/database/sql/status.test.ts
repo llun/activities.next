@@ -2465,6 +2465,66 @@ describe('StatusDatabase', () => {
         }
       })
 
+      it('rejects very deep reply trees before building a long delete transaction', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const actorId = 'https://remote.test/users/deep-replies'
+        const rootStatusId = `${actorId}/statuses/deep-0`
+
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId,
+            username: 'deep-replies',
+            domain: 'remote.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          for (let index = 0; index < 102; index += 1) {
+            const id = `${actorId}/statuses/deep-${index}`
+            const reply =
+              index === 0 ? '' : `${actorId}/statuses/deep-${index - 1}`
+            await knexDatabase('statuses').insert({
+              id,
+              url: id,
+              urlHash: getHashFromString(id),
+              actorId,
+              type: StatusType.enum.Note,
+              content: JSON.stringify({
+                id,
+                url: id,
+                text: `Deep reply ${index}`,
+                summary: ''
+              }),
+              reply,
+              replyHash: reply ? getHashFromString(reply) : null,
+              originalStatusId: null,
+              createdAt: new Date(index),
+              updatedAt: new Date(index)
+            })
+          }
+
+          await expect(
+            sqlDatabase.deleteStatus({ statusId: rootStatusId })
+          ).rejects.toThrow('Status reply deletion depth limit exceeded')
+          await expect(
+            knexDatabase('statuses').where('id', rootStatusId).first('id')
+          ).resolves.toEqual({ id: rootStatusId })
+        } finally {
+          await knexDatabase.destroy()
+        }
+      })
+
       it('deletes reply trees with bounded bulk cleanup queries', async () => {
         const knexDatabase = knex({
           client: 'better-sqlite3',

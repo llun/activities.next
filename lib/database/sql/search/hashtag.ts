@@ -67,6 +67,11 @@ const HASHTAG_AGGREGATE_FIXED_BINDINGS =
 const HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME = 2
 const STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE = 100
 
+const getPublicStatusIdsQuery = (database: KnexConnection) =>
+  database('recipients')
+    .select('statusId')
+    .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+
 export const normalizeHashtagSearchName = (hashtag: string) => {
   const bare = hashtag.trim().replace(/^#+/, '').toLowerCase()
   return bare
@@ -133,12 +138,7 @@ const getHashtagSearchAggregates = async (
       .innerJoin('statuses', 'statuses.id', 'tags.statusId')
       .where('tags.type', 'hashtag')
       .whereIn('tags.nameNormalized', lookupNames)
-      .whereExists(function () {
-        this.select(database.raw('1'))
-          .from('recipients')
-          .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
-          .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-      })
+      .whereIn('statuses.id', getPublicStatusIdsQuery(database))
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .as('hashtag_statuses')
 
