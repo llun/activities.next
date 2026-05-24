@@ -1,0 +1,19 @@
+lib/database/sql/search/hashtag.ts
+  s_a9c053813411a7::t_1fedba58ff111f 371,374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "4cfaaf7e467231c89e2448e5a253d5ff64be71ee",
+  "prompts": {},
+  "sessions": {
+    "s_a9c053813411a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5ad7-c4c3-78e2-9686-a128443adab4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
