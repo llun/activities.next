@@ -18,7 +18,11 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
+import {
+  chunkArray,
+  deleteRowsByColumnChunks,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
@@ -103,17 +107,6 @@ const selectPollChoiceIdsByStatusIds = async (
     )
   }
   return rows
-}
-
-const deleteRowsByColumnChunks = async (
-  trx: Knex.Transaction,
-  tableName: string,
-  columnName: string,
-  values: string[]
-) => {
-  for (const valueChunk of chunkArray(values, getWhereInBatchSize(trx))) {
-    await trx(tableName).whereIn(columnName, valueChunk).delete()
-  }
 }
 
 const getActorCounterSummary = async (

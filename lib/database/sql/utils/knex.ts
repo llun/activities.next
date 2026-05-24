@@ -51,6 +51,17 @@ export const chunkArray = <T>(items: T[], size: number) => {
   return chunks
 }
 
+export const deleteRowsByColumnChunks = async (
+  database: KnexConnection,
+  tableName: string,
+  columnName: string,
+  values: string[]
+) => {
+  for (const valueChunk of chunkArray(values, getWhereInBatchSize(database))) {
+    await database(tableName).whereIn(columnName, valueChunk).delete()
+  }
+}
+
 export const isKnexTransaction = (
   database: KnexConnection
 ): database is Knex.Transaction =>

@@ -10,6 +10,11 @@ import {
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import {
+  chunkArray,
+  deleteRowsByColumnChunks,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { BookmarkDatabase } from '@/lib/types/database/operations'
@@ -87,6 +92,10 @@ type StatusDeletionRow = {
   reply: string | null
   content: unknown
   originalStatusId: string | null
+}
+type StatusDeletionTagRow = {
+  statusId: string
+  name: string
 }
 
 const isReplaceableMediaAttachment = (
@@ -1397,6 +1406,205 @@ export const StatusSQLDatabaseMixin = (
     return statusIds
   }
 
+  const addCounterAdjustment = (
+    adjustments: Map<string, number>,
+    counterKey: string,
+    amount = 1
+  ) => {
+    adjustments.set(counterKey, (adjustments.get(counterKey) ?? 0) + amount)
+  }
+
+  const selectStatusDeletionRowsByIds = async (
+    trx: Knex.Transaction,
+    statusIds: string[]
+  ) => {
+    const rows: StatusDeletionRow[] = []
+    for (const statusIdChunk of chunkArray(
+      statusIds,
+      getWhereInBatchSize(trx)
+    )) {
+      rows.push(
+        ...(await trx('statuses')
+          .whereIn('id', statusIdChunk)
+          .select<
+            StatusDeletionRow[]
+          >('id', 'actorId', 'type', 'reply', 'content', 'originalStatusId'))
+      )
+    }
+    return rows
+  }
+
+  const selectReplyIdsByStatusIds = async (
+    trx: Knex.Transaction,
+    statusIds: string[]
+  ) => {
+    const rows: { id: string }[] = []
+    for (const statusIdChunk of chunkArray(
+      statusIds,
+      getWhereInBatchSize(trx)
+    )) {
+      rows.push(
+        ...(await trx('statuses')
+          .whereIn('reply', statusIdChunk)
+          .select<{ id: string }[]>('id'))
+      )
+    }
+    return rows
+  }
+
+  const selectLocalActorIds = async (
+    trx: Knex.Transaction,
+    actorIds: string[]
+  ) => {
+    const localActorIds = new Set<string>()
+    for (const actorIdChunk of chunkArray(actorIds, getWhereInBatchSize(trx))) {
+      const rows = await trx('actors')
+        .whereIn('id', actorIdChunk)
+        .whereNotNull('accountId')
+        .select<{ id: string }[]>('id')
+      for (const row of rows) {
+        localActorIds.add(row.id)
+      }
+    }
+    return localActorIds
+  }
+
+  const resolveParentStatusIdsByReplyReferences = async (
+    trx: Knex.Transaction,
+    replyReferences: string[]
+  ) => {
+    const referenceToStatusId = new Map<string, string>()
+    const uniqueReplyReferences = [
+      ...new Set(replyReferences.filter((reply) => reply.length > 0))
+    ]
+    const batchSize = Math.max(1, Math.floor(getWhereInBatchSize(trx) / 3))
+
+    for (const replyReferenceChunk of chunkArray(
+      uniqueReplyReferences,
+      batchSize
+    )) {
+      const replyReferenceHashes = replyReferenceChunk.map((reply) =>
+        getStatusUrlHash(reply)
+      )
+      const rows = await trx('statuses')
+        .whereIn('id', replyReferenceChunk)
+        .orWhere((builder) =>
+          builder
+            .whereIn('urlHash', replyReferenceHashes)
+            .whereIn('url', replyReferenceChunk)
+        )
+        .select<{ id: string; url: string | null }[]>('id', 'url')
+
+      for (const row of rows) {
+        referenceToStatusId.set(row.id, row.id)
+        if (row.url) {
+          referenceToStatusId.set(row.url, row.id)
+        }
+      }
+    }
+
+    return referenceToStatusId
+  }
+
+  const selectHashtagTagsByStatusIds = async (
+    trx: Knex.Transaction,
+    statusIds: string[]
+  ) => {
+    const rows: StatusDeletionTagRow[] = []
+    for (const statusIdChunk of chunkArray(
+      statusIds,
+      getWhereInBatchSize(trx, 1)
+    )) {
+      rows.push(
+        ...(await trx('tags')
+          .where('type', 'hashtag')
+          .whereIn('statusId', statusIdChunk)
+          .select<StatusDeletionTagRow[]>('statusId', 'name'))
+      )
+    }
+    return rows
+  }
+
+  const applyStatusDeletionCounterAdjustments = async ({
+    currentTime,
+    statuses,
+    trx
+  }: {
+    currentTime: Date
+    statuses: StatusDeletionRow[]
+    trx: Knex.Transaction
+  }) => {
+    const adjustments = new Map<string, number>()
+    const localActorIds = await selectLocalActorIds(trx, [
+      ...new Set(statuses.map((status) => status.actorId))
+    ])
+    const parentStatusIdByReplyReference =
+      await resolveParentStatusIdsByReplyReferences(
+        trx,
+        statuses
+          .map((status) => status.reply ?? '')
+          .filter((reply) => reply.length > 0)
+      )
+
+    for (const status of statuses) {
+      addCounterAdjustment(adjustments, CounterKey.totalStatus(status.actorId))
+      addCounterAdjustment(adjustments, CounterKey.serviceTotalStatuses())
+      if (localActorIds.has(status.actorId)) {
+        addCounterAdjustment(adjustments, CounterKey.nodeinfoLocalPosts())
+      }
+
+      if (status.type === StatusType.enum.Announce) {
+        const originalStatusId = getOriginalStatusIdFromAnnounceContent(
+          status.content
+        )
+        if (originalStatusId) {
+          addCounterAdjustment(
+            adjustments,
+            CounterKey.totalReblog(originalStatusId)
+          )
+        }
+      }
+
+      if (status.reply) {
+        const parentStatusId = parentStatusIdByReplyReference.get(status.reply)
+        if (parentStatusId) {
+          addCounterAdjustment(
+            adjustments,
+            CounterKey.totalReply(parentStatusId)
+          )
+        }
+      }
+    }
+
+    for (const [counterKey, amount] of adjustments) {
+      await decreaseCounterValue(trx, counterKey, amount, currentTime)
+    }
+  }
+
+  const applyHashtagDeletionCounterAdjustments = async ({
+    currentTime,
+    tags,
+    trx
+  }: {
+    currentTime: Date
+    tags: StatusDeletionTagRow[]
+    trx: Knex.Transaction
+  }) => {
+    const adjustments = new Map<string, number>()
+
+    for (const tag of tags) {
+      const tagName = tag.name.startsWith('#') ? tag.name.slice(1) : tag.name
+      addCounterAdjustment(
+        adjustments,
+        CounterKey.totalHashtag(tagName.toLowerCase())
+      )
+    }
+
+    for (const [counterKey, amount] of adjustments) {
+      await decreaseCounterValue(trx, counterKey, amount, currentTime)
+    }
+  }
+
   const collectStatusDeletionRows = async ({
     actorId,
     statusId,
@@ -1404,38 +1612,20 @@ export const StatusSQLDatabaseMixin = (
   }: DeleteStatusParams & {
     trx: Knex.Transaction
   }) => {
-    const rowsById = new Map<string, StatusDeletionRow>()
-    const rows: StatusDeletionRow[] = []
-    const seen = new Set<string>()
-    const stack: { depth: number; expanded: boolean; statusId: string }[] = [
-      { depth: 0, expanded: false, statusId }
-    ]
+    const levels: StatusDeletionRow[][] = []
+    const seen = new Set<string>([statusId])
+    let currentStatusIds = [statusId]
 
-    while (stack.length > 0) {
-      const frame = stack.pop()
-      if (!frame) break
+    for (
+      let depth = 0;
+      currentStatusIds.length > 0 && depth <= MAX_STATUS_REPLY_DELETE_DEPTH;
+      depth += 1
+    ) {
+      let rows = await selectStatusDeletionRowsByIds(trx, currentStatusIds)
 
-      if (frame.expanded) {
-        const row = rowsById.get(frame.statusId)
-        if (row) rows.push(row)
-        continue
-      }
-
-      if (seen.has(frame.statusId)) continue
-      seen.add(frame.statusId)
-
-      if (frame.depth > MAX_STATUS_REPLY_DELETE_DEPTH) {
-        throw new Error('Status reply deletion depth limit exceeded')
-      }
-
-      const status = await trx('statuses')
-        .where('id', frame.statusId)
-        .first<
-          StatusDeletionRow | undefined
-        >('id', 'actorId', 'type', 'reply', 'content', 'originalStatusId')
-      if (!status) continue
-
-      if (frame.statusId === statusId && actorId) {
+      if (depth === 0 && actorId) {
+        const status = rows.find((row) => row.id === statusId)
+        if (!status) return []
         const normalizedStoredActorId = normalizeActorId(status.actorId)
         const normalizedExpectedActorId = normalizeActorId(actorId)
         if (
@@ -1443,33 +1633,43 @@ export const StatusSQLDatabaseMixin = (
           !normalizedExpectedActorId ||
           normalizedStoredActorId !== normalizedExpectedActorId
         ) {
-          continue
+          return []
+        }
+        rows = [status]
+      }
+
+      if (rows.length === 0) {
+        currentStatusIds = []
+        continue
+      }
+
+      levels.push(rows)
+
+      const replies = await selectReplyIdsByStatusIds(
+        trx,
+        rows.map((row) => row.id)
+      )
+      const nextStatusIds: string[] = []
+
+      for (const { id: replyId } of replies) {
+        if (!seen.has(replyId)) {
+          seen.add(replyId)
+          nextStatusIds.push(replyId)
         }
       }
 
-      const replies = await trx('statuses')
-        .where('reply', status.id)
-        .select<{ id: string }[]>('id')
-      if (replies.length > 0 && frame.depth >= MAX_STATUS_REPLY_DELETE_DEPTH) {
+      if (nextStatusIds.length > 0 && depth >= MAX_STATUS_REPLY_DELETE_DEPTH) {
         throw new Error('Status reply deletion depth limit exceeded')
       }
 
-      rowsById.set(status.id, status)
-      stack.push({ depth: frame.depth, expanded: true, statusId: status.id })
-
-      for (let index = replies.length - 1; index >= 0; index -= 1) {
-        const replyId = replies[index].id
-        if (!seen.has(replyId)) {
-          stack.push({
-            depth: frame.depth + 1,
-            expanded: false,
-            statusId: replyId
-          })
-        }
-      }
+      currentStatusIds = nextStatusIds
     }
 
-    return rows
+    if (currentStatusIds.length > 0) {
+      throw new Error('Status reply deletion depth limit exceeded')
+    }
+
+    return levels.reverse().flat()
   }
 
   async function deleteStatus({
@@ -1499,44 +1699,59 @@ export const StatusSQLDatabaseMixin = (
       statusId,
       trx
     })
+    if (statusesToDelete.length === 0) return
 
-    for (const status of statusesToDelete) {
-      await updateStatusCounters({
-        actorId: status.actorId,
-        type: status.type,
-        reply: status.reply || '',
-        content: status.content,
-        step: 'decrement',
-        trx,
-        currentTime: new Date()
-      })
-      const hashtagTags = await trx('tags')
-        .where('statusId', status.id)
-        .where('type', 'hashtag')
-      if (hashtagTags.length > 0) {
-        for (const tag of hashtagTags as { name: string }[]) {
-          const tagName = tag.name.startsWith('#')
-            ? tag.name.slice(1)
-            : tag.name
-          await decreaseCounterValue(
-            trx,
-            CounterKey.totalHashtag(tagName.toLowerCase())
-          )
-        }
-      }
-      await Promise.all([
-        trx('statuses').where('id', status.id).delete(),
-        trx('recipients').where('statusId', status.id).delete(),
-        trx('tags').where('statusId', status.id).delete(),
-        trx('attachments').where('statusId', status.id).delete(),
-        trx('bookmarks').where('statusId', status.id).delete(),
-        trx('poll_choices').where('statusId', status.id).delete(),
-        trx('timelines').where('statusId', status.id).delete()
-      ])
-      affectedHashtags?.push(
-        ...hashtagTags.map((tag: { name: string }) => tag.name)
-      )
-    }
+    const currentTime = new Date()
+    const statusIdsToDelete = statusesToDelete.map((status) => status.id)
+    await applyStatusDeletionCounterAdjustments({
+      currentTime,
+      statuses: statusesToDelete,
+      trx
+    })
+
+    const hashtagTags = await selectHashtagTagsByStatusIds(
+      trx,
+      statusIdsToDelete
+    )
+    await applyHashtagDeletionCounterAdjustments({
+      currentTime,
+      tags: hashtagTags,
+      trx
+    })
+    affectedHashtags?.push(...hashtagTags.map((tag) => tag.name))
+
+    await deleteRowsByColumnChunks(
+      trx,
+      'recipients',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIdsToDelete)
+    await deleteRowsByColumnChunks(
+      trx,
+      'attachments',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'bookmarks',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'poll_choices',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'timelines',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(trx, 'statuses', 'id', statusIdsToDelete)
   }
 
   async function getFavouritedBy({

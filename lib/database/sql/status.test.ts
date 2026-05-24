@@ -2437,6 +2437,99 @@ describe('StatusDatabase', () => {
           await knexDatabase.destroy()
         }
       })
+
+      it('deletes reply trees with bounded bulk cleanup queries', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const actorId = 'https://remote.test/users/bulk-delete'
+        const parentStatusId = `${actorId}/statuses/bulk-parent`
+        const firstReplyStatusId = `${actorId}/statuses/bulk-reply-1`
+        const secondReplyStatusId = `${actorId}/statuses/bulk-reply-2`
+        const queries: string[] = []
+        const handleQuery = ({ sql }: { sql: string }) => {
+          queries.push(sql.toLowerCase())
+        }
+
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId,
+            username: 'bulk-delete',
+            domain: 'remote.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createNote({
+            id: parentStatusId,
+            url: parentStatusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Bulk parent #bulkdelete'
+          })
+          await sqlDatabase.createTag({
+            statusId: parentStatusId,
+            type: 'hashtag',
+            name: '#BulkDelete',
+            value: 'https://remote.test/tags/bulkdelete'
+          })
+          await sqlDatabase.createNote({
+            id: firstReplyStatusId,
+            url: firstReplyStatusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Bulk reply 1',
+            reply: parentStatusId
+          })
+          await sqlDatabase.createNote({
+            id: secondReplyStatusId,
+            url: secondReplyStatusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Bulk reply 2',
+            reply: parentStatusId
+          })
+
+          knexDatabase.on('query', handleQuery)
+          await sqlDatabase.deleteStatus({ statusId: parentStatusId })
+          knexDatabase.off('query', handleQuery)
+
+          expect(
+            queries.some(
+              (sql) =>
+                sql.includes('from `statuses`') && sql.includes('`id` in')
+            )
+          ).toBe(true)
+          expect(
+            queries.some(
+              (sql) =>
+                sql.includes('from `tags`') && sql.includes('`statusid` in')
+            )
+          ).toBe(true)
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes('`recipients`') &&
+                sql.includes('`statusid` in')
+            )
+          ).toBe(true)
+        } finally {
+          knexDatabase.off('query', handleQuery)
+          await knexDatabase.destroy()
+        }
+      })
     })
 
     describe('getHashtagStatusesPage', () => {
