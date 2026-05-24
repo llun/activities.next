@@ -1694,6 +1694,140 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('counts a status once when it has both hashtag storage variants', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/duplicate-variant-hashtag`
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Duplicate storage variant hashtag',
+        createdAt: 1
+      })
+      await knexDatabase('tags').insert([
+        {
+          id: crypto.randomUUID(),
+          statusId,
+          type: 'hashtag',
+          name: '#Cycling',
+          value: 'https://remote.test/tags/cycling',
+          nameNormalized: '#cycling',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: crypto.randomUUID(),
+          statusId,
+          type: 'hashtag',
+          name: 'Cycling',
+          value: 'https://remote.test/tags/cycling',
+          nameNormalized: 'cycling',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ])
+
+      await database.reindexSearchHashtags({
+        limit: 10
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'cycling',
+          limit: 10
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          name: 'cycling',
+          postCount: 1,
+          lastPostAt: 1
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('replaces hashtag search documents inside a transaction', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/transactional-hashtag`
+    const queries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      queries.push(sql.toLowerCase())
+    }
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Transactional hashtag day',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#Atomic',
+        value: 'https://remote.test/tags/atomic'
+      })
+
+      knexDatabase.on('query', handleQuery)
+      await database.indexHashtagSearchDocuments({
+        hashtags: ['atomic']
+      })
+      knexDatabase.off('query', handleQuery)
+
+      const beginIndex = queries.findIndex((sql) => sql.startsWith('begin'))
+      const searchDocumentWriteIndex = queries.findIndex(
+        (sql) =>
+          sql.includes('search_documents') &&
+          (sql.startsWith('insert') ||
+            sql.startsWith('update') ||
+            sql.startsWith('delete'))
+      )
+      const commitIndex = queries.findIndex((sql) => sql.startsWith('commit'))
+
+      expect(beginIndex).toBeGreaterThanOrEqual(0)
+      expect(searchDocumentWriteIndex).toBeGreaterThan(beginIndex)
+      expect(commitIndex).toBeGreaterThan(searchDocumentWriteIndex)
+    } finally {
+      knexDatabase.off('query', handleQuery)
+      await database.destroy()
+    }
+  })
+
   it('chunks hashtag reindex queries below SQLite bind limits', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

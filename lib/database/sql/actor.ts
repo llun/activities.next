@@ -18,6 +18,7 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
@@ -66,29 +67,6 @@ export interface SQLActorDatabase extends ActorDatabase {
   ) => Actor
   getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
-}
-
-const SQLITE_MAX_BINDINGS = 999
-
-const getClientName = (database: Knex | Knex.Transaction) =>
-  String(database.client.config.client)
-
-const getWhereInBatchSize = (
-  database: Knex | Knex.Transaction,
-  reservedBindings = 0
-) => {
-  if (!getClientName(database).includes('sqlite'))
-    return Number.POSITIVE_INFINITY
-  return Math.max(1, SQLITE_MAX_BINDINGS - reservedBindings)
-}
-
-const chunkArray = <T>(items: T[], size: number) => {
-  const chunkSize = Number.isFinite(size) ? size : Math.max(items.length, 1)
-  const chunks: T[][] = []
-  for (let start = 0; start < items.length; start += chunkSize) {
-    chunks.push(items.slice(start, start + chunkSize))
-  }
-  return chunks
 }
 
 const selectHashtagTagsByStatusIds = async (

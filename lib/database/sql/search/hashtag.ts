@@ -3,6 +3,14 @@ import { Knex } from 'knex'
 import { getConfig } from '@/lib/config'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  KnexConnection,
+  chunkArray,
+  getInsertBatchSize,
+  getWhereInBatchSize,
+  isKnexTransaction,
+  isSQLiteClient
+} from '@/lib/database/sql/utils/knex'
+import {
   ReindexSearchDocumentsParams,
   ReindexSearchDocumentsResult,
   SearchHashtag,
@@ -35,14 +43,27 @@ type HashtagSearchAggregateRow = {
   postCount: number | string
   lastPostAt: number | Date | null
 }
+type HashtagSearchDocumentRow = {
+  id: string
+  entityType: 'hashtag'
+  entityId: string
+  documentText: string
+  actorId: null
+  visibility: null
+  entityCreatedAt: null
+  discoverable: null
+  postCount: number | null
+  lastPostAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+}
 
-const SQLITE_MAX_BINDINGS = 999
 const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
 const HASHTAG_AGGREGATE_FIXED_BINDINGS =
-  1 + PUBLIC_ACTIVITY_RECIPIENTS.length + 2
+  1 + PUBLIC_ACTIVITY_RECIPIENTS.length + 2 + 1
 const HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME = 2
 
 export const normalizeHashtagSearchName = (hashtag: string) => {
@@ -64,25 +85,22 @@ const getTagUrl = (name: string) => {
   return `${baseURL}/tags/${encodeURIComponent(name)}`
 }
 
-const getClientName = (database: Knex) => String(database.client.config.client)
-
-const getWhereInBatchSize = (database: Knex, reservedBindings = 0) => {
-  if (!getClientName(database).includes('sqlite'))
-    return Number.POSITIVE_INFINITY
-  return Math.max(1, SQLITE_MAX_BINDINGS - reservedBindings)
-}
-
-const chunkArray = <T>(items: T[], size: number) => {
-  const chunkSize = Number.isFinite(size) ? size : Math.max(items.length, 1)
-  const chunks: T[][] = []
-  for (let start = 0; start < items.length; start += chunkSize) {
-    chunks.push(items.slice(start, start + chunkSize))
+const getNormalizedHashtagNameSQL = (database: KnexConnection) => {
+  if (isSQLiteClient(database)) {
+    return {
+      sql: 'lower(ltrim(??, ?))',
+      bindings: ['tags.nameNormalized', '#']
+    }
   }
-  return chunks
+
+  return {
+    sql: "lower(trim(leading '#' from ??))",
+    bindings: ['tags.nameNormalized']
+  }
 }
 
 const getHashtagSearchAggregates = async (
-  database: Knex,
+  database: KnexConnection,
   hashtagNames: string[]
 ) => {
   if (hashtagNames.length === 0) return []
@@ -101,10 +119,16 @@ const getHashtagSearchAggregates = async (
     const lookupNames = [
       ...new Set(hashtagNameChunk.flatMap(getHashtagStorageNames))
     ]
-    const rows = (await database('tags')
-      .select({ name: 'tags.nameNormalized' })
-      .countDistinct({ postCount: 'statuses.id' })
-      .max({ lastPostAt: 'statuses.createdAt' })
+    const normalizedNameSQL = getNormalizedHashtagNameSQL(database)
+    const distinctStatusHashtags = database('tags')
+      .distinct(
+        database.raw(`${normalizedNameSQL.sql} as ??`, [
+          ...normalizedNameSQL.bindings,
+          'name'
+        ]),
+        database.raw('?? as ??', ['statuses.id', 'statusId']),
+        database.raw('?? as ??', ['statuses.createdAt', 'statusCreatedAt'])
+      )
       .innerJoin('statuses', 'statuses.id', 'tags.statusId')
       .where('tags.type', 'hashtag')
       .whereIn('tags.nameNormalized', lookupNames)
@@ -115,7 +139,14 @@ const getHashtagSearchAggregates = async (
           .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
       })
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-      .groupBy('tags.nameNormalized')) as HashtagSearchAggregateRow[]
+      .as('hashtag_statuses')
+
+    const rows = (await database
+      .from(distinctStatusHashtags)
+      .select({ name: 'hashtag_statuses.name' })
+      .count({ postCount: 'hashtag_statuses.statusId' })
+      .max({ lastPostAt: 'hashtag_statuses.statusCreatedAt' })
+      .groupBy('hashtag_statuses.name')) as HashtagSearchAggregateRow[]
 
     for (const row of rows) {
       const name = normalizeHashtagSearchName(row.name)
@@ -145,19 +176,69 @@ const getHashtagSearchAggregates = async (
   return [...aggregateByName.values()]
 }
 
-const getSearchDocumentInsertBatchSize = (
-  database: Knex,
-  row: Record<string, unknown>
-) => {
-  const clientName = getClientName(database)
-  if (!clientName.includes('sqlite')) return Number.POSITIVE_INFINITY
+const getHashtagSearchDocumentRow = ({
+  aggregate,
+  currentTime,
+  name
+}: {
+  aggregate?: HashtagSearchAggregate
+  currentTime: Date
+  name: string
+}): HashtagSearchDocumentRow => {
+  const lastPostAt =
+    aggregate?.lastPostAt !== null && aggregate?.lastPostAt !== undefined
+      ? new Date(aggregate.lastPostAt)
+      : null
+  return {
+    id: getSearchDocumentId({
+      entityType: 'hashtag',
+      entityId: name
+    }),
+    entityType: 'hashtag',
+    entityId: name,
+    documentText: normalizeSearchText(`${name} #${name}`),
+    actorId: null,
+    visibility: null,
+    entityCreatedAt: null,
+    discoverable: null,
+    postCount: aggregate ? Number(aggregate.postCount ?? 0) : null,
+    lastPostAt,
+    createdAt: currentTime,
+    updatedAt: currentTime
+  }
+}
 
-  const columnCount = Math.max(1, Object.keys(row).length)
-  return Math.max(1, Math.floor(SQLITE_MAX_BINDINGS / columnCount))
+const insertHashtagSearchDocumentPlaceholders = async (
+  trx: Knex.Transaction,
+  names: string[],
+  currentTime: Date
+) => {
+  const rows = names.map((name) =>
+    getHashtagSearchDocumentRow({ currentTime, name })
+  )
+  const batchSize = getInsertBatchSize(trx, rows[0])
+  for (const rowChunk of chunkArray(rows, batchSize)) {
+    await trx(SEARCH_DOCUMENTS_TABLE).insert(rowChunk).onConflict('id').ignore()
+  }
+}
+
+const lockHashtagSearchDocuments = async (
+  trx: Knex.Transaction,
+  names: string[]
+) => {
+  if (isSQLiteClient(trx)) return
+
+  for (const nameChunk of chunkArray(names, getWhereInBatchSize(trx, 1))) {
+    await trx(SEARCH_DOCUMENTS_TABLE)
+      .select('id')
+      .where('entityType', 'hashtag')
+      .whereIn('entityId', nameChunk)
+      .forUpdate()
+  }
 }
 
 const reindexHashtagSearchDocuments = async (
-  database: Knex,
+  database: KnexConnection,
   hashtags: string[]
 ) => {
   const normalizedTagNames = [
@@ -169,67 +250,64 @@ const reindexHashtagSearchDocuments = async (
   ]
   if (normalizedTagNames.length === 0) return
 
-  const aggregates = await getHashtagSearchAggregates(
-    database,
-    normalizedTagNames
-  )
-  const aggregateByName = new Map(
-    aggregates.map((aggregate) => [aggregate.name, aggregate])
-  )
-  const namesToDelete = normalizedTagNames.filter(
-    (name) => Number(aggregateByName.get(name)?.postCount ?? 0) === 0
-  )
+  const reindexInTransaction = async (trx: Knex.Transaction) => {
+    const currentTime = new Date()
+    await insertHashtagSearchDocumentPlaceholders(
+      trx,
+      normalizedTagNames,
+      currentTime
+    )
+    await lockHashtagSearchDocuments(trx, normalizedTagNames)
 
-  if (namesToDelete.length > 0) {
-    for (const nameChunk of chunkArray(
-      namesToDelete,
-      getWhereInBatchSize(database, 1)
-    )) {
-      await database(SEARCH_DOCUMENTS_TABLE)
-        .where('entityType', 'hashtag')
-        .whereIn('entityId', nameChunk)
-        .delete()
+    const aggregates = await getHashtagSearchAggregates(trx, normalizedTagNames)
+    const aggregateByName = new Map(
+      aggregates.map((aggregate) => [aggregate.name, aggregate])
+    )
+    const namesToDelete = normalizedTagNames.filter(
+      (name) => Number(aggregateByName.get(name)?.postCount ?? 0) === 0
+    )
+
+    if (namesToDelete.length > 0) {
+      for (const nameChunk of chunkArray(
+        namesToDelete,
+        getWhereInBatchSize(trx, 1)
+      )) {
+        await trx(SEARCH_DOCUMENTS_TABLE)
+          .where('entityType', 'hashtag')
+          .whereIn('entityId', nameChunk)
+          .delete()
+      }
+    }
+
+    const rows = aggregates
+      .filter((aggregate) => Number(aggregate.postCount ?? 0) > 0)
+      .map((aggregate) =>
+        getHashtagSearchDocumentRow({
+          aggregate,
+          currentTime,
+          name: aggregate.name
+        })
+      )
+
+    if (rows.length === 0) {
+      return
+    }
+
+    const batchSize = getInsertBatchSize(trx, rows[0])
+    for (const rowChunk of chunkArray(rows, batchSize)) {
+      await trx(SEARCH_DOCUMENTS_TABLE)
+        .insert(rowChunk)
+        .onConflict('id')
+        .merge(['documentText', 'postCount', 'lastPostAt', 'updatedAt'])
     }
   }
 
-  const currentTime = new Date()
-  const rows = aggregates
-    .filter((aggregate) => Number(aggregate.postCount ?? 0) > 0)
-    .map((aggregate) => {
-      const name = aggregate.name
-      const lastPostAt = aggregate.lastPostAt
-        ? new Date(aggregate.lastPostAt)
-        : null
-      return {
-        id: getSearchDocumentId({
-          entityType: 'hashtag',
-          entityId: name
-        }),
-        entityType: 'hashtag',
-        entityId: name,
-        documentText: normalizeSearchText(`${name} #${name}`),
-        actorId: null,
-        visibility: null,
-        entityCreatedAt: null,
-        discoverable: null,
-        postCount: Number(aggregate.postCount ?? 0),
-        lastPostAt,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      }
-    })
-
-  if (rows.length === 0) {
+  if (isKnexTransaction(database)) {
+    await reindexInTransaction(database)
     return
   }
 
-  const batchSize = getSearchDocumentInsertBatchSize(database, rows[0])
-  for (let start = 0; start < rows.length; start += batchSize) {
-    await database(SEARCH_DOCUMENTS_TABLE)
-      .insert(rows.slice(start, start + batchSize))
-      .onConflict('id')
-      .merge(['documentText', 'postCount', 'lastPostAt', 'updatedAt'])
-  }
+  await database.transaction(reindexInTransaction)
 }
 
 export const indexHashtagSearchDocument = async (
