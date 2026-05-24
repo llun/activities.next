@@ -88,6 +88,56 @@ const getActorCounterSummary = async (
   }
 }
 
+const insertActorWithSearchIndex = async (
+  database: Knex,
+  {
+    actorId,
+    type = 'Person',
+    username,
+    domain,
+    name,
+    summary,
+    iconUrl,
+    headerImageUrl,
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl,
+    publicKey,
+    privateKey,
+    createdAt
+  }: CreateActorParams
+) => {
+  const currentTime = new Date()
+  const settings: ActorSettings = {
+    iconUrl,
+    headerImageUrl,
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl
+  }
+  const actor = {
+    id: actorId,
+    type,
+    username,
+    domain,
+    name,
+    summary,
+    accountId: null,
+    settings: JSON.stringify(settings),
+    publicKey,
+    privateKey,
+    deletionStatus: null,
+    deletionScheduledAt: null,
+    createdAt: new Date(createdAt),
+    updatedAt: currentTime
+  }
+
+  await database.transaction(async (trx) => {
+    await trx('actors').insert(actor)
+    await indexActorSearchDocument(trx, { id: actorId, actor })
+  })
+}
+
 const parseStatusContent = (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   content: any
@@ -246,105 +296,17 @@ const getMastodonAccountFromSQLActor = ({
 }
 
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
-  async createActor({
-    actorId,
-    type = 'Person',
-
-    username,
-    domain,
-    name,
-    summary,
-    iconUrl,
-    headerImageUrl,
-    followersUrl,
-    inboxUrl,
-    sharedInboxUrl,
-
-    publicKey,
-    privateKey,
-
-    createdAt
-  }: CreateActorParams) {
-    const currentTime = new Date()
-
-    const settings: ActorSettings = {
-      iconUrl,
-      headerImageUrl,
-      followersUrl,
-      inboxUrl,
-      sharedInboxUrl
-    }
-    const actor = {
-      id: actorId,
-      type,
-      username,
-      domain,
-      name,
-      summary,
-      accountId: null,
-      settings: JSON.stringify(settings),
-      publicKey,
-      privateKey,
-      deletionStatus: null,
-      deletionScheduledAt: null,
-      createdAt: new Date(createdAt),
-      updatedAt: currentTime
-    }
-    await database.transaction(async (trx) => {
-      await trx('actors').insert(actor)
-      await indexActorSearchDocument(trx, { id: actorId, actor })
-    })
+  async createActor(params: CreateActorParams) {
+    await insertActorWithSearchIndex(database, params)
+    const { actorId } = params
     return this.getActorFromId({ id: actorId })
   },
 
-  async createMastodonActor({
-    actorId,
-    type = 'Person',
-
-    username,
-    domain,
-    name,
-    summary,
-    iconUrl,
-    headerImageUrl,
-    followersUrl,
-    inboxUrl,
-    sharedInboxUrl,
-
-    publicKey,
-    privateKey,
-
-    createdAt
-  }: CreateActorParams): Promise<Mastodon.Account | null> {
-    const currentTime = new Date()
-
-    const settings: ActorSettings = {
-      iconUrl,
-      headerImageUrl,
-      followersUrl,
-      inboxUrl,
-      sharedInboxUrl
-    }
-    const actor = {
-      id: actorId,
-      type,
-      username,
-      domain,
-      name,
-      summary,
-      accountId: null,
-      settings: JSON.stringify(settings),
-      publicKey,
-      privateKey,
-      deletionStatus: null,
-      deletionScheduledAt: null,
-      createdAt: new Date(createdAt),
-      updatedAt: currentTime
-    }
-    await database.transaction(async (trx) => {
-      await trx('actors').insert(actor)
-      await indexActorSearchDocument(trx, { id: actorId, actor })
-    })
+  async createMastodonActor(
+    params: CreateActorParams
+  ): Promise<Mastodon.Account | null> {
+    await insertActorWithSearchIndex(database, params)
+    const { actorId } = params
     return this.getMastodonActor(actorId)
   },
 

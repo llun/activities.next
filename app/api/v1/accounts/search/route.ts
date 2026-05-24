@@ -16,8 +16,8 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const SearchParams = z.object({
   q: z.string(),
-  limit: z.coerce.number().min(1).max(80).default(40).optional(),
-  offset: z.coerce.number().min(0).default(0).optional(),
+  limit: z.coerce.number().int().min(1).max(80).default(40).optional(),
+  offset: z.coerce.number().int().min(0).max(10000).default(0).optional(),
   resolve: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')

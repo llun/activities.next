@@ -197,4 +197,17 @@ describe('GET /api/v1/accounts/search', () => {
       ids: ['https://remote.test/users/alice']
     })
   })
+
+  it('rejects deep search offsets', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=runner&offset=10001',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+  })
 })

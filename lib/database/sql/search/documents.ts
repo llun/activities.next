@@ -59,7 +59,8 @@ const isPostgres = (database: Knex) =>
 
 const isMySQL = (database: Knex) => MYSQL_CLIENTS.has(getClientName(database))
 
-const escapeLikePattern = (value: string) => value.replace(/[\\%_]/g, '\\$&')
+export const escapeLikePattern = (value: string) =>
+  value.replace(/[\\%_]/g, '\\$&')
 
 const DEFAULT_MYSQL_FULL_TEXT_MIN_TOKEN_SIZE = 4
 const MIN_MYSQL_LIKE_FALLBACK_TOKEN_LENGTH = 2

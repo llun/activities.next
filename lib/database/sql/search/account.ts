@@ -20,6 +20,7 @@ import {
   SEARCH_DOCUMENTS_TABLE,
   applySearchDocumentFilter,
   deleteSearchDocument,
+  escapeLikePattern,
   getSearchDocumentId,
   normalizeSearchText
 } from './documents'
@@ -68,7 +69,7 @@ const isDiscoverableAccount = (actor: AccountSearchActor) => {
     !actor.accountId
   return (
     settings.noindex !== true &&
-    actor.deletionStatus !== 'deleting' &&
+    actor.deletionStatus == null &&
     !isInternalFederationActor
   )
 }
@@ -91,14 +92,15 @@ const applyAccountOrdering = ({
   normalizedQuery: string
 }) => {
   const lowerHandleSQL = getLowerAccountHandleSQL(database)
+  const normalizedQueryLikePattern = `${escapeLikePattern(normalizedQuery)}%`
 
   query
     .orderByRaw(
       `case
         when ${lowerHandleSQL} = ? then 0
         when lower(??) = ? then 1
-        when ${lowerHandleSQL} like ? then 2
-        when lower(??) like ? then 3
+        when ${lowerHandleSQL} like ? ESCAPE '\\' then 2
+        when lower(??) like ? ESCAPE '\\' then 3
         else 4
       end`,
       [
@@ -109,9 +111,9 @@ const applyAccountOrdering = ({
         normalizedQuery,
         'actors.username',
         'actors.domain',
-        `${normalizedQuery}%`,
+        normalizedQueryLikePattern,
         'actors.username',
-        `${normalizedQuery}%`
+        normalizedQueryLikePattern
       ]
     )
     .orderByRaw('LOWER(??)', ['actors.username'])
@@ -127,21 +129,15 @@ const chunkArray = <T>(items: T[], size: number) => {
 }
 
 const applySearchableAccountFilters = (query: Knex.QueryBuilder) => {
-  query
-    .where((builder) => {
-      builder
-        .whereNull('actors.deletionStatus')
-        .orWhereNot('actors.deletionStatus', 'deleting')
-    })
-    .whereNot((builder) => {
-      builder
-        .where('actors.type', FEDERATION_SIGNING_ACTOR_TYPE)
-        .whereRaw("?? LIKE ? ESCAPE '\\'", [
-          'actors.username',
-          FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
-        ])
-        .whereNull('actors.accountId')
-    })
+  query.whereNull('actors.deletionStatus').whereNot((builder) => {
+    builder
+      .where('actors.type', FEDERATION_SIGNING_ACTOR_TYPE)
+      .whereRaw("?? LIKE ? ESCAPE '\\'", [
+        'actors.username',
+        FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
+      ])
+      .whereNull('actors.accountId')
+  })
 }
 
 const applyFollowingFilter = ({
@@ -178,8 +174,11 @@ const getExactAccountIds = async ({
   const handleActorRows = handle
     ? await database('actors')
         .select<{ id: string }[]>('actors.id')
-        .where('actors.username', handle.username)
-        .where('actors.domain', handle.domain)
+        .whereRaw('LOWER(??) = ?', [
+          'actors.username',
+          handle.username.toLowerCase()
+        ])
+        .whereRaw('LOWER(??) = ?', ['actors.domain', handle.domain])
     : []
   const normalizedExactActorIds = [
     ...new Set([...exactActorIds, ...handleActorRows.map((row) => row.id)])
@@ -267,6 +266,8 @@ export const searchAccountIds = async (
   const handle = parseAccountHandle(q)
   const normalizedQuery = q.trim().replace(/^@/, '').toLowerCase()
   const normalizedExactActorIds = [...new Set(exactActorIds)]
+  // Only visible exact matches participate in pagination; filtered exact IDs
+  // fall back to the indexed result window instead of reserving page slots.
   const exactResultIds = await getExactAccountIds({
     database,
     handle,

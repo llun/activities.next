@@ -929,6 +929,16 @@ describe('SearchDatabase foundation', () => {
           limit: 10
         })
       ).resolves.toEqual([actorId])
+      await knexDatabase('actors')
+        .where('id', actorId)
+        .update({ username: 'Secret' })
+      await database.indexActorSearchDocument({ id: actorId })
+      await expect(
+        database.searchAccountIds({
+          q: '@secret@remote.test',
+          limit: 10
+        })
+      ).resolves.toEqual([actorId])
       await database.deleteActorSearchDocument({ id: actorId })
       await expect(
         database.searchAccountIds({
@@ -936,6 +946,42 @@ describe('SearchDatabase foundation', () => {
           limit: 10
         })
       ).resolves.toEqual([actorId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('escapes account ordering prefix wildcards', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const alphaId = 'https://remote.test/users/alpha'
+    const xunnerId = 'https://remote.test/users/xunner'
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: xunnerId,
+        username: 'xunner',
+        summary: '_unner literal token'
+      })
+      await createSearchActor(database, {
+        id: alphaId,
+        username: 'alpha',
+        summary: '_unner literal token'
+      })
+
+      await expect(
+        database.searchAccountIds({
+          q: '_unner',
+          limit: 10
+        })
+      ).resolves.toEqual([alphaId, xunnerId])
     } finally {
       await database.destroy()
     }
@@ -979,6 +1025,56 @@ describe('SearchDatabase foundation', () => {
       ).resolves.toEqual([
         getLocalActorId({ domain: 'remote.test', username: 'local-runner' })
       ])
+    } finally {
+      knexDatabase.off('query', handleQuery)
+      await database.destroy()
+    }
+  })
+
+  it('indexes account actors without reloading the inserted actor', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorSelectQueries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      if (
+        sql.toLowerCase().startsWith('select') &&
+        (sql.includes('from `actors`') || sql.includes('from "actors"'))
+      ) {
+        actorSelectQueries.push(sql)
+      }
+    }
+
+    try {
+      await database.migrate()
+      const accountId = await database.createAccount({
+        email: 'local-runner@remote.test',
+        username: 'local-runner',
+        passwordHash: 'password-hash',
+        domain: 'remote.test',
+        privateKey: 'private-key',
+        publicKey: 'public-key'
+      })
+
+      knexDatabase.on('query', handleQuery)
+      const actorId = await database.createActorForAccount({
+        accountId,
+        username: 'secondary-runner',
+        domain: 'remote.test',
+        privateKey: 'secondary-private-key',
+        publicKey: 'secondary-public-key'
+      })
+      knexDatabase.off('query', handleQuery)
+
+      expect(actorSelectQueries).toHaveLength(0)
+      await expect(
+        database.searchAccountIds({ q: 'secondary-runner', limit: 10 })
+      ).resolves.toEqual([actorId])
     } finally {
       knexDatabase.off('query', handleQuery)
       await database.destroy()
@@ -1116,6 +1212,17 @@ describe('SearchDatabase foundation', () => {
         summary: 'Runner'
       })
 
+      await expect(
+        database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([actorId])
+      await database.scheduleActorDeletion({
+        actorId,
+        scheduledAt: new Date()
+      })
+      await expect(
+        database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([])
+      await database.cancelActorDeletion({ actorId })
       await expect(
         database.searchAccountIds({ q: 'runner', limit: 10 })
       ).resolves.toEqual([actorId])
