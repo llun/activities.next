@@ -101,6 +101,7 @@ describe('GET /api/v1/accounts/search', () => {
       q: 'runner',
       limit: 2,
       offset: 1,
+      localDomain: 'llun.test',
       exactActorIds: [],
       followingActorId: oauthActor.id
     })
@@ -109,14 +110,16 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  it('prepends a resolved exact remote handle before indexed broad results', async () => {
+  it('resolves a remote handle only after indexed search misses', async () => {
     const resolvedActor = { id: 'https://remote.test/users/charlie' }
     mockGetWebfingerSelf.mockResolvedValue(resolvedActor.id)
     mockRecordActorIfNeeded.mockResolvedValue(resolvedActor)
-    mockSearchAccountIds.mockResolvedValue([
-      resolvedActor.id,
-      'https://remote.test/users/alice'
-    ])
+    mockSearchAccountIds
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        resolvedActor.id,
+        'https://remote.test/users/alice'
+      ])
 
     const response = await GET(
       new NextRequest(
@@ -127,17 +130,22 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
-      username: 'Charlie',
-      domain: 'remote.test'
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+    expect(mockSearchAccountIds).toHaveBeenNthCalledWith(1, {
+      q: '@Charlie@Remote.test',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: []
     })
     expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
       account: 'Charlie@remote.test'
     })
-    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+    expect(mockSearchAccountIds).toHaveBeenNthCalledWith(2, {
       q: '@Charlie@Remote.test',
       limit: 40,
       offset: 0,
+      localDomain: 'llun.test',
       exactActorIds: [resolvedActor.id]
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
@@ -145,9 +153,8 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  it('passes exact matches through indexed following filters', async () => {
+  it('delegates local exact username resolution to indexed search', async () => {
     const localActor = { id: 'https://llun.test/users/local-runner' }
-    mockGetActorFromUsername.mockResolvedValue(localActor)
     mockSearchAccountIds.mockResolvedValue([localActor.id])
 
     const response = await GET(
@@ -159,12 +166,14 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
     expect(mockIsCurrentActorFollowing).not.toHaveBeenCalled()
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'local-runner',
       limit: 40,
       offset: 0,
-      exactActorIds: [localActor.id],
+      localDomain: 'llun.test',
+      exactActorIds: [],
       followingActorId: oauthActor.id
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
@@ -172,10 +181,7 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  it('does not prepend exact matches after the first page', async () => {
-    const resolvedActor = { id: 'https://remote.test/users/charlie' }
-    mockGetWebfingerSelf.mockResolvedValue(resolvedActor.id)
-    mockRecordActorIfNeeded.mockResolvedValue(resolvedActor)
+  it('does not resolve remote handles after the first page', async () => {
     mockSearchAccountIds.mockResolvedValue(['https://remote.test/users/alice'])
 
     const response = await GET(
@@ -187,11 +193,13 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: '@charlie@remote.test',
       limit: 40,
       offset: 1,
-      exactActorIds: [resolvedActor.id]
+      localDomain: 'llun.test',
+      exactActorIds: []
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://remote.test/users/alice']
@@ -209,5 +217,34 @@ describe('GET /api/v1/accounts/search', () => {
 
     expect(response.status).toBe(400)
     expect(mockSearchAccountIds).not.toHaveBeenCalled()
+  })
+
+  it('does not webfinger when indexed search finds a mixed-case handle locally', async () => {
+    mockSearchAccountIds.mockResolvedValue([
+      'https://remote.test/users/Charlie'
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=@Charlie@Remote.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: '@Charlie@Remote.test',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: []
+    })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: ['https://remote.test/users/Charlie']
+    })
   })
 })

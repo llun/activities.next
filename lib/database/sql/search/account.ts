@@ -26,7 +26,13 @@ import {
 } from './documents'
 
 const FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN = `${FEDERATION_SIGNING_ACTOR_USERNAME.replace(/[\\%_]/g, '\\$&')}%`
-const ACCOUNT_SEARCH_DOCUMENT_BATCH_SIZE = 80
+const SQLITE_INSERT_PARAMETER_LIMIT = 999
+const ACCOUNT_SEARCH_DOCUMENT_DEFAULT_BATCH_SIZE = 500
+const SQLITE_CLIENTS = new Set(['sqlite3', 'better-sqlite3'])
+const ACCOUNT_ORDER_COLUMNS = {
+  username: 'actors.username',
+  domain: 'actors.domain'
+} as const
 const SEARCH_DOCUMENT_MERGE_COLUMNS = [
   'documentText',
   'actorId',
@@ -82,6 +88,20 @@ const getLowerAccountHandleSQL = (database: Knex) => {
   return "LOWER(?? || '@' || ??)"
 }
 
+const getClientName = (database: Knex) =>
+  String(database.client.config.client).toLowerCase()
+
+const getAccountSearchDocumentBatchSize = (
+  database: Knex,
+  row: Record<string, unknown>
+) => {
+  const columnCount = Math.max(Object.keys(row).length, 1)
+  if (SQLITE_CLIENTS.has(getClientName(database))) {
+    return Math.max(1, Math.floor(SQLITE_INSERT_PARAMETER_LIMIT / columnCount))
+  }
+  return ACCOUNT_SEARCH_DOCUMENT_DEFAULT_BATCH_SIZE
+}
+
 const applyAccountOrdering = ({
   database,
   query,
@@ -93,30 +113,50 @@ const applyAccountOrdering = ({
 }) => {
   const lowerHandleSQL = getLowerAccountHandleSQL(database)
   const normalizedQueryLikePattern = `${escapeLikePattern(normalizedQuery)}%`
+  const orderCases = [
+    {
+      condition: `${lowerHandleSQL} = ?`,
+      bindings: [
+        ACCOUNT_ORDER_COLUMNS.username,
+        ACCOUNT_ORDER_COLUMNS.domain,
+        normalizedQuery
+      ],
+      rank: 0
+    },
+    {
+      condition: 'lower(??) = ?',
+      bindings: [ACCOUNT_ORDER_COLUMNS.username, normalizedQuery],
+      rank: 1
+    },
+    {
+      condition: `${lowerHandleSQL} like ? ESCAPE '\\'`,
+      bindings: [
+        ACCOUNT_ORDER_COLUMNS.username,
+        ACCOUNT_ORDER_COLUMNS.domain,
+        normalizedQueryLikePattern
+      ],
+      rank: 2
+    },
+    {
+      condition: "lower(??) like ? ESCAPE '\\'",
+      bindings: [ACCOUNT_ORDER_COLUMNS.username, normalizedQueryLikePattern],
+      rank: 3
+    }
+  ]
 
   query
     .orderByRaw(
-      `case
-        when ${lowerHandleSQL} = ? then 0
-        when lower(??) = ? then 1
-        when ${lowerHandleSQL} like ? ESCAPE '\\' then 2
-        when lower(??) like ? ESCAPE '\\' then 3
-        else 4
-      end`,
       [
-        'actors.username',
-        'actors.domain',
-        normalizedQuery,
-        'actors.username',
-        normalizedQuery,
-        'actors.username',
-        'actors.domain',
-        normalizedQueryLikePattern,
-        'actors.username',
-        normalizedQueryLikePattern
-      ]
+        'case',
+        ...orderCases.map(
+          ({ condition, rank }) => `when ${condition} then ${rank}`
+        ),
+        `else ${orderCases.length}`,
+        'end'
+      ].join('\n'),
+      orderCases.flatMap(({ bindings }) => bindings)
     )
-    .orderByRaw('LOWER(??)', ['actors.username'])
+    .orderByRaw('LOWER(??)', [ACCOUNT_ORDER_COLUMNS.username])
     .orderBy('search_documents.entityId', 'asc')
 }
 
@@ -162,24 +202,37 @@ const applyFollowingFilter = ({
 
 const getExactAccountIds = async ({
   database,
+  q,
   handle,
+  localDomain,
   exactActorIds,
   followingActorId
 }: {
   database: Knex
+  q: string
   handle: ReturnType<typeof parseAccountHandle>
+  localDomain?: string | null
   exactActorIds: string[]
   followingActorId?: string | null
 }) => {
-  const handleActorRows = handle
-    ? await database('actors')
-        .select<{ id: string }[]>('actors.id')
-        .whereRaw('LOWER(??) = ?', [
-          'actors.username',
-          handle.username.toLowerCase()
-        ])
-        .whereRaw('LOWER(??) = ?', ['actors.domain', handle.domain])
-    : []
+  const localUsername =
+    !handle && localDomain && !q.includes('@')
+      ? q.trim().replace(/^@/, '')
+      : null
+  const exactHandle = handle ?? {
+    username: localUsername ?? '',
+    domain: localDomain?.toLowerCase() ?? ''
+  }
+  const handleActorRows =
+    handle || localUsername
+      ? await database('actors')
+          .select<{ id: string }[]>('actors.id')
+          .whereRaw('LOWER(??) = ?', [
+            'actors.username',
+            exactHandle.username.toLowerCase()
+          ])
+          .whereRaw('LOWER(??) = ?', ['actors.domain', exactHandle.domain])
+      : []
   const normalizedExactActorIds = [
     ...new Set([...exactActorIds, ...handleActorRows.map((row) => row.id)])
   ]
@@ -230,7 +283,8 @@ const upsertActorSearchDocuments = async (
     getActorSearchDocumentRow(actor, currentTime)
   )
 
-  for (const chunk of chunkArray(rows, ACCOUNT_SEARCH_DOCUMENT_BATCH_SIZE)) {
+  const batchSize = getAccountSearchDocumentBatchSize(database, rows[0])
+  for (const chunk of chunkArray(rows, batchSize)) {
     await database(SEARCH_DOCUMENTS_TABLE)
       .insert(chunk)
       .onConflict('id')
@@ -238,6 +292,8 @@ const upsertActorSearchDocuments = async (
   }
 }
 
+// Passing a fresh actor row indexes that exact shape; passing only an id
+// re-reads actors and deletes the search document if the actor row is gone.
 export const indexActorSearchDocument = async (
   database: Knex,
   { id, actor: providedActor }: { id: string; actor?: AccountSearchActor }
@@ -259,6 +315,7 @@ export const searchAccountIds = async (
     q,
     limit,
     offset = 0,
+    localDomain,
     followingActorId,
     exactActorIds = []
   }: SearchAccountsParams
@@ -270,7 +327,9 @@ export const searchAccountIds = async (
   // fall back to the indexed result window instead of reserving page slots.
   const exactResultIds = await getExactAccountIds({
     database,
+    q,
     handle,
+    localDomain,
     exactActorIds: normalizedExactActorIds,
     followingActorId
   })
@@ -320,6 +379,8 @@ export const reindexSearchAccounts = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
+  // Reindexing walks a snapshot best-effort; normal write paths refresh their
+  // own search documents and may temporarily race this batch on live systems.
   const query = database<SQLActor>('actors')
     .select(
       'id',

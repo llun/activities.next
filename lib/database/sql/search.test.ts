@@ -925,6 +925,13 @@ describe('SearchDatabase foundation', () => {
       ).resolves.toEqual([])
       await expect(
         database.searchAccountIds({
+          q: 'secret',
+          limit: 10,
+          localDomain: 'remote.test'
+        })
+      ).resolves.toEqual([actorId])
+      await expect(
+        database.searchAccountIds({
           q: '@secret@remote.test',
           limit: 10
         })
@@ -1203,17 +1210,36 @@ describe('SearchDatabase foundation', () => {
     })
     const database = getSQLDatabase(knexDatabase)
     const actorId = 'https://remote.test/users/deleting-runner'
+    const viewerId = 'https://remote.test/users/deletion-viewer'
 
     try {
       await database.migrate()
+      await createSearchActor(database, {
+        id: viewerId,
+        username: 'deletion-viewer'
+      })
       await createSearchActor(database, {
         id: actorId,
         username: 'deleting-runner',
         summary: 'Runner'
       })
+      await database.createFollow({
+        actorId: viewerId,
+        targetActorId: actorId,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actorId}/inbox`,
+        sharedInbox: 'https://remote.test/inbox'
+      })
 
       await expect(
         database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([actorId])
+      await expect(
+        database.searchAccountIds({
+          q: '@deleting-runner@remote.test',
+          limit: 10,
+          followingActorId: viewerId
+        })
       ).resolves.toEqual([actorId])
       await database.scheduleActorDeletion({
         actorId,
@@ -1221,6 +1247,19 @@ describe('SearchDatabase foundation', () => {
       })
       await expect(
         database.searchAccountIds({ q: 'runner', limit: 10 })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchAccountIds({
+          q: '@deleting-runner@remote.test',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchAccountIds({
+          q: '@deleting-runner@remote.test',
+          limit: 10,
+          followingActorId: viewerId
+        })
       ).resolves.toEqual([])
       await database.cancelActorDeletion({ actorId })
       await expect(
@@ -1291,6 +1330,65 @@ describe('SearchDatabase foundation', () => {
         'https://remote.test/users/alice',
         'https://remote.test/users/bob'
       ])
+    } finally {
+      knexDatabase.off('query', handleQuery)
+      await database.destroy()
+    }
+  })
+
+  it('sizes SQLite account reindex batches from the search document column count', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const insertQueries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      if (
+        sql.includes('insert into `search_documents`') ||
+        sql.includes('insert into "search_documents"')
+      ) {
+        insertQueries.push(sql)
+      }
+    }
+
+    try {
+      await database.migrate()
+      for (let index = 0; index < 83; index += 1) {
+        const actorId = `https://remote.test/users/batch-runner-${index}`
+        await knexDatabase('actors').insert({
+          id: actorId,
+          type: 'Person',
+          username: `batch-runner-${index}`,
+          domain: 'remote.test',
+          name: null,
+          summary: 'Runner',
+          accountId: null,
+          settings: JSON.stringify({
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox'
+          }),
+          publicKey: 'public-key',
+          privateKey: null,
+          deletionStatus: null,
+          deletionScheduledAt: null,
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+      }
+
+      knexDatabase.on('query', handleQuery)
+      await database.reindexSearchAccounts({ limit: 83 })
+      knexDatabase.off('query', handleQuery)
+
+      expect(insertQueries).toHaveLength(1)
+      await expect(
+        database.searchAccountIds({ q: 'runner', limit: 100 })
+      ).resolves.toHaveLength(83)
     } finally {
       knexDatabase.off('query', handleQuery)
       await database.destroy()

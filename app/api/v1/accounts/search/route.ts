@@ -64,42 +64,36 @@ export const GET = traceApiRoute(
       }
 
       const query = q.trim()
-      const exactActorIds: string[] = []
-      const addExactActorId = (actor: { id: string } | null | undefined) => {
-        if (!actor) return
-        exactActorIds.push(actor.id)
+      const localDomain = getConfig().host
+      const getSearchParams = (exactActorIds: string[] = []) => {
+        return {
+          q: query,
+          limit,
+          offset,
+          localDomain,
+          exactActorIds,
+          ...(following ? { followingActorId: context.currentActor.id } : {})
+        }
       }
 
-      if (query.includes('@')) {
+      let indexedIds = await database.searchAccountIds(getSearchParams())
+      if (resolve && offset === 0 && indexedIds.length === 0) {
         const handle = parseAccountHandle(query)
         if (handle) {
-          let actor = await database.getActorFromUsername(handle)
-          if (!actor && resolve) {
-            const actorId = await getWebfingerSelf({
-              account: `${handle.username}@${handle.domain}`
-            })
-            actor = actorId
-              ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
-              : null
+          const actorId = await getWebfingerSelf({
+            account: `${handle.username}@${handle.domain}`
+          })
+          const actor = actorId
+            ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+            : null
+          if (actor) {
+            indexedIds = await database.searchAccountIds(
+              getSearchParams([actor.id])
+            )
           }
-
-          addExactActorId(actor)
         }
-      } else {
-        const actor = await database.getActorFromUsername({
-          username: query,
-          domain: getConfig().host
-        })
-        addExactActorId(actor)
       }
 
-      const indexedIds = await database.searchAccountIds({
-        q: query,
-        limit,
-        offset,
-        exactActorIds,
-        ...(following ? { followingActorId: context.currentActor.id } : {})
-      })
       const results = await database.getMastodonActorsFromIds({
         ids: indexedIds
       })

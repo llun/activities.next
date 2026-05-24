@@ -658,6 +658,7 @@ export type SearchAccountsParams = {
   q: string
   limit: number
   offset?: number
+  localDomain?: string | null
   followingActorId?: string | null
   exactActorIds?: string[]
 }
