@@ -27,39 +27,3 @@ export const selectHashtagTagsByStatusIds = async (
   }
   return rows
 }
-
-// Use this for status-scoped tables whose rows are not guaranteed to belong
-// only to the supplied deleted-status set. Plain statusId deletion is safe
-// when the caller has already owner-filtered the complete status set.
-export const deleteRowsByOwnedStatusIdChunks = async ({
-  database,
-  tableName,
-  statusIds,
-  statusActorIds
-}: {
-  database: KnexConnection
-  tableName: string
-  statusIds: string[]
-  statusActorIds: string[]
-}) => {
-  const actorIds = [...new Set(statusActorIds)]
-
-  for (const actorIdChunk of chunkArray(
-    actorIds,
-    getWhereInBatchSize(database, 1)
-  )) {
-    const statusIdBatchSize = getWhereInBatchSize(database, actorIdChunk.length)
-
-    for (const statusIdChunk of chunkArray(statusIds, statusIdBatchSize)) {
-      await database(tableName)
-        .whereIn(
-          'statusId',
-          database('statuses')
-            .select('id')
-            .whereIn('id', statusIdChunk)
-            .whereIn('actorId', actorIdChunk)
-        )
-        .delete()
-    }
-  }
-}

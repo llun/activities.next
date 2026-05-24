@@ -23,10 +23,7 @@ import {
   deleteRowsByColumnChunks,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
-import {
-  deleteRowsByOwnedStatusIdChunks,
-  selectHashtagTagsByStatusIds
-} from '@/lib/database/sql/utils/status'
+import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
@@ -1295,24 +1292,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           'statusId',
           statusIds
         )
-        await deleteRowsByOwnedStatusIdChunks({
-          database: trx,
-          tableName: 'status_history',
-          statusIds,
-          statusActorIds: [actorId]
-        })
-        await deleteRowsByOwnedStatusIdChunks({
-          database: trx,
-          tableName: 'poll_answers',
-          statusIds,
-          statusActorIds: [actorId]
-        })
-        await deleteRowsByOwnedStatusIdChunks({
-          database: trx,
-          tableName: 'poll_voters',
-          statusIds,
-          statusActorIds: [actorId]
-        })
+        await deleteRowsByColumnChunks(
+          trx,
+          'status_history',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'poll_answers',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'poll_voters',
+          'statusId',
+          statusIds
+        )
         await deleteRowsByColumnChunks(
           trx,
           'poll_choices',
