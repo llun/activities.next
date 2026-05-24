@@ -1374,6 +1374,27 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete bookmarks made by this actor
       await trx('bookmarks').where('actorId', actorId).delete()
 
+      const pollAnswersMadeByActor = await trx('poll_answers')
+        .where('actorId', actorId)
+        .select<{ statusId: string; choice: number }[]>('statusId', 'choice')
+      for (const answer of pollAnswersMadeByActor) {
+        const choice = await trx('poll_choices')
+          .where({ statusId: answer.statusId })
+          .orderBy('choiceId', 'asc')
+          .offset(Number(answer.choice))
+          .first<{ choiceId: number }>('choiceId')
+        if (!choice) continue
+
+        await trx('poll_choices')
+          .where({ statusId: answer.statusId, choiceId: choice.choiceId })
+          .where('totalVotes', '>', 0)
+          .decrement('totalVotes', 1)
+      }
+
+      // Delete poll votes cast by this actor on other actors' polls
+      await trx('poll_answers').where('actorId', actorId).delete()
+      await trx('poll_voters').where('actorId', actorId).delete()
+
       // Delete attachments created by this actor
       await trx('attachments').where('actorId', actorId).delete()
 

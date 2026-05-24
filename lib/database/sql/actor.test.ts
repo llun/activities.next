@@ -22,6 +22,7 @@ import {
   TEST_USERNAME3
 } from '@/lib/stub/const'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { type StatusPoll } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -1136,6 +1137,7 @@ describe('ActorDatabase', () => {
         })
 
         const targetStatusId = `${peerActorId}/statuses/delete-data-target-${suffix}`
+        const pollStatusId = `${peerActorId}/statuses/delete-data-poll-${suffix}`
         await database.createNote({
           id: targetStatusId,
           url: targetStatusId,
@@ -1143,6 +1145,16 @@ describe('ActorDatabase', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Target status'
+        })
+        await database.createPoll({
+          id: pollStatusId,
+          url: pollStatusId,
+          actorId: peerActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Peer poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000
         })
 
         await database.createNote({
@@ -1188,10 +1200,25 @@ describe('ActorDatabase', () => {
             metaData: { width: 100, height: 100 }
           }
         })
+        await expect(
+          database.recordPollVotes({
+            statusId: pollStatusId,
+            actorId,
+            choices: [0]
+          })
+        ).resolves.toBeTrue()
 
         const actor = await database.getActorFromId({ id: actorId })
         const accountId = actor?.account?.id
         expect(accountId).toBeDefined()
+        await expect(
+          database.hasActorVoted({ statusId: pollStatusId, actorId })
+        ).resolves.toBeTrue()
+        const pollBeforeDelete = (await database.getStatus({
+          statusId: pollStatusId,
+          currentActorId: peerActorId
+        })) as StatusPoll
+        expect(pollBeforeDelete.choices[0]).toMatchObject({ totalVotes: 1 })
 
         const [
           beforeFollowers,
@@ -1215,6 +1242,17 @@ describe('ActorDatabase', () => {
 
         const deletedActor = await database.getActorFromId({ id: actorId })
         expect(deletedActor).toBeNull()
+        await expect(
+          database.hasActorVoted({ statusId: pollStatusId, actorId })
+        ).resolves.toBeFalse()
+        await expect(
+          database.getActorPollVotes({ statusId: pollStatusId, actorId })
+        ).resolves.toEqual([])
+        const pollAfterDelete = (await database.getStatus({
+          statusId: pollStatusId,
+          currentActorId: peerActorId
+        })) as StatusPoll
+        expect(pollAfterDelete.choices[0]).toMatchObject({ totalVotes: 0 })
 
         const [
           afterFollowers,
