@@ -1207,6 +1207,11 @@ describe('ActorDatabase', () => {
             choices: [0]
           })
         ).resolves.toBeTrue()
+        await database.createPollAnswer({
+          statusId: pollStatusId,
+          actorId,
+          choice: 0
+        })
 
         const actor = await database.getActorFromId({ id: actorId })
         const accountId = actor?.account?.id

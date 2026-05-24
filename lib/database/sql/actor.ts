@@ -1433,8 +1433,14 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         } of pollChoiceDecrements.values()) {
           await trx('poll_choices')
             .where({ statusId, choiceId })
-            .where('totalVotes', '>', 0)
-            .decrement('totalVotes', count)
+            .update({
+              totalVotes: trx.raw('CASE WHEN ?? > ? THEN ?? - ? ELSE 0 END', [
+                'totalVotes',
+                count,
+                'totalVotes',
+                count
+              ])
+            })
         }
       }
 

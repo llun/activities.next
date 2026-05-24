@@ -28,9 +28,9 @@ export const selectHashtagTagsByStatusIds = async (
   return rows
 }
 
-// Use this for status-scoped tables that can also contain rows written by
-// other actors, such as status history and poll votes. Plain statusId deletion
-// is only safe for tables whose rows belong entirely to the deleted statuses.
+// Use this for status-scoped tables whose rows are not guaranteed to belong
+// only to the supplied deleted-status set. Plain statusId deletion is safe
+// when the caller has already owner-filtered the complete status set.
 export const deleteRowsByOwnedStatusIdChunks = async ({
   database,
   tableName,
