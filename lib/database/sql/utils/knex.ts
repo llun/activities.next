@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 export type KnexConnection = Knex | Knex.Transaction
 
 export const SQLITE_MAX_BINDINGS = 999
+const DEFAULT_INSERT_BATCH_SIZE = 1000
 
 const SQLITE_CLIENTS = new Set(['sqlite3', 'better-sqlite3'])
 const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
@@ -32,12 +33,19 @@ export const getWhereInBatchSize = (
 export const getInsertBatchSize = (
   database: KnexConnection,
   row: Record<string, unknown>,
-  defaultBatchSize = Number.POSITIVE_INFINITY
+  defaultBatchSize = DEFAULT_INSERT_BATCH_SIZE
 ) => {
-  if (!isSQLiteClient(database)) return defaultBatchSize
+  const boundedDefaultBatchSize = Number.isFinite(defaultBatchSize)
+    ? Math.max(1, Math.floor(defaultBatchSize))
+    : DEFAULT_INSERT_BATCH_SIZE
+
+  if (!isSQLiteClient(database)) return boundedDefaultBatchSize
 
   const columnCount = Math.max(1, Object.keys(row).length)
-  return Math.max(1, Math.floor(SQLITE_MAX_BINDINGS / columnCount))
+  return Math.min(
+    boundedDefaultBatchSize,
+    Math.max(1, Math.floor(SQLITE_MAX_BINDINGS / columnCount))
+  )
 }
 
 export const chunkArray = <T>(items: T[], size: number) => {

@@ -34,4 +34,23 @@ describe('knex SQL utilities', () => {
       })
     ).toBe(Math.floor(SQLITE_MAX_BINDINGS / 2))
   })
+
+  it('caps non-SQLite insert batches by default', () => {
+    expect(getInsertBatchSize(databaseWithClient('pg'), { id: 'value' })).toBe(
+      1000
+    )
+    expect(
+      getInsertBatchSize(databaseWithClient('pg'), { id: 'value' }, 250)
+    ).toBe(250)
+  })
+
+  it('keeps SQLite inserts within the configured batch cap', () => {
+    expect(
+      getInsertBatchSize(
+        databaseWithClient('better-sqlite3'),
+        { id: 'value' },
+        250
+      )
+    ).toBe(250)
+  })
 })
