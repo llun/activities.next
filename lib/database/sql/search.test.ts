@@ -742,6 +742,10 @@ describe('SearchDatabase foundation', () => {
     )
     expect(mysqlTable.charset).toHaveBeenCalledWith('utf8mb4')
     expect(mysqlTable.collate).toHaveBeenCalledWith('utf8mb4_unicode_ci')
+    expect(mysqlTable.index).toHaveBeenCalledWith(
+      ['entityType', 'entityId'],
+      'search_documents_entity_type_entity_id'
+    )
     expect(mysqlTable.unique).not.toHaveBeenCalled()
   })
 
