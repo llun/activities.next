@@ -55,7 +55,7 @@ export const deleteRowsByColumnChunks = async (
   database: KnexConnection,
   tableName: string,
   columnName: string,
-  values: string[]
+  values: Array<string | number>
 ) => {
   for (const valueChunk of chunkArray(values, getWhereInBatchSize(database))) {
     await database(tableName).whereIn(columnName, valueChunk).delete()

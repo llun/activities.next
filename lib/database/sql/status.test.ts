@@ -2557,6 +2557,117 @@ describe('StatusDatabase', () => {
           await knexDatabase.destroy()
         }
       })
+
+      it('deletes status history and poll votes with status-scoped cleanup', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const actorId = 'https://remote.test/users/delete-owned-status-data'
+        const voterId = 'https://remote.test/users/delete-owned-status-voter'
+        const noteId = `${actorId}/statuses/history-cleanup`
+        const pollId = `${actorId}/statuses/poll-cleanup`
+        const queries: string[] = []
+        const handleQuery = ({ sql }: { sql: string }) => {
+          queries.push(sql.toLowerCase())
+        }
+        const countRows = async (tableName: string, statusId: string) => {
+          const row = await knexDatabase(tableName)
+            .where({ statusId })
+            .count<{ count: number | string }>('* as count')
+            .first()
+          return Number(row?.count ?? 0)
+        }
+
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId,
+            username: 'delete-owned-status-data',
+            domain: 'remote.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createActor({
+            actorId: voterId,
+            username: 'delete-owned-status-voter',
+            domain: 'remote.test',
+            followersUrl: `${voterId}/followers`,
+            inboxUrl: `${voterId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'voter-public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createNote({
+            id: noteId,
+            url: noteId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Original history cleanup note'
+          })
+          await sqlDatabase.updateNote({
+            statusId: noteId,
+            text: 'Updated history cleanup note'
+          })
+          await sqlDatabase.createPoll({
+            id: pollId,
+            url: pollId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Poll cleanup',
+            choices: ['One', 'Two'],
+            endAt: Date.now() + 60_000
+          })
+          await sqlDatabase.recordPollVotes({
+            statusId: pollId,
+            actorId: voterId,
+            choices: [0]
+          })
+
+          await expect(countRows('status_history', noteId)).resolves.toBe(1)
+          await expect(countRows('poll_answers', pollId)).resolves.toBe(1)
+          await expect(countRows('poll_voters', pollId)).resolves.toBe(1)
+
+          knexDatabase.on('query', handleQuery)
+          await sqlDatabase.deleteStatus({ statusId: noteId, actorId })
+          await sqlDatabase.deleteStatus({ statusId: pollId, actorId })
+          knexDatabase.off('query', handleQuery)
+
+          await expect(countRows('status_history', noteId)).resolves.toBe(0)
+          await expect(countRows('poll_answers', pollId)).resolves.toBe(0)
+          await expect(countRows('poll_voters', pollId)).resolves.toBe(0)
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes('`status_history`') &&
+                sql.includes('`statusid` in') &&
+                sql.includes('`actorid` in')
+            )
+          ).toBe(true)
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes('`poll_answers`') &&
+                sql.includes('`statusid` in') &&
+                sql.includes('`actorid` in')
+            )
+          ).toBe(true)
+        } finally {
+          knexDatabase.off('query', handleQuery)
+          await knexDatabase.destroy()
+        }
+      })
     })
 
     describe('getHashtagStatusesPage', () => {

@@ -15,6 +15,11 @@ import {
   deleteRowsByColumnChunks,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import {
+  StatusHashtagTagRow,
+  deleteRowsByOwnedStatusIdChunks,
+  selectHashtagTagsByStatusIds
+} from '@/lib/database/sql/utils/status'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { BookmarkDatabase } from '@/lib/types/database/operations'
@@ -93,11 +98,6 @@ type StatusDeletionRow = {
   content: unknown
   originalStatusId: string | null
 }
-type StatusDeletionTagRow = {
-  statusId: string
-  name: string
-}
-
 const isReplaceableMediaAttachment = (
   attachment: Attachment
 ): attachment is Attachment & { mediaId: string } =>
@@ -1506,25 +1506,6 @@ export const StatusSQLDatabaseMixin = (
     return referenceToStatusId
   }
 
-  const selectHashtagTagsByStatusIds = async (
-    trx: Knex.Transaction,
-    statusIds: string[]
-  ) => {
-    const rows: StatusDeletionTagRow[] = []
-    for (const statusIdChunk of chunkArray(
-      statusIds,
-      getWhereInBatchSize(trx, 1)
-    )) {
-      rows.push(
-        ...(await trx('tags')
-          .where('type', 'hashtag')
-          .whereIn('statusId', statusIdChunk)
-          .select<StatusDeletionTagRow[]>('statusId', 'name'))
-      )
-    }
-    return rows
-  }
-
   const applyStatusDeletionCounterAdjustments = async ({
     currentTime,
     statuses,
@@ -1587,7 +1568,7 @@ export const StatusSQLDatabaseMixin = (
     trx
   }: {
     currentTime: Date
-    tags: StatusDeletionTagRow[]
+    tags: StatusHashtagTagRow[]
     trx: Knex.Transaction
   }) => {
     const adjustments = new Map<string, number>()
@@ -1708,6 +1689,9 @@ export const StatusSQLDatabaseMixin = (
 
     const currentTime = new Date()
     const statusIdsToDelete = statusesToDelete.map((status) => status.id)
+    const statusActorIdsToDelete = statusesToDelete.map(
+      (status) => status.actorId
+    )
     await applyStatusDeletionCounterAdjustments({
       currentTime,
       statuses: statusesToDelete,
@@ -1744,6 +1728,24 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    await deleteRowsByOwnedStatusIdChunks({
+      database: trx,
+      tableName: 'status_history',
+      statusIds: statusIdsToDelete,
+      statusActorIds: statusActorIdsToDelete
+    })
+    await deleteRowsByOwnedStatusIdChunks({
+      database: trx,
+      tableName: 'poll_answers',
+      statusIds: statusIdsToDelete,
+      statusActorIds: statusActorIdsToDelete
+    })
+    await deleteRowsByOwnedStatusIdChunks({
+      database: trx,
+      tableName: 'poll_voters',
+      statusIds: statusIdsToDelete,
+      statusActorIds: statusActorIdsToDelete
+    })
     await deleteRowsByColumnChunks(
       trx,
       'poll_choices',

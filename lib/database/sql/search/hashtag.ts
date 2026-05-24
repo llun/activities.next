@@ -423,11 +423,20 @@ export const searchHashtags = async (
   })
 }
 
+/**
+ * Reindex one cursor page of hashtag search documents.
+ *
+ * Stale hashtag document cleanup is tied to a full reindex run that starts
+ * with a null cursor. Resumed or sharded callers that pass a non-null afterId
+ * skip that cleanup pass to avoid repeating the bounded table scan per page.
+ */
 export const reindexSearchHashtags = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
-  await deleteStaleHashtagSearchDocuments(database)
+  if (afterId === null) {
+    await deleteStaleHashtagSearchDocuments(database)
+  }
 
   const query = database('tags')
     .where('type', 'hashtag')

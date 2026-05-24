@@ -1659,7 +1659,7 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
-  it('removes stale hashtag search documents with a non-null reindex cursor', async () => {
+  it('limits stale hashtag search cleanup to a full reindex start', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
       useNullAsDefault: true,
@@ -1681,6 +1681,17 @@ describe('SearchDatabase foundation', () => {
 
       await database.reindexSearchHashtags({
         afterId: '#already-scanned',
+        limit: 10
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'orphaned-cursor',
+          limit: 10
+        })
+      ).resolves.toHaveLength(1)
+
+      await database.reindexSearchHashtags({
         limit: 10
       })
 

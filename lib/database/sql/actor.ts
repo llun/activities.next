@@ -18,11 +18,11 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { deleteRowsByColumnChunks } from '@/lib/database/sql/utils/knex'
 import {
-  chunkArray,
-  deleteRowsByColumnChunks,
-  getWhereInBatchSize
-} from '@/lib/database/sql/utils/knex'
+  deleteRowsByOwnedStatusIdChunks,
+  selectHashtagTagsByStatusIds
+} from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
@@ -71,40 +71,6 @@ export interface SQLActorDatabase extends ActorDatabase {
   ) => Actor
   getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
-}
-
-const selectHashtagTagsByStatusIds = async (
-  trx: Knex.Transaction,
-  statusIds: string[]
-) => {
-  const rows: { name: string }[] = []
-  for (const statusIdChunk of chunkArray(
-    statusIds,
-    getWhereInBatchSize(trx, 1)
-  )) {
-    rows.push(
-      ...(await trx('tags')
-        .whereIn('statusId', statusIdChunk)
-        .where('type', 'hashtag')
-        .select<{ name: string }[]>('name'))
-    )
-  }
-  return rows
-}
-
-const selectPollChoiceIdsByStatusIds = async (
-  trx: Knex.Transaction,
-  statusIds: string[]
-) => {
-  const rows: { choiceId: string }[] = []
-  for (const statusIdChunk of chunkArray(statusIds, getWhereInBatchSize(trx))) {
-    rows.push(
-      ...(await trx('poll_choices')
-        .whereIn('statusId', statusIdChunk)
-        .select('choiceId'))
-    )
-  }
-  return rows
 }
 
 const getActorCounterSummary = async (
@@ -1314,10 +1280,6 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
         affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
 
-        // Get poll choice IDs before deleting them
-        const pollChoices = await selectPollChoiceIdsByStatusIds(trx, statusIds)
-        const choiceIds = pollChoices.map((choice) => choice.choiceId)
-
         // Delete status-related data
         await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)
         await deleteRowsByColumnChunks(trx, 'recipients', 'statusId', statusIds)
@@ -1329,22 +1291,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           'statusId',
           statusIds
         )
-        await deleteRowsByColumnChunks(
-          trx,
-          'status_history',
-          'statusId',
-          statusIds
-        )
-
-        // Delete poll answers before deleting poll choices
-        if (choiceIds.length > 0) {
-          await deleteRowsByColumnChunks(
-            trx,
-            'poll_answers',
-            'answerId',
-            choiceIds
-          )
-        }
+        await deleteRowsByOwnedStatusIdChunks({
+          database: trx,
+          tableName: 'status_history',
+          statusIds,
+          statusActorIds: [actorId]
+        })
+        await deleteRowsByOwnedStatusIdChunks({
+          database: trx,
+          tableName: 'poll_answers',
+          statusIds,
+          statusActorIds: [actorId]
+        })
+        await deleteRowsByOwnedStatusIdChunks({
+          database: trx,
+          tableName: 'poll_voters',
+          statusIds,
+          statusActorIds: [actorId]
+        })
         await deleteRowsByColumnChunks(
           trx,
           'poll_choices',
