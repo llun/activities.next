@@ -209,6 +209,23 @@ const getHashtagSearchDocumentRow = ({
   }
 }
 
+const deleteStaleHashtagSearchDocuments = async (database: KnexConnection) => {
+  const normalizedNameSQL = getNormalizedHashtagNameSQL(database)
+  await database(SEARCH_DOCUMENTS_TABLE)
+    .where('entityType', 'hashtag')
+    .whereNotExists(function () {
+      this.select(database.raw('1'))
+        .from('tags')
+        .where('tags.type', 'hashtag')
+        .whereNotNull('tags.nameNormalized')
+        .whereRaw(`${normalizedNameSQL.sql} = ??`, [
+          ...normalizedNameSQL.bindings,
+          `${SEARCH_DOCUMENTS_TABLE}.entityId`
+        ])
+    })
+    .delete()
+}
+
 const insertHashtagSearchDocumentPlaceholders = async (
   trx: Knex.Transaction,
   names: string[],
@@ -365,6 +382,10 @@ export const reindexSearchHashtags = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
+  if (afterId === null) {
+    await deleteStaleHashtagSearchDocuments(database)
+  }
+
   const query = database('tags')
     .where('type', 'hashtag')
     .whereNotNull('nameNormalized')

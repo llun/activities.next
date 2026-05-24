@@ -1615,6 +1615,50 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('removes stale hashtag search documents during full reindex', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+      await database.upsertSearchDocument({
+        entityType: 'hashtag',
+        entityId: 'orphaned',
+        documentText: 'orphaned #orphaned',
+        postCount: 3,
+        lastPostAt: 1
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'orphaned',
+          limit: 10
+        })
+      ).resolves.toHaveLength(1)
+
+      await expect(
+        database.reindexSearchHashtags({
+          limit: 10
+        })
+      ).resolves.toEqual({ indexed: 0, nextCursor: null })
+
+      await expect(
+        database.searchHashtags({
+          q: 'orphaned',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('rebuilds hashtag search aggregates from legacy bare normalized tag names', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
@@ -2046,6 +2090,72 @@ describe('SearchDatabase foundation', () => {
         })
       ).resolves.toEqual([])
     } finally {
+      await database.destroy()
+    }
+  })
+
+  it('refreshes deleted actor hashtag search aggregates after actor data commits', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/actor-delete-commit-hashtag`
+    const queries: { bindings: unknown[]; sql: string }[] = []
+    const handleQuery = ({
+      bindings,
+      sql
+    }: {
+      bindings?: unknown[]
+      sql: string
+    }) => {
+      queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
+    }
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Actor deletion commit hashtag day',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#CommitCleanup',
+        value: 'https://remote.test/tags/commitcleanup'
+      })
+
+      knexDatabase.on('query', handleQuery)
+      await database.deleteActorData({ actorId })
+      knexDatabase.off('query', handleQuery)
+
+      const actorCommitIndex = queries.findIndex((query) =>
+        query.sql.startsWith('commit')
+      )
+      const hashtagSearchWriteIndex = queries.findIndex(
+        (query) =>
+          query.sql.includes('search_documents') &&
+          (query.sql.startsWith('insert') || query.sql.startsWith('delete')) &&
+          query.bindings.includes('hashtag')
+      )
+
+      expect(actorCommitIndex).toBeGreaterThanOrEqual(0)
+      expect(hashtagSearchWriteIndex).toBeGreaterThan(actorCommitIndex)
+    } finally {
+      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })

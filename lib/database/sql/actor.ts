@@ -1108,6 +1108,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async deleteActorData({ actorId }: DeleteActorDataParams) {
+    const affectedHashtags: string[] = []
+
     await database.transaction(async (trx) => {
       const currentTime = new Date()
 
@@ -1319,9 +1321,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       if (statusIds.length > 0) {
         const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
-        const affectedHashtags = [
-          ...new Set(hashtagTags.map((tag) => tag.nameNormalized ?? tag.name))
-        ]
+        affectedHashtags.push(
+          ...hashtagTags.map((tag) => tag.nameNormalized ?? tag.name)
+        )
 
         // Get poll choice IDs before deleting them
         const pollChoices = await selectPollChoiceIdsByStatusIds(trx, statusIds)
@@ -1360,11 +1362,6 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           'statusId',
           statusIds
         )
-        if (affectedHashtags.length > 0) {
-          await indexHashtagSearchDocuments(trx, {
-            hashtags: affectedHashtags
-          })
-        }
       }
 
       // Delete timeline entries for this actor
@@ -1471,5 +1468,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await trx('actors').where('id', actorId).delete()
       await deleteActorSearchDocument(trx, { id: actorId })
     })
+
+    if (affectedHashtags.length > 0) {
+      await indexHashtagSearchDocuments(database, {
+        hashtags: [...new Set(affectedHashtags)]
+      })
+    }
   }
 })
