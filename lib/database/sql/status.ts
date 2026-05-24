@@ -26,6 +26,7 @@ import { BookmarkDatabase } from '@/lib/types/database/operations'
 import { LikeDatabase } from '@/lib/types/database/operations'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import {
+  AddStatusTagParams,
   CreateAnnounceParams,
   CreateNoteParams,
   CreatePollAnswerParams,
@@ -2551,14 +2552,7 @@ export const StatusSQLDatabaseMixin = (
     name,
     value,
     skipSearchIndex = false
-  }: {
-    actorId: string
-    statusId: string
-    type: string
-    name: string
-    value: string
-    skipSearchIndex?: boolean
-  }) {
+  }: AddStatusTagParams) {
     await database('tags').insert({
       actorId,
       statusId,

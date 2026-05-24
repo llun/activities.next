@@ -445,6 +445,11 @@ export type AddStatusTagParams = {
   type: TagType
   name: string
   value: string
+  /**
+   * For multi-hashtag insert flows only. Callers that set this for hashtag tags
+   * must call indexHashtagSearchDocuments once after all skipped tags are
+   * inserted.
+   */
   skipSearchIndex?: boolean
 }
 
@@ -492,6 +497,11 @@ export type CreateTagParams = {
   name: string
   type: TagType
   value?: string
+  /**
+   * For multi-hashtag insert flows only. Callers that set this for hashtag tags
+   * must call indexHashtagSearchDocuments once after all skipped tags are
+   * inserted.
+   */
   skipSearchIndex?: boolean
 }
 export type GetTagsParams = {
