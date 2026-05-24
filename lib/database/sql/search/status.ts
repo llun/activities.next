@@ -191,7 +191,7 @@ const reindexStatusSearchDocuments = async (
   for (let start = 0; start < rows.length; start += batchSize) {
     await database(SEARCH_DOCUMENTS_TABLE)
       .insert(rows.slice(start, start + batchSize))
-      .onConflict(['entityType', 'entityId'])
+      .onConflict('id')
       .merge([
         'documentText',
         'actorId',

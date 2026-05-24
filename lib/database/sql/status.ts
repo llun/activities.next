@@ -74,7 +74,6 @@ import {
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import { normalizeActorId } from '@/lib/utils/activitypub'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
