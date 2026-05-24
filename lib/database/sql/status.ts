@@ -1653,6 +1653,44 @@ export const StatusSQLDatabaseMixin = (
     return levels.reverse().flat()
   }
 
+  const chunkStatusDeletionRows = ({
+    actorId,
+    statuses,
+    trx
+  }: {
+    actorId?: string
+    statuses: StatusDeletionRow[]
+    trx: Knex.Transaction
+  }) => {
+    const maxBindings = getWhereInBatchSize(trx)
+    if (!actorId) return chunkArray(statuses, maxBindings)
+
+    const chunks: StatusDeletionRow[][] = []
+    let currentChunk: StatusDeletionRow[] = []
+    let currentActorIds = new Set<string>()
+
+    for (const status of statuses) {
+      const nextActorIdCount =
+        currentActorIds.size + (currentActorIds.has(status.actorId) ? 0 : 1)
+      const nextBindingCount = currentChunk.length + 1 + nextActorIdCount
+
+      if (currentChunk.length > 0 && nextBindingCount > maxBindings) {
+        chunks.push(currentChunk)
+        currentChunk = []
+        currentActorIds = new Set<string>()
+      }
+
+      currentChunk.push(status)
+      currentActorIds.add(status.actorId)
+    }
+
+    if (currentChunk.length > 0) {
+      chunks.push(currentChunk)
+    }
+
+    return chunks
+  }
+
   const deleteStatusRowsByIdChunks = async ({
     actorId,
     statuses,
@@ -1662,7 +1700,11 @@ export const StatusSQLDatabaseMixin = (
     statuses: StatusDeletionRow[]
     trx: Knex.Transaction
   }) => {
-    for (const statusChunk of chunkArray(statuses, getWhereInBatchSize(trx))) {
+    for (const statusChunk of chunkStatusDeletionRows({
+      actorId,
+      statuses,
+      trx
+    })) {
       const query = trx('statuses').whereIn(
         'id',
         statusChunk.map((status) => status.id)

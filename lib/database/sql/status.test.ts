@@ -2,6 +2,7 @@ import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -2796,6 +2797,107 @@ describe('StatusDatabase', () => {
                 sql.includes('`statusid` in')
             )
           ).toBe(true)
+        } finally {
+          knexDatabase.off('query', handleQuery)
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('reserves actor filter bindings for owned status delete batches', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const actorId = 'https://remote.test/users/owned-batch-delete'
+        const rootStatusId = `${actorId}/statuses/root`
+        const replyCount = SQLITE_MAX_BINDINGS
+        const queries: { bindings: unknown[]; sql: string }[] = []
+        const handleQuery = ({
+          bindings,
+          sql
+        }: {
+          bindings?: unknown[]
+          sql: string
+        }) => {
+          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
+        }
+
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId,
+            username: 'owned-batch-delete',
+            domain: 'remote.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          const statusRows = [
+            {
+              id: rootStatusId,
+              url: rootStatusId,
+              urlHash: getHashFromString(rootStatusId),
+              actorId,
+              type: StatusType.enum.Note,
+              content: JSON.stringify({
+                url: rootStatusId,
+                text: 'Owned delete root',
+                summary: ''
+              }),
+              reply: '',
+              replyHash: null,
+              originalStatusId: null,
+              createdAt: new Date(0),
+              updatedAt: new Date(0)
+            },
+            ...Array.from({ length: replyCount }, (_, index) => {
+              const id = `${actorId}/statuses/reply-${index}`
+              return {
+                id,
+                url: id,
+                urlHash: getHashFromString(id),
+                actorId,
+                type: StatusType.enum.Note,
+                content: JSON.stringify({
+                  url: id,
+                  text: `Owned delete reply ${index}`,
+                  summary: ''
+                }),
+                reply: rootStatusId,
+                replyHash: getHashFromString(rootStatusId),
+                originalStatusId: null,
+                createdAt: new Date(index + 1),
+                updatedAt: new Date(index + 1)
+              }
+            })
+          ]
+          await knexDatabase.batchInsert('statuses', statusRows, 80)
+
+          knexDatabase.on('query', handleQuery)
+          await sqlDatabase.deleteStatus({ statusId: rootStatusId, actorId })
+          knexDatabase.off('query', handleQuery)
+
+          const statusDeleteBindingCounts = queries
+            .filter(
+              ({ sql }) =>
+                sql.startsWith('delete') &&
+                sql.includes('`statuses`') &&
+                sql.includes('`id` in') &&
+                sql.includes('`actorid` in')
+            )
+            .map(({ bindings }) => bindings.length)
+
+          expect(statusDeleteBindingCounts.length).toBeGreaterThan(1)
+          expect(Math.max(...statusDeleteBindingCounts)).toBeLessThanOrEqual(
+            SQLITE_MAX_BINDINGS
+          )
         } finally {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
