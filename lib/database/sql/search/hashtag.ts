@@ -227,7 +227,7 @@ const reindexHashtagSearchDocuments = async (
   for (let start = 0; start < rows.length; start += batchSize) {
     await database(SEARCH_DOCUMENTS_TABLE)
       .insert(rows.slice(start, start + batchSize))
-      .onConflict(['entityType', 'entityId'])
+      .onConflict('id')
       .merge(['documentText', 'postCount', 'lastPostAt', 'updatedAt'])
   }
 }
@@ -265,7 +265,7 @@ export const searchHashtags = async (
     .where('search_documents.entityType', 'hashtag')
 
   await applySearchDocumentFilter({ database, query, q })
-  applySearchDocumentOrdering({ query, q })
+  applySearchDocumentOrdering({ database, query, entityType: 'hashtag', q })
 
   const rows = await query.limit(limit).offset(offset)
   return rows.map((row) => {

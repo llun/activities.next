@@ -10,11 +10,11 @@ import {
   applySearchDocumentOrdering
 } from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { getLocalActorId } from '@/lib/utils/activitypubId'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
-import { getLocalActorId } from '@/lib/utils/activitypubId'
 
 const createSearchActor = async (
   database: ReturnType<typeof getSQLDatabase>,
