@@ -65,6 +65,7 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
 const HASHTAG_AGGREGATE_FIXED_BINDINGS =
   1 + PUBLIC_ACTIVITY_RECIPIENTS.length + 2 + 1
 const HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME = 2
+const STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE = 100
 
 export const normalizeHashtagSearchName = (hashtag: string) => {
   const bare = hashtag.trim().replace(/^#+/, '').toLowerCase()
@@ -212,9 +213,12 @@ const getHashtagSearchDocumentRow = ({
 const deleteStaleHashtagSearchDocuments = async (database: KnexConnection) => {
   const batchSize = Math.max(
     1,
-    Math.floor(
-      getWhereInBatchSize(database, 1, 1000) /
-        HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME
+    Math.min(
+      STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE,
+      Math.floor(
+        getWhereInBatchSize(database, 1, 1000) /
+          HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME
+      )
     )
   )
   let afterEntityId: string | null = null

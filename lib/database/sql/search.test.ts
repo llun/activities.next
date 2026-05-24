@@ -1791,9 +1791,18 @@ describe('SearchDatabase foundation', () => {
       }
     })
     const database = getSQLDatabase(knexDatabase)
-    const queries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      queries.push(sql.toLowerCase())
+    const queries: { bindings: unknown[]; sql: string }[] = []
+    const handleQuery = ({
+      bindings,
+      sql
+    }: {
+      bindings?: unknown[]
+      sql: string
+    }) => {
+      queries.push({
+        bindings: bindings ?? [],
+        sql: sql.toLowerCase()
+      })
     }
 
     try {
@@ -1812,13 +1821,23 @@ describe('SearchDatabase foundation', () => {
       })
       knexDatabase.off('query', handleQuery)
 
-      expect(queries.some((sql) => sql.includes('not exists'))).toBe(false)
+      expect(queries.some(({ sql }) => sql.includes('not exists'))).toBe(false)
       expect(
         queries.some(
-          (sql) =>
+          ({ sql }) =>
             sql.includes('from `tags`') && sql.includes('`namenormalized` in')
         )
       ).toBe(true)
+      const staleCleanupSelect = queries.find(
+        ({ sql }) =>
+          sql.startsWith('select') &&
+          sql.includes('from `search_documents`') &&
+          sql.includes('order by `entityid` asc') &&
+          sql.includes('limit')
+      )
+      expect(Number(staleCleanupSelect?.bindings.at(-1))).toBeLessThanOrEqual(
+        100
+      )
     } finally {
       knexDatabase.off('query', handleQuery)
       await database.destroy()
