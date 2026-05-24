@@ -1141,6 +1141,8 @@ describe('ActorDatabase', () => {
 
         const targetStatusId = `${peerActorId}/statuses/delete-data-target-${suffix}`
         const pollStatusId = `${peerActorId}/statuses/delete-data-poll-${suffix}`
+        const replyStatusId = `${actorId}/statuses/reply-${suffix}`
+        const actorHashtag = `actor-delete-${suffix}`
         await database.createNote({
           id: targetStatusId,
           url: targetStatusId,
@@ -1161,14 +1163,21 @@ describe('ActorDatabase', () => {
         })
 
         await database.createNote({
-          id: `${actorId}/statuses/reply-${suffix}`,
-          url: `${actorId}/statuses/reply-${suffix}`,
+          id: replyStatusId,
+          url: replyStatusId,
           actorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Reply from actor to delete',
           reply: targetStatusId
         })
+        await database.createTag({
+          statusId: replyStatusId,
+          type: 'hashtag',
+          name: `#${actorHashtag}`,
+          value: `https://${TEST_DOMAIN}/tags/${actorHashtag}`
+        })
+        await database.increaseHashtagCounter({ hashtag: actorHashtag })
         await database.createAnnounce({
           id: `${actorId}/statuses/reblog-${suffix}`,
           actorId,
@@ -1234,6 +1243,7 @@ describe('ActorDatabase', () => {
           beforeLikes,
           beforeReblogs,
           beforeReplies,
+          beforeHashtagCount,
           beforeMediaUsage,
           beforeNodeInfo
         ] = await Promise.all([
@@ -1242,6 +1252,7 @@ describe('ActorDatabase', () => {
           database.getLikeCount({ statusId: targetStatusId }),
           database.getStatusReblogsCount({ statusId: targetStatusId }),
           database.getStatusRepliesCount({ statusId: targetStatusId }),
+          database.getHashtagCounter({ hashtag: actorHashtag }),
           database.getStorageUsageForAccount({ accountId: accountId! }),
           database.getNodeInfoStats()
         ])
@@ -1268,6 +1279,7 @@ describe('ActorDatabase', () => {
           afterLikes,
           afterReblogs,
           afterReplies,
+          afterHashtagCount,
           afterMediaUsage,
           afterNodeInfo
         ] = await Promise.all([
@@ -1276,6 +1288,7 @@ describe('ActorDatabase', () => {
           database.getLikeCount({ statusId: targetStatusId }),
           database.getStatusReblogsCount({ statusId: targetStatusId }),
           database.getStatusRepliesCount({ statusId: targetStatusId }),
+          database.getHashtagCounter({ hashtag: actorHashtag }),
           database.getStorageUsageForAccount({ accountId: accountId! }),
           database.getNodeInfoStats()
         ])
@@ -1285,6 +1298,7 @@ describe('ActorDatabase', () => {
         expect(afterLikes).toBe(beforeLikes - 1)
         expect(afterReblogs).toBe(beforeReblogs - 1)
         expect(afterReplies).toBe(beforeReplies - 1)
+        expect(afterHashtagCount).toBe(beforeHashtagCount - 1)
         expect(afterMediaUsage).toBe(beforeMediaUsage - 1700)
         expect(afterNodeInfo.totalUsers).toBe(beforeNodeInfo.totalUsers - 1)
         expect(afterNodeInfo.localPosts).toBe(beforeNodeInfo.localPosts - 2)

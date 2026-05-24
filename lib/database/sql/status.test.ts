@@ -2485,32 +2485,81 @@ describe('StatusDatabase', () => {
       })
 
       it('decreases reblog counter when deleting an announce', async () => {
-        const originalStatusId = statuses.primary.post
-        const announceId = `${extraActorId}/statuses/reblog-counter-delete-test`
-
-        const beforeReblogsCount = await database.getStatusReblogsCount({
-          statusId: originalStatusId
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
         })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const originalActorId = 'https://remote.test/users/reblog-original'
+        const reblogActorId = 'https://remote.test/users/reblog-deleter'
+        const originalStatusId = `${originalActorId}/statuses/original`
+        const announceId = `${reblogActorId}/statuses/reblog-counter-delete-test`
 
-        await database.createAnnounce({
-          id: announceId,
-          actorId: extraActorId,
-          to: [ACTIVITY_STREAM_PUBLIC],
-          cc: [],
-          originalStatusId
-        })
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId: originalActorId,
+            username: 'reblog-original',
+            domain: 'remote.test',
+            followersUrl: `${originalActorId}/followers`,
+            inboxUrl: `${originalActorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createActor({
+            actorId: reblogActorId,
+            username: 'reblog-deleter',
+            domain: 'remote.test',
+            followersUrl: `${reblogActorId}/followers`,
+            inboxUrl: `${reblogActorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createNote({
+            id: originalStatusId,
+            url: originalStatusId,
+            actorId: originalActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Original status'
+          })
 
-        const afterCreateReblogsCount = await database.getStatusReblogsCount({
-          statusId: originalStatusId
-        })
-        expect(afterCreateReblogsCount).toBe(beforeReblogsCount + 1)
+          const beforeReblogsCount = await sqlDatabase.getStatusReblogsCount({
+            statusId: originalStatusId
+          })
 
-        await database.deleteStatus({ statusId: announceId })
+          await sqlDatabase.createAnnounce({
+            id: announceId,
+            actorId: reblogActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            originalStatusId
+          })
+          await knexDatabase('statuses')
+            .where('id', announceId)
+            .update({ content: JSON.stringify({}) })
 
-        const afterDeleteReblogsCount = await database.getStatusReblogsCount({
-          statusId: originalStatusId
-        })
-        expect(afterDeleteReblogsCount).toBe(beforeReblogsCount)
+          const afterCreateReblogsCount =
+            await sqlDatabase.getStatusReblogsCount({
+              statusId: originalStatusId
+            })
+          expect(afterCreateReblogsCount).toBe(beforeReblogsCount + 1)
+
+          await sqlDatabase.deleteStatus({ statusId: announceId })
+
+          const afterDeleteReblogsCount =
+            await sqlDatabase.getStatusReblogsCount({
+              statusId: originalStatusId
+            })
+          expect(afterDeleteReblogsCount).toBe(beforeReblogsCount)
+        } finally {
+          await knexDatabase.destroy()
+        }
       })
 
       it('deletes reply cycles without unbounded recursion', async () => {

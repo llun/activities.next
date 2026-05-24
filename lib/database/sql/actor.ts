@@ -4,7 +4,8 @@ import { getConfig } from '@/lib/config'
 import {
   deleteActorSearchDocument,
   indexActorSearchDocument,
-  indexHashtagSearchDocuments
+  indexHashtagSearchDocuments,
+  normalizeHashtagSearchName
 } from '@/lib/database/sql/search'
 import {
   CounterKey,
@@ -1281,6 +1282,23 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       if (statusIds.length > 0) {
         const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
         affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
+        const hashtagCounterAdjustments = new Map<string, number>()
+        for (const tag of hashtagTags) {
+          const tagName = normalizeHashtagSearchName(tag.name)
+          if (tagName.length === 0) continue
+          hashtagCounterAdjustments.set(
+            tagName,
+            (hashtagCounterAdjustments.get(tagName) ?? 0) + 1
+          )
+        }
+        for (const [tagName, count] of hashtagCounterAdjustments) {
+          await decreaseCounterValue(
+            trx,
+            CounterKey.totalHashtag(tagName),
+            count,
+            currentTime
+          )
+        }
 
         // Delete status-related data
         await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)

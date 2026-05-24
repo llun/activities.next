@@ -1553,9 +1553,7 @@ export const StatusSQLDatabaseMixin = (
       }
 
       if (status.type === StatusType.enum.Announce) {
-        const originalStatusId = getOriginalStatusIdFromAnnounceContent(
-          status.content
-        )
+        const originalStatusId = getAnnounceOriginalStatusId(status)
         if (originalStatusId) {
           addCounterAdjustment(
             adjustments,
