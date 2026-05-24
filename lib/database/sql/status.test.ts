@@ -2378,6 +2378,80 @@ describe('StatusDatabase', () => {
         ).not.toBeNull()
       })
 
+      it('traverses other actor replies when collecting actor-scoped deletes', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const parentStatusId = `${primaryActorId}/statuses/scoped-delete-parent-chain-${suffix}`
+        const otherReplyStatusId = `${extraActorId}/statuses/scoped-delete-other-reply-${suffix}`
+        const ownedNestedReplyStatusId = `${primaryActorId}/statuses/scoped-delete-owned-nested-${suffix}`
+
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Scoped delete parent with mixed reply tree'
+        })
+        await database.createNote({
+          id: otherReplyStatusId,
+          url: otherReplyStatusId,
+          actorId: extraActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reply owned by another actor',
+          reply: parentStatusId
+        })
+        await database.createNote({
+          id: ownedNestedReplyStatusId,
+          url: ownedNestedReplyStatusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Nested reply owned by scoped actor',
+          reply: otherReplyStatusId
+        })
+
+        await database.deleteStatus({
+          statusId: parentStatusId,
+          actorId: primaryActorId
+        })
+
+        expect(
+          await database.getStatus({ statusId: parentStatusId })
+        ).toBeNull()
+        expect(
+          await database.getStatus({ statusId: otherReplyStatusId })
+        ).not.toBeNull()
+        expect(
+          await database.getStatus({ statusId: ownedNestedReplyStatusId })
+        ).toBeNull()
+      })
+
+      it('deletes likes for deleted statuses', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const statusId = `${primaryActorId}/statuses/delete-liked-status-${suffix}`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Liked status that will be deleted'
+        })
+        await database.createLike({ actorId: extraActorId, statusId })
+
+        await expect(
+          database.isActorLikedStatus({ actorId: extraActorId, statusId })
+        ).resolves.toBe(true)
+
+        await database.deleteStatus({ statusId })
+
+        await expect(
+          database.isActorLikedStatus({ actorId: extraActorId, statusId })
+        ).resolves.toBe(false)
+      })
+
       it('decreases reply counter when deleting a reply', async () => {
         const parentStatusId = statuses.primary.post
         const replyStatusId = `${extraActorId}/statuses/reply-counter-delete-test`

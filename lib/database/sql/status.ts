@@ -1620,10 +1620,13 @@ export const StatusSQLDatabaseMixin = (
       }
 
       let rows = await selectStatusDeletionRowsByIds(trx, currentStatusIds)
-
+      const rowsToDelete = actorId
+        ? rows.filter((row) => statusActorMatches(row.actorId, actorId))
+        : rows
       if (actorId) {
-        rows = rows.filter((row) => statusActorMatches(row.actorId, actorId))
-        if (depth === 0 && !rows.some((row) => row.id === statusId)) return []
+        if (depth === 0 && !rowsToDelete.some((row) => row.id === statusId)) {
+          return []
+        }
       }
 
       if (rows.length === 0) {
@@ -1631,7 +1634,9 @@ export const StatusSQLDatabaseMixin = (
         continue
       }
 
-      levels.push(rows)
+      if (rowsToDelete.length > 0) {
+        levels.push(rowsToDelete)
+      }
 
       const replies = await selectReplyIdsByStatusIds(
         trx,
@@ -1737,6 +1742,7 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIdsToDelete)
     await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIdsToDelete)
     await deleteRowsByColumnChunks(
       trx,
