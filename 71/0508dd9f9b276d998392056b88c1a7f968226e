@@ -1,0 +1,24 @@
+lib/database/sql/status.ts
+  s_a9c053813411a7::t_7f74a257e805de 1965-1966,2595-2596
+  s_a9c053813411a7::t_04e5e1195a22cf 1456-1465,1618-1620,1657-1665,1667-1679,1782-1786
+  s_a9c053813411a7::t_25940cfdf871d5 1666
+lib/database/sql/status.test.ts
+  s_a9c053813411a7::t_25940cfdf871d5 2373-2375
+  s_a9c053813411a7::t_3ad00e0a3d1205 2345-2372,2376-2380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "710508dd9f9b276d998392056b88c1a7f968226e",
+  "prompts": {},
+  "sessions": {
+    "s_a9c053813411a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5ad7-c4c3-78e2-9686-a128443adab4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
