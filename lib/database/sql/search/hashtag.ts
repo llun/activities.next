@@ -109,7 +109,7 @@ const getHashtagSearchAggregates = async (
   const hashtagBatchSize = Math.max(
     1,
     Math.floor(
-      getWhereInBatchSize(database, HASHTAG_AGGREGATE_FIXED_BINDINGS) /
+      getWhereInBatchSize(database, HASHTAG_AGGREGATE_FIXED_BINDINGS, 1000) /
         HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME
     )
   )
@@ -153,23 +153,24 @@ const getHashtagSearchAggregates = async (
       if (!requestedNames.has(name)) continue
 
       const existingAggregate = aggregateByName.get(name)
-      const lastPostAt = row.lastPostAt
-        ? getCompatibleTime(row.lastPostAt)
-        : null
+      const compatibleLastPostAt =
+        row.lastPostAt !== null && row.lastPostAt !== undefined
+          ? getCompatibleTime(row.lastPostAt)
+          : null
       if (!existingAggregate) {
         aggregateByName.set(name, {
           name,
           postCount: Number(row.postCount ?? 0),
-          lastPostAt
+          lastPostAt: compatibleLastPostAt
         })
         continue
       }
 
       existingAggregate.postCount += Number(row.postCount ?? 0)
       existingAggregate.lastPostAt =
-        existingAggregate.lastPostAt && lastPostAt
-          ? Math.max(existingAggregate.lastPostAt, lastPostAt)
-          : (existingAggregate.lastPostAt ?? lastPostAt)
+        existingAggregate.lastPostAt !== null && compatibleLastPostAt !== null
+          ? Math.max(existingAggregate.lastPostAt, compatibleLastPostAt)
+          : (existingAggregate.lastPostAt ?? compatibleLastPostAt)
     }
   }
 
@@ -216,7 +217,7 @@ const insertHashtagSearchDocumentPlaceholders = async (
   const rows = names.map((name) =>
     getHashtagSearchDocumentRow({ currentTime, name })
   )
-  const batchSize = getInsertBatchSize(trx, rows[0])
+  const batchSize = getInsertBatchSize(trx, rows[0], 1000)
   for (const rowChunk of chunkArray(rows, batchSize)) {
     await trx(SEARCH_DOCUMENTS_TABLE).insert(rowChunk).onConflict('id').ignore()
   }
@@ -293,7 +294,7 @@ const reindexHashtagSearchDocuments = async (
       return
     }
 
-    const batchSize = getInsertBatchSize(trx, rows[0])
+    const batchSize = getInsertBatchSize(trx, rows[0], 1000)
     for (const rowChunk of chunkArray(rows, batchSize)) {
       await trx(SEARCH_DOCUMENTS_TABLE)
         .insert(rowChunk)

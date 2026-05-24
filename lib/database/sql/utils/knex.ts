@@ -22,9 +22,10 @@ export const isMySQLClient = (database: KnexConnection) =>
 
 export const getWhereInBatchSize = (
   database: KnexConnection,
-  reservedBindings = 0
+  reservedBindings = 0,
+  defaultBatchSize = 1000
 ) => {
-  if (!isSQLiteClient(database)) return Number.POSITIVE_INFINITY
+  if (!isSQLiteClient(database)) return defaultBatchSize
   return Math.max(1, SQLITE_MAX_BINDINGS - reservedBindings)
 }
 

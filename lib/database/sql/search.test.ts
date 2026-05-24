@@ -10,6 +10,7 @@ import {
   applySearchDocumentOrdering
 } from '@/lib/database/sql/search/documents'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { StatusType } from '@/lib/types/domain/status'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -1472,6 +1473,81 @@ describe('SearchDatabase foundation', () => {
           following: false,
           postCount: 1,
           lastPostAt: 1
+        })
+      ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('preserves zero-valued hashtag aggregate timestamps', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/epoch-hashtag`
+    const createdAt = new Date(0)
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await knexDatabase('statuses').insert({
+        id: statusId,
+        url: statusId,
+        urlHash: null,
+        actorId,
+        type: StatusType.enum.Note,
+        content: JSON.stringify({
+          url: statusId,
+          text: 'Epoch hashtag day',
+          summary: ''
+        }),
+        reply: '',
+        replyHash: null,
+        createdAt,
+        updatedAt: createdAt
+      })
+      await knexDatabase('recipients').insert({
+        id: crypto.randomUUID(),
+        statusId,
+        actorId: ACTIVITY_STREAM_PUBLIC,
+        type: 'to',
+        createdAt,
+        updatedAt: createdAt
+      })
+      await knexDatabase('tags').insert({
+        id: crypto.randomUUID(),
+        statusId,
+        type: 'hashtag',
+        name: '#Epoch',
+        value: 'https://remote.test/tags/epoch',
+        nameNormalized: '#epoch',
+        createdAt,
+        updatedAt: createdAt
+      })
+
+      await database.indexHashtagSearchDocuments({
+        hashtags: ['epoch']
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'epoch',
+          limit: 10
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          name: 'epoch',
+          postCount: 1,
+          lastPostAt: 0
         })
       ])
     } finally {
