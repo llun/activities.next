@@ -211,16 +211,7 @@ const getHashtagSearchDocumentRow = ({
 }
 
 const deleteStaleHashtagSearchDocuments = async (database: KnexConnection) => {
-  const batchSize = Math.max(
-    1,
-    Math.min(
-      STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE,
-      Math.floor(
-        getWhereInBatchSize(database, 1, 1000) /
-          HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME
-      )
-    )
-  )
+  const batchSize = STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE
   let afterEntityId: string | null = null
 
   while (true) {
@@ -261,13 +252,10 @@ const deleteStaleHashtagSearchDocuments = async (database: KnexConnection) => {
     }
 
     const staleNames = names.filter((name) => !liveNames.has(name))
-    for (const staleNameChunk of chunkArray(
-      staleNames,
-      getWhereInBatchSize(database, 1)
-    )) {
+    if (staleNames.length > 0) {
       await database(SEARCH_DOCUMENTS_TABLE)
         .where('entityType', 'hashtag')
-        .whereIn('entityId', staleNameChunk)
+        .whereIn('entityId', staleNames)
         .delete()
     }
   }

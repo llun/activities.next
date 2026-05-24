@@ -1438,6 +1438,7 @@ export const StatusSQLDatabaseMixin = (
     trx: Knex.Transaction,
     statusIds: string[]
   ) => {
+    // Reply traversal stays on statuses.reply, which is indexed by migration.
     const rows: { id: string }[] = []
     for (const statusIdChunk of chunkArray(
       statusIds,

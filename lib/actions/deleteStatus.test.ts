@@ -26,6 +26,7 @@ describe('deleteStatusFromUserInput', () => {
     } as Actor
     const status = {
       id: 'https://llun.test/users/me/statuses/direct-delete',
+      actorId: currentActor.id,
       to: ['https://remote.test/users/primary'],
       cc: ['https://remote.test/users/copied']
     } as Status
@@ -52,5 +53,35 @@ describe('deleteStatusFromUserInput', () => {
       to: status.to,
       cc: status.cc
     })
+    expect(database.deleteStatus).toHaveBeenCalledWith({
+      statusId: status.id,
+      actorId: currentActor.id
+    })
+  })
+
+  it('does not send or delete statuses owned by a different actor', async () => {
+    const currentActor = {
+      id: 'https://llun.test/users/me'
+    } as Actor
+    const status = {
+      id: 'https://llun.test/users/other/statuses/delete-attempt',
+      actorId: 'https://llun.test/users/other',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: []
+    } as Status
+    const database = {
+      getStatus: jest.fn().mockResolvedValue(status),
+      deleteStatus: jest.fn().mockResolvedValue(undefined)
+    } as unknown as Database
+
+    await deleteStatusFromUserInput({
+      currentActor,
+      statusId: status.id,
+      database
+    })
+
+    expect(getFederatedStatusDeliveryInboxes).not.toHaveBeenCalled()
+    expect(deleteStatus).not.toHaveBeenCalled()
+    expect(database.deleteStatus).not.toHaveBeenCalled()
   })
 })
