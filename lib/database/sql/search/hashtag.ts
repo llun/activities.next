@@ -368,9 +368,10 @@ export const reindexSearchHashtags = async (
   const query = database('tags')
     .where('type', 'hashtag')
     .whereNotNull('nameNormalized')
-    .distinct<{ normalizedName: string }[]>({
+    .select<{ normalizedName: string }[]>({
       normalizedName: 'tags.nameNormalized'
     })
+    .distinct()
     .orderBy('tags.nameNormalized', 'asc')
 
   if (afterId) {
