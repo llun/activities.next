@@ -67,11 +67,6 @@ const HASHTAG_AGGREGATE_FIXED_BINDINGS =
 const HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME = 2
 const STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE = 100
 
-const getPublicStatusIdsQuery = (database: KnexConnection) =>
-  database('recipients')
-    .select('statusId')
-    .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-
 export const normalizeHashtagSearchName = (hashtag: string) => {
   const bare = hashtag.trim().replace(/^#+/, '').toLowerCase()
   return bare
@@ -136,9 +131,10 @@ const getHashtagSearchAggregates = async (
         database.raw('?? as ??', ['statuses.createdAt', 'statusCreatedAt'])
       )
       .innerJoin('statuses', 'statuses.id', 'tags.statusId')
+      .innerJoin('recipients', 'recipients.statusId', 'statuses.id')
       .where('tags.type', 'hashtag')
       .whereIn('tags.nameNormalized', lookupNames)
-      .whereIn('statuses.id', getPublicStatusIdsQuery(database))
+      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .as('hashtag_statuses')
 
@@ -214,6 +210,8 @@ const deleteStaleHashtagSearchDocuments = async (database: KnexConnection) => {
   const batchSize = STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE
   let afterEntityId: string | null = null
 
+  // Walk documents in bounded cursor pages; each page performs one batched
+  // tags lookup with WHERE IN instead of one lookup per document.
   while (true) {
     const query = database(SEARCH_DOCUMENTS_TABLE)
       .where('entityType', 'hashtag')
