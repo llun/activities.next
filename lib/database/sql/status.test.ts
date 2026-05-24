@@ -2374,6 +2374,69 @@ describe('StatusDatabase', () => {
         })
         expect(afterDeleteReblogsCount).toBe(beforeReblogsCount)
       })
+
+      it('deletes reply cycles without unbounded recursion', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const actorId = 'https://remote.test/users/reply-cycle'
+        const firstStatusId = `${actorId}/statuses/cycle-a`
+        const secondStatusId = `${actorId}/statuses/cycle-b`
+
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId,
+            username: 'reply-cycle',
+            domain: 'remote.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createNote({
+            id: firstStatusId,
+            url: firstStatusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Reply cycle A'
+          })
+          await sqlDatabase.createNote({
+            id: secondStatusId,
+            url: secondStatusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Reply cycle B',
+            reply: firstStatusId
+          })
+          await knexDatabase('statuses')
+            .where('id', firstStatusId)
+            .update({
+              reply: secondStatusId,
+              replyHash: getHashFromString(secondStatusId)
+            })
+
+          await expect(
+            sqlDatabase.deleteStatus({ statusId: firstStatusId })
+          ).resolves.toBeUndefined()
+          await expect(
+            sqlDatabase.getStatus({ statusId: firstStatusId })
+          ).resolves.toBeNull()
+          await expect(
+            sqlDatabase.getStatus({ statusId: secondStatusId })
+          ).resolves.toBeNull()
+        } finally {
+          await knexDatabase.destroy()
+        }
+      })
     })
 
     describe('getHashtagStatusesPage', () => {

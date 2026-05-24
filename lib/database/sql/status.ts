@@ -78,6 +78,16 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
+const MAX_STATUS_REPLY_DELETE_DEPTH = 1000
+
+type StatusDeletionRow = {
+  id: string
+  actorId: string
+  type: StatusType
+  reply: string | null
+  content: unknown
+  originalStatusId: string | null
+}
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
@@ -1387,6 +1397,81 @@ export const StatusSQLDatabaseMixin = (
     return statusIds
   }
 
+  const collectStatusDeletionRows = async ({
+    actorId,
+    statusId,
+    trx
+  }: DeleteStatusParams & {
+    trx: Knex.Transaction
+  }) => {
+    const rowsById = new Map<string, StatusDeletionRow>()
+    const rows: StatusDeletionRow[] = []
+    const seen = new Set<string>()
+    const stack: { depth: number; expanded: boolean; statusId: string }[] = [
+      { depth: 0, expanded: false, statusId }
+    ]
+
+    while (stack.length > 0) {
+      const frame = stack.pop()
+      if (!frame) break
+
+      if (frame.expanded) {
+        const row = rowsById.get(frame.statusId)
+        if (row) rows.push(row)
+        continue
+      }
+
+      if (seen.has(frame.statusId)) continue
+      seen.add(frame.statusId)
+
+      if (frame.depth > MAX_STATUS_REPLY_DELETE_DEPTH) {
+        throw new Error('Status reply deletion depth limit exceeded')
+      }
+
+      const status = await trx('statuses')
+        .where('id', frame.statusId)
+        .first<
+          StatusDeletionRow | undefined
+        >('id', 'actorId', 'type', 'reply', 'content', 'originalStatusId')
+      if (!status) continue
+
+      if (frame.statusId === statusId && actorId) {
+        const normalizedStoredActorId = normalizeActorId(status.actorId)
+        const normalizedExpectedActorId = normalizeActorId(actorId)
+        if (
+          !normalizedStoredActorId ||
+          !normalizedExpectedActorId ||
+          normalizedStoredActorId !== normalizedExpectedActorId
+        ) {
+          continue
+        }
+      }
+
+      const replies = await trx('statuses')
+        .where('reply', status.id)
+        .select<{ id: string }[]>('id')
+      if (replies.length > 0 && frame.depth >= MAX_STATUS_REPLY_DELETE_DEPTH) {
+        throw new Error('Status reply deletion depth limit exceeded')
+      }
+
+      rowsById.set(status.id, status)
+      stack.push({ depth: frame.depth, expanded: true, statusId: status.id })
+
+      for (let index = replies.length - 1; index >= 0; index -= 1) {
+        const replyId = replies[index].id
+        if (!seen.has(replyId)) {
+          stack.push({
+            depth: frame.depth + 1,
+            expanded: false,
+            statusId: replyId
+          })
+        }
+      }
+    }
+
+    return rows
+  }
+
   async function deleteStatus({
     actorId,
     affectedHashtags,
@@ -1409,64 +1494,49 @@ export const StatusSQLDatabaseMixin = (
       return
     }
 
-    const status = await trx('statuses').where('id', statusId).first()
-    if (!status) return
-
-    if (actorId) {
-      const normalizedStoredActorId = normalizeActorId(status.actorId)
-      const normalizedExpectedActorId = normalizeActorId(actorId)
-      if (
-        !normalizedStoredActorId ||
-        !normalizedExpectedActorId ||
-        normalizedStoredActorId !== normalizedExpectedActorId
-      ) {
-        return
-      }
-    }
-
-    const replies = await trx('statuses').where('reply', statusId).select('id')
-    await Promise.all(
-      replies.map(({ id }) =>
-        deleteStatus({ affectedHashtags, statusId: id, trx })
-      )
-    )
-    await updateStatusCounters({
-      actorId: status.actorId,
-      type: status.type,
-      reply: status.reply || '',
-      content: status.content,
-      step: 'decrement',
-      trx,
-      currentTime: new Date()
+    const statusesToDelete = await collectStatusDeletionRows({
+      actorId,
+      statusId,
+      trx
     })
-    const hashtagTags = await trx('tags')
-      .where('statusId', statusId)
-      .where('type', 'hashtag')
-    if (hashtagTags.length > 0) {
-      await Promise.all(
-        hashtagTags.map((tag: { name: string }) => {
+
+    for (const status of statusesToDelete) {
+      await updateStatusCounters({
+        actorId: status.actorId,
+        type: status.type,
+        reply: status.reply || '',
+        content: status.content,
+        step: 'decrement',
+        trx,
+        currentTime: new Date()
+      })
+      const hashtagTags = await trx('tags')
+        .where('statusId', status.id)
+        .where('type', 'hashtag')
+      if (hashtagTags.length > 0) {
+        for (const tag of hashtagTags as { name: string }[]) {
           const tagName = tag.name.startsWith('#')
             ? tag.name.slice(1)
             : tag.name
-          return decreaseCounterValue(
+          await decreaseCounterValue(
             trx,
             CounterKey.totalHashtag(tagName.toLowerCase())
           )
-        })
+        }
+      }
+      await Promise.all([
+        trx('statuses').where('id', status.id).delete(),
+        trx('recipients').where('statusId', status.id).delete(),
+        trx('tags').where('statusId', status.id).delete(),
+        trx('attachments').where('statusId', status.id).delete(),
+        trx('bookmarks').where('statusId', status.id).delete(),
+        trx('poll_choices').where('statusId', status.id).delete(),
+        trx('timelines').where('statusId', status.id).delete()
+      ])
+      affectedHashtags?.push(
+        ...hashtagTags.map((tag: { name: string }) => tag.name)
       )
     }
-    await Promise.all([
-      trx('statuses').where('id', statusId).delete(),
-      trx('recipients').where('statusId', statusId).delete(),
-      trx('tags').where('statusId', statusId).delete(),
-      trx('attachments').where('statusId', statusId).delete(),
-      trx('bookmarks').where('statusId', statusId).delete(),
-      trx('poll_choices').where('statusId', statusId).delete(),
-      trx('timelines').where('statusId', statusId).delete()
-    ])
-    affectedHashtags?.push(
-      ...hashtagTags.map((tag: { name: string }) => tag.name)
-    )
   }
 
   async function getFavouritedBy({

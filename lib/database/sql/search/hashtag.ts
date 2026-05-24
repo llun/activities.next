@@ -210,20 +210,63 @@ const getHashtagSearchDocumentRow = ({
 }
 
 const deleteStaleHashtagSearchDocuments = async (database: KnexConnection) => {
-  const normalizedNameSQL = getNormalizedHashtagNameSQL(database)
-  await database(SEARCH_DOCUMENTS_TABLE)
-    .where('entityType', 'hashtag')
-    .whereNotExists(function () {
-      this.select(database.raw('1'))
-        .from('tags')
-        .where('tags.type', 'hashtag')
-        .whereNotNull('tags.nameNormalized')
-        .whereRaw(`${normalizedNameSQL.sql} = ??`, [
-          ...normalizedNameSQL.bindings,
-          `${SEARCH_DOCUMENTS_TABLE}.entityId`
-        ])
-    })
-    .delete()
+  const batchSize = Math.max(
+    1,
+    Math.floor(
+      getWhereInBatchSize(database, 1, 1000) /
+        HASHTAG_STORAGE_NAMES_PER_SEARCH_NAME
+    )
+  )
+  let afterEntityId: string | null = null
+
+  while (true) {
+    const query = database(SEARCH_DOCUMENTS_TABLE)
+      .where('entityType', 'hashtag')
+      .select<{ entityId: string }[]>('entityId')
+      .orderBy('entityId', 'asc')
+      .limit(batchSize)
+
+    if (afterEntityId) {
+      query.where('entityId', '>', afterEntityId)
+    }
+
+    const rows = await query
+    if (rows.length === 0) return
+
+    afterEntityId = rows[rows.length - 1].entityId
+    const names = rows.map((row) => row.entityId)
+    const lookupNames = [...new Set(names.flatMap(getHashtagStorageNames))]
+    const liveNames = new Set<string>()
+
+    if (lookupNames.length > 0) {
+      const tagRows = await database('tags')
+        .where('type', 'hashtag')
+        .whereNotNull('nameNormalized')
+        .whereIn('nameNormalized', lookupNames)
+        .select<{ normalizedName: string }[]>({
+          normalizedName: 'tags.nameNormalized'
+        })
+        .distinct()
+
+      for (const tagRow of tagRows) {
+        const normalizedName = normalizeHashtagSearchName(tagRow.normalizedName)
+        if (normalizedName.length > 0) {
+          liveNames.add(normalizedName)
+        }
+      }
+    }
+
+    const staleNames = names.filter((name) => !liveNames.has(name))
+    for (const staleNameChunk of chunkArray(
+      staleNames,
+      getWhereInBatchSize(database, 1)
+    )) {
+      await database(SEARCH_DOCUMENTS_TABLE)
+        .where('entityType', 'hashtag')
+        .whereIn('entityId', staleNameChunk)
+        .delete()
+    }
+  }
 }
 
 const insertHashtagSearchDocumentPlaceholders = async (

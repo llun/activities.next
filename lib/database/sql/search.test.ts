@@ -1659,6 +1659,49 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('uses bounded lookups when removing stale hashtag search documents', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const queries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      queries.push(sql.toLowerCase())
+    }
+
+    try {
+      await database.migrate()
+      await database.upsertSearchDocument({
+        entityType: 'hashtag',
+        entityId: 'orphaned',
+        documentText: 'orphaned #orphaned',
+        postCount: 3,
+        lastPostAt: 1
+      })
+
+      knexDatabase.on('query', handleQuery)
+      await database.reindexSearchHashtags({
+        limit: 10
+      })
+      knexDatabase.off('query', handleQuery)
+
+      expect(queries.some((sql) => sql.includes('not exists'))).toBe(false)
+      expect(
+        queries.some(
+          (sql) =>
+            sql.includes('from `tags`') && sql.includes('`namenormalized` in')
+        )
+      ).toBe(true)
+    } finally {
+      knexDatabase.off('query', handleQuery)
+      await database.destroy()
+    }
+  })
+
   it('rebuilds hashtag search aggregates from legacy bare normalized tag names', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
