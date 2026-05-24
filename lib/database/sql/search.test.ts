@@ -1659,6 +1659,118 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('removes stale hashtag search documents with a non-null reindex cursor', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+      await database.upsertSearchDocument({
+        entityType: 'hashtag',
+        entityId: 'orphaned-cursor',
+        documentText: 'orphaned cursor #orphaned-cursor',
+        postCount: 3,
+        lastPostAt: 1
+      })
+
+      await database.reindexSearchHashtags({
+        afterId: '#already-scanned',
+        limit: 10
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'orphaned-cursor',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('reports reindex progress using the raw scanned row count', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/duplicate-normalized-hashtag`
+    const createdAt = new Date(1)
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await knexDatabase('statuses').insert({
+        id: statusId,
+        url: statusId,
+        urlHash: null,
+        actorId,
+        type: StatusType.enum.Note,
+        content: JSON.stringify({ text: 'Duplicate normalized hashtag' }),
+        reply: '',
+        replyHash: null,
+        originalStatusId: null,
+        createdAt,
+        updatedAt: createdAt
+      })
+      await knexDatabase('recipients').insert({
+        id: 'duplicate-normalized-hashtag-recipient',
+        statusId,
+        actorId: ACTIVITY_STREAM_PUBLIC,
+        type: 'to',
+        createdAt,
+        updatedAt: createdAt
+      })
+      await knexDatabase('tags').insert([
+        {
+          id: 'duplicate-normalized-hashtag-tag-1',
+          statusId,
+          type: 'hashtag',
+          name: '#Duplicate',
+          value: 'https://remote.test/tags/duplicate',
+          nameNormalized: '#duplicate',
+          createdAt,
+          updatedAt: createdAt
+        },
+        {
+          id: 'duplicate-normalized-hashtag-tag-2',
+          statusId,
+          type: 'hashtag',
+          name: 'Duplicate',
+          value: 'https://remote.test/tags/duplicate',
+          nameNormalized: 'duplicate',
+          createdAt,
+          updatedAt: createdAt
+        }
+      ])
+
+      await expect(
+        database.reindexSearchHashtags({
+          limit: 10
+        })
+      ).resolves.toMatchObject({
+        indexed: 2,
+        nextCursor: null
+      })
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('uses bounded lookups when removing stale hashtag search documents', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
@@ -2079,6 +2191,73 @@ describe('SearchDatabase foundation', () => {
         })
       ).resolves.toEqual([])
     } finally {
+      await database.destroy()
+    }
+  })
+
+  it('reads visibility-change hashtags inside the update transaction', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/transaction-visibility-hashtag`
+    const queries: string[] = []
+    const handleQuery = ({ sql }: { sql: string }) => {
+      queries.push(sql.toLowerCase())
+    }
+
+    try {
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [],
+        cc: [],
+        text: 'Private hashtag transaction',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#VisibilityTransaction',
+        value: 'https://remote.test/tags/visibilitytransaction'
+      })
+
+      knexDatabase.on('query', handleQuery)
+      await database.updateNoteVisibility({
+        statusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      knexDatabase.off('query', handleQuery)
+
+      const tagReadIndex = queries.findIndex(
+        (sql) =>
+          sql.startsWith('select `statusid`, `name` from `tags`') &&
+          sql.includes('`statusid` in')
+      )
+      const beginIndex = queries.findLastIndex(
+        (sql, index) => index < tagReadIndex && sql.startsWith('begin')
+      )
+      const commitIndex = queries.findIndex(
+        (sql, index) => index > tagReadIndex && sql.startsWith('commit')
+      )
+
+      expect(beginIndex).toBeGreaterThanOrEqual(0)
+      expect(tagReadIndex).toBeGreaterThan(beginIndex)
+      expect(commitIndex).toBeGreaterThan(tagReadIndex)
+    } finally {
+      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })

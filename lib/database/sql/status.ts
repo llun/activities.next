@@ -766,9 +766,7 @@ export const StatusSQLDatabaseMixin = (
     if (!status) return null
     if (status.type !== StatusType.enum.Note) return null
 
-    const affectedHashtags = status.tags
-      .filter((tag) => tag.type === 'hashtag')
-      .map((tag) => tag.name)
+    let affectedHashtags: string[] = []
     const currentTime = new Date()
     await database.transaction(async (trx) => {
       await trx('recipients').where('statusId', status.id).delete()
@@ -797,6 +795,8 @@ export const StatusSQLDatabaseMixin = (
           })
         )
       )
+      const hashtagTags = await selectHashtagTagsByStatusIds(trx, [status.id])
+      affectedHashtags = hashtagTags.map((tag) => tag.name)
     })
     if (affectedHashtags.length > 0) {
       await indexHashtagSearchDocuments(database, {
@@ -1682,13 +1682,18 @@ export const StatusSQLDatabaseMixin = (
     trx?: Knex.Transaction
   }) {
     if (!trx) {
-      const affectedHashtags: string[] = []
+      const collectedHashtags: string[] = []
       await database.transaction(async (trx) => {
-        await deleteStatus({ actorId, affectedHashtags, statusId, trx })
+        await deleteStatus({
+          actorId,
+          affectedHashtags: collectedHashtags,
+          statusId,
+          trx
+        })
       })
-      if (affectedHashtags.length > 0) {
+      if (collectedHashtags.length > 0) {
         await indexHashtagSearchDocuments(database, {
-          hashtags: [...new Set(affectedHashtags)]
+          hashtags: [...new Set(collectedHashtags)]
         })
       }
       return
@@ -1907,7 +1912,8 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     name,
     value,
-    type
+    type,
+    skipSearchIndex = false
   }: CreateTagParams): Promise<Tag> {
     const currentTime = new Date()
 
@@ -1928,7 +1934,7 @@ export const StatusSQLDatabaseMixin = (
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    if (type === 'hashtag') {
+    if (type === 'hashtag' && !skipSearchIndex) {
       await indexHashtagSearchDocument(database, { hashtag: name })
     }
     return data
@@ -1961,7 +1967,7 @@ export const StatusSQLDatabaseMixin = (
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
       .where('tags.type', 'hashtag')
       .whereIn('tags.nameNormalized', normalizedNames)
-      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .select('statuses.id', 'statuses.createdAt')
       .distinct()
@@ -2014,7 +2020,7 @@ export const StatusSQLDatabaseMixin = (
         .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
         .where('tags.type', 'hashtag')
         .whereIn('tags.nameNormalized', normalizedNames)
-        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
         .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
 
     const [rows, countResult] = await Promise.all([
@@ -2541,13 +2547,15 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     type,
     name,
-    value
+    value,
+    skipSearchIndex = false
   }: {
     actorId: string
     statusId: string
     type: string
     name: string
     value: string
+    skipSearchIndex?: boolean
   }) {
     await database('tags').insert({
       actorId,
@@ -2561,7 +2569,7 @@ export const StatusSQLDatabaseMixin = (
       createdAt: new Date(),
       updatedAt: new Date()
     })
-    if (type === 'hashtag') {
+    if (type === 'hashtag' && !skipSearchIndex) {
       await indexHashtagSearchDocument(database, { hashtag: name })
     }
   }

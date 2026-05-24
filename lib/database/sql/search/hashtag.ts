@@ -287,6 +287,8 @@ const lockHashtagSearchDocuments = async (
   trx: Knex.Transaction,
   names: string[]
 ) => {
+  // SQLite write transactions are serialized for this reindex flow, so there is
+  // no row-level lock equivalent to take before reading and writing aggregates.
   if (isSQLiteClient(trx)) return
 
   for (const nameChunk of chunkArray(names, getWhereInBatchSize(trx, 1))) {
@@ -425,9 +427,7 @@ export const reindexSearchHashtags = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
-  if (afterId === null) {
-    await deleteStaleHashtagSearchDocuments(database)
-  }
+  await deleteStaleHashtagSearchDocuments(database)
 
   const query = database('tags')
     .where('type', 'hashtag')
@@ -453,7 +453,7 @@ export const reindexSearchHashtags = async (
   await reindexHashtagSearchDocuments(database, normalizedNames)
 
   return {
-    indexed: normalizedNames.length,
+    indexed: rows.length,
     nextCursor:
       rows.length === limit ? rows[rows.length - 1].normalizedName : null
   }

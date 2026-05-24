@@ -20,7 +20,10 @@ import {
 } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
 import { normalizeActorId } from '@/lib/utils/activitypub'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { buildPubliclyReadableStatusIdsQuery } from './status'
@@ -2174,6 +2177,30 @@ describe('StatusDatabase', () => {
         expect(ids).toContain(statusId)
       })
 
+      it('returns compact public statuses with a given hashtag', async () => {
+        const statusId = `${primaryActorId}/statuses/compact-hashtag-test-${Date.now()}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC_COMPACT],
+          cc: [],
+          text: 'Hello #compacttesting'
+        })
+        await database.createTag({
+          statusId,
+          name: '#compacttesting',
+          value: `https://${actors.primary.domain}/tags/compacttesting`,
+          type: 'hashtag'
+        })
+
+        const results = await database.getStatusesByHashtag({
+          hashtag: 'compacttesting'
+        })
+        const ids = results.map((s) => s.id)
+        expect(ids).toContain(statusId)
+      })
+
       it('returns empty array for unknown hashtag', async () => {
         const results = await database.getStatusesByHashtag({
           hashtag: 'nonexistent_tag_xyz'
@@ -2620,6 +2647,33 @@ describe('StatusDatabase', () => {
           offset: 0
         })
         expect(statuses.length).toBe(3)
+      })
+
+      it('includes compact public posts in results and total', async () => {
+        const compactTag = `compact_pagetag_${Date.now()}`
+        const compactId = `${primaryActorId}/statuses/page-hashtag-${compactTag}`
+        await database.createNote({
+          id: compactId,
+          url: compactId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC_COMPACT],
+          cc: [],
+          text: `Compact public post #${compactTag}`
+        })
+        await database.createTag({
+          statusId: compactId,
+          name: `#${compactTag}`,
+          value: `https://${actors.primary.domain}/tags/${compactTag}`,
+          type: 'hashtag'
+        })
+
+        const { statuses, total } = await database.getHashtagStatusesPage({
+          hashtag: compactTag,
+          limit: 10,
+          offset: 0
+        })
+        expect(total).toBe(1)
+        expect(statuses.map((status) => status.id)).toContain(compactId)
       })
 
       it('returns empty results and zero total for unknown hashtag', async () => {

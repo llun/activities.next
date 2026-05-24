@@ -117,6 +117,28 @@ describe('Create note action', () => {
       expect(note.summary).toBe('Movie spoilers')
     })
 
+    it('batches hashtag search reindexing after hashtag tags are created', async () => {
+      const indexHashtagSearchDocuments = jest.spyOn(
+        database,
+        'indexHashtagSearchDocuments'
+      )
+
+      try {
+        await createNoteFromUserInput({
+          text: 'Batch this #BatchOne and #BatchTwo',
+          currentActor: actor1,
+          database
+        })
+
+        expect(indexHashtagSearchDocuments).toHaveBeenCalledTimes(1)
+        expect(indexHashtagSearchDocuments).toHaveBeenCalledWith({
+          hashtags: ['#BatchOne', '#BatchTwo']
+        })
+      } finally {
+        indexHashtagSearchDocuments.mockRestore()
+      }
+    })
+
     it('set reply to replyStatus id', async () => {
       const status = (await createNoteFromUserInput({
         text: 'Hello',

@@ -445,6 +445,7 @@ export type AddStatusTagParams = {
   type: TagType
   name: string
   value: string
+  skipSearchIndex?: boolean
 }
 
 export type GetActorStatusesCountParams = {
@@ -491,6 +492,7 @@ export type CreateTagParams = {
   name: string
   type: TagType
   value?: string
+  skipSearchIndex?: boolean
 }
 export type GetTagsParams = {
   statusId: string

@@ -77,7 +77,7 @@ const selectHashtagTagsByStatusIds = async (
   trx: Knex.Transaction,
   statusIds: string[]
 ) => {
-  const rows: { name: string; nameNormalized: string | null }[] = []
+  const rows: { name: string }[] = []
   for (const statusIdChunk of chunkArray(
     statusIds,
     getWhereInBatchSize(trx, 1)
@@ -86,9 +86,7 @@ const selectHashtagTagsByStatusIds = async (
       ...(await trx('tags')
         .whereIn('statusId', statusIdChunk)
         .where('type', 'hashtag')
-        .select<
-          { name: string; nameNormalized: string | null }[]
-        >('name', 'nameNormalized'))
+        .select<{ name: string }[]>('name'))
     )
   }
   return rows
@@ -1314,9 +1312,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       if (statusIds.length > 0) {
         const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
-        affectedHashtags.push(
-          ...hashtagTags.map((tag) => tag.nameNormalized ?? tag.name)
-        )
+        affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
 
         // Get poll choice IDs before deleting them
         const pollChoices = await selectPollChoiceIdsByStatusIds(trx, statusIds)
