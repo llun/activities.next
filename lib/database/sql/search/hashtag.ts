@@ -352,6 +352,7 @@ export const searchHashtags = async (
     return {
       name: document.entityId,
       url: getTagUrl(document.entityId),
+      // Trend history is not indexed yet; keep the Mastodon-compatible field empty.
       history: [],
       following: false,
       postCount: document.postCount ?? 0,
