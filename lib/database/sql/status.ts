@@ -1453,6 +1453,16 @@ export const StatusSQLDatabaseMixin = (
     return rows
   }
 
+  const statusActorMatches = (statusActorId: string, actorId: string) => {
+    const normalizedStatusActorId = normalizeActorId(statusActorId)
+    const normalizedExpectedActorId = normalizeActorId(actorId)
+    return (
+      normalizedStatusActorId !== null &&
+      normalizedExpectedActorId !== null &&
+      normalizedStatusActorId === normalizedExpectedActorId
+    )
+  }
+
   const selectLocalActorIds = async (
     trx: Knex.Transaction,
     actorIds: string[]
@@ -1605,19 +1615,9 @@ export const StatusSQLDatabaseMixin = (
     ) {
       let rows = await selectStatusDeletionRowsByIds(trx, currentStatusIds)
 
-      if (depth === 0 && actorId) {
-        const status = rows.find((row) => row.id === statusId)
-        if (!status) return []
-        const normalizedStoredActorId = normalizeActorId(status.actorId)
-        const normalizedExpectedActorId = normalizeActorId(actorId)
-        if (
-          !normalizedStoredActorId ||
-          !normalizedExpectedActorId ||
-          normalizedStoredActorId !== normalizedExpectedActorId
-        ) {
-          return []
-        }
-        rows = [status]
+      if (actorId) {
+        rows = rows.filter((row) => statusActorMatches(row.actorId, actorId))
+        if (depth === 0 && !rows.some((row) => row.id === statusId)) return []
       }
 
       if (rows.length === 0) {
@@ -1652,6 +1652,29 @@ export const StatusSQLDatabaseMixin = (
     }
 
     return levels.reverse().flat()
+  }
+
+  const deleteStatusRowsByIdChunks = async ({
+    actorId,
+    statuses,
+    trx
+  }: {
+    actorId?: string
+    statuses: StatusDeletionRow[]
+    trx: Knex.Transaction
+  }) => {
+    for (const statusChunk of chunkArray(statuses, getWhereInBatchSize(trx))) {
+      const query = trx('statuses').whereIn(
+        'id',
+        statusChunk.map((status) => status.id)
+      )
+      if (actorId) {
+        query.whereIn('actorId', [
+          ...new Set(statusChunk.map((status) => status.actorId))
+        ])
+      }
+      await query.delete()
+    }
   }
 
   async function deleteStatus({
@@ -1756,7 +1779,11 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
-    await deleteRowsByColumnChunks(trx, 'statuses', 'id', statusIdsToDelete)
+    await deleteStatusRowsByIdChunks({
+      actorId,
+      statuses: statusesToDelete,
+      trx
+    })
   }
 
   async function getFavouritedBy({
@@ -1935,6 +1962,8 @@ export const StatusSQLDatabaseMixin = (
       updatedAt: currentTime
     })
     if (type === 'hashtag' && !skipSearchIndex) {
+      // Hashtag search stores an aggregate across all public statuses for the
+      // tag, so the inserted row alone is not enough to update the document.
       await indexHashtagSearchDocument(database, { hashtag: name })
     }
     return data
@@ -2563,6 +2592,8 @@ export const StatusSQLDatabaseMixin = (
       updatedAt: new Date()
     })
     if (type === 'hashtag' && !skipSearchIndex) {
+      // Hashtag search stores an aggregate across all public statuses for the
+      // tag, so the inserted row alone is not enough to update the document.
       await indexHashtagSearchDocument(database, { hashtag: name })
     }
   }

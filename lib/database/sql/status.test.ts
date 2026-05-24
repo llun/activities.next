@@ -2342,6 +2342,42 @@ describe('StatusDatabase', () => {
         expect(await database.getStatus({ statusId })).toBeNull()
       })
 
+      it('keeps replies owned by other actors when deleting with an actor scope', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const parentStatusId = `${primaryActorId}/statuses/scoped-delete-parent-${suffix}`
+        const otherReplyStatusId = `${extraActorId}/statuses/scoped-delete-reply-${suffix}`
+
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Scoped delete parent'
+        })
+        await database.createNote({
+          id: otherReplyStatusId,
+          url: otherReplyStatusId,
+          actorId: extraActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reply owned by another actor',
+          reply: parentStatusId
+        })
+
+        await database.deleteStatus({
+          statusId: parentStatusId,
+          actorId: primaryActorId
+        })
+
+        expect(
+          await database.getStatus({ statusId: parentStatusId })
+        ).toBeNull()
+        expect(
+          await database.getStatus({ statusId: otherReplyStatusId })
+        ).not.toBeNull()
+      })
+
       it('decreases reply counter when deleting a reply', async () => {
         const parentStatusId = statuses.primary.post
         const replyStatusId = `${extraActorId}/statuses/reply-counter-delete-test`
