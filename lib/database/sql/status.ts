@@ -17,7 +17,6 @@ import {
 } from '@/lib/database/sql/utils/knex'
 import {
   StatusHashtagTagRow,
-  deleteRowsByOwnedStatusIdChunks,
   selectHashtagTagsByStatusIds
 } from '@/lib/database/sql/utils/status'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
@@ -1690,9 +1689,6 @@ export const StatusSQLDatabaseMixin = (
 
     const currentTime = new Date()
     const statusIdsToDelete = statusesToDelete.map((status) => status.id)
-    const statusActorIdsToDelete = statusesToDelete.map(
-      (status) => status.actorId
-    )
     await applyStatusDeletionCounterAdjustments({
       currentTime,
       statuses: statusesToDelete,
@@ -1729,24 +1725,24 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
-    await deleteRowsByOwnedStatusIdChunks({
-      database: trx,
-      tableName: 'status_history',
-      statusIds: statusIdsToDelete,
-      statusActorIds: statusActorIdsToDelete
-    })
-    await deleteRowsByOwnedStatusIdChunks({
-      database: trx,
-      tableName: 'poll_answers',
-      statusIds: statusIdsToDelete,
-      statusActorIds: statusActorIdsToDelete
-    })
-    await deleteRowsByOwnedStatusIdChunks({
-      database: trx,
-      tableName: 'poll_voters',
-      statusIds: statusIdsToDelete,
-      statusActorIds: statusActorIdsToDelete
-    })
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_history',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'poll_answers',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'poll_voters',
+      'statusId',
+      statusIdsToDelete
+    )
     await deleteRowsByColumnChunks(
       trx,
       'poll_choices',

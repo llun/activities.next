@@ -2645,24 +2645,17 @@ describe('StatusDatabase', () => {
           await expect(countRows('status_history', noteId)).resolves.toBe(0)
           await expect(countRows('poll_answers', pollId)).resolves.toBe(0)
           await expect(countRows('poll_voters', pollId)).resolves.toBe(0)
-          expect(
+          const hasDirectStatusIdDelete = (tableName: string) =>
             queries.some(
               (sql) =>
                 sql.startsWith('delete') &&
-                sql.includes('`status_history`') &&
+                sql.includes(`\`${tableName}\``) &&
                 sql.includes('`statusid` in') &&
-                sql.includes('`actorid` in')
+                !sql.includes('`actorid` in')
             )
-          ).toBe(true)
-          expect(
-            queries.some(
-              (sql) =>
-                sql.startsWith('delete') &&
-                sql.includes('`poll_answers`') &&
-                sql.includes('`statusid` in') &&
-                sql.includes('`actorid` in')
-            )
-          ).toBe(true)
+          expect(hasDirectStatusIdDelete('status_history')).toBe(true)
+          expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
+          expect(hasDirectStatusIdDelete('poll_voters')).toBe(true)
         } finally {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
