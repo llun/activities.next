@@ -203,36 +203,40 @@ const applyFollowingFilter = ({
 const getExactAccountIds = async ({
   database,
   q,
-  handle,
   localDomain,
   exactActorIds,
   followingActorId
 }: {
   database: Knex
   q: string
-  handle: ReturnType<typeof parseAccountHandle>
   localDomain?: string | null
   exactActorIds: string[]
   followingActorId?: string | null
 }) => {
+  const trimmedQuery = q.trim()
+  const handle = parseAccountHandle(trimmedQuery)
+  const normalizedLocalDomain = localDomain?.toLowerCase() ?? null
   const localUsername =
-    !handle && localDomain && !q.includes('@')
-      ? q.trim().replace(/^@/, '')
+    !handle && normalizedLocalDomain && !trimmedQuery.includes('@')
+      ? trimmedQuery
       : null
-  const exactHandle = handle ?? {
-    username: localUsername ?? '',
-    domain: localDomain?.toLowerCase() ?? ''
-  }
-  const handleActorRows =
-    handle || localUsername
-      ? await database('actors')
-          .select<{ id: string }[]>('actors.id')
-          .whereRaw('LOWER(??) = ?', [
-            'actors.username',
-            exactHandle.username.toLowerCase()
-          ])
-          .whereRaw('LOWER(??) = ?', ['actors.domain', exactHandle.domain])
-      : []
+  const exactHandle =
+    handle ??
+    (localUsername && normalizedLocalDomain
+      ? {
+          username: localUsername,
+          domain: normalizedLocalDomain
+        }
+      : null)
+  const handleActorRows = exactHandle
+    ? await database('actors')
+        .select<{ id: string }[]>('actors.id')
+        .whereRaw('LOWER(??) = ?', [
+          'actors.username',
+          exactHandle.username.toLowerCase()
+        ])
+        .whereRaw('LOWER(??) = ?', ['actors.domain', exactHandle.domain])
+    : []
   const normalizedExactActorIds = [
     ...new Set([...exactActorIds, ...handleActorRows.map((row) => row.id)])
   ]
@@ -320,7 +324,6 @@ export const searchAccountIds = async (
     exactActorIds = []
   }: SearchAccountsParams
 ): Promise<string[]> => {
-  const handle = parseAccountHandle(q)
   const normalizedQuery = q.trim().replace(/^@/, '').toLowerCase()
   const normalizedExactActorIds = [...new Set(exactActorIds)]
   // Only visible exact matches participate in pagination; filtered exact IDs
@@ -328,7 +331,6 @@ export const searchAccountIds = async (
   const exactResultIds = await getExactAccountIds({
     database,
     q,
-    handle,
     localDomain,
     exactActorIds: normalizedExactActorIds,
     followingActorId

@@ -932,6 +932,12 @@ describe('SearchDatabase foundation', () => {
       ).resolves.toEqual([actorId])
       await expect(
         database.searchAccountIds({
+          q: 'secret',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchAccountIds({
           q: '@secret@remote.test',
           limit: 10
         })
@@ -940,6 +946,13 @@ describe('SearchDatabase foundation', () => {
         .where('id', actorId)
         .update({ username: 'Secret' })
       await database.indexActorSearchDocument({ id: actorId })
+      await expect(
+        database.searchAccountIds({
+          q: 'secret',
+          limit: 10,
+          localDomain: 'remote.test'
+        })
+      ).resolves.toEqual([actorId])
       await expect(
         database.searchAccountIds({
           q: '@secret@remote.test',
