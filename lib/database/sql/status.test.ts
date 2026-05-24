@@ -2512,6 +2512,17 @@ describe('StatusDatabase', () => {
         const sqlDatabase = getSQLDatabase(knexDatabase)
         const actorId = 'https://remote.test/users/deep-replies'
         const rootStatusId = `${actorId}/statuses/deep-0`
+        const overLimitStatusId = `${actorId}/statuses/deep-100`
+        const queries: { bindings: unknown[]; sql: string }[] = []
+        const handleQuery = ({
+          bindings,
+          sql
+        }: {
+          bindings?: unknown[]
+          sql: string
+        }) => {
+          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
+        }
 
         try {
           await sqlDatabase.migrate()
@@ -2550,15 +2561,26 @@ describe('StatusDatabase', () => {
             })
           }
 
+          knexDatabase.on('query', handleQuery)
           await expect(
             sqlDatabase.deleteStatus({ statusId: rootStatusId })
           ).rejects.toThrow(
             `Status reply deletion depth limit exceeded for status ${rootStatusId}`
           )
+          knexDatabase.off('query', handleQuery)
+
+          expect(
+            queries.some(
+              ({ bindings, sql }) =>
+                sql.includes('from `statuses`') &&
+                bindings.includes(overLimitStatusId)
+            )
+          ).toBe(false)
           await expect(
             knexDatabase('statuses').where('id', rootStatusId).first('id')
           ).resolves.toEqual({ id: rootStatusId })
         } finally {
+          knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
         }
       })

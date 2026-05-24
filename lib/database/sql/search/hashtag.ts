@@ -214,8 +214,9 @@ const deleteStaleHashtagSearchDocuments = async (database: KnexConnection) => {
   const batchSize = STALE_HASHTAG_SEARCH_CLEANUP_BATCH_SIZE
   let afterEntityId: string | null = null
 
-  // Walk documents in bounded cursor pages; each page performs one batched
-  // tags lookup with WHERE IN instead of one lookup per document.
+  // search_documents.entityType is indexed by migration; walk matching
+  // documents in bounded cursor pages, then do one batched tags lookup with
+  // WHERE IN per page instead of one lookup per document.
   while (true) {
     const query = database(SEARCH_DOCUMENTS_TABLE)
       .where('entityType', 'hashtag')

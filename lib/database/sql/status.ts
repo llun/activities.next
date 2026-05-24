@@ -1614,11 +1614,11 @@ export const StatusSQLDatabaseMixin = (
     const seen = new Set<string>([statusId])
     let currentStatusIds = [statusId]
 
-    for (
-      let depth = 0;
-      currentStatusIds.length > 0 && depth <= MAX_STATUS_REPLY_DELETE_DEPTH;
-      depth += 1
-    ) {
+    for (let depth = 0; currentStatusIds.length > 0; depth += 1) {
+      if (depth >= MAX_STATUS_REPLY_DELETE_DEPTH) {
+        throw statusReplyDeletionDepthError(statusId)
+      }
+
       let rows = await selectStatusDeletionRowsByIds(trx, currentStatusIds)
 
       if (actorId) {
@@ -1646,15 +1646,7 @@ export const StatusSQLDatabaseMixin = (
         }
       }
 
-      if (nextStatusIds.length > 0 && depth >= MAX_STATUS_REPLY_DELETE_DEPTH) {
-        throw statusReplyDeletionDepthError(statusId)
-      }
-
       currentStatusIds = nextStatusIds
-    }
-
-    if (currentStatusIds.length > 0) {
-      throw statusReplyDeletionDepthError(statusId)
     }
 
     return levels.reverse().flat()
@@ -1703,6 +1695,9 @@ export const StatusSQLDatabaseMixin = (
         })
       })
       if (collectedHashtags.length > 0) {
+        // Keep hashtag aggregate writes outside the delete transaction. A full
+        // reindexSearchHashtags run can reconcile this if the process exits
+        // after commit and before this best-effort refresh completes.
         await indexHashtagSearchDocuments(database, {
           hashtags: [...new Set(collectedHashtags)]
         })
