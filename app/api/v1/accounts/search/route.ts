@@ -77,26 +77,34 @@ export const GET = traceApiRoute(
       }
 
       let indexedIds = await database.searchAccountIds(getSearchParams())
-      if (resolve && offset === 0 && indexedIds.length === 0) {
-        const handle = parseAccountHandle(query)
-        if (handle) {
-          const actorId = await getWebfingerSelf({
-            account: `${handle.username}@${handle.domain}`
-          })
-          const actor = actorId
-            ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
-            : null
-          if (actor) {
-            indexedIds = await database.searchAccountIds(
-              getSearchParams([actor.id])
-            )
-          }
-        }
-      }
-
-      const results = await database.getMastodonActorsFromIds({
+      let results = await database.getMastodonActorsFromIds({
         ids: indexedIds
       })
+
+      const handle = resolve && offset === 0 ? parseAccountHandle(query) : null
+      const exactAcct = handle
+        ? `${handle.username}@${handle.domain}`.toLowerCase()
+        : null
+      const hasExactHandle = exactAcct
+        ? results.some((actor) => actor.acct.toLowerCase() === exactAcct)
+        : false
+
+      if (handle && !hasExactHandle) {
+        const actorId = await getWebfingerSelf({
+          account: `${handle.username}@${handle.domain}`
+        })
+        const actor = actorId
+          ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+          : null
+        if (actor) {
+          indexedIds = await database.searchAccountIds(
+            getSearchParams([actor.id])
+          )
+          results = await database.getMastodonActorsFromIds({
+            ids: indexedIds
+          })
+        }
+      }
 
       return apiResponse({
         req,

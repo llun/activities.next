@@ -223,6 +223,13 @@ describe('GET /api/v1/accounts/search', () => {
     mockSearchAccountIds.mockResolvedValue([
       'https://remote.test/users/Charlie'
     ])
+    mockGetMastodonActorsFromIds.mockResolvedValue([
+      {
+        id: 'https://remote.test/users/Charlie',
+        username: 'Charlie',
+        acct: 'Charlie@remote.test'
+      }
+    ])
 
     const response = await GET(
       new NextRequest(
@@ -245,6 +252,61 @@ describe('GET /api/v1/accounts/search', () => {
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://remote.test/users/Charlie']
+    })
+  })
+
+  it('webfingers remote handles when indexed search only finds unrelated accounts', async () => {
+    const resolvedActor = { id: 'https://remote.test/users/charlie' }
+    mockGetWebfingerSelf.mockResolvedValue(resolvedActor.id)
+    mockRecordActorIfNeeded.mockResolvedValue(resolvedActor)
+    mockSearchAccountIds
+      .mockResolvedValueOnce(['https://llun.test/users/charlie-brown'])
+      .mockResolvedValueOnce([
+        resolvedActor.id,
+        'https://llun.test/users/charlie-brown'
+      ])
+    mockGetMastodonActorsFromIds
+      .mockResolvedValueOnce([
+        {
+          id: 'https://llun.test/users/charlie-brown',
+          username: 'charlie-brown',
+          acct: 'charlie-brown@llun.test'
+        }
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: resolvedActor.id,
+          username: 'charlie',
+          acct: 'charlie@remote.test'
+        },
+        {
+          id: 'https://llun.test/users/charlie-brown',
+          username: 'charlie-brown',
+          acct: 'charlie-brown@llun.test'
+        }
+      ])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=@charlie@remote.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+      account: 'charlie@remote.test'
+    })
+    expect(mockSearchAccountIds).toHaveBeenNthCalledWith(2, {
+      q: '@charlie@remote.test',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: [resolvedActor.id]
+    })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenLastCalledWith({
+      ids: [resolvedActor.id, 'https://llun.test/users/charlie-brown']
     })
   })
 })
