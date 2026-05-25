@@ -24,6 +24,7 @@ import {
 } from './hashtag'
 import {
   deleteStatusSearchDocument,
+  deleteStatusSearchDocumentsByStatusIds,
   indexStatusSearchDocument,
   reindexSearchStatuses,
   searchStatusIds
@@ -60,6 +61,7 @@ export {
   deleteHashtagSearchDocument,
   deleteSearchDocument,
   deleteStatusSearchDocument,
+  deleteStatusSearchDocumentsByStatusIds,
   getSearchTokens,
   indexActorSearchDocument,
   indexHashtagSearchDocument,
@@ -75,3 +77,5 @@ export {
   searchStatusIds,
   upsertSearchDocument
 }
+
+export type { SQLStatusSearchRow } from './status'

@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 import { getConfig } from '@/lib/config'
 import {
   deleteActorSearchDocument,
+  deleteStatusSearchDocumentsByStatusIds,
   indexActorSearchDocument,
   indexHashtagSearchDocuments,
   normalizeHashtagSearchName
@@ -25,6 +26,7 @@ import {
   deleteRowsByColumnChunks,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
@@ -146,21 +148,6 @@ const insertActorWithSearchIndex = async (
     await trx('actors').insert(actor)
     await indexActorSearchDocument(trx, { id: actorId, actor })
   })
-}
-
-const parseStatusContent = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  content: any
-): string | Record<string, unknown> | null => {
-  if (!content) return null
-  if (typeof content === 'string') {
-    try {
-      return getCompatibleJSON(content)
-    } catch {
-      return content
-    }
-  }
-  return content
 }
 
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
@@ -1364,6 +1351,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Delete statuses
       await trx('statuses').where('actorId', actorId).delete()
+      if (statusIds.length > 0) {
+        await deleteStatusSearchDocumentsByStatusIds(trx, statusIds)
+      }
 
       // Delete follows (both directions)
       await trx('follows').where('actorId', actorId).delete()
