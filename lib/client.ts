@@ -1979,6 +1979,13 @@ const emptySearchResult = (): SearchResult => ({
   hashtags: []
 })
 
+const MAX_SEARCH_ERROR_DETAIL_LENGTH = 200
+
+const truncateSearchErrorDetail = (detail: string) =>
+  detail.length > MAX_SEARCH_ERROR_DETAIL_LENGTH
+    ? `${detail.slice(0, MAX_SEARCH_ERROR_DETAIL_LENGTH)}...`
+    : detail
+
 const getSearchResponseErrorMessage = (response: Response, text: string) => {
   let detail = text || response.statusText
 
@@ -1993,7 +2000,7 @@ const getSearchResponseErrorMessage = (response: Response, text: string) => {
             ? data.status
             : detail
   } catch {
-    // Keep the raw response text for non-JSON failures.
+    detail = truncateSearchErrorDetail(detail)
   }
 
   return `Search request failed (${response.status})${detail ? `: ${detail}` : ''}`

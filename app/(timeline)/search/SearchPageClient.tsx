@@ -160,12 +160,15 @@ const getAccountHandle = (account: MastodonAccount, host: string) => {
 
 const getAccountInitial = (account: MastodonAccount) => {
   const name = account.display_name || account.username || account.acct || ''
-  return name.trim()[0]?.toUpperCase() ?? '?'
+  const trimmed = name.trim()
+  return Array.from(trimmed)[0]?.toUpperCase() ?? '?'
 }
 
 const getTagPostCount = (tag: SearchTag) => {
   if (typeof tag.postCount === 'number') return tag.postCount
-  const historyCount = Number(tag.history?.[0]?.uses)
+  const uses = tag.history?.[0]?.uses
+  if (uses === undefined || uses === null || uses === '') return null
+  const historyCount = Number(uses)
   return Number.isFinite(historyCount) ? historyCount : null
 }
 
@@ -247,16 +250,21 @@ export const SearchPageClient = ({
 }: SearchPageClientProps) => {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialQuery = searchParams.get('q') ?? ''
-  const initialTab = getSearchTab(searchParams.get('type'))
-  const [inputValue, setInputValue] = useState(initialQuery)
-  const [submittedQuery, setSubmittedQuery] = useState(initialQuery)
-  const [activeTab, setActiveTab] = useState<SearchTab>(initialTab)
+  const [inputValue, setInputValue] = useState(
+    () => searchParams.get('q') ?? ''
+  )
+  const [submittedQuery, setSubmittedQuery] = useState(
+    () => searchParams.get('q') ?? ''
+  )
+  const [activeTab, setActiveTab] = useState<SearchTab>(() =>
+    getSearchTab(searchParams.get('type'))
+  )
   const [results, setResults] = useState<SearchResult>(emptySearchResult)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const submittedQueryRef = useRef(submittedQuery)
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -269,10 +277,17 @@ export const SearchPageClient = ({
   }, [])
 
   useEffect(() => {
+    submittedQueryRef.current = submittedQuery
+  }, [submittedQuery])
+
+  useEffect(() => {
     const nextQuery = searchParams.get('q') ?? ''
     const nextTab = getSearchTab(searchParams.get('type'))
-    setInputValue(nextQuery)
+    if (submittedQueryRef.current !== nextQuery) {
+      setInputValue(nextQuery)
+    }
     setSubmittedQuery(nextQuery)
+    submittedQueryRef.current = nextQuery
     setActiveTab(nextTab)
   }, [searchParams])
 
@@ -339,9 +354,17 @@ export const SearchPageClient = ({
     event.preventDefault()
     const query = inputValue.trim()
     const nextTab = query ? activeTab : 'all'
+    const previousSubmittedQuery = submittedQueryRef.current
+    if (!query) setInputValue('')
+    submittedQueryRef.current = query
     setSubmittedQuery(query)
     setActiveTab(nextTab)
-    router.replace(getSearchPath(query, nextTab))
+    const nextPath = getSearchPath(query, nextTab)
+    if (query && query !== previousSubmittedQuery) {
+      router.push(nextPath)
+    } else {
+      router.replace(nextPath)
+    }
   }
 
   const onTabChange = (value: string) => {
@@ -482,12 +505,18 @@ export const SearchPageClient = ({
 
       <section className="overflow-hidden rounded-lg border bg-background/80 shadow-sm">
         {error && !hasVisibleResults ? (
-          <div className="p-8 text-center text-muted-foreground">
+          <div
+            className="p-8 text-center text-muted-foreground"
+            aria-live="assertive"
+          >
             <h2 className="mb-2 text-xl font-semibold">Search failed</h2>
             <p>Try again in a moment.</p>
           </div>
         ) : isLoading ? (
-          <div className="p-8 text-center text-muted-foreground">
+          <div
+            className="p-8 text-center text-muted-foreground"
+            aria-live="polite"
+          >
             <p className="text-sm font-medium">Searching...</p>
           </div>
         ) : !submittedQuery.trim() ? (

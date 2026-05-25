@@ -471,6 +471,15 @@ describe('client search', () => {
       'Search request failed (502): Bad gateway'
     )
   })
+
+  it('truncates long raw response text from failed search requests', async () => {
+    const longResponseText = 'x'.repeat(250)
+    fetchMock.mockResponseOnce(longResponseText, { status: 502 })
+
+    await expect(search({ q: 'trail' })).rejects.toThrow(
+      `Search request failed (502): ${'x'.repeat(200)}...`
+    )
+  })
 })
 
 describe('fitness route heatmap client calls', () => {

@@ -2,8 +2,8 @@
 
 import { Search as SearchIcon } from 'lucide-react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { FormEvent, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { FormEvent, useEffect, useState } from 'react'
 
 import {
   ActorInfo,
@@ -48,8 +48,15 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
-  const [searchQuery, setSearchQuery] = useState('')
+  const currentSearchQuery =
+    pathname === '/search' ? (searchParams.get('q') ?? '') : ''
+  const [searchQuery, setSearchQuery] = useState(() => currentSearchQuery)
+
+  useEffect(() => {
+    setSearchQuery(currentSearchQuery)
+  }, [currentSearchQuery])
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'

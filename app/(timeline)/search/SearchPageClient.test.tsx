@@ -30,6 +30,7 @@ jest.mock('@/lib/components/posts/posts', () => ({
 
 const mockSearch = search as jest.Mock
 const replace = jest.fn()
+const push = jest.fn()
 
 const currentActor = {
   id: 'https://local.example/users/searcher',
@@ -82,7 +83,7 @@ const emptySearchResult = () => ({
 })
 
 const renderSearchPage = (params = '') => {
-  ;(useRouter as jest.Mock).mockReturnValue({ replace })
+  ;(useRouter as jest.Mock).mockReturnValue({ replace, push })
   ;(useSearchParams as jest.Mock).mockReturnValue(new URLSearchParams(params))
 
   return render(
@@ -115,6 +116,7 @@ describe('SearchPageClient', () => {
   beforeEach(() => {
     mockSearch.mockReset()
     replace.mockReset()
+    push.mockReset()
   })
 
   it('initializes from the URL query and renders grouped all results', async () => {
@@ -171,6 +173,25 @@ describe('SearchPageClient', () => {
     expect(screen.queryByText(/posts$/)).not.toBeInTheDocument()
   })
 
+  it('does not coerce empty hashtag history usage into a post count', async () => {
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      hashtags: [
+        {
+          name: 'emptyuses',
+          url: 'https://local.example/tags/emptyuses',
+          history: [{ day: '0', uses: '', accounts: '1' }]
+        }
+      ]
+    })
+
+    renderSearchPage('q=emptyuses&type=hashtags')
+
+    expect(await screen.findByText('#emptyuses')).toBeInTheDocument()
+    expect(screen.queryByText('0 posts')).not.toBeInTheDocument()
+    expect(screen.queryByText(/posts$/)).not.toBeInTheDocument()
+  })
+
   it('renders hashtag counts without Array.prototype.at support', async () => {
     const arrayAt = Array.prototype.at
     Object.defineProperty(Array.prototype, 'at', {
@@ -221,6 +242,18 @@ describe('SearchPageClient', () => {
     expect(screen.getByText('?')).toBeInTheDocument()
   })
 
+  it('renders a full Unicode character for profile avatar initials', async () => {
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      accounts: [account('emoji-account', '😀 Runner', 'emoji@remote.example')]
+    })
+
+    renderSearchPage('q=emoji&type=accounts')
+
+    expect(await screen.findByText('😀 Runner')).toBeInTheDocument()
+    expect(screen.getByText('😀')).toBeInTheDocument()
+  })
+
   it('renders profile notes with entity decoding and sanitized markup', async () => {
     mockSearch.mockResolvedValueOnce({
       ...emptySearchResult(),
@@ -251,7 +284,7 @@ describe('SearchPageClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith('/search?q=cycling')
+      expect(push).toHaveBeenCalledWith('/search?q=cycling')
     })
     expect(mockSearch).toHaveBeenCalledWith(
       expect.objectContaining({ q: 'cycling' })
@@ -264,6 +297,79 @@ describe('SearchPageClient', () => {
 
     expect(replace).toHaveBeenCalledWith('/search')
     expect(screen.getByText('No search yet')).toBeInTheDocument()
+  })
+
+  it('uses replace when resubmitting the current search query', async () => {
+    mockSearch.mockResolvedValue(emptySearchResult())
+
+    renderSearchPage('q=cycling')
+
+    await waitFor(() => {
+      expect(mockSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'cycling' })
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(replace).toHaveBeenCalledWith('/search?q=cycling')
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('keeps draft input when URL tab state changes without a new query', async () => {
+    let params = new URLSearchParams('q=runner&type=accounts')
+    ;(useRouter as jest.Mock).mockReturnValue({ replace, push })
+    ;(useSearchParams as jest.Mock).mockImplementation(() => params)
+    const initialSearch = createDeferred<ReturnType<typeof emptySearchResult>>()
+    const tabSearch = createDeferred<ReturnType<typeof emptySearchResult>>()
+    mockSearch
+      .mockReturnValueOnce(initialSearch.promise)
+      .mockReturnValueOnce(tabSearch.promise)
+
+    const { rerender } = render(
+      <SearchPageClient
+        host="local.example"
+        currentActor={currentActor}
+        currentTime={1_779_664_800_000}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mockSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'runner', type: 'accounts' })
+      )
+    })
+    await act(async () => {
+      initialSearch.resolve(emptySearchResult())
+      await initialSearch.promise
+    })
+
+    const input = screen.getByRole('searchbox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'runner draft' } })
+    expect(input).toHaveValue('runner draft')
+
+    params = new URLSearchParams('q=runner&type=statuses')
+    rerender(
+      <SearchPageClient
+        host="local.example"
+        currentActor={currentActor}
+        currentTime={1_779_664_800_000}
+      />
+    )
+
+    expect(screen.getByRole('searchbox', { name: 'Search' })).toHaveValue(
+      'runner draft'
+    )
+
+    await waitFor(() => {
+      expect(mockSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'runner', type: 'statuses' })
+      )
+    })
+    await act(async () => {
+      tabSearch.resolve(emptySearchResult())
+      await tabSearch.promise
+    })
   })
 
   it('loads more results from the selected typed tab offset', async () => {
@@ -501,7 +607,24 @@ describe('SearchPageClient', () => {
 
     renderSearchPage('q=trail')
 
-    expect(await screen.findByText('Search failed')).toBeInTheDocument()
+    const heading = await screen.findByText('Search failed')
+    expect(heading).toBeInTheDocument()
+    expect(heading.closest('div')).toHaveAttribute('aria-live', 'assertive')
+  })
+
+  it('announces searching status politely', async () => {
+    const pendingSearch = createDeferred<ReturnType<typeof emptySearchResult>>()
+    mockSearch.mockReturnValueOnce(pendingSearch.promise)
+
+    renderSearchPage('q=trail')
+
+    const status = await screen.findByText('Searching...')
+    expect(status.closest('div')).toHaveAttribute('aria-live', 'polite')
+
+    await act(async () => {
+      pendingSearch.resolve(emptySearchResult())
+      await pendingSearch.promise
+    })
   })
 
   it('ignores stale responses from earlier searches', async () => {

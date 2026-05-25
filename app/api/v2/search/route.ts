@@ -60,6 +60,8 @@ const BooleanParam = z.string().transform((value) => {
 const SearchParams = z.object({
   q: z.string(),
   type: SearchTypeParam.optional(),
+  // The app search UI still consumes Mastodon-shaped accounts and hashtags;
+  // this format flag only keeps statuses in the app's domain shape.
   format: z.enum(['activities_next']).optional(),
   resolve: BooleanParam.optional(),
   following: BooleanParam.optional(),
