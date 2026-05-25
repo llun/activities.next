@@ -153,6 +153,9 @@ const appendTabResults = (
   return previous
 }
 
+const isAbortError = (err: unknown) =>
+  err instanceof Error && err.name === 'AbortError'
+
 const getAccountUsername = (account: MastodonAccount) =>
   account.username || account.acct?.split('@')[0] || 'unknown'
 
@@ -340,7 +343,7 @@ export const SearchPageClient = ({
       })
       .catch((err) => {
         if (requestIdRef.current !== requestId) return
-        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (isAbortError(err)) return
         setResults(emptySearchResult())
         setError(true)
       })
@@ -428,7 +431,7 @@ export const SearchPageClient = ({
       setHasMore(getTabResults(nextResults, activeTab).length === SEARCH_LIMIT)
     } catch (err) {
       if (requestIdRef.current !== requestId) return
-      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (isAbortError(err)) return
       setError(true)
     } finally {
       if (requestIdRef.current === requestId) {

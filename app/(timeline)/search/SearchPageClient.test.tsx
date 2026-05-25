@@ -112,6 +112,27 @@ const createDeferred = <T,>() => {
   return { promise, resolve, reject }
 }
 
+const withoutDOMException = async (callback: () => Promise<void>) => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'DOMException')
+  Object.defineProperty(globalThis, 'DOMException', {
+    configurable: true,
+    value: undefined
+  })
+
+  try {
+    await callback()
+  } finally {
+    if (descriptor) {
+      Object.defineProperty(globalThis, 'DOMException', descriptor)
+    } else {
+      Reflect.deleteProperty(globalThis, 'DOMException')
+    }
+  }
+}
+
+const abortError = () =>
+  Object.assign(new Error('Search aborted'), { name: 'AbortError' })
+
 describe('SearchPageClient', () => {
   beforeEach(() => {
     mockSearch.mockReset()
@@ -655,6 +676,20 @@ describe('SearchPageClient', () => {
     expect(heading.closest('div')).toHaveAttribute('aria-live', 'assertive')
   })
 
+  it('ignores aborted searches when DOMException is unavailable', async () => {
+    await withoutDOMException(async () => {
+      mockSearch.mockRejectedValueOnce(abortError())
+
+      renderSearchPage('q=trail')
+
+      expect(await screen.findByText('Searching...')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByText('Searching...')).not.toBeInTheDocument()
+      })
+      expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
+    })
+  })
+
   it('announces searching status politely', async () => {
     const pendingSearch = createDeferred<ReturnType<typeof emptySearchResult>>()
     mockSearch.mockReturnValueOnce(pendingSearch.promise)
@@ -667,6 +702,32 @@ describe('SearchPageClient', () => {
     await act(async () => {
       pendingSearch.resolve(emptySearchResult())
       await pendingSearch.promise
+    })
+  })
+
+  it('ignores aborted pagination errors when DOMException is unavailable', async () => {
+    await withoutDOMException(async () => {
+      mockSearch
+        .mockResolvedValueOnce({
+          ...emptySearchResult(),
+          accounts: Array.from({ length: 20 }, (_, index) =>
+            account(`account-${index}`, `Runner ${index}`, `runner${index}`)
+          )
+        })
+        .mockRejectedValueOnce(abortError())
+
+      renderSearchPage('q=runner&type=accounts')
+
+      expect(await screen.findByText('Runner 0')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+      })
+      expect(
+        screen.queryByText('Failed to load more results. Please try again.')
+      ).not.toBeInTheDocument()
+      expect(screen.getByText('Runner 0')).toBeInTheDocument()
     })
   })
 
