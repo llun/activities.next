@@ -391,11 +391,17 @@ export const createNoteFromUserInput = async ({
         statusId,
         name: hashtag.name,
         value: hashtag.value,
-        type: 'hashtag'
+        type: 'hashtag',
+        skipSearchIndex: true
       })
       await database.increaseHashtagCounter({ hashtag: hashtag.name })
     })
   ])
+  if (hashtags.length > 0) {
+    await database.indexHashtagSearchDocuments({
+      hashtags: hashtags.map((hashtag) => hashtag.name)
+    })
+  }
 
   await Promise.all([
     addStatusToTimelines(database, createdStatus),

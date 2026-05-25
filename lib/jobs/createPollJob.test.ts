@@ -347,6 +347,43 @@ describe('createPollJob', () => {
     )
   })
 
+  it('batches hashtag search reindexing after hashtag tags are created', async () => {
+    const indexHashtagSearchDocuments = jest.spyOn(
+      database,
+      'indexHashtagSearchDocuments'
+    )
+    const question = MockActivityPubQuestion({
+      tags: [
+        {
+          type: 'Hashtag',
+          name: '#pollone',
+          href: 'https://example.com/tags/pollone'
+        },
+        {
+          type: 'Hashtag',
+          name: '#polltwo',
+          href: 'https://example.com/tags/polltwo'
+        }
+      ]
+    })
+
+    try {
+      await createPollJob(database, {
+        id: 'id-batched-poll-hashtags',
+        name: CREATE_POLL_JOB_NAME,
+        data: question,
+        verifiedSenderActorId: question.attributedTo
+      })
+
+      expect(indexHashtagSearchDocuments).toHaveBeenCalledTimes(1)
+      expect(indexHashtagSearchDocuments).toHaveBeenCalledWith({
+        hashtags: ['#pollone', '#polltwo']
+      })
+    } finally {
+      indexHashtagSearchDocuments.mockRestore()
+    }
+  })
+
   it('handles poll as reply', async () => {
     const replyToId = `${actor1?.id}/statuses/post-1`
     const question = MockActivityPubQuestion({

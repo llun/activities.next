@@ -37,7 +37,10 @@ exports.up = async (knex) => {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
-    table.index(['entityType'], 'search_documents_entity_type')
+    table.index(
+      ['entityType', 'entityId'],
+      'search_documents_entity_type_entity_id'
+    )
     table.index(['actorId'], 'search_documents_actor')
     table.index(['entityCreatedAt'], 'search_documents_entity_created')
     table.index(['postCount'], 'search_documents_post_count')

@@ -2,6 +2,7 @@ import { deleteStatus } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { Actor } from '@/lib/types/domain/actor'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { getSpan } from '@/lib/utils/trace'
 
@@ -24,6 +25,16 @@ export const deleteStatusFromUserInput = async ({
     span.end()
     return
   }
+  const normalizedCurrentActorId = normalizeActorId(currentActor.id)
+  const normalizedStatusActorId = normalizeActorId(originalStatus.actorId)
+  if (
+    !normalizedCurrentActorId ||
+    !normalizedStatusActorId ||
+    normalizedCurrentActorId !== normalizedStatusActorId
+  ) {
+    span.end()
+    return
+  }
 
   const inboxes = await getFederatedStatusDeliveryInboxes({
     database,
@@ -43,6 +54,6 @@ export const deleteStatusFromUserInput = async ({
       })
     })
   )
-  await database.deleteStatus({ statusId })
+  await database.deleteStatus({ statusId, actorId: currentActor.id })
   span.end()
 }

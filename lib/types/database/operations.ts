@@ -445,6 +445,12 @@ export type AddStatusTagParams = {
   type: TagType
   name: string
   value: string
+  /**
+   * For multi-hashtag insert flows only. Callers that set this for hashtag tags
+   * must call indexHashtagSearchDocuments once after all skipped tags are
+   * inserted.
+   */
+  skipSearchIndex?: boolean
 }
 
 export type GetActorStatusesCountParams = {
@@ -491,6 +497,12 @@ export type CreateTagParams = {
   name: string
   type: TagType
   value?: string
+  /**
+   * For multi-hashtag insert flows only. Callers that set this for hashtag tags
+   * must call indexHashtagSearchDocuments once after all skipped tags are
+   * inserted.
+   */
+  skipSearchIndex?: boolean
 }
 export type GetTagsParams = {
   statusId: string
@@ -711,6 +723,7 @@ export interface SearchDatabase {
   ): Promise<ReindexSearchDocumentsResult>
   searchHashtags(params: SearchHashtagsParams): Promise<SearchHashtag[]>
   indexHashtagSearchDocument(params: { hashtag: string }): Promise<void>
+  indexHashtagSearchDocuments(params: { hashtags: string[] }): Promise<void>
   deleteHashtagSearchDocument(params: { hashtag: string }): Promise<void>
   reindexSearchHashtags(
     params?: ReindexSearchDocumentsParams

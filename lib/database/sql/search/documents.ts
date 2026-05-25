@@ -2,6 +2,11 @@ import { Knex } from 'knex'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  isMySQLClient,
+  isPostgresClient,
+  isSQLiteClient
+} from '@/lib/database/sql/utils/knex'
+import {
   DeleteSearchDocumentParams,
   SearchDocument,
   SearchDocumentEntityType,
@@ -44,20 +49,6 @@ export const getSearchTokens = (value: string): string[] =>
         ?.filter((token) => token.length > 0) ?? []
     )
   )
-
-const SQLITE_CLIENTS = new Set(['sqlite3', 'better-sqlite3'])
-const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
-const MYSQL_CLIENTS = new Set(['mysql', 'mysql2'])
-
-const getClientName = (database: Knex) =>
-  String(database.client.config.client).toLowerCase()
-
-const isSQLite = (database: Knex) => SQLITE_CLIENTS.has(getClientName(database))
-
-const isPostgres = (database: Knex) =>
-  POSTGRES_CLIENTS.has(getClientName(database))
-
-const isMySQL = (database: Knex) => MYSQL_CLIENTS.has(getClientName(database))
 
 export const escapeLikePattern = (value: string) =>
   value.replace(/[\\%_]/g, '\\$&')
@@ -178,7 +169,7 @@ export const applySearchDocumentFilter = async ({
     return
   }
 
-  if (isSQLite(database)) {
+  if (isSQLiteClient(database)) {
     const matchQuery = tokens.map((token) => `${token}*`).join(' ')
     query
       .joinRaw(
@@ -188,7 +179,7 @@ export const applySearchDocumentFilter = async ({
     return
   }
 
-  if (isPostgres(database)) {
+  if (isPostgresClient(database)) {
     const tsQuery = tokens.map((token) => `${token}:*`).join(' & ')
     query.whereRaw(`to_tsvector('simple', ??) @@ to_tsquery('simple', ?)`, [
       'documentText',
@@ -197,7 +188,7 @@ export const applySearchDocumentFilter = async ({
     return
   }
 
-  if (isMySQL(database)) {
+  if (isMySQLClient(database)) {
     const booleanQuery = tokens.map((token) => `+${token}*`).join(' ')
     const minTokenSize = await getMySQLFullTextMinTokenSize(database)
     if (tokens.some((token) => token.length < minTokenSize)) {
@@ -252,7 +243,7 @@ export const applySearchDocumentOrdering = ({
 
   // Postgres can express stable null placement in the indexed DESC sort.
   // MySQL and SQLite need a boolean pre-sort for portable NULLS LAST behavior.
-  if (isPostgres(database)) {
+  if (isPostgresClient(database)) {
     query
       .orderByRaw('?? desc nulls last', ['search_documents.postCount'])
       .orderByRaw('?? desc nulls last', ['search_documents.lastPostAt'])
@@ -292,17 +283,18 @@ const applySearchDocumentAccessFilters = ({
   }
 
   const applyStatusFilter = (builder: Knex.QueryBuilder) => {
-    const clientName = getClientName(database)
+    const isMySQL = isMySQLClient(database)
+    const isPostgres = isPostgresClient(database)
     const fallbackFollowersAudienceExpression = {
-      sql: MYSQL_CLIENTS.has(clientName)
+      sql: isMySQL
         ? "?? = CONCAT(??, '/followers')"
         : "?? = ?? || '/followers'",
       bindings: ['followers_recipients.actorId', 'search_documents.actorId']
     }
     const storedFollowersAudienceExpression = {
-      sql: POSTGRES_CLIENTS.has(clientName)
+      sql: isPostgres
         ? "?? = search_document_actors.settings::jsonb ->> 'followersUrl'"
-        : MYSQL_CLIENTS.has(clientName)
+        : isMySQL
           ? "?? = JSON_UNQUOTE(JSON_EXTRACT(search_document_actors.settings, '$.followersUrl'))"
           : "?? = json_extract(search_document_actors.settings, '$.followersUrl')",
       bindings: ['followers_recipients.actorId']
