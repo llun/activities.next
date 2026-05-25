@@ -1979,6 +1979,26 @@ const emptySearchResult = (): SearchResult => ({
   hashtags: []
 })
 
+const getSearchResponseErrorMessage = (response: Response, text: string) => {
+  let detail = text || response.statusText
+
+  try {
+    const data = JSON.parse(text) as Record<string, unknown>
+    detail =
+      typeof data.message === 'string'
+        ? data.message
+        : typeof data.error === 'string'
+          ? data.error
+          : typeof data.status === 'string'
+            ? data.status
+            : detail
+  } catch {
+    // Keep the raw response text for non-JSON failures.
+  }
+
+  return `Search request failed (${response.status})${detail ? `: ${detail}` : ''}`
+}
+
 export const search = async ({
   q,
   type,
@@ -2001,8 +2021,10 @@ export const search = async ({
     headers: { Accept: 'application/json' },
     signal
   })
-  if (!response.ok) return emptySearchResult()
   const text = await response.text()
+  if (!response.ok) {
+    throw new Error(getSearchResponseErrorMessage(response, text))
+  }
   try {
     return JSON.parse(text) as SearchResult
   } catch {

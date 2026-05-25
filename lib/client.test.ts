@@ -454,16 +454,22 @@ describe('client search', () => {
     })
   })
 
-  it('returns an empty result when the search request is rejected', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ status: 'Unauthorized' }), {
+  it('throws a detailed error when the search request is rejected', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ message: 'Unauthorized' }), {
       status: 401
     })
 
-    await expect(search({ q: 'trail' })).resolves.toEqual({
-      accounts: [],
-      statuses: [],
-      hashtags: []
-    })
+    await expect(search({ q: 'trail' })).rejects.toThrow(
+      'Search request failed (401): Unauthorized'
+    )
+  })
+
+  it('throws raw response text when the search error response is not JSON', async () => {
+    fetchMock.mockResponseOnce('Bad gateway', { status: 502 })
+
+    await expect(search({ q: 'trail' })).rejects.toThrow(
+      'Search request failed (502): Bad gateway'
+    )
   })
 })
 

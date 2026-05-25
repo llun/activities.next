@@ -150,7 +150,10 @@ const AccountRow = ({
 }) => {
   const handle = getAccountHandle(account, host)
   const label = getAccountLabel(account)
-  const note = useMemo(() => htmlToPlainText(account.note), [account.note])
+  const note = useMemo(
+    () => htmlToPlainText(account.note ?? ''),
+    [account.note]
+  )
 
   return (
     <Link
