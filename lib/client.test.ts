@@ -480,6 +480,16 @@ describe('client search', () => {
       `Search request failed (502): ${'x'.repeat(200)}...`
     )
   })
+
+  it('truncates long JSON messages from failed search requests', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ message: 'x'.repeat(250) }), {
+      status: 502
+    })
+
+    await expect(search({ q: 'trail' })).rejects.toThrow(
+      `Search request failed (502): ${'x'.repeat(200)}...`
+    )
+  })
 })
 
 describe('fitness route heatmap client calls', () => {

@@ -3,7 +3,7 @@
 import { Search as SearchIcon } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, Suspense, useEffect, useState } from 'react'
 
 import {
   ActorInfo,
@@ -38,18 +38,27 @@ interface SidebarProps {
   isAdmin?: boolean
 }
 
-export function Sidebar({
-  user,
-  currentActor,
-  actors = [],
-  unreadCount = 0,
-  fitnessUrl,
-  isAdmin = false
-}: SidebarProps) {
+function SidebarSearchFallback() {
+  return (
+    <form role="search" aria-label="Search" className="px-3 pb-3">
+      <div className="relative">
+        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="search"
+          aria-label="Search"
+          placeholder="Search"
+          className="h-10 rounded-lg pl-9"
+          disabled
+        />
+      </div>
+    </form>
+  )
+}
+
+function SidebarSearch() {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
   const currentSearchQuery =
     pathname === '/search' ? (searchParams.get('q') ?? '') : ''
   const [searchQuery, setSearchQuery] = useState(() => currentSearchQuery)
@@ -57,11 +66,6 @@ export function Sidebar({
   useEffect(() => {
     setSearchQuery(currentSearchQuery)
   }, [currentSearchQuery])
-
-  const getAvatarInitial = (username: string) => {
-    if (!username) return '?'
-    return username[0].toUpperCase()
-  }
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -76,6 +80,44 @@ export function Sidebar({
   }
 
   return (
+    <form
+      role="search"
+      aria-label="Search"
+      className="px-3 pb-3"
+      onSubmit={submitSearch}
+    >
+      <div className="relative">
+        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="search"
+          aria-label="Search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search"
+          className="h-10 rounded-lg pl-9"
+        />
+      </div>
+    </form>
+  )
+}
+
+export function Sidebar({
+  user,
+  currentActor,
+  actors = [],
+  unreadCount = 0,
+  fitnessUrl,
+  isAdmin = false
+}: SidebarProps) {
+  const pathname = usePathname()
+  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
+
+  const getAvatarInitial = (username: string) => {
+    if (!username) return '?'
+    return username[0].toUpperCase()
+  }
+
+  return (
     <TooltipProvider delayDuration={0}>
       {/* Full sidebar - Desktop */}
       <aside className="fixed left-0 top-0 z-40 h-screen w-[280px] border-r bg-background/90 backdrop-blur hidden xl:flex flex-col">
@@ -83,24 +125,9 @@ export function Sidebar({
           <Logo size="md" />
         </div>
 
-        <form
-          role="search"
-          aria-label="Search"
-          className="px-3 pb-3"
-          onSubmit={submitSearch}
-        >
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              aria-label="Search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search"
-              className="h-10 rounded-lg pl-9"
-            />
-          </div>
-        </form>
+        <Suspense fallback={<SidebarSearchFallback />}>
+          <SidebarSearch />
+        </Suspense>
 
         <nav className="flex-1 px-3">
           <ul className="space-y-1">

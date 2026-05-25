@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ChangeEvent,
   FormEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -277,6 +278,10 @@ export const SearchPageClient = ({
   const submittedQueryRef = useRef(submittedQuery)
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const setSubmittedQueryValue = useCallback((query: string) => {
+    submittedQueryRef.current = query
+    setSubmittedQuery(query)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -287,19 +292,14 @@ export const SearchPageClient = ({
   }, [])
 
   useEffect(() => {
-    submittedQueryRef.current = submittedQuery
-  }, [submittedQuery])
-
-  useEffect(() => {
     const nextQuery = searchParams.get('q') ?? ''
     const nextTab = getSearchTab(searchParams.get('type'))
     if (submittedQueryRef.current !== nextQuery) {
       setInputValue(nextQuery)
     }
-    setSubmittedQuery(nextQuery)
-    submittedQueryRef.current = nextQuery
+    setSubmittedQueryValue(nextQuery)
     setActiveTab(nextTab)
-  }, [searchParams])
+  }, [searchParams, setSubmittedQueryValue])
 
   useEffect(() => {
     const query = submittedQuery.trim()
@@ -366,8 +366,7 @@ export const SearchPageClient = ({
     const nextTab = query ? activeTab : 'all'
     const previousSubmittedQuery = submittedQueryRef.current
     if (!query) setInputValue('')
-    submittedQueryRef.current = query
-    setSubmittedQuery(query)
+    setSubmittedQueryValue(query)
     setActiveTab(nextTab)
     const nextPath = getSearchPath(query, nextTab)
     if (query && query !== previousSubmittedQuery) {
@@ -385,15 +384,9 @@ export const SearchPageClient = ({
     requestIdRef.current += 1
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
-    submittedQueryRef.current = ''
-    setSubmittedQuery('')
+    setSubmittedQueryValue('')
     setActiveTab('all')
-    setResults(emptySearchResult())
-    setError(false)
-    setIsLoading(false)
-    setIsLoadingMore(false)
-    setHasMore(false)
-    router.replace('/search')
+    if (searchParams.toString()) router.replace('/search')
   }
 
   const onTabChange = (value: string) => {

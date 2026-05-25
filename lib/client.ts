@@ -2000,9 +2000,10 @@ const getSearchResponseErrorMessage = (response: Response, text: string) => {
             ? data.status
             : detail
   } catch {
-    detail = truncateSearchErrorDetail(detail)
+    // Keep the raw response text for non-JSON failures.
   }
 
+  detail = truncateSearchErrorDetail(detail)
   return `Search request failed (${response.status})${detail ? `: ${detail}` : ''}`
 }
 
