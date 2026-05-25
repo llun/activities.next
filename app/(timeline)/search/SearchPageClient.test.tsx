@@ -316,6 +316,49 @@ describe('SearchPageClient', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
+  it('clears visible results and URL state immediately when the input is cleared', async () => {
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      accounts: [account('trail-account', 'Trail Runner', 'trail')]
+    })
+
+    renderSearchPage('q=trail&type=accounts')
+
+    expect(await screen.findByText('Trail Runner')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search' }), {
+      target: { value: '' }
+    })
+
+    expect(screen.getByText('No search yet')).toBeInTheDocument()
+    expect(screen.queryByText('Trail Runner')).not.toBeInTheDocument()
+    expect(replace).toHaveBeenCalledWith('/search')
+  })
+
+  it('aborts pending searches when the input is cleared', async () => {
+    const pendingSearch = createDeferred<ReturnType<typeof emptySearchResult>>()
+    mockSearch.mockReturnValueOnce(pendingSearch.promise)
+
+    renderSearchPage('q=trail')
+
+    expect(await screen.findByText('Searching...')).toBeInTheDocument()
+    const signal = mockSearch.mock.calls[0][0].signal as AbortSignal
+    expect(signal.aborted).toBe(false)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search' }), {
+      target: { value: '' }
+    })
+
+    expect(signal.aborted).toBe(true)
+    expect(screen.getByText('No search yet')).toBeInTheDocument()
+    expect(screen.queryByText('Searching...')).not.toBeInTheDocument()
+
+    await act(async () => {
+      pendingSearch.resolve(emptySearchResult())
+      await pendingSearch.promise
+    })
+  })
+
   it('keeps draft input when URL tab state changes without a new query', async () => {
     let params = new URLSearchParams('q=runner&type=accounts')
     ;(useRouter as jest.Mock).mockReturnValue({ replace, push })

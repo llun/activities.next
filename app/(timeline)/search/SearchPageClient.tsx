@@ -3,7 +3,14 @@
 import { Hash, Search as SearchIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import type { ReactNode } from 'react'
 
 import { SearchResult, SearchType, search as searchClient } from '@/lib/client'
@@ -367,6 +374,25 @@ export const SearchPageClient = ({
     }
   }
 
+  const onInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+    setInputValue(value)
+    if (value.trim()) return
+
+    requestIdRef.current += 1
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    submittedQueryRef.current = ''
+    setSubmittedQuery('')
+    setActiveTab('all')
+    setResults(emptySearchResult())
+    setError(false)
+    setIsLoading(false)
+    setIsLoadingMore(false)
+    setHasMore(false)
+    router.replace('/search')
+  }
+
   const onTabChange = (value: string) => {
     const nextTab = getSearchTab(value)
     setActiveTab(nextTab)
@@ -483,7 +509,7 @@ export const SearchPageClient = ({
             type="search"
             aria-label="Search"
             value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
+            onChange={onInputChange}
             placeholder="Search"
             className="h-11 pl-9"
           />
