@@ -1,0 +1,24 @@
+lib/components/layout/sidebar.tsx
+  s_f5c59c6d5bce63::t_8389e4379935fa 93
+app/(timeline)/search/SearchPageClient.tsx
+  s_f5c59c6d5bce63::t_dbf6e5b38f7fa7 94-110,119-123,129-133,139-143,508
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_f5c59c6d5bce63::t_5b69bd1cfea025 342-348
+  s_f5c59c6d5bce63::t_5e854bf5415fb7 73-77,288-341,349-360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "072452d76917987a940f7ae3ace475052f62567f",
+  "prompts": {},
+  "sessions": {
+    "s_f5c59c6d5bce63": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5fed-d7b0-76a3-9eb2-a13fca545055",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
