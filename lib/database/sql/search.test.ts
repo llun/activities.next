@@ -2148,6 +2148,30 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('treats malformed status reindex cursors as invalid cursors', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+
+    try {
+      await database.migrate()
+
+      await expect(
+        database.reindexSearchStatuses({
+          afterId: 'status-created-at:1:%E0%A4%A',
+          limit: 10
+        })
+      ).resolves.toEqual({ indexed: 0, nextCursor: null })
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('bounds status search pagination when cursor search documents are missing', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',
@@ -2345,6 +2369,13 @@ describe('SearchDatabase foundation', () => {
           currentActorId: viewerId
         })
       ).resolves.toEqual([statusId])
+      await expect(
+        database.searchStatusIds({
+          q: 'keyworddelta',
+          limit: 10,
+          currentActorId: `${viewerId}#main-key`
+        })
+      ).resolves.toEqual([statusId])
     } finally {
       await database.destroy()
     }
@@ -2362,6 +2393,7 @@ describe('SearchDatabase foundation', () => {
     const viewerId = 'https://remote.test/users/viewer'
     const authorId = 'https://remote.test/users/author'
     const statusId = `${authorId}/statuses/mention-search`
+    const missingHrefStatusId = `${authorId}/statuses/mention-search-empty-value`
 
     try {
       await database.migrate()
@@ -2405,6 +2437,32 @@ describe('SearchDatabase foundation', () => {
         })
       ).resolves.toEqual([statusId])
 
+      await database.createNote({
+        id: missingHrefStatusId,
+        url: missingHrefStatusId,
+        actorId: authorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Mention without href fallbackword',
+        createdAt: 2
+      })
+      await database.createTag({
+        statusId: missingHrefStatusId,
+        type: 'mention',
+        name: '@viewer',
+        value: ''
+      })
+
+      await expect(
+        database.searchStatusIds({
+          q: 'fallbackword',
+          limit: 10,
+          currentActorId: viewerId,
+          currentActorUsername: 'viewer',
+          currentActorDomain: 'remote.test'
+        })
+      ).resolves.toEqual([missingHrefStatusId])
+
       await database.createBlock({
         actorId: viewerId,
         targetActorId: authorId,
@@ -2416,6 +2474,15 @@ describe('SearchDatabase foundation', () => {
           q: 'searchword',
           limit: 10,
           currentActorId: viewerId,
+          currentActorUsername: 'viewer',
+          currentActorDomain: 'remote.test'
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchStatusIds({
+          q: 'searchword',
+          limit: 10,
+          currentActorId: `${viewerId}#main-key`,
           currentActorUsername: 'viewer',
           currentActorDomain: 'remote.test'
         })

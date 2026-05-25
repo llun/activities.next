@@ -1,12 +1,12 @@
 import { Knex } from 'knex'
 
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   SQLITE_MAX_BINDINGS,
   chunkArray,
   getClientName,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import {
   PUBLIC_ACTIVITY_RECIPIENTS,
@@ -324,28 +324,34 @@ const getMentionSearchValues = async (
 ) => {
   const normalizeMentionValues = (values: string[]) => [
     ...new Set(
-      values.flatMap((value) => {
+      values.filter(Boolean).flatMap((value) => {
         const normalizedValue = normalizeActorId(value)
         return normalizedValue ? [value, normalizedValue] : [value]
       })
     )
   ]
+  const normalizedCurrentActorId =
+    normalizeActorId(currentActorId) ?? currentActorId
 
   if (currentActorUsername && currentActorDomain) {
     return normalizeMentionValues([
       currentActorId,
+      `@${currentActorUsername}`,
+      `@${currentActorUsername}@${currentActorDomain}`,
       `https://${currentActorDomain}/@${currentActorUsername}`,
       `https://${currentActorDomain}/@${currentActorUsername}@${currentActorDomain}`
     ])
   }
 
   const actor = await database('actors')
-    .where('id', currentActorId)
+    .where('id', normalizedCurrentActorId)
     .first<{ username: string; domain: string }>('username', 'domain')
   if (!actor) return normalizeMentionValues([currentActorId])
 
   return normalizeMentionValues([
     currentActorId,
+    `@${actor.username}`,
+    `@${actor.username}@${actor.domain}`,
     `https://${actor.domain}/@${actor.username}`,
     `https://${actor.domain}/@${actor.username}@${actor.domain}`
   ])
@@ -382,7 +388,11 @@ const applyRestrictiveStatusSearchPolicy = ({
           .from('tags')
           .where('tags.type', 'mention')
           .whereRaw('?? = ??', ['tags.statusId', 'statuses.id'])
-          .whereIn('tags.value', mentionValues)
+          .where((mentionBuilder) => {
+            mentionBuilder
+              .whereIn('tags.value', mentionValues)
+              .orWhereIn('tags.name', mentionValues)
+          })
       })
   })
 }
@@ -479,9 +489,13 @@ const parseStatusReindexCursor = (
   const createdAt = Number(payload.slice(0, separatorIndex))
   if (!Number.isFinite(createdAt)) return null
 
-  return {
-    createdAt,
-    id: decodeURIComponent(payload.slice(separatorIndex + 1))
+  try {
+    return {
+      createdAt,
+      id: decodeURIComponent(payload.slice(separatorIndex + 1))
+    }
+  } catch {
+    return null
   }
 }
 
@@ -504,6 +518,8 @@ export const searchStatusIds = async (
     maxId
   }: SearchStatusesParams
 ): Promise<string[]> => {
+  const normalizedCurrentActorId =
+    normalizeActorId(currentActorId) ?? currentActorId
   const mentionValues = await getMentionSearchValues(database, {
     currentActorId,
     currentActorUsername,
@@ -521,15 +537,19 @@ export const searchStatusIds = async (
   applyPotentiallyReadableStatusFilter({
     database,
     query,
-    visibleToActorId: currentActorId
+    visibleToActorId: normalizedCurrentActorId
   })
   applyRestrictiveStatusSearchPolicy({
     database,
     query,
-    currentActorId,
+    currentActorId: normalizedCurrentActorId,
     mentionValues
   })
-  applyBlockedAccountFilter({ database, query, currentActorId })
+  applyBlockedAccountFilter({
+    database,
+    query,
+    currentActorId: normalizedCurrentActorId
+  })
   await applyCursorFilter({ database, query, maxId, minId })
 
   const rows = await query
