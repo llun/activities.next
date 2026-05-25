@@ -478,9 +478,7 @@ const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) =>
   params.type === 'statuses' ||
   params.resolve === true ||
   params.following === true ||
-  (params.type !== undefined &&
-    params.offset !== undefined &&
-    params.offset > 0)
+  (params.offset !== undefined && params.offset > 0)
 
 export const GET = traceApiRoute(
   'search',

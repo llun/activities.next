@@ -1996,6 +1996,49 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('returns actor poll votes for multiple statuses', async () => {
+        const firstPollId = `${emptyActorId}/statuses/poll-votes-bulk-1`
+        const secondPollId = `${emptyActorId}/statuses/poll-votes-bulk-2`
+        const thirdPollId = `${emptyActorId}/statuses/poll-votes-bulk-3`
+        const voterId = `${replyAuthorId}/poll-votes-bulk`
+
+        for (const pollId of [firstPollId, secondPollId, thirdPollId]) {
+          await database.createPoll({
+            id: pollId,
+            url: pollId,
+            actorId: emptyActorId,
+            to: ['https://www.w3.org/ns/activitystreams#Public'],
+            cc: [],
+            text: 'Vote poll',
+            choices: ['Yes', 'No'],
+            pollType: 'anyOf',
+            endAt: Date.now() + 1000
+          })
+        }
+
+        await database.recordPollVotes({
+          statusId: firstPollId,
+          actorId: voterId,
+          choices: [1, 0]
+        })
+        await database.recordPollVotes({
+          statusId: secondPollId,
+          actorId: voterId,
+          choices: [1]
+        })
+
+        await expect(
+          database.getActorPollVotesForStatuses({
+            statusIds: [firstPollId, secondPollId, thirdPollId, firstPollId],
+            actorId: voterId
+          })
+        ).resolves.toEqual({
+          [firstPollId]: [0, 1],
+          [secondPollId]: [1],
+          [thirdPollId]: []
+        })
+      })
+
       it('records a Mastodon poll vote atomically and rejects duplicate voters', async () => {
         const pollId = `${emptyActorId}/statuses/record-poll-votes`
         await database.createPoll({

@@ -273,7 +273,7 @@ describe('GET /api/v2/search', () => {
     )
   })
 
-  it('ignores offset without an explicit search type', async () => {
+  it('requires authentication when offset is provided without an explicit search type', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v2/search?q=trail&limit=3&offset=5'
@@ -282,20 +282,11 @@ describe('GET /api/v2/search', () => {
     )
     const data = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(mockSearchAccountIds).toHaveBeenCalledWith({
-      q: 'trail',
-      limit: 3,
-      offset: 0
-    })
-    expect(mockSearchHashtags).toHaveBeenCalledWith({
-      q: 'trail',
-      limit: 3,
-      offset: 0,
-      excludeUnreviewed: false
-    })
+    expect(response.status).toBe(401)
+    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(mockSearchHashtags).not.toHaveBeenCalled()
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
-    expect(data.statuses).toEqual([])
   })
 
   it('requires authentication for typed offset paging', async () => {

@@ -555,6 +555,10 @@ export type GetActorPollVotesParams = {
   statusId: string
   actorId: string
 }
+export type GetActorPollVotesForStatusesParams = {
+  statusIds: string[]
+  actorId: string
+}
 export type IncrementPollChoiceVotesParams = {
   statusId: string
   choiceIndex: number
@@ -621,6 +625,9 @@ export interface StatusDatabase {
   createPollAnswer(params: CreatePollAnswerParams): Promise<void>
   hasActorVoted(params: HasActorVotedParams): Promise<boolean>
   getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>
+  getActorPollVotesForStatuses(
+    params: GetActorPollVotesForStatusesParams
+  ): Promise<Record<string, number[]>>
   incrementPollChoiceVotes(
     params: IncrementPollChoiceVotesParams
   ): Promise<void>

@@ -3,6 +3,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import {
@@ -87,6 +88,83 @@ describe('#getMastodonStatus', () => {
       })
       expect(getStatusReblogsCount).not.toHaveBeenCalled()
       expect(getStatusRepliesCount).not.toHaveBeenCalled()
+    })
+
+    it('hydrates poll vote state in bulk while serializing status lists', async () => {
+      const firstPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-1`
+      const secondPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-2`
+
+      await database.createPoll({
+        id: firstPollId,
+        url: firstPollId,
+        actorId: ACTOR3_ID,
+        text: 'First bulk poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 60_000
+      })
+      await database.createPoll({
+        id: secondPollId,
+        url: secondPollId,
+        actorId: ACTOR3_ID,
+        text: 'Second bulk poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Alpha', 'Beta'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: firstPollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+      await database.recordPollVotes({
+        statusId: secondPollId,
+        actorId: ACTOR2_ID,
+        choices: [1]
+      })
+
+      const firstPoll = (await database.getStatus({
+        statusId: firstPollId
+      })) as Status
+      const secondPoll = (await database.getStatus({
+        statusId: secondPollId
+      })) as Status
+      const getActorPollVotesForStatuses = jest.spyOn(
+        database,
+        'getActorPollVotesForStatuses'
+      )
+      const hasActorVoted = jest.spyOn(database, 'hasActorVoted')
+      const getActorPollVotes = jest.spyOn(database, 'getActorPollVotes')
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(
+          database,
+          [firstPoll, secondPoll],
+          ACTOR2_ID
+        )
+
+        expect(mastodonStatuses).toHaveLength(2)
+        expect(getActorPollVotesForStatuses).toHaveBeenCalledTimes(1)
+        expect(getActorPollVotesForStatuses).toHaveBeenCalledWith({
+          statusIds: [firstPollId, secondPollId],
+          actorId: ACTOR2_ID
+        })
+        expect(hasActorVoted).not.toHaveBeenCalled()
+        expect(getActorPollVotes).not.toHaveBeenCalled()
+        expect(mastodonStatuses.map((status) => status.poll?.voted)).toEqual([
+          true,
+          true
+        ])
+        expect(
+          mastodonStatuses.map((status) => status.poll?.own_votes)
+        ).toEqual([[0], [1]])
+      } finally {
+        getActorPollVotesForStatuses.mockRestore()
+        hasActorVoted.mockRestore()
+        getActorPollVotes.mockRestore()
+      }
     })
 
     it('keys hydrated account cache by actor id when account url is a profile url', async () => {

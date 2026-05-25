@@ -39,6 +39,7 @@ import {
   CreatePollParams,
   CreateTagParams,
   DeleteStatusParams,
+  GetActorPollVotesForStatusesParams,
   GetActorPollVotesParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
@@ -2446,6 +2447,34 @@ export const StatusSQLDatabaseMixin = (
     return results.map((r) => r.choice)
   }
 
+  async function getActorPollVotesForStatuses({
+    statusIds,
+    actorId
+  }: GetActorPollVotesForStatusesParams): Promise<Record<string, number[]>> {
+    const uniqueStatusIds = [...new Set(statusIds)]
+    const votesByStatusId = Object.fromEntries(
+      uniqueStatusIds.map((statusId) => [statusId, []])
+    ) as Record<string, number[]>
+
+    for (const statusIdChunk of chunkArray(
+      uniqueStatusIds,
+      getWhereInBatchSize(database, 1)
+    )) {
+      const results = await database('poll_answers')
+        .where('actorId', actorId)
+        .whereIn('statusId', statusIdChunk)
+        .select<{ statusId: string; choice: number }[]>('statusId', 'choice')
+        .orderBy('statusId', 'asc')
+        .orderBy('choice', 'asc')
+
+      for (const result of results) {
+        votesByStatusId[result.statusId]?.push(Number(result.choice))
+      }
+    }
+
+    return votesByStatusId
+  }
+
   async function incrementPollChoiceVotes({
     statusId,
     choiceIndex
@@ -2624,6 +2653,7 @@ export const StatusSQLDatabaseMixin = (
     createPollAnswer,
     hasActorVoted,
     getActorPollVotes,
+    getActorPollVotesForStatuses,
     incrementPollChoiceVotes,
     recordPollVotes
   }

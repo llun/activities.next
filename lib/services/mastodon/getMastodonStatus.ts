@@ -4,6 +4,7 @@ import { Mastodon } from '@/lib/types/activitypub'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
 import {
   Status,
+  StatusPoll,
   StatusType,
   hasStatusBeenEdited
 } from '@/lib/types/domain/status'
@@ -39,11 +40,17 @@ type StatusMetricsCache = {
   reblogs: Map<string, number>
   replies: Map<string, number>
 }
+type PollVoteState = {
+  voted: boolean
+  ownVotes: number[]
+}
+type PollVoteCache = Map<string, PollVoteState>
 
 interface GetMastodonStatusOptions {
   accountCache?: MastodonAccountCache
   replyStatusCache?: ReplyStatusCache
   statusMetricsCache?: StatusMetricsCache
+  pollVoteCache?: PollVoteCache
 }
 
 const getMastodonAccount = (
@@ -145,6 +152,15 @@ const addStatusReplyIds = (status: Status, statusIds: Set<string>) => {
   if (status.reply) statusIds.add(status.reply)
 }
 
+const addStatusPollIds = (status: Status, statusIds: Set<string>) => {
+  if (status.type === StatusType.enum.Announce) {
+    addStatusPollIds(status.originalStatus, statusIds)
+    return
+  }
+
+  if (status.type === StatusType.enum.Poll) statusIds.add(status.id)
+}
+
 const getReplyStatus = async (
   database: Database,
   statusId: string,
@@ -182,6 +198,30 @@ const getStatusRepliesCount = async (
   if (repliesCache?.has(statusId)) return repliesCache.get(statusId) ?? 0
 
   return database.getStatusRepliesCount({ statusId })
+}
+
+const getPollVoteState = async (
+  database: Database,
+  status: StatusPoll,
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
+): Promise<PollVoteState> => {
+  if (!currentActorId) return { voted: false, ownVotes: [] }
+
+  const cachedVoteState = options?.pollVoteCache?.get(status.id)
+  if (cachedVoteState) return cachedVoteState
+
+  const [voted, ownVotes] = await Promise.all([
+    database.hasActorVoted({
+      statusId: status.id,
+      actorId: currentActorId
+    }),
+    database.getActorPollVotes({
+      statusId: status.id,
+      actorId: currentActorId
+    })
+  ])
+  return { voted, ownVotes }
 }
 
 export const getMastodonStatus = async (
@@ -315,19 +355,12 @@ export const getMastodonStatus = async (
 
   let pollData = null
   if (status.type === StatusType.enum.Poll) {
-    const voted = currentActorId
-      ? await database.hasActorVoted({
-          statusId: status.id,
-          actorId: currentActorId
-        })
-      : false
-
-    const ownVotes = currentActorId
-      ? await database.getActorPollVotes({
-          statusId: status.id,
-          actorId: currentActorId
-        })
-      : []
+    const { voted, ownVotes } = await getPollVoteState(
+      database,
+      status,
+      currentActorId,
+      options
+    )
 
     pollData = Mastodon.Poll.parse({
       id: urlToId(status.id),
@@ -368,10 +401,13 @@ export const getMastodonStatuses = async (
   statuses.forEach((status) => addStatusMetricIds(status, metricStatusIds))
   const replyStatusIds = new Set<string>()
   statuses.forEach((status) => addStatusReplyIds(status, replyStatusIds))
+  const pollStatusIds = new Set<string>()
+  statuses.forEach((status) => addStatusPollIds(status, pollStatusIds))
   const requestedActorIds = [...actorIds]
   const requestedMetricStatusIds = [...metricStatusIds]
   const requestedReplyStatusIds = [...replyStatusIds]
-  const [accounts, reblogCounts, replyCounts, replyStatuses] =
+  const requestedPollStatusIds = currentActorId ? [...pollStatusIds] : []
+  const [accounts, reblogCounts, replyCounts, replyStatuses, pollVotes] =
     await Promise.all([
       database.getMastodonActorsFromIds({
         ids: requestedActorIds
@@ -388,7 +424,13 @@ export const getMastodonStatuses = async (
             currentActorId,
             visibleToActorId: currentActorId
           })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      requestedPollStatusIds.length > 0 && currentActorId
+        ? database.getActorPollVotesForStatuses({
+            statusIds: requestedPollStatusIds,
+            actorId: currentActorId
+          })
+        : Promise.resolve<Record<string, number[]>>({})
     ])
   const requestedActorIdSet = new Set(requestedActorIds)
   const accountCache: MastodonAccountCache = new Map()
@@ -441,6 +483,18 @@ export const getMastodonStatuses = async (
     },
     replyStatusCache: new Map(
       requestedReplyStatusIds.map((statusId) => [statusId, null])
+    ),
+    pollVoteCache: new Map(
+      requestedPollStatusIds.map((statusId) => {
+        const ownVotes = pollVotes[statusId] ?? []
+        return [
+          statusId,
+          {
+            voted: ownVotes.length > 0,
+            ownVotes
+          }
+        ]
+      })
     )
   }
   for (const replyStatus of replyStatuses) {
