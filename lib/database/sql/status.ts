@@ -79,7 +79,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
 import {
-  deleteStatusSearchDocument,
+  deleteStatusSearchDocumentsByStatusIds,
   indexHashtagSearchDocument,
   indexHashtagSearchDocuments,
   indexStatusSearchDocument,
@@ -1683,16 +1683,7 @@ export const StatusSQLDatabaseMixin = (
       statuses: statusesToDelete,
       trx
     })
-    for (const statusIdChunk of chunkArray(
-      statusIdsToDelete,
-      getWhereInBatchSize(trx)
-    )) {
-      await Promise.all(
-        statusIdChunk.map((statusId) =>
-          deleteStatusSearchDocument(trx, { statusId })
-        )
-      )
-    }
+    await deleteStatusSearchDocumentsByStatusIds(trx, statusIdsToDelete)
     await deleteCounterValues(
       trx,
       statusIdsToDelete.flatMap((statusId) => [
