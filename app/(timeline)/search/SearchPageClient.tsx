@@ -19,6 +19,7 @@ import type { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import { cn } from '@/lib/utils'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 type SearchTab = 'all' | SearchType
 
@@ -134,29 +135,6 @@ const getAccountInitial = (account: MastodonAccount) => {
   return name.trim()[0]?.toUpperCase() ?? '?'
 }
 
-const stripHtmlTags = (html: string) =>
-  html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-const getPlainTextFromHtml = (html: string | null | undefined) => {
-  const safeHtml = html ?? ''
-  if (!safeHtml) return ''
-
-  if (typeof document === 'undefined') {
-    return stripHtmlTags(safeHtml)
-  }
-
-  try {
-    const parser = new DOMParser()
-    const parsed = parser.parseFromString(safeHtml, 'text/html')
-    return (parsed.body.textContent ?? '').replace(/\s+/g, ' ').trim()
-  } catch {
-    return stripHtmlTags(safeHtml)
-  }
-}
-
 const getTagPostCount = (tag: SearchTag) => {
   if (typeof tag.postCount === 'number') return tag.postCount
   const historyCount = Number(tag.history?.at(0)?.uses)
@@ -172,7 +150,7 @@ const AccountRow = ({
 }) => {
   const handle = getAccountHandle(account, host)
   const label = getAccountLabel(account)
-  const note = useMemo(() => getPlainTextFromHtml(account.note), [account.note])
+  const note = useMemo(() => htmlToPlainText(account.note), [account.note])
 
   return (
     <Link
@@ -250,6 +228,14 @@ export const SearchPageClient = ({
   const [hasMore, setHasMore] = useState(false)
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      requestIdRef.current += 1
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const nextQuery = searchParams.get('q') ?? ''

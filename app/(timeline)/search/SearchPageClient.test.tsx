@@ -186,6 +186,25 @@ describe('SearchPageClient', () => {
     expect(screen.getByText('?')).toBeInTheDocument()
   })
 
+  it('renders profile notes with entity decoding and sanitized markup', async () => {
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      accounts: [
+        {
+          ...account('encoded-account', 'Encoded Runner', 'encoded'),
+          note: '<p>Tom &amp; Jerry &lt;run&gt; fast</p><script>alert("x")</script>'
+        }
+      ]
+    })
+
+    renderSearchPage('q=encoded&type=accounts')
+
+    expect(
+      await screen.findByText('Tom & Jerry <run> fast')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/alert/)).not.toBeInTheDocument()
+  })
+
   it('submits searches to URL state and clears blank searches', async () => {
     mockSearch.mockResolvedValueOnce(emptySearchResult())
 
@@ -301,6 +320,37 @@ describe('SearchPageClient', () => {
     expect(
       await screen.findByRole('button', { name: 'Load more' })
     ).toBeEnabled()
+  })
+
+  it('aborts active pagination requests when unmounted', async () => {
+    const loadMoreSearch =
+      createDeferred<ReturnType<typeof emptySearchResult>>()
+    mockSearch
+      .mockResolvedValueOnce({
+        ...emptySearchResult(),
+        accounts: Array.from({ length: 20 }, (_, index) =>
+          account(`account-${index}`, `Runner ${index}`, `runner${index}`)
+        )
+      })
+      .mockReturnValueOnce(loadMoreSearch.promise)
+
+    const { unmount } = renderSearchPage('q=runner&type=accounts')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+
+    await waitFor(() => {
+      expect(mockSearch).toHaveBeenCalledTimes(2)
+    })
+    const signal = mockSearch.mock.calls[1][0].signal as AbortSignal
+
+    expect(signal.aborted).toBe(false)
+    unmount()
+    expect(signal.aborted).toBe(true)
+
+    await act(async () => {
+      loadMoreSearch.resolve(emptySearchResult())
+      await loadMoreSearch.promise
+    })
   })
 
   it('shows an error state when the request fails', async () => {
