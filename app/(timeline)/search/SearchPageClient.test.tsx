@@ -89,6 +89,13 @@ const renderSearchPage = (params = '') => {
   )
 }
 
+const selectTab = (name: string) => {
+  fireEvent.mouseDown(screen.getByRole('tab', { name }), {
+    button: 0,
+    ctrlKey: false
+  })
+}
+
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -142,6 +149,43 @@ describe('SearchPageClient', () => {
     )
   })
 
+  it('renders hashtags without history counts', async () => {
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      hashtags: [
+        {
+          name: 'nocount',
+          url: 'https://local.example/tags/nocount'
+        }
+      ]
+    })
+
+    renderSearchPage('q=nocount&type=hashtags')
+
+    expect(await screen.findByText('#nocount')).toBeInTheDocument()
+    expect(screen.queryByText(/posts$/)).not.toBeInTheDocument()
+  })
+
+  it('renders malformed profile payloads with fallbacks', async () => {
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      accounts: [
+        {
+          ...account('malformed-account', '', ''),
+          username: '',
+          acct: '',
+          note: null
+        }
+      ]
+    })
+
+    renderSearchPage('q=unknown&type=accounts')
+
+    expect(await screen.findByText('Unknown profile')).toBeInTheDocument()
+    expect(screen.getByText('@unknown@local.example')).toBeInTheDocument()
+    expect(screen.getByText('?')).toBeInTheDocument()
+  })
+
   it('submits searches to URL state and clears blank searches', async () => {
     mockSearch.mockResolvedValueOnce(emptySearchResult())
 
@@ -189,7 +233,7 @@ describe('SearchPageClient', () => {
 
     expect(await screen.findByText('Initial Runner')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Profiles' }))
+    selectTab('Profiles')
 
     await waitFor(() => {
       expect(mockSearch).toHaveBeenLastCalledWith(
@@ -215,6 +259,48 @@ describe('SearchPageClient', () => {
       )
     })
     expect(await screen.findByText('Next Runner')).toBeInTheDocument()
+  })
+
+  it('resets load-more state when changing tabs during pagination', async () => {
+    const loadMoreSearch =
+      createDeferred<ReturnType<typeof emptySearchResult>>()
+    mockSearch
+      .mockResolvedValueOnce({
+        ...emptySearchResult(),
+        accounts: Array.from({ length: 20 }, (_, index) =>
+          account(`account-${index}`, `Runner ${index}`, `runner${index}`)
+        )
+      })
+      .mockReturnValueOnce(loadMoreSearch.promise)
+      .mockResolvedValueOnce({
+        ...emptySearchResult(),
+        statuses: Array.from({ length: 20 }, (_, index) => ({
+          id: `status-${index}`
+        }))
+      })
+
+    renderSearchPage('q=runner&type=accounts')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+    expect(
+      await screen.findByRole('button', { name: 'Loading...' })
+    ).toBeDisabled()
+
+    selectTab('Posts')
+
+    await waitFor(() => {
+      expect(mockSearch).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: 'runner',
+          type: 'statuses',
+          limit: 20,
+          offset: 0
+        })
+      )
+    })
+    expect(
+      await screen.findByRole('button', { name: 'Load more' })
+    ).toBeEnabled()
   })
 
   it('shows an error state when the request fails', async () => {

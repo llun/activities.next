@@ -397,15 +397,6 @@ describe('client bookmark helpers', () => {
 describe('client search', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
-    Object.defineProperty(globalThis, 'window', {
-      configurable: true,
-      value: {
-        origin: 'https://local.example'
-      }
-    })
-  })
-
-  afterEach(() => {
     Reflect.deleteProperty(globalThis, 'window')
   })
 
@@ -436,10 +427,14 @@ describe('client search', () => {
     })
 
     const [url, init] = fetchMock.mock.calls[0]
-    const parsedUrl = new URL(url as string)
-    expect(parsedUrl.toString()).toBe(
-      'https://local.example/api/v2/search?q=trail+run&type=statuses&limit=10&offset=20&resolve=true&format=activities_next'
-    )
+    const parsedUrl = new URL(url as string, 'https://local.example')
+    expect(parsedUrl.pathname).toBe('/api/v2/search')
+    expect(parsedUrl.searchParams.get('q')).toBe('trail run')
+    expect(parsedUrl.searchParams.get('type')).toBe('statuses')
+    expect(parsedUrl.searchParams.get('limit')).toBe('10')
+    expect(parsedUrl.searchParams.get('offset')).toBe('20')
+    expect(parsedUrl.searchParams.get('resolve')).toBe('true')
+    expect(parsedUrl.searchParams.get('format')).toBe('activities_next')
     expect(init).toEqual(
       expect.objectContaining({
         method: 'GET',
@@ -447,6 +442,16 @@ describe('client search', () => {
         signal: abortController.signal
       })
     )
+  })
+
+  it('returns an empty result when the search response is not JSON', async () => {
+    fetchMock.mockResponseOnce('<html>bad gateway</html>', { status: 200 })
+
+    await expect(search({ q: 'trail' })).resolves.toEqual({
+      accounts: [],
+      statuses: [],
+      hashtags: []
+    })
   })
 
   it('returns an empty result when the search request is rejected', async () => {

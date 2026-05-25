@@ -1987,21 +1987,27 @@ export const search = async ({
   resolve = true,
   signal
 }: SearchParams): Promise<SearchResult> => {
-  const url = new URL(`${window.origin}/api/v2/search`)
-  url.searchParams.set('q', q)
-  if (type) url.searchParams.set('type', type)
-  if (limit !== undefined) url.searchParams.set('limit', `${limit}`)
-  if (offset !== undefined) url.searchParams.set('offset', `${offset}`)
-  url.searchParams.set('resolve', resolve ? 'true' : 'false')
-  url.searchParams.set('format', 'activities_next')
+  const params = new URLSearchParams({
+    q,
+    resolve: resolve ? 'true' : 'false',
+    format: 'activities_next'
+  })
+  if (type) params.set('type', type)
+  if (limit !== undefined) params.set('limit', `${limit}`)
+  if (offset !== undefined) params.set('offset', `${offset}`)
 
-  const response = await fetch(url.toString(), {
+  const response = await fetch(`/api/v2/search?${params.toString()}`, {
     method: 'GET',
     headers: { Accept: 'application/json' },
     signal
   })
   if (!response.ok) return emptySearchResult()
-  return (await response.json()) as SearchResult
+  const text = await response.text()
+  try {
+    return JSON.parse(text) as SearchResult
+  } catch {
+    return emptySearchResult()
+  }
 }
 
 export const searchAccounts = async ({

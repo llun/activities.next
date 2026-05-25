@@ -3,7 +3,7 @@
 import { Hash, Search as SearchIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { SearchResult, SearchType, search as searchClient } from '@/lib/client'
@@ -117,34 +117,49 @@ const appendTabResults = (
   return previous
 }
 
+const getAccountUsername = (account: MastodonAccount) =>
+  account.username || account.acct?.split('@')[0] || 'unknown'
+
+const getAccountLabel = (account: MastodonAccount) =>
+  account.display_name || account.username || account.acct || 'Unknown profile'
+
 const getAccountHandle = (account: MastodonAccount, host: string) => {
-  const acct = account.acct || account.username
-  return acct.includes('@') ? `@${acct}` : `@${account.username}@${host}`
+  const username = getAccountUsername(account)
+  const acct = account.acct || username
+  return acct.includes('@') ? `@${acct}` : `@${username}@${host}`
 }
 
 const getAccountInitial = (account: MastodonAccount) => {
-  const name = account.display_name || account.username
+  const name = account.display_name || account.username || account.acct || ''
   return name.trim()[0]?.toUpperCase() ?? '?'
 }
 
-const getPlainTextFromHtml = (html: string) => {
-  if (!html) return ''
+const stripHtmlTags = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const getPlainTextFromHtml = (html: string | null | undefined) => {
+  const safeHtml = html ?? ''
+  if (!safeHtml) return ''
 
   if (typeof document === 'undefined') {
-    return html
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    return stripHtmlTags(safeHtml)
   }
 
-  const element = document.createElement('div')
-  element.innerHTML = html
-  return (element.textContent ?? '').replace(/\s+/g, ' ').trim()
+  try {
+    const parser = new DOMParser()
+    const parsed = parser.parseFromString(safeHtml, 'text/html')
+    return (parsed.body.textContent ?? '').replace(/\s+/g, ' ').trim()
+  } catch {
+    return stripHtmlTags(safeHtml)
+  }
 }
 
 const getTagPostCount = (tag: SearchTag) => {
   if (typeof tag.postCount === 'number') return tag.postCount
-  const historyCount = Number(tag.history.at(0)?.uses)
+  const historyCount = Number(tag.history?.at(0)?.uses)
   return Number.isFinite(historyCount) ? historyCount : null
 }
 
@@ -156,7 +171,8 @@ const AccountRow = ({
   host: string
 }) => {
   const handle = getAccountHandle(account, host)
-  const note = getPlainTextFromHtml(account.note)
+  const label = getAccountLabel(account)
+  const note = useMemo(() => getPlainTextFromHtml(account.note), [account.note])
 
   return (
     <Link
@@ -169,9 +185,7 @@ const AccountRow = ({
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <p className="truncate text-sm font-medium">
-            {account.display_name || account.username}
-          </p>
+          <p className="truncate text-sm font-medium">{label}</p>
           <p className="truncate text-xs text-muted-foreground">{handle}</p>
         </div>
         {note && (
@@ -255,6 +269,7 @@ export const SearchPageClient = ({
       setResults(emptySearchResult())
       setError(false)
       setIsLoading(false)
+      setIsLoadingMore(false)
       setHasMore(false)
       return
     }
@@ -262,8 +277,10 @@ export const SearchPageClient = ({
     const abortController = new AbortController()
     abortControllerRef.current = abortController
     setIsLoading(true)
+    setIsLoadingMore(false)
     setError(false)
     setHasMore(false)
+    setResults(emptySearchResult())
 
     void searchClient({
       q: query,
@@ -439,11 +456,7 @@ export const SearchPageClient = ({
       <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
         <TabsList className="grid h-auto w-full grid-cols-4 rounded-lg p-1">
           {tabs.map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              onClick={() => onTabChange(tab.value)}
-            >
+            <TabsTrigger key={tab.value} value={tab.value}>
               {tab.label}
             </TabsTrigger>
           ))}
