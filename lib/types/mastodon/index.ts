@@ -6,6 +6,7 @@ export * from './customEmoji'
 export * from './conversation'
 export * from './filterResult'
 export * from './previewCard'
+export * from './tag'
 
 export * from './filter/index'
 export * from './mediaAttachment/index'

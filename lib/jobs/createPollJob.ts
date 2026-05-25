@@ -98,6 +98,7 @@ export const createPollJob = createJobHandle(
 
     const tags = getTags(question as unknown as Note)
     const seenHashtags = new Set<string>()
+    const affectedHashtags: string[] = []
     await Promise.all([
       addStatusToTimelines(database, status),
       ...tags.map(async (item) => {
@@ -116,12 +117,14 @@ export const createPollJob = createJobHandle(
           const normalizedKey = hashtagName.toLowerCase()
           if (seenHashtags.has(normalizedKey)) return
           seenHashtags.add(normalizedKey)
+          affectedHashtags.push(hashtagName)
 
           await database.createTag({
             statusId: question.id,
             name: hashtagName,
             value: hashtagHref,
-            type: 'hashtag'
+            type: 'hashtag',
+            skipSearchIndex: true
           })
           const tagName = hashtagName.startsWith('#')
             ? hashtagName.slice(1)
@@ -137,5 +140,10 @@ export const createPollJob = createJobHandle(
         })
       })
     ])
+    if (affectedHashtags.length > 0) {
+      await database.indexHashtagSearchDocuments({
+        hashtags: affectedHashtags
+      })
+    }
   }
 )

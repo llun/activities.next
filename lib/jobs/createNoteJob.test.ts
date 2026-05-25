@@ -525,6 +525,46 @@ describe('createNoteJob', () => {
     expect(hashtagTags[0].value).toEqual('https://somewhere.test/tags/testing')
   })
 
+  it('batches hashtag search reindexing after hashtag tags are created', async () => {
+    const noteId = `https://${actor1!.domain}/notes/batched-hashtag-test-${Date.now()}`
+    const indexHashtagSearchDocuments = jest.spyOn(
+      database,
+      'indexHashtagSearchDocuments'
+    )
+    const note = MockMastodonActivityPubNote({
+      id: noteId,
+      content: '<p>Hello #one #two</p>',
+      tags: [
+        {
+          type: 'Hashtag',
+          href: 'https://somewhere.test/tags/one',
+          name: '#one'
+        },
+        {
+          type: 'Hashtag',
+          href: 'https://somewhere.test/tags/two',
+          name: '#two'
+        }
+      ]
+    })
+
+    try {
+      await createNoteJob(database, {
+        id: 'id-batched-hashtags',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: note.attributedTo
+      })
+
+      expect(indexHashtagSearchDocuments).toHaveBeenCalledTimes(1)
+      expect(indexHashtagSearchDocuments).toHaveBeenCalledWith({
+        hashtags: ['#one', '#two']
+      })
+    } finally {
+      indexHashtagSearchDocuments.mockRestore()
+    }
+  })
+
   it('stores mention tags separately from hashtag tags', async () => {
     const noteId = `https://${actor1!.domain}/notes/mixed-tag-test-${Date.now()}`
     const note = MockMastodonActivityPubNote({

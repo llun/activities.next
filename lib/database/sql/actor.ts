@@ -3,12 +3,15 @@ import { Knex } from 'knex'
 import { getConfig } from '@/lib/config'
 import {
   deleteActorSearchDocument,
-  indexActorSearchDocument
+  indexActorSearchDocument,
+  indexHashtagSearchDocuments,
+  normalizeHashtagSearchName
 } from '@/lib/database/sql/search'
 import {
   CounterKey,
   decreaseCounterValue,
   deleteCounterValue,
+  deleteCounterValues,
   getCounterValue,
   getCounterValues,
   increaseCounterValue,
@@ -17,6 +20,12 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import {
+  chunkArray,
+  deleteRowsByColumnChunks,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
+import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
@@ -51,6 +60,7 @@ import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { logger } from '@/lib/utils/logger'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -1059,6 +1069,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async deleteActorData({ actorId }: DeleteActorDataParams) {
+    const affectedHashtags: string[] = []
+
     await database.transaction(async (trx) => {
       const currentTime = new Date()
 
@@ -1269,25 +1281,81 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       }
 
       if (statusIds.length > 0) {
-        // Get poll choice IDs before deleting them
-        const pollChoices = await trx('poll_choices')
-          .whereIn('statusId', statusIds)
-          .select('choiceId')
-        const choiceIds = pollChoices.map((choice) => choice.choiceId)
+        const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
+        affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
+        const hashtagCounterAdjustments = new Map<string, number>()
+        for (const tag of hashtagTags) {
+          const tagName = normalizeHashtagSearchName(tag.name)
+          if (tagName.length === 0) continue
+          hashtagCounterAdjustments.set(
+            tagName,
+            (hashtagCounterAdjustments.get(tagName) ?? 0) + 1
+          )
+        }
+        for (const [tagName, count] of hashtagCounterAdjustments) {
+          await decreaseCounterValue(
+            trx,
+            CounterKey.totalHashtag(tagName),
+            count,
+            currentTime
+          )
+        }
 
         // Delete status-related data
-        await trx('tags').whereIn('statusId', statusIds).delete()
-        await trx('recipients').whereIn('statusId', statusIds).delete()
-        await trx('likes').whereIn('statusId', statusIds).delete()
-        await trx('bookmarks').whereIn('statusId', statusIds).delete()
-        await trx('attachments').whereIn('statusId', statusIds).delete()
-        await trx('status_history').whereIn('statusId', statusIds).delete()
-
-        // Delete poll answers before deleting poll choices
-        if (choiceIds.length > 0) {
-          await trx('poll_answers').whereIn('answerId', choiceIds).delete()
+        await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(trx, 'recipients', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(trx, 'bookmarks', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(
+          trx,
+          'attachments',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'status_history',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'poll_answers',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'poll_voters',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'poll_choices',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'notifications',
+          'statusId',
+          statusIds
+        )
+        await deleteRowsByColumnChunks(
+          trx,
+          'direct_conversation_statuses',
+          'statusId',
+          statusIds
+        )
+        for (const statusIdChunk of chunkArray(
+          statusIds,
+          getWhereInBatchSize(trx)
+        )) {
+          await trx('fitness_files')
+            .whereIn('statusId', statusIdChunk)
+            .update({ statusId: null })
         }
-        await trx('poll_choices').whereIn('statusId', statusIds).delete()
       }
 
       // Delete timeline entries for this actor
@@ -1347,6 +1415,76 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete bookmarks made by this actor
       await trx('bookmarks').where('actorId', actorId).delete()
 
+      const pollAnswersMadeByActor: { statusId: string; choice: number }[] =
+        await trx('poll_answers')
+          .where('actorId', actorId)
+          .select('statusId', 'choice')
+      if (pollAnswersMadeByActor.length > 0) {
+        const choiceIdsByStatusId = new Map<string, number[]>()
+        const votedStatusIds = [
+          ...new Set(pollAnswersMadeByActor.map((answer) => answer.statusId))
+        ]
+
+        for (const statusIdChunk of chunkArray(
+          votedStatusIds,
+          getWhereInBatchSize(trx)
+        )) {
+          const pollChoices: { statusId: string; choiceId: number }[] =
+            await trx('poll_choices')
+              .whereIn('statusId', statusIdChunk)
+              .orderBy('statusId', 'asc')
+              .orderBy('choiceId', 'asc')
+              .select('statusId', 'choiceId')
+
+          for (const choice of pollChoices) {
+            const choices = choiceIdsByStatusId.get(choice.statusId) ?? []
+            choices.push(choice.choiceId)
+            choiceIdsByStatusId.set(choice.statusId, choices)
+          }
+        }
+
+        const pollChoiceDecrements = new Map<
+          string,
+          { statusId: string; choiceId: number; count: number }
+        >()
+        for (const answer of pollAnswersMadeByActor) {
+          const choiceId = choiceIdsByStatusId.get(answer.statusId)?.[
+            Number(answer.choice)
+          ]
+          if (choiceId === undefined) continue
+
+          const key = `${answer.statusId}:${choiceId}`
+          const existing = pollChoiceDecrements.get(key) ?? {
+            statusId: answer.statusId,
+            choiceId,
+            count: 0
+          }
+          existing.count += 1
+          pollChoiceDecrements.set(key, existing)
+        }
+
+        for (const {
+          statusId,
+          choiceId,
+          count
+        } of pollChoiceDecrements.values()) {
+          await trx('poll_choices')
+            .where({ statusId, choiceId })
+            .update({
+              totalVotes: trx.raw('CASE WHEN ?? > ? THEN ?? - ? ELSE 0 END', [
+                'totalVotes',
+                count,
+                'totalVotes',
+                count
+              ])
+            })
+        }
+      }
+
+      // Delete poll votes cast by this actor on other actors' polls
+      await trx('poll_answers').where('actorId', actorId).delete()
+      await trx('poll_voters').where('actorId', actorId).delete()
+
       // Delete attachments created by this actor
       await trx('attachments').where('actorId', actorId).delete()
 
@@ -1376,11 +1514,14 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         }
       }
 
-      for (const statusId of statusIds) {
-        await deleteCounterValue(trx, CounterKey.totalLike(statusId))
-        await deleteCounterValue(trx, CounterKey.totalReblog(statusId))
-        await deleteCounterValue(trx, CounterKey.totalReply(statusId))
-      }
+      await deleteCounterValues(
+        trx,
+        statusIds.flatMap((statusId) => [
+          CounterKey.totalLike(statusId),
+          CounterKey.totalReblog(statusId),
+          CounterKey.totalReply(statusId)
+        ])
+      )
 
       // Delete notifications table entries if exists
       try {
@@ -1394,5 +1535,22 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await trx('actors').where('id', actorId).delete()
       await deleteActorSearchDocument(trx, { id: actorId })
     })
+
+    if (affectedHashtags.length > 0) {
+      try {
+        await indexHashtagSearchDocuments(database, {
+          hashtags: [...new Set(affectedHashtags)]
+        })
+      } catch (err) {
+        logger.warn(
+          {
+            actorId,
+            err,
+            hashtags: [...new Set(affectedHashtags)]
+          },
+          'Failed to refresh hashtag search documents after actor deletion'
+        )
+      }
+    }
   }
 })

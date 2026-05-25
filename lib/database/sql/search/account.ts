@@ -3,6 +3,11 @@ import { Knex } from 'knex'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  chunkArray,
+  getClientName,
+  getInsertBatchSize
+} from '@/lib/database/sql/utils/knex'
+import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
   isFederationSigningActorUsername
@@ -26,9 +31,7 @@ import {
 } from './documents'
 
 const FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN = `${FEDERATION_SIGNING_ACTOR_USERNAME.replace(/[\\%_]/g, '\\$&')}%`
-const SQLITE_INSERT_PARAMETER_LIMIT = 999
 const ACCOUNT_SEARCH_DOCUMENT_DEFAULT_BATCH_SIZE = 500
-const SQLITE_CLIENTS = new Set(['sqlite3', 'better-sqlite3'])
 const ACCOUNT_ORDER_COLUMNS = {
   username: 'actors.username',
   domain: 'actors.domain'
@@ -81,26 +84,18 @@ const isDiscoverableAccount = (actor: AccountSearchActor) => {
 }
 
 const getLowerAccountHandleSQL = (database: Knex) => {
-  const clientName = String(database.client.config.client)
+  const clientName = getClientName(database)
   if (clientName.includes('mysql')) {
     return "LOWER(CONCAT(??, '@', ??))"
   }
   return "LOWER(?? || '@' || ??)"
 }
 
-const getClientName = (database: Knex) =>
-  String(database.client.config.client).toLowerCase()
-
 const getAccountSearchDocumentBatchSize = (
   database: Knex,
   row: Record<string, unknown>
-) => {
-  const columnCount = Math.max(Object.keys(row).length, 1)
-  if (SQLITE_CLIENTS.has(getClientName(database))) {
-    return Math.max(1, Math.floor(SQLITE_INSERT_PARAMETER_LIMIT / columnCount))
-  }
-  return ACCOUNT_SEARCH_DOCUMENT_DEFAULT_BATCH_SIZE
-}
+) =>
+  getInsertBatchSize(database, row, ACCOUNT_SEARCH_DOCUMENT_DEFAULT_BATCH_SIZE)
 
 const applyAccountOrdering = ({
   database,
@@ -158,14 +153,6 @@ const applyAccountOrdering = ({
     )
     .orderByRaw('LOWER(??)', [ACCOUNT_ORDER_COLUMNS.username])
     .orderBy('search_documents.entityId', 'asc')
-}
-
-const chunkArray = <T>(items: T[], size: number) => {
-  const chunks: T[][] = []
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size))
-  }
-  return chunks
 }
 
 const applySearchableAccountFilters = (query: Knex.QueryBuilder) => {

@@ -1,6 +1,9 @@
 import crypto from 'crypto'
+import knex from 'knex'
 
+import { getSQLDatabase } from '@/lib/database/sql'
 import { type SQLActorDatabase } from '@/lib/database/sql/actor'
+import { CounterKey } from '@/lib/database/sql/utils/counter'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -22,6 +25,7 @@ import {
   TEST_USERNAME3
 } from '@/lib/stub/const'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { type StatusPoll } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -1136,6 +1140,9 @@ describe('ActorDatabase', () => {
         })
 
         const targetStatusId = `${peerActorId}/statuses/delete-data-target-${suffix}`
+        const pollStatusId = `${peerActorId}/statuses/delete-data-poll-${suffix}`
+        const replyStatusId = `${actorId}/statuses/reply-${suffix}`
+        const actorHashtag = `actor-delete-${suffix}`
         await database.createNote({
           id: targetStatusId,
           url: targetStatusId,
@@ -1144,16 +1151,33 @@ describe('ActorDatabase', () => {
           cc: [],
           text: 'Target status'
         })
+        await database.createPoll({
+          id: pollStatusId,
+          url: pollStatusId,
+          actorId: peerActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Peer poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000
+        })
 
         await database.createNote({
-          id: `${actorId}/statuses/reply-${suffix}`,
-          url: `${actorId}/statuses/reply-${suffix}`,
+          id: replyStatusId,
+          url: replyStatusId,
           actorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Reply from actor to delete',
           reply: targetStatusId
         })
+        await database.createTag({
+          statusId: replyStatusId,
+          type: 'hashtag',
+          name: `#${actorHashtag}`,
+          value: `https://${TEST_DOMAIN}/tags/${actorHashtag}`
+        })
+        await database.increaseHashtagCounter({ hashtag: actorHashtag })
         await database.createAnnounce({
           id: `${actorId}/statuses/reblog-${suffix}`,
           actorId,
@@ -1188,10 +1212,30 @@ describe('ActorDatabase', () => {
             metaData: { width: 100, height: 100 }
           }
         })
+        await expect(
+          database.recordPollVotes({
+            statusId: pollStatusId,
+            actorId,
+            choices: [0]
+          })
+        ).resolves.toBeTrue()
+        await database.createPollAnswer({
+          statusId: pollStatusId,
+          actorId,
+          choice: 0
+        })
 
         const actor = await database.getActorFromId({ id: actorId })
         const accountId = actor?.account?.id
         expect(accountId).toBeDefined()
+        await expect(
+          database.hasActorVoted({ statusId: pollStatusId, actorId })
+        ).resolves.toBeTrue()
+        const pollBeforeDelete = (await database.getStatus({
+          statusId: pollStatusId,
+          currentActorId: peerActorId
+        })) as StatusPoll
+        expect(pollBeforeDelete.choices[0]).toMatchObject({ totalVotes: 1 })
 
         const [
           beforeFollowers,
@@ -1199,6 +1243,7 @@ describe('ActorDatabase', () => {
           beforeLikes,
           beforeReblogs,
           beforeReplies,
+          beforeHashtagCount,
           beforeMediaUsage,
           beforeNodeInfo
         ] = await Promise.all([
@@ -1207,6 +1252,7 @@ describe('ActorDatabase', () => {
           database.getLikeCount({ statusId: targetStatusId }),
           database.getStatusReblogsCount({ statusId: targetStatusId }),
           database.getStatusRepliesCount({ statusId: targetStatusId }),
+          database.getHashtagCounter({ hashtag: actorHashtag }),
           database.getStorageUsageForAccount({ accountId: accountId! }),
           database.getNodeInfoStats()
         ])
@@ -1215,6 +1261,17 @@ describe('ActorDatabase', () => {
 
         const deletedActor = await database.getActorFromId({ id: actorId })
         expect(deletedActor).toBeNull()
+        await expect(
+          database.hasActorVoted({ statusId: pollStatusId, actorId })
+        ).resolves.toBeFalse()
+        await expect(
+          database.getActorPollVotes({ statusId: pollStatusId, actorId })
+        ).resolves.toEqual([])
+        const pollAfterDelete = (await database.getStatus({
+          statusId: pollStatusId,
+          currentActorId: peerActorId
+        })) as StatusPoll
+        expect(pollAfterDelete.choices[0]).toMatchObject({ totalVotes: 0 })
 
         const [
           afterFollowers,
@@ -1222,6 +1279,7 @@ describe('ActorDatabase', () => {
           afterLikes,
           afterReblogs,
           afterReplies,
+          afterHashtagCount,
           afterMediaUsage,
           afterNodeInfo
         ] = await Promise.all([
@@ -1230,6 +1288,7 @@ describe('ActorDatabase', () => {
           database.getLikeCount({ statusId: targetStatusId }),
           database.getStatusReblogsCount({ statusId: targetStatusId }),
           database.getStatusRepliesCount({ statusId: targetStatusId }),
+          database.getHashtagCounter({ hashtag: actorHashtag }),
           database.getStorageUsageForAccount({ accountId: accountId! }),
           database.getNodeInfoStats()
         ])
@@ -1239,9 +1298,204 @@ describe('ActorDatabase', () => {
         expect(afterLikes).toBe(beforeLikes - 1)
         expect(afterReblogs).toBe(beforeReblogs - 1)
         expect(afterReplies).toBe(beforeReplies - 1)
+        expect(afterHashtagCount).toBe(beforeHashtagCount - 1)
         expect(afterMediaUsage).toBe(beforeMediaUsage - 1700)
         expect(afterNodeInfo.totalUsers).toBe(beforeNodeInfo.totalUsers - 1)
         expect(afterNodeInfo.localPosts).toBe(beforeNodeInfo.localPosts - 2)
+      })
+
+      it('deletes owned status-scoped data with direct status id cleanup', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const actorId = 'https://remote.test/users/delete-actor-status-data'
+        const voterId = 'https://remote.test/users/delete-actor-voter'
+        const noteId = `${actorId}/statuses/history-cleanup`
+        const pollId = `${actorId}/statuses/poll-cleanup`
+        const queries: string[] = []
+        const handleQuery = ({ sql }: { sql: string }) => {
+          queries.push(sql.toLowerCase())
+        }
+        const currentTime = new Date()
+        const countRows = async (tableName: string, statusId: string) => {
+          const row = await knexDatabase(tableName)
+            .where({ statusId })
+            .count<{ count: number | string }>('* as count')
+            .first()
+          return Number(row?.count ?? 0)
+        }
+
+        try {
+          await sqlDatabase.migrate()
+          await sqlDatabase.createActor({
+            actorId,
+            username: 'delete-actor-status-data',
+            domain: 'remote.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createActor({
+            actorId: voterId,
+            username: 'delete-actor-voter',
+            domain: 'remote.test',
+            followersUrl: `${voterId}/followers`,
+            inboxUrl: `${voterId}/inbox`,
+            sharedInboxUrl: 'https://remote.test/inbox',
+            publicKey: 'voter-public-key',
+            createdAt: Date.now()
+          })
+          await sqlDatabase.createNote({
+            id: noteId,
+            url: noteId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Original history cleanup note'
+          })
+          await sqlDatabase.updateNote({
+            statusId: noteId,
+            text: 'Updated history cleanup note'
+          })
+          await sqlDatabase.createPoll({
+            id: pollId,
+            url: pollId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Poll cleanup',
+            choices: ['One', 'Two'],
+            endAt: Date.now() + 60_000
+          })
+          await sqlDatabase.recordPollVotes({
+            statusId: pollId,
+            actorId: voterId,
+            choices: [0]
+          })
+          await knexDatabase('notifications').insert({
+            id: 'delete-actor-status-notification',
+            actorId: voterId,
+            type: 'mention',
+            sourceActorId: voterId,
+            statusId: noteId,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('direct_conversation_statuses').insert({
+            conversationId: 'delete-actor-status-conversation',
+            statusId: noteId,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('fitness_files').insert({
+            id: 'delete-actor-status-fitness-file',
+            actorId: voterId,
+            statusId: noteId,
+            path: '/tmp/delete-actor-status.fit',
+            fileName: 'delete-actor-status.fit',
+            fileType: 'fit',
+            mimeType: 'application/octet-stream',
+            bytes: 100,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          await knexDatabase('counters').insert(
+            [noteId, pollId]
+              .flatMap((statusId) => [
+                CounterKey.totalLike(statusId),
+                CounterKey.totalReblog(statusId),
+                CounterKey.totalReply(statusId)
+              ])
+              .map((id) => ({
+                id,
+                value: 1,
+                createdAt: currentTime,
+                updatedAt: currentTime
+              }))
+          )
+
+          await expect(countRows('status_history', noteId)).resolves.toBe(1)
+          await expect(countRows('poll_answers', pollId)).resolves.toBe(1)
+          await expect(countRows('poll_voters', pollId)).resolves.toBe(1)
+          await expect(countRows('notifications', noteId)).resolves.toBe(1)
+          await expect(
+            countRows('direct_conversation_statuses', noteId)
+          ).resolves.toBe(1)
+          await expect(countRows('fitness_files', noteId)).resolves.toBe(1)
+
+          knexDatabase.on('query', handleQuery)
+          await sqlDatabase.deleteActorData({ actorId })
+          knexDatabase.off('query', handleQuery)
+
+          await expect(countRows('status_history', noteId)).resolves.toBe(0)
+          await expect(countRows('poll_answers', pollId)).resolves.toBe(0)
+          await expect(countRows('poll_voters', pollId)).resolves.toBe(0)
+          await expect(countRows('notifications', noteId)).resolves.toBe(0)
+          await expect(
+            countRows('direct_conversation_statuses', noteId)
+          ).resolves.toBe(0)
+          await expect(countRows('fitness_files', noteId)).resolves.toBe(0)
+          await expect(
+            knexDatabase('fitness_files')
+              .where({ id: 'delete-actor-status-fitness-file' })
+              .first('statusId')
+          ).resolves.toEqual({ statusId: null })
+          await expect(
+            knexDatabase('counters')
+              .whereIn(
+                'id',
+                [noteId, pollId].flatMap((statusId) => [
+                  CounterKey.totalLike(statusId),
+                  CounterKey.totalReblog(statusId),
+                  CounterKey.totalReply(statusId)
+                ])
+              )
+              .count<{ count: number | string }>('* as count')
+              .first()
+              .then((row) => Number(row?.count ?? 0))
+          ).resolves.toBe(0)
+          const hasDirectStatusIdDelete = (tableName: string) =>
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes(`\`${tableName}\``) &&
+                sql.includes('`statusid` in') &&
+                !sql.includes('`actorid` in')
+            )
+          expect(hasDirectStatusIdDelete('status_history')).toBe(true)
+          expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
+          expect(hasDirectStatusIdDelete('poll_voters')).toBe(true)
+          expect(hasDirectStatusIdDelete('notifications')).toBe(true)
+          expect(hasDirectStatusIdDelete('direct_conversation_statuses')).toBe(
+            true
+          )
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('update') &&
+                sql.includes('`fitness_files`') &&
+                sql.includes('`statusid` in')
+            )
+          ).toBe(true)
+          expect(
+            queries.some(
+              (sql) =>
+                sql.startsWith('delete') &&
+                sql.includes('`counters`') &&
+                sql.includes('`id` in')
+            )
+          ).toBe(true)
+        } finally {
+          knexDatabase.off('query', handleQuery)
+          await knexDatabase.destroy()
+        }
       })
     })
   })

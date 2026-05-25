@@ -17,6 +17,7 @@ import {
 import {
   deleteHashtagSearchDocument,
   indexHashtagSearchDocument,
+  indexHashtagSearchDocuments,
   normalizeHashtagSearchName,
   reindexSearchHashtags,
   searchHashtags
@@ -41,6 +42,8 @@ export const SearchSQLDatabaseMixin = (database: Knex): SearchDatabase => ({
   searchHashtags: (params) => searchHashtags(database, params),
   indexHashtagSearchDocument: (params) =>
     indexHashtagSearchDocument(database, params),
+  indexHashtagSearchDocuments: (params) =>
+    indexHashtagSearchDocuments(database, params),
   deleteHashtagSearchDocument: (params) =>
     deleteHashtagSearchDocument(database, params),
   reindexSearchHashtags: (params) => reindexSearchHashtags(database, params),
@@ -60,6 +63,7 @@ export {
   getSearchTokens,
   indexActorSearchDocument,
   indexHashtagSearchDocument,
+  indexHashtagSearchDocuments,
   indexStatusSearchDocument,
   normalizeHashtagSearchName,
   reindexSearchAccounts,
