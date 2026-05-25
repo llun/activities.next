@@ -4,6 +4,7 @@ import {
   Bookmark,
   Home,
   Mail,
+  Search,
   Settings,
   Shield
 } from 'lucide-react'
@@ -17,6 +18,7 @@ export interface NavItem {
 
 const baseNavItems: NavItem[] = [
   { href: '/', label: 'Timeline', icon: Home },
+  { href: '/search', label: 'Search', icon: Search },
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/notifications', label: 'Notifications', icon: Bell },

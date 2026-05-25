@@ -20,6 +20,8 @@ interface MobileNavProps {
   isAdmin?: boolean
 }
 
+const mobileDirectHrefs = ['/', '/search', '/messages', '/notifications']
+
 export function MobileNav({
   unreadCount = 0,
   fitnessUrl,
@@ -28,8 +30,15 @@ export function MobileNav({
   const pathname = usePathname()
   const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
   const hasOverflow = allNavItems.length > 5
-  const directNavItems = hasOverflow ? allNavItems.slice(0, 4) : allNavItems
-  const overflowNavItems = hasOverflow ? allNavItems.slice(4) : []
+  const directNavItems = hasOverflow
+    ? mobileDirectHrefs.flatMap((href) => {
+        const item = allNavItems.find((navItem) => navItem.href === href)
+        return item ? [item] : []
+      })
+    : allNavItems
+  const overflowNavItems = hasOverflow
+    ? allNavItems.filter((item) => !directNavItems.includes(item))
+    : []
   const isItemActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/')
   const isOverflowActive = overflowNavItems.some((item) =>

@@ -23,18 +23,21 @@ describe('MobileNav', () => {
     expect(
       within(nav).getByRole('link', { name: /timeline/i })
     ).toHaveAttribute('href', '/')
+    expect(within(nav).getByRole('link', { name: /search/i })).toHaveAttribute(
+      'href',
+      '/search'
+    )
     expect(
       within(nav).getByRole('link', { name: /messages/i })
     ).toHaveAttribute('href', '/messages')
     expect(
-      within(nav).getByRole('link', { name: /bookmarks/i })
-    ).toHaveAttribute('href', '/bookmarks')
-    expect(within(nav).getByRole('link', { name: /fitness/i })).toHaveAttribute(
-      'href',
-      '/@llun@llun.test/fitness'
-    )
+      within(nav).getByRole('link', { name: /notifications/i })
+    ).toHaveAttribute('href', '/notifications')
     expect(
-      within(nav).queryByRole('link', { name: /notifications/i })
+      within(nav).queryByRole('link', { name: /bookmarks/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(nav).queryByRole('link', { name: /fitness/i })
     ).not.toBeInTheDocument()
     expect(
       within(nav).queryByRole('link', { name: /admin/i })
@@ -49,8 +52,12 @@ describe('MobileNav', () => {
     )
 
     expect(
-      await screen.findByRole('menuitem', { name: /notifications/i })
-    ).toHaveAttribute('href', '/notifications')
+      await screen.findByRole('menuitem', { name: /bookmarks/i })
+    ).toHaveAttribute('href', '/bookmarks')
+    expect(screen.getByRole('menuitem', { name: /fitness/i })).toHaveAttribute(
+      'href',
+      '/@llun@llun.test/fitness'
+    )
     expect(screen.getByRole('menuitem', { name: /admin/i })).toHaveAttribute(
       'href',
       '/admin'

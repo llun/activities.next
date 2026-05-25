@@ -57,9 +57,18 @@ const BooleanParam = z.string().transform((value) => {
   return true
 })
 
+const SearchFormatParam = z
+  .string()
+  .transform((value): 'activities_next' | undefined =>
+    value === 'activities_next' ? value : undefined
+  )
+
 const SearchParams = z.object({
   q: z.string(),
   type: SearchTypeParam.optional(),
+  // The app search UI still consumes Mastodon-shaped accounts and hashtags;
+  // this format flag only keeps statuses in the app's domain shape.
+  format: SearchFormatParam.optional(),
   resolve: BooleanParam.optional(),
   following: BooleanParam.optional(),
   exclude_unreviewed: BooleanParam.optional(),
@@ -473,6 +482,11 @@ const searchStatuses = async ({
   )
     .filter((id) => normalizeLookupId(id) !== resolvedStatusId)
     .slice(0, resolvedStatus ? indexedLimit - 1 : indexedLimit)
+
+  if (ids.length === 0) {
+    return resolvedStatus ? [resolvedStatus] : []
+  }
+
   const statuses = await database.getStatusesByIds({
     statusIds: ids,
     currentActorId: currentActor.id,
@@ -482,13 +496,9 @@ const searchStatuses = async ({
     statuses,
     ids
   })
-  return getMastodonStatuses(
-    database,
-    [resolvedStatus, ...orderedStatuses]
-      .filter((status): status is Status => Boolean(status))
-      .slice(0, limit),
-    currentActor.id
-  )
+  return [resolvedStatus, ...orderedStatuses]
+    .filter((status): status is Status => Boolean(status))
+    .slice(0, limit)
 }
 
 const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) => {
@@ -547,7 +557,7 @@ export const GET = traceApiRoute(
       const includeStatuses =
         Boolean(currentActor) && (!params.type || params.type === 'statuses')
 
-      const [accounts, hashtags, statuses] = await Promise.all([
+      const [accounts, hashtags, domainStatuses] = await Promise.all([
         includeAccounts
           ? searchAccounts({
               database,
@@ -578,6 +588,16 @@ export const GET = traceApiRoute(
             })
           : []
       ])
+      const statuses =
+        params.format === 'activities_next'
+          ? domainStatuses
+          : domainStatuses.length === 0
+            ? []
+            : await getMastodonStatuses(
+                database,
+                domainStatuses,
+                currentActor?.id
+              )
 
       return apiResponse({
         req,
