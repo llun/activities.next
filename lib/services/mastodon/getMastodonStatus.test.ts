@@ -3,6 +3,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import {
@@ -48,6 +49,22 @@ describe('#getMastodonStatus', () => {
         database,
         'getMastodonActorsFromIds'
       )
+      const getStatusReblogsCounts = jest.spyOn(
+        database,
+        'getStatusReblogsCounts'
+      )
+      const getStatusRepliesCounts = jest.spyOn(
+        database,
+        'getStatusRepliesCounts'
+      )
+      const getStatusReblogsCount = jest.spyOn(
+        database,
+        'getStatusReblogsCount'
+      )
+      const getStatusRepliesCount = jest.spyOn(
+        database,
+        'getStatusRepliesCount'
+      )
 
       const mastodonStatuses = await getMastodonStatuses(database, [
         firstStatus,
@@ -63,6 +80,91 @@ describe('#getMastodonStatus', () => {
       expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
         ids: [ACTOR1_ID]
       })
+      expect(getStatusReblogsCounts).toHaveBeenCalledWith({
+        statusIds: [firstStatus.id, secondStatus.id]
+      })
+      expect(getStatusRepliesCounts).toHaveBeenCalledWith({
+        statusIds: [firstStatus.id, secondStatus.id]
+      })
+      expect(getStatusReblogsCount).not.toHaveBeenCalled()
+      expect(getStatusRepliesCount).not.toHaveBeenCalled()
+    })
+
+    it('hydrates poll vote state in bulk while serializing status lists', async () => {
+      const firstPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-1`
+      const secondPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-2`
+
+      await database.createPoll({
+        id: firstPollId,
+        url: firstPollId,
+        actorId: ACTOR3_ID,
+        text: 'First bulk poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 60_000
+      })
+      await database.createPoll({
+        id: secondPollId,
+        url: secondPollId,
+        actorId: ACTOR3_ID,
+        text: 'Second bulk poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Alpha', 'Beta'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: firstPollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+      await database.recordPollVotes({
+        statusId: secondPollId,
+        actorId: ACTOR2_ID,
+        choices: [1]
+      })
+
+      const firstPoll = (await database.getStatus({
+        statusId: firstPollId
+      })) as Status
+      const secondPoll = (await database.getStatus({
+        statusId: secondPollId
+      })) as Status
+      const getActorPollVotesForStatuses = jest.spyOn(
+        database,
+        'getActorPollVotesForStatuses'
+      )
+      const hasActorVoted = jest.spyOn(database, 'hasActorVoted')
+      const getActorPollVotes = jest.spyOn(database, 'getActorPollVotes')
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(
+          database,
+          [firstPoll, secondPoll],
+          ACTOR2_ID
+        )
+
+        expect(mastodonStatuses).toHaveLength(2)
+        expect(getActorPollVotesForStatuses).toHaveBeenCalledTimes(1)
+        expect(getActorPollVotesForStatuses).toHaveBeenCalledWith({
+          statusIds: [firstPollId, secondPollId],
+          actorId: ACTOR2_ID
+        })
+        expect(hasActorVoted).not.toHaveBeenCalled()
+        expect(getActorPollVotes).not.toHaveBeenCalled()
+        expect(mastodonStatuses.map((status) => status.poll?.voted)).toEqual([
+          true,
+          true
+        ])
+        expect(
+          mastodonStatuses.map((status) => status.poll?.own_votes)
+        ).toEqual([[0], [1]])
+      } finally {
+        getActorPollVotesForStatuses.mockRestore()
+        hasActorVoted.mockRestore()
+        getActorPollVotes.mockRestore()
+      }
     })
 
     it('keys hydrated account cache by actor id when account url is a profile url', async () => {
@@ -98,6 +200,67 @@ describe('#getMastodonStatus', () => {
       } finally {
         getMastodonActorsFromIds.mockRestore()
         getMastodonActorFromId.mockRestore()
+      }
+    })
+
+    it('hydrates reply parents in bulk while serializing status lists', async () => {
+      const parentId = `${ACTOR1_ID}/statuses/post-1`
+      const replyOne = (await database.getStatus({
+        statusId: `${ACTOR2_ID}/statuses/post-2`
+      })) as Status
+      const replyTwo = (await database.getStatus({
+        statusId: `${ACTOR2_ID}/statuses/reply-1`
+      })) as Status
+      const getStatusesByIds = jest.spyOn(database, 'getStatusesByIds')
+      const getStatus = jest.spyOn(database, 'getStatus')
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(
+          database,
+          [replyOne, replyTwo],
+          ACTOR1_ID
+        )
+
+        expect(mastodonStatuses).toHaveLength(2)
+        expect(mastodonStatuses.map((status) => status.in_reply_to_id)).toEqual(
+          [urlToId(parentId), urlToId(parentId)]
+        )
+        expect(
+          mastodonStatuses.map((status) => status.in_reply_to_account_id)
+        ).toEqual([urlToId(ACTOR1_ID), urlToId(ACTOR1_ID)])
+        expect(getStatusesByIds).toHaveBeenCalledWith({
+          statusIds: [parentId],
+          currentActorId: ACTOR1_ID
+        })
+        expect(getStatus).not.toHaveBeenCalled()
+      } finally {
+        getStatusesByIds.mockRestore()
+        getStatus.mockRestore()
+      }
+    })
+
+    it('does not map unmatched bulk accounts by result index', async () => {
+      const status = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const getMastodonActorsFromIds = jest
+        .spyOn(database, 'getMastodonActorsFromIds')
+        .mockResolvedValueOnce([
+          {
+            id: 'remote.test:users:unrelated',
+            url: 'https://remote.test/users/unrelated'
+          }
+        ] as Awaited<ReturnType<typeof database.getMastodonActorsFromIds>>)
+
+      try {
+        await expect(getMastodonStatuses(database, [status])).resolves.toEqual(
+          []
+        )
+        expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
+          ids: [ACTOR1_ID]
+        })
+      } finally {
+        getMastodonActorsFromIds.mockRestore()
       }
     })
   })

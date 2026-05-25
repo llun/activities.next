@@ -21,12 +21,12 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import {
   chunkArray,
   deleteRowsByColumnChunks,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,

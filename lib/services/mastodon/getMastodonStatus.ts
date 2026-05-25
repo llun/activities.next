@@ -4,6 +4,7 @@ import { Mastodon } from '@/lib/types/activitypub'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
 import {
   Status,
+  StatusPoll,
   StatusType,
   hasStatusBeenEdited
 } from '@/lib/types/domain/status'
@@ -34,9 +35,22 @@ interface MastodonTag {
 }
 
 type MastodonAccountCache = Map<string, Promise<Mastodon.Account | null>>
+type ReplyStatusCache = Map<string, Status | null>
+type StatusMetricsCache = {
+  reblogs: Map<string, number>
+  replies: Map<string, number>
+}
+type PollVoteState = {
+  voted: boolean
+  ownVotes: number[]
+}
+type PollVoteCache = Map<string, PollVoteState>
 
 interface GetMastodonStatusOptions {
   accountCache?: MastodonAccountCache
+  replyStatusCache?: ReplyStatusCache
+  statusMetricsCache?: StatusMetricsCache
+  pollVoteCache?: PollVoteCache
 }
 
 const getMastodonAccount = (
@@ -120,6 +134,96 @@ const addStatusActorIds = (status: Status, actorIds: Set<string>) => {
   }
 }
 
+const addStatusMetricIds = (status: Status, statusIds: Set<string>) => {
+  if (status.type === StatusType.enum.Announce) {
+    addStatusMetricIds(status.originalStatus, statusIds)
+    return
+  }
+
+  statusIds.add(status.id)
+}
+
+const addStatusReplyIds = (status: Status, statusIds: Set<string>) => {
+  if (status.type === StatusType.enum.Announce) {
+    addStatusReplyIds(status.originalStatus, statusIds)
+    return
+  }
+
+  if (status.reply) statusIds.add(status.reply)
+}
+
+const addStatusPollIds = (status: Status, statusIds: Set<string>) => {
+  if (status.type === StatusType.enum.Announce) {
+    addStatusPollIds(status.originalStatus, statusIds)
+    return
+  }
+
+  if (status.type === StatusType.enum.Poll) statusIds.add(status.id)
+}
+
+const getReplyStatus = async (
+  database: Database,
+  statusId: string,
+  options?: GetMastodonStatusOptions
+) => {
+  const replyStatusCache = options?.replyStatusCache
+  if (!replyStatusCache) return database.getStatus({ statusId })
+
+  if (replyStatusCache.has(statusId)) {
+    return replyStatusCache.get(statusId) ?? null
+  }
+
+  const replyStatus = await database.getStatus({ statusId })
+  replyStatusCache.set(statusId, replyStatus)
+  return replyStatus
+}
+
+const getStatusReblogsCount = async (
+  database: Database,
+  statusId: string,
+  options?: GetMastodonStatusOptions
+) => {
+  const reblogsCache = options?.statusMetricsCache?.reblogs
+  if (reblogsCache?.has(statusId)) return reblogsCache.get(statusId) ?? 0
+
+  return database.getStatusReblogsCount({ statusId })
+}
+
+const getStatusRepliesCount = async (
+  database: Database,
+  statusId: string,
+  options?: GetMastodonStatusOptions
+) => {
+  const repliesCache = options?.statusMetricsCache?.replies
+  if (repliesCache?.has(statusId)) return repliesCache.get(statusId) ?? 0
+
+  return database.getStatusRepliesCount({ statusId })
+}
+
+const getPollVoteState = async (
+  database: Database,
+  status: StatusPoll,
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
+): Promise<PollVoteState> => {
+  if (!currentActorId) return { voted: false, ownVotes: [] }
+
+  const cachedVoteState = options?.pollVoteCache?.get(status.id)
+  if (cachedVoteState) return cachedVoteState
+
+  const [voted, ownVotes] = await Promise.all([
+    database.hasActorVoted({
+      statusId: status.id,
+      actorId: currentActorId
+    }),
+    database.getActorPollVotes({
+      statusId: status.id,
+      actorId: currentActorId
+    })
+  ])
+  return { voted, ownVotes }
+}
+
 export const getMastodonStatus = async (
   database: Database,
   status: Status,
@@ -140,7 +244,7 @@ export const getMastodonStatus = async (
 
   const reblogsCount =
     status.type !== StatusType.enum.Announce
-      ? await database.getStatusReblogsCount({ statusId: status.id })
+      ? await getStatusReblogsCount(database, status.id, options)
       : 0
 
   const baseData = {
@@ -180,9 +284,11 @@ export const getMastodonStatus = async (
   }
 
   if (status.type === StatusType.enum.Announce) {
-    const originalReblogsCount = await database.getStatusReblogsCount({
-      statusId: status.originalStatus.id
-    })
+    const originalReblogsCount = await getStatusReblogsCount(
+      database,
+      status.originalStatus.id,
+      options
+    )
 
     const originalVisibility = getVisibility(
       status.originalStatus.to,
@@ -208,11 +314,9 @@ export const getMastodonStatus = async (
   }
 
   const replyStatus = status.reply
-    ? await database.getStatus({ statusId: status.reply })
+    ? await getReplyStatus(database, status.reply, options)
     : null
-  const repliesCount = await database.getStatusRepliesCount({
-    statusId: status.id
-  })
+  const repliesCount = await getStatusRepliesCount(database, status.id, options)
 
   const mentions = getMentionsFromTags(status.tags)
   const emojis = getEmojisFromTags(status.tags)
@@ -251,19 +355,12 @@ export const getMastodonStatus = async (
 
   let pollData = null
   if (status.type === StatusType.enum.Poll) {
-    const voted = currentActorId
-      ? await database.hasActorVoted({
-          statusId: status.id,
-          actorId: currentActorId
-        })
-      : false
-
-    const ownVotes = currentActorId
-      ? await database.getActorPollVotes({
-          statusId: status.id,
-          actorId: currentActorId
-        })
-      : []
+    const { voted, ownVotes } = await getPollVoteState(
+      database,
+      status,
+      currentActorId,
+      options
+    )
 
     pollData = Mastodon.Poll.parse({
       id: urlToId(status.id),
@@ -300,44 +397,97 @@ export const getMastodonStatuses = async (
 
   const actorIds = new Set<string>()
   statuses.forEach((status) => addStatusActorIds(status, actorIds))
+  const metricStatusIds = new Set<string>()
+  statuses.forEach((status) => addStatusMetricIds(status, metricStatusIds))
+  const replyStatusIds = new Set<string>()
+  statuses.forEach((status) => addStatusReplyIds(status, replyStatusIds))
+  const pollStatusIds = new Set<string>()
+  statuses.forEach((status) => addStatusPollIds(status, pollStatusIds))
   const requestedActorIds = [...actorIds]
-  const accounts = await database.getMastodonActorsFromIds({
-    ids: requestedActorIds
-  })
+  const requestedMetricStatusIds = [...metricStatusIds]
+  const requestedReplyStatusIds = [...replyStatusIds]
+  const requestedPollStatusIds = currentActorId ? [...pollStatusIds] : []
+  const [accounts, reblogCounts, replyCounts, replyStatuses, pollVotes] =
+    await Promise.all([
+      database.getMastodonActorsFromIds({
+        ids: requestedActorIds
+      }),
+      database.getStatusReblogsCounts({
+        statusIds: requestedMetricStatusIds
+      }),
+      database.getStatusRepliesCounts({
+        statusIds: requestedMetricStatusIds
+      }),
+      requestedReplyStatusIds.length > 0
+        ? database.getStatusesByIds({
+            statusIds: requestedReplyStatusIds,
+            currentActorId
+          })
+        : Promise.resolve([]),
+      requestedPollStatusIds.length > 0 && currentActorId
+        ? database.getActorPollVotesForStatuses({
+            statusIds: requestedPollStatusIds,
+            actorId: currentActorId
+          })
+        : Promise.resolve<Record<string, number[]>>({})
+    ])
   const requestedActorIdSet = new Set(requestedActorIds)
   const accountCache: MastodonAccountCache = new Map()
-  const keyedAccounts = new Set<Mastodon.Account>()
 
   for (const account of accounts) {
     const decodedActorId =
       typeof account.id === 'string' ? idToUrl(account.id) : ''
     if (requestedActorIdSet.has(decodedActorId)) {
       accountCache.set(decodedActorId, Promise.resolve(account))
-      keyedAccounts.add(account)
       continue
     }
 
     if (requestedActorIdSet.has(account.url)) {
       accountCache.set(account.url, Promise.resolve(account))
-      keyedAccounts.add(account)
     }
   }
-
-  if (accounts.length === requestedActorIds.length) {
-    accounts.forEach((account, index) => {
-      if (!keyedAccounts.has(account)) {
-        accountCache.set(requestedActorIds[index], Promise.resolve(account))
-      }
-    })
-  }
-
   for (const actorId of actorIds) {
     if (!accountCache.has(actorId)) {
       accountCache.set(actorId, Promise.resolve(null))
     }
   }
 
-  const options: GetMastodonStatusOptions = { accountCache }
+  const options: GetMastodonStatusOptions = {
+    accountCache,
+    statusMetricsCache: {
+      reblogs: new Map(
+        requestedMetricStatusIds.map((statusId) => [
+          statusId,
+          reblogCounts[statusId] ?? 0
+        ])
+      ),
+      replies: new Map(
+        requestedMetricStatusIds.map((statusId) => [
+          statusId,
+          replyCounts[statusId] ?? 0
+        ])
+      )
+    },
+    replyStatusCache: new Map(
+      requestedReplyStatusIds.map((statusId) => [statusId, null])
+    ),
+    pollVoteCache: new Map(
+      requestedPollStatusIds.map((statusId) => {
+        const ownVotes = pollVotes[statusId] ?? []
+        return [
+          statusId,
+          {
+            voted: ownVotes.length > 0,
+            ownVotes
+          }
+        ]
+      })
+    )
+  }
+  for (const replyStatus of replyStatuses) {
+    options.replyStatusCache?.set(replyStatus.id, replyStatus)
+  }
+
   return (
     await Promise.all(
       statuses.map((status) =>
