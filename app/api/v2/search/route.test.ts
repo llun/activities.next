@@ -1010,6 +1010,37 @@ describe('GET /api/v2/search', () => {
     expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
   })
 
+  it('ignores unknown format values and returns default Mastodon statuses', async () => {
+    const domainStatus = {
+      id: 'https://remote.test/users/alice/statuses/mastodon',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockSearchStatusIds.mockResolvedValue([domainStatus.id])
+    mockGetStatusesByIds.mockResolvedValue([domainStatus])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=statuses&format=mastodon',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.statuses).toEqual([
+      {
+        id: domainStatus.id,
+        content: domainStatus.id
+      }
+    ])
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+      expect.any(Object),
+      [domainStatus],
+      oauthActor.id
+    )
+  })
+
   it('rejects invalid search parameters', async () => {
     const response = await GET(
       new NextRequest('https://llun.test/api/v2/search?q=trail&limit=100'),
