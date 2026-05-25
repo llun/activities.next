@@ -13,7 +13,6 @@ import { Logo } from '@/lib/components/layout/logo'
 import { buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import {
   Tooltip,
@@ -91,17 +90,8 @@ export function Sidebar({
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search"
-              className="h-10 rounded-lg pl-9 pr-10"
+              className="h-10 rounded-lg pl-9"
             />
-            <Button
-              type="submit"
-              variant="ghost"
-              size="icon"
-              aria-label="Search"
-              className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
-            >
-              <SearchIcon className="size-4" />
-            </Button>
           </div>
         </form>
 

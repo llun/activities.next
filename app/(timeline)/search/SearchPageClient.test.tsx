@@ -70,6 +70,11 @@ const account = (id: string, displayName: string, acct: string) => ({
   following_count: 4
 })
 
+const hashtag = (name: string) => ({
+  name,
+  url: `https://local.example/tags/${name}`
+})
+
 const emptySearchResult = () => ({
   accounts: [],
   statuses: [],
@@ -279,6 +284,80 @@ describe('SearchPageClient', () => {
     })
     expect(await screen.findByText('Next Runner')).toBeInTheDocument()
   })
+
+  it.each([
+    {
+      tab: 'accounts',
+      type: 'accounts',
+      duplicateText: 'Runner 19',
+      appendedText: 'Runner 20',
+      initialResults: {
+        ...emptySearchResult(),
+        accounts: Array.from({ length: 20 }, (_, index) =>
+          account(`account-${index}`, `Runner ${index}`, `runner${index}`)
+        )
+      },
+      nextResults: {
+        ...emptySearchResult(),
+        accounts: [
+          account('account-19', 'Runner 19', 'runner19'),
+          account('account-20', 'Runner 20', 'runner20')
+        ]
+      }
+    },
+    {
+      tab: 'statuses',
+      type: 'statuses',
+      duplicateText: 'status-19',
+      appendedText: 'status-20',
+      initialResults: {
+        ...emptySearchResult(),
+        statuses: Array.from({ length: 20 }, (_, index) => ({
+          id: `status-${index}`
+        }))
+      },
+      nextResults: {
+        ...emptySearchResult(),
+        statuses: [{ id: 'status-19' }, { id: 'status-20' }]
+      }
+    },
+    {
+      tab: 'hashtags',
+      type: 'hashtags',
+      duplicateText: '#tag19',
+      appendedText: '#tag20',
+      initialResults: {
+        ...emptySearchResult(),
+        hashtags: Array.from({ length: 20 }, (_, index) =>
+          hashtag(`tag${index}`)
+        )
+      },
+      nextResults: {
+        ...emptySearchResult(),
+        hashtags: [hashtag('tag19'), hashtag('tag20')]
+      }
+    }
+  ])(
+    'deduplicates overlapping $tab load-more results',
+    async ({
+      type,
+      duplicateText,
+      appendedText,
+      initialResults,
+      nextResults
+    }) => {
+      mockSearch
+        .mockResolvedValueOnce(initialResults)
+        .mockResolvedValueOnce(nextResults)
+
+      renderSearchPage(`q=runner&type=${type}`)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+
+      expect(await screen.findByText(appendedText)).toBeInTheDocument()
+      expect(screen.getAllByText(duplicateText)).toHaveLength(1)
+    }
+  )
 
   it('resets load-more state when changing tabs during pagination', async () => {
     const loadMoreSearch =

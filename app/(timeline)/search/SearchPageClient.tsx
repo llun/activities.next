@@ -18,7 +18,6 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Tag } from '@/lib/types/mastodon/tag'
-import { cn } from '@/lib/utils'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 type SearchTab = 'all' | SearchType
@@ -92,6 +91,23 @@ const getTabResults = (results: SearchResult, tab: SearchTab) => {
   return []
 }
 
+const appendUniqueBy = <T,>(
+  previous: T[],
+  next: T[],
+  getKey: (item: T) => string
+) => {
+  const seen = new Set(previous.map(getKey))
+  return [
+    ...previous,
+    ...next.filter((item) => {
+      const key = getKey(item)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  ]
+}
+
 const appendTabResults = (
   previous: SearchResult,
   next: SearchResult,
@@ -100,19 +116,31 @@ const appendTabResults = (
   if (tab === 'accounts') {
     return {
       ...previous,
-      accounts: [...previous.accounts, ...next.accounts]
+      accounts: appendUniqueBy(
+        previous.accounts,
+        next.accounts,
+        (account) => account.id
+      )
     }
   }
   if (tab === 'statuses') {
     return {
       ...previous,
-      statuses: [...previous.statuses, ...next.statuses]
+      statuses: appendUniqueBy(
+        previous.statuses,
+        next.statuses,
+        (status) => status.id
+      )
     }
   }
   if (tab === 'hashtags') {
     return {
       ...previous,
-      hashtags: [...previous.hashtags, ...next.hashtags]
+      hashtags: appendUniqueBy(
+        previous.hashtags,
+        next.hashtags,
+        (tag) => tag.name
+      )
     }
   }
   return previous
@@ -477,9 +505,7 @@ export const SearchPageClient = ({
         )}
 
         {activeTab !== 'all' && hasMore && !error && (
-          <div
-            className={cn('border-t p-4 text-center', isLoading && 'hidden')}
-          >
+          <div className="border-t p-4 text-center">
             <Button
               variant="outline"
               disabled={isLoadingMore}
