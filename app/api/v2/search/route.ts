@@ -498,6 +498,7 @@ const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) => {
     params.type === 'statuses' ||
     params.resolve === true ||
     (params.following === true && includesAccounts) ||
+    // Mastodon requires auth when offset is present, even when the value is 0.
     params.offset !== undefined
   )
 }
@@ -521,6 +522,7 @@ export const GET = traceApiRoute(
       const params = parsedParams.data
       const query = params.q.trim()
       const limit = params.limit ?? 20
+      // Mastodon ignores offset unless an explicit search type is provided.
       const offset = params.type ? (params.offset ?? 0) : 0
 
       if (!currentActor && requiresAuthentication({ params })) {
