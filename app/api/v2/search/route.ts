@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
@@ -114,9 +115,21 @@ const getProfileUrlAccountHandle = (query: string) => {
   }
 }
 
-const getCanonicalAccountActorId = async (query: string) => {
+const getCanonicalAccountActorId = async ({
+  query,
+  signingActor
+}: {
+  query: string
+  signingActor?: Actor
+}) => {
   const handle = getProfileUrlAccountHandle(query)
-  if (!handle) return query
+  if (!handle) {
+    const person = await getActorPerson({
+      actorId: query,
+      signingActor
+    })
+    return normalizeActorId(person?.id) ?? query
+  }
 
   return (
     (await getWebfingerSelf({
@@ -239,7 +252,10 @@ const resolveAccountId = async ({
     const existingActor = await database.getActorFromId({ id: query })
     const canonicalActorId = existingActor
       ? query
-      : await getCanonicalAccountActorId(query)
+      : await getCanonicalAccountActorId({
+          query,
+          signingActor: currentActor ?? undefined
+        })
     const actor =
       existingActor ??
       (canonicalActorId === query
@@ -428,6 +444,7 @@ const searchStatuses = async ({
   limit: number
   offset: number
 }) => {
+  const indexedLimit = limit * 2
   const [resolvedStatus, indexedIds] = await Promise.all([
     offset === 0
       ? getResolvedStatus({
@@ -439,7 +456,7 @@ const searchStatuses = async ({
       : Promise.resolve(null),
     database.searchStatusIds({
       q: query,
-      limit,
+      limit: indexedLimit,
       offset,
       currentActorId: currentActor.id,
       currentActorUsername: currentActor.username,
@@ -455,7 +472,7 @@ const searchStatuses = async ({
     indexedIds.filter((id): id is string => typeof id === 'string')
   )
     .filter((id) => normalizeLookupId(id) !== resolvedStatusId)
-    .slice(0, resolvedStatus ? limit - 1 : limit)
+    .slice(0, resolvedStatus ? indexedLimit - 1 : indexedLimit)
   const statuses = await database.getStatusesByIds({
     statusIds: ids,
     currentActorId: currentActor.id,
@@ -467,18 +484,23 @@ const searchStatuses = async ({
   })
   return getMastodonStatuses(
     database,
-    [resolvedStatus, ...orderedStatuses].filter((status): status is Status =>
-      Boolean(status)
-    ),
+    [resolvedStatus, ...orderedStatuses]
+      .filter((status): status is Status => Boolean(status))
+      .slice(0, limit),
     currentActor.id
   )
 }
 
-const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) =>
-  params.type === 'statuses' ||
-  params.resolve === true ||
-  params.following === true ||
-  (params.offset !== undefined && params.offset > 0)
+const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) => {
+  const includesAccounts = !params.type || params.type === 'accounts'
+
+  return (
+    params.type === 'statuses' ||
+    params.resolve === true ||
+    (params.following === true && includesAccounts) ||
+    params.offset !== undefined
+  )
+}
 
 export const GET = traceApiRoute(
   'search',

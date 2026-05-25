@@ -230,13 +230,37 @@ describe('#getMastodonStatus', () => {
         ).toEqual([urlToId(ACTOR1_ID), urlToId(ACTOR1_ID)])
         expect(getStatusesByIds).toHaveBeenCalledWith({
           statusIds: [parentId],
-          currentActorId: ACTOR1_ID,
-          visibleToActorId: ACTOR1_ID
+          currentActorId: ACTOR1_ID
         })
         expect(getStatus).not.toHaveBeenCalled()
       } finally {
         getStatusesByIds.mockRestore()
         getStatus.mockRestore()
+      }
+    })
+
+    it('does not map unmatched bulk accounts by result index', async () => {
+      const status = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const getMastodonActorsFromIds = jest
+        .spyOn(database, 'getMastodonActorsFromIds')
+        .mockResolvedValueOnce([
+          {
+            id: 'remote.test:users:unrelated',
+            url: 'https://remote.test/users/unrelated'
+          }
+        ] as Awaited<ReturnType<typeof database.getMastodonActorsFromIds>>)
+
+      try {
+        await expect(getMastodonStatuses(database, [status])).resolves.toEqual(
+          []
+        )
+        expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
+          ids: [ACTOR1_ID]
+        })
+      } finally {
+        getMastodonActorsFromIds.mockRestore()
       }
     })
   })

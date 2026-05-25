@@ -17,6 +17,7 @@ const mockGetServerSession = jest.fn()
 const mockGetMastodonStatuses = jest.fn()
 const mockCanActorReadStatus = jest.fn()
 const mockGetWebfingerSelf = jest.fn()
+const mockGetActorPerson = jest.fn()
 const mockRecordActorIfNeeded = jest.fn()
 const mockGetRemoteStatus = jest.fn()
 const mockLoggerWarn = jest.fn()
@@ -80,6 +81,10 @@ jest.mock('@/lib/services/statusAccess', () => ({
 
 jest.mock('@/lib/activities/getWebfingerSelf', () => ({
   getWebfingerSelf: (...args: unknown[]) => mockGetWebfingerSelf(...args)
+}))
+
+jest.mock('@/lib/activities/getActorPerson', () => ({
+  getActorPerson: (...args: unknown[]) => mockGetActorPerson(...args)
 }))
 
 jest.mock('@/lib/activities/getRemoteStatus', () => ({
@@ -153,6 +158,7 @@ describe('GET /api/v2/search', () => {
     mockGetStatusFromUrl.mockResolvedValue(null)
     mockCanActorReadStatus.mockResolvedValue(true)
     mockGetWebfingerSelf.mockResolvedValue(null)
+    mockGetActorPerson.mockResolvedValue(null)
     mockRecordActorIfNeeded.mockResolvedValue(null)
     mockGetRemoteStatus.mockResolvedValue(null)
   })
@@ -221,7 +227,7 @@ describe('GET /api/v2/search', () => {
     })
     expect(mockSearchStatusIds).toHaveBeenCalledWith({
       q: 'trail',
-      limit: 2,
+      limit: 4,
       offset: 0,
       currentActorId: oauthActor.id,
       currentActorUsername: oauthActor.username,
@@ -305,6 +311,20 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
   })
 
+  it('requires authentication when offset is explicitly zero', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=accounts&limit=3&offset=0'
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+  })
+
   it('accepts Mastodon-style false boolean query values', async () => {
     const response = await GET(
       new NextRequest(
@@ -342,6 +362,24 @@ describe('GET /api/v2/search', () => {
       limit: 20,
       offset: 0,
       followingActorId: oauthActor.id
+    })
+  })
+
+  it('does not require authentication for following when accounts are not requested', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=hashtags&following=true'
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(mockSearchHashtags).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 20,
+      offset: 0,
+      excludeUnreviewed: false
     })
   })
 
@@ -541,6 +579,57 @@ describe('GET /api/v2/search', () => {
     )
   })
 
+  it('over-fetches indexed statuses before post-hydration filtering', async () => {
+    const firstId = 'https://remote.test/users/alice/statuses/1'
+    const secondId = 'https://remote.test/users/alice/statuses/2'
+    const thirdId = 'https://remote.test/users/alice/statuses/3'
+    mockSearchStatusIds.mockResolvedValue([firstId, secondId, thirdId])
+    mockGetStatusesByIds.mockResolvedValue([
+      {
+        id: secondId,
+        actorId: 'https://remote.test/users/alice'
+      },
+      {
+        id: thirdId,
+        actorId: 'https://remote.test/users/alice'
+      }
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=statuses&limit=2',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearchStatusIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 4
+      })
+    )
+    expect(mockGetStatusesByIds).toHaveBeenCalledWith({
+      statusIds: [firstId, secondId, thirdId],
+      currentActorId: oauthActor.id,
+      visibleToActorId: oauthActor.id
+    })
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+      expect.any(Object),
+      [
+        {
+          id: secondId,
+          actorId: 'https://remote.test/users/alice'
+        },
+        {
+          id: thirdId,
+          actorId: 'https://remote.test/users/alice'
+        }
+      ],
+      oauthActor.id
+    )
+  })
+
   it('resolves account URLs only on the first page and preserves hydration order', async () => {
     const accountUrl = 'http://remote.test/users/resolved'
     mockGetActorFromId.mockImplementation(({ id }) =>
@@ -600,13 +689,17 @@ describe('GET /api/v2/search', () => {
 
   it('resolves uncached account URLs', async () => {
     const accountUrl = 'http://remote.test/users/remote-resolved'
+    const canonicalActorId = 'https://remote.test/users/remote-resolved'
     mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorPerson.mockResolvedValue({
+      id: canonicalActorId
+    })
     mockRecordActorIfNeeded.mockResolvedValue({
-      id: 'https://remote.test/users/remote-resolved'
+      id: canonicalActorId
     })
     mockGetMastodonActorsFromIds.mockResolvedValue([
       {
-        id: 'https://remote.test/users/remote-resolved',
+        id: canonicalActorId,
         url: accountUrl,
         username: 'remote-resolved'
       }
@@ -622,8 +715,12 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+    expect(mockGetActorPerson).toHaveBeenCalledWith({
       actorId: accountUrl,
+      signingActor: oauthActor
+    })
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: canonicalActorId,
       database: expect.any(Object),
       signingActor: oauthActor
     })

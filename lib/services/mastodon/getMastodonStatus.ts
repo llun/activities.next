@@ -421,8 +421,7 @@ export const getMastodonStatuses = async (
       requestedReplyStatusIds.length > 0
         ? database.getStatusesByIds({
             statusIds: requestedReplyStatusIds,
-            currentActorId,
-            visibleToActorId: currentActorId
+            currentActorId
           })
         : Promise.resolve([]),
       requestedPollStatusIds.length > 0 && currentActorId
@@ -434,31 +433,19 @@ export const getMastodonStatuses = async (
     ])
   const requestedActorIdSet = new Set(requestedActorIds)
   const accountCache: MastodonAccountCache = new Map()
-  const keyedAccounts = new Set<Mastodon.Account>()
 
   for (const account of accounts) {
     const decodedActorId =
       typeof account.id === 'string' ? idToUrl(account.id) : ''
     if (requestedActorIdSet.has(decodedActorId)) {
       accountCache.set(decodedActorId, Promise.resolve(account))
-      keyedAccounts.add(account)
       continue
     }
 
     if (requestedActorIdSet.has(account.url)) {
       accountCache.set(account.url, Promise.resolve(account))
-      keyedAccounts.add(account)
     }
   }
-
-  if (accounts.length === requestedActorIds.length) {
-    accounts.forEach((account, index) => {
-      if (!keyedAccounts.has(account)) {
-        accountCache.set(requestedActorIds[index], Promise.resolve(account))
-      }
-    })
-  }
-
   for (const actorId of actorIds) {
     if (!accountCache.has(actorId)) {
       accountCache.set(actorId, Promise.resolve(null))
