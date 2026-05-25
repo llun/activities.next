@@ -1,0 +1,23 @@
+app/(timeline)/search/SearchPageClient.tsx
+  s_f5c59c6d5bce63::t_2250de49ad2a27 153-156
+lib/client.ts
+  s_f5c59c6d5bce63::t_f9ac8292f17476 1982-2001,2025-2027
+lib/client.test.ts
+  s_f5c59c6d5bce63::t_be02f8f3a3c1d8 457-458,462-472
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "108e9e99457c3c4c4860b795a71082293d06631b",
+  "prompts": {},
+  "sessions": {
+    "s_f5c59c6d5bce63": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5fed-d7b0-76a3-9eb2-a13fca545055",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
