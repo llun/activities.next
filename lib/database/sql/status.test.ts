@@ -2739,9 +2739,15 @@ describe('StatusDatabase', () => {
         const parentStatusId = `${actorId}/statuses/bulk-parent`
         const firstReplyStatusId = `${actorId}/statuses/bulk-reply-1`
         const secondReplyStatusId = `${actorId}/statuses/bulk-reply-2`
-        const queries: string[] = []
-        const handleQuery = ({ sql }: { sql: string }) => {
-          queries.push(sql.toLowerCase())
+        const queries: { bindings: unknown[]; sql: string }[] = []
+        const handleQuery = ({
+          bindings,
+          sql
+        }: {
+          bindings?: unknown[]
+          sql: string
+        }) => {
+          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
         }
 
         try {
@@ -2795,24 +2801,32 @@ describe('StatusDatabase', () => {
 
           expect(
             queries.some(
-              (sql) =>
+              ({ sql }) =>
                 sql.includes('from `statuses`') && sql.includes('`id` in')
             )
           ).toBe(true)
           expect(
             queries.some(
-              (sql) =>
+              ({ sql }) =>
                 sql.includes('from `tags`') && sql.includes('`statusid` in')
             )
           ).toBe(true)
           expect(
             queries.some(
-              (sql) =>
+              ({ sql }) =>
                 sql.startsWith('delete') &&
                 sql.includes('`recipients`') &&
                 sql.includes('`statusid` in')
             )
           ).toBe(true)
+          const searchDocumentDeletes = queries.filter(
+            ({ bindings, sql }) =>
+              sql.startsWith('delete') &&
+              sql.includes('`search_documents`') &&
+              bindings.includes('status')
+          )
+          expect(searchDocumentDeletes).toHaveLength(1)
+          expect(searchDocumentDeletes[0].sql).toContain('`entityid` in')
         } finally {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()

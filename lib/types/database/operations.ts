@@ -696,6 +696,8 @@ export type SearchStatusesParams = {
   limit: number
   offset?: number
   currentActorId: string
+  currentActorUsername?: string | null
+  currentActorDomain?: string | null
   accountId?: string | null
   minId?: string | null
   maxId?: string | null
