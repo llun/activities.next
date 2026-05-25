@@ -243,6 +243,36 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
+  it('normalizes status filter identifiers before database search', async () => {
+    const accountId = encodeURIComponent(
+      'HTTPS://Remote.test/users/alice#owner'
+    )
+    const maxId = encodeURIComponent(
+      'Remote.test:users:alice:statuses:9#section'
+    )
+    const minId = encodeURIComponent(
+      'https://Remote.test/users/alice/statuses/1#section'
+    )
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=trail&type=statuses&account_id=${accountId}&max_id=${maxId}&min_id=${minId}`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearchStatusIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'https://remote.test/users/alice',
+        maxId: 'https://remote.test/users/alice/statuses/9',
+        minId: 'https://remote.test/users/alice/statuses/1'
+      })
+    )
+  })
+
   it('ignores offset without an explicit search type', async () => {
     const response = await GET(
       new NextRequest(

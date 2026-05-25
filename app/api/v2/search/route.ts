@@ -18,6 +18,7 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -90,8 +91,7 @@ const isUrl = (value: string) => {
 
 const normalizeUrlId = (value?: string | null) => {
   if (!value) return null
-  if (value.startsWith('https://') || value.startsWith('http://')) return value
-  return idToUrl(value)
+  return normalizeActorId(isUrl(value) ? value : idToUrl(value))
 }
 
 const dedupeStrings = (values: string[]) => [...new Set(values)]
