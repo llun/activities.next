@@ -90,7 +90,6 @@ import {
 import type { SQLStatusSearchRow } from './search'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
-const SQLITE_MAX_BINDINGS = 999
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
 // Counts breadth-first reply levels from the deleted root, not total replies.
 // This bounds transaction size while still allowing wide conversation cleanup.
@@ -107,21 +106,6 @@ type StatusDeletionRow = {
 
 const statusReplyDeletionDepthError = (statusId: string) =>
   new Error(`Status reply deletion depth limit exceeded for status ${statusId}`)
-
-const getWhereInBatchSize = (database: Knex) => {
-  const clientName = String(database.client.config.client)
-  if (!clientName.includes('sqlite')) return Number.POSITIVE_INFINITY
-  return SQLITE_MAX_BINDINGS
-}
-
-const chunkArray = <T>(items: T[], size: number) => {
-  const chunkSize = Number.isFinite(size) ? size : Math.max(items.length, 1)
-  const chunks: T[][] = []
-  for (let start = 0; start < items.length; start += chunkSize) {
-    chunks.push(items.slice(start, start + chunkSize))
-  }
-  return chunks
-}
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
