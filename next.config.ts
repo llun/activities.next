@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
   assetPrefix: '/activities',
+  allowedDevOrigins:
+    process.env.NODE_ENV === 'development' ? ['activities.local'] : undefined,
   serverExternalPackages: [
     '@aws-sdk/client-lambda',
     '@aws-sdk/client-s3',

@@ -522,11 +522,7 @@ describe('GET /api/v2/search', () => {
 
     expect(response.status).toBe(200)
     expect(mockCanActorReadStatus).not.toHaveBeenCalled()
-    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
-      expect.any(Object),
-      [],
-      oauthActor.id
-    )
+    expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
     expect(data.statuses).toEqual([])
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -628,6 +624,23 @@ describe('GET /api/v2/search', () => {
       ],
       oauthActor.id
     )
+  })
+
+  it('skips Mastodon status hydration when no domain statuses are found', async () => {
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail&type=statuses', {
+        headers: { Authorization: 'Bearer read-search-token' }
+      }),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.statuses).toEqual([])
+    expect(mockGetStatusesByIds).not.toHaveBeenCalled()
+    expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
   })
 
   it('resolves account URLs only on the first page and preserves hydration order', async () => {
@@ -973,6 +986,59 @@ describe('GET /api/v2/search', () => {
         history: []
       }
     ])
+  })
+
+  it('returns domain statuses when activities_next format is requested', async () => {
+    const domainStatus = {
+      id: 'https://remote.test/users/alice/statuses/domain',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockSearchStatusIds.mockResolvedValue([domainStatus.id])
+    mockGetStatusesByIds.mockResolvedValue([domainStatus])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=statuses&format=activities_next',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.statuses).toEqual([domainStatus])
+    expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
+  })
+
+  it('ignores unknown format values and returns default Mastodon statuses', async () => {
+    const domainStatus = {
+      id: 'https://remote.test/users/alice/statuses/mastodon',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockSearchStatusIds.mockResolvedValue([domainStatus.id])
+    mockGetStatusesByIds.mockResolvedValue([domainStatus])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=statuses&format=mastodon',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.statuses).toEqual([
+      {
+        id: domainStatus.id,
+        content: domainStatus.id
+      }
+    ])
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+      expect.any(Object),
+      [domainStatus],
+      oauthActor.id
+    )
   })
 
   it('rejects invalid search parameters', async () => {
