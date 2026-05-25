@@ -522,11 +522,7 @@ describe('GET /api/v2/search', () => {
 
     expect(response.status).toBe(200)
     expect(mockCanActorReadStatus).not.toHaveBeenCalled()
-    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
-      expect.any(Object),
-      [],
-      oauthActor.id
-    )
+    expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
     expect(data.statuses).toEqual([])
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -628,6 +624,23 @@ describe('GET /api/v2/search', () => {
       ],
       oauthActor.id
     )
+  })
+
+  it('skips Mastodon status hydration when no domain statuses are found', async () => {
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail&type=statuses', {
+        headers: { Authorization: 'Bearer read-search-token' }
+      }),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.statuses).toEqual([])
+    expect(mockGetStatusesByIds).not.toHaveBeenCalled()
+    expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
   })
 
   it('resolves account URLs only on the first page and preserves hydration order', async () => {

@@ -474,6 +474,11 @@ const searchStatuses = async ({
   )
     .filter((id) => normalizeLookupId(id) !== resolvedStatusId)
     .slice(0, resolvedStatus ? indexedLimit - 1 : indexedLimit)
+
+  if (ids.length === 0) {
+    return resolvedStatus ? [resolvedStatus] : []
+  }
+
   const statuses = await database.getStatusesByIds({
     statusIds: ids,
     currentActorId: currentActor.id,
@@ -578,11 +583,13 @@ export const GET = traceApiRoute(
       const statuses =
         params.format === 'activities_next'
           ? domainStatuses
-          : await getMastodonStatuses(
-              database,
-              domainStatuses,
-              currentActor?.id
-            )
+          : domainStatuses.length === 0
+            ? []
+            : await getMastodonStatuses(
+                database,
+                domainStatuses,
+                currentActor?.id
+              )
 
       return apiResponse({
         req,

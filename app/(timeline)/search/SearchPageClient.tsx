@@ -165,7 +165,7 @@ const getAccountInitial = (account: MastodonAccount) => {
 
 const getTagPostCount = (tag: SearchTag) => {
   if (typeof tag.postCount === 'number') return tag.postCount
-  const historyCount = Number(tag.history?.at(0)?.uses)
+  const historyCount = Number(tag.history?.[0]?.uses)
   return Number.isFinite(historyCount) ? historyCount : null
 }
 
@@ -179,7 +179,7 @@ const AccountRow = ({
   const handle = getAccountHandle(account, host)
   const label = getAccountLabel(account)
   const note = useMemo(
-    () => htmlToPlainText(account.note ?? ''),
+    () => htmlToPlainText(account.note ?? '').trim(),
     [account.note]
   )
 
@@ -481,7 +481,7 @@ export const SearchPageClient = ({
       </Tabs>
 
       <section className="overflow-hidden rounded-lg border bg-background/80 shadow-sm">
-        {error ? (
+        {error && !hasVisibleResults ? (
           <div className="p-8 text-center text-muted-foreground">
             <h2 className="mb-2 text-xl font-semibold">Search failed</h2>
             <p>Try again in a moment.</p>
@@ -504,8 +504,13 @@ export const SearchPageClient = ({
           </div>
         )}
 
-        {activeTab !== 'all' && hasMore && !error && (
+        {activeTab !== 'all' && hasMore && (
           <div className="border-t p-4 text-center">
+            {error && (
+              <p className="mb-2 text-sm text-destructive">
+                Failed to load more results. Please try again.
+              </p>
+            )}
             <Button
               variant="outline"
               disabled={isLoadingMore}

@@ -171,6 +171,36 @@ describe('SearchPageClient', () => {
     expect(screen.queryByText(/posts$/)).not.toBeInTheDocument()
   })
 
+  it('renders hashtag counts without Array.prototype.at support', async () => {
+    const arrayAt = Array.prototype.at
+    Object.defineProperty(Array.prototype, 'at', {
+      configurable: true,
+      value: undefined
+    })
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      hashtags: [
+        {
+          name: 'legacy',
+          url: 'https://local.example/tags/legacy',
+          history: [{ day: '0', uses: '4', accounts: '1' }]
+        }
+      ]
+    })
+
+    try {
+      renderSearchPage('q=legacy&type=hashtags')
+
+      expect(await screen.findByText('#legacy')).toBeInTheDocument()
+      expect(screen.getByText('4 posts')).toBeInTheDocument()
+    } finally {
+      Object.defineProperty(Array.prototype, 'at', {
+        configurable: true,
+        value: arrayAt
+      })
+    }
+  })
+
   it('renders malformed profile payloads with fallbacks', async () => {
     mockSearch.mockResolvedValueOnce({
       ...emptySearchResult(),
@@ -399,6 +429,40 @@ describe('SearchPageClient', () => {
     expect(
       await screen.findByRole('button', { name: 'Load more' })
     ).toBeEnabled()
+  })
+
+  it('keeps typed results visible and allows retry when loading more fails', async () => {
+    mockSearch
+      .mockResolvedValueOnce({
+        ...emptySearchResult(),
+        accounts: Array.from({ length: 20 }, (_, index) =>
+          account(`account-${index}`, `Runner ${index}`, `runner${index}`)
+        )
+      })
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockResolvedValueOnce({
+        ...emptySearchResult(),
+        accounts: [account('account-next', 'Next Runner', 'next')]
+      })
+
+    renderSearchPage('q=runner&type=accounts')
+
+    expect(await screen.findByText('Runner 0')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(
+      await screen.findByText('Failed to load more results. Please try again.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Runner 0')).toBeInTheDocument()
+    expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(await screen.findByText('Next Runner')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Failed to load more results. Please try again.')
+    ).not.toBeInTheDocument()
   })
 
   it('aborts active pagination requests when unmounted', async () => {
