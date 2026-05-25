@@ -975,6 +975,28 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
+  it('returns domain statuses when activities_next format is requested', async () => {
+    const domainStatus = {
+      id: 'https://remote.test/users/alice/statuses/domain',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockSearchStatusIds.mockResolvedValue([domainStatus.id])
+    mockGetStatusesByIds.mockResolvedValue([domainStatus])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=statuses&format=activities_next',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.statuses).toEqual([domainStatus])
+    expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
+  })
+
   it('rejects invalid search parameters', async () => {
     const response = await GET(
       new NextRequest('https://llun.test/api/v2/search?q=trail&limit=100'),

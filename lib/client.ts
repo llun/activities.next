@@ -12,6 +12,7 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
+import type { Tag } from '@/lib/types/mastodon/tag'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -1953,6 +1954,54 @@ export const hideConversation = async ({
     headers: { Accept: 'application/json' }
   })
   return response.ok
+}
+
+export type SearchType = 'accounts' | 'statuses' | 'hashtags'
+
+export interface SearchResult<TStatus = Status> {
+  accounts: MastodonAccount[]
+  statuses: TStatus[]
+  hashtags: Tag[]
+}
+
+export interface SearchParams {
+  q: string
+  type?: SearchType
+  limit?: number
+  offset?: number
+  resolve?: boolean
+  signal?: AbortSignal
+}
+
+const emptySearchResult = (): SearchResult => ({
+  accounts: [],
+  statuses: [],
+  hashtags: []
+})
+
+export const search = async ({
+  q,
+  type,
+  limit,
+  offset,
+  resolve = true,
+  signal
+}: SearchParams): Promise<SearchResult> => {
+  const url = new URL(`${window.origin}/api/v2/search`)
+  url.searchParams.set('q', q)
+  if (type) url.searchParams.set('type', type)
+  if (limit !== undefined) url.searchParams.set('limit', `${limit}`)
+  if (offset !== undefined) url.searchParams.set('offset', `${offset}`)
+  url.searchParams.set('resolve', resolve ? 'true' : 'false')
+  url.searchParams.set('format', 'activities_next')
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal
+  })
+  if (!response.ok) return emptySearchResult()
+  return (await response.json()) as SearchResult
 }
 
 export const searchAccounts = async ({

@@ -13,6 +13,7 @@ import {
   getBookmarks,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
+  search,
   startStravaArchiveImport,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
@@ -390,6 +391,74 @@ describe('client bookmark helpers', () => {
         headers: { Accept: 'application/json' }
       })
     )
+  })
+})
+
+describe('client search', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        origin: 'https://local.example'
+      }
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'window')
+  })
+
+  it('builds the v2 search URL with typed filters and forwards abort signals', async () => {
+    const abortController = new AbortController()
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        accounts: [],
+        statuses: [{ id: 'status-1' }],
+        hashtags: []
+      }),
+      { status: 200 }
+    )
+
+    await expect(
+      search({
+        q: 'trail run',
+        type: 'statuses',
+        limit: 10,
+        offset: 20,
+        resolve: true,
+        signal: abortController.signal
+      })
+    ).resolves.toEqual({
+      accounts: [],
+      statuses: [{ id: 'status-1' }],
+      hashtags: []
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    const parsedUrl = new URL(url as string)
+    expect(parsedUrl.toString()).toBe(
+      'https://local.example/api/v2/search?q=trail+run&type=statuses&limit=10&offset=20&resolve=true&format=activities_next'
+    )
+    expect(init).toEqual(
+      expect.objectContaining({
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: abortController.signal
+      })
+    )
+  })
+
+  it('returns an empty result when the search request is rejected', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ status: 'Unauthorized' }), {
+      status: 401
+    })
+
+    await expect(search({ q: 'trail' })).resolves.toEqual({
+      accounts: [],
+      statuses: [],
+      hashtags: []
+    })
   })
 })
 

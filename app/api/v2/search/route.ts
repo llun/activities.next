@@ -60,6 +60,7 @@ const BooleanParam = z.string().transform((value) => {
 const SearchParams = z.object({
   q: z.string(),
   type: SearchTypeParam.optional(),
+  format: z.enum(['activities_next']).optional(),
   resolve: BooleanParam.optional(),
   following: BooleanParam.optional(),
   exclude_unreviewed: BooleanParam.optional(),
@@ -482,13 +483,9 @@ const searchStatuses = async ({
     statuses,
     ids
   })
-  return getMastodonStatuses(
-    database,
-    [resolvedStatus, ...orderedStatuses]
-      .filter((status): status is Status => Boolean(status))
-      .slice(0, limit),
-    currentActor.id
-  )
+  return [resolvedStatus, ...orderedStatuses]
+    .filter((status): status is Status => Boolean(status))
+    .slice(0, limit)
 }
 
 const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) => {
@@ -547,7 +544,7 @@ export const GET = traceApiRoute(
       const includeStatuses =
         Boolean(currentActor) && (!params.type || params.type === 'statuses')
 
-      const [accounts, hashtags, statuses] = await Promise.all([
+      const [accounts, hashtags, domainStatuses] = await Promise.all([
         includeAccounts
           ? searchAccounts({
               database,
@@ -578,6 +575,14 @@ export const GET = traceApiRoute(
             })
           : []
       ])
+      const statuses =
+        params.format === 'activities_next'
+          ? domainStatuses
+          : await getMastodonStatuses(
+              database,
+              domainStatuses,
+              currentActor?.id
+            )
 
       return apiResponse({
         req,
