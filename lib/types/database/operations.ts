@@ -533,6 +533,9 @@ export type DecreaseHashtagCounterParams = {
 export type GetStatusReblogsCountParams = {
   statusId: string
 }
+export type GetStatusCountsParams = {
+  statusIds: string[]
+}
 export type GetStatusRepliesCountParams = {
   statusId: string
   url?: string
@@ -550,6 +553,10 @@ export type HasActorVotedParams = {
 }
 export type GetActorPollVotesParams = {
   statusId: string
+  actorId: string
+}
+export type GetActorPollVotesForStatusesParams = {
+  statusIds: string[]
   actorId: string
 }
 export type IncrementPollChoiceVotesParams = {
@@ -608,10 +615,19 @@ export interface StatusDatabase {
   increaseHashtagCounter(params: IncreaseHashtagCounterParams): Promise<void>
   decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
+  getStatusReblogsCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>>
   getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
+  getStatusRepliesCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>>
   createPollAnswer(params: CreatePollAnswerParams): Promise<void>
   hasActorVoted(params: HasActorVotedParams): Promise<boolean>
   getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>
+  getActorPollVotesForStatuses(
+    params: GetActorPollVotesForStatusesParams
+  ): Promise<Record<string, number[]>>
   incrementPollChoiceVotes(
     params: IncrementPollChoiceVotesParams
   ): Promise<void>

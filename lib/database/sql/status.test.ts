@@ -1319,6 +1319,30 @@ describe('StatusDatabase', () => {
         })
         expect(count).toBe(0)
       })
+
+      it('returns reblog counts for multiple statuses', async () => {
+        const counts = await database.getStatusReblogsCounts({
+          statusIds: [
+            statuses.primary.postWithAttachments,
+            statuses.primary.post
+          ]
+        })
+        expect(counts).toEqual({
+          [statuses.primary.postWithAttachments]: 1,
+          [statuses.primary.post]: 0
+        })
+      })
+
+      it('returns bulk reblog counts in SQLite-safe batches', async () => {
+        const statusIds = Array.from(
+          { length: 1005 },
+          (_, index) => `${emptyActorId}/statuses/bulk-reblog-count-${index}`
+        )
+        const counts = await database.getStatusReblogsCounts({ statusIds })
+
+        expect(Object.keys(counts)).toHaveLength(statusIds.length)
+        expect(Object.values(counts).every((count) => count === 0)).toBe(true)
+      })
     })
 
     describe('getStatusRepliesCount', () => {
@@ -1334,6 +1358,16 @@ describe('StatusDatabase', () => {
           statusId: statuses.primary.secondPost
         })
         expect(count).toBe(0)
+      })
+
+      it('returns reply counts for multiple statuses', async () => {
+        const counts = await database.getStatusRepliesCounts({
+          statusIds: [statuses.primary.post, statuses.primary.secondPost]
+        })
+        expect(counts).toEqual({
+          [statuses.primary.post]: 2,
+          [statuses.primary.secondPost]: 0
+        })
       })
 
       it('counts replies that reference parent URL', async () => {
@@ -1959,6 +1993,49 @@ describe('StatusDatabase', () => {
         expect(poll).toMatchObject({
           voted: true,
           ownVotes: [0]
+        })
+      })
+
+      it('returns actor poll votes for multiple statuses', async () => {
+        const firstPollId = `${emptyActorId}/statuses/poll-votes-bulk-1`
+        const secondPollId = `${emptyActorId}/statuses/poll-votes-bulk-2`
+        const thirdPollId = `${emptyActorId}/statuses/poll-votes-bulk-3`
+        const voterId = `${replyAuthorId}/poll-votes-bulk`
+
+        for (const pollId of [firstPollId, secondPollId, thirdPollId]) {
+          await database.createPoll({
+            id: pollId,
+            url: pollId,
+            actorId: emptyActorId,
+            to: ['https://www.w3.org/ns/activitystreams#Public'],
+            cc: [],
+            text: 'Vote poll',
+            choices: ['Yes', 'No'],
+            pollType: 'anyOf',
+            endAt: Date.now() + 1000
+          })
+        }
+
+        await database.recordPollVotes({
+          statusId: firstPollId,
+          actorId: voterId,
+          choices: [1, 0]
+        })
+        await database.recordPollVotes({
+          statusId: secondPollId,
+          actorId: voterId,
+          choices: [1]
+        })
+
+        await expect(
+          database.getActorPollVotesForStatuses({
+            statusIds: [firstPollId, secondPollId, thirdPollId, firstPollId],
+            actorId: voterId
+          })
+        ).resolves.toEqual({
+          [firstPollId]: [0, 1],
+          [secondPollId]: [1],
+          [thirdPollId]: []
         })
       })
 
