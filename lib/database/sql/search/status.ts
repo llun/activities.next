@@ -29,13 +29,17 @@ import {
   normalizeSearchText
 } from './documents'
 
-type SQLStatusRow = {
+export type SQLStatusSearchRow = {
   id: string
   actorId: string
   type: string
   content: string | Record<string, unknown> | null
   createdAt: number | Date
 }
+
+type IndexStatusSearchDocumentParams =
+  | { statusId: string }
+  | { status: SQLStatusSearchRow }
 
 type StatusCursor = {
   entityId: string
@@ -44,7 +48,7 @@ type StatusCursor = {
 
 const STATUS_REINDEX_CURSOR_PREFIX = 'status-created-at:'
 
-const getStatusDocumentText = (status: SQLStatusRow) => {
+const getStatusDocumentText = (status: SQLStatusSearchRow) => {
   const content = parseStatusContent(status.content)
   if (!content) return ''
   if (typeof content === 'string')
@@ -131,13 +135,13 @@ export const deleteStatusSearchDocumentsByStatusIds = async (
 
 const reindexStatusSearchDocuments = async (
   database: Knex,
-  statuses: SQLStatusRow[]
+  statuses: SQLStatusSearchRow[]
 ) => {
   if (statuses.length === 0) return
 
   const currentTime = new Date()
   const statusIdsToDelete: string[] = []
-  const candidates: { status: SQLStatusRow; documentText: string }[] = []
+  const candidates: { status: SQLStatusSearchRow; documentText: string }[] = []
 
   for (const status of statuses) {
     if (
@@ -204,13 +208,18 @@ const reindexStatusSearchDocuments = async (
 
 export const indexStatusSearchDocument = async (
   database: Knex,
-  { statusId }: { statusId: string }
+  params: IndexStatusSearchDocumentParams
 ): Promise<void> => {
-  const status = await database<SQLStatusRow>('statuses')
-    .where('id', statusId)
+  if ('status' in params) {
+    await reindexStatusSearchDocuments(database, [params.status])
+    return
+  }
+
+  const status = await database<SQLStatusSearchRow>('statuses')
+    .where('id', params.statusId)
     .first()
   if (!status) {
-    await deleteStatusSearchDocument(database, { statusId })
+    await deleteStatusSearchDocument(database, { statusId: params.statusId })
     return
   }
 
@@ -440,7 +449,7 @@ const applyStatusReindexCursor = async ({
 
   if (!cursor) {
     cursor =
-      (await database<SQLStatusRow>('statuses')
+      (await database<SQLStatusSearchRow>('statuses')
         .where('id', afterId)
         .first('id', 'createdAt')) ?? null
   }
@@ -499,7 +508,7 @@ const parseStatusReindexCursor = (
   }
 }
 
-const getStatusReindexCursor = (status: SQLStatusRow) =>
+const getStatusReindexCursor = (status: SQLStatusSearchRow) =>
   `${STATUS_REINDEX_CURSOR_PREFIX}${getCompatibleTime(
     status.createdAt
   )}:${encodeURIComponent(status.id)}`
@@ -565,7 +574,7 @@ export const reindexSearchStatuses = async (
   database: Knex,
   { afterId = null, limit = 500 }: ReindexSearchDocumentsParams = {}
 ): Promise<ReindexSearchDocumentsResult> => {
-  const query = database<SQLStatusRow>('statuses')
+  const query = database<SQLStatusSearchRow>('statuses')
     .select('id', 'actorId', 'type', 'content', 'createdAt')
     .whereIn('type', [StatusType.enum.Note, StatusType.enum.Poll])
     .orderBy('createdAt', 'asc')

@@ -3,6 +3,7 @@ import knex, { Knex } from 'knex'
 import { getSQLDatabase } from '@/lib/database/sql'
 import {
   getSearchTokens,
+  indexStatusSearchDocument,
   normalizeHashtagSearchName
 } from '@/lib/database/sql/search'
 import {
@@ -173,6 +174,50 @@ describe('SearchDatabase foundation', () => {
           lastPostAt: 0
         })
       ])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('indexes a preloaded status row without reading the statuses table', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const statusId = 'https://remote.test/users/alice/statuses/preloaded'
+
+    try {
+      await database.migrate()
+
+      await indexStatusSearchDocument(knexDatabase, {
+        status: {
+          id: statusId,
+          actorId: 'https://remote.test/users/alice',
+          type: StatusType.enum.Note,
+          content: JSON.stringify({
+            text: 'Preloaded trail run',
+            summary: 'Morning effort'
+          }),
+          createdAt: new Date('2026-05-25T07:00:00.000Z')
+        }
+      })
+
+      await expect(
+        knexDatabase('search_documents')
+          .where({
+            entityType: 'status',
+            entityId: statusId
+          })
+          .first()
+      ).resolves.toMatchObject({
+        documentText: 'Preloaded trail run Morning effort',
+        actorId: 'https://remote.test/users/alice',
+        visibility: 'direct'
+      })
     } finally {
       await database.destroy()
     }

@@ -85,6 +85,7 @@ import {
   indexStatusSearchDocument,
   normalizeHashtagSearchName
 } from './search'
+import type { SQLStatusSearchRow } from './search'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
@@ -399,6 +400,19 @@ export const StatusSQLDatabaseMixin = (
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
     const statusUpdatedAt = currentTime
+    const content = {
+      url,
+      text,
+      summary
+    }
+    const statusContent = JSON.stringify(content)
+    const searchStatus: SQLStatusSearchRow = {
+      id,
+      actorId,
+      type: StatusType.enum.Note,
+      content: statusContent,
+      createdAt: statusCreatedAt
+    }
 
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
@@ -407,11 +421,7 @@ export const StatusSQLDatabaseMixin = (
         urlHash: getStatusUrlHash(url),
         actorId,
         type: StatusType.enum.Note,
-        content: JSON.stringify({
-          url,
-          text,
-          summary
-        }),
+        content: statusContent,
         reply,
         replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
@@ -421,11 +431,7 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Note,
         reply,
-        content: {
-          url,
-          text,
-          summary
-        },
+        content,
         step: 'increment',
         trx,
         currentTime
@@ -459,7 +465,7 @@ export const StatusSQLDatabaseMixin = (
       )
     })
 
-    await indexStatusSearchDocument(database, { statusId: id })
+    await indexStatusSearchDocument(database, { status: searchStatus })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusNote.parse({
@@ -503,6 +509,19 @@ export const StatusSQLDatabaseMixin = (
       summary: status.summary
     }
     const currentTime = new Date()
+    const content = {
+      url: status.url,
+      text,
+      summary
+    }
+    const statusContent = JSON.stringify(content)
+    const searchStatus: SQLStatusSearchRow = {
+      id: status.id,
+      actorId: status.actorId,
+      type: status.type,
+      content: statusContent,
+      createdAt: status.createdAt
+    }
     await database.transaction(async (trx) => {
       await trx('status_history').insert({
         statusId: status.id,
@@ -515,11 +534,7 @@ export const StatusSQLDatabaseMixin = (
         .update({
           url: status.url || null,
           urlHash: status.url ? getStatusUrlHash(status.url) : null,
-          content: JSON.stringify({
-            url: status.url,
-            text,
-            summary
-          }),
+          content: statusContent,
           updatedAt: currentTime
         })
 
@@ -579,7 +594,7 @@ export const StatusSQLDatabaseMixin = (
         )
       }
     })
-    await indexStatusSearchDocument(database, { statusId })
+    await indexStatusSearchDocument(database, { status: searchStatus })
     return getStatus({ statusId })
   }
 
@@ -594,6 +609,17 @@ export const StatusSQLDatabaseMixin = (
 
     let affectedHashtags: string[] = []
     const currentTime = new Date()
+    const searchStatus: SQLStatusSearchRow = {
+      id: status.id,
+      actorId: status.actorId,
+      type: status.type,
+      content: JSON.stringify({
+        url: status.url,
+        text: status.text,
+        summary: status.summary
+      }),
+      createdAt: status.createdAt
+    }
     await database.transaction(async (trx) => {
       await trx('recipients').where('statusId', status.id).delete()
       await trx('timelines').where('statusId', status.id).delete()
@@ -629,7 +655,7 @@ export const StatusSQLDatabaseMixin = (
         hashtags: affectedHashtags
       })
     }
-    await indexStatusSearchDocument(database, { statusId })
+    await indexStatusSearchDocument(database, { status: searchStatus })
     return getStatus({ statusId })
   }
 
@@ -734,6 +760,21 @@ export const StatusSQLDatabaseMixin = (
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
     const statusUpdatedAt = currentTime
+    const content = {
+      url,
+      text,
+      summary,
+      endAt,
+      pollType
+    }
+    const statusContent = JSON.stringify(content)
+    const searchStatus: SQLStatusSearchRow = {
+      id,
+      actorId,
+      type: StatusType.enum.Poll,
+      content: statusContent,
+      createdAt: statusCreatedAt
+    }
 
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
@@ -742,13 +783,7 @@ export const StatusSQLDatabaseMixin = (
         urlHash: getStatusUrlHash(url),
         actorId,
         type: StatusType.enum.Poll,
-        content: JSON.stringify({
-          url,
-          text,
-          summary,
-          endAt,
-          pollType
-        }),
+        content: statusContent,
         reply,
         replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
@@ -758,13 +793,7 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Poll,
         reply,
-        content: {
-          url,
-          text,
-          summary,
-          endAt,
-          pollType
-        },
+        content,
         step: 'increment',
         trx,
         currentTime
@@ -809,7 +838,7 @@ export const StatusSQLDatabaseMixin = (
       )
     })
 
-    await indexStatusSearchDocument(database, { statusId: id })
+    await indexStatusSearchDocument(database, { status: searchStatus })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusPoll.parse({
@@ -854,6 +883,21 @@ export const StatusSQLDatabaseMixin = (
     const data = getCompatibleJSON(existingStatus.content)
     const nextText = text ?? data.text
     const nextSummary = summary ?? data.summary
+    const content = {
+      url: data.url,
+      text: nextText,
+      summary: nextSummary,
+      endAt: data.endAt,
+      pollType: data.pollType
+    }
+    const statusContent = JSON.stringify(content)
+    const searchStatus: SQLStatusSearchRow = {
+      id: existingStatus.id,
+      actorId: existingStatus.actorId,
+      type: existingStatus.type,
+      content: statusContent,
+      createdAt: existingStatus.createdAt
+    }
 
     await database.transaction(async (trx) => {
       if (nextText !== data.text || nextSummary !== data.summary) {
@@ -872,13 +916,7 @@ export const StatusSQLDatabaseMixin = (
           .update({
             url: data.url || null,
             urlHash: data.url ? getStatusUrlHash(data.url) : null,
-            content: JSON.stringify({
-              url: data.url,
-              text: nextText,
-              summary: nextSummary,
-              endAt: data.endAt,
-              pollType: data.pollType
-            }),
+            content: statusContent,
             updatedAt: currentTime
           })
       }
@@ -894,7 +932,7 @@ export const StatusSQLDatabaseMixin = (
           })
       }
     })
-    await indexStatusSearchDocument(database, { statusId })
+    await indexStatusSearchDocument(database, { status: searchStatus })
     return getStatus({ statusId })
   }
 

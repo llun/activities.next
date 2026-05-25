@@ -77,3 +77,5 @@ export {
   searchStatusIds,
   upsertSearchDocument
 }
+
+export type { SQLStatusSearchRow } from './status'
