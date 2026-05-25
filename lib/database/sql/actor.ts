@@ -60,6 +60,7 @@ import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { logger } from '@/lib/utils/logger'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -1536,9 +1537,20 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     })
 
     if (affectedHashtags.length > 0) {
-      await indexHashtagSearchDocuments(database, {
-        hashtags: [...new Set(affectedHashtags)]
-      })
+      try {
+        await indexHashtagSearchDocuments(database, {
+          hashtags: [...new Set(affectedHashtags)]
+        })
+      } catch (err) {
+        logger.warn(
+          {
+            actorId,
+            err,
+            hashtags: [...new Set(affectedHashtags)]
+          },
+          'Failed to refresh hashtag search documents after actor deletion'
+        )
+      }
     }
   }
 })

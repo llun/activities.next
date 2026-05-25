@@ -2236,6 +2236,22 @@ describe('StatusDatabase', () => {
         expect(count).toBe(1)
       })
 
+      it('normalizes repeated hashtag prefixes for counters', async () => {
+        const tag = `RepeatedPrefix_${Date.now()}`
+
+        await database.increaseHashtagCounter({ hashtag: `##${tag}` })
+
+        await expect(
+          database.getHashtagCounter({ hashtag: tag.toLowerCase() })
+        ).resolves.toBe(1)
+
+        await database.decreaseHashtagCounter({ hashtag: `#${tag}` })
+
+        await expect(
+          database.getHashtagCounter({ hashtag: `##${tag.toUpperCase()}` })
+        ).resolves.toBe(0)
+      })
+
       it('decreases hashtag counter when status with hashtag is deleted', async () => {
         const tag = `delete_counter_test_${Date.now()}`
         const statusId = `${primaryActorId}/statuses/hashtag-delete-${Date.now()}`

@@ -76,6 +76,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 import {
   indexHashtagSearchDocument,
@@ -1741,9 +1742,20 @@ export const StatusSQLDatabaseMixin = (
         // Keep hashtag aggregate writes outside the delete transaction. A full
         // reindexSearchHashtags run can reconcile this if the process exits
         // after commit and before this best-effort refresh completes.
-        await indexHashtagSearchDocuments(database, {
-          hashtags: [...new Set(collectedHashtags)]
-        })
+        try {
+          await indexHashtagSearchDocuments(database, {
+            hashtags: [...new Set(collectedHashtags)]
+          })
+        } catch (err) {
+          logger.warn(
+            {
+              err,
+              hashtags: [...new Set(collectedHashtags)],
+              statusId
+            },
+            'Failed to refresh hashtag search documents after status deletion'
+          )
+        }
       }
       return
     }
@@ -2106,7 +2118,7 @@ export const StatusSQLDatabaseMixin = (
   }: {
     hashtag: string
   }): Promise<number> {
-    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    const tagName = normalizeHashtagSearchName(hashtag)
     return getCounterValue(database, CounterKey.totalHashtag(tagName))
   }
 
@@ -2151,7 +2163,7 @@ export const StatusSQLDatabaseMixin = (
   }: {
     hashtag: string
   }): Promise<void> {
-    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    const tagName = normalizeHashtagSearchName(hashtag)
     await increaseCounterValue(database, CounterKey.totalHashtag(tagName))
   }
 
@@ -2160,7 +2172,7 @@ export const StatusSQLDatabaseMixin = (
   }: {
     hashtag: string
   }): Promise<void> {
-    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    const tagName = normalizeHashtagSearchName(hashtag)
     await decreaseCounterValue(database, CounterKey.totalHashtag(tagName))
   }
 
