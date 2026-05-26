@@ -307,4 +307,43 @@ describe('instance activity counter migration', () => {
   it('does not run in the default Knex migration transaction', () => {
     expect(migration.config).toEqual({ transaction: false })
   })
+
+  it('builds MySQL activity-counter upserts without deprecated VALUES()', async () => {
+    const mysqlDatabase = knex({ client: 'mysql2' })
+    const currentTime = new Date('2026-05-26T12:00:00.000Z')
+    const row = {
+      id: 'bucket:logins:2026052612',
+      value: 1,
+      bucketHour: currentTime,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+
+    try {
+      const bucketSql = migration
+        .buildMySQLBucketCounterUpsertQuery(mysqlDatabase, [row])
+        .toSQL().sql
+      const markerSql = migration
+        .buildMySQLLoginMarkerUpsertQuery(mysqlDatabase, [
+          {
+            ...row,
+            id: 'unique-login:account-a',
+            bucketHour: null
+          }
+        ])
+        .toSQL().sql
+
+      expect(bucketSql).toContain(' as `new_values` on duplicate key update ')
+      expect(bucketSql).toContain(
+        '`value` = `counters`.`value` + `new_values`.`value`'
+      )
+      expect(markerSql).toContain(
+        'case when `new_values`.`value` > `counters`.`value`'
+      )
+      expect(bucketSql).not.toContain('VALUES(')
+      expect(markerSql).not.toContain('VALUES(')
+    } finally {
+      await mysqlDatabase.destroy()
+    }
+  })
 })

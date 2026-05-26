@@ -16,6 +16,7 @@ import {
 } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { logger } from '@/lib/utils/logger'
 import { urlToId } from '@/lib/utils/urlToId'
 
 describe('AccountDatabase', () => {
@@ -498,7 +499,7 @@ describe('AccountDatabase', () => {
         })
         const sqlDatabase = getSQLDatabase(knexDatabase)
         const errorSpy = jest
-          .spyOn(console, 'error')
+          .spyOn(logger, 'error')
           .mockImplementation(() => undefined)
 
         try {

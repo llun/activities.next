@@ -2,8 +2,10 @@ import knex, { Knex } from 'knex'
 
 import {
   getInstanceActivityFromCounters,
-  recordWeeklyLogin
+  recordWeeklyLogin,
+  recordWeeklyLoginSafely
 } from '@/lib/database/sql/instanceActivity'
+import { logger } from '@/lib/utils/logger'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -204,5 +206,67 @@ describe('instance activity counters', () => {
     expect(loginRows.reduce((total, row) => total + Number(row.value), 0)).toBe(
       2
     )
+  })
+
+  it('leaves weekly login markers retryable when bucket increments fail', async () => {
+    const currentTime = new Date('2026-02-04T10:00:00.000Z')
+
+    await database.raw(`
+      CREATE TRIGGER fail_login_bucket_update
+      BEFORE UPDATE OF value ON counters
+      WHEN NEW.id LIKE 'bucket:logins:%'
+      BEGIN
+        SELECT RAISE(ABORT, 'bucket failure');
+      END;
+    `)
+
+    try {
+      await recordWeeklyLogin(database, 'account-retry', currentTime)
+    } catch (error) {
+      expect(String(error)).toContain('bucket failure')
+    }
+
+    await database.raw('DROP TRIGGER fail_login_bucket_update')
+    await recordWeeklyLogin(database, 'account-retry', currentTime)
+
+    const marker = await database('counters')
+      .where('id', 'unique-login:account-retry')
+      .first('id', 'value')
+    const loginRows = await database('counters')
+      .where('id', 'like', 'bucket:logins:%')
+      .select('value')
+
+    expect(marker).toEqual({
+      id: 'unique-login:account-retry',
+      value: Math.floor(Date.UTC(2026, 1, 2) / 1000)
+    })
+    expect(loginRows.reduce((total, row) => total + Number(row.value), 0)).toBe(
+      1
+    )
+  })
+
+  it('logs weekly login recording failures with structured logger metadata', async () => {
+    const loggerErrorSpy = jest
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+
+    try {
+      await database.schema.dropTable('counters')
+      await recordWeeklyLoginSafely(
+        database,
+        'account-log-error',
+        new Date('2026-02-04T10:00:00.000Z')
+      )
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          err: expect.objectContaining({ code: 'SQLITE_ERROR' }),
+          accountId: 'account-log-error'
+        }),
+        'Failed to record weekly login'
+      )
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
   })
 })

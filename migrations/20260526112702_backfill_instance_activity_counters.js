@@ -58,7 +58,12 @@ const getLoginMarkerId = (accountId) => `unique-login:${accountId}`
 
 const isMySQLClient = (knex) => {
   const client = String(knex.client.config.client).toLowerCase()
-  return client.includes('mysql') || client.includes('maria')
+  return client.includes('mysql')
+}
+
+const isMariaDBClient = (knex) => {
+  const client = String(knex.client.config.client).toLowerCase()
+  return client.includes('maria')
 }
 
 const addBucketCounter = (counters, counterType, date, value = 1) => {
@@ -89,8 +94,76 @@ const getExistingActivityCounterCutoff = async (knex, currentTime) => {
   return Number.isNaN(createdAt.getTime()) ? currentTime : createdAt
 }
 
+const MYSQL_COUNTER_ALIAS = 'new_values'
+const COUNTER_COLUMNS = ['id', 'value', 'bucketHour', 'createdAt', 'updatedAt']
+
+const buildMySQLCounterInsertQuery = (
+  knex,
+  rows,
+  updateSql,
+  updateBindings
+) => {
+  const rowPlaceholders = rows.map(() => '(?, ?, ?, ?, ?)').join(', ')
+  const rowBindings = rows.flatMap((row) =>
+    COUNTER_COLUMNS.map((column) => row[column])
+  )
+
+  return knex.raw(
+    `insert into ?? (??, ??, ??, ??, ??) values ${rowPlaceholders} as ?? on duplicate key update ${updateSql}`,
+    [
+      'counters',
+      ...COUNTER_COLUMNS,
+      ...rowBindings,
+      MYSQL_COUNTER_ALIAS,
+      ...updateBindings
+    ]
+  )
+}
+
+const buildMySQLBucketCounterUpsertQuery = (knex, rows) =>
+  buildMySQLCounterInsertQuery(
+    knex,
+    rows,
+    '?? = ??.?? + ??.??, ?? = ??.??, ?? = ??.??',
+    [
+      'value',
+      'counters',
+      'value',
+      MYSQL_COUNTER_ALIAS,
+      'value',
+      'bucketHour',
+      MYSQL_COUNTER_ALIAS,
+      'bucketHour',
+      'updatedAt',
+      MYSQL_COUNTER_ALIAS,
+      'updatedAt'
+    ]
+  )
+
+const buildMySQLLoginMarkerUpsertQuery = (knex, rows) =>
+  buildMySQLCounterInsertQuery(
+    knex,
+    rows,
+    '?? = case when ??.?? > ??.?? then ??.?? else ??.?? end, ?? = ??.??',
+    [
+      'value',
+      MYSQL_COUNTER_ALIAS,
+      'value',
+      'counters',
+      'value',
+      MYSQL_COUNTER_ALIAS,
+      'value',
+      'counters',
+      'value',
+      'updatedAt',
+      MYSQL_COUNTER_ALIAS,
+      'updatedAt'
+    ]
+  )
+
 const upsertCounters = async (knex, counters, currentTime) => {
   const isMySQL = isMySQLClient(knex)
+  const isMariaDB = isMariaDBClient(knex)
   const rows = [...counters.values()].map((counter) => ({
     id: counter.id,
     value: counter.value,
@@ -103,17 +176,22 @@ const upsertCounters = async (knex, counters, currentTime) => {
 
   for (let i = 0; i < bucketRows.length; i += CHUNK_SIZE) {
     const chunk = bucketRows.slice(i, i + CHUNK_SIZE)
+    if (isMySQL) {
+      await buildMySQLBucketCounterUpsertQuery(knex, chunk)
+      continue
+    }
+
     await knex('counters')
       .insert(chunk)
       .onConflict('id')
       .merge({
-        value: isMySQL
+        value: isMariaDB
           ? knex.raw('?? + VALUES(??)', ['counters.value', 'value'])
           : knex.raw('?? + excluded.??', ['counters.value', 'value']),
-        bucketHour: isMySQL
+        bucketHour: isMariaDB
           ? knex.raw('VALUES(??)', ['bucketHour'])
           : knex.raw('excluded.??', ['bucketHour']),
-        updatedAt: isMySQL
+        updatedAt: isMariaDB
           ? knex.raw('VALUES(??)', ['updatedAt'])
           : knex.raw('excluded.??', ['updatedAt'])
       })
@@ -121,11 +199,16 @@ const upsertCounters = async (knex, counters, currentTime) => {
 
   for (let i = 0; i < markerRows.length; i += CHUNK_SIZE) {
     const chunk = markerRows.slice(i, i + CHUNK_SIZE)
+    if (isMySQL) {
+      await buildMySQLLoginMarkerUpsertQuery(knex, chunk)
+      continue
+    }
+
     await knex('counters')
       .insert(chunk)
       .onConflict('id')
       .merge({
-        value: isMySQL
+        value: isMariaDB
           ? knex.raw('CASE WHEN VALUES(??) > ?? THEN VALUES(??) ELSE ?? END', [
               'value',
               'counters.value',
@@ -136,7 +219,7 @@ const upsertCounters = async (knex, counters, currentTime) => {
               'CASE WHEN excluded.?? > ?? THEN excluded.?? ELSE ?? END',
               ['value', 'counters.value', 'value', 'counters.value']
             ),
-        updatedAt: isMySQL
+        updatedAt: isMariaDB
           ? knex.raw('VALUES(??)', ['updatedAt'])
           : knex.raw('excluded.??', ['updatedAt'])
       })
@@ -279,4 +362,6 @@ exports.down = async function (knex) {
     .delete()
 }
 
+exports.buildMySQLBucketCounterUpsertQuery = buildMySQLBucketCounterUpsertQuery
+exports.buildMySQLLoginMarkerUpsertQuery = buildMySQLLoginMarkerUpsertQuery
 exports.config = { transaction: false }

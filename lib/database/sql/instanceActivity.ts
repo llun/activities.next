@@ -8,6 +8,7 @@ import {
   InstanceActivityDatabase,
   InstanceActivityWeek
 } from '@/lib/types/database/operations'
+import { logger } from '@/lib/utils/logger'
 
 type SQLDatabase = Knex | Knex.Transaction
 
@@ -30,6 +31,9 @@ const COUNTER_TYPES: Record<string, ActivityCounterKey> = {
 const COUNTER_TYPE_ENTRIES = Object.entries(COUNTER_TYPES)
 
 const SQLITE_CLIENTS = new Set(['better-sqlite3', 'sqlite3'])
+
+const isTransaction = (database: SQLDatabase): database is Knex.Transaction =>
+  Boolean((database as { isTransaction?: boolean }).isTransaction)
 
 export const getUTCWeekStart = (date: Date): Date => {
   const day = date.getUTCDay()
@@ -173,13 +177,11 @@ export const getInstanceActivityFromCounters = async (
 export const getWeeklyLoginMarkerId = (accountId: string): string =>
   `unique-login:${accountId}`
 
-export const recordWeeklyLogin = async (
+const recordWeeklyLoginWithinTransaction = async (
   database: SQLDatabase,
-  accountId: string | null | undefined,
-  currentTime = new Date()
+  accountId: string,
+  currentTime: Date
 ): Promise<void> => {
-  if (!accountId) return
-
   const markerId = getWeeklyLoginMarkerId(accountId)
   const weekKey = Number(getWeekKey(currentTime))
 
@@ -209,6 +211,23 @@ export const recordWeeklyLogin = async (
   }
 }
 
+export const recordWeeklyLogin = async (
+  database: SQLDatabase,
+  accountId: string | null | undefined,
+  currentTime = new Date()
+): Promise<void> => {
+  if (!accountId) return
+
+  if (isTransaction(database)) {
+    await recordWeeklyLoginWithinTransaction(database, accountId, currentTime)
+    return
+  }
+
+  await database.transaction(async (trx) => {
+    await recordWeeklyLoginWithinTransaction(trx, accountId, currentTime)
+  })
+}
+
 export const recordWeeklyLoginSafely = async (
   database: SQLDatabase,
   accountId: string | null | undefined,
@@ -217,7 +236,14 @@ export const recordWeeklyLoginSafely = async (
   try {
     await recordWeeklyLogin(database, accountId, currentTime)
   } catch (error) {
-    console.error('Failed to record weekly login', error)
+    logger.error(
+      {
+        err: error,
+        accountId,
+        currentTime: currentTime.toISOString()
+      },
+      'Failed to record weekly login'
+    )
   }
 }
 

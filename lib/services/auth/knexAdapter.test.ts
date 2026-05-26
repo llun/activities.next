@@ -1,5 +1,7 @@
 import knex, { Knex } from 'knex'
 
+import { logger } from '@/lib/utils/logger'
+
 import { knexAdapter } from './knexAdapter'
 
 jest.mock('better-auth/adapters', () => ({
@@ -262,7 +264,7 @@ describe('knexAdapter', () => {
 
     it('creates sessions when login counter recording fails', async () => {
       const errorSpy = jest
-        .spyOn(console, 'error')
+        .spyOn(logger, 'error')
         .mockImplementation(() => undefined)
 
       try {
