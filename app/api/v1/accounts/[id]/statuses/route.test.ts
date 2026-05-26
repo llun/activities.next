@@ -655,6 +655,54 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     getPinnedStatusIds.mockRestore()
   })
 
+  it('does not expose profile owner pin state as viewer pin state', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    const now = Date.now() + 75_000
+    const pinnedStatusId = `${ACTOR1_ID}/statuses/account-pinned-other-viewer`
+    await database.createNote({
+      id: pinnedStatusId,
+      url: pinnedStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account pinned status viewed by another actor',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now
+    })
+
+    const pinResponse = await pinStatus(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(pinnedStatusId)}/pin`,
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' }
+        }
+      ),
+      { params: Promise.resolve({ id: urlToId(pinnedStatusId) }) }
+    )
+    expect(pinResponse.status).toBe(200)
+
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    const response = await GET(createRequest('?pinned=true&limit=40'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as Array<{
+      uri: string
+      pinned?: boolean
+    }>
+
+    const returnedStatus = data.find((status) => status.uri === pinnedStatusId)
+    expect(returnedStatus).toBeDefined()
+    expect(returnedStatus).not.toHaveProperty('pinned')
+  })
+
   it('preserves compatible filter params in pagination links', async () => {
     const now = Date.now() + 80_000
     const olderStatusId = `${ACTOR1_ID}/statuses/account-link-older`

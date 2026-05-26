@@ -475,6 +475,7 @@ export type GetActorStatusesParams = {
 export type PinStatusParams = {
   actorId: string
   statusId: string
+  maxPinnedStatuses?: number
 }
 export type GetPinnedStatusIdsParams = {
   actorId: string
@@ -615,7 +616,7 @@ export interface StatusDatabase {
   addStatusTag(params: AddStatusTagParams): Promise<void>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
-  pinStatus(params: PinStatusParams): Promise<void>
+  pinStatus(params: PinStatusParams): Promise<boolean>
   unpinStatus(params: PinStatusParams): Promise<void>
   getPinnedStatusIds(params: GetPinnedStatusIdsParams): Promise<string[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>

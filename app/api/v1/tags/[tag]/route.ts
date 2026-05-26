@@ -6,7 +6,7 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   getFilteredStatusPage,
@@ -86,16 +86,16 @@ export const GET = traceApiRoute(
         ? `<https://${host}/api/v1/tags/${encodedTag}?limit=${effectiveLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
         : null
       const links = [nextLink].filter(Boolean).join(', ')
-      const mastodonStatuses = await Promise.all(
-        statuses.map((item) =>
-          getMastodonStatus(database, item, currentActor?.id)
-        )
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        statuses,
+        currentActor?.id
       )
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses.filter(Boolean),
+        data: mastodonStatuses,
         additionalHeaders: [
           ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
         ]

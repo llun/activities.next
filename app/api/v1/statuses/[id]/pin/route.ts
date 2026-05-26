@@ -77,13 +77,12 @@ export const POST = traceApiRoute(
         })
       }
 
-      const pinnedStatusIds = await database.getPinnedStatusIds({
-        actorId: currentActor.id
+      const pinned = await database.pinStatus({
+        actorId: currentActor.id,
+        statusId,
+        maxPinnedStatuses: MAX_PINNED_STATUSES
       })
-      if (
-        !pinnedStatusIds.includes(statusId) &&
-        pinnedStatusIds.length >= MAX_PINNED_STATUSES
-      ) {
+      if (!pinned) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -91,11 +90,6 @@ export const POST = traceApiRoute(
           responseStatusCode: 422
         })
       }
-
-      await database.pinStatus({
-        actorId: currentActor.id,
-        statusId
-      })
 
       const mastodonStatus = await getMastodonStatus(
         database,

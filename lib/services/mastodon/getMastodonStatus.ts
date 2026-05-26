@@ -162,13 +162,23 @@ const addStatusPollIds = (status: Status, statusIds: Set<string>) => {
   if (status.type === StatusType.enum.Poll) statusIds.add(status.id)
 }
 
-const addStatusPinnedLookupIds = (status: Status, statusIds: Set<string>) => {
+const isStatusPinnableByActor = (status: Status, currentActorId?: string) => {
+  if (!currentActorId) return false
+  if (status.type === StatusType.enum.Announce) return false
+  if (status.actorId !== currentActorId) return false
+  return getVisibility(status.to, status.cc) !== 'direct'
+}
+
+const addStatusPinnedLookupIds = (
+  status: Status,
+  statusIds: Set<string>,
+  currentActorId?: string
+) => {
   if (status.type === StatusType.enum.Announce) {
-    addStatusPinnedLookupIds(status.originalStatus, statusIds)
     return
   }
 
-  statusIds.add(status.id)
+  if (isStatusPinnableByActor(status, currentActorId)) statusIds.add(status.id)
 }
 
 const isStatusPinned = async (
@@ -176,10 +186,10 @@ const isStatusPinned = async (
   status: Status,
   currentActorId?: string,
   options?: GetMastodonStatusOptions
-): Promise<boolean> => {
-  if (status.type === StatusType.enum.Announce) return false
+): Promise<boolean | undefined> => {
+  if (!currentActorId) return undefined
+  if (!isStatusPinnableByActor(status, currentActorId)) return undefined
   if (options?.pinnedStatusIds) return options.pinnedStatusIds.has(status.id)
-  if (!currentActorId) return false
 
   const pinnedStatusIds = await database.getPinnedStatusIds({
     actorId: currentActorId,
@@ -299,7 +309,7 @@ export const getMastodonStatus = async (
     reblogged: false,
     muted: false,
     bookmarked: isStatusBookmarked(status),
-    pinned,
+    ...(pinned === undefined ? {} : { pinned }),
 
     content: '',
     text: null,
@@ -435,7 +445,7 @@ export const getMastodonStatuses = async (
   statuses.forEach((status) => addStatusPollIds(status, pollStatusIds))
   const pinnedLookupStatusIds = new Set<string>()
   statuses.forEach((status) =>
-    addStatusPinnedLookupIds(status, pinnedLookupStatusIds)
+    addStatusPinnedLookupIds(status, pinnedLookupStatusIds, currentActorId)
   )
   const requestedActorIds = [...actorIds]
   const requestedMetricStatusIds = [...metricStatusIds]

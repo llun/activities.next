@@ -1269,6 +1269,49 @@ describe('StatusDatabase', () => {
         expect(statuses.map((status) => status.id)).toEqual([pinnedStatusId])
       })
 
+      it('enforces a max pinned status count inside pinStatus', async () => {
+        const suffix = `pin-limit-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const actorId = await createStatusFilterActor(suffix)
+        const firstStatusId = `${actorId}/statuses/first-pin`
+        const secondStatusId = `${actorId}/statuses/second-pin`
+
+        for (const statusId of [firstStatusId, secondStatusId]) {
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Pin limit status'
+          })
+        }
+        await expect(
+          database.pinStatus({
+            actorId,
+            statusId: firstStatusId,
+            maxPinnedStatuses: 1
+          })
+        ).resolves.toBe(true)
+        await expect(
+          database.pinStatus({
+            actorId,
+            statusId: secondStatusId,
+            maxPinnedStatuses: 1
+          })
+        ).resolves.toBe(false)
+        await expect(
+          database.pinStatus({
+            actorId,
+            statusId: firstStatusId,
+            maxPinnedStatuses: 1
+          })
+        ).resolves.toBe(true)
+
+        await expect(database.getPinnedStatusIds({ actorId })).resolves.toEqual(
+          [firstStatusId]
+        )
+      })
+
       it('keeps cursor pagination stable when filters match statuses with the same timestamp', async () => {
         const suffix = `cursor-filters-${Date.now()}-${Math.random().toString(36).slice(2)}`
         const actorId = await createStatusFilterActor(suffix)

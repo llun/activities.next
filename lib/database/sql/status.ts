@@ -1244,17 +1244,38 @@ export const StatusSQLDatabaseMixin = (
     return statusesWithAttachments
   }
 
-  async function pinStatus({ actorId, statusId }: PinStatusParams) {
+  async function pinStatus({
+    actorId,
+    statusId,
+    maxPinnedStatuses
+  }: PinStatusParams) {
     const currentTime = new Date()
-    await database('status_pins')
-      .insert({
-        actorId,
-        statusId,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
-      .onConflict(['actorId', 'statusId'])
-      .ignore()
+    return database.transaction(async (trx) => {
+      if (maxPinnedStatuses !== undefined) {
+        await trx('actors').where({ id: actorId }).select('id').forUpdate()
+
+        const existingPin = await trx('status_pins')
+          .where({ actorId, statusId })
+          .first<{ statusId: string }>('statusId')
+        if (existingPin) return true
+
+        const [{ count }] = await trx('status_pins')
+          .where({ actorId })
+          .count<{ count: string | number }[]>({ count: '*' })
+        if (Number(count) >= maxPinnedStatuses) return false
+      }
+
+      await trx('status_pins')
+        .insert({
+          actorId,
+          statusId,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })
+        .onConflict(['actorId', 'statusId'])
+        .ignore()
+      return true
+    })
   }
 
   async function unpinStatus({ actorId, statusId }: PinStatusParams) {

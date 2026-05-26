@@ -3,7 +3,7 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
   getFilteredStatusPage,
   normalizeTimelineLimit
@@ -47,10 +47,10 @@ export const GET = traceApiRoute(
             limit
           })
       })
-      const mastodonStatuses = await Promise.all(
-        statuses.map((status) =>
-          getMastodonStatus(database, status, currentActor?.id)
-        )
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        statuses,
+        currentActor?.id
       )
       const host = headerHost(req.headers)
       const nextLink = nextMaxStatusId
@@ -59,7 +59,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses.filter(Boolean),
+        data: mastodonStatuses,
         additionalHeaders: [
           ...(nextLink ? [['Link', nextLink] as [string, string]] : [])
         ]

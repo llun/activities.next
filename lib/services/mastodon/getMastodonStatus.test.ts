@@ -101,7 +101,7 @@ describe('#getMastodonStatus', () => {
       const mastodonStatuses = await getMastodonStatuses(
         database,
         [firstStatus, secondStatus],
-        undefined,
+        ACTOR1_ID,
         { pinnedStatusIds: new Set([firstStatus.id]) }
       )
 
@@ -137,7 +137,29 @@ describe('#getMastodonStatus', () => {
         { pinnedStatusIds: new Set([announceStatusId]) }
       )
 
-      expect(mastodonStatus?.pinned).toBe(false)
+      expect(mastodonStatus).not.toHaveProperty('pinned')
+    })
+
+    it('omits pinned context for statuses not authored by the requester', async () => {
+      const statusId = `${ACTOR2_ID}/statuses/mastodon-cross-account-pin-${Date.now()}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR2_ID,
+        text: 'Cross-account pin serialization',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const status = (await database.getStatus({ statusId })) as Status
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR1_ID,
+        { pinnedStatusIds: new Set([statusId]) }
+      )
+
+      expect(mastodonStatus).not.toHaveProperty('pinned')
     })
 
     it('derives pinned status context from persisted pins while bulk hydrating', async () => {
@@ -392,9 +414,9 @@ describe('#getMastodonStatus', () => {
       sensitive: false,
       url: `${ACTOR1_ID}/statuses/post-1`,
       created_at: expect.toBeString(),
-      edited_at: null,
-      pinned: false
+      edited_at: null
     })
+    expect(mastodonStatus).not.toHaveProperty('pinned')
   })
 
   it('derives pinned state from persisted pins for single status serialization', async () => {
