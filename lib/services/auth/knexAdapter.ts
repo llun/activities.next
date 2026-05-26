@@ -150,7 +150,7 @@ export const knexAdapter = (db: Knex) =>
           const record = data as Record<string, unknown>
           const id = record.id as string
 
-          if (tableName === 'sessions') {
+          if (model === 'session' || tableName === 'sessions') {
             let row: unknown
             await db.transaction(async (trx) => {
               await trx(tableName).insert(record)

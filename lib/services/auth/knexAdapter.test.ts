@@ -56,6 +56,15 @@ describe('knexAdapter', () => {
       table.timestamp('expireAt')
     })
 
+    await db.schema.createTable('session', (table) => {
+      table.text('id').primary()
+      table.text('user_id').references('id').inTable('users')
+      table.text('token').unique()
+      table.timestamp('expires_at')
+      table.timestamp('createdAt')
+      table.timestamp('expireAt')
+    })
+
     await db.schema.createTable('counters', (table) => {
       table.string('id').primary()
       table.integer('value').defaultTo(0)
@@ -77,6 +86,7 @@ describe('knexAdapter', () => {
 
   beforeEach(async () => {
     await db('counters').delete()
+    await db('session').delete()
     await db('sessions').delete()
     await db('accounts').delete()
     await db('users').delete()
@@ -162,6 +172,40 @@ describe('knexAdapter', () => {
             id: `unique-login:${Math.floor(Date.UTC(2026, 1, 2) / 1000)}:u-login`
           }
         ])
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('records weekly login counters when creating a singular session model', async () => {
+      const getLoginTotal = async () => {
+        const row = await db('counters')
+          .where('id', 'like', 'bucket:logins:%')
+          .sum<{ total: number | string | null }>('value as total')
+          .first()
+        return Number(row?.total ?? 0)
+      }
+
+      await db('users').insert({
+        id: 'u-singular-login',
+        email: 'singular-login@test.com'
+      })
+
+      try {
+        jest.useFakeTimers()
+        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+
+        await adapter.create({
+          model: 'session',
+          data: {
+            id: 's-singular-login',
+            user_id: 'u-singular-login',
+            token: 'singular-login-token',
+            expireAt: Date.now() + 60_000
+          }
+        })
+
+        expect(await getLoginTotal()).toBe(1)
       } finally {
         jest.useRealTimers()
       }
