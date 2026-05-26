@@ -2,10 +2,13 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { Scope } from '@/lib/types/database/operations'
 
 import { DELETE, POST } from './route'
 
 const mockGetServerSession = jest.fn()
+const mockOAuthGuard = jest.fn()
+const mockCurrentActor = { ...seedActor1, id: ACTOR1_ID }
 jest.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
@@ -32,6 +35,29 @@ jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
+jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+  OAuthGuard:
+    (
+      scopes: Scope[],
+      handle: (
+        req: NextRequest,
+        context: {
+          currentActor: typeof mockCurrentActor
+          database: MockDatabase
+          params: Promise<{}>
+        }
+      ) => Promise<Response> | Response
+    ) =>
+    (req: NextRequest, context: { params: Promise<{}> }) => {
+      mockOAuthGuard(scopes, handle)
+      return handle(req, {
+        currentActor: mockCurrentActor,
+        database: mockDatabase!,
+        params: context.params
+      })
+    }
+}))
+
 jest.mock('next/headers', () => ({
   cookies: jest.fn().mockResolvedValue({
     get: () => undefined
@@ -44,6 +70,7 @@ const auth = 'test-auth-key'
 
 describe('POST /api/v1/push/subscribe', () => {
   beforeEach(() => {
+    jest.clearAllMocks()
     mockDatabase = {
       getAccountFromEmail: jest.fn().mockResolvedValue({
         id: 'account1',
@@ -76,10 +103,17 @@ describe('POST /api/v1/push/subscribe', () => {
     const req = new NextRequest('http://localhost/api/v1/push/subscribe', {
       method: 'POST',
       body: JSON.stringify({ invalid: true }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
     })
     const res = await POST(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(400)
+    expect(mockOAuthGuard).toHaveBeenCalledWith(
+      [Scope.enum.push],
+      expect.any(Function)
+    )
   })
 
   it('creates subscription and returns id', async () => {
@@ -89,7 +123,10 @@ describe('POST /api/v1/push/subscribe', () => {
         endpoint,
         keys: { p256dh, auth }
       }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
     })
     const res = await POST(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
@@ -100,6 +137,7 @@ describe('POST /api/v1/push/subscribe', () => {
 
 describe('DELETE /api/v1/push/subscribe', () => {
   beforeEach(() => {
+    jest.clearAllMocks()
     mockDatabase = {
       getAccountFromEmail: jest.fn().mockResolvedValue({
         id: 'account1',
@@ -124,17 +162,27 @@ describe('DELETE /api/v1/push/subscribe', () => {
     const req = new NextRequest('http://localhost/api/v1/push/subscribe', {
       method: 'DELETE',
       body: JSON.stringify({ bad: 'data' }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
     })
     const res = await DELETE(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(400)
+    expect(mockOAuthGuard).toHaveBeenCalledWith(
+      [Scope.enum.push],
+      expect.any(Function)
+    )
   })
 
   it('deletes subscription and returns OK', async () => {
     const req = new NextRequest('http://localhost/api/v1/push/subscribe', {
       method: 'DELETE',
       body: JSON.stringify({ endpoint }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
     })
     const res = await DELETE(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(200)

@@ -25,6 +25,7 @@ import { UsableScopes } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Client } from '@/lib/types/oauth2/client'
 
+import { buildOAuthQuery } from './authorizeQuery'
 import { SearchParams } from './types'
 
 interface Props {
@@ -32,13 +33,43 @@ interface Props {
   searchParams: SearchParams
   actors: Actor[]
   currentActorId: string
+  navigate?: (url: string) => void
+}
+
+interface ConsentResponse {
+  redirect?: boolean
+  url?: string
+  // Legacy shape from the original custom consent handler.
+  redirect_uri?: string
+}
+
+export const getConsentRedirectUrl = (data: ConsentResponse) => {
+  const redirectUrl = data.url ?? data.redirect_uri
+  if (!redirectUrl) return undefined
+  if (!/^https?:\/\//i.test(redirectUrl)) return undefined
+
+  try {
+    const parsed = new URL(redirectUrl)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.toString()
+    }
+  } catch {
+    // Invalid redirect response; fall through to the existing error handling.
+  }
+
+  return undefined
+}
+
+const navigateTo = (url: string) => {
+  window.location.href = url
 }
 
 export const AuthorizeCard: FC<Props> = ({
   searchParams,
   client,
   actors,
-  currentActorId
+  currentActorId,
+  navigate = navigateTo
 }) => {
   const requestedScopes = searchParams.scope.split(' ')
   const router = useRouter()
@@ -77,12 +108,13 @@ export const AuthorizeCard: FC<Props> = ({
     }
   }
 
-  const buildOAuthQuery = () => {
-    const oauthQuery = new URLSearchParams()
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (value !== undefined) oauthQuery.set(key, String(value))
-    }
-    return oauthQuery.toString()
+  const persistSelectedActor = async () => {
+    const response = await fetch('/api/v1/actors/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actorId: selectedActorId })
+    })
+    return response.ok
   }
 
   const redirectWithError = (error: string) => {
@@ -94,7 +126,7 @@ export const AuthorizeCard: FC<Props> = ({
         if (searchParams.state) {
           errorUrl.searchParams.set('state', searchParams.state)
         }
-        window.location.href = errorUrl.toString()
+        navigate(errorUrl.toString())
         return
       } catch {
         // Malformed redirect_uri — fall through to router push
@@ -110,6 +142,10 @@ export const AuthorizeCard: FC<Props> = ({
     try {
       const formData = new FormData(e.currentTarget)
       const selectedScopes = formData.getAll('scope') as string[]
+      if (!(await persistSelectedActor())) {
+        redirectWithError('server_error')
+        return
+      }
 
       const response = await fetch('/api/auth/oauth2/consent', {
         method: 'POST',
@@ -117,14 +153,15 @@ export const AuthorizeCard: FC<Props> = ({
         body: JSON.stringify({
           accept: true,
           scope: selectedScopes.join(' '),
-          oauth_query: buildOAuthQuery()
+          oauth_query: buildOAuthQuery(searchParams)
         })
       })
 
       if (response.ok) {
-        const data = (await response.json()) as { redirect_uri?: string }
-        if (data.redirect_uri) {
-          window.location.href = data.redirect_uri
+        const data = (await response.json()) as ConsentResponse
+        const redirectUrl = getConsentRedirectUrl(data)
+        if (redirectUrl) {
+          navigate(redirectUrl)
           return
         }
       }
@@ -145,13 +182,14 @@ export const AuthorizeCard: FC<Props> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accept: false,
-          oauth_query: buildOAuthQuery()
+          oauth_query: buildOAuthQuery(searchParams)
         })
       })
       if (response.ok) {
-        const data = (await response.json()) as { redirect_uri?: string }
-        if (data.redirect_uri) {
-          window.location.href = data.redirect_uri
+        const data = (await response.json()) as ConsentResponse
+        const redirectUrl = getConsentRedirectUrl(data)
+        if (redirectUrl) {
+          navigate(redirectUrl)
           return
         }
         // Denial processed but no redirect — use access_denied

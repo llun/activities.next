@@ -10,6 +10,7 @@ export const SearchParams = z.object({
   exp: z.string().optional(),
   // Optional PKCE and state params
   state: z.string().optional(),
+  request_uri: z.string().optional(),
   code_challenge: z.string().optional(),
   code_challenge_method: z.string().optional(),
   nonce: z.string().optional(),

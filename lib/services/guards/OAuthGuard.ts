@@ -238,7 +238,7 @@ const resolveAuthenticatedContext = async <P>({
       // Extract actorId: from JWT claims or from stored referenceId (opaque)
       const actorId = jwtPayload
         ? (jwtPayload.actorId as string | null)
-        : (storedToken.referenceId as string | null)
+        : ((storedToken.referenceId as string | null) || null)
 
       if (!actorId) {
         return { authenticated: false, response: apiErrorResponse(401) }

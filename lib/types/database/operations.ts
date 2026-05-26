@@ -1322,7 +1322,8 @@ export const UsableScopes = [
   Scope.enum['write:bookmarks'],
   Scope.enum['write:statuses'],
   Scope.enum['write:conversations'],
-  Scope.enum.follow
+  Scope.enum.follow,
+  Scope.enum.push
 ]
 
 export const GetClientFromNameParams = z.object({
