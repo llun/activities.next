@@ -1,5 +1,7 @@
 import knex, { Knex } from 'knex'
 
+import { logger } from '@/lib/utils/logger'
+
 import { knexAdapter } from './knexAdapter'
 
 jest.mock('better-auth/adapters', () => ({
@@ -50,10 +52,29 @@ describe('knexAdapter', () => {
     await db.schema.createTable('sessions', (table) => {
       table.text('id').primary()
       table.text('user_id').references('id').inTable('users')
+      table.text('accountId')
       table.text('token').unique()
       table.timestamp('expires_at')
       table.timestamp('createdAt')
       table.timestamp('expireAt')
+    })
+
+    await db.schema.createTable('session', (table) => {
+      table.text('id').primary()
+      table.text('user_id').references('id').inTable('users')
+      table.text('accountId')
+      table.text('token').unique()
+      table.timestamp('expires_at')
+      table.timestamp('createdAt')
+      table.timestamp('expireAt')
+    })
+
+    await db.schema.createTable('counters', (table) => {
+      table.string('id').primary()
+      table.integer('value').defaultTo(0)
+      table.timestamp('bucketHour', { useTz: true }).nullable()
+      table.timestamp('createdAt', { useTz: true })
+      table.timestamp('updatedAt', { useTz: true })
     })
 
     // The mock createAdapterFactory above uses identity getModelName/getFieldName.
@@ -68,6 +89,8 @@ describe('knexAdapter', () => {
   })
 
   beforeEach(async () => {
+    await db('counters').delete()
+    await db('session').delete()
     await db('sessions').delete()
     await db('accounts').delete()
     await db('users').delete()
@@ -104,6 +127,288 @@ describe('knexAdapter', () => {
 
       const count = await adapter.count({ model: 'users' })
       expect(count).toBe(2)
+    })
+
+    it('records weekly login counters when creating sessions', async () => {
+      const getLoginTotal = async () => {
+        const row = await db('counters')
+          .where('id', 'like', 'bucket:logins:%')
+          .sum<{ total: number | string | null }>('value as total')
+          .first()
+        return Number(row?.total ?? 0)
+      }
+
+      await db('users').insert({
+        id: 'u-login',
+        email: 'login@test.com'
+      })
+
+      try {
+        jest.useFakeTimers()
+        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+
+        await adapter.create({
+          model: 'sessions',
+          data: {
+            id: 's-login-1',
+            user_id: 'u-login',
+            token: 'login-token-1',
+            expireAt: Date.now() + 60_000
+          }
+        })
+        await adapter.create({
+          model: 'sessions',
+          data: {
+            id: 's-login-2',
+            user_id: 'u-login',
+            token: 'login-token-2',
+            expireAt: Date.now() + 120_000
+          }
+        })
+
+        const markerRows = await db('counters')
+          .where('id', 'unique-login:u-login')
+          .select('id', 'value')
+
+        expect(await getLoginTotal()).toBe(1)
+        expect(markerRows).toEqual([
+          {
+            id: 'unique-login:u-login',
+            value: Math.floor(Date.UTC(2026, 1, 2) / 1000)
+          }
+        ])
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('records weekly login counters when creating a singular session model', async () => {
+      const getLoginTotal = async () => {
+        const row = await db('counters')
+          .where('id', 'like', 'bucket:logins:%')
+          .sum<{ total: number | string | null }>('value as total')
+          .first()
+        return Number(row?.total ?? 0)
+      }
+
+      await db('users').insert({
+        id: 'u-singular-login',
+        email: 'singular-login@test.com'
+      })
+
+      try {
+        jest.useFakeTimers()
+        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+
+        await adapter.create({
+          model: 'session',
+          data: {
+            id: 's-singular-login',
+            user_id: 'u-singular-login',
+            token: 'singular-login-token',
+            expireAt: Date.now() + 60_000
+          }
+        })
+
+        expect(await getLoginTotal()).toBe(1)
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('uses the Better Auth user id before stray accountId session fields', async () => {
+      await db('users').insert([
+        {
+          id: 'u-ba-canonical',
+          email: 'ba-canonical@test.com'
+        },
+        {
+          id: 'u-ba-stray',
+          email: 'ba-stray@test.com'
+        }
+      ])
+
+      try {
+        jest.useFakeTimers()
+        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+
+        await adapter.create({
+          model: 'session',
+          data: {
+            id: 's-ba-precedence',
+            user_id: 'u-ba-canonical',
+            accountId: 'u-ba-stray',
+            token: 'ba-precedence-token',
+            expireAt: Date.now() + 60_000
+          }
+        })
+
+        const markerRows = await db('counters')
+          .where('id', 'like', 'unique-login:%')
+          .select('id', 'value')
+        const sessionRow = await db('session')
+          .where('id', 's-ba-precedence')
+          .first()
+
+        expect(markerRows).toEqual([
+          {
+            id: 'unique-login:u-ba-canonical',
+            value: Math.floor(Date.UTC(2026, 1, 2) / 1000)
+          }
+        ])
+        expect(sessionRow?.accountId).toBeNull()
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('does not require accountId columns on singular session tables', async () => {
+      const singularDb = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: { filename: ':memory:' }
+      })
+      const singularAdapter = knexAdapter(singularDb)({} as never)
+
+      try {
+        await singularDb.schema.createTable('users', (table) => {
+          table.text('id').primary()
+          table.text('email')
+        })
+        await singularDb.schema.createTable('session', (table) => {
+          table.text('id').primary()
+          table.text('user_id').references('id').inTable('users')
+          table.text('token').unique()
+          table.timestamp('expireAt')
+          table.timestamp('createdAt')
+        })
+        await singularDb.schema.createTable('counters', (table) => {
+          table.string('id').primary()
+          table.integer('value').defaultTo(0)
+          table.timestamp('bucketHour', { useTz: true }).nullable()
+          table.timestamp('createdAt', { useTz: true })
+          table.timestamp('updatedAt', { useTz: true })
+        })
+        await singularDb('users').insert({
+          id: 'u-singular-no-account-column',
+          email: 'singular-no-account-column@test.com'
+        })
+
+        await expect(
+          singularAdapter.create({
+            model: 'session',
+            data: {
+              id: 's-singular-no-account-column',
+              user_id: 'u-singular-no-account-column',
+              accountId: 'u-should-not-be-inserted',
+              token: 'singular-no-account-column-token',
+              expireAt: Date.now() + 60_000
+            }
+          })
+        ).resolves.toMatchObject({
+          id: 's-singular-no-account-column',
+          user_id: 'u-singular-no-account-column'
+        })
+
+        await expect(
+          singularDb('counters')
+            .where('id', 'unique-login:u-singular-no-account-column')
+            .first()
+        ).resolves.toMatchObject({
+          id: 'unique-login:u-singular-no-account-column'
+        })
+      } finally {
+        await singularDb.destroy()
+      }
+    })
+
+    it('creates sessions when login counter recording fails', async () => {
+      const errorSpy = jest
+        .spyOn(logger, 'error')
+        .mockImplementation(() => undefined)
+
+      try {
+        await db('users').insert({
+          id: 'u-login-failure',
+          email: 'login-failure@test.com'
+        })
+        await db.schema.dropTable('counters')
+
+        await expect(
+          adapter.create({
+            model: 'session',
+            data: {
+              id: 's-login-failure',
+              user_id: 'u-login-failure',
+              token: 'login-failure-token',
+              expireAt: Date.now() + 60_000
+            }
+          })
+        ).resolves.toMatchObject({
+          id: 's-login-failure',
+          user_id: 'u-login-failure'
+        })
+
+        await expect(
+          db('session').where('id', 's-login-failure').first()
+        ).resolves.toMatchObject({
+          id: 's-login-failure',
+          user_id: 'u-login-failure'
+        })
+      } finally {
+        await new Promise((resolve) => setImmediate(resolve))
+        errorSpy.mockRestore()
+        const hasCounters = await db.schema.hasTable('counters')
+        if (!hasCounters) {
+          await db.schema.createTable('counters', (table) => {
+            table.string('id').primary()
+            table.integer('value').defaultTo(0)
+            table.timestamp('bucketHour', { useTz: true }).nullable()
+            table.timestamp('createdAt', { useTz: true })
+            table.timestamp('updatedAt', { useTz: true })
+          })
+        }
+      }
+    })
+
+    it('records session timestamp strings without timezone as UTC', async () => {
+      const originalTimeZone = process.env.TZ
+      process.env.TZ = 'Europe/Amsterdam'
+
+      try {
+        await db('users').insert({
+          id: 'u-sqlite-time',
+          email: 'sqlite-time@test.com'
+        })
+
+        await adapter.create({
+          model: 'sessions',
+          data: {
+            id: 's-sqlite-time',
+            user_id: 'u-sqlite-time',
+            token: 'sqlite-time-token',
+            createdAt: '2026-05-25 00:30:00.000',
+            expireAt: '2026-06-25 00:30:00.000'
+          }
+        })
+
+        const markerRows = await db('counters')
+          .where('id', 'unique-login:u-sqlite-time')
+          .select('id', 'value')
+
+        expect(markerRows).toEqual([
+          {
+            id: 'unique-login:u-sqlite-time',
+            value: Math.floor(Date.UTC(2026, 4, 25) / 1000)
+          }
+        ])
+      } finally {
+        if (originalTimeZone === undefined) {
+          delete process.env.TZ
+        } else {
+          process.env.TZ = originalTimeZone
+        }
+      }
     })
   })
 

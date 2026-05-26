@@ -10,6 +10,7 @@ import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
+import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
@@ -32,6 +33,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const bookmarkDatabase = BookmarkSQLDatabaseMixin(database)
   const blockDatabase = BlockSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
+  const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
   const likeDatabase = LikeSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
@@ -68,6 +70,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...fitnessFileDatabase,
     ...fitnessRouteHeatmapDatabase,
     ...fitnessSettingsDatabase,
+    ...instanceActivityDatabase,
     ...bookmarkDatabase,
     ...blockDatabase,
     ...followerDatabase,

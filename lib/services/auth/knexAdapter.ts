@@ -1,6 +1,9 @@
 import { CleanedWhere, createAdapterFactory } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
+import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+
 const escapeLikeValue = (value: unknown): string => {
   return String(value).replace(/[%_\\]/g, '\\$&')
 }
@@ -22,13 +25,44 @@ const hydrateDateFields = <T>(row: T): T => {
       continue
     }
 
-    const date = new Date(value as string | number)
+    const date = new Date(getCompatibleTime(value as string | number))
     if (Number.isNaN(date.getTime())) continue
 
     hydrated[key] = date
   }
 
   return hydrated as T
+}
+
+const getStringValue = (value: unknown): string | null =>
+  typeof value === 'string' && value.length > 0 ? value : null
+
+const getSessionAccountId = (
+  record: Record<string, unknown>,
+  model: string
+): string | null => {
+  const userId = getStringValue(record.userId) ?? getStringValue(record.user_id)
+  const accountId = getStringValue(record.accountId)
+
+  if (model === 'session') {
+    return userId ?? accountId
+  }
+
+  return accountId ?? userId
+}
+
+const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
+  const createdAt = record.createdAt
+  if (createdAt instanceof Date && !Number.isNaN(createdAt.getTime())) {
+    return createdAt
+  }
+
+  if (typeof createdAt === 'string' || typeof createdAt === 'number') {
+    const parsed = new Date(getCompatibleTime(createdAt))
+    if (!Number.isNaN(parsed.getTime())) return parsed
+  }
+
+  return new Date()
 }
 
 const applyWhere = (
@@ -123,8 +157,24 @@ export const knexAdapter = (db: Knex) =>
         async create({ data, model }) {
           const tableName = getModelName(model)
           const record = data as Record<string, unknown>
-          await db(tableName).insert(record)
           const id = record.id as string
+
+          if (model === 'session' || tableName === 'sessions') {
+            const accountId = getSessionAccountId(record, model)
+            const createdAt = getSessionCreatedAt(record)
+            if (accountId && tableName === 'sessions') {
+              record.accountId = accountId
+            } else if (tableName !== 'sessions') {
+              delete record.accountId
+            }
+            await db(tableName).insert(record)
+            const row = await db(tableName).where(`${tableName}.id`, id).first()
+            if (!row) throw new Error('Failed to create record')
+            await recordWeeklyLoginSafely(db, accountId, createdAt)
+            return hydrateDateFields(row) as any
+          }
+
+          await db(tableName).insert(record)
           const row = await db(tableName).where(`${tableName}.id`, id).first()
           if (!row) throw new Error('Failed to create record')
           return hydrateDateFields(row) as any
