@@ -17,16 +17,13 @@ const BetterAuthAuthorizationParamOrder = [
 
 export const buildOAuthQuery = (params: SearchParams): string => {
   const oauthQuery = new URLSearchParams()
-  const values = params as Record<string, string | undefined>
+  const values = params as Record<string, string | null | undefined>
   for (const key of BetterAuthAuthorizationParamOrder) {
     const value = values[key]
-    if (value !== undefined) oauthQuery.set(key, value)
+    if (value != null) oauthQuery.set(key, value)
   }
   for (const [key, value] of Object.entries(values)) {
-    if (
-      value !== undefined &&
-      !BetterAuthAuthorizationParamOrder.includes(key)
-    ) {
+    if (value != null && !BetterAuthAuthorizationParamOrder.includes(key)) {
       oauthQuery.set(key, value)
     }
   }

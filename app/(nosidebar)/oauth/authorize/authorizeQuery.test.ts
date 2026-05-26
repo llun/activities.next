@@ -101,6 +101,21 @@ describe('OAuth authorize query helpers', () => {
     )
   })
 
+  it('skips nullish values when serializing query params', () => {
+    const paramsWithNullValue = {
+      ...unsignedParams,
+      state: null,
+      exp: '1779800000',
+      sig: 'signed-query'
+    } as unknown as SearchParams
+
+    const oauthQuery = new URLSearchParams(buildOAuthQuery(paramsWithNullValue))
+
+    expect(oauthQuery.has('state')).toBe(false)
+    expect(oauthQuery.get('sig')).toBe('signed-query')
+    expect(oauthQuery.get('exp')).toBe('1779800000')
+  })
+
   it('delegates when only one Better Auth signature param is present', () => {
     expect(
       shouldDelegateToBetterAuth({
