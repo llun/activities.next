@@ -50,7 +50,7 @@ export const getConsentRedirectUrl = (data: ConsentResponse) => {
   try {
     const parsed = new URL(redirectUrl, 'https://activities.local')
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      return redirectUrl
+      return parsed.toString()
     }
   } catch {
     // Invalid redirect response; fall through to the existing error handling.
