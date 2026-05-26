@@ -45,6 +45,7 @@ import {
   GetActorStatusesParams,
   GetFavouritedByParams,
   GetHashtagStatusesPageParams,
+  GetPinnedStatusIdsParams,
   GetRebloggedByParams,
   GetStatusCountsParams,
   GetStatusFromUrlHashParams,
@@ -59,6 +60,7 @@ import {
   HasActorAnnouncedStatusParams,
   HasActorVotedParams,
   IncrementPollChoiceVotesParams,
+  PinStatusParams,
   RecordPollVotesParams,
   StatusDatabase,
   UpdateNoteParams,
@@ -1088,7 +1090,12 @@ export const StatusSQLDatabaseMixin = (
     publicOnly = false,
     visibleToActorId,
     includeFollowersOnly = false,
-    followersAudience
+    followersAudience,
+    onlyMedia = false,
+    excludeReplies = false,
+    excludeReblogs = false,
+    tagged,
+    pinned = false
   }: GetActorStatusesParams) {
     let query = database('statuses')
       .where('actorId', actorId)
@@ -1128,6 +1135,61 @@ export const StatusSQLDatabaseMixin = (
             .whereIn('recipients.actorId', [...new Set(recipientActorIds)])
         )
       }
+    }
+
+    if (onlyMedia) {
+      query = query.whereExists(function () {
+        this.select(database.raw('1'))
+          .from('attachments')
+          .whereRaw('?? = ??', ['attachments.statusId', 'statuses.id'])
+      })
+    }
+
+    if (excludeReplies) {
+      query = query.where((builder) => {
+        builder
+          .where((noReply) => {
+            noReply.whereNull('statuses.reply').orWhere('statuses.reply', '')
+          })
+          .orWhereExists(function () {
+            this.select(database.raw('1'))
+              .from('statuses as reply_parent')
+              .where('reply_parent.actorId', actorId)
+              .where((parent) => {
+                parent
+                  .whereRaw('?? = ??', ['reply_parent.id', 'statuses.reply'])
+                  .orWhereRaw('?? = ??', ['reply_parent.url', 'statuses.reply'])
+              })
+          })
+      })
+    }
+
+    if (excludeReblogs) {
+      query = query.whereNot('statuses.type', StatusType.enum.Announce)
+    }
+
+    if (tagged !== undefined && tagged !== null) {
+      const normalizedNames = getHashtagLookupNames(tagged)
+      if (normalizedNames.length === 0) {
+        query = query.whereRaw('1 = 0')
+      } else {
+        query = query.whereExists(function () {
+          this.select(database.raw('1'))
+            .from('tags')
+            .whereRaw('?? = ??', ['tags.statusId', 'statuses.id'])
+            .where('tags.type', 'hashtag')
+            .whereIn('tags.nameNormalized', normalizedNames)
+        })
+      }
+    }
+
+    if (pinned) {
+      query = query.whereExists(function () {
+        this.select(database.raw('1'))
+          .from('status_pins')
+          .where('status_pins.actorId', actorId)
+          .whereRaw('?? = ??', ['status_pins.statusId', 'statuses.id'])
+      })
     }
 
     if (minStatusId) {
@@ -1171,6 +1233,41 @@ export const StatusSQLDatabaseMixin = (
       )
     ).filter((status): status is Status => status !== null)
     return statusesWithAttachments
+  }
+
+  async function pinStatus({ actorId, statusId }: PinStatusParams) {
+    const currentTime = new Date()
+    await database('status_pins')
+      .insert({
+        actorId,
+        statusId,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      .onConflict(['actorId', 'statusId'])
+      .ignore()
+  }
+
+  async function unpinStatus({ actorId, statusId }: PinStatusParams) {
+    await database('status_pins').where({ actorId, statusId }).delete()
+  }
+
+  async function getPinnedStatusIds({
+    actorId,
+    statusIds
+  }: GetPinnedStatusIdsParams) {
+    if (statusIds && statusIds.length === 0) return []
+
+    let query = database('status_pins').where({ actorId })
+    if (statusIds) {
+      query = query.whereIn('statusId', [...new Set(statusIds)])
+    }
+
+    const rows = await query
+      .select<{ statusId: string }[]>('statusId')
+      .orderBy('createdAt', 'desc')
+      .orderBy('statusId', 'desc')
+    return rows.map((row) => row.statusId)
   }
 
   async function getStatusesByIds({
@@ -2630,6 +2727,9 @@ export const StatusSQLDatabaseMixin = (
     getActorAnnounceStatus,
     getActorStatusesCount,
     getActorStatuses,
+    pinStatus,
+    unpinStatus,
+    getPinnedStatusIds,
     getStatusesByIds,
     deleteStatus,
     countStatus,

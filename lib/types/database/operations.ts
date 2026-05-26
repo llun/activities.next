@@ -466,6 +466,19 @@ export type GetActorStatusesParams = {
   visibleToActorId?: string | null
   includeFollowersOnly?: boolean
   followersAudience?: string | null
+  onlyMedia?: boolean
+  excludeReplies?: boolean
+  excludeReblogs?: boolean
+  tagged?: string | null
+  pinned?: boolean
+}
+export type PinStatusParams = {
+  actorId: string
+  statusId: string
+}
+export type GetPinnedStatusIdsParams = {
+  actorId: string
+  statusIds?: string[]
 }
 export type GetStatusesByIdsParams = {
   statusIds: string[]
@@ -602,6 +615,9 @@ export interface StatusDatabase {
   addStatusTag(params: AddStatusTagParams): Promise<void>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
+  pinStatus(params: PinStatusParams): Promise<void>
+  unpinStatus(params: PinStatusParams): Promise<void>
+  getPinnedStatusIds(params: GetPinnedStatusIdsParams): Promise<string[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
   getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
   getRebloggedBy(params: GetRebloggedByParams): Promise<RebloggedByAccount[]>

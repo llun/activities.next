@@ -652,6 +652,137 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
     })
 
+    it('pins an owned readable status and returns pinned=true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-pin-owned-readable`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Owned pin target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.getPinnedStatusIds({
+          actorId: ACTOR1_ID,
+          statusIds: [statusId]
+        })
+      ).resolves.toEqual([statusId])
+      await expect(response.json()).resolves.toMatchObject({
+        id: urlToId(statusId),
+        pinned: true
+      })
+    })
+
+    it('returns 403 when a non-owner tries to pin a status', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-pin-non-owner`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Non-owner pin target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(403)
+    })
+
+    it('pins idempotently and unpins a non-pinned status with pinned=false', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-pin-idempotent`
+      const neverPinnedStatusId = `${ACTOR1_ID}/statuses/api-unpin-never-pinned`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Idempotent pin target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: neverPinnedStatusId,
+        url: neverPinnedStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Never pinned unpin target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      for (let i = 0; i < 2; i++) {
+        const response = await pinStatus(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/pin`,
+            {
+              method: 'POST',
+              headers: { Origin: 'https://llun.test' }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+        expect(response.status).toBe(200)
+      }
+
+      await expect(
+        database.getPinnedStatusIds({
+          actorId: ACTOR1_ID,
+          statusIds: [statusId]
+        })
+      ).resolves.toEqual([statusId])
+
+      const response = await unpinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(neverPinnedStatusId)}/unpin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(neverPinnedStatusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        id: urlToId(neverPinnedStatusId),
+        pinned: false
+      })
+    })
+
     it('returns 500 when a readable unbookmark target cannot be reloaded after deletion', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }

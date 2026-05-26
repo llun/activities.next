@@ -922,6 +922,21 @@ describe('StatusDatabase', () => {
     })
 
     describe('getActorStatuses', () => {
+      const createStatusFilterActor = async (suffix: string) => {
+        const actorId = `https://status-filter.test/users/${suffix}`
+        await database.createActor({
+          actorId,
+          username: suffix,
+          domain: 'status-filter.test',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: 'https://status-filter.test/inbox',
+          publicKey: `public-key-${suffix}`,
+          createdAt: Date.now()
+        })
+        return actorId
+      }
+
       it('returns statuses for specific actor', async () => {
         const statuses = await database.getActorStatuses({
           actorId: primaryActorId
@@ -984,6 +999,296 @@ describe('StatusDatabase', () => {
           secondStatusId
         ])
         expect(secondPage.map((status) => status.id)).toContain(thirdStatusId)
+      })
+
+      it('filters media statuses before applying the result limit', async () => {
+        const suffix = `only-media-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const actorId = await createStatusFilterActor(suffix)
+        const createdAt = Date.UTC(2035, 1, 1)
+        const mediaStatusId = `${actorId}/statuses/media`
+        const textStatusId = `${actorId}/statuses/text`
+
+        await database.createNote({
+          id: mediaStatusId,
+          url: mediaStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Media status',
+          createdAt
+        })
+        await database.createAttachment({
+          actorId,
+          statusId: mediaStatusId,
+          mediaType: 'image/png',
+          url: `${mediaStatusId}/image.png`
+        })
+        await database.createNote({
+          id: textStatusId,
+          url: textStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Text status',
+          createdAt: createdAt + 1
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId,
+          limit: 1,
+          onlyMedia: true
+        })
+
+        expect(statuses.map((status) => status.id)).toEqual([mediaStatusId])
+      })
+
+      it('excludes replies to other actors and missing parents while keeping self-replies', async () => {
+        const suffix = `exclude-replies-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const actorId = await createStatusFilterActor(suffix)
+        const otherActorId = await createStatusFilterActor(`${suffix}-other`)
+        const createdAt = Date.UTC(2035, 2, 1)
+        const parentStatusId = `${actorId}/statuses/parent`
+        const selfReplyStatusId = `${actorId}/statuses/self-reply`
+        const otherParentStatusId = `${otherActorId}/statuses/parent`
+        const otherReplyStatusId = `${actorId}/statuses/other-reply`
+        const missingReplyStatusId = `${actorId}/statuses/missing-reply`
+
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reply parent',
+          createdAt
+        })
+        await database.createNote({
+          id: selfReplyStatusId,
+          url: selfReplyStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Self reply',
+          reply: parentStatusId,
+          createdAt: createdAt + 1
+        })
+        await database.createNote({
+          id: otherParentStatusId,
+          url: otherParentStatusId,
+          actorId: otherActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Other parent',
+          createdAt: createdAt + 2
+        })
+        await database.createNote({
+          id: otherReplyStatusId,
+          url: otherReplyStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Other reply',
+          reply: otherParentStatusId,
+          createdAt: createdAt + 3
+        })
+        await database.createNote({
+          id: missingReplyStatusId,
+          url: missingReplyStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Missing reply',
+          reply: `${otherActorId}/statuses/missing`,
+          createdAt: createdAt + 4
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId,
+          limit: 10,
+          excludeReplies: true
+        })
+        const statusIds = statuses.map((status) => status.id)
+
+        expect(statusIds).toContain(parentStatusId)
+        expect(statusIds).toContain(selfReplyStatusId)
+        expect(statusIds).not.toContain(otherReplyStatusId)
+        expect(statusIds).not.toContain(missingReplyStatusId)
+      })
+
+      it('excludes reblogs before applying the result limit', async () => {
+        const suffix = `exclude-reblogs-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const actorId = await createStatusFilterActor(suffix)
+        const otherActorId = await createStatusFilterActor(`${suffix}-other`)
+        const createdAt = Date.UTC(2035, 3, 1)
+        const originalStatusId = `${otherActorId}/statuses/original`
+        const noteStatusId = `${actorId}/statuses/note`
+        const announceStatusId = `${actorId}/statuses/announce`
+
+        await database.createNote({
+          id: originalStatusId,
+          url: originalStatusId,
+          actorId: otherActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original status',
+          createdAt
+        })
+        await database.createNote({
+          id: noteStatusId,
+          url: noteStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Own note status',
+          createdAt: createdAt + 1
+        })
+        await database.createAnnounce({
+          id: announceStatusId,
+          actorId,
+          originalStatusId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: createdAt + 2
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId,
+          limit: 1,
+          excludeReblogs: true
+        })
+
+        expect(statuses.map((status) => status.id)).toEqual([noteStatusId])
+      })
+
+      it('filters statuses by normalized hashtag before applying the result limit', async () => {
+        const suffix = `tagged-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const actorId = await createStatusFilterActor(suffix)
+        const createdAt = Date.UTC(2035, 4, 1)
+        const taggedStatusId = `${actorId}/statuses/running`
+        const untaggedStatusId = `${actorId}/statuses/cycling`
+
+        await database.createNote({
+          id: taggedStatusId,
+          url: taggedStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tagged #Running status',
+          createdAt
+        })
+        await database.createTag({
+          statusId: taggedStatusId,
+          name: '#Running',
+          value: 'https://status-filter.test/tags/running',
+          type: 'hashtag'
+        })
+        await database.createNote({
+          id: untaggedStatusId,
+          url: untaggedStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tagged #Cycling status',
+          createdAt: createdAt + 1
+        })
+        await database.createTag({
+          statusId: untaggedStatusId,
+          name: '#Cycling',
+          value: 'https://status-filter.test/tags/cycling',
+          type: 'hashtag'
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId,
+          limit: 1,
+          tagged: 'running'
+        })
+
+        expect(statuses.map((status) => status.id)).toEqual([taggedStatusId])
+      })
+
+      it('filters pinned statuses for the requested actor before applying the result limit', async () => {
+        const suffix = `pinned-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const actorId = await createStatusFilterActor(suffix)
+        const createdAt = Date.UTC(2035, 5, 1)
+        const pinnedStatusId = `${actorId}/statuses/pinned`
+        const unpinnedStatusId = `${actorId}/statuses/unpinned`
+
+        await database.createNote({
+          id: pinnedStatusId,
+          url: pinnedStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Pinned status',
+          createdAt
+        })
+        await database.createNote({
+          id: unpinnedStatusId,
+          url: unpinnedStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Unpinned status',
+          createdAt: createdAt + 1
+        })
+        await database.pinStatus({
+          actorId,
+          statusId: pinnedStatusId
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId,
+          limit: 1,
+          pinned: true
+        })
+
+        expect(statuses.map((status) => status.id)).toEqual([pinnedStatusId])
+      })
+
+      it('keeps cursor pagination stable when filters match statuses with the same timestamp', async () => {
+        const suffix = `cursor-filters-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const actorId = await createStatusFilterActor(suffix)
+        const createdAt = Date.UTC(2035, 6, 1)
+        const firstStatusId = `${actorId}/statuses/z-running`
+        const secondStatusId = `${actorId}/statuses/y-running`
+        const thirdStatusId = `${actorId}/statuses/x-running`
+
+        for (const statusId of [firstStatusId, secondStatusId, thirdStatusId]) {
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Cursor filtered #running status',
+            createdAt
+          })
+          await database.createTag({
+            statusId,
+            name: '#running',
+            value: 'https://status-filter.test/tags/running',
+            type: 'hashtag'
+          })
+        }
+
+        const firstPage = await database.getActorStatuses({
+          actorId,
+          tagged: 'running',
+          limit: 2
+        })
+        const secondPage = await database.getActorStatuses({
+          actorId,
+          tagged: 'running',
+          maxStatusId: secondStatusId,
+          limit: 2
+        })
+
+        expect(firstPage.map((status) => status.id)).toEqual([
+          firstStatusId,
+          secondStatusId
+        ])
+        expect(secondPage.map((status) => status.id)).toEqual([thirdStatusId])
       })
     })
 

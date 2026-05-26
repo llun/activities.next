@@ -51,6 +51,7 @@ interface GetMastodonStatusOptions {
   replyStatusCache?: ReplyStatusCache
   statusMetricsCache?: StatusMetricsCache
   pollVoteCache?: PollVoteCache
+  pinnedStatusIds?: Set<string>
 }
 
 const getMastodonAccount = (
@@ -271,6 +272,7 @@ export const getMastodonStatus = async (
     reblogged: false,
     muted: false,
     bookmarked: isStatusBookmarked(status),
+    pinned: options?.pinnedStatusIds?.has(status.id),
 
     content: '',
     text: null,

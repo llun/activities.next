@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { POST as pinStatus } from '@/app/api/v1/statuses/[id]/pin/route'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -14,13 +15,19 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { GET } from './route'
 
 const mockGetServerSession = jest.fn()
+const mockStoredToken = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 jest.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase
+  getDatabase: () => mockDatabase,
+  getKnex: () => () => ({
+    where: () => ({
+      first: () => mockStoredToken()
+    })
+  })
 }))
 
 jest.mock('next/headers', () => ({
@@ -42,9 +49,13 @@ jest.mock('@/lib/config', () => ({
   })
 }))
 
-const createRequest = (query = '') =>
+const createRequest = (
+  query = '',
+  init?: ConstructorParameters<typeof NextRequest>[1]
+) =>
   new NextRequest(
-    `https://llun.test/api/v1/accounts/${urlToId(ACTOR1_ID)}/statuses${query}`
+    `https://llun.test/api/v1/accounts/${urlToId(ACTOR1_ID)}/statuses${query}`,
+    init
   )
 
 describe('GET /api/v1/accounts/[id]/statuses', () => {
@@ -64,6 +75,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
+    mockStoredToken.mockResolvedValue(null)
   })
 
   it('allows anonymous reads but only returns public and unlisted statuses', async () => {
@@ -105,7 +117,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       cc: []
     })
 
-    const response = await GET(createRequest('?limit=50'), {
+    const response = await GET(createRequest('?limit=40'), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
     })
 
@@ -145,7 +157,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       cc: []
     })
 
-    const response = await GET(createRequest('?limit=50'), {
+    const response = await GET(createRequest('?limit=40'), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
     })
 
@@ -181,7 +193,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       cc: []
     })
 
-    const response = await GET(createRequest('?limit=50'), {
+    const response = await GET(createRequest('?limit=40'), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
     })
 
@@ -336,5 +348,355 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     })
 
     expect(response.status).toBe(400)
+  })
+
+  it('rejects limits above the Mastodon account statuses cap', async () => {
+    const response = await GET(createRequest('?limit=41'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('allows OAuth tokens with read:statuses to read private owner statuses', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'read:statuses'
+    })
+
+    const privateStatusId = `${ACTOR1_ID}/statuses/account-private-read-statuses-token`
+    await database.createNote({
+      id: privateStatusId,
+      url: privateStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account private read:statuses token read',
+      to: [`${ACTOR1_ID}/followers`],
+      cc: []
+    })
+
+    const response = await GET(
+      createRequest('?limit=40', {
+        headers: { Authorization: 'Bearer read-statuses-token' }
+      }),
+      { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+    )
+
+    expect(response.status).toBe(200)
+
+    const data = (await response.json()) as Array<{ uri: string }>
+    expect(data.map((status) => status.uri)).toContain(privateStatusId)
+  })
+
+  it('filters account statuses to media posts before limiting', async () => {
+    const now = Date.now() + 30_000
+    const mediaStatusId = `${ACTOR1_ID}/statuses/account-only-media`
+    const textStatusId = `${ACTOR1_ID}/statuses/account-only-media-text`
+
+    await database.createNote({
+      id: mediaStatusId,
+      url: mediaStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account media status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now
+    })
+    await database.createAttachment({
+      actorId: ACTOR1_ID,
+      statusId: mediaStatusId,
+      mediaType: 'image/png',
+      url: 'https://llun.test/media/account-only-media.png'
+    })
+    await database.createNote({
+      id: textStatusId,
+      url: textStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account text status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now + 1
+    })
+
+    const response = await GET(createRequest('?only_media=true&limit=1'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as Array<{ uri: string }>
+
+    expect(data.map((status) => status.uri)).toEqual([mediaStatusId])
+  })
+
+  it('excludes replies to other and missing accounts but keeps self-replies', async () => {
+    const now = Date.now() + 40_000
+    const parentStatusId = `${ACTOR1_ID}/statuses/account-reply-parent`
+    const selfReplyStatusId = `${ACTOR1_ID}/statuses/account-self-reply`
+    const otherParentStatusId = `${ACTOR2_ID}/statuses/account-other-reply-parent`
+    const otherReplyStatusId = `${ACTOR1_ID}/statuses/account-other-reply`
+    const missingReplyStatusId = `${ACTOR1_ID}/statuses/account-missing-reply`
+
+    await database.createNote({
+      id: parentStatusId,
+      url: parentStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account reply parent',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now
+    })
+    await database.createNote({
+      id: selfReplyStatusId,
+      url: selfReplyStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account self reply',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      reply: parentStatusId,
+      createdAt: now + 1
+    })
+    await database.createNote({
+      id: otherParentStatusId,
+      url: otherParentStatusId,
+      actorId: ACTOR2_ID,
+      text: 'Account other reply parent',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now + 2
+    })
+    await database.createNote({
+      id: otherReplyStatusId,
+      url: otherReplyStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account other reply',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      reply: otherParentStatusId,
+      createdAt: now + 3
+    })
+    await database.createNote({
+      id: missingReplyStatusId,
+      url: missingReplyStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account missing reply',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      reply: `${ACTOR2_ID}/statuses/missing-account-reply-parent`,
+      createdAt: now + 4
+    })
+
+    const response = await GET(
+      createRequest('?exclude_replies=true&limit=40'),
+      {
+        params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      }
+    )
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as Array<{ uri: string }>
+    const uris = data.map((status) => status.uri)
+
+    expect(uris).toContain(parentStatusId)
+    expect(uris).toContain(selfReplyStatusId)
+    expect(uris).not.toContain(otherReplyStatusId)
+    expect(uris).not.toContain(missingReplyStatusId)
+  })
+
+  it('excludes reblogs from account statuses', async () => {
+    const now = Date.now() + 50_000
+    const originalStatusId = `${ACTOR2_ID}/statuses/account-exclude-reblog-original`
+    const announceStatusId = `${ACTOR1_ID}/statuses/account-exclude-reblog-announce`
+    const noteStatusId = `${ACTOR1_ID}/statuses/account-exclude-reblog-note`
+
+    await database.createNote({
+      id: originalStatusId,
+      url: originalStatusId,
+      actorId: ACTOR2_ID,
+      text: 'Account exclude reblog original',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now
+    })
+    await database.createNote({
+      id: noteStatusId,
+      url: noteStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account exclude reblog note',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now + 1
+    })
+    await database.createAnnounce({
+      id: announceStatusId,
+      actorId: ACTOR1_ID,
+      originalStatusId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now + 2
+    })
+
+    const response = await GET(createRequest('?exclude_reblogs=true&limit=1'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as Array<{ uri: string }>
+
+    expect(data.map((status) => status.uri)).toEqual([noteStatusId])
+  })
+
+  it('filters account statuses by normalized hashtag', async () => {
+    const now = Date.now() + 60_000
+    const taggedStatusId = `${ACTOR1_ID}/statuses/account-tagged-running`
+    const untaggedStatusId = `${ACTOR1_ID}/statuses/account-tagged-cycling`
+
+    await database.createNote({
+      id: taggedStatusId,
+      url: taggedStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account tagged #Running status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now
+    })
+    await database.createTag({
+      statusId: taggedStatusId,
+      name: '#Running',
+      value: 'https://llun.test/tags/running',
+      type: 'hashtag'
+    })
+    await database.createNote({
+      id: untaggedStatusId,
+      url: untaggedStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account tagged #Cycling status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now + 1
+    })
+    await database.createTag({
+      statusId: untaggedStatusId,
+      name: '#Cycling',
+      value: 'https://llun.test/tags/cycling',
+      type: 'hashtag'
+    })
+
+    const response = await GET(createRequest('?tagged=running&limit=1'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as Array<{ uri: string }>
+
+    expect(data.map((status) => status.uri)).toEqual([taggedStatusId])
+  })
+
+  it('returns only pinned account statuses with pinned serialization context', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    const now = Date.now() + 70_000
+    const pinnedStatusId = `${ACTOR1_ID}/statuses/account-pinned-status`
+    const unpinnedStatusId = `${ACTOR1_ID}/statuses/account-unpinned-status`
+
+    await database.createNote({
+      id: pinnedStatusId,
+      url: pinnedStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account pinned status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now
+    })
+    await database.createNote({
+      id: unpinnedStatusId,
+      url: unpinnedStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Account unpinned status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: now + 1
+    })
+
+    const pinResponse = await pinStatus(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(pinnedStatusId)}/pin`,
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' }
+        }
+      ),
+      { params: Promise.resolve({ id: urlToId(pinnedStatusId) }) }
+    )
+
+    expect(pinResponse.status).toBe(200)
+    await expect(pinResponse.json()).resolves.toMatchObject({
+      id: urlToId(pinnedStatusId),
+      pinned: true
+    })
+
+    const response = await GET(createRequest('?pinned=true&limit=40'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as Array<{
+      uri: string
+      pinned?: boolean
+    }>
+
+    expect(data.map((status) => status.uri)).toEqual([pinnedStatusId])
+    expect(data[0]?.pinned).toBe(true)
+    expect(data.map((status) => status.uri)).not.toContain(unpinnedStatusId)
+  })
+
+  it('preserves compatible filter params in pagination links', async () => {
+    const now = Date.now() + 80_000
+    const olderStatusId = `${ACTOR1_ID}/statuses/account-link-older`
+    const newerStatusId = `${ACTOR1_ID}/statuses/account-link-newer`
+
+    for (const [statusId, createdAt] of [
+      [olderStatusId, now],
+      [newerStatusId, now + 1]
+    ] as const) {
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Account pagination link #linktag',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/png',
+        url: `${statusId}/image.png`
+      })
+      await database.createTag({
+        statusId,
+        name: '#linktag',
+        value: 'https://llun.test/tags/linktag',
+        type: 'hashtag'
+      })
+    }
+
+    const response = await GET(
+      createRequest(
+        '?limit=1&only_media=true&exclude_reblogs=true&tagged=linktag'
+      ),
+      { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+    )
+
+    expect(response.status).toBe(200)
+    const link = response.headers.get('Link') ?? ''
+
+    expect(link).toContain('only_media=true')
+    expect(link).toContain('exclude_reblogs=true')
+    expect(link).toContain('tagged=linktag')
+    expect(link).toContain('max_id=')
+    expect(link).toContain('min_id=')
   })
 })
