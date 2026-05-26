@@ -17,6 +17,14 @@ const unsignedParams: SearchParams = {
 }
 
 describe('OAuth authorize query helpers', () => {
+  beforeEach(() => {
+    jest.spyOn(Date, 'now').mockImplementation(() => 1700000000000)
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
   it('delegates unsigned Mastodon-compatible authorize requests to Better Auth', () => {
     expect(shouldDelegateToBetterAuth(unsignedParams)).toBe(true)
 
@@ -164,5 +172,32 @@ describe('OAuth authorize query helpers', () => {
         exp: '1779800000'
       })
     ).toBe(true)
+  })
+
+  it('delegates expired or malformed Better Auth signature params', () => {
+    const expiredSignatureParams: SearchParams = {
+      ...unsignedParams,
+      sig: 'expired-signature',
+      exp: '1699999999'
+    }
+
+    expect(shouldDelegateToBetterAuth(expiredSignatureParams)).toBe(true)
+    expect(
+      shouldDelegateToBetterAuth({
+        ...unsignedParams,
+        sig: 'malformed-signature',
+        exp: 'not-a-number'
+      })
+    ).toBe(true)
+
+    const authorizeUrl = new URL(
+      buildBetterAuthAuthorizeUrl(
+        expiredSignatureParams,
+        'https://activities.local'
+      )
+    )
+
+    expect(authorizeUrl.searchParams.has('sig')).toBe(false)
+    expect(authorizeUrl.searchParams.has('exp')).toBe(false)
   })
 })

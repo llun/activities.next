@@ -45,9 +45,7 @@ interface ConsentResponse {
 
 const getConsentRedirectBaseUrl = () => {
   if (typeof window === 'undefined') return 'https://activities.local'
-  return window.location.origin === 'http://localhost'
-    ? 'https://activities.local'
-    : window.location.origin
+  return window.location.origin
 }
 
 export const getConsentRedirectUrl = (data: ConsentResponse) => {

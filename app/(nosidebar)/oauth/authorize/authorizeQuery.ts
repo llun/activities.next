@@ -65,9 +65,16 @@ export const buildBetterAuthAuthorizeUrl = (
   return url.toString()
 }
 
+const hasExpiredBetterAuthSignature = (exp: string): boolean => {
+  const expiresAt = Number(exp)
+  return !Number.isFinite(expiresAt) || Date.now() / 1000 > expiresAt
+}
+
 // Better Auth consent signatures require sig and exp as an inseparable pair. If
-// either field is absent or blank, treat the request as unsigned and send it
-// through Better Auth so it can validate the client request and sign a fresh
-// consent query.
-export const shouldDelegateToBetterAuth = (params: SearchParams): boolean =>
-  !params.sig || !params.exp
+// either field is absent, blank, or expired, treat the request as unsigned and
+// send it through Better Auth so it can validate the client request and sign a
+// fresh consent query.
+export const shouldDelegateToBetterAuth = (params: SearchParams): boolean => {
+  if (!params.sig || !params.exp) return true
+  return hasExpiredBetterAuthSignature(params.exp)
+}
