@@ -1,5 +1,7 @@
 import crypto from 'crypto'
+import knex from 'knex'
 
+import { getSQLDatabase } from '@/lib/database/sql'
 import {
   TestDatabaseTable,
   databaseBeforeAll,
@@ -14,6 +16,7 @@ import {
 } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { logger } from '@/lib/utils/logger'
 import { urlToId } from '@/lib/utils/urlToId'
 
 describe('AccountDatabase', () => {
@@ -415,6 +418,122 @@ describe('AccountDatabase', () => {
         await database.deleteAccountSession({ token })
         const deleted = await database.getAccountSession({ token })
         expect(deleted).toBeNull()
+      })
+
+      it('records login counters once per account per UTC week', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        const getLoginTotal = async () => {
+          const row = await knexDatabase('counters')
+            .where('id', 'like', 'bucket:logins:%')
+            .sum<{ total: number | string | null }>('value as total')
+            .first()
+          return Number(row?.total ?? 0)
+        }
+
+        try {
+          await sqlDatabase.migrate()
+
+          jest.useFakeTimers()
+          jest.setSystemTime(new Date('2026-01-08T10:00:00.000Z'))
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `login-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `login-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-login-key',
+            publicKey: 'public-login-key'
+          })
+
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: 'login-week-one-a',
+            expireAt: Date.now() + 60_000
+          })
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: 'login-week-one-b',
+            expireAt: Date.now() + 120_000
+          })
+
+          jest.setSystemTime(new Date('2026-01-13T10:00:00.000Z'))
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: 'login-week-two',
+            expireAt: Date.now() + 60_000
+          })
+
+          const markerRows = await knexDatabase('counters')
+            .where('id', `unique-login:${accountId}`)
+            .orderBy('id', 'asc')
+            .select('id', 'value')
+
+          expect(await getLoginTotal()).toBe(2)
+          expect(markerRows).toEqual([
+            {
+              id: `unique-login:${accountId}`,
+              value: Math.floor(Date.UTC(2026, 0, 12) / 1000)
+            }
+          ])
+        } finally {
+          jest.useRealTimers()
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('creates account sessions when login counter recording fails', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const errorSpy = jest
+          .spyOn(logger, 'error')
+          .mockImplementation(() => undefined)
+
+        try {
+          await sqlDatabase.migrate()
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `login-failure-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `login-failure-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-login-failure-key',
+            publicKey: 'public-login-failure-key'
+          })
+
+          await knexDatabase.schema.dropTable('counters')
+
+          await expect(
+            sqlDatabase.createAccountSession({
+              accountId,
+              token: 'login-counter-failure',
+              expireAt: Date.now() + 60_000
+            })
+          ).resolves.toBeUndefined()
+
+          const session = await knexDatabase('sessions')
+            .where('token', 'login-counter-failure')
+            .first()
+
+          expect(session).toMatchObject({ accountId })
+        } finally {
+          await new Promise((resolve) => setImmediate(resolve))
+          errorSpy.mockRestore()
+          await knexDatabase.destroy()
+        }
       })
     })
   })
