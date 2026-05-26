@@ -272,7 +272,7 @@ export const getMastodonStatus = async (
     reblogged: false,
     muted: false,
     bookmarked: isStatusBookmarked(status),
-    pinned: options?.pinnedStatusIds?.has(status.id),
+    pinned: options?.pinnedStatusIds?.has(status.id) ?? false,
 
     content: '',
     text: null,

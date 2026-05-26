@@ -1267,10 +1267,33 @@ export const StatusSQLDatabaseMixin = (
   }: GetPinnedStatusIdsParams) {
     if (statusIds && statusIds.length === 0) return []
 
-    let query = database('status_pins').where({ actorId })
     if (statusIds) {
-      query = query.whereIn('statusId', [...new Set(statusIds)])
+      const uniqueStatusIds = [...new Set(statusIds)]
+      const rows: { statusId: string; createdAt: Date | string | number }[] = []
+      for (const statusIdChunk of chunkArray(
+        uniqueStatusIds,
+        getWhereInBatchSize(database, 1)
+      )) {
+        const chunkRows = await database('status_pins')
+          .where({ actorId })
+          .whereIn('statusId', statusIdChunk)
+          .select<
+            { statusId: string; createdAt: Date | string | number }[]
+          >('statusId', 'createdAt')
+        rows.push(...chunkRows)
+      }
+
+      return rows
+        .sort((a, b) => {
+          const timeA = new Date(a.createdAt).getTime()
+          const timeB = new Date(b.createdAt).getTime()
+          if (timeA !== timeB) return timeB - timeA
+          return b.statusId.localeCompare(a.statusId)
+        })
+        .map((row) => row.statusId)
     }
+
+    let query = database('status_pins').where({ actorId })
 
     const rows = await query
       .select<{ statusId: string }[]>('statusId')

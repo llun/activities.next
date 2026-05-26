@@ -289,7 +289,8 @@ describe('#getMastodonStatus', () => {
       sensitive: false,
       url: `${ACTOR1_ID}/statuses/post-1`,
       created_at: expect.toBeString(),
-      edited_at: null
+      edited_at: null,
+      pinned: false
     })
   })
 
