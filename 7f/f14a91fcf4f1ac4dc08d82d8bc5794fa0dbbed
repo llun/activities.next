@@ -1,0 +1,21 @@
+migrations/20260526112702_backfill_instance_activity_counters.js
+  s_58892cc8b3e18b::t_f0f9b44109f38b 59-63,93,110-118,128-141
+lib/services/auth/knexAdapter.ts
+  s_58892cc8b3e18b::t_439a87db0daf87 166-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7ff14a91fcf4f1ac4dc08d82d8bc5794fa0dbbed",
+  "prompts": {},
+  "sessions": {
+    "s_58892cc8b3e18b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6400-99fc-71c1-8ad5-9b1cf7d98715",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
