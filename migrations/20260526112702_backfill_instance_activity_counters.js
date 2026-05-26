@@ -101,9 +101,9 @@ const upsertCounters = async (knex, counters, currentTime) => {
       .insert(chunk)
       .onConflict('id')
       .merge({
-        value: knex.raw('"counters"."value" + excluded."value"'),
-        bucketHour: knex.raw('excluded."bucketHour"'),
-        updatedAt: knex.raw('excluded."updatedAt"')
+        value: knex.raw('?? + excluded.??', ['counters.value', 'value']),
+        bucketHour: knex.raw('excluded.??', ['bucketHour']),
+        updatedAt: knex.raw('excluded.??', ['updatedAt'])
       })
   }
 
@@ -114,9 +114,10 @@ const upsertCounters = async (knex, counters, currentTime) => {
       .onConflict('id')
       .merge({
         value: knex.raw(
-          'CASE WHEN excluded."value" > "counters"."value" THEN excluded."value" ELSE "counters"."value" END'
+          'CASE WHEN excluded.?? > ?? THEN excluded.?? ELSE ?? END',
+          ['value', 'counters.value', 'value', 'counters.value']
         ),
-        updatedAt: knex.raw('excluded."updatedAt"')
+        updatedAt: knex.raw('excluded.??', ['updatedAt'])
       })
   }
 }

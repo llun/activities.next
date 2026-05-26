@@ -27,6 +27,7 @@ const COUNTER_TYPES: Record<string, ActivityCounterKey> = {
   'bucket:logins:': 'logins',
   'bucket:accounts:': 'registrations'
 }
+const COUNTER_TYPE_ENTRIES = Object.entries(COUNTER_TYPES)
 
 const SQLITE_CLIENTS = new Set(['better-sqlite3', 'sqlite3'])
 
@@ -47,7 +48,7 @@ const getWeekKey = (date: Date): string =>
   String(Math.floor(getUTCWeekStart(date).getTime() / 1000))
 
 const getBucketCounterType = (id: string): ActivityCounterKey | null => {
-  for (const [prefix, counterType] of Object.entries(COUNTER_TYPES)) {
+  for (const [prefix, counterType] of COUNTER_TYPE_ENTRIES) {
     if (id.startsWith(prefix)) return counterType
   }
 

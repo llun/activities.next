@@ -255,18 +255,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   }: CreateAccountSessionParams): Promise<void> {
     const currentTime = new Date()
 
-    await database.transaction(async (trx) => {
-      await trx('sessions').insert({
-        id: crypto.randomUUID(),
-        accountId,
-        token,
-        actorId: actorId ?? null,
+    await database('sessions').insert({
+      id: crypto.randomUUID(),
+      accountId,
+      token,
+      actorId: actorId ?? null,
 
-        expireAt: new Date(expireAt),
+      expireAt: new Date(expireAt),
 
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
+      createdAt: currentTime,
+      updatedAt: currentTime
     })
     await recordWeeklyLoginSafely(database, accountId, currentTime)
   },
