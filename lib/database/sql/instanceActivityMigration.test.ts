@@ -188,4 +188,62 @@ describe('instance activity counter migration', () => {
 
     expect(remainingRows).toHaveLength(0)
   })
+
+  it('backfills SQLite timestamp strings without timezone as UTC', async () => {
+    const originalTimeZone = process.env.TZ
+    process.env.TZ = 'Europe/Amsterdam'
+
+    try {
+      await database('accounts').insert({
+        id: 'account-sqlite-time',
+        createdAt: '2026-05-25 00:30:00.000',
+        updatedAt: '2026-05-25 00:30:00.000'
+      })
+      await database('actors').insert({
+        id: 'https://local.test/users/sqlite-time',
+        accountId: 'account-sqlite-time',
+        createdAt: '2026-05-25 00:30:00.000',
+        updatedAt: '2026-05-25 00:30:00.000'
+      })
+      await database('statuses').insert({
+        id: 'sqlite-time-status',
+        actorId: 'https://local.test/users/sqlite-time',
+        createdAt: '2026-05-25 00:30:00.000',
+        updatedAt: '2026-05-25 00:30:00.000'
+      })
+      await database('sessions').insert({
+        id: 'sqlite-time-session',
+        accountId: 'account-sqlite-time',
+        token: 'sqlite-time-token',
+        expireAt: '2026-06-25 00:30:00.000',
+        createdAt: '2026-05-25 00:30:00.000',
+        updatedAt: '2026-05-25 00:30:00.000'
+      })
+
+      await migration.up(database)
+
+      const statusBucket = await database('counters')
+        .where('id', 'bucket:local-statuses:2026052500')
+        .first()
+      const loginBucket = await database('counters')
+        .where('id', 'bucket:logins:2026052500')
+        .first()
+      const marker = await database('counters')
+        .where(
+          'id',
+          `unique-login:${Math.floor(Date.UTC(2026, 4, 25) / 1000)}:account-sqlite-time`
+        )
+        .first()
+
+      expect(statusBucket?.value).toBe(1)
+      expect(loginBucket?.value).toBe(1)
+      expect(marker?.value).toBe(1)
+    } finally {
+      if (originalTimeZone === undefined) {
+        delete process.env.TZ
+      } else {
+        process.env.TZ = originalTimeZone
+      }
+    }
+  })
 })

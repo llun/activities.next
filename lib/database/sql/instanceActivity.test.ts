@@ -112,4 +112,38 @@ describe('instance activity counters', () => {
       registrations: '0'
     })
   })
+
+  it('groups SQLite timestamp strings without timezone as UTC', async () => {
+    const originalTimeZone = process.env.TZ
+    process.env.TZ = 'Europe/Amsterdam'
+
+    try {
+      await database('counters').insert({
+        id: 'bucket:local-statuses:2026052500',
+        value: 1,
+        bucketHour: '2026-05-25 00:30:00.000',
+        createdAt: '2026-05-25 00:30:00.000',
+        updatedAt: '2026-05-25 00:30:00.000'
+      })
+
+      const activity = await getInstanceActivityFromCounters(database, {
+        now: new Date('2026-05-26T12:00:00.000Z')
+      })
+
+      expect(activity[0]).toMatchObject({
+        week: String(toUnixSeconds(new Date('2026-05-25T00:00:00.000Z'))),
+        statuses: '1'
+      })
+      expect(activity[1]).toMatchObject({
+        week: String(toUnixSeconds(new Date('2026-05-18T00:00:00.000Z'))),
+        statuses: '0'
+      })
+    } finally {
+      if (originalTimeZone === undefined) {
+        delete process.env.TZ
+      } else {
+        process.env.TZ = originalTimeZone
+      }
+    }
+  })
 })

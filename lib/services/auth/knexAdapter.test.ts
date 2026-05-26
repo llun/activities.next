@@ -210,6 +210,47 @@ describe('knexAdapter', () => {
         jest.useRealTimers()
       }
     })
+
+    it('records session timestamp strings without timezone as UTC', async () => {
+      const originalTimeZone = process.env.TZ
+      process.env.TZ = 'Europe/Amsterdam'
+
+      try {
+        await db('users').insert({
+          id: 'u-sqlite-time',
+          email: 'sqlite-time@test.com'
+        })
+
+        await adapter.create({
+          model: 'sessions',
+          data: {
+            id: 's-sqlite-time',
+            user_id: 'u-sqlite-time',
+            token: 'sqlite-time-token',
+            createdAt: '2026-05-25 00:30:00.000',
+            expireAt: '2026-06-25 00:30:00.000'
+          }
+        })
+
+        const markerRows = await db('counters')
+          .where('id', 'like', 'unique-login:%:u-sqlite-time')
+          .select('id')
+
+        expect(markerRows).toEqual([
+          {
+            id: `unique-login:${Math.floor(
+              Date.UTC(2026, 4, 25) / 1000
+            )}:u-sqlite-time`
+          }
+        ])
+      } finally {
+        if (originalTimeZone === undefined) {
+          delete process.env.TZ
+        } else {
+          process.env.TZ = originalTimeZone
+        }
+      }
+    })
   })
 
   describe('findOne', () => {

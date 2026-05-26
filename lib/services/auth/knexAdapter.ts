@@ -2,6 +2,7 @@ import { CleanedWhere, createAdapterFactory } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
 import { recordWeeklyLogin } from '@/lib/database/sql/instanceActivity'
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 
 const escapeLikeValue = (value: unknown): string => {
   return String(value).replace(/[%_\\]/g, '\\$&')
@@ -24,7 +25,7 @@ const hydrateDateFields = <T>(row: T): T => {
       continue
     }
 
-    const date = new Date(value as string | number)
+    const date = new Date(getCompatibleTime(value as string | number))
     if (Number.isNaN(date.getTime())) continue
 
     hydrated[key] = date
@@ -49,7 +50,7 @@ const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
   }
 
   if (typeof createdAt === 'string' || typeof createdAt === 'number') {
-    const parsed = new Date(createdAt)
+    const parsed = new Date(getCompatibleTime(createdAt))
     if (!Number.isNaN(parsed.getTime())) return parsed
   }
 

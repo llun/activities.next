@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 import { parseCounterValue } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   GetInstanceActivityParams,
   InstanceActivityDatabase,
@@ -75,8 +76,6 @@ export const getInstanceActivityFromCounters = async (
 
   const rows = await database<CounterRow>('counters')
     .whereNotNull('bucketHour')
-    .andWhere('bucketHour', '>=', oldestWeekStart)
-    .andWhere('bucketHour', '<', newestWeekEnd)
     .andWhere((builder) => {
       builder
         .where('id', 'like', 'bucket:local-statuses:%')
@@ -90,8 +89,12 @@ export const getInstanceActivityFromCounters = async (
     if (!counterType || row.bucketHour === null) continue
 
     const bucketHour =
-      row.bucketHour instanceof Date ? row.bucketHour : new Date(row.bucketHour)
+      row.bucketHour instanceof Date
+        ? row.bucketHour
+        : new Date(getCompatibleTime(row.bucketHour))
     if (Number.isNaN(bucketHour.getTime())) continue
+
+    if (bucketHour < oldestWeekStart || bucketHour >= newestWeekEnd) continue
 
     const week = weekByKey.get(getWeekKey(bucketHour))
     if (!week) continue

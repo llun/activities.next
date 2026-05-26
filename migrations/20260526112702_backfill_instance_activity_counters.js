@@ -1,8 +1,17 @@
 const CHUNK_SIZE = 100
 const READ_CHUNK_SIZE = 1000
+const SQLITE_UTC_TIMESTAMP_PATTERN =
+  /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/
 
 const toDate = (value) => {
   if (value instanceof Date) return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    const normalized = SQLITE_UTC_TIMESTAMP_PATTERN.test(trimmed)
+      ? `${trimmed.replace(' ', 'T')}Z`
+      : trimmed
+    return new Date(normalized)
+  }
   return new Date(value)
 }
 
