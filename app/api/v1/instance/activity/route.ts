@@ -23,7 +23,17 @@ export const GET = traceApiRoute('getInstanceActivity', async (req) => {
     })
   }
 
-  const data = await database.getInstanceActivity()
+  let data
+  try {
+    data = await database.getInstanceActivity()
+  } catch {
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: ERROR_500,
+      responseStatusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+    })
+  }
 
   return apiResponse({
     req,

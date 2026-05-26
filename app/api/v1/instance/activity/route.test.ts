@@ -54,4 +54,22 @@ describe('GET /api/v1/instance/activity', () => {
     })
     expect(response.status).toBe(500)
   })
+
+  it('returns a JSON 500 when the activity query fails', async () => {
+    const getInstanceActivity = jest
+      .fn()
+      .mockRejectedValue(new Error('query failed'))
+    mockGetDatabase.mockReturnValue({ getInstanceActivity })
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/instance/activity'),
+      { params: Promise.resolve({}) }
+    )
+
+    await expect(response.json()).resolves.toEqual({
+      status: 'Internal Server Error'
+    })
+    expect(response.status).toBe(500)
+    expect(getInstanceActivity).toHaveBeenCalledTimes(1)
+  })
 })
