@@ -15,15 +15,28 @@ const BetterAuthAuthorizationParamOrder = [
   'sig'
 ]
 
+const BetterAuthAuthorizationParamSet = new Set(
+  BetterAuthAuthorizationParamOrder
+)
+
+const shouldIncludeOAuthParam = (
+  key: string,
+  value: string | null | undefined
+): value is string =>
+  value != null && (value !== '' || (key !== 'sig' && key !== 'exp'))
+
 export const buildOAuthQuery = (params: SearchParams): string => {
   const oauthQuery = new URLSearchParams()
   const values = params as Record<string, string | null | undefined>
   for (const key of BetterAuthAuthorizationParamOrder) {
     const value = values[key]
-    if (value != null) oauthQuery.set(key, value)
+    if (shouldIncludeOAuthParam(key, value)) oauthQuery.set(key, value)
   }
   for (const [key, value] of Object.entries(values)) {
-    if (value != null && !BetterAuthAuthorizationParamOrder.includes(key)) {
+    if (
+      shouldIncludeOAuthParam(key, value) &&
+      !BetterAuthAuthorizationParamSet.has(key)
+    ) {
       oauthQuery.set(key, value)
     }
   }

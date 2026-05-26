@@ -115,5 +115,12 @@ describe('AuthorizeCard', () => {
         url: 'https://phanpy.local/?code=oauth-code'
       })
     ).toBe('https://phanpy.local/?code=oauth-code')
+
+    expect(
+      getConsentRedirectUrl({
+        redirect: true,
+        url: 'javascript:alert(1)'
+      })
+    ).toBeUndefined()
   })
 })

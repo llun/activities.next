@@ -116,6 +116,41 @@ describe('OAuth authorize query helpers', () => {
     expect(oauthQuery.get('exp')).toBe('1779800000')
   })
 
+  it('preserves request_uri params for Better Auth authorization queries', () => {
+    const paramsWithRequestUri: SearchParams = {
+      ...unsignedParams,
+      request_uri: 'urn:ietf:params:oauth:request_uri:request-id'
+    }
+
+    const oauthQuery = new URLSearchParams(
+      buildOAuthQuery(paramsWithRequestUri)
+    )
+
+    expect(oauthQuery.get('request_uri')).toBe(
+      'urn:ietf:params:oauth:request_uri:request-id'
+    )
+  })
+
+  it('skips blank Better Auth signature params when delegating', () => {
+    const partialSignatureParams: SearchParams = {
+      ...unsignedParams,
+      sig: '',
+      exp: '1779800000'
+    }
+
+    expect(shouldDelegateToBetterAuth(partialSignatureParams)).toBe(true)
+
+    const authorizeUrl = new URL(
+      buildBetterAuthAuthorizeUrl(
+        partialSignatureParams,
+        'https://activities.local'
+      )
+    )
+
+    expect(authorizeUrl.searchParams.has('sig')).toBe(false)
+    expect(authorizeUrl.searchParams.get('exp')).toBe('1779800000')
+  })
+
   it('delegates when only one Better Auth signature param is present', () => {
     expect(
       shouldDelegateToBetterAuth({

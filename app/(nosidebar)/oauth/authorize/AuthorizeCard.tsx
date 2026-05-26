@@ -41,8 +41,21 @@ interface ConsentResponse {
   url?: string
 }
 
-export const getConsentRedirectUrl = (data: ConsentResponse) =>
-  data.redirect_uri ?? data.url
+export const getConsentRedirectUrl = (data: ConsentResponse) => {
+  const redirectUrl = data.redirect_uri ?? data.url
+  if (!redirectUrl) return undefined
+
+  try {
+    const parsed = new URL(redirectUrl, 'https://activities.local')
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return redirectUrl
+    }
+  } catch {
+    // Invalid redirect response; fall through to the existing error handling.
+  }
+
+  return undefined
+}
 
 export const AuthorizeCard: FC<Props> = ({
   searchParams,
