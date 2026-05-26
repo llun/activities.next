@@ -4,7 +4,7 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { GET } from './route'
 
-const mockGetMastodonStatus = jest.fn()
+const mockGetMastodonStatuses = jest.fn()
 const mockDatabase = {
   getBlockRelations: jest.fn(),
   getStatusesByHashtag: jest.fn()
@@ -36,7 +36,8 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 }))
 
 jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: (...params: unknown[]) => mockGetMastodonStatus(...params)
+  getMastodonStatuses: (...params: unknown[]) =>
+    mockGetMastodonStatuses(...params)
 }))
 
 const status = {
@@ -50,19 +51,19 @@ describe('GET /api/v1/tags/:tag', () => {
     jest.clearAllMocks()
     mockDatabase.getBlockRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])
-    mockGetMastodonStatus.mockResolvedValue({ id: '1' })
+    mockGetMastodonStatuses.mockResolvedValue([{ id: '1' }])
   })
 
-  it('passes the current actor id when serializing authenticated Mastodon hashtag statuses', async () => {
+  it('passes the current actor id when batch serializing authenticated Mastodon hashtag statuses', async () => {
     const response = await GET(
       new NextRequest('https://local.test/api/v1/tags/running'),
       { params: Promise.resolve({ tag: 'running' }) }
     )
 
     expect(response.status).toBe(200)
-    expect(mockGetMastodonStatus).toHaveBeenCalledWith(
+    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
       mockDatabase,
-      status,
+      [status],
       mockCurrentActor.id
     )
   })

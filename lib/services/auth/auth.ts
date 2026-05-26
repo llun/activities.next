@@ -58,6 +58,7 @@ export const getAuth = memoize(() => {
           'read:search',
           'read:statuses',
           'write',
+          'write:accounts',
           'write:bookmarks',
           'write:conversations',
           'write:statuses',

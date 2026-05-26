@@ -466,6 +466,20 @@ export type GetActorStatusesParams = {
   visibleToActorId?: string | null
   includeFollowersOnly?: boolean
   followersAudience?: string | null
+  onlyMedia?: boolean
+  excludeReplies?: boolean
+  excludeReblogs?: boolean
+  tagged?: string | null
+  pinned?: boolean
+}
+export type PinStatusParams = {
+  actorId: string
+  statusId: string
+  maxPinnedStatuses?: number
+}
+export type GetPinnedStatusIdsParams = {
+  actorId: string
+  statusIds?: string[]
 }
 export type GetStatusesByIdsParams = {
   statusIds: string[]
@@ -602,6 +616,9 @@ export interface StatusDatabase {
   addStatusTag(params: AddStatusTagParams): Promise<void>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
+  pinStatus(params: PinStatusParams): Promise<boolean>
+  unpinStatus(params: PinStatusParams): Promise<void>
+  getPinnedStatusIds(params: GetPinnedStatusIdsParams): Promise<string[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
   getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
   getRebloggedBy(params: GetRebloggedByParams): Promise<RebloggedByAccount[]>
@@ -1281,6 +1298,7 @@ export const Scope = z.enum([
   'read:search',
   'read:statuses',
   'write',
+  'write:accounts',
   'write:bookmarks',
   'write:statuses',
   'write:conversations',
@@ -1300,6 +1318,7 @@ export const UsableScopes = [
   Scope.enum['read:search'],
   Scope.enum['read:statuses'],
   Scope.enum.write,
+  Scope.enum['write:accounts'],
   Scope.enum['write:bookmarks'],
   Scope.enum['write:statuses'],
   Scope.enum['write:conversations'],

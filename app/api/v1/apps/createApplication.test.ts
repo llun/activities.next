@@ -143,6 +143,22 @@ describe('createApplication', () => {
     ])
   })
 
+  test('it accepts Mastodon account write scopes', async () => {
+    const response = (await createApplication({
+      client_name: 'accountWriteScopesClient',
+      redirect_uris: 'https://test.llun.dev/apps/redirect',
+      scopes: 'write:accounts',
+      website: 'https://test.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.scopes)).toEqual(['write:accounts'])
+  })
+
   test('it defaults omitted scopes to read', async () => {
     const response = (await createApplication({
       client_name: 'defaultScopesClient',

@@ -1,9 +1,8 @@
 import { getBookmarkedStatusesPage } from '@/lib/services/bookmarks/getBookmarkedStatusesPage'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
-import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -55,13 +54,11 @@ export const GET = traceApiRoute(
         })
       }
 
-      const mastodonStatuses = (
-        await Promise.all(
-          statuses.map((status) =>
-            getMastodonStatus(database, status, currentActor.id)
-          )
-        )
-      ).filter((status): status is Mastodon.Status => status !== null)
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        statuses,
+        currentActor.id
+      )
 
       const host = headerHost(req.headers)
       const buildPaginationUrl = (cursorParam: string, cursorValue: string) => {

@@ -1,11 +1,15 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
+import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import {
   ERROR_403,
   ERROR_404,
+  ERROR_422,
   ERROR_500,
   apiResponse,
   defaultOptions
@@ -23,64 +27,91 @@ interface Params {
 
 export const POST = traceApiRoute(
   'pinStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:accounts']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
 
-    const statusId = idToUrl(encodedStatusId)
-    const status = await getReadableStatus({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+      const statusId = idToUrl(encodedStatusId)
+      const status = await getReadableStatus({
+        database,
+        statusId,
+        currentActor,
+        withReplies: false
       })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
 
-    // Check ownership - only owner can pin
-    if (status.actorId !== currentActor.id) {
+      // Check ownership - only owner can pin
+      if (status.actorId !== currentActor.id) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_403,
+          responseStatusCode: 403
+        })
+      }
+
+      if (
+        status.type === StatusType.enum.Announce ||
+        getVisibility(status.to, status.cc) === 'direct'
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      const pinned = await database.pinStatus({
+        actorId: currentActor.id,
+        statusId,
+        maxPinnedStatuses: MAX_PINNED_STATUSES
+      })
+      if (!pinned) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        currentActor.id,
+        { pinnedStatusIds: new Set([statusId]) }
+      )
+      if (!mastodonStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_403,
-        responseStatusCode: 403
+        data: mastodonStatus
       })
     }
-
-    // Pinning not yet implemented
-    // TODO: Implement pinning functionality with database table
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      status,
-      currentActor.id
-    )
-    if (!mastodonStatus)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

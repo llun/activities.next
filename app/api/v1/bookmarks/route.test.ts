@@ -171,6 +171,39 @@ describe('GET /api/v1/bookmarks', () => {
     ])
   })
 
+  it('batches viewer pin-state lookup when serializing bookmark lists', async () => {
+    const firstStatusId = `${ACTOR1_ID}/statuses/bookmark-route-own-first`
+    const secondStatusId = `${ACTOR1_ID}/statuses/bookmark-route-own-second`
+    for (const statusId of [firstStatusId, secondStatusId]) {
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Own bookmarked route status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createBookmark({ actorId: ACTOR1_ID, statusId })
+    }
+    const getPinnedStatusIds = jest.spyOn(database, 'getPinnedStatusIds')
+
+    try {
+      const response = await GET(createRequest('?limit=2'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toHaveLength(2)
+      expect(getPinnedStatusIds).toHaveBeenCalledTimes(1)
+      expect(getPinnedStatusIds).toHaveBeenCalledWith({
+        actorId: ACTOR1_ID,
+        statusIds: [secondStatusId, firstStatusId]
+      })
+    } finally {
+      getPinnedStatusIds.mockRestore()
+    }
+  })
+
   it('paginates with Mastodon Link headers using bookmark ids', async () => {
     await createBookmarkedStatus('page-one')
     await createBookmarkedStatus('page-two')
