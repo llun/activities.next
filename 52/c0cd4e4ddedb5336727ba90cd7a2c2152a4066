@@ -1,0 +1,21 @@
+lib/database/sql/instanceActivityMigration.test.ts
+  s_58892cc8b3e18b::t_7e8588af0d3c35 368-406
+migrations/20260526112702_backfill_instance_activity_counters.js
+  s_58892cc8b3e18b::t_8c286ef0beb37a 11-13,68-98,405-407,411-412,414-418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "52c0cd4e4ddedb5336727ba90cd7a2c2152a4066",
+  "prompts": {},
+  "sessions": {
+    "s_58892cc8b3e18b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6400-99fc-71c1-8ad5-9b1cf7d98715",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
