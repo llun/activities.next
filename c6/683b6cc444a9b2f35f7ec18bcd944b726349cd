@@ -1,0 +1,35 @@
+lib/database/sql/instanceActivityMigration.test.ts
+  s_58892cc8b3e18b::t_30a64ec28a75fc 310-348
+lib/database/sql/account.test.ts
+  s_58892cc8b3e18b::t_a16a86000ffb10 19,502
+lib/database/sql/instanceActivity.ts
+  s_58892cc8b3e18b::t_733cdb39204e2a 11,35-37,180,182-183,214-230,239-246
+lib/database/sql/instanceActivity.test.ts
+  s_58892cc8b3e18b::t_576551c9dd5409 5-6,8,210-214,217-222,228,230-252
+  s_58892cc8b3e18b::t_5b39c7eed23230 223-227,263
+  s_58892cc8b3e18b::t_6540e8635d0e05 215-216,229,253-262,264-270
+lib/services/auth/knexAdapter.test.ts
+  s_58892cc8b3e18b::t_376576b7d29efb 3-4,267
+migrations/20260526112702_backfill_instance_activity_counters.js
+  s_58892cc8b3e18b::t_fccaf8a398d1a5 100-105
+  s_58892cc8b3e18b::t_8c116bef7915aa 365-366
+  s_58892cc8b3e18b::t_955f10ed127526 61-66
+  s_58892cc8b3e18b::t_9d997e55438396 97-99,106-163
+  s_58892cc8b3e18b::t_79728506cee6db 166,179-183,188,191,194,202-206,211,222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c6683b6cc444a9b2f35f7ec18bcd944b726349cd",
+  "prompts": {},
+  "sessions": {
+    "s_58892cc8b3e18b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6400-99fc-71c1-8ad5-9b1cf7d98715",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
