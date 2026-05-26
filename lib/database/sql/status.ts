@@ -1153,13 +1153,22 @@ export const StatusSQLDatabaseMixin = (
           })
           .orWhereExists(function () {
             this.select(database.raw('1'))
-              .from('statuses as reply_parent')
-              .where('reply_parent.actorId', actorId)
-              .where((parent) => {
-                parent
-                  .whereRaw('?? = ??', ['reply_parent.id', 'statuses.reply'])
-                  .orWhereRaw('?? = ??', ['reply_parent.url', 'statuses.reply'])
-              })
+              .from('statuses as reply_parent_by_id')
+              .where('reply_parent_by_id.actorId', actorId)
+              .whereRaw('?? = ??', ['reply_parent_by_id.id', 'statuses.reply'])
+          })
+          .orWhereExists(function () {
+            this.select(database.raw('1'))
+              .from('statuses as reply_parent_by_url')
+              .where('reply_parent_by_url.actorId', actorId)
+              .whereRaw('?? = ??', [
+                'reply_parent_by_url.urlHash',
+                'statuses.replyHash'
+              ])
+              .whereRaw('?? = ??', [
+                'reply_parent_by_url.url',
+                'statuses.reply'
+              ])
           })
       })
     }
@@ -1763,6 +1772,12 @@ export const StatusSQLDatabaseMixin = (
     await deleteRowsByColumnChunks(
       trx,
       'bookmarks',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_pins',
       'statusId',
       statusIdsToDelete
     )

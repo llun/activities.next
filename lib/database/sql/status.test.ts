@@ -1049,6 +1049,9 @@ describe('StatusDatabase', () => {
         const createdAt = Date.UTC(2035, 2, 1)
         const parentStatusId = `${actorId}/statuses/parent`
         const selfReplyStatusId = `${actorId}/statuses/self-reply`
+        const urlParentStatusId = `${actorId}/statuses/url-parent`
+        const urlParentStatusUrl = `${actorId}/@status/url-parent`
+        const selfReplyByUrlStatusId = `${actorId}/statuses/self-reply-by-url`
         const otherParentStatusId = `${otherActorId}/statuses/parent`
         const otherReplyStatusId = `${actorId}/statuses/other-reply`
         const missingReplyStatusId = `${actorId}/statuses/missing-reply`
@@ -1073,13 +1076,32 @@ describe('StatusDatabase', () => {
           createdAt: createdAt + 1
         })
         await database.createNote({
+          id: urlParentStatusId,
+          url: urlParentStatusUrl,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reply parent with distinct URL',
+          createdAt: createdAt + 2
+        })
+        await database.createNote({
+          id: selfReplyByUrlStatusId,
+          url: selfReplyByUrlStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Self reply by URL',
+          reply: urlParentStatusUrl,
+          createdAt: createdAt + 3
+        })
+        await database.createNote({
           id: otherParentStatusId,
           url: otherParentStatusId,
           actorId: otherActorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Other parent',
-          createdAt: createdAt + 2
+          createdAt: createdAt + 4
         })
         await database.createNote({
           id: otherReplyStatusId,
@@ -1089,7 +1111,7 @@ describe('StatusDatabase', () => {
           cc: [],
           text: 'Other reply',
           reply: otherParentStatusId,
-          createdAt: createdAt + 3
+          createdAt: createdAt + 5
         })
         await database.createNote({
           id: missingReplyStatusId,
@@ -1099,7 +1121,7 @@ describe('StatusDatabase', () => {
           cc: [],
           text: 'Missing reply',
           reply: `${otherActorId}/statuses/missing`,
-          createdAt: createdAt + 4
+          createdAt: createdAt + 6
         })
 
         const statuses = await database.getActorStatuses({
@@ -1111,6 +1133,7 @@ describe('StatusDatabase', () => {
 
         expect(statusIds).toContain(parentStatusId)
         expect(statusIds).toContain(selfReplyStatusId)
+        expect(statusIds).toContain(selfReplyByUrlStatusId)
         expect(statusIds).not.toContain(otherReplyStatusId)
         expect(statusIds).not.toContain(missingReplyStatusId)
       })
@@ -2704,6 +2727,37 @@ describe('StatusDatabase', () => {
           })
         ).toBeArrayOfSize(0)
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
+      })
+
+      it('deletes pinned status rows for deleted statuses', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const statusId = `${primaryActorId}/statuses/delete-pinned-${suffix}`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Delete pinned status'
+        })
+        await database.pinStatus({ actorId: primaryActorId, statusId })
+
+        expect(
+          await database.getPinnedStatusIds({
+            actorId: primaryActorId,
+            statusIds: [statusId]
+          })
+        ).toEqual([statusId])
+
+        await database.deleteStatus({ statusId })
+
+        expect(
+          await database.getPinnedStatusIds({
+            actorId: primaryActorId,
+            statusIds: [statusId]
+          })
+        ).toEqual([])
       })
 
       it('deletes a status when the scoped actor id matches after normalization', async () => {
