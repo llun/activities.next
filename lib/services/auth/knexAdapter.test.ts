@@ -244,6 +244,9 @@ describe('knexAdapter', () => {
         const markerRows = await db('counters')
           .where('id', 'like', 'unique-login:%')
           .select('id', 'value')
+        const sessionRow = await db('session')
+          .where('id', 's-ba-precedence')
+          .first()
 
         expect(markerRows).toEqual([
           {
@@ -251,6 +254,7 @@ describe('knexAdapter', () => {
             value: Math.floor(Date.UTC(2026, 1, 2) / 1000)
           }
         ])
+        expect(sessionRow?.accountId).toBe('u-ba-canonical')
       } finally {
         jest.useRealTimers()
       }

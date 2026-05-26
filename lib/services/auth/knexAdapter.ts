@@ -41,15 +41,14 @@ const getSessionAccountId = (
   record: Record<string, unknown>,
   model: string
 ): string | null => {
+  const userId = getStringValue(record.userId) ?? getStringValue(record.user_id)
+  const accountId = getStringValue(record.accountId)
+
   if (model === 'session') {
-    return getStringValue(record.userId) ?? getStringValue(record.user_id)
+    return userId ?? accountId
   }
 
-  return (
-    getStringValue(record.accountId) ??
-    getStringValue(record.userId) ??
-    getStringValue(record.user_id)
-  )
+  return accountId ?? userId
 }
 
 const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
@@ -163,6 +162,7 @@ export const knexAdapter = (db: Knex) =>
           if (model === 'session' || tableName === 'sessions') {
             const accountId = getSessionAccountId(record, model)
             const createdAt = getSessionCreatedAt(record)
+            if (accountId) record.accountId = accountId
             await db(tableName).insert(record)
             const row = await db(tableName).where(`${tableName}.id`, id).first()
             if (!row) throw new Error('Failed to create record')
