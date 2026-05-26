@@ -1,0 +1,32 @@
+migrations/20260526112702_backfill_instance_activity_counters.js
+  s_58892cc8b3e18b::t_ebbdfe96dd9bb0 8,59-60
+  s_58892cc8b3e18b::t_1a0583bee6404c 472
+  s_58892cc8b3e18b::t_1df757bcbc26d5 168-175,247-250
+  s_58892cc8b3e18b::t_3241c8e9155893 167,176-222,225-246,251-315,327-331,335
+lib/services/auth/knexAdapter.ts
+  s_58892cc8b3e18b::t_c6cea22086a127 165-169
+lib/database/sql/instanceActivityMigration.test.ts
+  s_58892cc8b3e18b::t_cbfac26d221611 240-263,272
+lib/database/sql/instanceActivity.ts
+  s_58892cc8b3e18b::t_e93ee67c75785e 89-91
+lib/services/auth/knexAdapter.test.ts
+  s_58892cc8b3e18b::t_b990129e0906c3 271
+  s_58892cc8b3e18b::t_fecdd13026091e 259
+  s_58892cc8b3e18b::t_f46598e686b42e 265-270,272-324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0de7b62057d9aa8b944ebe7d58cee1f352c306d8",
+  "prompts": {},
+  "sessions": {
+    "s_58892cc8b3e18b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6400-99fc-71c1-8ad5-9b1cf7d98715",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
