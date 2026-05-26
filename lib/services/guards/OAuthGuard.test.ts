@@ -574,7 +574,7 @@ describe('#OAuthGuard', () => {
       expect(mockVerifyAccessToken).not.toHaveBeenCalled()
     })
 
-    test('allows Better Auth opaque token with account userId and no actor referenceId', async () => {
+    test('returns 401 when Better Auth opaque token has account userId but no actor referenceId', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
       const primaryActor = await database.getActorFromEmail({
@@ -590,21 +590,14 @@ describe('#OAuthGuard', () => {
         scopes: JSON.stringify(['read'])
       })
 
-      let capturedActor: Actor | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
-        capturedActor = context.currentActor
-        return NextResponse.json({ success: true }, { status: 200 })
-      })
-
-      const guard = OAuthGuard([Scope.enum.read], handler)
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({
         Authorization: 'Bearer better-auth-opaque-token'
       })
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(200)
-      expect(handler).toHaveBeenCalled()
-      expect(capturedActor?.account?.id).toBe(primaryActor.account.id)
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
       expect(mockVerifyAccessToken).not.toHaveBeenCalled()
     })
 

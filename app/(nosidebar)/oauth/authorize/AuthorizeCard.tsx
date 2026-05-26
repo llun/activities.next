@@ -108,6 +108,15 @@ export const AuthorizeCard: FC<Props> = ({
     }
   }
 
+  const persistSelectedActor = async () => {
+    const response = await fetch('/api/v1/actors/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actorId: selectedActorId })
+    })
+    return response.ok
+  }
+
   const redirectWithError = (error: string) => {
     const redirectUri = searchParams.redirect_uri
     if (redirectUri) {
@@ -133,6 +142,10 @@ export const AuthorizeCard: FC<Props> = ({
     try {
       const formData = new FormData(e.currentTarget)
       const selectedScopes = formData.getAll('scope') as string[]
+      if (!(await persistSelectedActor())) {
+        redirectWithError('server_error')
+        return
+      }
 
       const response = await fetch('/api/auth/oauth2/consent', {
         method: 'POST',

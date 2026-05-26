@@ -41,6 +41,17 @@ const actors = [
   }
 ] as unknown as Actor[]
 
+const alternateActors = [
+  actors[0],
+  {
+    id: 'https://activities.local/users/testactor2',
+    username: 'testactor2',
+    domain: 'activities.local',
+    name: 'testactor2',
+    iconUrl: null
+  }
+] as unknown as Actor[]
+
 const signedSearchParams: SearchParams = {
   client_id: 'phanpy-client',
   redirect_uri: 'not-a-url',
@@ -95,7 +106,10 @@ describe('AuthorizeCard', () => {
       )
     })
 
-    const [, requestInit] = (global.fetch as jest.Mock).mock.calls[0]
+    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]) => url === '/api/auth/oauth2/consent'
+    )
+    const [, requestInit] = consentCall
     const body = JSON.parse(requestInit.body)
 
     expect(body.accept).toBe(true)
@@ -109,6 +123,39 @@ describe('AuthorizeCard', () => {
     expect(oauthQuery.get('code_challenge_method')).toBe('S256')
     expect(oauthQuery.get('sig')).toBe('signed-query')
     expect(oauthQuery.get('exp')).toBe('1779800000')
+  })
+
+  it('persists the selected actor before approving consent', async () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/testactor2"
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2))
+
+    const [switchUrl, switchRequestInit] = (global.fetch as jest.Mock).mock
+      .calls[0]
+    expect(switchUrl).toBe('/api/v1/actors/switch')
+    expect(switchRequestInit).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actorId: 'https://activities.local/users/testactor2'
+        })
+      })
+    )
+
+    expect((global.fetch as jest.Mock).mock.calls[1][0]).toBe(
+      '/api/auth/oauth2/consent'
+    )
   })
 
   it('reads Better Auth consent redirect URLs from url responses', () => {
