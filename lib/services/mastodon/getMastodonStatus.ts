@@ -393,7 +393,8 @@ export const getMastodonStatus = async (
 export const getMastodonStatuses = async (
   database: Database,
   statuses: Status[],
-  currentActorId?: string
+  currentActorId?: string,
+  inputOptions: GetMastodonStatusOptions = {}
 ): Promise<Mastodon.Status[]> => {
   if (statuses.length === 0) return []
 
@@ -455,6 +456,7 @@ export const getMastodonStatuses = async (
   }
 
   const options: GetMastodonStatusOptions = {
+    ...inputOptions,
     accountCache,
     statusMetricsCache: {
       reblogs: new Map(

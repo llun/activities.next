@@ -90,6 +90,27 @@ describe('#getMastodonStatus', () => {
       expect(getStatusRepliesCount).not.toHaveBeenCalled()
     })
 
+    it('preserves pinned status context while bulk hydrating', async () => {
+      const firstStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const secondStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-3`
+      })) as Status
+
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        [firstStatus, secondStatus],
+        undefined,
+        { pinnedStatusIds: new Set([firstStatus.id]) }
+      )
+
+      expect(mastodonStatuses.map((status) => status.pinned)).toEqual([
+        true,
+        false
+      ])
+    })
+
     it('hydrates poll vote state in bulk while serializing status lists', async () => {
       const firstPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-1`
       const secondPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-2`

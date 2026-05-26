@@ -5,9 +5,8 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
-import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
@@ -209,15 +208,12 @@ export const GET = traceApiRoute(
         })
       )
 
-      const mastodonStatuses = (
-        await Promise.all(
-          visibleStatuses.map((status) =>
-            getMastodonStatus(database, status, currentActor?.id, {
-              pinnedStatusIds
-            })
-          )
-        )
-      ).filter((status): status is Mastodon.Status => status !== null)
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        visibleStatuses,
+        currentActor?.id,
+        { pinnedStatusIds }
+      )
 
       const host = headerHost(req.headers)
       const pathBase = `/api/v1/accounts/${encodedAccountId}/statuses`
