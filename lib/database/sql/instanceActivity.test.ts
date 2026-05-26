@@ -146,4 +146,25 @@ describe('instance activity counters', () => {
       }
     }
   })
+
+  it('filters bucket rows by date range in the database query', async () => {
+    const queries: string[] = []
+    const onQuery = (query: { sql: string }) => queries.push(query.sql)
+    database.on('query', onQuery)
+
+    try {
+      await getInstanceActivityFromCounters(database, {
+        now: new Date('2026-05-26T12:00:00.000Z')
+      })
+    } finally {
+      database.off('query', onQuery)
+    }
+
+    const countersQuery = queries.find((query) =>
+      query.includes('from `counters`')
+    )
+
+    expect(countersQuery).toContain('`bucketHour` >= ?')
+    expect(countersQuery).toContain('`bucketHour` < ?')
+  })
 })

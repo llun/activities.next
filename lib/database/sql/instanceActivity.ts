@@ -28,6 +28,8 @@ const COUNTER_TYPES: Record<string, ActivityCounterKey> = {
   'bucket:accounts:': 'registrations'
 }
 
+const SQLITE_CLIENTS = new Set(['better-sqlite3', 'sqlite3'])
+
 export const getUTCWeekStart = (date: Date): Date => {
   const day = date.getUTCDay()
   const daysSinceMonday = (day + 6) % 7
@@ -52,6 +54,58 @@ const getBucketCounterType = (id: string): ActivityCounterKey | null => {
   return null
 }
 
+const isSQLiteClient = (database: Knex): boolean =>
+  SQLITE_CLIENTS.has(String(database.client.config.client))
+
+const formatUTCTimestamp = (date: Date, separator: ' ' | 'T'): string => {
+  const y = date.getUTCFullYear()
+  const mo = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  const h = String(date.getUTCHours()).padStart(2, '0')
+  const mi = String(date.getUTCMinutes()).padStart(2, '0')
+  const s = String(date.getUTCSeconds()).padStart(2, '0')
+  const ms = String(date.getUTCMilliseconds()).padStart(3, '0')
+
+  return `${y}-${mo}-${d}${separator}${h}:${mi}:${s}.${ms}`
+}
+
+const addBucketHourRangeFilter = (
+  query: Knex.QueryBuilder<CounterRow, CounterRow[]>,
+  database: Knex,
+  start: Date,
+  end: Date
+): Knex.QueryBuilder<CounterRow, CounterRow[]> => {
+  if (!isSQLiteClient(database)) {
+    return query
+      .andWhere('bucketHour', '>=', start)
+      .andWhere('bucketHour', '<', end)
+  }
+
+  return query.andWhere((builder) => {
+    builder
+      .where((range) => {
+        range
+          .where('bucketHour', '>=', start.getTime())
+          .andWhere('bucketHour', '<', end.getTime())
+      })
+      .orWhere((range) => {
+        range
+          .where('bucketHour', '>=', formatUTCTimestamp(start, ' '))
+          .andWhere('bucketHour', '<', formatUTCTimestamp(end, ' '))
+      })
+      .orWhere((range) => {
+        range
+          .where('bucketHour', '>=', formatUTCTimestamp(start, 'T'))
+          .andWhere('bucketHour', '<', formatUTCTimestamp(end, 'T'))
+      })
+      .orWhere((range) => {
+        range
+          .where('bucketHour', '>=', start.toISOString())
+          .andWhere('bucketHour', '<', end.toISOString())
+      })
+  })
+}
+
 export const getInstanceActivityFromCounters = async (
   database: Knex,
   { now = new Date() }: GetInstanceActivityParams = {}
@@ -74,8 +128,13 @@ export const getInstanceActivityFromCounters = async (
   })
   const weekByKey = new Map(weeks.map((week) => [week.weekKey, week]))
 
-  const rows = await database<CounterRow>('counters')
-    .whereNotNull('bucketHour')
+  const query = database<CounterRow>('counters').whereNotNull('bucketHour')
+  const rows = await addBucketHourRangeFilter(
+    query,
+    database,
+    oldestWeekStart,
+    newestWeekEnd
+  )
     .andWhere((builder) => {
       builder
         .where('id', 'like', 'bucket:local-statuses:%')
