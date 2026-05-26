@@ -55,6 +55,7 @@ describe('wellknown services', () => {
       expect(metadata.scopes_supported).toContain('write:accounts')
       expect(metadata.scopes_supported).toContain('write:bookmarks')
       expect(metadata.scopes_supported).toContain('follow')
+      expect(metadata.scopes_supported).toContain('push')
     })
   })
 
@@ -90,6 +91,7 @@ describe('wellknown services', () => {
       expect(config.scopes_supported).toContain('read:bookmarks')
       expect(config.scopes_supported).toContain('write:accounts')
       expect(config.scopes_supported).toContain('write:bookmarks')
+      expect(config.scopes_supported).toContain('push')
       expect(config.claims_supported).toContain('sub')
       expect(config.claims_supported).toContain('name')
       expect(config.claims_supported).toContain('email')
