@@ -161,13 +161,10 @@ export const knexAdapter = (db: Knex) =>
           const id = record.id as string
 
           if (model === 'session' || tableName === 'sessions') {
-            let row: unknown
             const accountId = getSessionAccountId(record, model)
             const createdAt = getSessionCreatedAt(record)
-            await db.transaction(async (trx) => {
-              await trx(tableName).insert(record)
-              row = await trx(tableName).where(`${tableName}.id`, id).first()
-            })
+            await db(tableName).insert(record)
+            const row = await db(tableName).where(`${tableName}.id`, id).first()
             if (!row) throw new Error('Failed to create record')
             await recordWeeklyLoginSafely(db, accountId, createdAt)
             return hydrateDateFields(row) as any

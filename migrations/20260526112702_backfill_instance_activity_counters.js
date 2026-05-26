@@ -56,6 +56,11 @@ const getWeekKey = (date) =>
 
 const getLoginMarkerId = (accountId) => `unique-login:${accountId}`
 
+const isMySQLClient = (knex) => {
+  const client = String(knex.client.config.client).toLowerCase()
+  return client.includes('mysql') || client.includes('maria')
+}
+
 const addBucketCounter = (counters, counterType, date, value = 1) => {
   const bucketHour = truncateToHour(date)
   const id = `bucket:${counterType}:${formatBucketHour(bucketHour)}`
@@ -85,6 +90,7 @@ const getExistingActivityCounterCutoff = async (knex, currentTime) => {
 }
 
 const upsertCounters = async (knex, counters, currentTime) => {
+  const isMySQL = isMySQLClient(knex)
   const rows = [...counters.values()].map((counter) => ({
     id: counter.id,
     value: counter.value,
@@ -101,9 +107,15 @@ const upsertCounters = async (knex, counters, currentTime) => {
       .insert(chunk)
       .onConflict('id')
       .merge({
-        value: knex.raw('?? + excluded.??', ['counters.value', 'value']),
-        bucketHour: knex.raw('excluded.??', ['bucketHour']),
-        updatedAt: knex.raw('excluded.??', ['updatedAt'])
+        value: isMySQL
+          ? knex.raw('?? + VALUES(??)', ['counters.value', 'value'])
+          : knex.raw('?? + excluded.??', ['counters.value', 'value']),
+        bucketHour: isMySQL
+          ? knex.raw('VALUES(??)', ['bucketHour'])
+          : knex.raw('excluded.??', ['bucketHour']),
+        updatedAt: isMySQL
+          ? knex.raw('VALUES(??)', ['updatedAt'])
+          : knex.raw('excluded.??', ['updatedAt'])
       })
   }
 
@@ -113,11 +125,20 @@ const upsertCounters = async (knex, counters, currentTime) => {
       .insert(chunk)
       .onConflict('id')
       .merge({
-        value: knex.raw(
-          'CASE WHEN excluded.?? > ?? THEN excluded.?? ELSE ?? END',
-          ['value', 'counters.value', 'value', 'counters.value']
-        ),
-        updatedAt: knex.raw('excluded.??', ['updatedAt'])
+        value: isMySQL
+          ? knex.raw('CASE WHEN VALUES(??) > ?? THEN VALUES(??) ELSE ?? END', [
+              'value',
+              'counters.value',
+              'value',
+              'counters.value'
+            ])
+          : knex.raw(
+              'CASE WHEN excluded.?? > ?? THEN excluded.?? ELSE ?? END',
+              ['value', 'counters.value', 'value', 'counters.value']
+            ),
+        updatedAt: isMySQL
+          ? knex.raw('VALUES(??)', ['updatedAt'])
+          : knex.raw('excluded.??', ['updatedAt'])
       })
   }
 }
