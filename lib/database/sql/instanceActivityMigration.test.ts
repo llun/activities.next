@@ -261,6 +261,42 @@ describe('instance activity counter migration', () => {
     expect(await getBucketTotals()).toEqual(firstRunTotals)
   })
 
+  it('writes up to 180 counter rows per chunk to reduce migration round trips', async () => {
+    await database('statuses').delete()
+    await database('sessions').delete()
+
+    const statusRows = Array.from({ length: 180 }, (_, index) => {
+      const createdAt = new Date(
+        Date.UTC(2026, 0, 1, 0, 0, 0) + index * 60 * 60 * 1000
+      )
+
+      return {
+        id: `chunk-status-${String(index).padStart(3, '0')}`,
+        actorId: 'https://local.test/users/a',
+        createdAt,
+        updatedAt: createdAt
+      }
+    })
+
+    await database('statuses').insert(statusRows)
+
+    const queries: string[] = []
+    const onQuery = (query: { sql: string }) => queries.push(query.sql)
+    database.on('query', onQuery)
+
+    try {
+      await migration.up(database)
+    } finally {
+      database.off('query', onQuery)
+    }
+
+    const counterInsertQueries = queries.filter((query) =>
+      query.startsWith('insert into `counters`')
+    )
+
+    expect(counterInsertQueries).toHaveLength(2)
+  })
+
   it('removes instance activity counters on rollback', async () => {
     await migration.up(database)
     await migration.down(database)

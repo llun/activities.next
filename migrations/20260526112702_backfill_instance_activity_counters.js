@@ -1,5 +1,8 @@
-const CHUNK_SIZE = 100
+const COUNTER_WRITE_CHUNK_SIZE = 180
+const MARKER_LOOKUP_CHUNK_SIZE = 900
 const READ_CHUNK_SIZE = 1000
+// SQLite defaults to 999 bound parameters. Counter writes bind five values per
+// row, so 180 rows keeps each insert/upsert comfortably under that limit.
 const ACTIVITY_COUNTER_PREFIXES = [
   'bucket:local-statuses:%',
   'bucket:logins:%',
@@ -323,16 +326,19 @@ const upsertCounters = async (knex, counters, currentTime) => {
   const bucketRows = rows.filter((row) => row.id.startsWith('bucket:'))
   const markerRows = rows.filter((row) => row.id.startsWith('unique-login:'))
 
-  for (let i = 0; i < bucketRows.length; i += CHUNK_SIZE) {
+  for (let i = 0; i < bucketRows.length; i += COUNTER_WRITE_CHUNK_SIZE) {
     await upsertBucketBackfillChunk(
       knex,
-      bucketRows.slice(i, i + CHUNK_SIZE),
+      bucketRows.slice(i, i + COUNTER_WRITE_CHUNK_SIZE),
       currentTime
     )
   }
 
-  for (let i = 0; i < markerRows.length; i += CHUNK_SIZE) {
-    await upsertLoginMarkerRows(knex, markerRows.slice(i, i + CHUNK_SIZE))
+  for (let i = 0; i < markerRows.length; i += COUNTER_WRITE_CHUNK_SIZE) {
+    await upsertLoginMarkerRows(
+      knex,
+      markerRows.slice(i, i + COUNTER_WRITE_CHUNK_SIZE)
+    )
   }
 }
 
@@ -402,9 +408,9 @@ const getExistingLoginMarkerWeeks = async (knex, markerIds) => {
   const existing = new Map()
   if (markerIds.length === 0) return existing
 
-  for (let i = 0; i < markerIds.length; i += CHUNK_SIZE) {
+  for (let i = 0; i < markerIds.length; i += MARKER_LOOKUP_CHUNK_SIZE) {
     const rows = await knex('counters')
-      .whereIn('id', markerIds.slice(i, i + CHUNK_SIZE))
+      .whereIn('id', markerIds.slice(i, i + MARKER_LOOKUP_CHUNK_SIZE))
       .select('id', 'value')
 
     for (const row of rows) {

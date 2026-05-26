@@ -152,9 +152,10 @@ describe('instance activity counters', () => {
     }
   })
 
-  it('filters bucket rows by date range in the database query', async () => {
-    const queries: string[] = []
-    const onQuery = (query: { sql: string }) => queries.push(query.sql)
+  it('filters bucket rows by sortable counter id range in the database query', async () => {
+    const queries: { sql: string; bindings?: unknown[] }[] = []
+    const onQuery = (query: { sql: string; bindings?: unknown[] }) =>
+      queries.push(query)
     database.on('query', onQuery)
 
     try {
@@ -166,11 +167,23 @@ describe('instance activity counters', () => {
     }
 
     const countersQuery = queries.find((query) =>
-      query.includes('from `counters`')
+      query.sql.includes('from `counters`')
     )
 
-    expect(countersQuery).toContain('`bucketHour` >= ?')
-    expect(countersQuery).toContain('`bucketHour` < ?')
+    expect(countersQuery?.sql).toContain('`id` >= ?')
+    expect(countersQuery?.sql).toContain('`id` < ?')
+    expect(countersQuery?.sql).not.toContain('`bucketHour` >= ?')
+    expect(countersQuery?.sql).not.toContain('`bucketHour` < ?')
+    expect(countersQuery?.bindings).toEqual(
+      expect.arrayContaining([
+        'bucket:local-statuses:2026030900',
+        'bucket:local-statuses:2026060100',
+        'bucket:logins:2026030900',
+        'bucket:logins:2026060100',
+        'bucket:accounts:2026030900',
+        'bucket:accounts:2026060100'
+      ])
+    )
   })
 
   it('stores one weekly login marker per account', async () => {

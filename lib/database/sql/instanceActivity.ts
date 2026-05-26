@@ -29,8 +29,7 @@ const COUNTER_TYPES: Record<string, ActivityCounterKey> = {
   'bucket:accounts:': 'registrations'
 }
 const COUNTER_TYPE_ENTRIES = Object.entries(COUNTER_TYPES)
-
-const SQLITE_CLIENTS = new Set(['better-sqlite3', 'sqlite3'])
+const COUNTER_TYPE_PREFIXES = Object.keys(COUNTER_TYPES)
 
 const isTransaction = (database: SQLDatabase): database is Knex.Transaction =>
   Boolean((database as { isTransaction?: boolean }).isTransaction)
@@ -51,67 +50,20 @@ export const getUTCWeekStart = (date: Date): Date => {
 const getWeekKey = (date: Date): string =>
   String(Math.floor(getUTCWeekStart(date).getTime() / 1000))
 
+const formatBucketHour = (date: Date): string => {
+  const y = date.getUTCFullYear()
+  const mo = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  const h = String(date.getUTCHours()).padStart(2, '0')
+  return `${y}${mo}${d}${h}`
+}
+
 const getBucketCounterType = (id: string): ActivityCounterKey | null => {
   for (const [prefix, counterType] of COUNTER_TYPE_ENTRIES) {
     if (id.startsWith(prefix)) return counterType
   }
 
   return null
-}
-
-const isSQLiteClient = (database: Knex): boolean =>
-  SQLITE_CLIENTS.has(String(database.client.config.client))
-
-const formatUTCTimestamp = (date: Date, separator: ' ' | 'T'): string => {
-  const y = date.getUTCFullYear()
-  const mo = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const d = String(date.getUTCDate()).padStart(2, '0')
-  const h = String(date.getUTCHours()).padStart(2, '0')
-  const mi = String(date.getUTCMinutes()).padStart(2, '0')
-  const s = String(date.getUTCSeconds()).padStart(2, '0')
-  const ms = String(date.getUTCMilliseconds()).padStart(3, '0')
-
-  return `${y}-${mo}-${d}${separator}${h}:${mi}:${s}.${ms}`
-}
-
-const addBucketHourRangeFilter = (
-  query: Knex.QueryBuilder<CounterRow, CounterRow[]>,
-  database: Knex,
-  start: Date,
-  end: Date
-): Knex.QueryBuilder<CounterRow, CounterRow[]> => {
-  if (!isSQLiteClient(database)) {
-    return query
-      .andWhere('bucketHour', '>=', start)
-      .andWhere('bucketHour', '<', end)
-  }
-
-  // Existing SQLite fixtures/local DBs can store Knex timestamps as epoch
-  // numbers or as UTC strings depending on the writer. Keep all known formats
-  // queryable, then re-check the parsed Date in memory below.
-  return query.andWhere((builder) => {
-    builder
-      .where((range) => {
-        range
-          .where('bucketHour', '>=', start.getTime())
-          .andWhere('bucketHour', '<', end.getTime())
-      })
-      .orWhere((range) => {
-        range
-          .where('bucketHour', '>=', formatUTCTimestamp(start, ' '))
-          .andWhere('bucketHour', '<', formatUTCTimestamp(end, ' '))
-      })
-      .orWhere((range) => {
-        range
-          .where('bucketHour', '>=', formatUTCTimestamp(start, 'T'))
-          .andWhere('bucketHour', '<', formatUTCTimestamp(end, 'T'))
-      })
-      .orWhere((range) => {
-        range
-          .where('bucketHour', '>=', start.toISOString())
-          .andWhere('bucketHour', '<', end.toISOString())
-      })
-  })
 }
 
 export const getInstanceActivityFromCounters = async (
@@ -135,19 +87,19 @@ export const getInstanceActivityFromCounters = async (
     }
   })
   const weekByKey = new Map(weeks.map((week) => [week.weekKey, week]))
+  const oldestHourKey = formatBucketHour(oldestWeekStart)
+  const newestHourKey = formatBucketHour(newestWeekEnd)
 
-  const query = database<CounterRow>('counters').whereNotNull('bucketHour')
-  const rows = await addBucketHourRangeFilter(
-    query,
-    database,
-    oldestWeekStart,
-    newestWeekEnd
-  )
+  const rows = await database<CounterRow>('counters')
+    .whereNotNull('bucketHour')
     .andWhere((builder) => {
-      builder
-        .where('id', 'like', 'bucket:local-statuses:%')
-        .orWhere('id', 'like', 'bucket:logins:%')
-        .orWhere('id', 'like', 'bucket:accounts:%')
+      for (const prefix of COUNTER_TYPE_PREFIXES) {
+        builder.orWhere((range) => {
+          range
+            .where('id', '>=', `${prefix}${oldestHourKey}`)
+            .andWhere('id', '<', `${prefix}${newestHourKey}`)
+        })
+      }
     })
     .select('id', 'value', 'bucketHour')
 
