@@ -25,6 +25,7 @@ import { UsableScopes } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Client } from '@/lib/types/oauth2/client'
 
+import { buildOAuthQuery } from './authorizeQuery'
 import { SearchParams } from './types'
 
 interface Props {
@@ -33,6 +34,15 @@ interface Props {
   actors: Actor[]
   currentActorId: string
 }
+
+interface ConsentResponse {
+  redirect?: boolean
+  redirect_uri?: string
+  url?: string
+}
+
+export const getConsentRedirectUrl = (data: ConsentResponse) =>
+  data.redirect_uri ?? data.url
 
 export const AuthorizeCard: FC<Props> = ({
   searchParams,
@@ -77,14 +87,6 @@ export const AuthorizeCard: FC<Props> = ({
     }
   }
 
-  const buildOAuthQuery = () => {
-    const oauthQuery = new URLSearchParams()
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (value !== undefined) oauthQuery.set(key, String(value))
-    }
-    return oauthQuery.toString()
-  }
-
   const redirectWithError = (error: string) => {
     const redirectUri = searchParams.redirect_uri
     if (redirectUri) {
@@ -117,14 +119,15 @@ export const AuthorizeCard: FC<Props> = ({
         body: JSON.stringify({
           accept: true,
           scope: selectedScopes.join(' '),
-          oauth_query: buildOAuthQuery()
+          oauth_query: buildOAuthQuery(searchParams)
         })
       })
 
       if (response.ok) {
-        const data = (await response.json()) as { redirect_uri?: string }
-        if (data.redirect_uri) {
-          window.location.href = data.redirect_uri
+        const data = (await response.json()) as ConsentResponse
+        const redirectUrl = getConsentRedirectUrl(data)
+        if (redirectUrl) {
+          window.location.href = redirectUrl
           return
         }
       }
@@ -145,13 +148,14 @@ export const AuthorizeCard: FC<Props> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accept: false,
-          oauth_query: buildOAuthQuery()
+          oauth_query: buildOAuthQuery(searchParams)
         })
       })
       if (response.ok) {
-        const data = (await response.json()) as { redirect_uri?: string }
-        if (data.redirect_uri) {
-          window.location.href = data.redirect_uri
+        const data = (await response.json()) as ConsentResponse
+        const redirectUrl = getConsentRedirectUrl(data)
+        if (redirectUrl) {
+          window.location.href = redirectUrl
           return
         }
         // Denial processed but no redirect — use access_denied

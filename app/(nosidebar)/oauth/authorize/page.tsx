@@ -8,6 +8,11 @@ import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthorizeCard } from './AuthorizeCard'
+import {
+  buildBetterAuthAuthorizeUrl,
+  buildOAuthAuthorizePath,
+  shouldDelegateToBetterAuth
+} from './authorizeQuery'
 import { SearchParams } from './types'
 
 export const dynamic = 'force-dynamic'
@@ -23,11 +28,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
   }
 
   const session = await getServerAuthSession()
-  const params = await searchParams
-  const parsedResult = SearchParams.safeParse(params)
+  const rawParams = await searchParams
+  const parsedResult = SearchParams.safeParse(rawParams)
   if (!parsedResult.success) {
     return notFound()
   }
+  const params = parsedResult.data
 
   const [actor, client] = await Promise.all([
     getActorFromSession(database, session),
@@ -48,11 +54,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   if (!actor || !actor.account) {
     const url = new URL('/auth/signin', getBaseURL())
-    url.searchParams.append(
-      'redirectBack',
-      `/oauth/authorize?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][])}`
-    )
+    url.searchParams.append('redirectBack', buildOAuthAuthorizePath(params))
     return redirect(url.toString())
+  }
+
+  if (shouldDelegateToBetterAuth(params)) {
+    return redirect(buildBetterAuthAuthorizeUrl(params, getBaseURL()))
   }
 
   // Fetch all actors for this account
