@@ -87,6 +87,17 @@ describe('OAuth authorize query helpers', () => {
     expect(oauthQuery.get('exp')).toBe('1779800000')
   })
 
+  it('treats Better Auth signed exp values as epoch seconds', () => {
+    const signedParams: SearchParams = {
+      ...unsignedParams,
+      sig: 'signed-query',
+      // Representative 10-digit value emitted by Better Auth signParams.
+      exp: '1779815588'
+    }
+
+    expect(shouldDelegateToBetterAuth(signedParams)).toBe(false)
+  })
+
   it('serializes signed consent queries in Better Auth signature order', () => {
     const signedParams: SearchParams = {
       ...unsignedParams,

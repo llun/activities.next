@@ -139,7 +139,14 @@ describe('AuthorizeCard', () => {
         redirect: true,
         url: '//phanpy.local/?code=oauth-code'
       })
-    ).toBe('http://phanpy.local/?code=oauth-code')
+    ).toBeUndefined()
+
+    expect(
+      getConsentRedirectUrl({
+        redirect: true,
+        url: '/oauth/callback?code=oauth-code'
+      })
+    ).toBeUndefined()
   })
 
   it('submits denial with the signed Better Auth query and follows url redirects', async () => {

@@ -1,9 +1,11 @@
 import { SearchParams } from './types'
 
 // Better Auth 1.6.9 signs serializeAuthorizationQuery(ctx.query).toString()
-// before appending sig in @better-auth/oauth-provider/dist/index.mjs. Keep this
-// order in sync when upgrading Better Auth or consent signature verification can
-// fail even when the query values are unchanged.
+// before appending sig in @better-auth/oauth-provider/dist/index.mjs. Its
+// signParams helper sets exp with Math.floor(Date.now() / 1e3) + codeExpiresIn
+// in the same file. Keep both the order and seconds-based exp units in sync
+// when upgrading Better Auth or consent signature verification can fail even
+// when the query values are unchanged.
 const BetterAuthAuthorizationParamOrder = [
   'response_type',
   'client_id',

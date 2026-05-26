@@ -43,17 +43,13 @@ interface ConsentResponse {
   redirect_uri?: string
 }
 
-const getConsentRedirectBaseUrl = () => {
-  if (typeof window === 'undefined') return 'https://activities.local'
-  return window.location.origin
-}
-
 export const getConsentRedirectUrl = (data: ConsentResponse) => {
   const redirectUrl = data.url ?? data.redirect_uri
   if (!redirectUrl) return undefined
+  if (!/^https?:\/\//i.test(redirectUrl)) return undefined
 
   try {
-    const parsed = new URL(redirectUrl, getConsentRedirectBaseUrl())
+    const parsed = new URL(redirectUrl)
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
       return parsed.toString()
     }
