@@ -365,6 +365,45 @@ describe('instance activity counter migration', () => {
     }
   })
 
+  it.each(['userId', 'user_id'])(
+    'backfills weekly logins from a singular session table using %s',
+    async (sessionAccountColumn) => {
+      await database.schema.dropTable('sessions')
+      await database.schema.createTable('session', (table) => {
+        table.string('id').primary()
+        table.string(sessionAccountColumn).notNullable()
+        table.string('token').notNullable()
+        table.timestamp('expireAt', { useTz: true })
+        table.timestamp('createdAt', { useTz: true })
+        table.timestamp('updatedAt', { useTz: true })
+      })
+
+      await database('session').insert({
+        id: `singular-session-${sessionAccountColumn}`,
+        [sessionAccountColumn]: 'account-a',
+        token: `singular-token-${sessionAccountColumn}`,
+        expireAt: new Date('2026-06-19T09:00:00.000Z'),
+        createdAt: new Date('2026-05-19T09:00:00.000Z'),
+        updatedAt: new Date('2026-05-19T09:00:00.000Z')
+      })
+
+      await migration.up(database)
+
+      const loginRows = await database('counters')
+        .where('id', 'like', 'bucket:logins:%')
+        .select('value')
+      const marker = await database('counters')
+        .where('id', 'unique-login:account-a')
+        .first('id', 'value')
+
+      expect(sumCounterRows(loginRows)).toBe(1)
+      expect(marker).toEqual({
+        id: 'unique-login:account-a',
+        value: Math.floor(Date.UTC(2026, 4, 18) / 1000)
+      })
+    }
+  )
+
   it('does not run in the default Knex migration transaction', () => {
     expect(migration.config).toEqual({ transaction: false })
   })

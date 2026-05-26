@@ -8,6 +8,9 @@ const ACTIVITY_COUNTER_PREFIXES = [
   'bucket:logins:%',
   'unique-login:%'
 ]
+const SESSION_TABLE_NAMES = ['sessions', 'session']
+const SESSION_ACCOUNT_ID_COLUMNS = ['accountId', 'userId', 'user_id']
+const SESSION_CREATED_AT_COLUMNS = ['createdAt', 'created_at']
 const BACKFILL_COUNTER_PREFIX = 'backfill:instance-activity:'
 const SQLITE_UTC_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/
@@ -61,6 +64,37 @@ const getWeekKey = (date) =>
 const getLoginMarkerId = (accountId) => `unique-login:${accountId}`
 const getBackfillCounterId = (counterId) =>
   `${BACKFILL_COUNTER_PREFIX}${counterId}`
+
+const getFirstExistingColumn = async (knex, tableName, columnNames) => {
+  for (const columnName of columnNames) {
+    if (await knex.schema.hasColumn(tableName, columnName)) return columnName
+  }
+
+  return null
+}
+
+const getSessionBackfillSource = async (knex) => {
+  for (const tableName of SESSION_TABLE_NAMES) {
+    if (!(await knex.schema.hasTable(tableName))) continue
+
+    const accountIdColumn = await getFirstExistingColumn(
+      knex,
+      tableName,
+      SESSION_ACCOUNT_ID_COLUMNS
+    )
+    const createdAtColumn = await getFirstExistingColumn(
+      knex,
+      tableName,
+      SESSION_CREATED_AT_COLUMNS
+    )
+
+    if (accountIdColumn && createdAtColumn) {
+      return { tableName, accountIdColumn, createdAtColumn }
+    }
+  }
+
+  return null
+}
 
 const isMySQLClient = (knex) => {
   const client = String(knex.client.config.client).toLowerCase()
@@ -368,13 +402,20 @@ const backfillLocalStatusCounters = async (knex, counters, backfillEnd) => {
 
 const collectFirstWeeklyLogins = async (knex, backfillEnd) => {
   const firstLoginByWeek = new Map()
+  const sessionSource = await getSessionBackfillSource(knex)
+  if (!sessionSource) return firstLoginByWeek
+
   let lastSessionId = ''
 
   while (true) {
-    const sessions = await knex('sessions')
-      .whereNotNull('accountId')
+    const sessions = await knex(sessionSource.tableName)
+      .whereNotNull(sessionSource.accountIdColumn)
       .where('id', '>', lastSessionId)
-      .select('id', 'accountId', 'createdAt')
+      .select(
+        'id',
+        { accountId: sessionSource.accountIdColumn },
+        { createdAt: sessionSource.createdAtColumn }
+      )
       .orderBy('id', 'asc')
       .limit(READ_CHUNK_SIZE)
 
