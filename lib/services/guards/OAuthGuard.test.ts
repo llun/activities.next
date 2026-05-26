@@ -574,6 +574,40 @@ describe('#OAuthGuard', () => {
       expect(mockVerifyAccessToken).not.toHaveBeenCalled()
     })
 
+    test('allows Better Auth opaque token with account userId and no actor referenceId', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      if (!primaryActor?.account) throw new Error('Primary actor not found')
+
+      mockStoredTokens.set(hashToken('better-auth-opaque-token'), {
+        token: hashToken('better-auth-opaque-token'),
+        referenceId: '',
+        userId: primaryActor.account.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      let capturedActor: Actor | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], handler)
+      const req = createRequest({
+        Authorization: 'Bearer better-auth-opaque-token'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(capturedActor?.account?.id).toBe(primaryActor.account.id)
+      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+    })
+
     test('allows request with lowercase bearer opaque token', async () => {
       mockGetServerSession.mockResolvedValue(null)
 

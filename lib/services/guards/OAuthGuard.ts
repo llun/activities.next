@@ -238,13 +238,23 @@ const resolveAuthenticatedContext = async <P>({
       // Extract actorId: from JWT claims or from stored referenceId (opaque)
       const actorId = jwtPayload
         ? (jwtPayload.actorId as string | null)
-        : (storedToken.referenceId as string | null)
+        : ((storedToken.referenceId as string | null) || null)
 
-      if (!actorId) {
-        return { authenticated: false, response: apiErrorResponse(401) }
+      let actor = actorId
+        ? await database.getActorFromId({ id: actorId })
+        : null
+
+      if (!actor && !jwtPayload) {
+        const accountId = (storedToken.userId as string | null) || null
+        if (accountId) {
+          // Better Auth opaque tokens store the authenticated account in userId
+          // and leave referenceId blank. Resolve that account to its local
+          // actor so Mastodon API bearer tokens work without a browser session.
+          const actors = await database.getActorsForAccount({ accountId })
+          actor = actors[0] ?? null
+        }
       }
 
-      const actor = await database.getActorFromId({ id: actorId })
       if (!actor) {
         return { authenticated: false, response: apiErrorResponse(401) }
       }
