@@ -599,6 +599,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     const now = Date.now() + 70_000
     const pinnedStatusId = `${ACTOR1_ID}/statuses/account-pinned-status`
     const unpinnedStatusId = `${ACTOR1_ID}/statuses/account-unpinned-status`
+    const getPinnedStatusIds = jest.spyOn(database, 'getPinnedStatusIds')
 
     await database.createNote({
       id: pinnedStatusId,
@@ -635,6 +636,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       id: urlToId(pinnedStatusId),
       pinned: true
     })
+    getPinnedStatusIds.mockClear()
 
     const response = await GET(createRequest('?pinned=true&limit=40'), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
@@ -649,6 +651,8 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     expect(data.map((status) => status.uri)).toEqual([pinnedStatusId])
     expect(data[0]?.pinned).toBe(true)
     expect(data.map((status) => status.uri)).not.toContain(unpinnedStatusId)
+    expect(getPinnedStatusIds).not.toHaveBeenCalled()
+    getPinnedStatusIds.mockRestore()
   })
 
   it('preserves compatible filter params in pagination links', async () => {

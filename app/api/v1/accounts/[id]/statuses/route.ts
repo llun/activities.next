@@ -201,12 +201,16 @@ export const GET = traceApiRoute(
       }
 
       const visibleStatuses = readableStatuses.slice(0, limit)
-      const pinnedStatusIds = new Set(
-        await database.getPinnedStatusIds({
-          actorId: id,
-          statusIds: visibleStatuses.map((status) => status.id)
-        })
-      )
+      const visibleStatusIds = visibleStatuses.map((status) => status.id)
+      const pinnedStatusIds =
+        parsedParams.pinned === true
+          ? new Set(visibleStatusIds)
+          : new Set(
+              await database.getPinnedStatusIds({
+                actorId: id,
+                statusIds: visibleStatusIds
+              })
+            )
 
       const mastodonStatuses = await getMastodonStatuses(
         database,
