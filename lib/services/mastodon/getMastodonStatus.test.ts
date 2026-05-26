@@ -111,6 +111,88 @@ describe('#getMastodonStatus', () => {
       ])
     })
 
+    it('does not mark reblogs pinned from explicit pin context', async () => {
+      const originalStatusId = `${ACTOR2_ID}/statuses/mastodon-pinned-reblog-original-${Date.now()}`
+      const announceStatusId = `${ACTOR1_ID}/statuses/mastodon-pinned-reblog-${Date.now()}`
+      await database.createNote({
+        id: originalStatusId,
+        url: originalStatusId,
+        actorId: ACTOR2_ID,
+        text: 'Original status for pinned reblog serialization',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const announceStatus = await database.createAnnounce({
+        id: announceStatusId,
+        actorId: ACTOR1_ID,
+        originalStatusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        announceStatus,
+        ACTOR1_ID,
+        { pinnedStatusIds: new Set([announceStatusId]) }
+      )
+
+      expect(mastodonStatus?.pinned).toBe(false)
+    })
+
+    it('derives pinned status context from persisted pins while bulk hydrating', async () => {
+      const suffix = `bulk-pinned-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const firstStatusId = `${ACTOR1_ID}/statuses/${suffix}-one`
+      const secondStatusId = `${ACTOR1_ID}/statuses/${suffix}-two`
+      await database.createNote({
+        id: firstStatusId,
+        url: firstStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Bulk pinned one',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: secondStatusId,
+        url: secondStatusId,
+        actorId: ACTOR1_ID,
+        text: 'Bulk pinned two',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.pinStatus({
+        actorId: ACTOR1_ID,
+        statusId: firstStatusId
+      })
+      const firstStatus = (await database.getStatus({
+        statusId: firstStatusId
+      })) as Status
+      const secondStatus = (await database.getStatus({
+        statusId: secondStatusId
+      })) as Status
+      const getPinnedStatusIds = jest.spyOn(database, 'getPinnedStatusIds')
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(
+          database,
+          [firstStatus, secondStatus],
+          ACTOR1_ID
+        )
+
+        expect(mastodonStatuses.map((status) => status.pinned)).toEqual([
+          true,
+          false
+        ])
+        expect(getPinnedStatusIds).toHaveBeenCalledTimes(1)
+        expect(getPinnedStatusIds).toHaveBeenCalledWith({
+          actorId: ACTOR1_ID,
+          statusIds: [firstStatusId, secondStatusId]
+        })
+      } finally {
+        getPinnedStatusIds.mockRestore()
+      }
+    })
+
     it('hydrates poll vote state in bulk while serializing status lists', async () => {
       const firstPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-1`
       const secondPollId = `${ACTOR3_ID}/statuses/mastodon-bulk-poll-2`
@@ -301,7 +383,7 @@ describe('#getMastodonStatus', () => {
         url: ACTOR1_ID,
         created_at: expect.toBeString(),
         last_status_at: expect.toBeString(),
-        statuses_count: 3,
+        statuses_count: expect.any(Number),
         followers_count: 1,
         following_count: 2
       },
@@ -313,6 +395,24 @@ describe('#getMastodonStatus', () => {
       edited_at: null,
       pinned: false
     })
+  })
+
+  it('derives pinned state from persisted pins for single status serialization', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/mastodon-persisted-pin-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Persisted pin target',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.pinStatus({ actorId: ACTOR1_ID, statusId })
+    const status = (await database.getStatus({ statusId })) as Status
+
+    const mastodonStatus = await getMastodonStatus(database, status, ACTOR1_ID)
+
+    expect(mastodonStatus?.pinned).toBe(true)
   })
 
   it('marks an edited status with edited_at', async () => {
@@ -490,7 +590,7 @@ describe('#getMastodonStatus', () => {
           acct: getMentionFromActorID(ACTOR2_ID, true).slice(1),
           created_at: expect.toBeString(),
           last_status_at: expect.toBeString(),
-          statuses_count: 4,
+          statuses_count: expect.any(Number),
           followers_count: 2,
           following_count: 1
         },

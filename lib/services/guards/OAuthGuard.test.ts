@@ -735,6 +735,52 @@ describe('#OAuthGuard', () => {
       expect(mockHandler).toHaveBeenCalled()
     })
 
+    test('allows parent write scope to satisfy write:accounts', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('write-parent-accounts-opaque'), {
+        token: hashToken('write-parent-accounts-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['write'])
+      })
+
+      const guard = OAuthGuard([Scope.enum['write:accounts']], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer write-parent-accounts-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('rejects sibling status-write scope for account writes', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('status-write-child-opaque'), {
+        token: hashToken('status-write-child-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['write:statuses'])
+      })
+
+      const guard = OAuthGuard([Scope.enum['write:accounts']], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer status-write-child-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
     test('rejects sibling conversation scope for status reads', async () => {
       mockGetServerSession.mockResolvedValue(null)
 

@@ -24,7 +24,7 @@ interface Params {
 export const POST = traceApiRoute(
   'unpinStatus',
   OAuthGuardAnyScope<Params>(
-    [Scope.enum.write, Scope.enum['write:statuses']],
+    [Scope.enum.write, Scope.enum['write:accounts']],
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id

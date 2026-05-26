@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -689,6 +690,23 @@ describe('GET /api/v1/statuses/[id]', () => {
         id: urlToId(statusId),
         pinned: true
       })
+
+      const getResponse = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'GET',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(getResponse.status).toBe(200)
+      await expect(getResponse.json()).resolves.toMatchObject({
+        id: urlToId(statusId),
+        pinned: true
+      })
     })
 
     it('returns 403 when a non-owner tries to pin a status', async () => {
@@ -780,6 +798,160 @@ describe('GET /api/v1/statuses/[id]', () => {
       await expect(response.json()).resolves.toMatchObject({
         id: urlToId(neverPinnedStatusId),
         pinned: false
+      })
+    })
+
+    it('rejects attempts to pin reblogs', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const originalStatusId = `${ACTOR2_ID}/statuses/api-pin-reblog-original`
+      const announceStatusId = `${ACTOR1_ID}/statuses/api-pin-reblog`
+      await database.createNote({
+        id: originalStatusId,
+        url: originalStatusId,
+        actorId: ACTOR2_ID,
+        text: 'Original status for pin reblog rejection',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createAnnounce({
+        id: announceStatusId,
+        actorId: ACTOR1_ID,
+        originalStatusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(announceStatusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(announceStatusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+      await expect(
+        database.getPinnedStatusIds({
+          actorId: ACTOR1_ID,
+          statusIds: [announceStatusId]
+        })
+      ).resolves.toEqual([])
+    })
+
+    it('rejects attempts to pin direct-only statuses', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-pin-direct`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Direct pin target',
+        to: [ACTOR2_ID],
+        cc: []
+      })
+
+      const response = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+      await expect(
+        database.getPinnedStatusIds({
+          actorId: ACTOR1_ID,
+          statusIds: [statusId]
+        })
+      ).resolves.toEqual([])
+    })
+
+    it('enforces the pinned status quota while keeping existing pins idempotent', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const existingPins = await database.getPinnedStatusIds({
+        actorId: ACTOR3_ID
+      })
+      for (const statusId of existingPins) {
+        await database.unpinStatus({ actorId: ACTOR3_ID, statusId })
+      }
+
+      const suffix = `api-pin-quota-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const pinnedStatusIds = Array.from(
+        { length: MAX_PINNED_STATUSES },
+        (_, index) => `${ACTOR3_ID}/statuses/${suffix}-pinned-${index}`
+      )
+      for (const statusId of pinnedStatusIds) {
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR3_ID,
+          text: `Pinned quota target ${statusId}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        await database.pinStatus({ actorId: ACTOR3_ID, statusId })
+      }
+
+      const overflowStatusId = `${ACTOR3_ID}/statuses/${suffix}-overflow`
+      await database.createNote({
+        id: overflowStatusId,
+        url: overflowStatusId,
+        actorId: ACTOR3_ID,
+        text: 'Overflow pin target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const overflowResponse = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(overflowStatusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(overflowStatusId) }) }
+      )
+
+      expect(overflowResponse.status).toBe(422)
+      await expect(
+        database.getPinnedStatusIds({
+          actorId: ACTOR3_ID,
+          statusIds: [overflowStatusId]
+        })
+      ).resolves.toEqual([])
+
+      const existingPinResponse = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pinnedStatusIds[0])}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pinnedStatusIds[0]) }) }
+      )
+
+      expect(existingPinResponse.status).toBe(200)
+      await expect(existingPinResponse.json()).resolves.toMatchObject({
+        id: urlToId(pinnedStatusIds[0]),
+        pinned: true
       })
     })
 

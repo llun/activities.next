@@ -1,11 +1,15 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
+import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import {
   ERROR_403,
   ERROR_404,
+  ERROR_422,
   ERROR_500,
   apiResponse,
   defaultOptions
@@ -24,7 +28,7 @@ interface Params {
 export const POST = traceApiRoute(
   'pinStatus',
   OAuthGuardAnyScope<Params>(
-    [Scope.enum.write, Scope.enum['write:statuses']],
+    [Scope.enum.write, Scope.enum['write:accounts']],
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
@@ -58,6 +62,33 @@ export const POST = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: ERROR_403,
           responseStatusCode: 403
+        })
+      }
+
+      if (
+        status.type === StatusType.enum.Announce ||
+        getVisibility(status.to, status.cc) === 'direct'
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      const pinnedStatusIds = await database.getPinnedStatusIds({
+        actorId: currentActor.id
+      })
+      if (
+        !pinnedStatusIds.includes(statusId) &&
+        pinnedStatusIds.length >= MAX_PINNED_STATUSES
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
         })
       }
 
