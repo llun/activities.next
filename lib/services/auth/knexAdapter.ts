@@ -1,6 +1,8 @@
 import { CleanedWhere, createAdapterFactory } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
+import { recordWeeklyLogin } from '@/lib/database/sql/instanceActivity'
+
 const escapeLikeValue = (value: unknown): string => {
   return String(value).replace(/[%_\\]/g, '\\$&')
 }
@@ -29,6 +31,29 @@ const hydrateDateFields = <T>(row: T): T => {
   }
 
   return hydrated as T
+}
+
+const getSessionAccountId = (
+  record: Record<string, unknown>
+): string | null => {
+  const accountId = record.accountId ?? record.userId ?? record.user_id
+  return typeof accountId === 'string' && accountId.length > 0
+    ? accountId
+    : null
+}
+
+const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
+  const createdAt = record.createdAt
+  if (createdAt instanceof Date && !Number.isNaN(createdAt.getTime())) {
+    return createdAt
+  }
+
+  if (typeof createdAt === 'string' || typeof createdAt === 'number') {
+    const parsed = new Date(createdAt)
+    if (!Number.isNaN(parsed.getTime())) return parsed
+  }
+
+  return new Date()
 }
 
 const applyWhere = (
@@ -123,8 +148,24 @@ export const knexAdapter = (db: Knex) =>
         async create({ data, model }) {
           const tableName = getModelName(model)
           const record = data as Record<string, unknown>
-          await db(tableName).insert(record)
           const id = record.id as string
+
+          if (tableName === 'sessions') {
+            let row: unknown
+            await db.transaction(async (trx) => {
+              await trx(tableName).insert(record)
+              await recordWeeklyLogin(
+                trx,
+                getSessionAccountId(record),
+                getSessionCreatedAt(record)
+              )
+              row = await trx(tableName).where(`${tableName}.id`, id).first()
+            })
+            if (!row) throw new Error('Failed to create record')
+            return hydrateDateFields(row) as any
+          }
+
+          await db(tableName).insert(record)
           const row = await db(tableName).where(`${tableName}.id`, id).first()
           if (!row) throw new Error('Failed to create record')
           return hydrateDateFields(row) as any

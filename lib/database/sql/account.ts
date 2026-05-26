@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { recordWeeklyLogin } from '@/lib/database/sql/instanceActivity'
 import { indexActorSearchDocument } from '@/lib/database/sql/search'
 import {
   CounterKey,
@@ -254,16 +255,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   }: CreateAccountSessionParams): Promise<void> {
     const currentTime = new Date()
 
-    await database('sessions').insert({
-      id: crypto.randomUUID(),
-      accountId,
-      token,
-      actorId: actorId ?? null,
+    await database.transaction(async (trx) => {
+      await trx('sessions').insert({
+        id: crypto.randomUUID(),
+        accountId,
+        token,
+        actorId: actorId ?? null,
 
-      expireAt: new Date(expireAt),
+        expireAt: new Date(expireAt),
 
-      createdAt: currentTime,
-      updatedAt: currentTime
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      await recordWeeklyLogin(trx, accountId, currentTime)
     })
   },
 

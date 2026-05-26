@@ -1406,6 +1406,17 @@ export interface ServiceStatsBucket {
   value: number
 }
 
+export interface InstanceActivityWeek {
+  week: string
+  statuses: string
+  logins: string
+  registrations: string
+}
+
+export interface GetInstanceActivityParams {
+  now?: Date
+}
+
 export type ServiceStatCounterType =
   | 'accounts'
   | 'actors'
@@ -1564,4 +1575,10 @@ export interface AdminDatabase {
   importDomainBlocks(params: {
     blocks: ImportDomainBlockParams[]
   }): Promise<{ created: number; updated: number; skipped: number }>
+}
+
+export interface InstanceActivityDatabase {
+  getInstanceActivity(
+    params?: GetInstanceActivityParams
+  ): Promise<InstanceActivityWeek[]>
 }

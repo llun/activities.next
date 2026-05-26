@@ -56,6 +56,14 @@ describe('knexAdapter', () => {
       table.timestamp('expireAt')
     })
 
+    await db.schema.createTable('counters', (table) => {
+      table.string('id').primary()
+      table.integer('value').defaultTo(0)
+      table.timestamp('bucketHour', { useTz: true }).nullable()
+      table.timestamp('createdAt', { useTz: true })
+      table.timestamp('updatedAt', { useTz: true })
+    })
+
     // The mock createAdapterFactory above uses identity getModelName/getFieldName.
     // This means table names = model names and field names are used as-is,
     // which lets us test the raw adapter CRUD logic and where-clause operators.
@@ -68,6 +76,7 @@ describe('knexAdapter', () => {
   })
 
   beforeEach(async () => {
+    await db('counters').delete()
     await db('sessions').delete()
     await db('accounts').delete()
     await db('users').delete()
@@ -104,6 +113,58 @@ describe('knexAdapter', () => {
 
       const count = await adapter.count({ model: 'users' })
       expect(count).toBe(2)
+    })
+
+    it('records weekly login counters when creating sessions', async () => {
+      const getLoginTotal = async () => {
+        const row = await db('counters')
+          .where('id', 'like', 'bucket:logins:%')
+          .sum<{ total: number | string | null }>('value as total')
+          .first()
+        return Number(row?.total ?? 0)
+      }
+
+      await db('users').insert({
+        id: 'u-login',
+        email: 'login@test.com'
+      })
+
+      try {
+        jest.useFakeTimers()
+        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+
+        await adapter.create({
+          model: 'sessions',
+          data: {
+            id: 's-login-1',
+            user_id: 'u-login',
+            token: 'login-token-1',
+            expireAt: Date.now() + 60_000
+          }
+        })
+        await adapter.create({
+          model: 'sessions',
+          data: {
+            id: 's-login-2',
+            user_id: 'u-login',
+            token: 'login-token-2',
+            expireAt: Date.now() + 120_000
+          }
+        })
+
+        const markerRows = await db('counters')
+          .where('id', 'like', 'unique-login:%:u-login')
+          .select('id')
+
+        expect(await getLoginTotal()).toBe(1)
+        expect(markerRows).toEqual([
+          {
+            id: `unique-login:${Math.floor(Date.UTC(2026, 1, 2) / 1000)}:u-login`
+          }
+        ])
+      } finally {
+        jest.useRealTimers()
+      }
     })
   })
 

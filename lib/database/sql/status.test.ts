@@ -3794,5 +3794,76 @@ describe('StatusDatabase', () => {
         expect(total).toBe(0)
       })
     })
+
+    describe('instance activity local status buckets', () => {
+      it('increments local status buckets only for statuses from local actors', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        const getCounterTotal = async (counterType: string) => {
+          const row = await knexDatabase('counters')
+            .where('id', 'like', `bucket:${counterType}:%`)
+            .sum<{ total: number | string | null }>('value as total')
+            .first()
+          return Number(row?.total ?? 0)
+        }
+
+        try {
+          await sqlDatabase.migrate()
+
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const localUsername = `local-status-${suffix}`
+          const localActorId = `https://${TEST_DOMAIN}/users/${localUsername}`
+          const remoteActorId = `https://remote-${suffix}.test/users/alice`
+
+          await sqlDatabase.createAccount({
+            email: `${localUsername}@${TEST_DOMAIN}`,
+            username: localUsername,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `private-${suffix}`,
+            publicKey: `public-${suffix}`
+          })
+          await sqlDatabase.createActor({
+            actorId: remoteActorId,
+            username: `alice-${suffix}`,
+            domain: `remote-${suffix}.test`,
+            followersUrl: `${remoteActorId}/followers`,
+            inboxUrl: `${remoteActorId}/inbox`,
+            sharedInboxUrl: `https://remote-${suffix}.test/inbox`,
+            publicKey: `remote-public-${suffix}`,
+            createdAt: Date.now()
+          })
+
+          await sqlDatabase.createNote({
+            id: `${localActorId}/statuses/local-bucket`,
+            url: `${localActorId}/statuses/local-bucket`,
+            actorId: localActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Local status'
+          })
+          await sqlDatabase.createNote({
+            id: `${remoteActorId}/statuses/remote-bucket`,
+            url: `${remoteActorId}/statuses/remote-bucket`,
+            actorId: remoteActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Remote status'
+          })
+
+          expect(await getCounterTotal('statuses')).toBe(2)
+          expect(await getCounterTotal('local-statuses')).toBe(1)
+        } finally {
+          await knexDatabase.destroy()
+        }
+      })
+    })
   })
 })

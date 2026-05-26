@@ -11,6 +11,7 @@ import {
   BookmarkDatabase,
   DirectConversationDatabase,
   FollowDatabase,
+  InstanceActivityDatabase,
   LikeDatabase,
   MediaDatabase,
   NotificationDatabase,
@@ -24,6 +25,7 @@ import {
 export type Database = AccountDatabase &
   ActorDatabase &
   AdminDatabase &
+  InstanceActivityDatabase &
   FitnessFileDatabase &
   FitnessRouteHeatmapDatabase &
   FitnessSettingsDatabase &

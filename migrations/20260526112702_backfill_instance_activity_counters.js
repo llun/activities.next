@@ -1,0 +1,134 @@
+const CHUNK_SIZE = 100
+
+const toDate = (value) => {
+  if (value instanceof Date) return value
+  return new Date(value)
+}
+
+const truncateToHour = (date) =>
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      date.getUTCHours()
+    )
+  )
+
+const formatBucketHour = (date) => {
+  const y = date.getUTCFullYear()
+  const mo = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  const h = String(date.getUTCHours()).padStart(2, '0')
+  return `${y}${mo}${d}${h}`
+}
+
+const getUTCWeekStart = (date) => {
+  const day = date.getUTCDay()
+  const daysSinceMonday = (day + 6) % 7
+
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() - daysSinceMonday
+    )
+  )
+}
+
+const getWeekKey = (date) =>
+  String(Math.floor(getUTCWeekStart(date).getTime() / 1000))
+
+const addBucketCounter = (counters, counterType, date, value = 1) => {
+  const bucketHour = truncateToHour(date)
+  const id = `bucket:${counterType}:${formatBucketHour(bucketHour)}`
+  const existing = counters.get(id)
+
+  counters.set(id, {
+    id,
+    value: (existing?.value ?? 0) + value,
+    bucketHour
+  })
+}
+
+const upsertCounters = async (knex, counters, currentTime) => {
+  const rows = [...counters.values()].map((counter) => ({
+    id: counter.id,
+    value: counter.value,
+    bucketHour: counter.bucketHour ?? null,
+    createdAt: currentTime,
+    updatedAt: currentTime
+  }))
+
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + CHUNK_SIZE)
+    await knex('counters')
+      .insert(chunk)
+      .onConflict('id')
+      .merge(['value', 'bucketHour', 'updatedAt'])
+  }
+}
+
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async function (knex) {
+  const currentTime = new Date()
+  const counters = new Map()
+
+  const localStatuses = await knex('statuses')
+    .join('actors', 'statuses.actorId', 'actors.id')
+    .whereNotNull('actors.accountId')
+    .select('statuses.createdAt')
+
+  for (const status of localStatuses) {
+    const createdAt = toDate(status.createdAt)
+    if (Number.isNaN(createdAt.getTime())) continue
+    addBucketCounter(counters, 'local-statuses', createdAt)
+  }
+
+  const sessions = await knex('sessions')
+    .whereNotNull('accountId')
+    .select('accountId', 'createdAt')
+
+  const firstLoginByMarker = new Map()
+  for (const session of sessions) {
+    if (!session.accountId) continue
+
+    const createdAt = toDate(session.createdAt)
+    if (Number.isNaN(createdAt.getTime())) continue
+
+    const markerId = `unique-login:${getWeekKey(createdAt)}:${session.accountId}`
+    const existing = firstLoginByMarker.get(markerId)
+    if (!existing || createdAt.getTime() < existing.createdAt.getTime()) {
+      firstLoginByMarker.set(markerId, {
+        accountId: session.accountId,
+        createdAt
+      })
+    }
+  }
+
+  for (const [markerId, login] of firstLoginByMarker.entries()) {
+    counters.set(markerId, {
+      id: markerId,
+      value: 1,
+      bucketHour: null
+    })
+    addBucketCounter(counters, 'logins', login.createdAt)
+  }
+
+  await upsertCounters(knex, counters, currentTime)
+}
+
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = async function (knex) {
+  await knex('counters')
+    .where('id', 'like', 'bucket:local-statuses:%')
+    .orWhere('id', 'like', 'bucket:logins:%')
+    .orWhere('id', 'like', 'unique-login:%')
+    .delete()
+}
