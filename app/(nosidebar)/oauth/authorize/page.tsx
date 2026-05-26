@@ -35,11 +35,19 @@ const Page: FC<Props> = async ({ searchParams }) => {
   }
   const params = parsedResult.data
 
-  const [actor, client] = await Promise.all([
-    getActorFromSession(database, session),
-    database.getClientFromId({ clientId: params.client_id })
-  ])
+  const actor = await getActorFromSession(database, session)
 
+  if (!actor || !actor.account) {
+    const url = new URL('/auth/signin', getBaseURL())
+    url.searchParams.append('redirectBack', buildOAuthAuthorizePath(params))
+    return redirect(url.toString())
+  }
+
+  if (shouldDelegateToBetterAuth(params)) {
+    return redirect(buildBetterAuthAuthorizeUrl(params, getBaseURL()))
+  }
+
+  const client = await database.getClientFromId({ clientId: params.client_id })
   if (!client) {
     return notFound()
   }
@@ -50,16 +58,6 @@ const Page: FC<Props> = async ({ searchParams }) => {
     !client.redirectUris.includes(params.redirect_uri)
   ) {
     return notFound()
-  }
-
-  if (!actor || !actor.account) {
-    const url = new URL('/auth/signin', getBaseURL())
-    url.searchParams.append('redirectBack', buildOAuthAuthorizePath(params))
-    return redirect(url.toString())
-  }
-
-  if (shouldDelegateToBetterAuth(params)) {
-    return redirect(buildBetterAuthAuthorizeUrl(params, getBaseURL()))
   }
 
   // Fetch all actors for this account

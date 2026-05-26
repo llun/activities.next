@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { Scope } from '@/lib/types/database/operations'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -18,7 +19,7 @@ const UnsubscribeRequest = z.object({
 
 export const POST = traceApiRoute(
   'pushSubscribe',
-  AuthenticatedGuard(async (req, { currentActor, database }) => {
+  OAuthGuard([Scope.enum.push], async (req, { currentActor, database }) => {
     let body
     try {
       body = await req.json()
@@ -48,7 +49,7 @@ export const POST = traceApiRoute(
 
 export const DELETE = traceApiRoute(
   'pushUnsubscribe',
-  AuthenticatedGuard(async (req, { currentActor, database }) => {
+  OAuthGuard([Scope.enum.push], async (req, { currentActor, database }) => {
     let body
     try {
       body = await req.json()

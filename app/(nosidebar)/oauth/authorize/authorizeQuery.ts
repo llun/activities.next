@@ -1,5 +1,9 @@
 import { SearchParams } from './types'
 
+// Better Auth 1.6.9 signs serializeAuthorizationQuery(ctx.query).toString()
+// before appending sig in @better-auth/oauth-provider/dist/index.mjs. Keep this
+// order in sync when upgrading Better Auth or consent signature verification can
+// fail even when the query values are unchanged.
 const BetterAuthAuthorizationParamOrder = [
   'response_type',
   'client_id',
@@ -32,6 +36,9 @@ export const buildOAuthQuery = (params: SearchParams): string => {
     const value = values[key]
     if (shouldIncludeOAuthParam(key, value)) oauthQuery.set(key, value)
   }
+  // Preserve future/raw caller params after the signature-sensitive keys. The
+  // page currently passes parsed SearchParams, but keeping extras here makes
+  // the helper safe if a route later forwards raw URLSearchParams-shaped data.
   for (const [key, value] of Object.entries(values)) {
     if (
       shouldIncludeOAuthParam(key, value) &&
@@ -50,10 +57,17 @@ export const buildBetterAuthAuthorizeUrl = (
   params: SearchParams,
   baseUrl: string
 ): string => {
+  const authorizeParams = shouldDelegateToBetterAuth(params)
+    ? { ...params, sig: undefined, exp: undefined }
+    : params
   const url = new URL('/api/auth/oauth2/authorize', baseUrl)
-  url.search = buildOAuthQuery(params)
+  url.search = buildOAuthQuery(authorizeParams)
   return url.toString()
 }
 
+// Better Auth consent signatures require sig and exp as an inseparable pair. If
+// either field is absent or blank, treat the request as unsigned and send it
+// through Better Auth so it can validate the client request and sign a fresh
+// consent query.
 export const shouldDelegateToBetterAuth = (params: SearchParams): boolean =>
   !params.sig || !params.exp

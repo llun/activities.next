@@ -33,16 +33,18 @@ interface Props {
   searchParams: SearchParams
   actors: Actor[]
   currentActorId: string
+  navigate?: (url: string) => void
 }
 
 interface ConsentResponse {
   redirect?: boolean
-  redirect_uri?: string
   url?: string
+  // Legacy shape from the original custom consent handler.
+  redirect_uri?: string
 }
 
 export const getConsentRedirectUrl = (data: ConsentResponse) => {
-  const redirectUrl = data.redirect_uri ?? data.url
+  const redirectUrl = data.url ?? data.redirect_uri
   if (!redirectUrl) return undefined
 
   try {
@@ -57,11 +59,16 @@ export const getConsentRedirectUrl = (data: ConsentResponse) => {
   return undefined
 }
 
+const navigateTo = (url: string) => {
+  window.location.href = url
+}
+
 export const AuthorizeCard: FC<Props> = ({
   searchParams,
   client,
   actors,
-  currentActorId
+  currentActorId,
+  navigate = navigateTo
 }) => {
   const requestedScopes = searchParams.scope.split(' ')
   const router = useRouter()
@@ -109,7 +116,7 @@ export const AuthorizeCard: FC<Props> = ({
         if (searchParams.state) {
           errorUrl.searchParams.set('state', searchParams.state)
         }
-        window.location.href = errorUrl.toString()
+        navigate(errorUrl.toString())
         return
       } catch {
         // Malformed redirect_uri — fall through to router push
@@ -140,7 +147,7 @@ export const AuthorizeCard: FC<Props> = ({
         const data = (await response.json()) as ConsentResponse
         const redirectUrl = getConsentRedirectUrl(data)
         if (redirectUrl) {
-          window.location.href = redirectUrl
+          navigate(redirectUrl)
           return
         }
       }
@@ -168,7 +175,7 @@ export const AuthorizeCard: FC<Props> = ({
         const data = (await response.json()) as ConsentResponse
         const redirectUrl = getConsentRedirectUrl(data)
         if (redirectUrl) {
-          window.location.href = redirectUrl
+          navigate(redirectUrl)
           return
         }
         // Denial processed but no redirect — use access_denied

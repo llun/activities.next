@@ -148,7 +148,7 @@ describe('OAuth authorize query helpers', () => {
     )
 
     expect(authorizeUrl.searchParams.has('sig')).toBe(false)
-    expect(authorizeUrl.searchParams.get('exp')).toBe('1779800000')
+    expect(authorizeUrl.searchParams.has('exp')).toBe(false)
   })
 
   it('delegates when only one Better Auth signature param is present', () => {
