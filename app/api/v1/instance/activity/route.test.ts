@@ -37,6 +37,7 @@ describe('GET /api/v1/instance/activity', () => {
       }
     ])
     expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600')
     expect(getInstanceActivity).toHaveBeenCalledTimes(1)
   })
 

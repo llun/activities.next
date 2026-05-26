@@ -1,7 +1,7 @@
 import { CleanedWhere, createAdapterFactory } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
-import { recordWeeklyLogin } from '@/lib/database/sql/instanceActivity'
+import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 
 const escapeLikeValue = (value: unknown): string => {
@@ -34,13 +34,22 @@ const hydrateDateFields = <T>(row: T): T => {
   return hydrated as T
 }
 
+const getStringValue = (value: unknown): string | null =>
+  typeof value === 'string' && value.length > 0 ? value : null
+
 const getSessionAccountId = (
-  record: Record<string, unknown>
+  record: Record<string, unknown>,
+  model: string
 ): string | null => {
-  const accountId = record.accountId ?? record.userId ?? record.user_id
-  return typeof accountId === 'string' && accountId.length > 0
-    ? accountId
-    : null
+  if (model === 'session') {
+    return getStringValue(record.userId) ?? getStringValue(record.user_id)
+  }
+
+  return (
+    getStringValue(record.accountId) ??
+    getStringValue(record.userId) ??
+    getStringValue(record.user_id)
+  )
 }
 
 const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
@@ -153,16 +162,14 @@ export const knexAdapter = (db: Knex) =>
 
           if (model === 'session' || tableName === 'sessions') {
             let row: unknown
+            const accountId = getSessionAccountId(record, model)
+            const createdAt = getSessionCreatedAt(record)
             await db.transaction(async (trx) => {
               await trx(tableName).insert(record)
-              await recordWeeklyLogin(
-                trx,
-                getSessionAccountId(record),
-                getSessionCreatedAt(record)
-              )
               row = await trx(tableName).where(`${tableName}.id`, id).first()
             })
             if (!row) throw new Error('Failed to create record')
+            await recordWeeklyLoginSafely(db, accountId, createdAt)
             return hydrateDateFields(row) as any
           }
 

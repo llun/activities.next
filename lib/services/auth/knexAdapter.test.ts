@@ -50,6 +50,7 @@ describe('knexAdapter', () => {
     await db.schema.createTable('sessions', (table) => {
       table.text('id').primary()
       table.text('user_id').references('id').inTable('users')
+      table.text('accountId')
       table.text('token').unique()
       table.timestamp('expires_at')
       table.timestamp('createdAt')
@@ -59,6 +60,7 @@ describe('knexAdapter', () => {
     await db.schema.createTable('session', (table) => {
       table.text('id').primary()
       table.text('user_id').references('id').inTable('users')
+      table.text('accountId')
       table.text('token').unique()
       table.timestamp('expires_at')
       table.timestamp('createdAt')
@@ -163,13 +165,14 @@ describe('knexAdapter', () => {
         })
 
         const markerRows = await db('counters')
-          .where('id', 'like', 'unique-login:%:u-login')
-          .select('id')
+          .where('id', 'unique-login:u-login')
+          .select('id', 'value')
 
         expect(await getLoginTotal()).toBe(1)
         expect(markerRows).toEqual([
           {
-            id: `unique-login:${Math.floor(Date.UTC(2026, 1, 2) / 1000)}:u-login`
+            id: 'unique-login:u-login',
+            value: Math.floor(Date.UTC(2026, 1, 2) / 1000)
           }
         ])
       } finally {
@@ -211,6 +214,97 @@ describe('knexAdapter', () => {
       }
     })
 
+    it('uses the Better Auth user id before stray accountId session fields', async () => {
+      await db('users').insert([
+        {
+          id: 'u-ba-canonical',
+          email: 'ba-canonical@test.com'
+        },
+        {
+          id: 'u-ba-stray',
+          email: 'ba-stray@test.com'
+        }
+      ])
+
+      try {
+        jest.useFakeTimers()
+        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+
+        await adapter.create({
+          model: 'session',
+          data: {
+            id: 's-ba-precedence',
+            user_id: 'u-ba-canonical',
+            accountId: 'u-ba-stray',
+            token: 'ba-precedence-token',
+            expireAt: Date.now() + 60_000
+          }
+        })
+
+        const markerRows = await db('counters')
+          .where('id', 'like', 'unique-login:%')
+          .select('id', 'value')
+
+        expect(markerRows).toEqual([
+          {
+            id: 'unique-login:u-ba-canonical',
+            value: Math.floor(Date.UTC(2026, 1, 2) / 1000)
+          }
+        ])
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('creates sessions when login counter recording fails', async () => {
+      const errorSpy = jest
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
+
+      try {
+        await db('users').insert({
+          id: 'u-login-failure',
+          email: 'login-failure@test.com'
+        })
+        await db.schema.dropTable('counters')
+
+        await expect(
+          adapter.create({
+            model: 'session',
+            data: {
+              id: 's-login-failure',
+              user_id: 'u-login-failure',
+              token: 'login-failure-token',
+              expireAt: Date.now() + 60_000
+            }
+          })
+        ).resolves.toMatchObject({
+          id: 's-login-failure',
+          user_id: 'u-login-failure'
+        })
+
+        await expect(
+          db('session').where('id', 's-login-failure').first()
+        ).resolves.toMatchObject({
+          id: 's-login-failure',
+          user_id: 'u-login-failure'
+        })
+      } finally {
+        await new Promise((resolve) => setImmediate(resolve))
+        errorSpy.mockRestore()
+        const hasCounters = await db.schema.hasTable('counters')
+        if (!hasCounters) {
+          await db.schema.createTable('counters', (table) => {
+            table.string('id').primary()
+            table.integer('value').defaultTo(0)
+            table.timestamp('bucketHour', { useTz: true }).nullable()
+            table.timestamp('createdAt', { useTz: true })
+            table.timestamp('updatedAt', { useTz: true })
+          })
+        }
+      }
+    })
+
     it('records session timestamp strings without timezone as UTC', async () => {
       const originalTimeZone = process.env.TZ
       process.env.TZ = 'Europe/Amsterdam'
@@ -233,14 +327,13 @@ describe('knexAdapter', () => {
         })
 
         const markerRows = await db('counters')
-          .where('id', 'like', 'unique-login:%:u-sqlite-time')
-          .select('id')
+          .where('id', 'unique-login:u-sqlite-time')
+          .select('id', 'value')
 
         expect(markerRows).toEqual([
           {
-            id: `unique-login:${Math.floor(
-              Date.UTC(2026, 4, 25) / 1000
-            )}:u-sqlite-time`
+            id: 'unique-login:u-sqlite-time',
+            value: Math.floor(Date.UTC(2026, 4, 25) / 1000)
           }
         ])
       } finally {

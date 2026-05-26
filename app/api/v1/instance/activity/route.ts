@@ -28,6 +28,7 @@ export const GET = traceApiRoute('getInstanceActivity', async (req) => {
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data
+    data,
+    additionalHeaders: [['Cache-Control', 'public, max-age=3600']]
   })
 })

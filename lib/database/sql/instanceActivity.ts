@@ -169,10 +169,8 @@ export const getInstanceActivityFromCounters = async (
   }))
 }
 
-export const getWeeklyLoginMarkerId = (
-  accountId: string,
-  currentTime = new Date()
-): string => `unique-login:${getWeekKey(currentTime)}:${accountId}`
+export const getWeeklyLoginMarkerId = (accountId: string): string =>
+  `unique-login:${accountId}`
 
 export const recordWeeklyLogin = async (
   database: SQLDatabase,
@@ -181,7 +179,8 @@ export const recordWeeklyLogin = async (
 ): Promise<void> => {
   if (!accountId) return
 
-  const markerId = getWeeklyLoginMarkerId(accountId, currentTime)
+  const markerId = getWeeklyLoginMarkerId(accountId)
+  const weekKey = Number(getWeekKey(currentTime))
 
   await database('counters')
     .insert({
@@ -196,14 +195,28 @@ export const recordWeeklyLogin = async (
 
   const marked = await database('counters')
     .where('id', markerId)
-    .andWhere('value', 0)
+    .andWhere((builder) => {
+      builder.whereNull('value').orWhere('value', '<', weekKey)
+    })
     .update({
-      value: 1,
+      value: weekKey,
       updatedAt: currentTime
     })
 
   if (marked > 0) {
     await incrementBucket(database, 'logins', 1, currentTime)
+  }
+}
+
+export const recordWeeklyLoginSafely = async (
+  database: SQLDatabase,
+  accountId: string | null | undefined,
+  currentTime = new Date()
+): Promise<void> => {
+  try {
+    await recordWeeklyLogin(database, accountId, currentTime)
+  } catch (error) {
+    console.error('Failed to record weekly login', error)
   }
 }
 

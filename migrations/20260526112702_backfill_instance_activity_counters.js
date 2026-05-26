@@ -1,5 +1,10 @@
 const CHUNK_SIZE = 100
 const READ_CHUNK_SIZE = 1000
+const ACTIVITY_COUNTER_PREFIXES = [
+  'bucket:local-statuses:%',
+  'bucket:logins:%',
+  'unique-login:%'
+]
 const SQLITE_UTC_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/
 
@@ -49,6 +54,8 @@ const getUTCWeekStart = (date) => {
 const getWeekKey = (date) =>
   String(Math.floor(getUTCWeekStart(date).getTime() / 1000))
 
+const getLoginMarkerId = (accountId) => `unique-login:${accountId}`
+
 const addBucketCounter = (counters, counterType, date, value = 1) => {
   const bucketHour = truncateToHour(date)
   const id = `bucket:${counterType}:${formatBucketHour(bucketHour)}`
@@ -61,6 +68,22 @@ const addBucketCounter = (counters, counterType, date, value = 1) => {
   })
 }
 
+const getExistingActivityCounterCutoff = async (knex, currentTime) => {
+  const row = await knex('counters')
+    .where((builder) => {
+      for (const prefix of ACTIVITY_COUNTER_PREFIXES) {
+        builder.orWhere('id', 'like', prefix)
+      }
+    })
+    .min('createdAt as createdAt')
+    .first()
+
+  if (!row?.createdAt) return currentTime
+
+  const createdAt = toDate(row.createdAt)
+  return Number.isNaN(createdAt.getTime()) ? currentTime : createdAt
+}
+
 const upsertCounters = async (knex, counters, currentTime) => {
   const rows = [...counters.values()].map((counter) => ({
     id: counter.id,
@@ -69,17 +92,36 @@ const upsertCounters = async (knex, counters, currentTime) => {
     createdAt: currentTime,
     updatedAt: currentTime
   }))
+  const bucketRows = rows.filter((row) => row.id.startsWith('bucket:'))
+  const markerRows = rows.filter((row) => row.id.startsWith('unique-login:'))
 
-  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-    const chunk = rows.slice(i, i + CHUNK_SIZE)
+  for (let i = 0; i < bucketRows.length; i += CHUNK_SIZE) {
+    const chunk = bucketRows.slice(i, i + CHUNK_SIZE)
     await knex('counters')
       .insert(chunk)
       .onConflict('id')
-      .merge(['value', 'bucketHour', 'updatedAt'])
+      .merge({
+        value: knex.raw('"counters"."value" + excluded."value"'),
+        bucketHour: knex.raw('excluded."bucketHour"'),
+        updatedAt: knex.raw('excluded."updatedAt"')
+      })
+  }
+
+  for (let i = 0; i < markerRows.length; i += CHUNK_SIZE) {
+    const chunk = markerRows.slice(i, i + CHUNK_SIZE)
+    await knex('counters')
+      .insert(chunk)
+      .onConflict('id')
+      .merge({
+        value: knex.raw(
+          'CASE WHEN excluded."value" > "counters"."value" THEN excluded."value" ELSE "counters"."value" END'
+        ),
+        updatedAt: knex.raw('excluded."updatedAt"')
+      })
   }
 }
 
-const backfillLocalStatusCounters = async (knex, counters) => {
+const backfillLocalStatusCounters = async (knex, counters, backfillEnd) => {
   let lastStatusId = ''
 
   while (true) {
@@ -97,13 +139,14 @@ const backfillLocalStatusCounters = async (knex, counters) => {
       lastStatusId = status.id
       const createdAt = toDate(status.createdAt)
       if (Number.isNaN(createdAt.getTime())) continue
+      if (createdAt >= backfillEnd) continue
       addBucketCounter(counters, 'local-statuses', createdAt)
     }
   }
 }
 
-const collectFirstWeeklyLogins = async (knex) => {
-  const firstLoginByMarker = new Map()
+const collectFirstWeeklyLogins = async (knex, backfillEnd) => {
+  const firstLoginByWeek = new Map()
   let lastSessionId = ''
 
   while (true) {
@@ -122,19 +165,52 @@ const collectFirstWeeklyLogins = async (knex) => {
 
       const createdAt = toDate(session.createdAt)
       if (Number.isNaN(createdAt.getTime())) continue
+      if (createdAt >= backfillEnd) continue
 
-      const markerId = `unique-login:${getWeekKey(createdAt)}:${session.accountId}`
-      const existing = firstLoginByMarker.get(markerId)
+      const weekKey = getWeekKey(createdAt)
+      const weeklyLoginId = `${session.accountId}:${weekKey}`
+      const existing = firstLoginByWeek.get(weeklyLoginId)
       if (!existing || createdAt.getTime() < existing.createdAt.getTime()) {
-        firstLoginByMarker.set(markerId, {
+        firstLoginByWeek.set(weeklyLoginId, {
           accountId: session.accountId,
+          weekKey,
           createdAt
         })
       }
     }
   }
 
-  return firstLoginByMarker
+  return firstLoginByWeek
+}
+
+const getExistingLoginMarkerWeeks = async (knex, markerIds) => {
+  const existing = new Map()
+  if (markerIds.length === 0) return existing
+
+  for (let i = 0; i < markerIds.length; i += CHUNK_SIZE) {
+    const rows = await knex('counters')
+      .whereIn('id', markerIds.slice(i, i + CHUNK_SIZE))
+      .select('id', 'value')
+
+    for (const row of rows) {
+      const value = Number(row.value)
+      if (Number.isFinite(value)) {
+        existing.set(row.id, value)
+      }
+    }
+  }
+
+  return existing
+}
+
+const setLoginMarker = (counters, accountId, weekKey, existingWeek) => {
+  const markerId = getLoginMarkerId(accountId)
+  const currentValue = counters.get(markerId)?.value ?? existingWeek ?? 0
+  counters.set(markerId, {
+    id: markerId,
+    value: Math.max(Number(currentValue), Number(weekKey)),
+    bucketHour: null
+  })
 }
 
 /**
@@ -143,18 +219,27 @@ const collectFirstWeeklyLogins = async (knex) => {
  */
 exports.up = async function (knex) {
   const currentTime = new Date()
+  const backfillEnd = await getExistingActivityCounterCutoff(knex, currentTime)
   const counters = new Map()
 
-  await backfillLocalStatusCounters(knex, counters)
+  await backfillLocalStatusCounters(knex, counters, backfillEnd)
 
-  const firstLoginByMarker = await collectFirstWeeklyLogins(knex)
-  for (const [markerId, login] of firstLoginByMarker.entries()) {
-    counters.set(markerId, {
-      id: markerId,
-      value: 1,
-      bucketHour: null
-    })
-    addBucketCounter(counters, 'logins', login.createdAt)
+  const firstLoginByWeek = await collectFirstWeeklyLogins(knex, backfillEnd)
+  const markerIds = [
+    ...new Set(
+      [...firstLoginByWeek.values()].map((login) =>
+        getLoginMarkerId(login.accountId)
+      )
+    )
+  ]
+  const existingMarkerWeeks = await getExistingLoginMarkerWeeks(knex, markerIds)
+  for (const login of firstLoginByWeek.values()) {
+    const markerId = getLoginMarkerId(login.accountId)
+    const existingWeek = existingMarkerWeeks.get(markerId)
+    if (existingWeek !== Number(login.weekKey)) {
+      addBucketCounter(counters, 'logins', login.createdAt)
+    }
+    setLoginMarker(counters, login.accountId, login.weekKey, existingWeek)
   }
 
   await upsertCounters(knex, counters, currentTime)
@@ -171,3 +256,5 @@ exports.down = async function (knex) {
     .orWhere('id', 'like', 'unique-login:%')
     .delete()
 }
+
+exports.config = { transaction: false }

@@ -1,6 +1,9 @@
 import knex, { Knex } from 'knex'
 
-import { getInstanceActivityFromCounters } from '@/lib/database/sql/instanceActivity'
+import {
+  getInstanceActivityFromCounters,
+  recordWeeklyLogin
+} from '@/lib/database/sql/instanceActivity'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -166,5 +169,40 @@ describe('instance activity counters', () => {
 
     expect(countersQuery).toContain('`bucketHour` >= ?')
     expect(countersQuery).toContain('`bucketHour` < ?')
+  })
+
+  it('stores one weekly login marker per account', async () => {
+    await recordWeeklyLogin(
+      database,
+      'account-login',
+      new Date('2026-01-08T10:00:00.000Z')
+    )
+    await recordWeeklyLogin(
+      database,
+      'account-login',
+      new Date('2026-01-09T10:00:00.000Z')
+    )
+    await recordWeeklyLogin(
+      database,
+      'account-login',
+      new Date('2026-01-13T10:00:00.000Z')
+    )
+
+    const markerRows = await database('counters')
+      .where('id', 'like', 'unique-login:%')
+      .select('id', 'value')
+    const loginRows = await database('counters')
+      .where('id', 'like', 'bucket:logins:%')
+      .select('value')
+
+    expect(markerRows).toEqual([
+      {
+        id: 'unique-login:account-login',
+        value: Math.floor(Date.UTC(2026, 0, 12) / 1000)
+      }
+    ])
+    expect(loginRows.reduce((total, row) => total + Number(row.value), 0)).toBe(
+      2
+    )
   })
 })

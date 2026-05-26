@@ -154,27 +154,87 @@ describe('instance activity counter migration', () => {
     expect(sumCounterRows(loginRows)).toBe(3)
     expect(markerRows).toEqual([
       {
-        id: `unique-login:${Math.floor(
-          Date.UTC(2026, 4, 18) / 1000
-        )}:account-a`,
-        value: 1,
+        id: 'unique-login:account-a',
+        value: Math.floor(Date.UTC(2026, 4, 25) / 1000),
         bucketHour: null
       },
       {
-        id: `unique-login:${Math.floor(
-          Date.UTC(2026, 4, 18) / 1000
-        )}:account-b`,
-        value: 1,
-        bucketHour: null
-      },
-      {
-        id: `unique-login:${Math.floor(
-          Date.UTC(2026, 4, 25) / 1000
-        )}:account-a`,
-        value: 1,
+        id: 'unique-login:account-b',
+        value: Math.floor(Date.UTC(2026, 4, 18) / 1000),
         bucketHour: null
       }
     ])
+  })
+
+  it('adds historical buckets to live counters without double-counting live login markers', async () => {
+    const liveCounterCreatedAt = new Date('2026-05-19T10:30:00.000Z')
+    const liveWeek = Math.floor(Date.UTC(2026, 4, 18) / 1000)
+
+    await database('counters').insert([
+      {
+        id: 'bucket:local-statuses:2026051910',
+        value: 5,
+        bucketHour: new Date('2026-05-19T10:00:00.000Z'),
+        createdAt: liveCounterCreatedAt,
+        updatedAt: liveCounterCreatedAt
+      },
+      {
+        id: 'bucket:logins:2026051909',
+        value: 3,
+        bucketHour: new Date('2026-05-19T09:00:00.000Z'),
+        createdAt: liveCounterCreatedAt,
+        updatedAt: liveCounterCreatedAt
+      },
+      {
+        id: 'unique-login:account-a',
+        value: liveWeek,
+        bucketHour: null,
+        createdAt: liveCounterCreatedAt,
+        updatedAt: liveCounterCreatedAt
+      }
+    ])
+    await database('statuses').insert({
+      id: 'live-status-after-counter',
+      actorId: 'https://local.test/users/a',
+      createdAt: new Date('2026-05-19T10:45:00.000Z'),
+      updatedAt: new Date('2026-05-19T10:45:00.000Z')
+    })
+    await database('sessions').insert({
+      id: 'historical-session-before-counter',
+      accountId: 'account-b',
+      token: 'token-before-counter',
+      expireAt: new Date('2026-06-19T09:30:00.000Z'),
+      createdAt: new Date('2026-05-19T09:30:00.000Z'),
+      updatedAt: new Date('2026-05-19T09:30:00.000Z')
+    })
+    await database('sessions').insert({
+      id: 'live-session-after-counter',
+      accountId: 'account-a',
+      token: 'token-live-after-counter',
+      expireAt: new Date('2026-06-19T10:45:00.000Z'),
+      createdAt: new Date('2026-05-19T10:45:00.000Z'),
+      updatedAt: new Date('2026-05-19T10:45:00.000Z')
+    })
+
+    await migration.up(database)
+
+    const statusBucket = await database('counters')
+      .where('id', 'bucket:local-statuses:2026051910')
+      .first()
+    const loginBucket = await database('counters')
+      .where('id', 'bucket:logins:2026051909')
+      .first()
+    const markerRows = await database('counters')
+      .where('id', 'like', 'unique-login:%')
+      .orderBy('id', 'asc')
+      .select('id', 'value')
+
+    expect(statusBucket?.value).toBe(6)
+    expect(loginBucket?.value).toBe(4)
+    expect(markerRows).toContainEqual({
+      id: 'unique-login:account-a',
+      value: liveWeek
+    })
   })
 
   it('removes instance activity counters on rollback', async () => {
@@ -229,15 +289,12 @@ describe('instance activity counter migration', () => {
         .where('id', 'bucket:logins:2026052500')
         .first()
       const marker = await database('counters')
-        .where(
-          'id',
-          `unique-login:${Math.floor(Date.UTC(2026, 4, 25) / 1000)}:account-sqlite-time`
-        )
+        .where('id', 'unique-login:account-sqlite-time')
         .first()
 
       expect(statusBucket?.value).toBe(1)
       expect(loginBucket?.value).toBe(1)
-      expect(marker?.value).toBe(1)
+      expect(marker?.value).toBe(Math.floor(Date.UTC(2026, 4, 25) / 1000))
     } finally {
       if (originalTimeZone === undefined) {
         delete process.env.TZ
@@ -245,5 +302,9 @@ describe('instance activity counter migration', () => {
         process.env.TZ = originalTimeZone
       }
     }
+  })
+
+  it('does not run in the default Knex migration transaction', () => {
+    expect(migration.config).toEqual({ transaction: false })
   })
 })
