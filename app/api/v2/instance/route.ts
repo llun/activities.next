@@ -1,6 +1,9 @@
 import { getConfig } from '@/lib/config'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import {
+  MAX_PINNED_STATUSES,
+  MAX_STATUS_MEDIA_ATTACHMENTS
+} from '@/lib/services/mastodon/constants'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_FILE_SIZE
@@ -33,7 +36,8 @@ export const GET = traceApiRoute(
         languages: config.languages,
         configuration: {
           accounts: {
-            max_featured_tags: 10
+            max_featured_tags: 10,
+            max_pinned_statuses: MAX_PINNED_STATUSES
           },
           statuses: {
             max_characters: 500,

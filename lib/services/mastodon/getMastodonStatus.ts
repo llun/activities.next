@@ -51,6 +51,7 @@ interface GetMastodonStatusOptions {
   replyStatusCache?: ReplyStatusCache
   statusMetricsCache?: StatusMetricsCache
   pollVoteCache?: PollVoteCache
+  pinnedStatusIds?: Set<string>
 }
 
 const getMastodonAccount = (
@@ -161,6 +162,42 @@ const addStatusPollIds = (status: Status, statusIds: Set<string>) => {
   if (status.type === StatusType.enum.Poll) statusIds.add(status.id)
 }
 
+const isStatusPinnableByActor = (status: Status, currentActorId?: string) => {
+  if (!currentActorId) return false
+  if (status.type === StatusType.enum.Announce) return false
+  if (status.actorId !== currentActorId) return false
+  return getVisibility(status.to, status.cc) !== 'direct'
+}
+
+const addStatusPinnedLookupIds = (
+  status: Status,
+  statusIds: Set<string>,
+  currentActorId?: string
+) => {
+  if (status.type === StatusType.enum.Announce) {
+    return
+  }
+
+  if (isStatusPinnableByActor(status, currentActorId)) statusIds.add(status.id)
+}
+
+const isStatusPinned = async (
+  database: Database,
+  status: Status,
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
+): Promise<boolean | undefined> => {
+  if (!currentActorId) return undefined
+  if (!isStatusPinnableByActor(status, currentActorId)) return undefined
+  if (options?.pinnedStatusIds) return options.pinnedStatusIds.has(status.id)
+
+  const pinnedStatusIds = await database.getPinnedStatusIds({
+    actorId: currentActorId,
+    statusIds: [status.id]
+  })
+  return pinnedStatusIds.includes(status.id)
+}
+
 const getReplyStatus = async (
   database: Database,
   statusId: string,
@@ -246,6 +283,7 @@ export const getMastodonStatus = async (
     status.type !== StatusType.enum.Announce
       ? await getStatusReblogsCount(database, status.id, options)
       : 0
+  const pinned = await isStatusPinned(database, status, currentActorId, options)
 
   const baseData = {
     id: urlToId(status.id),
@@ -271,6 +309,7 @@ export const getMastodonStatus = async (
     reblogged: false,
     muted: false,
     bookmarked: isStatusBookmarked(status),
+    ...(pinned === undefined ? {} : { pinned }),
 
     content: '',
     text: null,
@@ -391,7 +430,8 @@ export const getMastodonStatus = async (
 export const getMastodonStatuses = async (
   database: Database,
   statuses: Status[],
-  currentActorId?: string
+  currentActorId?: string,
+  inputOptions: GetMastodonStatusOptions = {}
 ): Promise<Mastodon.Status[]> => {
   if (statuses.length === 0) return []
 
@@ -403,34 +443,54 @@ export const getMastodonStatuses = async (
   statuses.forEach((status) => addStatusReplyIds(status, replyStatusIds))
   const pollStatusIds = new Set<string>()
   statuses.forEach((status) => addStatusPollIds(status, pollStatusIds))
+  const pinnedLookupStatusIds = new Set<string>()
+  statuses.forEach((status) =>
+    addStatusPinnedLookupIds(status, pinnedLookupStatusIds, currentActorId)
+  )
   const requestedActorIds = [...actorIds]
   const requestedMetricStatusIds = [...metricStatusIds]
   const requestedReplyStatusIds = [...replyStatusIds]
   const requestedPollStatusIds = currentActorId ? [...pollStatusIds] : []
-  const [accounts, reblogCounts, replyCounts, replyStatuses, pollVotes] =
-    await Promise.all([
-      database.getMastodonActorsFromIds({
-        ids: requestedActorIds
-      }),
-      database.getStatusReblogsCounts({
-        statusIds: requestedMetricStatusIds
-      }),
-      database.getStatusRepliesCounts({
-        statusIds: requestedMetricStatusIds
-      }),
-      requestedReplyStatusIds.length > 0
-        ? database.getStatusesByIds({
-            statusIds: requestedReplyStatusIds,
-            currentActorId
-          })
-        : Promise.resolve([]),
-      requestedPollStatusIds.length > 0 && currentActorId
-        ? database.getActorPollVotesForStatuses({
-            statusIds: requestedPollStatusIds,
-            actorId: currentActorId
-          })
-        : Promise.resolve<Record<string, number[]>>({})
-    ])
+  const requestedPinnedLookupStatusIds =
+    currentActorId && !inputOptions.pinnedStatusIds
+      ? [...pinnedLookupStatusIds]
+      : []
+  const [
+    accounts,
+    reblogCounts,
+    replyCounts,
+    replyStatuses,
+    pollVotes,
+    pinnedStatusIds
+  ] = await Promise.all([
+    database.getMastodonActorsFromIds({
+      ids: requestedActorIds
+    }),
+    database.getStatusReblogsCounts({
+      statusIds: requestedMetricStatusIds
+    }),
+    database.getStatusRepliesCounts({
+      statusIds: requestedMetricStatusIds
+    }),
+    requestedReplyStatusIds.length > 0
+      ? database.getStatusesByIds({
+          statusIds: requestedReplyStatusIds,
+          currentActorId
+        })
+      : Promise.resolve([]),
+    requestedPollStatusIds.length > 0 && currentActorId
+      ? database.getActorPollVotesForStatuses({
+          statusIds: requestedPollStatusIds,
+          actorId: currentActorId
+        })
+      : Promise.resolve<Record<string, number[]>>({}),
+    requestedPinnedLookupStatusIds.length > 0 && currentActorId
+      ? database.getPinnedStatusIds({
+          actorId: currentActorId,
+          statusIds: requestedPinnedLookupStatusIds
+        })
+      : Promise.resolve<string[]>([])
+  ])
   const requestedActorIdSet = new Set(requestedActorIds)
   const accountCache: MastodonAccountCache = new Map()
 
@@ -453,6 +513,9 @@ export const getMastodonStatuses = async (
   }
 
   const options: GetMastodonStatusOptions = {
+    ...inputOptions,
+    pinnedStatusIds:
+      inputOptions.pinnedStatusIds ?? new Set<string>(pinnedStatusIds),
     accountCache,
     statusMetricsCache: {
       reblogs: new Map(
