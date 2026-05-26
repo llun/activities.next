@@ -5,6 +5,7 @@ const ACTIVITY_COUNTER_PREFIXES = [
   'bucket:logins:%',
   'unique-login:%'
 ]
+const BACKFILL_COUNTER_PREFIX = 'backfill:instance-activity:'
 const SQLITE_UTC_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/
 
@@ -55,6 +56,8 @@ const getWeekKey = (date) =>
   String(Math.floor(getUTCWeekStart(date).getTime() / 1000))
 
 const getLoginMarkerId = (accountId) => `unique-login:${accountId}`
+const getBackfillCounterId = (counterId) =>
+  `${BACKFILL_COUNTER_PREFIX}${counterId}`
 
 const isMySQLClient = (knex) => {
   const client = String(knex.client.config.client).toLowerCase()
@@ -161,9 +164,155 @@ const buildMySQLLoginMarkerUpsertQuery = (knex, rows) =>
     ]
   )
 
-const upsertCounters = async (knex, counters, currentTime) => {
+const buildMySQLBackfillMarkerUpsertQuery = (knex, rows) =>
+  buildMySQLCounterInsertQuery(knex, rows, '?? = ??.??, ?? = ??.??', [
+    'value',
+    MYSQL_COUNTER_ALIAS,
+    'value',
+    'updatedAt',
+    MYSQL_COUNTER_ALIAS,
+    'updatedAt'
+  ])
+
+const upsertBucketRows = async (knex, rows) => {
+  if (rows.length === 0) return
+
   const isMySQL = isMySQLClient(knex)
   const isMariaDB = isMariaDBClient(knex)
+
+  if (isMySQL) {
+    await buildMySQLBucketCounterUpsertQuery(knex, rows)
+    return
+  }
+
+  await knex('counters')
+    .insert(rows)
+    .onConflict('id')
+    .merge({
+      value: isMariaDB
+        ? knex.raw('?? + VALUES(??)', ['counters.value', 'value'])
+        : knex.raw('?? + excluded.??', ['counters.value', 'value']),
+      bucketHour: isMariaDB
+        ? knex.raw('VALUES(??)', ['bucketHour'])
+        : knex.raw('excluded.??', ['bucketHour']),
+      updatedAt: isMariaDB
+        ? knex.raw('VALUES(??)', ['updatedAt'])
+        : knex.raw('excluded.??', ['updatedAt'])
+    })
+}
+
+const getExistingBackfillValues = async (knex, bucketRows) => {
+  if (bucketRows.length === 0) return new Map()
+
+  const markerIds = bucketRows.map((row) => getBackfillCounterId(row.id))
+  const rows = await knex('counters')
+    .whereIn('id', markerIds)
+    .select('id', 'value')
+
+  return new Map(
+    rows.map((row) => [
+      String(row.id).slice(BACKFILL_COUNTER_PREFIX.length),
+      Number(row.value ?? 0)
+    ])
+  )
+}
+
+const upsertBackfillMarkerRows = async (knex, rows) => {
+  if (rows.length === 0) return
+
+  const isMySQL = isMySQLClient(knex)
+  const isMariaDB = isMariaDBClient(knex)
+
+  if (isMySQL) {
+    await buildMySQLBackfillMarkerUpsertQuery(knex, rows)
+    return
+  }
+
+  await knex('counters')
+    .insert(rows)
+    .onConflict('id')
+    .merge({
+      value: isMariaDB
+        ? knex.raw('VALUES(??)', ['value'])
+        : knex.raw('excluded.??', ['value']),
+      updatedAt: isMariaDB
+        ? knex.raw('VALUES(??)', ['updatedAt'])
+        : knex.raw('excluded.??', ['updatedAt'])
+    })
+}
+
+const upsertBucketBackfillChunk = async (knex, bucketRows, currentTime) => {
+  if (bucketRows.length === 0) return
+
+  const existingBackfillValues = await getExistingBackfillValues(
+    knex,
+    bucketRows
+  )
+  const deltaRows = []
+  const markerRows = []
+
+  for (const row of bucketRows) {
+    const currentValue = Number(row.value)
+    const appliedValue = existingBackfillValues.get(row.id) ?? 0
+    const delta = currentValue - appliedValue
+
+    if (delta !== 0) {
+      deltaRows.push({
+        ...row,
+        value: delta
+      })
+    }
+
+    markerRows.push({
+      id: getBackfillCounterId(row.id),
+      value: currentValue,
+      bucketHour: null,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+  }
+
+  await knex.transaction(async (trx) => {
+    await upsertBucketRows(trx, deltaRows)
+    await upsertBackfillMarkerRows(trx, markerRows)
+  })
+}
+
+const upsertLoginMarkerRows = async (knex, rows) => {
+  if (rows.length === 0) return
+
+  const isMySQL = isMySQLClient(knex)
+  const isMariaDB = isMariaDBClient(knex)
+
+  if (isMySQL) {
+    await buildMySQLLoginMarkerUpsertQuery(knex, rows)
+    return
+  }
+
+  await knex('counters')
+    .insert(rows)
+    .onConflict('id')
+    .merge({
+      value: isMariaDB
+        ? knex.raw('CASE WHEN VALUES(??) > ?? THEN VALUES(??) ELSE ?? END', [
+            'value',
+            'counters.value',
+            'value',
+            'counters.value'
+          ])
+        : knex.raw('CASE WHEN excluded.?? > ?? THEN excluded.?? ELSE ?? END', [
+            'value',
+            'counters.value',
+            'value',
+            'counters.value'
+          ]),
+      updatedAt: isMariaDB
+        ? knex.raw('VALUES(??)', ['updatedAt'])
+        : knex.raw('excluded.??', ['updatedAt'])
+    })
+}
+
+const upsertCounters = async (knex, counters, currentTime) => {
   const rows = [...counters.values()].map((counter) => ({
     id: counter.id,
     value: counter.value,
@@ -175,54 +324,15 @@ const upsertCounters = async (knex, counters, currentTime) => {
   const markerRows = rows.filter((row) => row.id.startsWith('unique-login:'))
 
   for (let i = 0; i < bucketRows.length; i += CHUNK_SIZE) {
-    const chunk = bucketRows.slice(i, i + CHUNK_SIZE)
-    if (isMySQL) {
-      await buildMySQLBucketCounterUpsertQuery(knex, chunk)
-      continue
-    }
-
-    await knex('counters')
-      .insert(chunk)
-      .onConflict('id')
-      .merge({
-        value: isMariaDB
-          ? knex.raw('?? + VALUES(??)', ['counters.value', 'value'])
-          : knex.raw('?? + excluded.??', ['counters.value', 'value']),
-        bucketHour: isMariaDB
-          ? knex.raw('VALUES(??)', ['bucketHour'])
-          : knex.raw('excluded.??', ['bucketHour']),
-        updatedAt: isMariaDB
-          ? knex.raw('VALUES(??)', ['updatedAt'])
-          : knex.raw('excluded.??', ['updatedAt'])
-      })
+    await upsertBucketBackfillChunk(
+      knex,
+      bucketRows.slice(i, i + CHUNK_SIZE),
+      currentTime
+    )
   }
 
   for (let i = 0; i < markerRows.length; i += CHUNK_SIZE) {
-    const chunk = markerRows.slice(i, i + CHUNK_SIZE)
-    if (isMySQL) {
-      await buildMySQLLoginMarkerUpsertQuery(knex, chunk)
-      continue
-    }
-
-    await knex('counters')
-      .insert(chunk)
-      .onConflict('id')
-      .merge({
-        value: isMariaDB
-          ? knex.raw('CASE WHEN VALUES(??) > ?? THEN VALUES(??) ELSE ?? END', [
-              'value',
-              'counters.value',
-              'value',
-              'counters.value'
-            ])
-          : knex.raw(
-              'CASE WHEN excluded.?? > ?? THEN excluded.?? ELSE ?? END',
-              ['value', 'counters.value', 'value', 'counters.value']
-            ),
-        updatedAt: isMariaDB
-          ? knex.raw('VALUES(??)', ['updatedAt'])
-          : knex.raw('excluded.??', ['updatedAt'])
-      })
+    await upsertLoginMarkerRows(knex, markerRows.slice(i, i + CHUNK_SIZE))
   }
 }
 
@@ -359,6 +469,7 @@ exports.down = async function (knex) {
     .where('id', 'like', 'bucket:local-statuses:%')
     .orWhere('id', 'like', 'bucket:logins:%')
     .orWhere('id', 'like', 'unique-login:%')
+    .orWhere('id', 'like', `${BACKFILL_COUNTER_PREFIX}%`)
     .delete()
 }
 

@@ -256,9 +256,69 @@ describe('knexAdapter', () => {
             value: Math.floor(Date.UTC(2026, 1, 2) / 1000)
           }
         ])
-        expect(sessionRow?.accountId).toBe('u-ba-canonical')
+        expect(sessionRow?.accountId).toBeNull()
       } finally {
         jest.useRealTimers()
+      }
+    })
+
+    it('does not require accountId columns on singular session tables', async () => {
+      const singularDb = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: { filename: ':memory:' }
+      })
+      const singularAdapter = knexAdapter(singularDb)({} as never)
+
+      try {
+        await singularDb.schema.createTable('users', (table) => {
+          table.text('id').primary()
+          table.text('email')
+        })
+        await singularDb.schema.createTable('session', (table) => {
+          table.text('id').primary()
+          table.text('user_id').references('id').inTable('users')
+          table.text('token').unique()
+          table.timestamp('expireAt')
+          table.timestamp('createdAt')
+        })
+        await singularDb.schema.createTable('counters', (table) => {
+          table.string('id').primary()
+          table.integer('value').defaultTo(0)
+          table.timestamp('bucketHour', { useTz: true }).nullable()
+          table.timestamp('createdAt', { useTz: true })
+          table.timestamp('updatedAt', { useTz: true })
+        })
+        await singularDb('users').insert({
+          id: 'u-singular-no-account-column',
+          email: 'singular-no-account-column@test.com'
+        })
+
+        await expect(
+          singularAdapter.create({
+            model: 'session',
+            data: {
+              id: 's-singular-no-account-column',
+              user_id: 'u-singular-no-account-column',
+              accountId: 'u-should-not-be-inserted',
+              token: 'singular-no-account-column-token',
+              expireAt: Date.now() + 60_000
+            }
+          })
+        ).resolves.toMatchObject({
+          id: 's-singular-no-account-column',
+          user_id: 'u-singular-no-account-column'
+        })
+
+        await expect(
+          singularDb('counters')
+            .where('id', 'unique-login:u-singular-no-account-column')
+            .first()
+        ).resolves.toMatchObject({
+          id: 'unique-login:u-singular-no-account-column'
+        })
+      } finally {
+        await singularDb.destroy()
       }
     })
 

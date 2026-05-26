@@ -86,6 +86,9 @@ const addBucketHourRangeFilter = (
       .andWhere('bucketHour', '<', end)
   }
 
+  // Existing SQLite fixtures/local DBs can store Knex timestamps as epoch
+  // numbers or as UTC strings depending on the writer. Keep all known formats
+  // queryable, then re-check the parsed Date in memory below.
   return query.andWhere((builder) => {
     builder
       .where((range) => {

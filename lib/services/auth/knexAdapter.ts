@@ -162,7 +162,11 @@ export const knexAdapter = (db: Knex) =>
           if (model === 'session' || tableName === 'sessions') {
             const accountId = getSessionAccountId(record, model)
             const createdAt = getSessionCreatedAt(record)
-            if (accountId) record.accountId = accountId
+            if (accountId && tableName === 'sessions') {
+              record.accountId = accountId
+            } else if (tableName !== 'sessions') {
+              delete record.accountId
+            }
             await db(tableName).insert(record)
             const row = await db(tableName).where(`${tableName}.id`, id).first()
             if (!row) throw new Error('Failed to create record')

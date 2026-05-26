@@ -237,6 +237,30 @@ describe('instance activity counter migration', () => {
     })
   })
 
+  it('does not double-count bucket counters when the migration is rerun', async () => {
+    await migration.up(database)
+
+    const getBucketTotals = async () => {
+      const localStatusRows = await database('counters')
+        .where('id', 'like', 'bucket:local-statuses:%')
+        .select('value')
+      const loginRows = await database('counters')
+        .where('id', 'like', 'bucket:logins:%')
+        .select('value')
+
+      return {
+        localStatuses: sumCounterRows(localStatusRows),
+        logins: sumCounterRows(loginRows)
+      }
+    }
+
+    const firstRunTotals = await getBucketTotals()
+
+    await migration.up(database)
+
+    expect(await getBucketTotals()).toEqual(firstRunTotals)
+  })
+
   it('removes instance activity counters on rollback', async () => {
     await migration.up(database)
     await migration.down(database)
@@ -245,6 +269,7 @@ describe('instance activity counter migration', () => {
       .where('id', 'like', 'bucket:local-statuses:%')
       .orWhere('id', 'like', 'bucket:logins:%')
       .orWhere('id', 'like', 'unique-login:%')
+      .orWhere('id', 'like', 'backfill:instance-activity:%')
 
     expect(remainingRows).toHaveLength(0)
   })
