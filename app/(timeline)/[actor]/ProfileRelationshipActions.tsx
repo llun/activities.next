@@ -2,6 +2,7 @@ import { FC } from 'react'
 
 import { BlockAction } from '@/lib/components/block-action/block-action'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
+import { MuteAction } from '@/lib/components/mute-action/mute-action'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
 interface ProfileRelationshipActionsProps {
@@ -19,7 +20,14 @@ export const ProfileRelationshipActions: FC<
 > = ({ targetActorId, isLoggedIn, relationship }) => (
   <div className="flex flex-wrap gap-2">
     {!isBlockedRelationship(relationship) ? (
-      <FollowAction targetActorId={targetActorId} isLoggedIn={isLoggedIn} />
+      <>
+        <FollowAction targetActorId={targetActorId} isLoggedIn={isLoggedIn} />
+        <MuteAction
+          targetActorId={targetActorId}
+          isLoggedIn={isLoggedIn}
+          initialRelationship={relationship}
+        />
+      </>
     ) : null}
     <BlockAction
       targetActorId={targetActorId}
