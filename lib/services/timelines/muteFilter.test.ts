@@ -59,7 +59,8 @@ describe('filterMutedStatuses', () => {
     const getMuteRelations = jest.fn(
       async ({ actorIds, targetActorIds }: GetMuteRelationsParams) => {
         expect(actorIds).toEqual([readerActorId])
-        return targetActorIds.includes(mutedActorId)
+        const mutedActorIds = new Set([mutedActorId])
+        return targetActorIds.some((id) => mutedActorIds.has(id))
           ? [
               {
                 actorId: readerActorId,
