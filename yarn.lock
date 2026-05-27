@@ -1533,19 +1533,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/oauth-provider@npm:^1.6.9":
-  version: 1.6.9
-  resolution: "@better-auth/oauth-provider@npm:1.6.9"
+"@better-auth/oauth-provider@npm:^1.6.11":
+  version: 1.6.11
+  resolution: "@better-auth/oauth-provider@npm:1.6.11"
   dependencies:
     jose: "npm:^6.1.3"
     zod: "npm:^4.3.6"
   peerDependencies:
-    "@better-auth/core": ^1.6.9
+    "@better-auth/core": ^1.6.11
     "@better-auth/utils": 0.4.0
     "@better-fetch/fetch": 1.1.21
-    better-auth: ^1.6.9
+    better-auth: ^1.6.11
     better-call: 1.3.5
-  checksum: 10c0/dd39d96b2fe2c77d034e5e3e4c9a8e20e55988ecccc8fdc0c9917040282a16d8694a8ecec1ec7f70f7844d2dbfeb4970cc18e52876791ab5766e0cf7e4cc3fb3
+  checksum: 10c0/dce0fdd38381a04f86730dc7ccfa2d696edb7efa45146a2beada3800388d4f5770baf54baf841bfa5c08e058625c7f9b602dcd19c3385ddeefcdd246efb6ef6c
   languageName: node
   linkType: hard
 
@@ -5988,7 +5988,7 @@ __metadata:
     "@aws-sdk/s3-request-presigner": "npm:^3.1045.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.6.11"
-    "@better-auth/oauth-provider": "npm:^1.6.9"
+    "@better-auth/oauth-provider": "npm:^1.6.11"
     "@better-auth/passkey": "npm:^1.6.11"
     "@better-auth/utils": "npm:0.4.0"
     "@better-fetch/fetch": "npm:1.1.21"
