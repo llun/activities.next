@@ -19,13 +19,14 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const MuteBodySchema = z.object({
-  notifications: z.boolean().optional(),
+  notifications: z.boolean().catch(true).optional(),
   duration: z
     .number()
     .finite()
     .min(0)
     .max(3_153_600_000)
     .transform(Math.floor)
+    .catch(0)
     .optional()
 })
 

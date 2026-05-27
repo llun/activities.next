@@ -184,15 +184,29 @@ describe('POST /api/v1/accounts/:id/mute', () => {
     const targetActorId = 'https://remote.test/users/alice'
     applyMuteMock.mockResolvedValue({})
 
+    await POST(createRequest(targetActorId, { duration: Infinity }), {
+      params: Promise.resolve({ id: urlToId(targetActorId) })
+    })
+
+    expect(applyMuteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ endsAt: null })
+    )
+  })
+
+  it('preserves valid notifications:false when duration is invalid', async () => {
+    const targetActorId = 'https://remote.test/users/alice'
+    applyMuteMock.mockResolvedValue({})
+
     await POST(
-      createRequest(targetActorId, { duration: Infinity }),
+      createRequest(targetActorId, { notifications: false, duration: -1 }),
       {
         params: Promise.resolve({ id: urlToId(targetActorId) })
       }
     )
 
+    // notifications:false must be preserved even though duration is invalid
     expect(applyMuteMock).toHaveBeenCalledWith(
-      expect.objectContaining({ endsAt: null })
+      expect.objectContaining({ notifications: false, endsAt: null })
     )
   })
 })
