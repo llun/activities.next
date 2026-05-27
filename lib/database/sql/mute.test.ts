@@ -171,6 +171,42 @@ describe('MuteDatabase', () => {
     ).resolves.toEqual([])
   })
 
+  it('re-muting an expired mute updates the row instead of throwing (unique constraint)', async () => {
+    const target = targetActorId()
+    const pastEndsAt = Date.now() - 1000
+
+    // Insert an expired mute directly (bypassing createMute so endsAt is in the past)
+    await knexDatabase('mutes').insert({
+      id: crypto.randomUUID(),
+      actorId: ACTOR1_ID,
+      actorHost: new URL(ACTOR1_ID).host,
+      targetActorId: target,
+      targetActorHost: new URL(target).host,
+      notifications: true,
+      endsAt: pastEndsAt,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+
+    // Re-muting should succeed (UPDATE, not INSERT) and return fresh params
+    const remute = await database.createMute({
+      actorId: ACTOR1_ID,
+      targetActorId: target,
+      notifications: false,
+      endsAt: null
+    })
+
+    expect(remute.notifications).toBe(false)
+    expect(remute.endsAt).toBeNull()
+    // Only one row should exist
+    const count = await knexDatabase('mutes').where({ actorId: ACTOR1_ID, targetActorId: target }).count('id as n').first()
+    expect(Number(count?.n)).toBe(1)
+    // And getMute now sees it as active
+    await expect(
+      database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
+    ).resolves.not.toBeNull()
+  })
+
   it('getMute returns null for an expired mute', async () => {
     const target = targetActorId()
     const pastEndsAt = Date.now() - 1000

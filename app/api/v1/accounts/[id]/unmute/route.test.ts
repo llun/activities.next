@@ -6,16 +6,7 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
 
-const mockMuteRecord = {
-  id: 'mute-1',
-  actorId: 'https://local.test/users/me',
-  targetActorId: 'https://remote.test/users/alice',
-  notifications: true,
-  endsAt: null
-}
-
 const mockDatabase = {
-  getMute: jest.fn(),
   getActorFromId: jest.fn()
 }
 const mockCurrentActor = {
@@ -64,7 +55,14 @@ describe('POST /api/v1/accounts/:id/unmute', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockDatabase.getMute.mockResolvedValue(mockMuteRecord)
+    // Default: applyUnmute deleted a record
+    applyUnmuteMock.mockResolvedValue({
+      id: 'mute-1',
+      actorId: mockCurrentActor.id,
+      targetActorId: 'https://remote.test/users/alice',
+      notifications: true,
+      endsAt: null
+    })
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://remote.test/users/alice'
     })
@@ -75,9 +73,8 @@ describe('POST /api/v1/accounts/:id/unmute', () => {
     })
   })
 
-  it('calls applyUnmute with the correct params when mute exists', async () => {
+  it('calls applyUnmute with the correct params', async () => {
     const targetActorId = 'https://remote.test/users/alice'
-    applyUnmuteMock.mockResolvedValue(null)
 
     await POST(createRequest(targetActorId), {
       params: Promise.resolve({ id: urlToId(targetActorId) })
@@ -100,13 +97,11 @@ describe('POST /api/v1/accounts/:id/unmute', () => {
     expect(getRelationshipMock).toHaveBeenCalled()
   })
 
-  it('succeeds even if target was not muted (no-op unmute)', async () => {
+  it('succeeds when target was not muted (no-op unmute) and actor exists', async () => {
     const targetActorId = 'https://remote.test/users/alice'
-    mockDatabase.getMute.mockResolvedValue(null)
-    mockDatabase.getActorFromId.mockResolvedValue({
-      id: targetActorId
-    })
+    // applyUnmute returns null → no existing mute deleted
     applyUnmuteMock.mockResolvedValue(null)
+    mockDatabase.getActorFromId.mockResolvedValue({ id: targetActorId })
 
     const response = await POST(createRequest(targetActorId), {
       params: Promise.resolve({ id: urlToId(targetActorId) })
@@ -114,12 +109,11 @@ describe('POST /api/v1/accounts/:id/unmute', () => {
 
     expect(response.status).not.toBe(404)
     expect(response.status).not.toBe(500)
-    expect(applyUnmuteMock).not.toHaveBeenCalled()
   })
 
   it('returns 404 when target actor does not exist and no mute record', async () => {
     const targetActorId = 'https://remote.test/users/unknown'
-    mockDatabase.getMute.mockResolvedValue(null)
+    applyUnmuteMock.mockResolvedValue(null)
     mockDatabase.getActorFromId.mockResolvedValue(null)
 
     const response = await POST(createRequest(targetActorId), {
@@ -127,6 +121,5 @@ describe('POST /api/v1/accounts/:id/unmute', () => {
     })
 
     expect(response.status).toBe(404)
-    expect(applyUnmuteMock).not.toHaveBeenCalled()
   })
 })

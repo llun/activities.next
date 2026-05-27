@@ -36,12 +36,15 @@ export const POST = traceApiRoute(
     const targetActorId = idToUrl(encodedAccountId)
 
     if (targetActorId !== currentActor.id) {
-      const existingMute = await database.getMute({
+      // deleteMute uses a raw lookup (no expiry filter) so expired rows are
+      // cleaned up too. If nothing was deleted, validate the actor exists.
+      const deleted = await applyUnmute({
+        database,
         actorId: currentActor.id,
         targetActorId
       })
 
-      if (!existingMute) {
+      if (!deleted) {
         const targetActor = await database.getActorFromId({ id: targetActorId })
         if (!targetActor)
           return apiResponse({
@@ -50,10 +53,6 @@ export const POST = traceApiRoute(
             data: ERROR_404,
             responseStatusCode: 404
           })
-      }
-
-      if (existingMute) {
-        await applyUnmute({ database, actorId: currentActor.id, targetActorId })
       }
     }
 

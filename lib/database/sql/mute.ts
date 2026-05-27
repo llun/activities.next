@@ -49,15 +49,20 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
   }: CreateMuteParams) {
     const currentTime = new Date()
 
-    const existingMute = await this.getMute({ actorId, targetActorId })
-    if (existingMute) {
+    // Use a raw DB lookup (no expiry filter) so that expired rows are updated
+    // rather than triggering a unique-constraint violation on INSERT.
+    const existingRow = await database<Mute>('mutes')
+      .where({ actorId, targetActorId })
+      .first()
+
+    if (existingRow) {
       await database('mutes').where({ actorId, targetActorId }).update({
         notifications,
         endsAt,
         updatedAt: currentTime
       })
       return {
-        ...existingMute,
+        ...fixMuteDataDate(existingRow),
         notifications,
         endsAt,
         updatedAt: currentTime.getTime()
@@ -86,7 +91,10 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
 
-      const duplicated = await this.getMute({ actorId, targetActorId })
+      // Race: another request inserted between our SELECT and INSERT — update it.
+      const duplicated = await database<Mute>('mutes')
+        .where({ actorId, targetActorId })
+        .first()
       if (duplicated) {
         await database('mutes').where({ actorId, targetActorId }).update({
           notifications,
@@ -94,7 +102,7 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
           updatedAt: currentTime
         })
         return {
-          ...duplicated,
+          ...fixMuteDataDate(duplicated),
           notifications,
           endsAt,
           updatedAt: currentTime.getTime()
