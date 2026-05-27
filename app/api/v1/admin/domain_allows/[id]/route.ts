@@ -1,6 +1,6 @@
 import { toAdminDomainAllow } from '@/lib/services/federation/domainRules'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
   HTTP_STATUS,

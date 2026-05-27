@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 
 import { resetHostConfigCacheForTests } from '@/lib/config/host'
-import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/securityHeaders'
+import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/http-headers'
 
 import { proxy, config as proxyConfig } from './proxy'
 

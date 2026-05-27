@@ -9,7 +9,7 @@ import {
   MAX_FILE_SIZE
 } from '@/lib/services/medias/constants'
 import { Scope } from '@/lib/types/database/operations'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { VERSION } from '@/lib/utils/version'

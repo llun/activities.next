@@ -5,7 +5,7 @@ import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   StatusCode,
   apiErrorResponse,

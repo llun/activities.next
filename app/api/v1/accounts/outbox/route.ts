@@ -8,7 +8,7 @@ import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { toActivityPubObject } from '@/lib/types/domain/status'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   DEFAULT_202,

@@ -1,10 +1,4 @@
-import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
-
-jest.mock('@/lib/config', () => ({
-  getConfig: () => ({
-    host: 'api.example.com'
-  })
-}))
+import { HttpMethod, getCORSHeaders } from './cors'
 
 describe('#getCORSHeaders', () => {
   it('returns CORS headers with origin from request', () => {
@@ -24,11 +18,11 @@ describe('#getCORSHeaders', () => {
   })
 
   it('uses host-based origin when Origin header is not present', () => {
-    const headers = new Headers([['Host', 'api.example.com']])
+    const headers = new Headers([['Host', 'test.llun.dev']])
     const result = getCORSHeaders(['GET'], headers)
 
     expect(result['Access-Control-Allow-Origin']).toEqual(
-      'https://api.example.com'
+      'https://test.llun.dev'
     )
   })
 

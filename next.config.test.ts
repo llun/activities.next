@@ -7,7 +7,7 @@ import {
   getContentSecurityPolicy,
   getSecurityHeaders,
   resetContentSecurityPolicyCacheForTests
-} from '@/lib/utils/securityHeaders'
+} from '@/lib/utils/http-headers'
 
 import nextConfig from './next.config'
 

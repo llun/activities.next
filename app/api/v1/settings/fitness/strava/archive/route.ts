@@ -15,8 +15,8 @@ import {
   getStravaArchiveSourceBatchId
 } from '@/lib/services/strava/archiveImport'
 import { StravaArchiveImport } from '@/lib/types/database/stravaArchiveImport'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,

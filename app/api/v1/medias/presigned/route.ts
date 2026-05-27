@@ -7,7 +7,7 @@ import {
   getPresignedUrl
 } from '@/lib/services/medias'
 import { PresigedMediaInput } from '@/lib/services/medias/types'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
   ERROR_422,

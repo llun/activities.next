@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import { selectHeaderHost } from '@/lib/utils/host'
-import { getContentSecurityPolicyHeader } from '@/lib/utils/securityHeaders'
+import { getContentSecurityPolicyHeader } from '@/lib/utils/http-headers/csp'
 
 export const config = {
   matcher: [

@@ -9,8 +9,8 @@ import { AppRouterParams } from '@/lib/services/guards/types'
 import { getQueue } from '@/lib/services/queue'
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_401,

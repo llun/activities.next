@@ -1,7 +1,7 @@
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { Scope } from '@/lib/types/database/operations'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
   ERROR_500,

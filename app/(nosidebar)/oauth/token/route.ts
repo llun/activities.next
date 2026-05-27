@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { getBaseURL } from '@/lib/config'
 import { getKnex } from '@/lib/database'
 import { getAuth } from '@/lib/services/auth/auth'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,

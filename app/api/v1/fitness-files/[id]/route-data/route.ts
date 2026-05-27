@@ -21,8 +21,8 @@ import {
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getVisibility } from '@/lib/utils/getVisibility'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
