@@ -183,9 +183,10 @@ const parseCreateKeywords = (
   const result: CreateFilterKeywordInput[] = []
   for (const item of raw) {
     if (coerceBoolean(item._destroy, false)) continue
-    if (typeof item.keyword !== 'string' || item.keyword.length === 0) continue
+    if (typeof item.keyword !== 'string' || item.keyword.trim().length === 0)
+      continue
     result.push({
-      keyword: item.keyword,
+      keyword: item.keyword.trim(),
       wholeWord: coerceBoolean(item.whole_word, false)
     })
   }
@@ -200,8 +201,8 @@ const parseUpdateKeywords = (
   for (const item of raw) {
     const change: UpdateFilterKeywordInput = {}
     if (item.id) change.id = item.id
-    if (typeof item.keyword === 'string' && item.keyword.length > 0)
-      change.keyword = item.keyword
+    if (typeof item.keyword === 'string' && item.keyword.trim().length > 0)
+      change.keyword = item.keyword.trim()
     if (item.whole_word !== undefined) {
       change.wholeWord = coerceBoolean(item.whole_word, false)
     }
@@ -307,13 +308,10 @@ export const parseKeywordCreateInput = (
 ): ParsedKeywordCreateInput | null => {
   const parsed = KeywordBodySchema.safeParse(body ?? {})
   if (!parsed.success) return null
-  if (
-    typeof parsed.data.keyword !== 'string' ||
-    parsed.data.keyword.length === 0
-  )
-    return null
+  const keyword = parsed.data.keyword?.trim() ?? ''
+  if (!keyword) return null
   return {
-    keyword: parsed.data.keyword,
+    keyword,
     wholeWord: coerceBoolean(parsed.data.whole_word, false)
   }
 }
@@ -324,11 +322,9 @@ export const parseKeywordUpdateInput = (
   const parsed = KeywordBodySchema.safeParse(body ?? {})
   if (!parsed.success) return null
   const result: ParsedKeywordUpdateInput = {}
-  if (
-    typeof parsed.data.keyword === 'string' &&
-    parsed.data.keyword.length > 0
-  ) {
-    result.keyword = parsed.data.keyword
+  if (typeof parsed.data.keyword === 'string') {
+    const trimmed = parsed.data.keyword.trim()
+    if (trimmed.length > 0) result.keyword = trimmed
   }
   if (parsed.data.whole_word !== undefined) {
     result.wholeWord = coerceBoolean(parsed.data.whole_word, false)
