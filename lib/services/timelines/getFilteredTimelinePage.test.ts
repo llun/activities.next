@@ -1,11 +1,15 @@
 import { Database } from '@/lib/database/types'
-import { GetBlockRelationsParams } from '@/lib/types/database/operations'
+import {
+  GetBlockRelationsParams,
+  GetMuteRelationsParams
+} from '@/lib/types/database/operations'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { getFilteredStatusPage } from './getFilteredTimelinePage'
 
 const readerActorId = 'https://llun.test/users/reader'
 const blockedActorId = 'https://blocked.test/users/blocked'
+const mutedActorId = 'https://muted.test/users/muted'
 
 const createStatus = (name: string, actorId = readerActorId) =>
   ({
@@ -27,7 +31,11 @@ describe('getFilteredStatusPage', () => {
       [visible3.id, [visible4, visible5, visible6]]
     ])
     const getBlockRelations = jest.fn(async () => [])
-    const database = { getBlockRelations } as unknown as Database
+    const getMuteRelations = jest.fn(async () => [])
+    const database = {
+      getBlockRelations,
+      getMuteRelations
+    } as unknown as Database
     const fetchBatch = jest.fn(({ maxStatusId }) =>
       Promise.resolve(batches.get(maxStatusId) ?? [])
     )
@@ -64,7 +72,11 @@ describe('getFilteredStatusPage', () => {
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const database = { getBlockRelations } as unknown as Database
+    const getMuteRelations = jest.fn(async () => [])
+    const database = {
+      getBlockRelations,
+      getMuteRelations
+    } as unknown as Database
 
     const page = await getFilteredStatusPage({
       database,
@@ -99,7 +111,11 @@ describe('getFilteredStatusPage', () => {
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const database = { getBlockRelations } as unknown as Database
+    const getMuteRelations = jest.fn(async () => [])
+    const database = {
+      getBlockRelations,
+      getMuteRelations
+    } as unknown as Database
 
     const page = await getFilteredStatusPage({
       database,
@@ -132,7 +148,11 @@ describe('getFilteredStatusPage', () => {
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const database = { getBlockRelations } as unknown as Database
+    const getMuteRelations = jest.fn(async () => [])
+    const database = {
+      getBlockRelations,
+      getMuteRelations
+    } as unknown as Database
 
     const page = await getFilteredStatusPage({
       database,
@@ -201,7 +221,11 @@ describe('getFilteredStatusPage', () => {
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const database = { getBlockRelations } as unknown as Database
+    const getMuteRelations = jest.fn(async () => [])
+    const database = {
+      getBlockRelations,
+      getMuteRelations
+    } as unknown as Database
 
     const page = await getFilteredStatusPage({
       database,
@@ -218,5 +242,48 @@ describe('getFilteredStatusPage', () => {
     expect(page.nextMaxStatusId).toBe(
       'https://llun.test/users/reader/statuses/blocked-13'
     )
+  })
+
+  it('omits statuses whose author the reader has muted', async () => {
+    const muted = createStatus('muted', mutedActorId)
+    const visible1 = createStatus('visible-1')
+    const visible2 = createStatus('visible-2')
+    const visible3 = createStatus('visible-3')
+    const batches = new Map<string | null, Status[]>([
+      [null, [muted, visible1, visible2]],
+      [visible2.id, [visible3]]
+    ])
+    const getBlockRelations = jest.fn(async () => [])
+    const getMuteRelations = jest.fn(
+      async ({ targetActorIds }: GetMuteRelationsParams) =>
+        targetActorIds.some((targetActorId) => targetActorId === mutedActorId)
+          ? [
+              {
+                actorId: readerActorId,
+                targetActorId: mutedActorId,
+                notifications: true
+              }
+            ]
+          : []
+    )
+    const database = {
+      getBlockRelations,
+      getMuteRelations
+    } as unknown as Database
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 3,
+      fetchBatch: ({ maxStatusId }) =>
+        Promise.resolve(batches.get(maxStatusId) ?? [])
+    })
+
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      visible1.id,
+      visible2.id,
+      visible3.id
+    ])
+    expect(page.nextMaxStatusId).toBeNull()
   })
 })

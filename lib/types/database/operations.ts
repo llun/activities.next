@@ -7,8 +7,8 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
-import { Mute } from '@/lib/types/domain/mute'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { Mute } from '@/lib/types/domain/mute'
 import { Session } from '@/lib/types/domain/session'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
@@ -1011,7 +1011,10 @@ export type GetMuteRelationsParams = {
   actorIds: string[]
   targetActorIds: string[]
 }
-export type MuteRelation = Pick<Mute, 'actorId' | 'targetActorId' | 'notifications'>
+export type MuteRelation = Pick<
+  Mute,
+  'actorId' | 'targetActorId' | 'notifications'
+>
 
 export interface MuteDatabase {
   createMute(params: CreateMuteParams): Promise<Mute>

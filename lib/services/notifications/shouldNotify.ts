@@ -6,8 +6,17 @@ export const shouldCreateNotification = async (
   sourceActorId: string
 ) => {
   if (recipientActorId === sourceActorId) return false
-  return !(await database.isEitherBlocking({
-    actorIdA: recipientActorId,
-    actorIdB: sourceActorId
-  }))
+  if (
+    await database.isEitherBlocking({
+      actorIdA: recipientActorId,
+      actorIdB: sourceActorId
+    })
+  ) {
+    return false
+  }
+  const mute = await database.getMute({
+    actorId: recipientActorId,
+    targetActorId: sourceActorId
+  })
+  return !(mute && mute.notifications)
 }

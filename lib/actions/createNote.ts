@@ -61,8 +61,21 @@ const getNotificationEligibleActorIds = async (
     }
   }
 
+  const muteRelations = await database.getMuteRelations({
+    actorIds: candidateActorIds,
+    targetActorIds: [sourceActorId]
+  })
+  const mutedSourceActorIds = new Set(
+    muteRelations
+      .filter((relation) => relation.notifications)
+      .map((relation) => relation.actorId)
+  )
+
   return new Set(
-    candidateActorIds.filter((actorId) => !blockedActorIds.has(actorId))
+    candidateActorIds.filter(
+      (actorId) =>
+        !blockedActorIds.has(actorId) && !mutedSourceActorIds.has(actorId)
+    )
   )
 }
 

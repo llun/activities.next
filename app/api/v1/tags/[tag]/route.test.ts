@@ -7,6 +7,7 @@ import { GET } from './route'
 const mockGetMastodonStatuses = jest.fn()
 const mockDatabase = {
   getBlockRelations: jest.fn(),
+  getMuteRelations: jest.fn(),
   getStatusesByHashtag: jest.fn()
 }
 const mockCurrentActor = {
@@ -50,6 +51,7 @@ describe('GET /api/v1/tags/:tag', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockDatabase.getBlockRelations.mockResolvedValue([])
+    mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])
     mockGetMastodonStatuses.mockResolvedValue([{ id: '1' }])
   })
