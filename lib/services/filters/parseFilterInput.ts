@@ -96,20 +96,19 @@ const collectFormBody = async (req: NextRequest): Promise<RawBody> => {
     }
 
     // Unindexed form: keywords_attributes[][keyword]
+    // A new record starts whenever a field name repeats in the current bucket.
     const unindexedMatch = key.match(/^keywords_attributes\[\]\[(\w+)\]$/)
     if (unindexedMatch) {
       const field = unindexedMatch[1]
-      // Each new 'keyword' field starts a new entry; other fields append to the last
-      if (field === 'keyword') {
-        const bucket: Record<string, unknown> = { keyword: rawValue }
+      const lastIdx = unindexedKeywordCounter - 1
+      const currentBucket =
+        lastIdx >= 0 ? keywordsByIndex.get(lastIdx) : undefined
+      if (!currentBucket || field in currentBucket) {
+        // Start a new entry
+        const bucket: Record<string, unknown> = { [field]: rawValue }
         keywordsByIndex.set(unindexedKeywordCounter++, bucket)
       } else {
-        const lastIdx = unindexedKeywordCounter - 1
-        if (lastIdx >= 0) {
-          const bucket = keywordsByIndex.get(lastIdx) ?? {}
-          bucket[field] = rawValue
-          keywordsByIndex.set(lastIdx, bucket)
-        }
+        currentBucket[field] = rawValue
       }
       continue
     }
@@ -235,7 +234,7 @@ export const parseFilterCreateInput = (
 
   if (
     typeof data.title !== 'string' ||
-    data.title.length === 0 ||
+    data.title.trim().length === 0 ||
     !data.context ||
     data.context.length === 0
   ) {
@@ -246,7 +245,7 @@ export const parseFilterCreateInput = (
   if (expiresAt === INVALID_EXPIRES) return null
 
   return {
-    title: data.title,
+    title: data.title.trim(),
     context: data.context,
     filterAction: data.filter_action ?? 'warn',
     expiresAt: expiresAt ?? null,
@@ -272,7 +271,7 @@ export const parseFilterUpdateInput = (
   if (!parsed.success) return null
   const data = parsed.data
 
-  if (data.title !== undefined && data.title.length === 0) return null
+  if (data.title !== undefined && data.title.trim().length === 0) return null
   if (data.context !== undefined && data.context.length === 0) return null
 
   const expiresAt = resolveExpiresAt(data.expires_in, data.expires_at, now)
@@ -280,7 +279,7 @@ export const parseFilterUpdateInput = (
   const keywords = parseUpdateKeywords(data.keywords_attributes)
 
   return {
-    title: data.title,
+    title: data.title !== undefined ? data.title.trim() : undefined,
     context: data.context,
     filterAction: data.filter_action,
     expiresAt,

@@ -221,14 +221,17 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
             continue
           }
           if (change.keyword === undefined) continue
-          await trx('filter_keywords').insert({
-            id: randomUUID(),
-            filterId: id,
-            keyword: change.keyword,
-            wholeWord: Boolean(change.wholeWord),
-            createdAt: now,
-            updatedAt: now
-          })
+          await trx('filter_keywords')
+            .insert({
+              id: randomUUID(),
+              filterId: id,
+              keyword: change.keyword,
+              wholeWord: Boolean(change.wholeWord),
+              createdAt: now,
+              updatedAt: now
+            })
+            .onConflict(['filterId', 'keyword'])
+            .ignore()
         }
       })
 
