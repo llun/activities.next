@@ -23,6 +23,12 @@ jest.mock('@/lib/components/block-action/block-action', () => ({
   )
 }))
 
+jest.mock('@/lib/components/mute-action/mute-action', () => ({
+  MuteAction: ({ targetActorId }: { targetActorId: string }) => (
+    <div data-testid="mute-action">{targetActorId}</div>
+  )
+}))
+
 const relationship = (
   overrides: Partial<MastodonRelationship> = {}
 ): MastodonRelationship => ({
@@ -55,12 +61,13 @@ describe('ProfileRelationshipActions', () => {
     )
 
     expect(screen.queryByTestId('follow-action')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mute-action')).not.toBeInTheDocument()
     expect(screen.getByTestId('block-action')).toHaveTextContent(
       'https://remote.test/users/blocked'
     )
   })
 
-  it('shows the follow action when the relationship is not blocked', () => {
+  it('shows the follow and mute actions when the relationship is not blocked', () => {
     render(
       <ProfileRelationshipActions
         targetActorId="https://remote.test/users/open"
@@ -70,6 +77,9 @@ describe('ProfileRelationshipActions', () => {
     )
 
     expect(screen.getByTestId('follow-action')).toHaveTextContent(
+      'https://remote.test/users/open'
+    )
+    expect(screen.getByTestId('mute-action')).toHaveTextContent(
       'https://remote.test/users/open'
     )
     expect(screen.getByTestId('block-action')).toHaveTextContent(
