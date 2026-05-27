@@ -46,18 +46,27 @@ interface ConsentResponse {
 export const getConsentRedirectUrl = (data: ConsentResponse) => {
   const redirectUrl = data.url ?? data.redirect_uri
   if (!redirectUrl) return undefined
-  if (!/^https?:\/\//i.test(redirectUrl)) return undefined
 
   try {
     const parsed = new URL(redirectUrl)
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      return parsed.toString()
+    if (['javascript:', 'data:', 'vbscript:'].includes(parsed.protocol)) {
+      return undefined
     }
+    return parsed.toString()
   } catch {
     // Invalid redirect response; fall through to the existing error handling.
   }
 
   return undefined
+}
+
+const getCurrentOAuthQuery = (fallbackSearchParams: SearchParams) => {
+  if (typeof window === 'undefined') {
+    return buildOAuthQuery(fallbackSearchParams)
+  }
+
+  const currentQuery = window.location.search.slice(1)
+  return currentQuery || buildOAuthQuery(fallbackSearchParams)
 }
 
 const navigateTo = (url: string) => {
@@ -153,7 +162,7 @@ export const AuthorizeCard: FC<Props> = ({
         body: JSON.stringify({
           accept: true,
           scope: selectedScopes.join(' '),
-          oauth_query: buildOAuthQuery(searchParams)
+          oauth_query: getCurrentOAuthQuery(searchParams)
         })
       })
 
@@ -182,7 +191,7 @@ export const AuthorizeCard: FC<Props> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accept: false,
-          oauth_query: buildOAuthQuery(searchParams)
+          oauth_query: getCurrentOAuthQuery(searchParams)
         })
       })
       if (response.ok) {
