@@ -18,7 +18,7 @@ export const filterMutedStatuses = async (
   )
   const targetActorIds = [
     ...new Set([...statusActorIdsByStatus.values()].flat())
-  ]
+  ].filter(Boolean)
   if (targetActorIds.length === 0) return statuses
 
   const relations = await database.getMuteRelations({
