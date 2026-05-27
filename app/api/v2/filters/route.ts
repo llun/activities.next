@@ -10,7 +10,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import {
   getMastodonFilter,
-  getMastodonFilters
+  getMastodonFilterFromRecord
 } from '@/lib/services/mastodon/getMastodonFilter'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -35,8 +35,10 @@ export const GET = traceApiRoute(
   OAuthGuardAnyScope(
     [Scope.enum.read, Scope.enum['read:filters']],
     async (req, { database, currentActor }) => {
-      const filters = await database.getFilters({ actorId: currentActor.id })
-      const data = await getMastodonFilters(database, filters)
+      const records = await database.getActiveFiltersForActor({
+        actorId: currentActor.id
+      })
+      const data = records.map(getMastodonFilterFromRecord)
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
     }
   )

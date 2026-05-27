@@ -1,6 +1,7 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import {
   annotateMastodonStatusesWithFilters,
+  dropHideMatchesFromStatuses,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
@@ -42,6 +43,12 @@ export const GET = traceApiRoute(
       const maxStatusIdParam = url.searchParams.get('max_id')
       const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
       const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor.id,
+        'home'
+      )
+
       const statusesPage = await database.getDirectConversationStatuses({
         actorId: currentActor.id,
         conversationId: id,
@@ -49,8 +56,12 @@ export const GET = traceApiRoute(
         minStatusId,
         maxStatusId
       })
-      const hasMoreStatuses = statusesPage.length > limit
-      const statuses = statusesPage.slice(0, limit)
+      const visibleStatuses = dropHideMatchesFromStatuses(
+        statusesPage,
+        filterRecords
+      )
+      const hasMoreStatuses = visibleStatuses.length > limit
+      const statuses = visibleStatuses.slice(0, limit)
       const nextMaxStatusId =
         hasMoreStatuses && statuses.length > 0
           ? statuses[statuses.length - 1].id
@@ -82,11 +93,6 @@ export const GET = traceApiRoute(
         database,
         statuses,
         currentActor.id
-      )
-      const filterRecords = await getActiveFilters(
-        database,
-        currentActor.id,
-        'home'
       )
       const annotatedStatuses = annotateMastodonStatusesWithFilters(
         mastodonStatuses,

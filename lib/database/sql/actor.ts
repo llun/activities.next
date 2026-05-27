@@ -1405,6 +1405,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         })
         .delete()
 
+      const filterIds = await trx('filters')
+        .where('actorId', actorId)
+        .pluck('id')
+      if (filterIds.length > 0) {
+        await trx('filter_statuses').whereIn('filterId', filterIds).delete()
+        await trx('filter_keywords').whereIn('filterId', filterIds).delete()
+        await trx('filters').where('actorId', actorId).delete()
+      }
+
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()
 

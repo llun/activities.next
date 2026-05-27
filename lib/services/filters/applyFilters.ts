@@ -17,7 +17,11 @@ export const getFilterContextForTimeline = (
   return 'home'
 }
 
-const KEYWORD_REGEX_CACHE = new Map<string, RegExp>()
+const KEYWORD_REGEX_CACHE_LIMIT = 1024
+const KEYWORD_REGEX_CACHE = new Map<
+  string,
+  { matcher: RegExp; updatedAt: number; signature: string }
+>()
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -39,29 +43,66 @@ export const buildKeywordMatcher = (
 }
 
 const getCachedMatcher = (keyword: DomainFilterKeyword): RegExp => {
-  const cacheKey = `${keyword.id}:${keyword.updatedAt}:${keyword.keyword}:${keyword.wholeWord ? '1' : '0'}`
-  const cached = KEYWORD_REGEX_CACHE.get(cacheKey)
-  if (cached) return cached
+  const signature = `${keyword.keyword}:${keyword.wholeWord ? '1' : '0'}`
+  const cached = KEYWORD_REGEX_CACHE.get(keyword.id)
+  if (
+    cached &&
+    cached.updatedAt === keyword.updatedAt &&
+    cached.signature === signature
+  ) {
+    KEYWORD_REGEX_CACHE.delete(keyword.id)
+    KEYWORD_REGEX_CACHE.set(keyword.id, cached)
+    return cached.matcher
+  }
+
   const matcher = buildKeywordMatcher(keyword.keyword, keyword.wholeWord)
-  KEYWORD_REGEX_CACHE.set(cacheKey, matcher)
+  KEYWORD_REGEX_CACHE.set(keyword.id, {
+    matcher,
+    updatedAt: keyword.updatedAt,
+    signature
+  })
+
+  if (KEYWORD_REGEX_CACHE.size > KEYWORD_REGEX_CACHE_LIMIT) {
+    const oldestKey = KEYWORD_REGEX_CACHE.keys().next().value
+    if (oldestKey !== undefined) KEYWORD_REGEX_CACHE.delete(oldestKey)
+  }
   return matcher
 }
 
-const stripHtml = (html: string): string =>
-  html
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+const HTML_ENTITY_MAP: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' '
+}
+
+const stripHtml = (html: string): string => {
+  const withoutTags = html
+    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, ' ')
+    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, ' ')
     .replace(/<\/?[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+  return withoutTags.replace(
+    /&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g,
+    (entity, ref) => {
+      if (ref.startsWith('#x') || ref.startsWith('#X')) {
+        const code = parseInt(ref.slice(2), 16)
+        return Number.isFinite(code) ? String.fromCodePoint(code) : entity
+      }
+      if (ref.startsWith('#')) {
+        const code = parseInt(ref.slice(1), 10)
+        return Number.isFinite(code) ? String.fromCodePoint(code) : entity
+      }
+      return HTML_ENTITY_MAP[ref.toLowerCase()] ?? entity
+    }
+  )
+}
 
 const getStatusContents = (status: Status): string[] => {
   const target =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
+  if (!target) return []
 
   const contents: string[] = []
   if ('text' in target && typeof target.text === 'string') {
@@ -88,8 +129,10 @@ const getCandidateStatusIds = (status: Status): string[] => {
   const target =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
   const ids = new Set<string>()
-  ids.add(target.id)
-  ids.add(urlToId(target.id))
+  if (target) {
+    ids.add(target.id)
+    ids.add(urlToId(target.id))
+  }
   if (status.type === StatusType.enum.Announce) {
     ids.add(status.id)
     ids.add(urlToId(status.id))

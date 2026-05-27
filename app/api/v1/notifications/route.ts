@@ -190,17 +190,20 @@ export const GET = traceApiRoute(
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
 
+    // Derive pagination from the raw notifications page so that an entire
+    // page being hidden by filters still advertises a next cursor.
+    const paginationCandidates = filteredNotifications
     const nextLink =
-      mastodonNotifications.length > 0
+      paginationCandidates.length > 0
         ? buildPaginationUrl(
             'max_id',
-            mastodonNotifications[mastodonNotifications.length - 1].id
+            paginationCandidates[paginationCandidates.length - 1].id
           )
         : null
 
     const prevLink =
-      mastodonNotifications.length > 0
-        ? buildPaginationUrl('min_id', mastodonNotifications[0].id)
+      paginationCandidates.length > 0
+        ? buildPaginationUrl('min_id', paginationCandidates[0].id)
         : null
 
     const links = [nextLink, prevLink].filter(Boolean).join(', ')

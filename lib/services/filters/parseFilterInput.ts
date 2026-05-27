@@ -131,24 +131,27 @@ const normalizeContextArray = (value: unknown): FilterContext[] | undefined => {
   return normalized
 }
 
+const INVALID_EXPIRES = Symbol('invalid_expires_at')
+type ResolvedExpiresAt = number | null | undefined | typeof INVALID_EXPIRES
+
 const resolveExpiresAt = (
   expiresIn: unknown,
   expiresAt: unknown,
   now: number
-): number | null | undefined => {
+): ResolvedExpiresAt => {
   if (expiresIn !== undefined) {
     const numeric = coerceNullableNumber(expiresIn)
-    if (numeric === undefined) return undefined
+    if (numeric === undefined) return INVALID_EXPIRES
     if (numeric === null) return null
     return now + Math.max(0, Math.floor(numeric)) * 1000
   }
   if (expiresAt === undefined) return undefined
   if (expiresAt === null) return null
-  if (typeof expiresAt !== 'string') return undefined
+  if (typeof expiresAt !== 'string') return INVALID_EXPIRES
   const trimmed = expiresAt.trim()
   if (trimmed === '') return null
   const parsed = Date.parse(trimmed)
-  if (Number.isNaN(parsed)) return undefined
+  if (Number.isNaN(parsed)) return INVALID_EXPIRES
   return parsed
 }
 
@@ -215,11 +218,14 @@ export const parseFilterCreateInput = (
     return null
   }
 
+  const expiresAt = resolveExpiresAt(data.expires_in, data.expires_at, now)
+  if (expiresAt === INVALID_EXPIRES) return null
+
   return {
     title: data.title,
     context: data.context,
     filterAction: data.filter_action ?? 'warn',
-    expiresAt: resolveExpiresAt(data.expires_in, data.expires_at, now) ?? null,
+    expiresAt: expiresAt ?? null,
     keywords: parseCreateKeywords(data.keywords_attributes)
   }
 }
@@ -243,6 +249,7 @@ export const parseFilterUpdateInput = (
   const data = parsed.data
 
   const expiresAt = resolveExpiresAt(data.expires_in, data.expires_at, now)
+  if (expiresAt === INVALID_EXPIRES) return null
   const keywords = parseUpdateKeywords(data.keywords_attributes)
 
   return {
