@@ -31,10 +31,12 @@ export const POST = traceApiRoute(
     const targetActorId = idToUrl(encodedAccountId)
 
     if (targetActorId !== currentActor.id) {
-      const body = await req.json().catch(() => ({}))
+      const body = (await req.json().catch(() => ({}))) ?? {}
       const notifications: boolean = body.notifications !== false
       const rawDuration =
-        typeof body.duration === 'number' ? Math.floor(body.duration) : 0
+        typeof body.duration === 'number' && Number.isFinite(body.duration)
+          ? Math.floor(body.duration)
+          : 0
       const durationSeconds = rawDuration > 0 ? rawDuration : 0
       const endsAt =
         durationSeconds > 0 ? Date.now() + durationSeconds * 1000 : null

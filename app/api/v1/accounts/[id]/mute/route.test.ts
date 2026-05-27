@@ -110,6 +110,7 @@ describe('POST /api/v1/accounts/:id/mute', () => {
 
     const call = applyMuteMock.mock.calls[0][0]
     expect(call.endsAt).toBeGreaterThanOrEqual(before + 3600 * 1000)
+    expect(call.endsAt).toBeLessThan(before + 3601 * 1000)
   })
 
   it('treats negative duration as no expiry', async () => {
