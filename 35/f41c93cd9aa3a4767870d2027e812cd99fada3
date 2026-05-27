@@ -1,0 +1,24 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_02001dea55a810::t_b15660cba35873 71,86
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_02001dea55a810::t_b15660cba35873 468-471
+jest.config.mjs
+  s_02001dea55a810::t_b15660cba35873 40-45
+  s_02001dea55a810::t_79b98e5c94ba21 46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "35f41c93cd9aa3a4767870d2027e812cd99fada3",
+  "prompts": {},
+  "sessions": {
+    "s_02001dea55a810": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "0e4739b0-efd7-428c-971c-b1f05f06b241",
+        "model": "gpt-4.1"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
