@@ -68,7 +68,7 @@ describe('AuthorizeCard', () => {
   beforeEach(() => {
     mockPush.mockReset()
     mockNavigate.mockReset()
-    window.history.replaceState({}, '', 'https://activities.local/')
+    window.history.replaceState({}, '', '/')
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({})
@@ -83,7 +83,7 @@ describe('AuthorizeCard', () => {
     window.history.replaceState(
       {},
       '',
-      'https://activities.local/oauth/authorize?' +
+      '/oauth/authorize?' +
         'response_type=code' +
         '&client_id=phanpy-client' +
         '&redirect_uri=not-a-url' +
