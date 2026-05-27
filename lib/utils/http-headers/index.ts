@@ -34,8 +34,5 @@ export { type SecurityHeader, getStaticSecurityHeaders } from './static'
 export {
   getContentSecurityPolicy,
   getContentSecurityPolicyHeader,
-  getSecurityHeaders,
-  // test-only: throws outside a Jest worker; imported by proxy.test.ts and
-  // next.config.test.ts via this barrel
-  resetContentSecurityPolicyCacheForTests
+  getSecurityHeaders
 } from './csp'
