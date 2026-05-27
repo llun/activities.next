@@ -83,16 +83,18 @@ const stripHtml = (html: string): string => {
     .replace(/<style\b[\s\S]*?<\/style\s*>/gi, ' ')
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, ' ')
     .replace(/<\/?[^>]+>/g, ' ')
+  const isValidCodePoint = (code: number): boolean =>
+    Number.isFinite(code) && code >= 0 && code <= 0x10ffff
   return withoutTags.replace(
     /&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g,
     (entity, ref) => {
       if (ref.startsWith('#x') || ref.startsWith('#X')) {
         const code = parseInt(ref.slice(2), 16)
-        return Number.isFinite(code) ? String.fromCodePoint(code) : entity
+        return isValidCodePoint(code) ? String.fromCodePoint(code) : entity
       }
       if (ref.startsWith('#')) {
         const code = parseInt(ref.slice(1), 10)
-        return Number.isFinite(code) ? String.fromCodePoint(code) : entity
+        return isValidCodePoint(code) ? String.fromCodePoint(code) : entity
       }
       return HTML_ENTITY_MAP[ref.toLowerCase()] ?? entity
     }

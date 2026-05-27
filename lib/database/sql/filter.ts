@@ -130,15 +130,17 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
           updatedAt: now
         })
 
-        for (const keyword of keywords) {
-          await trx('filter_keywords').insert({
-            id: randomUUID(),
-            filterId: filter.id,
-            keyword: keyword.keyword,
-            wholeWord: Boolean(keyword.wholeWord),
-            createdAt: now,
-            updatedAt: now
-          })
+        if (keywords.length > 0) {
+          await trx('filter_keywords').insert(
+            keywords.map((keyword) => ({
+              id: randomUUID(),
+              filterId: filter.id,
+              keyword: keyword.keyword,
+              wholeWord: Boolean(keyword.wholeWord),
+              createdAt: now,
+              updatedAt: now
+            }))
+          )
         }
       })
 
