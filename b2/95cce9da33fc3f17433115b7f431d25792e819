@@ -1,0 +1,21 @@
+yarn.lock
+  ai_agent 1171-1173,1175,1181,1185-1187,1189,1191,1195,1199-1201,1203,1205,1209-1211,1213,1219,1257-1259,1261,1270,1274-1276,1278,1281,5196,5690-5692,5694-5700,5708,5770,9694-9697
+package.json
+  s_02001dea55a810::t_f6e144486f7a76 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b295cce9da33fc3f17433115b7f431d25792e819",
+  "prompts": {},
+  "sessions": {
+    "s_02001dea55a810": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "0e4739b0-efd7-428c-971c-b1f05f06b241",
+        "model": "gpt-4.1"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
