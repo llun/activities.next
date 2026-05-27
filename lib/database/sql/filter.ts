@@ -4,6 +4,11 @@ import { randomUUID } from 'node:crypto'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
+  chunkArray,
+  getInsertBatchSize,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
+import {
   AddFilterKeywordParams,
   AddFilterStatusParams,
   CreateFilterParams,
@@ -131,16 +136,18 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
         })
 
         if (keywords.length > 0) {
-          await trx('filter_keywords').insert(
-            keywords.map((keyword) => ({
-              id: randomUUID(),
-              filterId: filter.id,
-              keyword: keyword.keyword,
-              wholeWord: Boolean(keyword.wholeWord),
-              createdAt: now,
-              updatedAt: now
-            }))
-          )
+          const rows = keywords.map((keyword) => ({
+            id: randomUUID(),
+            filterId: filter.id,
+            keyword: keyword.keyword,
+            wholeWord: Boolean(keyword.wholeWord),
+            createdAt: now,
+            updatedAt: now
+          }))
+          const batchSize = getInsertBatchSize(trx, rows[0])
+          for (const chunk of chunkArray(rows, batchSize)) {
+            await trx('filter_keywords').insert(chunk)
+          }
         }
       })
 
@@ -253,13 +260,17 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
       if (filters.length === 0) return []
 
       const filterIds = filters.map((filter) => filter.id)
-      const [keywordRows, statusRows] = await Promise.all([
-        database<FilterKeyword>('filter_keywords').whereIn(
-          'filterId',
-          filterIds
-        ),
-        database<FilterStatus>('filter_statuses').whereIn('filterId', filterIds)
-      ])
+      const batchSize = getWhereInBatchSize(database)
+      const keywordRows: FilterKeyword[] = []
+      const statusRows: FilterStatus[] = []
+      for (const chunk of chunkArray(filterIds, batchSize)) {
+        const [keywords, statuses] = await Promise.all([
+          database<FilterKeyword>('filter_keywords').whereIn('filterId', chunk),
+          database<FilterStatus>('filter_statuses').whereIn('filterId', chunk)
+        ])
+        keywordRows.push(...keywords)
+        statusRows.push(...statuses)
+      }
 
       const keywordsByFilter = new Map<string, FilterKeyword[]>()
       for (const keyword of keywordRows) {

@@ -18,7 +18,7 @@ const coerceBoolean = (value: unknown, defaultValue: boolean): boolean => {
 
 const coerceNullableNumber = (value: unknown): number | null | undefined => {
   if (value === null) return null
-  if (value === undefined || value === '') return undefined
+  if (value === undefined) return undefined
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
   if (typeof value === 'string') {
     const trimmed = value.trim()
