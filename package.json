@@ -65,7 +65,7 @@
     "@upstash/qstash": "^2.11.0",
     "@vercel/otel": "^2.1.1",
     "bcrypt": "^6.0.0",
-    "better-auth": "^1.6.9",
+    "better-auth": "1.6.11",
     "better-call": "2.0.3",
     "better-sqlite3": "^12.9.0",
     "class-variance-authority": "^0.7.1",

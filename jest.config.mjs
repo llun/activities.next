@@ -37,6 +37,14 @@ const customJestConfig = {
     '^@/(.*)$': '<rootDir>/$1',
     '^marked$': '<rootDir>/node_modules/marked/lib/marked.umd.js'
   },
+  testPathIgnorePatterns: [
+    '<rootDir>/.claude/',
+    '<rootDir>/.claire/',
+    '<rootDir>/coverage/',
+    '<rootDir>/node_modules/'
+  ],
+  modulePathIgnorePatterns: ['<rootDir>/.claude/', '<rootDir>/.claire/'],
+  watchPathIgnorePatterns: ['<rootDir>/.claude/', '<rootDir>/.claire/'],
   collectCoverageFrom: [
     'lib/**/*.{ts,tsx}',
     'app/**/*.{ts,tsx}',

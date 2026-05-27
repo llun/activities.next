@@ -465,7 +465,10 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 const filteredPointCount = countSegmentPoints(filteredSegments)
                 const boundedSegments =
                   filteredPointCount > routeHeatmapConfig.accumulationPointLimit
-                    ? downsampleSegmentsForCache(filteredSegments)
+                    ? downsampleSegmentsForCache(
+                        filteredSegments,
+                        routeHeatmapConfig.accumulationPointLimit
+                      )
                     : filteredSegments
 
                 if (boundedSegments.length > 0) {
