@@ -1,0 +1,20 @@
+lib/services/timelines/muteFilter.ts
+  s_f76ae70d59fde3::t_7b7cddcd8ce5d6 1-20,22-36
+  s_f76ae70d59fde3::t_a4c46a88a9119d 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c428ba16d98abfe3d3121a918c8c279a063d03b3",
+  "prompts": {},
+  "sessions": {
+    "s_f76ae70d59fde3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aa5c9d46-268d-4087-9d3f-220b5c731ed4",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
