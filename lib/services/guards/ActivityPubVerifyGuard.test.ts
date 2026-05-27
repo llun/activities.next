@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import crypto from 'node:crypto'
 
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 
 import { ActivityPubVerifySenderGuard } from './ActivityPubVerifyGuard'
 

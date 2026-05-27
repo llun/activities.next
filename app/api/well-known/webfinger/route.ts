@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { getWebFingerResponse } from '@/lib/services/wellknown'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
   ERROR_500,

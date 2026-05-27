@@ -5,7 +5,7 @@ import {
   downloadKnownDomainBlocklist
 } from '@/lib/services/federation/blocklistSources'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_422,

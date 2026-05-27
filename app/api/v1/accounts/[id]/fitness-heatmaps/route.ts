@@ -8,7 +8,7 @@ import {
 } from '@/app/api/v1/accounts/[id]/fitness-route-heatmaps/route'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { FitnessRouteHeatmapSummary } from '@/lib/types/database/fitnessRouteHeatmap'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse } from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]

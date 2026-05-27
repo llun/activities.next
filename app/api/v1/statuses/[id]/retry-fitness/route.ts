@@ -2,8 +2,8 @@ import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_403,

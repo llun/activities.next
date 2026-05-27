@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { NODE_SOFTWARE } from '@/lib/utils/version'

@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 
 import { SERVICE_NAME } from '@/lib/constants'
 
-import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
+import { HttpMethod, getCORSHeaders } from './http-headers'
 
 export const ERROR_500 = { status: 'Internal Server Error' }
 

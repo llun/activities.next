@@ -2,7 +2,7 @@ import { rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
   ERROR_500,

@@ -6,7 +6,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
   ERROR_500,
