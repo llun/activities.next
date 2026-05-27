@@ -249,7 +249,10 @@ export const createApplication = async (
           scopes: JSON.stringify(parsedScopes),
           redirectUris: JSON.stringify(redirectUris),
           uri: request.website || null,
-          requirePKCE: true,
+          // Mastodon /api/v1/apps has no PKCE-capability field; PKCE is opt-in
+          // at authorize-time via code_challenge. better-auth still enforces it
+          // when present, and for public clients regardless of this flag.
+          requirePKCE: false,
           disabled: false,
           grantTypes: JSON.stringify([
             'authorization_code',
