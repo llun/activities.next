@@ -1,8 +1,14 @@
+import { applyUnmute } from '@/lib/actions/applyUnmute'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_404,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -29,8 +35,26 @@ export const POST = traceApiRoute(
 
     const targetActorId = idToUrl(encodedAccountId)
 
-    // Unmuting not yet implemented - return relationship with muting: false
-    // TODO: Implement muting functionality
+    if (targetActorId !== currentActor.id) {
+      // deleteMute uses a raw lookup (no expiry filter) so expired rows are
+      // cleaned up too. If nothing was deleted, validate the actor exists.
+      const deleted = await applyUnmute({
+        database,
+        actorId: currentActor.id,
+        targetActorId
+      })
+
+      if (!deleted) {
+        const targetActor = await database.getActorFromId({ id: targetActorId })
+        if (!targetActor)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: 404
+          })
+      }
+    }
 
     const relationship = await getRelationship({
       database,

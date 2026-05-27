@@ -13,6 +13,7 @@ import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
+import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscription'
@@ -32,6 +33,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const fitnessSettingsDatabase = FitnessSettingsSQLDatabaseMixin(database)
   const bookmarkDatabase = BookmarkSQLDatabaseMixin(database)
   const blockDatabase = BlockSQLDatabaseMixin(database)
+  const muteDatabase = MuteSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
   const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
   const likeDatabase = LikeSQLDatabaseMixin(database)
@@ -73,6 +75,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...instanceActivityDatabase,
     ...bookmarkDatabase,
     ...blockDatabase,
+    ...muteDatabase,
     ...followerDatabase,
     ...likeDatabase,
     ...mediaDatabase,

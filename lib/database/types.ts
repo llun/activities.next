@@ -14,6 +14,7 @@ import {
   InstanceActivityDatabase,
   LikeDatabase,
   MediaDatabase,
+  MuteDatabase,
   NotificationDatabase,
   OAuthDatabase,
   PushSubscriptionDatabase,
@@ -31,6 +32,7 @@ export type Database = AccountDatabase &
   FitnessSettingsDatabase &
   StravaArchiveImportDatabase &
   BlockDatabase &
+  MuteDatabase &
   BookmarkDatabase &
   DirectConversationDatabase &
   FollowDatabase &
