@@ -23,13 +23,19 @@
 // CORS (per-request, route-handler layer)
 export { HttpMethod, getCORSHeaders } from './cors'
 
-// Static security headers (build-time, next.config layer)
+// Static security headers (static values, next.config layer)
 export { type SecurityHeader, getStaticSecurityHeaders } from './static'
 
 // Content Security Policy (per-request, middleware layer)
+// Note: proxy.ts and next.config.ts must import from ./csp and ./static
+// directly — the barrel pulls in cors.ts which transitively loads
+// @/lib/config (fs/path deps), breaking the Edge Runtime and build-time
+// isolation constraints. Test files may use this barrel freely.
 export {
   getContentSecurityPolicy,
   getContentSecurityPolicyHeader,
   getSecurityHeaders,
+  // test-only: throws outside a Jest worker; imported by proxy.test.ts and
+  // next.config.test.ts via this barrel
   resetContentSecurityPolicyCacheForTests
 } from './csp'

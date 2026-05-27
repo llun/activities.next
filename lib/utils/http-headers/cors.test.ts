@@ -18,6 +18,8 @@ describe('#getCORSHeaders', () => {
   })
 
   it('uses host-based origin when Origin header is not present', () => {
+    // Host header matches TEST_DOMAIN from the global @/lib/config mock in
+    // jest.setup.mjs; headerHost() trusts and returns it as the fallback origin.
     const headers = new Headers([['Host', 'test.llun.dev']])
     const result = getCORSHeaders(['GET'], headers)
 

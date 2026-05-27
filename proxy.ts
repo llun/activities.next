@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import { selectHeaderHost } from '@/lib/utils/host'
+// Direct sub-path import required: the barrel re-exports cors.ts which pulls
+// @/lib/config (fs/path deps) into the middleware Edge Runtime bundle.
 import { getContentSecurityPolicyHeader } from '@/lib/utils/http-headers/csp'
 
 export const config = {
