@@ -106,7 +106,14 @@ export const getMastodonNotification = async (
             return null
           }
           if (matches.length > 0) {
-            status = { ...mastodonStatus, filtered: matches }
+            if (mastodonStatus.reblog) {
+              status = {
+                ...mastodonStatus,
+                reblog: { ...mastodonStatus.reblog, filtered: matches }
+              }
+            } else {
+              status = { ...mastodonStatus, filtered: matches }
+            }
           } else {
             status = mastodonStatus
           }

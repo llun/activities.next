@@ -252,6 +252,10 @@ export const annotateMastodonStatusesWithFilters = (
       filteredByStatusId.get(status.id) ??
       filteredByStatusId.get(urlToId(status.id))
     if (!matches || matches.length === 0) return status
+    // For reblogs the filter result belongs on the inner content object
+    if (status.reblog) {
+      return { ...status, reblog: { ...status.reblog, filtered: matches } }
+    }
     return { ...status, filtered: matches }
   })
 }
