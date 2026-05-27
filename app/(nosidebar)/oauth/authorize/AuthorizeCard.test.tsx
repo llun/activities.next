@@ -68,6 +68,7 @@ describe('AuthorizeCard', () => {
   beforeEach(() => {
     mockPush.mockReset()
     mockNavigate.mockReset()
+    window.history.replaceState({}, '', 'https://activities.local/')
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({})
@@ -79,6 +80,23 @@ describe('AuthorizeCard', () => {
   })
 
   it('submits selected Phanpy scopes with the signed Better Auth query', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      'https://activities.local/oauth/authorize?' +
+        'response_type=code' +
+        '&client_id=phanpy-client' +
+        '&redirect_uri=not-a-url' +
+        '&scope=read+write+follow+push' +
+        '&state=return-state' +
+        '&code_challenge=challenge' +
+        '&code_challenge_method=S256' +
+        '&exp=1779800000' +
+        '&ba_iat=1779800000000' +
+        '&ba_pl=payload' +
+        '&sig=signed-query'
+    )
+
     render(
       <AuthorizeCard
         client={client}
@@ -121,8 +139,11 @@ describe('AuthorizeCard', () => {
     expect(oauthQuery.get('state')).toBe('return-state')
     expect(oauthQuery.get('code_challenge')).toBe('challenge')
     expect(oauthQuery.get('code_challenge_method')).toBe('S256')
+    expect(oauthQuery.get('ba_iat')).toBe('1779800000000')
+    expect(oauthQuery.get('ba_pl')).toBe('payload')
     expect(oauthQuery.get('sig')).toBe('signed-query')
     expect(oauthQuery.get('exp')).toBe('1779800000')
+    expect(body.oauth_query).toBe(window.location.search.slice(1))
   })
 
   it('persists the selected actor before approving consent', async () => {
@@ -194,6 +215,13 @@ describe('AuthorizeCard', () => {
         url: '/oauth/callback?code=oauth-code'
       })
     ).toBeUndefined()
+
+    expect(
+      getConsentRedirectUrl({
+        redirect: true,
+        url: 'mastodon://joinmastodon.org/oauth?code=oauth-code'
+      })
+    ).toBe('mastodon://joinmastodon.org/oauth?code=oauth-code')
   })
 
   it('submits denial with the signed Better Auth query and follows url redirects', async () => {
