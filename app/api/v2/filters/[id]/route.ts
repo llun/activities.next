@@ -12,9 +12,9 @@ import { getMastodonFilter } from '@/lib/services/mastodon/getMastodonFilter'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
+  ERROR_404,
   ERROR_422,
   HTTP_STATUS,
-  apiErrorResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -43,7 +43,13 @@ export const GET = traceApiRoute(
         actorId: currentActor.id,
         id
       })
-      if (!filter) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      if (!filter)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
       const data = await getMastodonFilter(database, filter)
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
     }
@@ -85,7 +91,13 @@ export const PUT = traceApiRoute(
         expiresAt: input.expiresAt,
         keywords: input.keywords
       })
-      if (!updated) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      if (!updated)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
       const data = await getMastodonFilter(database, updated)
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
     }
@@ -102,7 +114,13 @@ export const DELETE = traceApiRoute(
         actorId: currentActor.id,
         id
       })
-      if (!deleted) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      if (!deleted)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )

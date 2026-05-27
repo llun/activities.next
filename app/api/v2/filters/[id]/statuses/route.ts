@@ -12,9 +12,9 @@ import { getMastodonFilterStatus } from '@/lib/services/mastodon/getMastodonFilt
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
+  ERROR_404,
   ERROR_422,
   HTTP_STATUS,
-  apiErrorResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -42,7 +42,13 @@ export const GET = traceApiRoute(
         actorId: currentActor.id,
         filterId: id
       })
-      if (!statuses) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      if (!statuses)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -83,7 +89,13 @@ export const POST = traceApiRoute(
         filterId: id,
         statusId
       })
-      if (!filterStatus) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      if (!filterStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

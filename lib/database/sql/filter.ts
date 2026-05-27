@@ -310,12 +310,21 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
         createdAt: now.getTime(),
         updatedAt: now.getTime()
       }
-      await database('filter_keywords').insert({
-        ...row,
-        createdAt: now,
-        updatedAt: now
-      })
-      return row
+      try {
+        await database('filter_keywords').insert({
+          ...row,
+          createdAt: now,
+          updatedAt: now
+        })
+        return row
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) throw error
+        const existing = await database<FilterKeyword>('filter_keywords')
+          .where({ filterId, keyword })
+          .first()
+        if (!existing) throw error
+        return fixKeywordRow(existing)
+      }
     },
 
     async getFilterKeywords({ actorId, filterId }: GetFilterKeywordsParams) {

@@ -24,6 +24,9 @@ exports.up = async (knex) => {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
+    table.unique(['filterId', 'keyword'], {
+      indexName: 'filter_keywords_filter_keyword_unique'
+    })
     table.index(['filterId'], 'filter_keywords_filter_id')
   })
 
