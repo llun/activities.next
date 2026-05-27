@@ -33,8 +33,9 @@ export const POST = traceApiRoute(
     if (targetActorId !== currentActor.id) {
       const body = await req.json().catch(() => ({}))
       const notifications: boolean = body.notifications !== false
-      const durationSeconds =
-        typeof body.duration === 'number' ? body.duration : 0
+      const rawDuration =
+        typeof body.duration === 'number' ? Math.floor(body.duration) : 0
+      const durationSeconds = rawDuration > 0 ? rawDuration : 0
       const endsAt =
         durationSeconds > 0 ? Date.now() + durationSeconds * 1000 : null
       await applyMute({

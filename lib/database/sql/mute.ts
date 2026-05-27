@@ -17,7 +17,10 @@ import { Mute } from '@/lib/types/domain/mute'
 const fixMuteDataDate = (data: Mute): Mute => ({
   ...data,
   notifications: Boolean(data.notifications),
-  endsAt: data.endsAt ? Number(data.endsAt) : null,
+  endsAt:
+    data.endsAt !== null && data.endsAt !== undefined
+      ? Number(data.endsAt)
+      : null,
   createdAt: getCompatibleTime(data.createdAt),
   updatedAt: getCompatibleTime(data.updatedAt)
 })
