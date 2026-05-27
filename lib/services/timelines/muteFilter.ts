@@ -19,6 +19,8 @@ export const filterMutedStatuses = async (
     actorIds: [actorId],
     targetActorIds
   })
+  if (relations.length === 0) return statuses
+
   const mutedTargetIds = new Set(
     relations.map((relation) => relation.targetActorId)
   )
