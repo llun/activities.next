@@ -250,6 +250,9 @@ export const parseFilterUpdateInput = (
   if (!parsed.success) return null
   const data = parsed.data
 
+  if (data.title !== undefined && data.title.length === 0) return null
+  if (data.context !== undefined && data.context.length === 0) return null
+
   const expiresAt = resolveExpiresAt(data.expires_in, data.expires_at, now)
   if (expiresAt === INVALID_EXPIRES) return null
   const keywords = parseUpdateKeywords(data.keywords_attributes)
