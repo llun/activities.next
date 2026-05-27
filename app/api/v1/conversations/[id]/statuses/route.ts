@@ -49,23 +49,53 @@ export const GET = traceApiRoute(
         'home'
       )
 
-      const statusesPage = await database.getDirectConversationStatuses({
-        actorId: currentActor.id,
-        conversationId: id,
-        limit: limit + 1,
-        minStatusId,
-        maxStatusId
-      })
-      const visibleStatuses = dropHideMatchesFromStatuses(
-        statusesPage,
-        filterRecords
-      )
+      // Backfill loop: when hide filters drop rows we re-query past the last
+      // scanned id until we either fill the requested page (with a peek row
+      // so we can advertise next), exhaust the conversation, or hit the
+      // iteration cap.
+      type ConversationStatus = Awaited<
+        ReturnType<typeof database.getDirectConversationStatuses>
+      >[number]
+      const MAX_BACKFILL_ITERATIONS = 5
+      const visibleStatuses: ConversationStatus[] = []
+      let cursor: string | null = maxStatusId
+      let exhausted = false
+      let lastScannedStatusId: string | null = null
+
+      for (
+        let iteration = 0;
+        visibleStatuses.length <= limit && iteration < MAX_BACKFILL_ITERATIONS;
+        iteration++
+      ) {
+        const batch = await database.getDirectConversationStatuses({
+          actorId: currentActor.id,
+          conversationId: id,
+          limit: limit + 1,
+          minStatusId,
+          maxStatusId: cursor
+        })
+        if (batch.length === 0) {
+          exhausted = true
+          break
+        }
+        const filtered = dropHideMatchesFromStatuses(batch, filterRecords)
+        visibleStatuses.push(...filtered)
+        cursor = batch[batch.length - 1].id
+        lastScannedStatusId = cursor
+        if (batch.length < limit + 1) {
+          exhausted = true
+          break
+        }
+      }
+
       const hasMoreStatuses = visibleStatuses.length > limit
       const statuses = visibleStatuses.slice(0, limit)
-      const nextMaxStatusId =
-        hasMoreStatuses && statuses.length > 0
-          ? statuses[statuses.length - 1].id
-          : null
+      let nextMaxStatusId: string | null = null
+      if (hasMoreStatuses && statuses.length > 0) {
+        nextMaxStatusId = statuses[statuses.length - 1].id
+      } else if (!exhausted && lastScannedStatusId) {
+        nextMaxStatusId = lastScannedStatusId
+      }
       const prevMinStatusId = statuses.length > 0 ? statuses[0].id : null
 
       if (

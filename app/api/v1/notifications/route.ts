@@ -190,8 +190,10 @@ export const GET = traceApiRoute(
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
 
-    // Derive pagination from the raw notifications page so that an entire
-    // page being hidden by filters still advertises a next cursor.
+    // Pagination cursors come from the notification page scanned from the
+    // DB (post account_id filter, but pre hide-filter / pre groupedAccount
+    // hydration) so that pages whose statuses are entirely hide-filtered
+    // still advertise next/prev links to keep the client paginating.
     const paginationCandidates = filteredNotifications
     const nextLink =
       paginationCandidates.length > 0
