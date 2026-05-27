@@ -259,6 +259,136 @@ describe('MuteDatabase', () => {
     ).resolves.toBe(false)
   })
 
+  describe('getMutes', () => {
+    const muteActorId = () =>
+      `https://remote.test/users/list-muter-${crypto.randomUUID()}`
+
+    it('returns mutes for the actor ordered by newest first', async () => {
+      const actorId = muteActorId()
+      const bob = targetActorId()
+      const carol = targetActorId()
+
+      await database.createMute({
+        actorId,
+        targetActorId: bob,
+        notifications: true,
+        endsAt: null
+      })
+      // Ensure deterministic createdAt ordering even on fast clocks.
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      await database.createMute({
+        actorId,
+        targetActorId: carol,
+        notifications: false,
+        endsAt: null
+      })
+
+      const mutes = await database.getMutes({ actorId })
+      expect(mutes).toHaveLength(2)
+      expect(mutes[0].targetActorId).toBe(carol)
+      expect(mutes[1].targetActorId).toBe(bob)
+    })
+
+    it('omits expired mutes', async () => {
+      const actorId = muteActorId()
+      const target = targetActorId()
+      await knexDatabase('mutes').insert({
+        id: crypto.randomUUID(),
+        actorId,
+        actorHost: new URL(actorId).host,
+        targetActorId: target,
+        targetActorHost: new URL(target).host,
+        notifications: true,
+        endsAt: Date.now() - 1000,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+
+      const mutes = await database.getMutes({ actorId })
+      expect(mutes).toHaveLength(0)
+    })
+
+    it('honors limit and max_id pagination', async () => {
+      const actorId = muteActorId()
+      const targets: string[] = []
+      for (let index = 0; index < 3; index += 1) {
+        const target = targetActorId()
+        targets.push(target)
+        await database.createMute({
+          actorId,
+          targetActorId: target,
+          notifications: true,
+          endsAt: null
+        })
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+
+      const firstPage = await database.getMutes({ actorId, limit: 2 })
+      expect(firstPage).toHaveLength(2)
+
+      const secondPage = await database.getMutes({
+        actorId,
+        limit: 2,
+        maxId: firstPage[firstPage.length - 1].id
+      })
+      expect(secondPage).toHaveLength(1)
+      expect(secondPage[0].id).not.toBe(firstPage[1].id)
+      // Newest first means oldest mute is on the second page.
+      expect(secondPage[0].targetActorId).toBe(targets[0])
+    })
+
+    it('returns earlier rows ascending when min_id is set', async () => {
+      const actorId = muteActorId()
+      const targets: string[] = []
+      for (let index = 0; index < 3; index += 1) {
+        const target = targetActorId()
+        targets.push(target)
+        await database.createMute({
+          actorId,
+          targetActorId: target,
+          notifications: true,
+          endsAt: null
+        })
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+
+      const allDescending = await database.getMutes({ actorId })
+      // allDescending order: [targets[2], targets[1], targets[0]]
+      const oldest = allDescending[allDescending.length - 1]
+      const newerPage = await database.getMutes({
+        actorId,
+        minId: oldest.id
+      })
+      expect(newerPage).toHaveLength(2)
+      // min_id returns rows newer than cursor, newest first to match other pages.
+      expect(newerPage.map((mute) => mute.targetActorId)).toEqual([
+        targets[2],
+        targets[1]
+      ])
+    })
+
+    it('filters out other actors mutes', async () => {
+      const actorA = muteActorId()
+      const actorB = muteActorId()
+      await database.createMute({
+        actorId: actorA,
+        targetActorId: targetActorId(),
+        notifications: true,
+        endsAt: null
+      })
+      await database.createMute({
+        actorId: actorB,
+        targetActorId: targetActorId(),
+        notifications: true,
+        endsAt: null
+      })
+
+      const mutes = await database.getMutes({ actorId: actorA })
+      expect(mutes).toHaveLength(1)
+      expect(mutes[0].actorId).toBe(actorA)
+    })
+  })
+
   it('getMuteRelations excludes expired mutes', async () => {
     const actorId = `https://remote.test/users/expiry-${crypto.randomUUID()}`
     const expiredTarget = targetActorId()
