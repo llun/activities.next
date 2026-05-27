@@ -70,6 +70,7 @@ const collectFormBody = async (req: NextRequest): Promise<RawBody> => {
   const formData = await req.formData()
   const body: RawBody = {}
   const keywordsByIndex = new Map<number, Record<string, unknown>>()
+  let unindexedKeywordCounter = 0
 
   for (const [rawKey, rawValue] of formData.entries()) {
     if (typeof rawValue !== 'string') continue
@@ -83,6 +84,7 @@ const collectFormBody = async (req: NextRequest): Promise<RawBody> => {
       continue
     }
 
+    // Indexed form: keywords_attributes[0][keyword]
     const keywordMatch = key.match(/^keywords_attributes\[(\d+)\]\[(\w+)\]$/)
     if (keywordMatch) {
       const idx = Number(keywordMatch[1])
@@ -90,6 +92,25 @@ const collectFormBody = async (req: NextRequest): Promise<RawBody> => {
       const bucket = keywordsByIndex.get(idx) ?? {}
       bucket[field] = rawValue
       keywordsByIndex.set(idx, bucket)
+      continue
+    }
+
+    // Unindexed form: keywords_attributes[][keyword]
+    const unindexedMatch = key.match(/^keywords_attributes\[\]\[(\w+)\]$/)
+    if (unindexedMatch) {
+      const field = unindexedMatch[1]
+      // Each new 'keyword' field starts a new entry; other fields append to the last
+      if (field === 'keyword') {
+        const bucket: Record<string, unknown> = { keyword: rawValue }
+        keywordsByIndex.set(unindexedKeywordCounter++, bucket)
+      } else {
+        const lastIdx = unindexedKeywordCounter - 1
+        if (lastIdx >= 0) {
+          const bucket = keywordsByIndex.get(lastIdx) ?? {}
+          bucket[field] = rawValue
+          keywordsByIndex.set(lastIdx, bucket)
+        }
+      }
       continue
     }
 

@@ -15,8 +15,8 @@ import {
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
+  ERROR_422,
   HTTP_STATUS,
-  apiErrorResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -53,11 +53,21 @@ export const POST = traceApiRoute(
       try {
         rawBody = await parseFilterBody(req)
       } catch {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
       }
       const input = parseFilterCreateInput(rawBody)
       if (!input) {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
       }
 
       const filter = await database.createFilter({

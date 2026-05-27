@@ -131,7 +131,7 @@ describe('applyFiltersToStatus', () => {
     const status = buildStatusNote(statusId, 'no keywords here')
     const results = applyFiltersToStatus(status, records)
     expect(results).toHaveLength(1)
-    expect(results[0].status_matches).toEqual(['fs1'])
+    expect(results[0].status_matches).toEqual([statusId])
   })
 
   it('returns no matches when none of the keywords or status ids hit', () => {

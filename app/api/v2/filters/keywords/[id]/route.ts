@@ -12,6 +12,7 @@ import { getMastodonFilterKeyword } from '@/lib/services/mastodon/getMastodonFil
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
+  ERROR_422,
   HTTP_STATUS,
   apiErrorResponse,
   apiResponse,
@@ -62,10 +63,21 @@ export const PUT = traceApiRoute(
       try {
         rawBody = await parseFilterBody(req)
       } catch {
-        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
       }
       const input = parseKeywordUpdateInput(rawBody)
-      if (!input) return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      if (!input)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
 
       const keyword = await database.updateFilterKeyword({
         actorId: currentActor.id,

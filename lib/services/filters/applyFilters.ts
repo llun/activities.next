@@ -172,7 +172,7 @@ const matchFilter = (
       candidateIdSet.has(filterStatus.statusId) ||
       candidateIdSet.has(urlToId(filterStatus.statusId))
     ) {
-      statusMatches.push(filterStatus.id)
+      statusMatches.push(filterStatus.statusId)
     }
   }
 
