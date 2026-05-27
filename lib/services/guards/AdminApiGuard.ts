@@ -5,7 +5,7 @@ import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 
 import { AppRouterParams } from './types'

@@ -1,8 +1,6 @@
 import { getSecurityHeaderConfig } from '@/lib/config/securityHeaders'
-import {
-  type SecurityHeader,
-  getStaticSecurityHeaders
-} from '@/lib/utils/staticSecurityHeaders'
+
+import { type SecurityHeader, getStaticSecurityHeaders } from './static'
 
 const MAPBOX_CSP_SOURCES = [
   'https://api.mapbox.com',

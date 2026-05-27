@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { toPublicDomainBlock } from '@/lib/services/federation/domainRules'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 

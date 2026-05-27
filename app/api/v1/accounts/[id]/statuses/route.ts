@@ -10,7 +10,7 @@ import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_404,

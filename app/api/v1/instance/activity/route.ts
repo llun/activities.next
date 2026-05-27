@@ -1,5 +1,5 @@
 import { getDatabase } from '@/lib/database'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_500,
   HTTP_STATUS,

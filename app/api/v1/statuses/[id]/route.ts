@@ -14,7 +14,7 @@ import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_403,

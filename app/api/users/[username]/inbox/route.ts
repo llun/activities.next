@@ -25,7 +25,7 @@ import {
   Undo
 } from '@/lib/types/activitypub'
 import { normalizeActorId } from '@/lib/utils/activitypub'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   DEFAULT_202,

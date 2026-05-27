@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,

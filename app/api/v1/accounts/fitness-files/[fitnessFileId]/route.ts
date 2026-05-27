@@ -1,7 +1,7 @@
 import { enqueueFitnessRouteHeatmapJobs } from '@/lib/jobs/enqueueFitnessRouteHeatmapJobs'
 import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/services/fitness-files'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,

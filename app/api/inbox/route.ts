@@ -3,7 +3,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_202,
   ERROR_400,

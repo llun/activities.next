@@ -5,9 +5,9 @@ import path from 'path'
 import { getImageRemotePatterns } from '@/lib/config/nextImageRemotePatterns'
 import {
   getContentSecurityPolicy,
-  getSecurityHeaders,
-  resetContentSecurityPolicyCacheForTests
-} from '@/lib/utils/securityHeaders'
+  getSecurityHeaders
+} from '@/lib/utils/http-headers'
+import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/http-headers/csp'
 
 import nextConfig from './next.config'
 

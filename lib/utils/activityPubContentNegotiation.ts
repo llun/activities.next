@@ -6,7 +6,7 @@ import {
   parseAcceptContentTypes
 } from '@/lib/utils/acceptContentTypes'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse } from '@/lib/utils/response'
 
 export const ACTIVITYPUB_CONTENT_TYPE = 'application/activity+json'

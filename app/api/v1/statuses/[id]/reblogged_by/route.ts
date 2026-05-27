@@ -4,7 +4,7 @@ import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { type RebloggedByAccount, Scope } from '@/lib/types/database/operations'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_404,

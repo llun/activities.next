@@ -5,7 +5,7 @@
  */
 import { sendLike, sendUndoLike } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_202,
   ERROR_400,

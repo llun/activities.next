@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getHostMetaXML } from '@/lib/services/wellknown'
-import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod, getCORSHeaders } from '@/lib/utils/http-headers'
 import { defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 

@@ -4,8 +4,8 @@ import { z } from 'zod'
 import { DomainAllowRequest } from '@/app/api/v1/admin/domain_allows/schema'
 import { toAdminDomainAllow } from '@/lib/services/federation/domainRules'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_422,

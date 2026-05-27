@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,

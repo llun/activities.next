@@ -20,7 +20,7 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { normalizeActorId } from '@/lib/utils/activitypub'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,

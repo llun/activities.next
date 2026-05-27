@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Database } from '@/lib/database/types'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 
 import { AdminApiGuard } from './AdminApiGuard'
 

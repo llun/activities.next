@@ -3,7 +3,7 @@ import { FollowRequest } from '@/lib/activities/followAction'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
   ERROR_500,

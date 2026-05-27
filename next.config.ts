@@ -1,7 +1,9 @@
 import type { NextConfig } from 'next'
 
 import { getImageRemotePatterns } from '@/lib/config/nextImageRemotePatterns'
-import { getStaticSecurityHeaders } from '@/lib/utils/staticSecurityHeaders'
+// Direct sub-path import required: the barrel loads csp.ts which reads
+// deployment env vars at call time, violating build-time isolation rules.
+import { getStaticSecurityHeaders } from '@/lib/utils/http-headers/static'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

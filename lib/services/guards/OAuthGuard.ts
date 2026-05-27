@@ -8,7 +8,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
@@ -238,7 +238,7 @@ const resolveAuthenticatedContext = async <P>({
       // Extract actorId: from JWT claims or from stored referenceId (opaque)
       const actorId = jwtPayload
         ? (jwtPayload.actorId as string | null)
-        : ((storedToken.referenceId as string | null) || null)
+        : (storedToken.referenceId as string | null) || null
 
       if (!actorId) {
         return { authenticated: false, response: apiErrorResponse(401) }
