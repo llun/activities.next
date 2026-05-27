@@ -145,10 +145,7 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
     return true
   },
 
-  async getMuteRelations({
-    actorIds,
-    targetActorIds
-  }: GetMuteRelationsParams) {
+  async getMuteRelations({ actorIds, targetActorIds }: GetMuteRelationsParams) {
     const uniqueActorIds = [...new Set(actorIds)]
     const uniqueTargetActorIds = [...new Set(targetActorIds)]
 

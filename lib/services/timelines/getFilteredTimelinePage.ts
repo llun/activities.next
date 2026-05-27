@@ -4,6 +4,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { Status } from '@/lib/types/domain/status'
 
 import { filterBlockedStatuses } from './blockFilter'
+import { filterMutedStatuses } from './muteFilter'
 
 export const MAX_TIMELINE_LIMIT = 80
 export const MAX_BACKFILL_ITERATIONS = 5
@@ -57,7 +58,16 @@ export const getFilteredStatusPage = async ({
       break
     }
 
-    const filteredBatch = await filterBlockedStatuses(database, actorId, batch)
+    const blockFilteredBatch = await filterBlockedStatuses(
+      database,
+      actorId,
+      batch
+    )
+    const filteredBatch = await filterMutedStatuses(
+      database,
+      actorId,
+      blockFilteredBatch
+    )
     statuses.push(...filteredBatch)
     cursor = batch[batch.length - 1].id
     lastScannedStatusId = cursor

@@ -284,6 +284,136 @@ describe('Create note action', () => {
       }
     })
 
+    it('does not create mention notification or alert when mentioned actor mutes source with notifications=true', async () => {
+      await clearSettledNotificationAlerts()
+      await database.createMute({
+        actorId: actor2.id,
+        targetActorId: actor1.id,
+        notifications: true,
+        endsAt: null
+      })
+
+      try {
+        const status = (await createNoteFromUserInput({
+          text: '@test2@llun.test muted mention with notifications',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        const notifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          notifications.filter(
+            (notification) => notification.statusId === status.id
+          )
+        ).toHaveLength(0)
+        expect(mockSendNotificationAlerts).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: status.id
+          })
+        )
+      } finally {
+        await database.deleteMute({
+          actorId: actor2.id,
+          targetActorId: actor1.id
+        })
+      }
+    })
+
+    it('creates mention notification when mute has notifications=false', async () => {
+      await clearSettledNotificationAlerts()
+      await database.createMute({
+        actorId: actor2.id,
+        targetActorId: actor1.id,
+        notifications: false,
+        endsAt: null
+      })
+
+      try {
+        const status = (await createNoteFromUserInput({
+          text: '@test2@llun.test muted mention without notifications',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        const notifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          notifications.filter(
+            (notification) => notification.statusId === status.id
+          )
+        ).toHaveLength(1)
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: status.id
+          })
+        )
+      } finally {
+        await database.deleteMute({
+          actorId: actor2.id,
+          targetActorId: actor1.id
+        })
+      }
+    })
+
+    it('does not create reply notification when reply target mutes source with notifications=true', async () => {
+      await clearSettledNotificationAlerts()
+      const originalStatus = (await createNoteFromUserInput({
+        text: 'Original post from actor2 for mute reply test',
+        currentActor: actor2,
+        database
+      })) as StatusNote
+
+      await database.createMute({
+        actorId: actor2.id,
+        targetActorId: actor1.id,
+        notifications: true,
+        endsAt: null
+      })
+
+      try {
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Muted reply',
+          currentActor: actor1,
+          replyNoteId: originalStatus.id,
+          database
+        })) as StatusNote
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        const notifications = await database.getNotifications({
+          actorId: actor2.id,
+          limit: 100
+        })
+        expect(
+          notifications.filter(
+            (notification) => notification.statusId === replyStatus.id
+          )
+        ).toHaveLength(0)
+        expect(mockSendNotificationAlerts).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: replyStatus.id
+          })
+        )
+      } finally {
+        await database.deleteMute({
+          actorId: actor2.id,
+          targetActorId: actor1.id
+        })
+      }
+    })
+
     it('linkfy and paragraph status text', async () => {
       const text = `
 @test2@llun.test Hello, test2

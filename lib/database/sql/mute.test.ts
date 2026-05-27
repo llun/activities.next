@@ -44,7 +44,9 @@ describe('MuteDatabase', () => {
     expect(mute.targetActorId).toBe(target)
     expect(mute.notifications).toBe(true)
     expect(mute.endsAt).toBeNull()
-    expect(await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })).toBe(true)
+    expect(
+      await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
+    ).toBe(true)
   })
 
   it('updates notifications and endsAt when re-muting the same target', async () => {
@@ -68,7 +70,10 @@ describe('MuteDatabase', () => {
     expect(updated.notifications).toBe(false)
     expect(updated.endsAt).toBe(endsAt)
 
-    const fetched = await database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
+    const fetched = await database.getMute({
+      actorId: ACTOR1_ID,
+      targetActorId: target
+    })
     expect(fetched?.notifications).toBe(false)
     expect(fetched?.endsAt).toBe(endsAt)
   })
@@ -89,7 +94,9 @@ describe('MuteDatabase', () => {
     })
 
     expect(deleted?.id).toBe(created.id)
-    expect(await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })).toBe(false)
+    expect(
+      await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
+    ).toBe(false)
   })
 
   it('returns null when deleting a non-existent mute', async () => {
@@ -199,7 +206,10 @@ describe('MuteDatabase', () => {
     expect(remute.notifications).toBe(false)
     expect(remute.endsAt).toBeNull()
     // Only one row should exist
-    const count = await knexDatabase('mutes').where({ actorId: ACTOR1_ID, targetActorId: target }).count('id as n').first()
+    const count = await knexDatabase('mutes')
+      .where({ actorId: ACTOR1_ID, targetActorId: target })
+      .count('id as n')
+      .first()
     expect(Number(count?.n)).toBe(1)
     // And getMute now sees it as active
     await expect(
