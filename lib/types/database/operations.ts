@@ -7,6 +7,13 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
+import {
+  Filter,
+  FilterAction,
+  FilterContext,
+  FilterKeyword,
+  FilterStatus
+} from '@/lib/types/domain/filter'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Mute } from '@/lib/types/domain/mute'
 import { Session } from '@/lib/types/domain/session'
@@ -1025,6 +1032,150 @@ export interface MuteDatabase {
 }
 
 // ============================================================================
+// Filter Database
+// ============================================================================
+
+export type CreateFilterKeywordInput = {
+  keyword: string
+  wholeWord?: boolean
+}
+
+export type UpdateFilterKeywordInput = {
+  id?: string
+  keyword?: string
+  wholeWord?: boolean
+  _destroy?: boolean
+}
+
+export type CreateFilterParams = {
+  actorId: string
+  title: string
+  context: FilterContext[]
+  filterAction: FilterAction
+  expiresAt: number | null
+  keywords?: CreateFilterKeywordInput[]
+}
+
+export type GetFiltersParams = {
+  actorId: string
+}
+
+export type GetFilterParams = {
+  actorId: string
+  id: string
+}
+
+export type UpdateFilterParams = {
+  actorId: string
+  id: string
+  title?: string
+  context?: FilterContext[]
+  filterAction?: FilterAction
+  expiresAt?: number | null
+  keywords?: UpdateFilterKeywordInput[]
+}
+
+export type DeleteFilterParams = {
+  actorId: string
+  id: string
+}
+
+export type GetActiveFiltersForActorParams = {
+  actorId: string
+  context?: FilterContext
+}
+
+export type ActiveFilterRecord = {
+  filter: Filter
+  keywords: FilterKeyword[]
+  statuses: FilterStatus[]
+}
+
+export type AddFilterKeywordParams = {
+  actorId: string
+  filterId: string
+  keyword: string
+  wholeWord?: boolean
+}
+
+export type GetFilterKeywordsParams = {
+  actorId: string
+  filterId: string
+}
+
+export type GetFilterKeywordParams = {
+  actorId: string
+  id: string
+}
+
+export type UpdateFilterKeywordParams = {
+  actorId: string
+  id: string
+  keyword?: string
+  wholeWord?: boolean
+}
+
+export type DeleteFilterKeywordParams = {
+  actorId: string
+  id: string
+}
+
+export type AddFilterStatusParams = {
+  actorId: string
+  filterId: string
+  statusId: string
+}
+
+export type GetFilterStatusesParams = {
+  actorId: string
+  filterId: string
+}
+
+export type GetFilterStatusParams = {
+  actorId: string
+  id: string
+}
+
+export type DeleteFilterStatusParams = {
+  actorId: string
+  id: string
+}
+
+export interface FilterDatabase {
+  createFilter(params: CreateFilterParams): Promise<Filter>
+  getFilters(params: GetFiltersParams): Promise<Filter[]>
+  getFilter(params: GetFilterParams): Promise<Filter | null>
+  updateFilter(params: UpdateFilterParams): Promise<Filter | null>
+  deleteFilter(params: DeleteFilterParams): Promise<Filter | null>
+  getActiveFiltersForActor(
+    params: GetActiveFiltersForActorParams
+  ): Promise<ActiveFilterRecord[]>
+  addFilterKeyword(
+    params: AddFilterKeywordParams
+  ): Promise<FilterKeyword | null>
+  getFilterKeywords(
+    params: GetFilterKeywordsParams
+  ): Promise<FilterKeyword[] | null>
+  getFilterKeyword(
+    params: GetFilterKeywordParams
+  ): Promise<FilterKeyword | null>
+  updateFilterKeyword(
+    params: UpdateFilterKeywordParams
+  ): Promise<FilterKeyword | null>
+  deleteFilterKeyword(
+    params: DeleteFilterKeywordParams
+  ): Promise<FilterKeyword | null>
+  addFilterStatus(params: AddFilterStatusParams): Promise<FilterStatus | null>
+  getFilterStatuses(
+    params: GetFilterStatusesParams
+  ): Promise<FilterStatus[] | null>
+  getFilterStatus(params: GetFilterStatusParams): Promise<FilterStatus | null>
+  deleteFilterStatus(
+    params: DeleteFilterStatusParams
+  ): Promise<FilterStatus | null>
+}
+
+// ============================================================================
 // Like Database
 // ============================================================================
 
@@ -1335,6 +1486,7 @@ export const Scope = z.enum([
   'read:accounts',
   'read:bookmarks',
   'read:conversations',
+  'read:filters',
   'read:search',
   'read:statuses',
   'write',
@@ -1342,6 +1494,7 @@ export const Scope = z.enum([
   'write:bookmarks',
   'write:statuses',
   'write:conversations',
+  'write:filters',
   'follow',
   'push'
 ])
@@ -1355,6 +1508,7 @@ export const UsableScopes = [
   Scope.enum['read:accounts'],
   Scope.enum['read:bookmarks'],
   Scope.enum['read:conversations'],
+  Scope.enum['read:filters'],
   Scope.enum['read:search'],
   Scope.enum['read:statuses'],
   Scope.enum.write,
@@ -1362,6 +1516,7 @@ export const UsableScopes = [
   Scope.enum['write:bookmarks'],
   Scope.enum['write:statuses'],
   Scope.enum['write:conversations'],
+  Scope.enum['write:filters'],
   Scope.enum.follow,
   Scope.enum.push
 ]

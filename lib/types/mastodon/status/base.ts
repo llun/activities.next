@@ -129,8 +129,10 @@ export const BaseStatus = z.object({
       'If the current token has an authorized user: Have you pinned this status? Only appears if the status is pinnable'
     )
     .optional(),
-  filtered: FilterResult.optional().describe(
-    'If the current token has an authorized user: The filter and keywords that matched this status'
-  )
+  filtered: FilterResult.array()
+    .optional()
+    .describe(
+      'If the current token has an authorized user: The filters and keywords that matched this status'
+    )
 })
 export type BaseStatus = z.infer<typeof BaseStatus>

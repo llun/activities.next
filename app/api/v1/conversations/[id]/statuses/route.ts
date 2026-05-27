@@ -1,4 +1,8 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import {
+  annotateMastodonStatusesWithFilters,
+  getActiveFilters
+} from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
@@ -79,11 +83,21 @@ export const GET = traceApiRoute(
         statuses,
         currentActor.id
       )
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor.id,
+        'home'
+      )
+      const annotatedStatuses = annotateMastodonStatusesWithFilters(
+        mastodonStatuses,
+        statuses,
+        filterRecords
+      )
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses,
+        data: annotatedStatuses,
         additionalHeaders: [
           ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
         ]

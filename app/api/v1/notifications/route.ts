@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
@@ -143,13 +144,20 @@ export const GET = traceApiRoute(
         )
       : processedNotifications
 
+    const filterRecords = await getActiveFilters(
+      database,
+      currentActor.id,
+      'notifications'
+    )
+
     // Transform to Mastodon-compatible format
     const mastodonNotifications = (
       await Promise.all(
         filteredNotifications.map((notification) =>
           getMastodonNotification(database, notification, {
             includeGrouping: grouped,
-            currentActorId: currentActor.id
+            currentActorId: currentActor.id,
+            filterRecords
           })
         )
       )
