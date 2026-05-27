@@ -21,8 +21,13 @@ export const ProfileRelationshipActions: FC<
   <div className="flex flex-wrap gap-2">
     {!isBlockedRelationship(relationship) ? (
       <>
-        <FollowAction targetActorId={targetActorId} isLoggedIn={isLoggedIn} />
+        <FollowAction
+          key={`follow-${targetActorId}`}
+          targetActorId={targetActorId}
+          isLoggedIn={isLoggedIn}
+        />
         <MuteAction
+          key={`mute-${targetActorId}`}
           targetActorId={targetActorId}
           isLoggedIn={isLoggedIn}
           initialRelationship={relationship}
@@ -30,6 +35,7 @@ export const ProfileRelationshipActions: FC<
       </>
     ) : null}
     <BlockAction
+      key={`block-${targetActorId}`}
       targetActorId={targetActorId}
       isLoggedIn={isLoggedIn}
       initialRelationship={relationship}
