@@ -1,3 +1,4 @@
+import { applyUnmute } from '@/lib/actions/applyUnmute'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
@@ -29,8 +30,9 @@ export const POST = traceApiRoute(
 
     const targetActorId = idToUrl(encodedAccountId)
 
-    // Unmuting not yet implemented - return relationship with muting: false
-    // TODO: Implement muting functionality
+    if (targetActorId !== currentActor.id) {
+      await applyUnmute({ database, actorId: currentActor.id, targetActorId })
+    }
 
     const relationship = await getRelationship({
       database,

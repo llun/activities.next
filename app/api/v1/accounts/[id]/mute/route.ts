@@ -1,3 +1,4 @@
+import { applyMute } from '@/lib/actions/applyMute'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
@@ -29,8 +30,21 @@ export const POST = traceApiRoute(
 
     const targetActorId = idToUrl(encodedAccountId)
 
-    // Muting not yet implemented - return relationship with muting: false
-    // TODO: Implement muting functionality
+    if (targetActorId !== currentActor.id) {
+      const body = await req.json().catch(() => ({}))
+      const notifications: boolean = body.notifications !== false
+      const durationSeconds =
+        typeof body.duration === 'number' ? body.duration : 0
+      const endsAt =
+        durationSeconds > 0 ? Date.now() + durationSeconds * 1000 : null
+      await applyMute({
+        database,
+        actorId: currentActor.id,
+        targetActorId,
+        notifications,
+        endsAt
+      })
+    }
 
     const relationship = await getRelationship({
       database,

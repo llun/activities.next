@@ -7,6 +7,7 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
+import { Mute } from '@/lib/types/domain/mute'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -982,6 +983,42 @@ export interface BlockDatabase {
   isEitherBlocking(params: IsEitherBlockingParams): Promise<boolean>
   getBlocks(params: GetBlocksParams): Promise<Block[]>
   getBlockRelations(params: GetBlockRelationsParams): Promise<BlockRelation[]>
+}
+
+// ============================================================================
+// Mute Database
+// ============================================================================
+
+export type CreateMuteParams = {
+  actorId: string
+  targetActorId: string
+  notifications: boolean
+  endsAt: number | null
+}
+export type DeleteMuteParams = {
+  actorId: string
+  targetActorId: string
+}
+export type GetMuteParams = {
+  actorId: string
+  targetActorId: string
+}
+export type IsMutingParams = {
+  actorId: string
+  targetActorId: string
+}
+export type GetMuteRelationsParams = {
+  actorIds: string[]
+  targetActorIds: string[]
+}
+export type MuteRelation = Pick<Mute, 'actorId' | 'targetActorId' | 'notifications'>
+
+export interface MuteDatabase {
+  createMute(params: CreateMuteParams): Promise<Mute>
+  deleteMute(params: DeleteMuteParams): Promise<Mute | null>
+  getMute(params: GetMuteParams): Promise<Mute | null>
+  isMuting(params: IsMutingParams): Promise<boolean>
+  getMuteRelations(params: GetMuteRelationsParams): Promise<MuteRelation[]>
 }
 
 // ============================================================================
