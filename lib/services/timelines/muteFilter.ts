@@ -10,14 +10,8 @@ export const filterMutedStatuses = async (
 ) => {
   if (!actorId) return statuses
 
-  const statusActorIdsByStatus = new Map(
-    statuses.map((status) => [
-      status.id,
-      [...new Set(getRelevantStatusActorIds(status))]
-    ])
-  )
   const targetActorIds = [
-    ...new Set([...statusActorIdsByStatus.values()].flat())
+    ...new Set(statuses.flatMap(getRelevantStatusActorIds))
   ].filter(Boolean)
   if (targetActorIds.length === 0) return statuses
 
@@ -30,7 +24,7 @@ export const filterMutedStatuses = async (
   )
 
   return statuses.filter((status) => {
-    const ids = statusActorIdsByStatus.get(status.id) ?? []
+    const ids = getRelevantStatusActorIds(status)
     return !ids.some((id) => mutedTargetIds.has(id))
   })
 }
