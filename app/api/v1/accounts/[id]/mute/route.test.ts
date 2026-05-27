@@ -6,7 +6,9 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
 
-const mockDatabase = {}
+const mockDatabase = {
+  getActorFromId: jest.fn()
+}
 const mockCurrentActor = {
   id: 'https://local.test/users/me',
   domain: 'local.test'
@@ -62,6 +64,9 @@ describe('POST /api/v1/accounts/:id/mute', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockDatabase.getActorFromId.mockResolvedValue({
+      id: 'https://remote.test/users/alice'
+    })
     getRelationshipMock.mockResolvedValue({
       id: 'target-id',
       muting: true,
@@ -141,10 +146,9 @@ describe('POST /api/v1/accounts/:id/mute', () => {
   })
 
   it('skips applyMute when muting self', async () => {
-    await POST(
-      createRequest(mockCurrentActor.id),
-      { params: Promise.resolve({ id: urlToId(mockCurrentActor.id) }) }
-    )
+    await POST(createRequest(mockCurrentActor.id), {
+      params: Promise.resolve({ id: urlToId(mockCurrentActor.id) })
+    })
 
     expect(applyMuteMock).not.toHaveBeenCalled()
     expect(getRelationshipMock).toHaveBeenCalled()
@@ -161,6 +165,34 @@ describe('POST /api/v1/accounts/:id/mute', () => {
     expect(response.status).not.toBe(500)
     expect(applyMuteMock).toHaveBeenCalledWith(
       expect.objectContaining({ notifications: true, endsAt: null })
+    )
+  })
+
+  it('returns 404 when target actor does not exist', async () => {
+    const targetActorId = 'https://remote.test/users/unknown'
+    mockDatabase.getActorFromId.mockResolvedValue(null)
+
+    const response = await POST(createRequest(targetActorId), {
+      params: Promise.resolve({ id: urlToId(targetActorId) })
+    })
+
+    expect(response.status).toBe(404)
+    expect(applyMuteMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores invalid duration values (non-finite or non-integer body)', async () => {
+    const targetActorId = 'https://remote.test/users/alice'
+    applyMuteMock.mockResolvedValue({})
+
+    await POST(
+      createRequest(targetActorId, { duration: Infinity }),
+      {
+        params: Promise.resolve({ id: urlToId(targetActorId) })
+      }
+    )
+
+    expect(applyMuteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ endsAt: null })
     )
   })
 })

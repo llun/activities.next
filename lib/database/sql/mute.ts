@@ -25,7 +25,10 @@ const fixMuteDataDate = (data: Mute): Mute => ({
   updatedAt: getCompatibleTime(data.updatedAt)
 })
 
-const MUTE_RELATION_LOOKUP_CHUNK_SIZE = 1000
+// Each query uses two WHERE IN clauses (actorId + targetActorId).
+// Keep chunk size at 400 so the combined parameter count (400 * 2 = 800)
+// stays safely below SQLite's default limit of 999 bound parameters.
+const MUTE_RELATION_LOOKUP_CHUNK_SIZE = 400
 
 const chunkArray = <T>(items: T[], chunkSize: number) => {
   const chunks: T[][] = []
@@ -90,7 +93,12 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
           endsAt,
           updatedAt: currentTime
         })
-        return { ...duplicated, notifications, endsAt, updatedAt: currentTime.getTime() }
+        return {
+          ...duplicated,
+          notifications,
+          endsAt,
+          updatedAt: currentTime.getTime()
+        }
       }
       throw error
     }
@@ -111,14 +119,22 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
       .where({ actorId, targetActorId })
       .first()
     if (!mute) return null
-    return fixMuteDataDate(mute)
+    const fixed = fixMuteDataDate(mute)
+    if (fixed.endsAt !== null && fixed.endsAt < Date.now()) return null
+    return fixed
   },
 
   async isMuting({ actorId, targetActorId }: IsMutingParams) {
-    const mute = await database('mutes')
+    const mute = await database<Pick<Mute, 'id' | 'endsAt'>>('mutes')
       .where({ actorId, targetActorId })
-      .first('id')
-    return Boolean(mute)
+      .first('id', 'endsAt')
+    if (!mute) return false
+    const endsAt =
+      mute.endsAt !== null && mute.endsAt !== undefined
+        ? Number(mute.endsAt)
+        : null
+    if (endsAt !== null && endsAt < Date.now()) return false
+    return true
   },
 
   async getMuteRelations({
@@ -141,24 +157,32 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
       uniqueTargetActorIds,
       MUTE_RELATION_LOOKUP_CHUNK_SIZE
     )
+    const now = Date.now()
 
-    const relationGroups = await Promise.all(
-      actorIdChunks.flatMap((actorIdChunk) =>
-        targetActorIdChunks.map((targetActorIdChunk) =>
-          database<MuteRelation>('mutes')
-            .select('actorId', 'targetActorId', 'notifications')
-            .whereIn('actorId', actorIdChunk)
-            .whereIn('targetActorId', targetActorIdChunk)
-        )
-      )
-    )
+    for (const actorIdChunk of actorIdChunks) {
+      for (const targetActorIdChunk of targetActorIdChunks) {
+        const relations = await database<
+          MuteRelation & { endsAt: number | null }
+        >('mutes')
+          .select('actorId', 'targetActorId', 'notifications', 'endsAt')
+          .whereIn('actorId', actorIdChunk)
+          .whereIn('targetActorId', targetActorIdChunk)
 
-    for (const relations of relationGroups) {
-      for (const relation of relations) {
-        relationsByKey.set(
-          JSON.stringify([relation.actorId, relation.targetActorId]),
-          { ...relation, notifications: Boolean(relation.notifications) }
-        )
+        for (const relation of relations) {
+          const endsAt =
+            relation.endsAt !== null && relation.endsAt !== undefined
+              ? Number(relation.endsAt)
+              : null
+          if (endsAt !== null && endsAt < now) continue
+          relationsByKey.set(
+            JSON.stringify([relation.actorId, relation.targetActorId]),
+            {
+              actorId: relation.actorId,
+              targetActorId: relation.targetActorId,
+              notifications: Boolean(relation.notifications)
+            }
+          )
+        }
       }
     }
 

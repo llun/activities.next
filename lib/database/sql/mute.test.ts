@@ -170,4 +170,91 @@ describe('MuteDatabase', () => {
       })
     ).resolves.toEqual([])
   })
+
+  it('getMute returns null for an expired mute', async () => {
+    const target = targetActorId()
+    const pastEndsAt = Date.now() - 1000
+
+    await knexDatabase('mutes').insert({
+      id: crypto.randomUUID(),
+      actorId: ACTOR1_ID,
+      actorHost: new URL(ACTOR1_ID).host,
+      targetActorId: target,
+      targetActorHost: new URL(target).host,
+      notifications: true,
+      endsAt: pastEndsAt,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+
+    await expect(
+      database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
+    ).resolves.toBeNull()
+  })
+
+  it('isMuting returns false for an expired mute', async () => {
+    const target = targetActorId()
+    const pastEndsAt = Date.now() - 1000
+
+    await knexDatabase('mutes').insert({
+      id: crypto.randomUUID(),
+      actorId: ACTOR1_ID,
+      actorHost: new URL(ACTOR1_ID).host,
+      targetActorId: target,
+      targetActorHost: new URL(target).host,
+      notifications: true,
+      endsAt: pastEndsAt,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+
+    await expect(
+      database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
+    ).resolves.toBe(false)
+  })
+
+  it('getMuteRelations excludes expired mutes', async () => {
+    const actorId = `https://remote.test/users/expiry-${crypto.randomUUID()}`
+    const expiredTarget = targetActorId()
+    const activeTarget = targetActorId()
+    const pastEndsAt = Date.now() - 1000
+    const futureEndsAt = Date.now() + 60_000
+
+    await knexDatabase('mutes').insert([
+      {
+        id: crypto.randomUUID(),
+        actorId,
+        actorHost: new URL(actorId).host,
+        targetActorId: expiredTarget,
+        targetActorHost: new URL(expiredTarget).host,
+        notifications: true,
+        endsAt: pastEndsAt,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: crypto.randomUUID(),
+        actorId,
+        actorHost: new URL(actorId).host,
+        targetActorId: activeTarget,
+        targetActorHost: new URL(activeTarget).host,
+        notifications: false,
+        endsAt: futureEndsAt,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ])
+
+    const relations = await database.getMuteRelations({
+      actorIds: [actorId],
+      targetActorIds: [expiredTarget, activeTarget]
+    })
+
+    expect(relations).toHaveLength(1)
+    expect(relations[0]).toMatchObject({
+      actorId,
+      targetActorId: activeTarget,
+      notifications: false
+    })
+  })
 })
