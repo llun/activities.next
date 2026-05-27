@@ -1399,6 +1399,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         })
         .delete()
 
+      await trx('mutes')
+        .where((builder) => {
+          builder.where('actorId', actorId).orWhere('targetActorId', actorId)
+        })
+        .delete()
+
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()
 

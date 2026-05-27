@@ -17,7 +17,7 @@ export const getRelationship = async ({
 }: GetRelationshipParams): Promise<Mastodon.Relationship> => {
   const actor = await database.getActorFromId({ id: targetActorId })
 
-  const [isFollowing, isFollowedBy, follow, isBlocking, isBlockedBy] =
+  const [isFollowing, isFollowedBy, follow, isBlocking, isBlockedBy, muteRecord] =
     await Promise.all([
       database.isCurrentActorFollowing({
         currentActorId: currentActor.id,
@@ -38,6 +38,10 @@ export const getRelationship = async ({
       database.isBlocking({
         actorId: targetActorId,
         targetActorId: currentActor.id
+      }),
+      database.getMute({
+        actorId: currentActor.id,
+        targetActorId
       })
     ])
 
@@ -53,8 +57,8 @@ export const getRelationship = async ({
     followed_by: isFollowedBy,
     blocking: isBlocking,
     blocked_by: isBlockedBy,
-    muting: false,
-    muting_notifications: false,
+    muting: muteRecord !== null,
+    muting_notifications: muteRecord?.notifications ?? false,
     requested: isRequested,
     requested_by: false,
     domain_blocking: false,
