@@ -117,6 +117,7 @@ export const MuteAction: FC<MuteActionProps> = ({
       <Dialog
         open={isMuteDialogOpen}
         onOpenChange={(open) => {
+          if (isSubmitting) return
           setError('')
           setIsMuteDialogOpen(open)
           if (open) setMuteNotifications(true)
@@ -149,6 +150,7 @@ export const MuteAction: FC<MuteActionProps> = ({
               type="button"
               variant="outline"
               onClick={() => setIsMuteDialogOpen(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>

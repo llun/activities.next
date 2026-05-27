@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -167,6 +168,47 @@ describe('MuteAction', () => {
       screen.queryByRole('dialog', { name: 'Mute account' })
     ).not.toBeInTheDocument()
     await screen.findByRole('button', { name: 'Mute' })
+  })
+
+  it('keeps the dialog open and disables Cancel while a mute is in flight', async () => {
+    let resolveMute: (value: MastodonRelationship | null) => void = () =>
+      undefined
+    muteMock.mockReturnValueOnce(
+      new Promise<MastodonRelationship | null>((resolve) => {
+        resolveMute = resolve
+      })
+    )
+
+    render(
+      <MuteAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mute' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Mute account' })
+    const dialogMuteButton = within(dialog).getByRole('button', {
+      name: 'Mute'
+    })
+    fireEvent.click(dialogMuteButton)
+
+    const cancelButton = within(dialog).getByRole('button', { name: 'Cancel' })
+    await waitFor(() => {
+      expect(cancelButton).toBeDisabled()
+    })
+
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' })
+    expect(
+      screen.getByRole('dialog', { name: 'Mute account' })
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      resolveMute(relationship({ muting: true }))
+    })
+
+    await screen.findByRole('button', { name: 'Unmute' })
   })
 
   it('shows an error message when the mute call returns null', async () => {
