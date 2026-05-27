@@ -1,0 +1,21 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_02001dea55a810::t_400d5f6131fc73 52-53,55,63-71,165,194
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_02001dea55a810::t_68e9d04dbe92fb 71,83-99,142-143,146,218-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "60e7955679df1efe4de44bcfb0a565ba6e1b4d16",
+  "prompts": {},
+  "sessions": {
+    "s_02001dea55a810": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "0e4739b0-efd7-428c-971c-b1f05f06b241",
+        "model": "gpt-4.1"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
