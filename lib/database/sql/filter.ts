@@ -88,9 +88,7 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
       .where({ id: filterId, actorId })
       .first()
     if (!row) return null
-    const filter = fixFilterRow(row)
-    if (!isFilterActive(filter, Date.now())) return null
-    return filter
+    return fixFilterRow(row)
   }
 
   const cascadeDeleteFilter = async (filterId: string) => {

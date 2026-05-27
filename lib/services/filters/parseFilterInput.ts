@@ -53,7 +53,7 @@ const KeywordAttribute = z.object({
 })
 
 const FilterBodySchema = z.object({
-  title: z.string().optional(),
+  title: z.string().max(255).optional(),
   context: z.array(FilterContext).optional(),
   filter_action: FilterAction.optional(),
   expires_in: z.union([z.number(), z.string(), z.null()]).optional(),
@@ -187,6 +187,7 @@ const parseUpdateKeywords = (
     if (item._destroy !== undefined) {
       change._destroy = coerceBoolean(item._destroy, false)
     }
+    if (change._destroy && !change.id) continue
     result.push(change)
   }
   return result

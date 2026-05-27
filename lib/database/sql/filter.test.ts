@@ -55,7 +55,7 @@ describe('FilterDatabase', () => {
     expect(keywords?.[0].wholeWord).toBe(true)
   })
 
-  it('skips filters whose expiry has passed', async () => {
+  it('returns expired filters via getFilter but excludes them from getFilters and getActiveFiltersForActor', async () => {
     const filter = await database.createFilter({
       actorId: ACTOR1_ID,
       title: 'ExpiredFilter',
@@ -64,14 +64,24 @@ describe('FilterDatabase', () => {
       expiresAt: Date.now() - 60_000
     })
 
+    // getFilter (ownership check) still returns expired filters so clients can extend/delete them
     const fetched = await database.getFilter({
       actorId: ACTOR1_ID,
       id: filter.id
     })
-    expect(fetched).toBeNull()
+    expect(fetched).not.toBeNull()
+    expect(fetched?.id).toBe(filter.id)
 
+    // getFilters excludes expired filters (user-facing list should only show active)
     const all = await database.getFilters({ actorId: ACTOR1_ID })
     expect(all.find((entry) => entry.id === filter.id)).toBeUndefined()
+
+    // getActiveFiltersForActor excludes expired filters (timeline/notification filtering)
+    const active = await database.getActiveFiltersForActor({
+      actorId: ACTOR1_ID,
+      context: 'home'
+    })
+    expect(active.find((r) => r.filter.id === filter.id)).toBeUndefined()
   })
 
   it('returns null cross-actor access for filters, keywords, and statuses', async () => {
