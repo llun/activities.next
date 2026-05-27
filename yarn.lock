@@ -6125,7 +6125,7 @@ __metadata:
     mime-types: "npm:^3.0.2"
     nanostores: "npm:^1.3.0"
     next: "npm:^16.2.6"
-    nodemailer: "npm:^8.0.7"
+    nodemailer: "npm:^8.0.9"
     pg: "npm:^8.20.0"
     pino: "npm:^10.3.1"
     pino-pretty: "npm:^13.1.3"
@@ -11796,10 +11796,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nodemailer@npm:^8.0.7":
-  version: 8.0.7
-  resolution: "nodemailer@npm:8.0.7"
-  checksum: 10c0/f1580263ad7fba64a493c47c4d78f06679c0da9cc3becbe6b628311a16474c07286fc4e530006ea262537594ccc475dc569fd519275222fd01f99c315976aeac
+"nodemailer@npm:^8.0.9":
+  version: 8.0.9
+  resolution: "nodemailer@npm:8.0.9"
+  checksum: 10c0/f5c671ed1c28b27fc997416be70c41aa068ea7540feebc8aca1d0c4f18ac1017d05d74d08218b5aa13206d2639d6a4605f9f3b2acbcb84d20b9cc89d50c5ab5a
   languageName: node
   linkType: hard
 
