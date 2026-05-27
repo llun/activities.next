@@ -80,8 +80,8 @@ const HTML_ENTITY_MAP: Record<string, string> = {
 
 const stripHtml = (html: string): string => {
   const withoutTags = html
-    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, ' ')
-    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
+    .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
     .replace(/<\/?[^>]+>/g, ' ')
   const isValidCodePoint = (code: number): boolean =>
     Number.isFinite(code) && code >= 0 && code <= 0x10ffff
