@@ -179,7 +179,8 @@ const parseUpdateKeywords = (
   for (const item of raw) {
     const change: UpdateFilterKeywordInput = {}
     if (item.id) change.id = item.id
-    if (typeof item.keyword === 'string') change.keyword = item.keyword
+    if (typeof item.keyword === 'string' && item.keyword.length > 0)
+      change.keyword = item.keyword
     if (item.whole_word !== undefined) {
       change.wholeWord = coerceBoolean(item.whole_word, false)
     }
@@ -298,7 +299,10 @@ export const parseKeywordUpdateInput = (
   const parsed = KeywordBodySchema.safeParse(body ?? {})
   if (!parsed.success) return null
   const result: ParsedKeywordUpdateInput = {}
-  if (typeof parsed.data.keyword === 'string') {
+  if (
+    typeof parsed.data.keyword === 'string' &&
+    parsed.data.keyword.length > 0
+  ) {
     result.keyword = parsed.data.keyword
   }
   if (parsed.data.whole_word !== undefined) {
