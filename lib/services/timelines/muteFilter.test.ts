@@ -125,6 +125,24 @@ describe('filterMutedStatuses', () => {
     ])
   })
 
+  it('hides statuses even when mute has notifications=false (timeline ignores notifications flag)', async () => {
+    const mutedStatus = createNoteStatus('muted', mutedActorId)
+    const getMuteRelations = jest.fn(async () => [
+      {
+        actorId: readerActorId,
+        targetActorId: mutedActorId,
+        notifications: false
+      }
+    ])
+    const database = { getMuteRelations } as unknown as Database
+
+    const result = await filterMutedStatuses(database, readerActorId, [
+      mutedStatus
+    ])
+
+    expect(result).toHaveLength(0)
+  })
+
   it('only queries directional relations (muter -> target) for the reader', async () => {
     const status = createNoteStatus('one', friendActorId)
     const getMuteRelations = jest.fn(async () => [])
