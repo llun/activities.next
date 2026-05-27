@@ -626,9 +626,7 @@ export const mute = async ({
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(
-      notifications === undefined ? {} : { notifications }
-    )
+    body: JSON.stringify(notifications === undefined ? {} : { notifications })
   })
   if (response.status !== 200) return null
   return (await response.json()) as MastodonRelationship
