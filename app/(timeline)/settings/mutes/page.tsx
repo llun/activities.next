@@ -32,13 +32,17 @@ const Page = async () => {
     actorId: actor.id,
     limit: MUTES_PAGE_LIMIT
   })
-  const accounts = await Promise.all(
-    mutes.map(async (mute) => {
-      const account = await database.getMastodonActorFromId({
-        id: mute.targetActorId
-      })
-      return account ?? getFallbackMutedAccount(mute)
-    })
+  const targetActorIds = mutes.map((mute) => mute.targetActorId)
+  const hydratedAccounts =
+    targetActorIds.length > 0
+      ? await database.getMastodonActorsFromIds({ ids: targetActorIds })
+      : []
+  const accountsByUrl = new Map(
+    hydratedAccounts.map((account) => [account.url, account])
+  )
+  const accounts = mutes.map(
+    (mute) =>
+      accountsByUrl.get(mute.targetActorId) ?? getFallbackMutedAccount(mute)
   )
 
   return (

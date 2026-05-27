@@ -100,14 +100,7 @@ export const MuteAction: FC<MuteActionProps> = ({
   }
 
   return (
-    <Dialog
-      open={isMuteDialogOpen}
-      onOpenChange={(open) => {
-        setError('')
-        setIsMuteDialogOpen(open)
-        if (open) setMuteNotifications(true)
-      }}
-    >
+    <>
       <Button
         type="button"
         variant="outline"
@@ -121,42 +114,51 @@ export const MuteAction: FC<MuteActionProps> = ({
         {isSubmitting ? <Loader2 className="animate-spin" /> : <VolumeX />}
         Mute
       </Button>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Mute account</DialogTitle>
-          <DialogDescription>
-            Posts from this actor will be hidden from your timelines. They can
-            still see and reply to your posts.
-          </DialogDescription>
-        </DialogHeader>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={muteNotifications}
-            onChange={(event) => setMuteNotifications(event.target.checked)}
-            className="h-4 w-4 rounded border-gray-300"
-          />
-          Also hide notifications from this actor
-        </label>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setIsMuteDialogOpen(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={onMute} disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="animate-spin" /> : null}
-            Mute
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <Dialog
+        open={isMuteDialogOpen}
+        onOpenChange={(open) => {
+          setError('')
+          setIsMuteDialogOpen(open)
+          if (open) setMuteNotifications(true)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mute account</DialogTitle>
+            <DialogDescription>
+              Posts from this actor will be hidden from your timelines. They can
+              still see and reply to your posts.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={muteNotifications}
+              onChange={(event) => setMuteNotifications(event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Also hide notifications from this actor
+          </label>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsMuteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={onMute} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="animate-spin" /> : null}
+              Mute
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
