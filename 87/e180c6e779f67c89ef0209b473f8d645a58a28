@@ -1,0 +1,24 @@
+lib/components/mute-action/mute-action.test.tsx
+  ai_agent 192-194
+  s_90a324c049ee84::t_650d91619202d6 6
+  s_90a324c049ee84::t_e0d78d9d24b059 173-191,195-213
+lib/components/mute-action/mute-action.tsx
+  s_90a324c049ee84::t_90928286ca897a 120
+  s_90a324c049ee84::t_afe00d58ba8249 153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "87e180c6e779f67c89ef0209b473f8d645a58a28",
+  "prompts": {},
+  "sessions": {
+    "s_90a324c049ee84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e719ae82-d104-4271-a652-65c34901321b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
