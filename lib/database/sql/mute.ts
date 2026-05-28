@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
@@ -8,6 +9,7 @@ import {
   DeleteMuteParams,
   GetMuteParams,
   GetMuteRelationsParams,
+  GetMutesParams,
   IsMutingParams,
   MuteDatabase,
   MuteRelation
@@ -143,6 +145,56 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
         : null
     if (endsAt !== null && endsAt < Date.now()) return false
     return true
+  },
+
+  async getMutes({
+    actorId,
+    limit = PER_PAGE_LIMIT,
+    maxId,
+    minId,
+    sinceId
+  }: GetMutesParams) {
+    // Ordering by updatedAt rather than createdAt so that re-muting an
+    // expired row (which only bumps updatedAt) surfaces the freshly
+    // reactivated mute at the top of the list, instead of leaving it
+    // buried at its original creation position.
+    const now = Date.now()
+    const query = database<Mute>('mutes')
+      .where('actorId', actorId)
+      .andWhere((builder) =>
+        builder.whereNull('endsAt').orWhere('endsAt', '>', now)
+      )
+      .limit(limit)
+
+    const cursorId = maxId || minId || sinceId
+    if (cursorId) {
+      const cursor = await database<Mute>('mutes')
+        .where({ actorId, id: cursorId })
+        .first()
+      if (!cursor) return []
+
+      const direction = maxId ? 'older' : 'newer'
+      const updatedAtOperator = direction === 'older' ? '<' : '>'
+      const idOperator = direction === 'older' ? '<' : '>'
+      query.andWhere((builder) => {
+        builder
+          .where('updatedAt', updatedAtOperator, cursor.updatedAt)
+          .orWhere((tieBreaker) => {
+            tieBreaker
+              .where('updatedAt', cursor.updatedAt)
+              .andWhere('id', idOperator, cursor.id)
+          })
+      })
+    }
+
+    if (minId) {
+      query.orderBy('updatedAt', 'asc').orderBy('id', 'asc')
+    } else {
+      query.orderBy('updatedAt', 'desc').orderBy('id', 'desc')
+    }
+
+    const mutes = await query
+    return (minId ? mutes.reverse() : mutes).map(fixMuteDataDate)
   },
 
   async getMuteRelations({ actorIds, targetActorIds }: GetMuteRelationsParams) {

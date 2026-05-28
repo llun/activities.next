@@ -1022,6 +1022,13 @@ export type MuteRelation = Pick<
   Mute,
   'actorId' | 'targetActorId' | 'notifications'
 >
+export type GetMutesParams = {
+  actorId: string
+  limit?: number
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
 
 export interface MuteDatabase {
   createMute(params: CreateMuteParams): Promise<Mute>
@@ -1029,6 +1036,7 @@ export interface MuteDatabase {
   getMute(params: GetMuteParams): Promise<Mute | null>
   isMuting(params: IsMutingParams): Promise<boolean>
   getMuteRelations(params: GetMuteRelationsParams): Promise<MuteRelation[]>
+  getMutes(params: GetMutesParams): Promise<Mute[]>
 }
 
 // ============================================================================
