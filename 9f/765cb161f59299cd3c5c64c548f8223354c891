@@ -1,0 +1,11 @@
+lib/components/post-box/upload-media-button.test.tsx
+  ai_agent 359-361,410-412
+lib/components/post-box/upload-media-button.tsx
+  ai_agent 133,135-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9f765cb161f59299cd3c5c64c548f8223354c891",
+  "prompts": {}
+}
