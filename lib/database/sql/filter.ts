@@ -218,12 +218,14 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
               updates.wholeWord = change.wholeWord
             if (Object.keys(updates).length > 1) {
               try {
-                await trx('filter_keywords')
-                  .where({ id: change.id, filterId: id })
-                  .update(updates)
+                await trx.transaction((sp) =>
+                  sp('filter_keywords')
+                    .where({ id: change.id, filterId: id })
+                    .update(updates)
+                )
               } catch (error) {
                 if (!isUniqueConstraintError(error)) throw error
-                // Duplicate keyword text — skip silently
+                // Duplicate keyword text — skip silently via savepoint rollback
               }
             }
             continue
