@@ -1,6 +1,6 @@
 # Claude Code – activities.next
 
-Follow `AGENTS.md` for all project rules. If an `AGENTS.override.md` file is present in a checkout, it takes precedence where it conflicts.
+**Always read `AGENTS.md` at the start of any task** and follow it for all project rules. If `AGENTS.override.md` is also present in the checkout, read it as well — it takes precedence over `AGENTS.md` wherever the two conflict. Treat `AGENTS.override.md` as a layer applied on top of `AGENTS.md`, not a full replacement.
 
 ## Key reminders for this machine
 
