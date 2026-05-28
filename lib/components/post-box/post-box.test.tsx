@@ -20,9 +20,20 @@ jest.mock('@/lib/client', () => ({
   uploadFitnessFile: jest.fn()
 }))
 
+let lastRemarkPlugins: unknown[] = []
+
 jest.mock('react-markdown', () => ({
   __esModule: true,
-  default: ({ children }: { children: string }) => <div>{children}</div>
+  default: ({
+    children,
+    remarkPlugins
+  }: {
+    children: string
+    remarkPlugins?: unknown[]
+  }) => {
+    if (remarkPlugins) lastRemarkPlugins = remarkPlugins
+    return <div>{children}</div>
+  }
 }))
 
 jest.mock('rehype-sanitize', () => ({
@@ -927,5 +938,43 @@ describe('PostBox edit media', () => {
         }
       })
     })
+  })
+})
+
+describe('PostBox markdown preview', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    lastRemarkPlugins = []
+  })
+
+  it('passes remarkGfm and remarkBreaks plugins to the preview renderer', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText("What's on your mind?")
+    fireEvent.change(textarea, { target: { value: '~~strikethrough~~' } })
+
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
+    })
+
+    const mockRemarkGfm = jest.requireMock('remark-gfm').default
+    const mockRemarkBreaks = jest.requireMock('remark-breaks').default
+
+    await waitFor(() => {
+      expect(lastRemarkPlugins).toContain(mockRemarkGfm)
+    })
+    expect(lastRemarkPlugins).toContain(mockRemarkBreaks)
+    expect(lastRemarkPlugins.indexOf(mockRemarkGfm)).toBeLessThan(
+      lastRemarkPlugins.indexOf(mockRemarkBreaks)
+    )
   })
 })
