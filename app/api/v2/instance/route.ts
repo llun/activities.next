@@ -2,6 +2,7 @@ import { getConfig } from '@/lib/config'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import {
   MAX_PINNED_STATUSES,
+  MAX_STATUS_CHARACTERS,
   MAX_STATUS_MEDIA_ATTACHMENTS
 } from '@/lib/services/mastodon/constants'
 import {
@@ -40,7 +41,7 @@ export const GET = traceApiRoute(
             max_pinned_statuses: MAX_PINNED_STATUSES
           },
           statuses: {
-            max_characters: 500,
+            max_characters: MAX_STATUS_CHARACTERS,
             max_media_attachments: MAX_STATUS_MEDIA_ATTACHMENTS,
             characters_reserved_per_url: 23
           },

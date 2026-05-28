@@ -1,2 +1,3 @@
 export const MAX_STATUS_MEDIA_ATTACHMENTS = 4
 export const MAX_PINNED_STATUSES = 5
+export const MAX_STATUS_CHARACTERS = 500

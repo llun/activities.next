@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import {
   MAX_PINNED_STATUSES,
+  MAX_STATUS_CHARACTERS,
   MAX_STATUS_MEDIA_ATTACHMENTS
 } from '@/lib/services/mastodon/constants'
 import {
@@ -36,7 +37,7 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
     invites_enabled: false,
     configuration: {
       statuses: {
-        max_characters: 500,
+        max_characters: MAX_STATUS_CHARACTERS,
         max_media_attachments: MAX_STATUS_MEDIA_ATTACHMENTS,
         characters_reserved_per_url: 23
       },
