@@ -954,8 +954,8 @@ export const PostBox: FC<Props> = ({
           }
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
         />
-        <div className="flex justify-between mb-3">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-1">
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
@@ -1002,8 +1002,11 @@ export const PostBox: FC<Props> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="Add poll"
-              title="Add poll"
+              aria-label={
+                postExtension.poll.showing ? 'Remove poll' : 'Add poll'
+              }
+              aria-pressed={postExtension.poll.showing}
+              title={postExtension.poll.showing ? 'Remove poll' : 'Add poll'}
               className={cn(
                 'text-muted-foreground hover:text-foreground',
                 postExtension.poll.showing &&
@@ -1024,7 +1027,12 @@ export const PostBox: FC<Props> = ({
                   ? 'Remove content warning'
                   : 'Add content warning'
               }
-              title="Content warning"
+              aria-pressed={postExtension.contentWarningVisible}
+              title={
+                postExtension.contentWarningVisible
+                  ? 'Remove content warning'
+                  : 'Add content warning'
+              }
               className={cn(
                 'text-muted-foreground hover:text-foreground',
                 postExtension.contentWarningVisible &&

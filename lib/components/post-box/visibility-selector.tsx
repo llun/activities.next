@@ -19,31 +19,31 @@ interface Props {
 const VISIBILITY_OPTIONS: {
   value: MastodonVisibility
   label: string
-  icon: React.ReactNode
+  Icon: typeof Globe
   description: string
 }[] = [
   {
     value: 'public',
     label: 'Public',
-    icon: <Globe className="size-4" />,
+    Icon: Globe,
     description: 'Visible to everyone, shown in public timelines'
   },
   {
     value: 'unlisted',
     label: 'Unlisted',
-    icon: <Unlock className="size-4" />,
+    Icon: Unlock,
     description: 'Visible to everyone, hidden from public timelines'
   },
   {
     value: 'private',
     label: 'Followers only',
-    icon: <Lock className="size-4" />,
+    Icon: Lock,
     description: 'Visible to your followers only'
   },
   {
     value: 'direct',
     label: 'Direct',
-    icon: <AtSign className="size-4" />,
+    Icon: AtSign,
     description: 'Visible only to mentioned people'
   }
 ]
@@ -55,6 +55,7 @@ export const VisibilitySelector: FC<Props> = ({
   const currentOption =
     VISIBILITY_OPTIONS.find((opt) => opt.value === visibility) ||
     VISIBILITY_OPTIONS[0]
+  const CurrentIcon = currentOption.Icon
 
   return (
     <DropdownMenu>
@@ -67,7 +68,7 @@ export const VisibilitySelector: FC<Props> = ({
           aria-label={`Set visibility, current: ${currentOption.label}`}
           className="gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
         >
-          {currentOption.icon}
+          <CurrentIcon className="size-4" />
           <span>{currentOption.label}</span>
           <ChevronDown className="size-3.5" />
         </Button>
@@ -75,9 +76,12 @@ export const VisibilitySelector: FC<Props> = ({
       <DropdownMenuContent align="start" className="w-64">
         {VISIBILITY_OPTIONS.map((option) => {
           const active = option.value === visibility
+          const { Icon } = option
           return (
             <DropdownMenuItem
               key={option.value}
+              role="menuitemradio"
+              aria-checked={active}
               onClick={() => onVisibilityChange(option.value)}
               className={cn(
                 'flex cursor-pointer items-start gap-2.5',
@@ -85,14 +89,12 @@ export const VisibilitySelector: FC<Props> = ({
                   'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary'
               )}
             >
-              <span
+              <Icon
                 className={cn(
-                  'mt-0.5',
+                  'mt-0.5 size-4',
                   active ? 'text-primary' : 'text-muted-foreground'
                 )}
-              >
-                {option.icon}
-              </span>
+              />
               <span className="min-w-0 flex-1">
                 <span
                   className={cn(
