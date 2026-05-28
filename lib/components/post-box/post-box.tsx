@@ -1049,6 +1049,7 @@ export const PostBox: FC<Props> = ({
               onVisibilityChange={(visibility) =>
                 dispatch(setVisibility(visibility))
               }
+              disabled={isPosting}
             />
           </div>
           <div>

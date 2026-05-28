@@ -22,6 +22,7 @@ import { MastodonVisibility } from '@/lib/utils/getVisibility'
 interface Props {
   visibility: MastodonVisibility
   onVisibilityChange: (visibility: MastodonVisibility) => void
+  disabled?: boolean
 }
 
 const VISIBILITY_OPTIONS: {
@@ -58,7 +59,8 @@ const VISIBILITY_OPTIONS: {
 
 export const VisibilitySelector: FC<Props> = ({
   visibility,
-  onVisibilityChange
+  onVisibilityChange,
+  disabled
 }) => {
   const currentOption =
     VISIBILITY_OPTIONS.find((opt) => opt.value === visibility) ||
@@ -72,6 +74,7 @@ export const VisibilitySelector: FC<Props> = ({
           type="button"
           variant="ghost"
           size="sm"
+          disabled={disabled}
           title={currentOption.label}
           aria-label={`Set visibility, current: ${currentOption.label}`}
           className="gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
@@ -94,7 +97,7 @@ export const VisibilitySelector: FC<Props> = ({
               className={cn(
                 'flex cursor-pointer items-start gap-2.5',
                 active &&
-                  'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary'
+                  'bg-primary/10 text-primary focus:bg-primary/15 focus:text-primary'
               )}
             >
               <Icon
