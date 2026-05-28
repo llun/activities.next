@@ -1,4 +1,11 @@
-import { Activity, AlertTriangle, BarChart3, Loader2, X } from 'lucide-react'
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Eye,
+  Loader2,
+  X
+} from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -23,12 +30,7 @@ import {
 } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/lib/components/ui/tabs'
+import { MAX_STATUS_CHARACTERS } from '@/lib/services/mastodon/constants'
 import {
   ActorProfile,
   getMention,
@@ -293,7 +295,7 @@ export const PostBox: FC<Props> = ({
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
-  const [currentTab, setCurrentTab] = useState<string>('write')
+  const [previewMode, setPreviewMode] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
@@ -861,10 +863,28 @@ export const PostBox: FC<Props> = ({
   }, [profile, replyStatus, editStatus])
 
   return (
-    <div>
-      <form ref={formRef} onSubmit={onPost}>
-        <div className="flex items-start gap-4 mb-3">
-          <Avatar className="size-12">
+    <form ref={formRef} onSubmit={onPost}>
+      <div className="bg-card border rounded-xl p-4 shadow-sm">
+        <ReplyPreview
+          host={host}
+          status={replyStatus}
+          onClose={onCloseReply}
+        />
+
+        {postExtension.contentWarningVisible ? (
+          <input
+            type="text"
+            className="mb-3 flex h-9 w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-label="Content warning"
+            name="contentWarning"
+            placeholder="Write your warning here"
+            value={postExtension.contentWarning}
+            onChange={(event) => onContentWarningChange(event.target.value)}
+          />
+        ) : null}
+
+        <div className="flex gap-3">
+          <Avatar className="size-10 shrink-0">
             <AvatarImage
               src={profile.iconUrl}
               alt={profile.name ?? profile.username}
@@ -874,70 +894,41 @@ export const PostBox: FC<Props> = ({
             </AvatarFallback>
           </Avatar>
 
-          <div className="flex-1 min-w-0 space-y-3">
-            <ReplyPreview
-              host={host}
-              status={replyStatus}
-              onClose={onCloseReply}
-            />
-            <Tabs value={currentTab} onValueChange={setCurrentTab}>
-              {postExtension.contentWarningVisible ? (
-                <input
-                  type="text"
-                  className="mb-3 flex h-9 w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  aria-label="Content warning"
-                  name="contentWarning"
-                  placeholder="Write your warning here"
-                  value={postExtension.contentWarning}
-                  onChange={(event) =>
-                    onContentWarningChange(event.target.value)
-                  }
-                />
-              ) : null}
-              <TabsList className="mb-3">
-                <TabsTrigger value="write">Write</TabsTrigger>
-                <TabsTrigger value="preview">Preview</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="write" className="mt-0">
-                <textarea
-                  ref={postBoxRef}
-                  className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none resize-none md:text-sm"
-                  rows={5}
-                  onKeyDown={onQuickPost}
-                  onChange={(e) => onTextChange(e.target.value)}
-                  name="message"
-                  placeholder="What's on your mind?"
-                  value={text}
-                />
-              </TabsContent>
-
-              <TabsContent value="preview" className="mt-0">
-                <div className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm">
-                  {text ? (
-                    <div className="markdown-content max-w-none">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkBreaks]}
-                        rehypePlugins={[
-                          [
-                            rehypeSanitize,
-                            {
-                              tagNames: SANITIZED_OPTION.allowedTags,
-                              attributes: SANITIZED_OPTION.allowedAttributes
-                            }
-                          ]
-                        ]}
-                      >
-                        {text}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">Nothing to preview</p>
-                  )}
+          {previewMode ? (
+            <div className="flex-1 min-h-[60px] text-[15px] leading-relaxed">
+              {text ? (
+                <div className="markdown-content max-w-none">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkBreaks]}
+                    rehypePlugins={[
+                      [
+                        rehypeSanitize,
+                        {
+                          tagNames: SANITIZED_OPTION.allowedTags,
+                          attributes: SANITIZED_OPTION.allowedAttributes
+                        }
+                      ]
+                    ]}
+                  >
+                    {text}
+                  </ReactMarkdown>
                 </div>
-              </TabsContent>
-            </Tabs>
-          </div>
+              ) : (
+                <p className="text-muted-foreground">Nothing to preview</p>
+              )}
+            </div>
+          ) : (
+            <textarea
+              ref={postBoxRef}
+              className="flex-1 border-0 outline-none resize-none bg-transparent text-[15px] leading-relaxed min-h-[60px] placeholder:text-muted-foreground"
+              rows={2}
+              onKeyDown={onQuickPost}
+              onChange={(e) => onTextChange(e.target.value)}
+              name="message"
+              placeholder="What's on your mind?"
+              value={text}
+            />
+          )}
         </div>
 
         <PollChoices
@@ -952,102 +943,159 @@ export const PostBox: FC<Props> = ({
           }
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
         />
-        <div className="flex justify-between mb-3">
-          <div>
-            <VisibilitySelector
-              visibility={postExtension.visibility}
-              onVisibilityChange={(visibility) =>
-                dispatch(setVisibility(visibility))
-              }
-            />
-            <Button
-              type="button"
-              variant={
-                postExtension.contentWarningVisible ? 'secondary' : 'link'
-              }
-              aria-label={
-                postExtension.contentWarningVisible
-                  ? 'Remove content warning'
-                  : 'Add content warning'
-              }
-              title="Content warning"
-              onClick={onToggleContentWarning}
-            >
-              <AlertTriangle className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="link"
-              onClick={() =>
-                dispatch(setPollVisibility(!postExtension.poll.showing))
-              }
-            >
-              <BarChart3 className="size-4" />
-            </Button>
-            {!replyStatus ? (
-              <UploadFitnessFileButton
-                disabled={isPosting}
-                onFileSelected={(file) => {
-                  setWarningMsg(null)
-                  dispatch(setFitnessFile(file))
-                  setAllowPost(true)
-                }}
-                onError={(message) => setWarningMsg(message)}
-              />
-            ) : null}
-            <UploadMediaButton
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              attachments={postExtension.attachments}
-              onAddAttachment={(attachment) => {
-                const nextExtension = {
-                  ...postExtensionRef.current,
-                  attachments: [
-                    ...postExtensionRef.current.attachments,
-                    attachment
-                  ],
-                  fitnessFile: undefined,
-                  poll: {
-                    ...DEFAULT_STATE.poll
-                  }
+
+        <div className="flex items-center gap-1 mt-2 pt-3 border-t">
+          <UploadMediaButton
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            attachments={postExtension.attachments}
+            onAddAttachment={(attachment) => {
+              const nextExtension = {
+                ...postExtensionRef.current,
+                attachments: [
+                  ...postExtensionRef.current.attachments,
+                  attachment
+                ],
+                fitnessFile: undefined,
+                poll: {
+                  ...DEFAULT_STATE.poll
                 }
-                postExtensionRef.current = nextExtension
-                dispatch(addAttachment(attachment))
-                if (editStatus) {
-                  setAllowPost(
-                    isEditSubmittable(textRef.current, nextExtension)
-                  )
-                  return
-                }
-                setAllowPost(hasNewPostContent(textRef.current, nextExtension))
+              }
+              postExtensionRef.current = nextExtension
+              dispatch(addAttachment(attachment))
+              if (editStatus) {
+                setAllowPost(
+                  isEditSubmittable(textRef.current, nextExtension)
+                )
+                return
+              }
+              setAllowPost(hasNewPostContent(textRef.current, nextExtension))
+            }}
+            onDuplicateError={() =>
+              setWarningMsg('Some files are already selected')
+            }
+            onUploadStart={() => setWarningMsg(null)}
+            onBeforeAddAttachments={onRemoveFitnessFile}
+          />
+          {!replyStatus ? (
+            <UploadFitnessFileButton
+              disabled={isPosting}
+              onFileSelected={(file) => {
+                setWarningMsg(null)
+                dispatch(setFitnessFile(file))
+                setAllowPost(true)
               }}
-              onDuplicateError={() =>
-                setWarningMsg('Some files are already selected')
-              }
-              onUploadStart={() => setWarningMsg(null)}
-              onBeforeAddAttachments={onRemoveFitnessFile}
+              onError={(message) => setWarningMsg(message)}
             />
-          </div>
-          <div>
-            {editStatus ? (
-              <Button
-                className="mr-2"
-                type="button"
-                variant="destructive"
-                onClick={onDiscardEdit}
-              >
-                Cancel Edit
-              </Button>
-            ) : null}
-            <Button disabled={!allowPost || isPosting} type="submit">
-              {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Add poll"
+            aria-label="Add poll"
+            className={
+              postExtension.poll.showing
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }
+            aria-pressed={postExtension.poll.showing}
+            onClick={() =>
+              dispatch(setPollVisibility(!postExtension.poll.showing))
+            }
+          >
+            <BarChart3 className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title={
+              postExtension.contentWarningVisible
+                ? 'Remove content warning'
+                : 'Add content warning'
+            }
+            aria-label={
+              postExtension.contentWarningVisible
+                ? 'Remove content warning'
+                : 'Add content warning'
+            }
+            aria-pressed={postExtension.contentWarningVisible}
+            className={
+              postExtension.contentWarningVisible
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }
+            onClick={onToggleContentWarning}
+          >
+            <AlertTriangle className="size-4" />
+          </Button>
+          <VisibilitySelector
+            visibility={postExtension.visibility}
+            onVisibilityChange={(visibility) =>
+              dispatch(setVisibility(visibility))
+            }
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title={previewMode ? 'Edit' : 'Preview'}
+            aria-label={previewMode ? 'Edit' : 'Preview'}
+            aria-pressed={previewMode}
+            className={
+              previewMode
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }
+            onClick={() => setPreviewMode((value) => !value)}
+          >
+            <Eye className="size-4" />
+          </Button>
+
+          <div className="flex-1" />
+
+          <span
+            className={`text-xs mr-2 tabular-nums ${
+              text.length > MAX_STATUS_CHARACTERS
+                ? 'text-destructive'
+                : 'text-muted-foreground'
+            }`}
+            aria-label="Characters remaining"
+          >
+            {MAX_STATUS_CHARACTERS - text.length}
+          </span>
+
+          {editStatus ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mr-1"
+              onClick={onDiscardEdit}
+            >
+              Cancel Edit
             </Button>
-          </div>
+          ) : null}
+
+          <Button
+            size="sm"
+            disabled={
+              !allowPost ||
+              isPosting ||
+              text.length > MAX_STATUS_CHARACTERS
+            }
+            type="submit"
+          >
+            {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
+          </Button>
         </div>
+
         {warningMsg ? (
-          <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+          <div className="text-xs text-destructive mt-2">{warningMsg}</div>
         ) : null}
+
         {!replyStatus && postExtension.fitnessFile ? (
-          <div className="mb-3 flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+          <div className="mt-3 flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
             <div className="flex min-w-0 items-center gap-2 text-sm">
               <Activity className="size-4 text-muted-foreground" />
               <span className="shrink-0 text-muted-foreground">Fitness:</span>
@@ -1074,29 +1122,32 @@ export const PostBox: FC<Props> = ({
             </Button>
           </div>
         ) : null}
-        <div className="grid gap-4 grid-cols-8">
-          {postExtension.attachments.map((item, index) => {
-            return (
-              <button
-                type="button"
-                aria-label={`Remove media ${item.name ?? index + 1}`}
-                className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative"
-                key={item.id}
-                style={{
-                  backgroundImage: `url("${item.posterUrl || item.url}")`
-                }}
-                onClick={() => onRemoveAttachment(index)}
-              >
-                {item.isLoading ? (
-                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
-                    <Loader2 className="animate-spin text-primary" />
-                  </div>
-                ) : null}
-              </button>
-            )
-          })}
-        </div>
-      </form>
-    </div>
+
+        {postExtension.attachments.length > 0 ? (
+          <div className="grid gap-4 grid-cols-8 mt-3">
+            {postExtension.attachments.map((item, index) => {
+              return (
+                <button
+                  type="button"
+                  aria-label={`Remove media ${item.name ?? index + 1}`}
+                  className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative rounded-md overflow-hidden"
+                  key={item.id}
+                  style={{
+                    backgroundImage: `url("${item.posterUrl || item.url}")`
+                  }}
+                  onClick={() => onRemoveAttachment(index)}
+                >
+                  {item.isLoading ? (
+                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+                      <Loader2 className="animate-spin text-primary" />
+                    </div>
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+      </div>
+    </form>
   )
 }
