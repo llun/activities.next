@@ -125,6 +125,27 @@
 - Import those functions in components: `import { myApiCall } from '@/lib/client'`.
 - This keeps all network logic in one place, makes it easy to find every client→server call, and lets components stay focused on UI state.
 
+## Page Header & Sub-Navigation
+
+- Use `PageHeader` from `@/lib/components/page-header` for every page title in the `(timeline)` route group. It renders the sticky, full-width chrome (translucent background + backdrop blur + bottom border) that the design system expects, and centers the title above the post column.
+- **Section-level sub-navigation (admin tabs, settings tabs, etc.) MUST be rendered inside the page header**, never above it. When a sub-nav scrolls above the sticky page header, the page header visually detaches from the rest of the chrome and the sub-nav disappears on scroll.
+- To add a sub-nav for a new route group, wrap the layout's `{children}` in `PageSubnavProvider` from `@/lib/components/page-header` and pass the rendered tabs as `subnav`. The closest `PageHeader` will read that context and render the tabs directly under the title row, inside the sticky chrome.
+
+  ```tsx
+  // app/(timeline)/<section>/layout.tsx
+  'use client'
+  import { PageSubnavProvider } from '@/lib/components/page-header'
+
+  export default function Layout({ children }) {
+    const subnav = (/* tabs strip — desktop tabs + mobile dropdown */)
+    return <PageSubnavProvider subnav={subnav}>{children}</PageSubnavProvider>
+  }
+  ```
+
+- Do **not** render the sub-nav directly in the layout JSX (e.g. `<div>{tabs}{children}</div>`) — that puts the sub-nav above the sticky page header in the document, which breaks the design.
+- Pages keep calling `<PageHeader title="…" description="…" actions={…} />` exactly as before; they don't need to know whether a sub-nav exists.
+- See `app/(timeline)/settings/layout.tsx`, `app/(timeline)/admin/layout.tsx`, and `app/(timeline)/settings/fitness/layout.tsx` for working examples.
+
 ## Settings Forms (Client Components)
 
 - Settings forms that update user data (name, email, password, etc.) **must be client components** using `fetch()` with JSON bodies — not plain HTML `<form method="post">` with server-side redirects.

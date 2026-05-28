@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
+import { PageSubnavProvider } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import {
   DropdownMenu,
@@ -39,8 +40,8 @@ const Layout: FC<Props> = ({ children }) => {
       )
       .sort((a, b) => b.url.length - a.url.length)[0] || tabs[0]
 
-  return (
-    <div className="space-y-6">
+  const subnav = (
+    <>
       {/* Mobile dropdown */}
       <div className="md:hidden">
         <DropdownMenu>
@@ -72,10 +73,10 @@ const Layout: FC<Props> = ({ children }) => {
           </TabsList>
         </Tabs>
       </div>
-
-      {children}
-    </div>
+    </>
   )
+
+  return <PageSubnavProvider subnav={subnav}>{children}</PageSubnavProvider>
 }
 
 export default Layout

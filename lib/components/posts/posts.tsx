@@ -91,11 +91,11 @@ export const Posts: FC<Props> = ({
   }
 
   return (
-    <section className={cn('grid w-full min-w-0 grid-cols-1', className)}>
+    <section className={cn('flex w-full min-w-0 flex-col gap-3', className)}>
       {statuses.map((status) => (
         <article
           key={status.id}
-          className="min-w-0 border-b border-border/60 p-4 last:border-b-0"
+          className="min-w-0 rounded-xl border bg-card p-4 shadow-sm"
         >
           <Post
             host={host}
