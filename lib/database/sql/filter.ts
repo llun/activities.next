@@ -144,7 +144,10 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
           }))
           const batchSize = getInsertBatchSize(trx, rows[0])
           for (const chunk of chunkArray(rows, batchSize)) {
-            await trx('filter_keywords').insert(chunk)
+            await trx('filter_keywords')
+              .insert(chunk)
+              .onConflict(['filterId', 'keyword'])
+              .ignore()
           }
         }
       })
@@ -330,7 +333,7 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
         const existing = await database<FilterKeyword>('filter_keywords')
           .where({ filterId, keyword })
           .first()
-        if (!existing) throw error
+        if (!existing) return null
         return fixKeywordRow(existing)
       }
     },
@@ -426,7 +429,7 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
         const existing = await database<FilterStatus>('filter_statuses')
           .where({ filterId, statusId })
           .first()
-        if (!existing) throw error
+        if (!existing) return null
         return fixStatusRow(existing)
       }
     },

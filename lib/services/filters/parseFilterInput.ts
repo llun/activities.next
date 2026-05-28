@@ -180,12 +180,16 @@ const parseCreateKeywords = (
 ): CreateFilterKeywordInput[] => {
   if (!raw) return []
   const result: CreateFilterKeywordInput[] = []
+  const seen = new Set<string>()
   for (const item of raw) {
     if (coerceBoolean(item._destroy, false)) continue
     if (typeof item.keyword !== 'string' || item.keyword.trim().length === 0)
       continue
+    const trimmed = item.keyword.trim()
+    if (seen.has(trimmed)) continue
+    seen.add(trimmed)
     result.push({
-      keyword: item.keyword.trim(),
+      keyword: trimmed,
       wholeWord: coerceBoolean(item.whole_word, false)
     })
   }
