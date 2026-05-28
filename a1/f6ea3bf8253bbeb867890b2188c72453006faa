@@ -1,0 +1,19 @@
+lib/database/sql/filter.ts
+  s_eecb12320dcec6::t_24bedbd33432b9 221-225,228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a1f6ea3bf8253bbeb867890b2188c72453006faa",
+  "prompts": {},
+  "sessions": {
+    "s_eecb12320dcec6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb3849f9-8ffa-48ff-bc17-78ff2b406a6c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
