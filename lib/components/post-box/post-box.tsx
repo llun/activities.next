@@ -865,11 +865,7 @@ export const PostBox: FC<Props> = ({
   return (
     <form ref={formRef} onSubmit={onPost}>
       <div className="bg-card border rounded-xl p-4 shadow-sm">
-        <ReplyPreview
-          host={host}
-          status={replyStatus}
-          onClose={onCloseReply}
-        />
+        <ReplyPreview host={host} status={replyStatus} onClose={onCloseReply} />
 
         {postExtension.contentWarningVisible ? (
           <input
@@ -963,9 +959,7 @@ export const PostBox: FC<Props> = ({
               postExtensionRef.current = nextExtension
               dispatch(addAttachment(attachment))
               if (editStatus) {
-                setAllowPost(
-                  isEditSubmittable(textRef.current, nextExtension)
-                )
+                setAllowPost(isEditSubmittable(textRef.current, nextExtension))
                 return
               }
               setAllowPost(hasNewPostContent(textRef.current, nextExtension))
@@ -1080,9 +1074,7 @@ export const PostBox: FC<Props> = ({
           <Button
             size="sm"
             disabled={
-              !allowPost ||
-              isPosting ||
-              text.length > MAX_STATUS_CHARACTERS
+              !allowPost || isPosting || text.length > MAX_STATUS_CHARACTERS
             }
             type="submit"
           >

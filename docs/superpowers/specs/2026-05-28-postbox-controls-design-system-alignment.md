@@ -60,14 +60,14 @@ card):
 3. **Avatar + textarea row** — `flex gap-3`:
    - `Avatar` size-10 (40 px), `rounded-full`.
    - `textarea`: `flex-1 border-0 outline-none resize-none bg-transparent
-     text-[15px] leading-relaxed min-h-[60px]
-     placeholder:text-muted-foreground`. No internal padding — the card's
+text-[15px] leading-relaxed min-h-[60px]
+placeholder:text-muted-foreground`. No internal padding — the card's
      `p-4` provides it.
 4. **Preview overlay** — when the Eye toolbar button is toggled on, the
    textarea is replaced inline by a `div` of the same min-height containing
    the rendered markdown (using the existing `ReactMarkdown` + `rehypeSanitize`
-   + `remarkBreaks` pipeline). The Eye button takes a "pressed" visual state
-   (`bg-muted text-foreground`). This replaces the Write/Preview tabs.
+   - `remarkBreaks` pipeline). The Eye button takes a "pressed" visual state
+     (`bg-muted text-foreground`). This replaces the Write/Preview tabs.
 5. **Poll editor** (existing `PollChoices`, conditionally rendered) — placed
    below the textarea/preview but above the toolbar.
 6. **Toolbar row** — `flex items-center gap-1 mt-2 pt-3 border-t`:
@@ -84,14 +84,14 @@ card):
    - `Eye` → toggles preview overlay. Replaces the `currentTab` state.
    - `<div className="flex-1" />` spacer.
    - Character counter: `<span className="text-xs text-muted-foreground mr-2
-     tabular-nums">{MAX_STATUS_CHARACTERS - text.length}</span>`. Turns
+tabular-nums">{MAX_STATUS_CHARACTERS - text.length}</span>`. Turns
      `text-destructive` when negative.
    - Edit mode only: a small text button "Cancel Edit" (`variant="ghost"
-     size="sm"`).
+size="sm"`).
    - **Post button**: `<Button size="sm">` rendering "Post" / "Posting…" /
      "Update".
 7. **Warning message row** (existing `warningMsg`) — `text-xs text-destructive
-   mt-2`.
+mt-2`.
 8. **Fitness file chip** (existing chip, conditionally rendered).
 9. **Attachments grid** (existing `grid grid-cols-8`, conditionally rendered).
 
@@ -150,19 +150,19 @@ This visibly enlarges the toggles in `NotificationSettings.tsx` and
 
 ## Files to change
 
-| File | Change |
-|---|---|
-| `lib/components/post-box/post-box.tsx` | Rewrite render tree per the layout above; replace `currentTab` state with a `previewMode` boolean; add char-counter logic. |
-| `lib/components/post-box/post-box.test.tsx` | Update selectors (no more `TabsList`/`TabsTrigger` for Write/Preview); add coverage for counter and over-limit Post-button disable. |
-| `lib/components/post-box/visibility-selector.tsx` | Change trigger to 32×32 ghost icon button. |
-| `lib/components/post-box/upload-media-button.tsx` | Change trigger to 32×32 ghost icon button. |
-| `lib/components/post-box/upload-fitness-file-button.tsx` | Change trigger to 32×32 ghost icon button. |
-| `lib/components/ui/progress.tsx` | Track color `bg-primary/20` → `bg-muted`. |
-| `lib/components/ui/switch.tsx` | Bump root to `h-5 w-9`; thumb translation to `translate-x-4`. |
-| `lib/components/ui/button.tsx` | Add `size: 'icon-sm'` if not present (32×32). |
-| `lib/services/mastodon/constants.ts` | Add `MAX_STATUS_CHARACTERS = 500`. |
-| `app/api/v1/instance/route.ts` | Use `MAX_STATUS_CHARACTERS` for `max_characters`. |
-| `app/api/v2/instance/route.ts` | Use `MAX_STATUS_CHARACTERS` for `max_characters`. |
+| File                                                     | Change                                                                                                                              |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/components/post-box/post-box.tsx`                   | Rewrite render tree per the layout above; replace `currentTab` state with a `previewMode` boolean; add char-counter logic.          |
+| `lib/components/post-box/post-box.test.tsx`              | Update selectors (no more `TabsList`/`TabsTrigger` for Write/Preview); add coverage for counter and over-limit Post-button disable. |
+| `lib/components/post-box/visibility-selector.tsx`        | Change trigger to 32×32 ghost icon button.                                                                                          |
+| `lib/components/post-box/upload-media-button.tsx`        | Change trigger to 32×32 ghost icon button.                                                                                          |
+| `lib/components/post-box/upload-fitness-file-button.tsx` | Change trigger to 32×32 ghost icon button.                                                                                          |
+| `lib/components/ui/progress.tsx`                         | Track color `bg-primary/20` → `bg-muted`.                                                                                           |
+| `lib/components/ui/switch.tsx`                           | Bump root to `h-5 w-9`; thumb translation to `translate-x-4`.                                                                       |
+| `lib/components/ui/button.tsx`                           | Add `size: 'icon-sm'` if not present (32×32).                                                                                       |
+| `lib/services/mastodon/constants.ts`                     | Add `MAX_STATUS_CHARACTERS = 500`.                                                                                                  |
+| `app/api/v1/instance/route.ts`                           | Use `MAX_STATUS_CHARACTERS` for `max_characters`.                                                                                   |
+| `app/api/v2/instance/route.ts`                           | Use `MAX_STATUS_CHARACTERS` for `max_characters`.                                                                                   |
 
 ## Acceptance criteria
 
