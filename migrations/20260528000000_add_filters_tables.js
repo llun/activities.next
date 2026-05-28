@@ -33,7 +33,7 @@ exports.up = async (knex) => {
   await knex.schema.createTable('filter_statuses', (table) => {
     table.string('id').primary()
     table.string('filterId').notNullable()
-    table.string('statusId').notNullable()
+    table.text('statusId').notNullable()
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
 
     table.unique(['filterId', 'statusId'], {

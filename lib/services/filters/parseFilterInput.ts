@@ -336,7 +336,7 @@ export const parseKeywordUpdateInput = (
 }
 
 const StatusBodySchema = z.object({
-  status_id: z.string().optional()
+  status_id: z.string().max(2048).optional()
 })
 
 export const parseStatusCreateInput = (body: unknown): string | null => {
