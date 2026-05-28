@@ -1006,6 +1006,7 @@ export const PostBox: FC<Props> = ({
                 postExtension.poll.showing ? 'Remove poll' : 'Add poll'
               }
               aria-pressed={postExtension.poll.showing}
+              disabled={isPosting}
               title={postExtension.poll.showing ? 'Remove poll' : 'Add poll'}
               className={cn(
                 postExtension.poll.showing
@@ -1028,6 +1029,7 @@ export const PostBox: FC<Props> = ({
                   : 'Add content warning'
               }
               aria-pressed={postExtension.contentWarningVisible}
+              disabled={isPosting}
               title={
                 postExtension.contentWarningVisible
                   ? 'Remove content warning'
