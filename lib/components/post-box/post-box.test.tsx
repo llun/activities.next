@@ -35,6 +35,11 @@ jest.mock('remark-breaks', () => ({
   default: jest.fn()
 }))
 
+jest.mock('remark-gfm', () => ({
+  __esModule: true,
+  default: jest.fn()
+}))
+
 jest.mock('@/lib/utils/resizeImage', () => ({
   resizeImage: jest.fn((file) => Promise.resolve(file))
 }))

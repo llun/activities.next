@@ -12,6 +12,7 @@ import {
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 
 import {
   createNote,
@@ -917,7 +918,7 @@ export const PostBox: FC<Props> = ({
                   {text ? (
                     <div className="markdown-content max-w-none">
                       <ReactMarkdown
-                        remarkPlugins={[remarkBreaks]}
+                        remarkPlugins={[remarkGfm, remarkBreaks]}
                         rehypePlugins={[
                           [
                             rehypeSanitize,
