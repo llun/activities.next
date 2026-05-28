@@ -60,9 +60,11 @@ export const VisibilitySelector: FC<Props> = ({
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="link"
+          variant="ghost"
+          size="icon-sm"
           title={currentOption.label}
           aria-label={currentOption.label}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           {currentOption.icon}
         </Button>
