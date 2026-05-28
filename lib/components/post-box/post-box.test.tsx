@@ -20,20 +20,14 @@ jest.mock('@/lib/client', () => ({
   uploadFitnessFile: jest.fn()
 }))
 
-let lastRemarkPlugins: unknown[] = []
+const mockReactMarkdown = jest.fn(({ children }: { children: string }) => (
+  <div>{children}</div>
+))
 
 jest.mock('react-markdown', () => ({
   __esModule: true,
-  default: ({
-    children,
-    remarkPlugins
-  }: {
-    children: string
-    remarkPlugins?: unknown[]
-  }) => {
-    lastRemarkPlugins = remarkPlugins ?? []
-    return <div>{children}</div>
-  }
+  default: (props: { children: string; remarkPlugins?: unknown[] }) =>
+    mockReactMarkdown(props)
 }))
 
 jest.mock('rehype-sanitize', () => ({
@@ -944,7 +938,6 @@ describe('PostBox edit media', () => {
 describe('PostBox markdown preview', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    lastRemarkPlugins = []
   })
 
   it('passes remarkGfm and remarkBreaks plugins to the preview renderer', async () => {
@@ -962,19 +955,22 @@ describe('PostBox markdown preview', () => {
     const textarea = screen.getByPlaceholderText("What's on your mind?")
     fireEvent.change(textarea, { target: { value: '~~strikethrough~~' } })
 
-    await act(async () => {
-      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
-    })
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
 
     const mockRemarkGfm = jest.requireMock('remark-gfm').default
     const mockRemarkBreaks = jest.requireMock('remark-breaks').default
 
     await waitFor(() => {
-      expect(lastRemarkPlugins).toContain(mockRemarkGfm)
+      expect(mockReactMarkdown).toHaveBeenCalled()
     })
-    expect(lastRemarkPlugins).toContain(mockRemarkBreaks)
-    expect(lastRemarkPlugins.indexOf(mockRemarkGfm)).toBeLessThan(
-      lastRemarkPlugins.indexOf(mockRemarkBreaks)
+
+    const plugins =
+      mockReactMarkdown.mock.calls[mockReactMarkdown.mock.calls.length - 1][0]
+        .remarkPlugins ?? []
+    expect(plugins).toContain(mockRemarkGfm)
+    expect(plugins).toContain(mockRemarkBreaks)
+    expect(plugins.indexOf(mockRemarkGfm)).toBeLessThan(
+      plugins.indexOf(mockRemarkBreaks)
     )
   })
 
@@ -990,11 +986,9 @@ describe('PostBox markdown preview', () => {
       />
     )
 
-    await act(async () => {
-      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
-    })
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
 
     expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
-    expect(lastRemarkPlugins).toHaveLength(0)
+    expect(mockReactMarkdown).not.toHaveBeenCalled()
   })
 })
