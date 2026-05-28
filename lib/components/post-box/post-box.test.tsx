@@ -20,9 +20,11 @@ jest.mock('@/lib/client', () => ({
   uploadFitnessFile: jest.fn()
 }))
 
-const mockReactMarkdown = jest.fn(({ children }: { children: string }) => (
-  <div>{children}</div>
-))
+const mockReactMarkdown = jest.fn(
+  ({ children }: { children: string; remarkPlugins?: unknown[] }) => (
+    <div>{children}</div>
+  )
+)
 
 jest.mock('react-markdown', () => ({
   __esModule: true,
