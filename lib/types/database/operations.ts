@@ -1161,7 +1161,7 @@ export interface FilterDatabase {
   ): Promise<FilterKeyword | null>
   updateFilterKeyword(
     params: UpdateFilterKeywordParams
-  ): Promise<FilterKeyword | null>
+  ): Promise<FilterKeyword | null | 'duplicate'>
   deleteFilterKeyword(
     params: DeleteFilterKeywordParams
   ): Promise<FilterKeyword | null>

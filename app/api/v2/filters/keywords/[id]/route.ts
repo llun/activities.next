@@ -91,12 +91,19 @@ export const PUT = traceApiRoute(
         keyword: input.keyword,
         wholeWord: input.wholeWord
       })
-      if (!keyword)
+      if (keyword === null)
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: ERROR_404,
           responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
+      if (keyword === 'duplicate')
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
         })
       return apiResponse({
         req,

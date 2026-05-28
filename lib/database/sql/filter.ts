@@ -376,7 +376,7 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
         await database('filter_keywords').where('id', id).update(updates)
       } catch (error) {
         if (!isUniqueConstraintError(error)) throw error
-        return null
+        return 'duplicate'
       }
 
       return fixKeywordRow({
