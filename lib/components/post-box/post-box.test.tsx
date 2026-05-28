@@ -917,3 +917,96 @@ describe('PostBox edit media', () => {
     })
   })
 })
+
+describe('PostBox character counter', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    global.URL.createObjectURL = jest.fn(() => 'blob:new-media')
+    global.URL.revokeObjectURL = jest.fn()
+    global.crypto.randomUUID = jest.fn(() => 'temporary-media-id')
+  })
+
+  it('shows remaining characters and disables Post when over the limit', () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const counter = screen.getByLabelText('Characters remaining')
+    expect(counter).toHaveTextContent('500')
+
+    const textbox = screen.getByPlaceholderText("What's on your mind?")
+    fireEvent.change(textbox, { target: { value: 'hello' } })
+    expect(counter).toHaveTextContent('495')
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    expect(postButton).toBeEnabled()
+
+    fireEvent.change(textbox, { target: { value: 'x'.repeat(501) } })
+    expect(counter).toHaveTextContent('-1')
+    expect(postButton).toBeDisabled()
+  })
+})
+
+describe('PostBox preview toggle', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    global.URL.createObjectURL = jest.fn(() => 'blob:new-media')
+    global.URL.revokeObjectURL = jest.fn()
+    global.crypto.randomUUID = jest.fn(() => 'temporary-media-id')
+  })
+
+  it('swaps the textarea for rendered markdown when Preview is toggled on', () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const textbox = screen.getByPlaceholderText("What's on your mind?")
+    fireEvent.change(textbox, { target: { value: '# heading' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+
+    expect(
+      screen.queryByPlaceholderText("What's on your mind?")
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('# heading')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByPlaceholderText("What's on your mind?")).toHaveValue(
+      '# heading'
+    )
+  })
+
+  it('shows a "Nothing to preview" hint when empty', () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
+  })
+})
