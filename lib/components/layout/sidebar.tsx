@@ -1,9 +1,7 @@
 'use client'
 
-import { Search as SearchIcon } from 'lucide-react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { FormEvent, Suspense, useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 import {
   ActorInfo,
@@ -13,7 +11,6 @@ import { Logo } from '@/lib/components/layout/logo'
 import { buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import { Input } from '@/lib/components/ui/input'
 import {
   Tooltip,
   TooltipContent,
@@ -36,69 +33,6 @@ interface SidebarProps {
   unreadCount?: number
   fitnessUrl?: string
   isAdmin?: boolean
-}
-
-function SidebarSearchFallback() {
-  return (
-    <form role="search" aria-label="Search" className="px-3 pb-3">
-      <div className="relative">
-        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          aria-label="Search"
-          placeholder="Search"
-          className="h-10 rounded-lg pl-9"
-          disabled
-        />
-      </div>
-    </form>
-  )
-}
-
-function SidebarSearch() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const currentSearchQuery =
-    pathname === '/search' ? (searchParams.get('q') ?? '') : ''
-  const [searchQuery, setSearchQuery] = useState(() => currentSearchQuery)
-
-  useEffect(() => {
-    setSearchQuery(currentSearchQuery)
-  }, [currentSearchQuery])
-
-  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const query = searchQuery.trim()
-    if (!query) {
-      router.push('/search')
-      return
-    }
-
-    const params = new URLSearchParams({ q: query })
-    router.push(`/search?${params.toString()}`)
-  }
-
-  return (
-    <form
-      role="search"
-      aria-label="Search"
-      className="px-3 pb-3"
-      onSubmit={submitSearch}
-    >
-      <div className="relative">
-        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          aria-label="Search"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search"
-          className="h-10 rounded-lg pl-9"
-        />
-      </div>
-    </form>
-  )
 }
 
 export function Sidebar({
@@ -125,11 +59,7 @@ export function Sidebar({
           <Logo size="md" />
         </div>
 
-        <Suspense fallback={<SidebarSearchFallback />}>
-          <SidebarSearch />
-        </Suspense>
-
-        <nav className="flex-1 px-3">
+        <nav className="flex-1 px-3 pt-1">
           <ul className="space-y-1">
             {allNavItems.map((item) => {
               const isActive =
