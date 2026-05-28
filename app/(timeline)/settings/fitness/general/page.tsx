@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileManagement'
 import { FitnessImport } from '@/lib/components/settings/FitnessImport'
 import { getDatabase } from '@/lib/database'
@@ -65,6 +66,10 @@ const Page = async ({
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Fitness"
+        description="Import activities and manage your fitness file storage."
+      />
       <FitnessImport actorHandle={actorHandle} />
       <FitnessFileManagement
         used={used}

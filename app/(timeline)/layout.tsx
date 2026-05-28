@@ -107,11 +107,12 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
       )}
       <main
         className={cn(
-          'flex min-h-screen flex-col pb-6',
-          showNavigation && 'pb-20 md:pl-[72px] md:pb-0 xl:pl-[280px]'
+          'flex min-h-screen flex-col overflow-x-clip pb-6',
+          showNavigation &&
+            'pb-20 md:pl-[72px] md:pb-0 md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
         )}
       >
-        <div className="timeline-content mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6">
+        <div className="timeline-content mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">
           {children}
         </div>
       </main>

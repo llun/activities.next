@@ -241,92 +241,83 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }
       />
 
-      <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <div className="p-4 pb-2">
-          <PostBox
-            host={host}
-            profile={profile}
-            replyStatus={statusActionState.replyStatus}
-            editStatus={statusActionState.editStatus}
-            isMediaUploadEnabled={isMediaUploadEnabled}
-            onDiscardReply={() => dispatchStatusAction(clearAction())}
-            onDiscardEdit={() => dispatchStatusAction(clearAction())}
-            onPostCreated={(status: Status) => {
-              setCurrentStatuses((previousValue) => [status, ...previousValue])
-              dispatchStatusAction(clearAction())
-            }}
-            onPostUpdated={(updatedStatus: Status) => {
-              setCurrentStatuses((previousStatuses) =>
-                previousStatuses.map((status) =>
-                  status.id === updatedStatus.id ? updatedStatus : status
-                )
+      <section className="rounded-xl border bg-card p-4 shadow-sm">
+        <PostBox
+          host={host}
+          profile={profile}
+          replyStatus={statusActionState.replyStatus}
+          editStatus={statusActionState.editStatus}
+          isMediaUploadEnabled={isMediaUploadEnabled}
+          onDiscardReply={() => dispatchStatusAction(clearAction())}
+          onDiscardEdit={() => dispatchStatusAction(clearAction())}
+          onPostCreated={(status: Status) => {
+            setCurrentStatuses((previousValue) => [status, ...previousValue])
+            dispatchStatusAction(clearAction())
+          }}
+          onPostUpdated={(updatedStatus: Status) => {
+            setCurrentStatuses((previousStatuses) =>
+              previousStatuses.map((status) =>
+                status.id === updatedStatus.id ? updatedStatus : status
               )
-              dispatchStatusAction(clearAction())
-            }}
-          />
-        </div>
-
-        <Tabs
-          value={currentTab.timeline}
-          onValueChange={onTabChange}
-          className="w-full"
-        >
-          <TabsList className="w-full grid grid-cols-3 rounded-none border-b bg-muted/40 p-1">
-            {TIMELINES_TABS.map((tab) => (
-              <TabsTrigger
-                key={tab.timeline}
-                value={tab.timeline}
-                className="rounded-md data-[state=active]:bg-background"
-              >
-                {tab.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          <TabsContent value={currentTab.timeline} className="mt-0">
-            {currentStatuses.length > 0 ? (
-              <Posts
-                host={host}
-                className="mt-0"
-                currentTime={Date.now()}
-                statuses={currentStatuses}
-                currentActor={profile}
-                showActions
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                postLineLimit={postLineLimit}
-                onReplyCreated={onReplyCreated}
-                onEdit={onEdit}
-                onPostDeleted={onPostDeleted}
-              />
-            ) : isLoadingMoreStatuses || isRefreshing ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <p className="text-sm font-medium">Loading timeline...</p>
-              </div>
-            ) : (
-              <div className="p-8 text-center text-muted-foreground">
-                <h2 className="text-xl font-semibold mb-2">
-                  Your timeline is empty
-                </h2>
-                <p className="mb-6">
-                  Follow some people to see their posts here.
-                </p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        {hasMoreStatuses && (
-          <div ref={loadMoreRef} className="p-4 text-center border-t">
-            <Button
-              variant="outline"
-              disabled={isLoadingMoreStatuses}
-              onClick={loadMoreStatuses}
-            >
-              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-            </Button>
-          </div>
-        )}
+            )
+            dispatchStatusAction(clearAction())
+          }}
+        />
       </section>
+
+      <Tabs
+        value={currentTab.timeline}
+        onValueChange={onTabChange}
+        className="w-full"
+      >
+        <TabsList className="grid w-full grid-cols-3">
+          {TIMELINES_TABS.map((tab) => (
+            <TabsTrigger key={tab.timeline} value={tab.timeline}>
+              {tab.name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value={currentTab.timeline} className="mt-4">
+          {currentStatuses.length > 0 ? (
+            <Posts
+              host={host}
+              currentTime={Date.now()}
+              statuses={currentStatuses}
+              currentActor={profile}
+              showActions
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              postLineLimit={postLineLimit}
+              onReplyCreated={onReplyCreated}
+              onEdit={onEdit}
+              onPostDeleted={onPostDeleted}
+            />
+          ) : isLoadingMoreStatuses || isRefreshing ? (
+            <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+              <p className="text-sm font-medium">Loading timeline...</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+              <h2 className="mb-2 text-xl font-semibold">
+                Your timeline is empty
+              </h2>
+              <p>Follow some people to see their posts here.</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {hasMoreStatuses && (
+        <div ref={loadMoreRef} className="text-center">
+          <Button
+            variant="outline"
+            disabled={isLoadingMoreStatuses}
+            onClick={loadMoreStatuses}
+          >
+            {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
