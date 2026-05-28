@@ -1,0 +1,26 @@
+lib/components/post-box/post-box.tsx
+  s_e9a0de2144652b::t_81a2048fd4c144 49
+  s_e9a0de2144652b::t_5bb21cb323ff24 958,990-1041
+lib/components/post-box/post-box.test.tsx
+  s_e9a0de2144652b::t_6eac090080798c 202-204,259-261,295-297,376-378,618-620,709-711,912-914
+lib/components/post-box/visibility-selector.tsx
+  s_e9a0de2144652b::t_451f5d4da2f0fa 1,11,29,35,41,46-47,64-65,67-68,71-72,75-114
+lib/components/post-box/upload-fitness-file-button.tsx
+  s_e9a0de2144652b::t_6d1b6552c729f8 61-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "969b7eab544baf2836a24d5c19a06af16764abdd",
+  "prompts": {},
+  "sessions": {
+    "s_e9a0de2144652b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f624208b-d13c-4d1f-9324-adb5a63e6164",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
