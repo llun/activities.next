@@ -20,9 +20,16 @@ jest.mock('@/lib/client', () => ({
   uploadFitnessFile: jest.fn()
 }))
 
+const mockReactMarkdown = jest.fn(
+  ({ children }: { children: string; remarkPlugins?: unknown[] }) => (
+    <div>{children}</div>
+  )
+)
+
 jest.mock('react-markdown', () => ({
   __esModule: true,
-  default: ({ children }: { children: string }) => <div>{children}</div>
+  default: (props: { children: string; remarkPlugins?: unknown[] }) =>
+    mockReactMarkdown(props)
 }))
 
 jest.mock('rehype-sanitize', () => ({
@@ -31,6 +38,11 @@ jest.mock('rehype-sanitize', () => ({
 }))
 
 jest.mock('remark-breaks', () => ({
+  __esModule: true,
+  default: jest.fn()
+}))
+
+jest.mock('remark-gfm', () => ({
   __esModule: true,
   default: jest.fn()
 }))
@@ -922,5 +934,63 @@ describe('PostBox edit media', () => {
         }
       })
     })
+  })
+})
+
+describe('PostBox markdown preview', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('passes remarkGfm and remarkBreaks plugins to the preview renderer', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText("What's on your mind?")
+    fireEvent.change(textarea, { target: { value: '~~strikethrough~~' } })
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
+
+    const mockRemarkGfm = jest.requireMock('remark-gfm').default
+    const mockRemarkBreaks = jest.requireMock('remark-breaks').default
+
+    await waitFor(() => {
+      expect(mockReactMarkdown).toHaveBeenCalled()
+    })
+
+    const plugins =
+      mockReactMarkdown.mock.calls[mockReactMarkdown.mock.calls.length - 1][0]
+        .remarkPlugins ?? []
+    expect(plugins).toContain(mockRemarkGfm)
+    expect(plugins).toContain(mockRemarkBreaks)
+    expect(plugins.indexOf(mockRemarkGfm)).toBeLessThan(
+      plugins.indexOf(mockRemarkBreaks)
+    )
+  })
+
+  it('shows nothing to preview message when textarea is empty', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
+
+    expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
+    expect(mockReactMarkdown).not.toHaveBeenCalled()
   })
 })
