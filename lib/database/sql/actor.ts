@@ -1405,6 +1405,21 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         })
         .delete()
 
+      // Subquery avoids hitting the SQLite 999-parameter limit when an
+      // actor has accumulated many filters; the mute precedent only
+      // touches one table per actor so doesn't need this.
+      await trx('filter_statuses')
+        .whereIn('filterId', function () {
+          this.select('id').from('filters').where('actorId', actorId)
+        })
+        .delete()
+      await trx('filter_keywords')
+        .whereIn('filterId', function () {
+          this.select('id').from('filters').where('actorId', actorId)
+        })
+        .delete()
+      await trx('filters').where('actorId', actorId).delete()
+
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()
 

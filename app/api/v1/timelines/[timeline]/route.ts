@@ -1,4 +1,8 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import {
+  annotateMastodonStatusesWithFilters,
+  getFilterContextForTimeline
+} from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
@@ -80,14 +84,15 @@ export const GET = traceApiRoute(
       const parsedLimit = limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
       const pageLimit = normalizeTimelineLimit(parsedLimit)
 
-      const { statuses, nextMaxStatusId, prevMinStatusId } =
+      const { statuses, nextMaxStatusId, prevMinStatusId, filterRecords } =
         await getFilteredTimelinePage({
           database,
           timeline,
           actorId: currentActor.id,
           minStatusId,
           maxStatusId,
-          limit: pageLimit
+          limit: pageLimit,
+          filterContext: getFilterContextForTimeline(timeline)
         })
       if (format === TimelineFormat.enum.activities_next) {
         return apiResponse({
@@ -114,11 +119,16 @@ export const GET = traceApiRoute(
         statuses,
         currentActor.id
       )
+      const annotatedStatuses = annotateMastodonStatusesWithFilters(
+        mastodonStatuses,
+        statuses,
+        filterRecords ?? []
+      )
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses,
+        data: annotatedStatuses,
         additionalHeaders: [
           ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
         ]
