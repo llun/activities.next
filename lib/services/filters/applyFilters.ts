@@ -115,7 +115,7 @@ const getStatusContents = (status: Status): string[] => {
     typeof target.summary === 'string' &&
     target.summary
   ) {
-    contents.push(target.summary)
+    contents.push(stripHtml(target.summary))
   }
   if (target.type === StatusType.enum.Poll && Array.isArray(target.choices)) {
     for (const choice of target.choices) {
