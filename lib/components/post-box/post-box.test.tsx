@@ -977,4 +977,24 @@ describe('PostBox markdown preview', () => {
       lastRemarkPlugins.indexOf(mockRemarkBreaks)
     )
   })
+
+  it('shows nothing to preview message when textarea is empty', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={jest.fn()}
+        onPostCreated={jest.fn()}
+        onPostUpdated={jest.fn()}
+        onDiscardEdit={jest.fn()}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
+    })
+
+    expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
+    expect(lastRemarkPlugins).toHaveLength(0)
+  })
 })
