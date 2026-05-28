@@ -611,6 +611,81 @@ export const getBlocks = async ({
   }
 }
 
+interface MuteParams {
+  targetActorId: string
+  notifications?: boolean
+}
+
+export const mute = async ({
+  targetActorId,
+  notifications
+}: MuteParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/mute`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(notifications === undefined ? {} : { notifications })
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+export const unmute = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/unmute`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+interface GetMutesParams {
+  limit?: number
+  maxId?: string
+  minId?: string
+}
+
+interface GetMutesResult {
+  accounts: MastodonAccount[]
+  nextMaxId: string | null
+  prevMinId: string | null
+}
+
+export const getMutes = async ({
+  limit,
+  maxId,
+  minId
+}: GetMutesParams = {}): Promise<GetMutesResult> => {
+  const url = new URL(`${window.origin}/api/v1/mutes`)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (minId) url.searchParams.set('min_id', minId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return { accounts: [], nextMaxId: null, prevMinId: null }
+  }
+
+  const linkHeader = response.headers.get('Link')
+  return {
+    accounts: (await response.json()) as MastodonAccount[],
+    nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
+    prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
+  }
+}
+
 export interface GetBookmarksParams {
   limit?: number
   maxBookmarkId?: string
