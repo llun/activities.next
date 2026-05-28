@@ -1,0 +1,21 @@
+lib/services/filters/parseFilterInput.ts
+  s_eecb12320dcec6::t_281d440bbaea42 339
+migrations/20260528000000_add_filters_tables.js
+  s_eecb12320dcec6::t_2d838975298c9d 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fd2fd0ca31d33c55f7f3351ab8e4133095aa9768",
+  "prompts": {},
+  "sessions": {
+    "s_eecb12320dcec6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb3849f9-8ffa-48ff-bc17-78ff2b406a6c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
