@@ -367,6 +367,53 @@ describe('MuteDatabase', () => {
       ])
     })
 
+    it('floats a re-muted expired row back to the top', async () => {
+      const actorId = muteActorId()
+      const oldTarget = targetActorId()
+      const newerTarget = targetActorId()
+      const pastEndsAt = Date.now() - 1000
+
+      // Seed an expired mute with old timestamps.
+      const oldDate = new Date(Date.now() - 60_000)
+      await knexDatabase('mutes').insert({
+        id: crypto.randomUUID(),
+        actorId,
+        actorHost: new URL(actorId).host,
+        targetActorId: oldTarget,
+        targetActorHost: new URL(oldTarget).host,
+        notifications: true,
+        endsAt: pastEndsAt,
+        createdAt: oldDate,
+        updatedAt: oldDate
+      })
+      await new Promise((resolve) => setTimeout(resolve, 5))
+
+      // Mute a second target fresh.
+      await database.createMute({
+        actorId,
+        targetActorId: newerTarget,
+        notifications: true,
+        endsAt: null
+      })
+      await new Promise((resolve) => setTimeout(resolve, 5))
+
+      // Re-mute the originally-expired target. createMute keeps the
+      // original createdAt but bumps updatedAt — getMutes must rank by
+      // updatedAt so this surfaces above newerTarget.
+      await database.createMute({
+        actorId,
+        targetActorId: oldTarget,
+        notifications: true,
+        endsAt: null
+      })
+
+      const mutes = await database.getMutes({ actorId })
+      expect(mutes.map((mute) => mute.targetActorId)).toEqual([
+        oldTarget,
+        newerTarget
+      ])
+    })
+
     it('filters out other actors mutes', async () => {
       const actorA = muteActorId()
       const actorB = muteActorId()

@@ -154,6 +154,10 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
     minId,
     sinceId
   }: GetMutesParams) {
+    // Ordering by updatedAt rather than createdAt so that re-muting an
+    // expired row (which only bumps updatedAt) surfaces the freshly
+    // reactivated mute at the top of the list, instead of leaving it
+    // buried at its original creation position.
     const now = Date.now()
     const query = database<Mute>('mutes')
       .where('actorId', actorId)
@@ -170,23 +174,23 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
       if (!cursor) return []
 
       const direction = maxId ? 'older' : 'newer'
-      const createdAtOperator = direction === 'older' ? '<' : '>'
+      const updatedAtOperator = direction === 'older' ? '<' : '>'
       const idOperator = direction === 'older' ? '<' : '>'
       query.andWhere((builder) => {
         builder
-          .where('createdAt', createdAtOperator, cursor.createdAt)
+          .where('updatedAt', updatedAtOperator, cursor.updatedAt)
           .orWhere((tieBreaker) => {
             tieBreaker
-              .where('createdAt', cursor.createdAt)
+              .where('updatedAt', cursor.updatedAt)
               .andWhere('id', idOperator, cursor.id)
           })
       })
     }
 
     if (minId) {
-      query.orderBy('createdAt', 'asc').orderBy('id', 'asc')
+      query.orderBy('updatedAt', 'asc').orderBy('id', 'asc')
     } else {
-      query.orderBy('createdAt', 'desc').orderBy('id', 'desc')
+      query.orderBy('updatedAt', 'desc').orderBy('id', 'desc')
     }
 
     const mutes = await query
