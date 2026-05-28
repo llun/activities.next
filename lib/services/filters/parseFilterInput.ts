@@ -47,7 +47,7 @@ export interface ParsedFilterUpdateInput {
 
 const KeywordAttribute = z.object({
   id: z.string().optional(),
-  keyword: z.string().optional(),
+  keyword: z.string().max(100).optional(),
   whole_word: z.union([z.boolean(), z.string(), z.number()]).optional(),
   _destroy: z.union([z.boolean(), z.string(), z.number()]).optional()
 })
@@ -288,7 +288,7 @@ export const parseFilterUpdateInput = (
 }
 
 const KeywordBodySchema = z.object({
-  keyword: z.string().optional(),
+  keyword: z.string().max(100).optional(),
   whole_word: z.union([z.boolean(), z.string(), z.number()]).optional()
 })
 

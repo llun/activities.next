@@ -214,9 +214,14 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
             if (change.wholeWord !== undefined)
               updates.wholeWord = change.wholeWord
             if (Object.keys(updates).length > 1) {
-              await trx('filter_keywords')
-                .where({ id: change.id, filterId: id })
-                .update(updates)
+              try {
+                await trx('filter_keywords')
+                  .where({ id: change.id, filterId: id })
+                  .update(updates)
+              } catch (error) {
+                if (!isUniqueConstraintError(error)) throw error
+                // Duplicate keyword text — skip silently
+              }
             }
             continue
           }
@@ -367,7 +372,12 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
       if (keyword !== undefined) updates.keyword = keyword
       if (wholeWord !== undefined) updates.wholeWord = wholeWord
 
-      await database('filter_keywords').where('id', id).update(updates)
+      try {
+        await database('filter_keywords').where('id', id).update(updates)
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) throw error
+        return null
+      }
 
       return fixKeywordRow({
         ...row,
