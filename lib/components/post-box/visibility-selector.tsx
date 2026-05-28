@@ -105,10 +105,7 @@ export const VisibilitySelector: FC<Props> = ({
               />
               <span className="min-w-0 flex-1">
                 <span
-                  className={cn(
-                    'block font-medium',
-                    active ? 'text-primary' : 'text-foreground'
-                  )}
+                  className={cn('block font-medium', active && 'text-primary')}
                 >
                   {option.label}
                 </span>

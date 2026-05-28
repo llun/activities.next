@@ -1008,9 +1008,9 @@ export const PostBox: FC<Props> = ({
               aria-pressed={postExtension.poll.showing}
               title={postExtension.poll.showing ? 'Remove poll' : 'Add poll'}
               className={cn(
-                'text-muted-foreground hover:text-foreground',
-                postExtension.poll.showing &&
-                  'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                postExtension.poll.showing
+                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() =>
                 dispatch(setPollVisibility(!postExtension.poll.showing))
@@ -1034,9 +1034,9 @@ export const PostBox: FC<Props> = ({
                   : 'Add content warning'
               }
               className={cn(
-                'text-muted-foreground hover:text-foreground',
-                postExtension.contentWarningVisible &&
-                  'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                postExtension.contentWarningVisible
+                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={onToggleContentWarning}
             >
