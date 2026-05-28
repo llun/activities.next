@@ -1,4 +1,12 @@
-import { AtSign, Check, ChevronDown, Globe, Lock, Unlock } from 'lucide-react'
+import {
+  AtSign,
+  Check,
+  ChevronDown,
+  Globe,
+  Lock,
+  type LucideIcon,
+  Unlock
+} from 'lucide-react'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -19,7 +27,7 @@ interface Props {
 const VISIBILITY_OPTIONS: {
   value: MastodonVisibility
   label: string
-  Icon: typeof Globe
+  Icon: LucideIcon
   description: string
 }[] = [
   {
