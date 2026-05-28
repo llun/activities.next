@@ -31,7 +31,7 @@ jest.mock('react-markdown', () => ({
     children: string
     remarkPlugins?: unknown[]
   }) => {
-    if (remarkPlugins) lastRemarkPlugins = remarkPlugins
+    lastRemarkPlugins = remarkPlugins ?? []
     return <div>{children}</div>
   }
 }))
