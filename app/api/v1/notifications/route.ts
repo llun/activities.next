@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
@@ -143,13 +144,20 @@ export const GET = traceApiRoute(
         )
       : processedNotifications
 
+    const filterRecords = await getActiveFilters(
+      database,
+      currentActor.id,
+      'notifications'
+    )
+
     // Transform to Mastodon-compatible format
     const mastodonNotifications = (
       await Promise.all(
         filteredNotifications.map((notification) =>
           getMastodonNotification(database, notification, {
             includeGrouping: grouped,
-            currentActorId: currentActor.id
+            currentActorId: currentActor.id,
+            filterRecords
           })
         )
       )
@@ -182,17 +190,22 @@ export const GET = traceApiRoute(
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
 
+    // Pagination cursors come from the notification page scanned from the
+    // DB (post account_id filter, but pre hide-filter / pre groupedAccount
+    // hydration) so that pages whose statuses are entirely hide-filtered
+    // still advertise next/prev links to keep the client paginating.
+    const paginationCandidates = filteredNotifications
     const nextLink =
-      mastodonNotifications.length > 0
+      paginationCandidates.length > 0
         ? buildPaginationUrl(
             'max_id',
-            mastodonNotifications[mastodonNotifications.length - 1].id
+            paginationCandidates[paginationCandidates.length - 1].id
           )
         : null
 
     const prevLink =
-      mastodonNotifications.length > 0
-        ? buildPaginationUrl('min_id', mastodonNotifications[0].id)
+      paginationCandidates.length > 0
+        ? buildPaginationUrl('min_id', paginationCandidates[0].id)
         : null
 
     const links = [nextLink, prevLink].filter(Boolean).join(', ')

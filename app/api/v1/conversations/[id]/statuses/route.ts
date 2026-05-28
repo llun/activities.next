@@ -1,4 +1,9 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import {
+  annotateMastodonStatusesWithFilters,
+  dropHideMatchesFromStatuses,
+  getActiveFilters
+} from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
@@ -38,19 +43,59 @@ export const GET = traceApiRoute(
       const maxStatusIdParam = url.searchParams.get('max_id')
       const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
       const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
-      const statusesPage = await database.getDirectConversationStatuses({
-        actorId: currentActor.id,
-        conversationId: id,
-        limit: limit + 1,
-        minStatusId,
-        maxStatusId
-      })
-      const hasMoreStatuses = statusesPage.length > limit
-      const statuses = statusesPage.slice(0, limit)
-      const nextMaxStatusId =
-        hasMoreStatuses && statuses.length > 0
-          ? statuses[statuses.length - 1].id
-          : null
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor.id,
+        'home'
+      )
+
+      // Backfill loop: when hide filters drop rows we re-query past the last
+      // scanned id until we either fill the requested page (with a peek row
+      // so we can advertise next), exhaust the conversation, or hit the
+      // iteration cap.
+      type ConversationStatus = Awaited<
+        ReturnType<typeof database.getDirectConversationStatuses>
+      >[number]
+      const MAX_BACKFILL_ITERATIONS = 5
+      const visibleStatuses: ConversationStatus[] = []
+      let cursor: string | null = maxStatusId
+      let exhausted = false
+      let lastScannedStatusId: string | null = null
+
+      for (
+        let iteration = 0;
+        visibleStatuses.length <= limit && iteration < MAX_BACKFILL_ITERATIONS;
+        iteration++
+      ) {
+        const batch = await database.getDirectConversationStatuses({
+          actorId: currentActor.id,
+          conversationId: id,
+          limit: limit + 1,
+          minStatusId,
+          maxStatusId: cursor
+        })
+        if (batch.length === 0) {
+          exhausted = true
+          break
+        }
+        const filtered = dropHideMatchesFromStatuses(batch, filterRecords)
+        visibleStatuses.push(...filtered)
+        cursor = batch[batch.length - 1].id
+        lastScannedStatusId = cursor
+        if (batch.length < limit + 1) {
+          exhausted = true
+          break
+        }
+      }
+
+      const hasMoreStatuses = visibleStatuses.length > limit
+      const statuses = visibleStatuses.slice(0, limit)
+      let nextMaxStatusId: string | null = null
+      if (hasMoreStatuses && statuses.length > 0) {
+        nextMaxStatusId = statuses[statuses.length - 1].id
+      } else if (!exhausted && lastScannedStatusId) {
+        nextMaxStatusId = lastScannedStatusId
+      }
       const prevMinStatusId = statuses.length > 0 ? statuses[0].id : null
 
       if (
@@ -79,11 +124,16 @@ export const GET = traceApiRoute(
         statuses,
         currentActor.id
       )
+      const annotatedStatuses = annotateMastodonStatusesWithFilters(
+        mastodonStatuses,
+        statuses,
+        filterRecords
+      )
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses,
+        data: annotatedStatuses,
         additionalHeaders: [
           ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
         ]

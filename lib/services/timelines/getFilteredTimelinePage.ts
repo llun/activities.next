@@ -1,6 +1,12 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { Database } from '@/lib/database/types'
+import {
+  dropHideMatchesFromStatuses,
+  getActiveFilters
+} from '@/lib/services/filters/applyFilters'
 import { Timeline } from '@/lib/services/timelines/types'
+import { ActiveFilterRecord } from '@/lib/types/database/operations'
+import { FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
 
 import { filterBlockedStatuses } from './blockFilter'
@@ -13,6 +19,7 @@ export interface FilteredTimelinePage {
   statuses: Status[]
   nextMaxStatusId: string | null
   prevMinStatusId: string | null
+  filterRecords?: ActiveFilterRecord[]
 }
 
 export const normalizeTimelineLimit = (limit?: number | null) =>
@@ -30,6 +37,7 @@ interface GetFilteredStatusPageParams {
   actorId?: string
   maxStatusId?: string | null
   limit?: number
+  filterContext?: FilterContext
   fetchBatch: (params: FetchFilteredStatusBatchParams) => Promise<Status[]>
 }
 
@@ -38,6 +46,7 @@ export const getFilteredStatusPage = async ({
   actorId,
   maxStatusId = null,
   limit = PER_PAGE_LIMIT,
+  filterContext,
   fetchBatch
 }: GetFilteredStatusPageParams): Promise<FilteredTimelinePage> => {
   const pageLimit = normalizeTimelineLimit(limit)
@@ -46,6 +55,10 @@ export const getFilteredStatusPage = async ({
   let cursor = maxStatusId
   let lastScannedStatusId: string | null = null
   let exhausted = false
+
+  const filterRecords = filterContext
+    ? await getActiveFilters(database, actorId, filterContext)
+    : []
 
   while (statuses.length < pageLimit && iterations < MAX_BACKFILL_ITERATIONS) {
     iterations++
@@ -63,11 +76,15 @@ export const getFilteredStatusPage = async ({
       actorId,
       batch
     )
-    const filteredBatch = await filterMutedStatuses(
+    const muteFilteredBatch = await filterMutedStatuses(
       database,
       actorId,
       blockFilteredBatch
     )
+    const filteredBatch =
+      filterRecords.length > 0
+        ? dropHideMatchesFromStatuses(muteFilteredBatch, filterRecords)
+        : muteFilteredBatch
     statuses.push(...filteredBatch)
     cursor = batch[batch.length - 1].id
     lastScannedStatusId = cursor
@@ -100,7 +117,8 @@ export const getFilteredStatusPage = async ({
   return {
     statuses: visibleStatuses,
     nextMaxStatusId,
-    prevMinStatusId: visibleStatuses.length > 0 ? visibleStatuses[0].id : null
+    prevMinStatusId: visibleStatuses.length > 0 ? visibleStatuses[0].id : null,
+    filterRecords
   }
 }
 
@@ -111,6 +129,7 @@ interface GetFilteredTimelinePageParams {
   minStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
+  filterContext?: FilterContext
 }
 
 export const getFilteredTimelinePage = async ({
@@ -119,13 +138,15 @@ export const getFilteredTimelinePage = async ({
   actorId,
   minStatusId = null,
   maxStatusId = null,
-  limit = PER_PAGE_LIMIT
+  limit = PER_PAGE_LIMIT,
+  filterContext
 }: GetFilteredTimelinePageParams): Promise<FilteredTimelinePage> =>
   getFilteredStatusPage({
     database,
     actorId,
     maxStatusId,
     limit,
+    filterContext,
     fetchBatch: ({ maxStatusId: cursor, limit: batchLimit }) =>
       database.getTimeline({
         timeline,

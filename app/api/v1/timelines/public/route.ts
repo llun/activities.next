@@ -1,3 +1,4 @@
+import { annotateMastodonStatusesWithFilters } from '@/lib/services/filters/applyFilters'
 import {
   OptionalOAuthGuard,
   corsErrorResponse
@@ -35,22 +36,29 @@ export const GET = traceApiRoute(
       const parsedLimit = limitParam ? parseInt(limitParam, 10) : null
       const pageLimit = normalizeTimelineLimit(parsedLimit)
 
-      const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
-        database,
-        actorId: currentActor?.id,
-        maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : null,
-        limit: pageLimit,
-        fetchBatch: ({ maxStatusId, limit }) =>
-          database.getTimeline({
-            timeline: Timeline.LOCAL_PUBLIC,
-            maxStatusId,
-            limit
-          })
-      })
+      const { statuses, nextMaxStatusId, filterRecords } =
+        await getFilteredStatusPage({
+          database,
+          actorId: currentActor?.id,
+          maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : null,
+          limit: pageLimit,
+          filterContext: currentActor ? 'public' : undefined,
+          fetchBatch: ({ maxStatusId, limit }) =>
+            database.getTimeline({
+              timeline: Timeline.LOCAL_PUBLIC,
+              maxStatusId,
+              limit
+            })
+        })
       const mastodonStatuses = await getMastodonStatuses(
         database,
         statuses,
         currentActor?.id
+      )
+      const annotatedStatuses = annotateMastodonStatusesWithFilters(
+        mastodonStatuses,
+        statuses,
+        filterRecords ?? []
       )
       const host = headerHost(req.headers)
       const nextLink = nextMaxStatusId
@@ -59,7 +67,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses,
+        data: annotatedStatuses,
         additionalHeaders: [
           ...(nextLink ? [['Link', nextLink] as [string, string]] : [])
         ]

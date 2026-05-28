@@ -9,6 +9,8 @@ export * from './previewCard'
 export * from './tag'
 
 export * from './filter/index'
+export * from './filter/keyword'
+export * from './filter/status'
 export * from './mediaAttachment/index'
 export * from './poll/index'
 export * from './status/index'

@@ -1,8 +1,13 @@
 import { Database } from '@/lib/database/types'
+import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { Mastodon } from '@/lib/types/activitypub'
-import { Notification, NotificationType } from '@/lib/types/database/operations'
+import {
+  ActiveFilterRecord,
+  Notification,
+  NotificationType
+} from '@/lib/types/database/operations'
 
 // Mastodon notification type mapping
 type MastodonNotificationType =
@@ -60,9 +65,17 @@ const mapNotificationType = (
 export const getMastodonNotification = async (
   database: Database,
   notification: Notification | GroupedNotification,
-  options?: { includeGrouping?: boolean; currentActorId?: string }
+  options?: {
+    includeGrouping?: boolean
+    currentActorId?: string
+    filterRecords?: ActiveFilterRecord[]
+  }
 ): Promise<MastodonNotification | null> => {
-  const { includeGrouping = false, currentActorId } = options || {}
+  const {
+    includeGrouping = false,
+    currentActorId,
+    filterRecords
+  } = options || {}
 
   // Fetch account
   const account = await database.getMastodonActorFromId({
@@ -86,7 +99,28 @@ export const getMastodonNotification = async (
         statusData,
         currentActorId
       )
-      status = mastodonStatus || undefined
+      if (mastodonStatus) {
+        if (filterRecords && filterRecords.length > 0) {
+          const matches = applyFiltersToStatus(statusData, filterRecords)
+          if (matches.some((match) => match.filter.filter_action === 'hide')) {
+            return null
+          }
+          if (matches.length > 0) {
+            if (mastodonStatus.reblog) {
+              status = {
+                ...mastodonStatus,
+                reblog: { ...mastodonStatus.reblog, filtered: matches }
+              }
+            } else {
+              status = { ...mastodonStatus, filtered: matches }
+            }
+          } else {
+            status = mastodonStatus
+          }
+        } else {
+          status = mastodonStatus
+        }
+      }
     }
   }
 

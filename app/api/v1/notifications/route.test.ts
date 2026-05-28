@@ -4,7 +4,8 @@ import { GET } from './route'
 
 const mockDatabase = {
   getNotifications: jest.fn(),
-  deleteNotification: jest.fn()
+  deleteNotification: jest.fn(),
+  getActiveFiltersForActor: jest.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = {
