@@ -155,7 +155,7 @@
   - `minor:` for backwards-compatible new features (minor version bump)
   - `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc. for everything else (patch version bump)
 - PRs should include a clear summary, linked issues (if any), test results, and notes for config/migrations.
-- Include screenshots or clips for UI changes.
+- Include screenshots or clips for UI changes **in the PR description only**. See "Repository Hygiene" below — never commit image files for PR illustration into the repo.
 
 ### Version Bump Prefixes
 
@@ -203,6 +203,42 @@ chore: update dependencies                            ← patch
   2. `yarn lint` to ensure no linting errors—**must be green before commit**.
   3. `yarn build` to ensure no build errors—**must be green before commit**.
   4. `yarn test` to ensure no test errors—**must be green before commit**.
+
+## Repository Hygiene
+
+The repository tracks only files that ship with the product or are needed by
+contributors to build, run, and test it. Working artifacts from a single PR
+or planning session do not belong in git.
+
+### No PR illustration assets
+
+- **Do not commit screenshots, screen recordings, or any other binary
+  illustration assets** (`*.png`, `*.jpg`, `*.gif`, `*.mp4`, `*.mov`, `*.webp`,
+  etc.) for the purpose of illustrating a PR, design comparison, or feature
+  demo. Static assets that the product actually serves (icons, logos in
+  `public/` and `lib/components/...`) are obviously exempt.
+- Put PR illustration images **in the pull request description**, not in
+  the repository. Upload via the GitHub web UI (drag-and-drop into the
+  description box), via a draft GitHub Release, or via an external image
+  host — whichever is easiest. Reference them as `![alt](url)` in the PR
+  body.
+- After a PR is merged, GitHub keeps the rendered description and its image
+  references intact, so nothing about the asset needs to live in the repo
+  long-term.
+
+### No spec or planning documents
+
+- **Do not commit design specs, implementation plans, brainstorming notes,
+  TODO lists, RFC drafts, or other agent-session working documents** to the
+  repository. This includes anything under `docs/superpowers/`, `plans/`,
+  `specs/`, or any new top-level folder with similar intent.
+- The PR description is the durable record of intent for a given change.
+  Long-form design decisions that future maintainers genuinely need should
+  be folded into `docs/` only when they document the **system as it exists
+  today** (setup, architecture, database, configuration) — not the process
+  by which a single PR got there.
+- `docs/superpowers/plans/` and `docs/superpowers/specs/` are already
+  excluded by `.gitignore`; do not bypass that with `git add -f`.
 
 ## Security & Configuration Tips
 

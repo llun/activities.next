@@ -29,6 +29,7 @@ scripts/pixelfed/
 docker-compose.yml
 .cursorrules
 plans/
+specs/
 
 # debug
 npm-debug.log*
