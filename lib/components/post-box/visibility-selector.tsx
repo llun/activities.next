@@ -90,7 +90,7 @@ export const VisibilitySelector: FC<Props> = ({
               key={option.value}
               role="menuitemradio"
               aria-checked={active}
-              onClick={() => onVisibilityChange(option.value)}
+              onSelect={() => onVisibilityChange(option.value)}
               className={cn(
                 'flex cursor-pointer items-start gap-2.5',
                 active &&
