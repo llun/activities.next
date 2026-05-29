@@ -50,7 +50,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
 ### Prerequisites
 
 - **Node.js 24** or higher
-- **Yarn** package manager (v4.13.0 via Corepack)
+- **Yarn** package manager (v4.15.0 via Corepack)
 - A **domain name** (required for federation)
 
 ### Quick Start

@@ -21,7 +21,7 @@ This project follows the standard open source code of conduct. Be respectful, in
 ### Prerequisites
 
 - **Node.js 24** or higher
-- **Yarn** 4.13.0 (via Corepack)
+- **Yarn** 4.15.0 (via Corepack)
 - **Git**
 - A code editor (VS Code recommended)
 

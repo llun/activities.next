@@ -4,7 +4,7 @@ This guide will help you set up Activity.next using PostgreSQL as your database 
 
 ## Prerequisites
 
-- Node.js 24 and Yarn (v4.13.0 via Corepack)
+- Node.js 24 and Yarn (v4.15.0 via Corepack)
 - Git (to clone the repository)
 - PostgreSQL server (version 12+)
 
