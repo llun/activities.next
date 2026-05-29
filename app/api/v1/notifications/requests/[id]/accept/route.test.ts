@@ -6,7 +6,9 @@ import { POST } from './route'
 
 const mockDatabase = {
   getNotificationRequest: jest.fn(),
-  acceptNotificationRequests: jest.fn()
+  acceptNotificationRequests: jest.fn(),
+  getActorSettings: jest.fn().mockResolvedValue(undefined),
+  updateActor: jest.fn().mockResolvedValue(null)
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }

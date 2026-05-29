@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
 import {
   CreateNotificationParams,
   GetNotificationRequestParams,
@@ -244,9 +245,11 @@ export const NotificationSQLDatabaseMixin = (
   async getNotificationRequests({
     actorId,
     limit,
-    offset = 0
+    offset = 0,
+    maxUpdatedAt,
+    sinceUpdatedAt
   }: GetNotificationRequestsParams) {
-    const groups = await database('notifications')
+    let query = database('notifications')
       .where('actorId', actorId)
       .andWhere('filtered', true)
       .groupBy('sourceActorId')
@@ -263,20 +266,31 @@ export const NotificationSQLDatabaseMixin = (
       .max('createdAt as lastCreatedAt')
       .orderBy('lastCreatedAt', 'desc')
       .limit(limit)
-      .offset(offset)
 
-    const requests: NotificationRequest[] = []
-    for (const group of groups) {
-      const request = await buildNotificationRequest(
-        database,
-        actorId,
-        group.sourceActorId,
-        Number(group.count),
-        group.firstCreatedAt,
-        group.lastCreatedAt
-      )
-      if (request) requests.push(request)
+    if (maxUpdatedAt !== undefined) {
+      query = query.havingRaw('MAX(createdAt) < ?', [maxUpdatedAt])
+    } else if (sinceUpdatedAt !== undefined) {
+      query = query.havingRaw('MAX(createdAt) > ?', [sinceUpdatedAt])
+    } else {
+      query = query.offset(offset)
     }
+
+    const groups = await query
+
+    const requests = (
+      await Promise.all(
+        groups.map((group) =>
+          buildNotificationRequest(
+            database,
+            actorId,
+            group.sourceActorId,
+            Number(group.count),
+            group.firstCreatedAt,
+            group.lastCreatedAt
+          )
+        )
+      )
+    ).filter((r): r is NotificationRequest => r !== null)
     return requests
   },
 
@@ -326,11 +340,16 @@ export const NotificationSQLDatabaseMixin = (
     sourceActorIds
   }: ResolveNotificationRequestsParams) {
     if (sourceActorIds.length === 0) return
-    await database('notifications')
-      .where('actorId', actorId)
-      .andWhere('filtered', true)
-      .whereIn('sourceActorId', sourceActorIds)
-      .update({ filtered: false, updatedAt: new Date() })
+    const batchSize = getWhereInBatchSize(database)
+    await Promise.all(
+      chunkArray(sourceActorIds, batchSize).map((chunk) =>
+        database('notifications')
+          .where('actorId', actorId)
+          .andWhere('filtered', true)
+          .whereIn('sourceActorId', chunk)
+          .update({ filtered: false, updatedAt: new Date() })
+      )
+    )
   },
 
   async dismissNotificationRequests({
@@ -338,11 +357,16 @@ export const NotificationSQLDatabaseMixin = (
     sourceActorIds
   }: ResolveNotificationRequestsParams) {
     if (sourceActorIds.length === 0) return
-    await database('notifications')
-      .where('actorId', actorId)
-      .andWhere('filtered', true)
-      .whereIn('sourceActorId', sourceActorIds)
-      .delete()
+    const batchSize = getWhereInBatchSize(database)
+    await Promise.all(
+      chunkArray(sourceActorIds, batchSize).map((chunk) =>
+        database('notifications')
+          .where('actorId', actorId)
+          .andWhere('filtered', true)
+          .whereIn('sourceActorId', chunk)
+          .delete()
+      )
+    )
   },
 
   async deleteNotification(notificationId: string) {

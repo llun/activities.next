@@ -1,5 +1,6 @@
 import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { addAcceptedSender } from '@/lib/services/notifications/evaluateNotificationPolicy'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -48,10 +49,13 @@ export const POST = traceApiRoute(
         })
       }
 
-      await database.acceptNotificationRequests({
-        actorId: currentActor.id,
-        sourceActorIds: [sourceActorId]
-      })
+      await Promise.all([
+        database.acceptNotificationRequests({
+          actorId: currentActor.id,
+          sourceActorIds: [sourceActorId]
+        }),
+        addAcceptedSender(database, currentActor.id, sourceActorId)
+      ])
 
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }

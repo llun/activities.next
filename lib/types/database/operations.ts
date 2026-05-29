@@ -98,6 +98,7 @@ export type UpdateActorParams = {
     }
   }
   notificationPolicy?: NotificationPolicy
+  notificationAcceptedSenders?: string[]
 
   publicKey?: string
 
@@ -1515,6 +1516,8 @@ export type GetNotificationRequestsParams = {
   actorId: string
   limit: number
   offset?: number
+  maxUpdatedAt?: number
+  sinceUpdatedAt?: number
 }
 
 export type GetNotificationRequestParams = {

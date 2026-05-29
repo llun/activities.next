@@ -36,12 +36,15 @@ export interface ActorSettings {
   // (kept inline here to avoid an operations<->rows import cycle, matching the
   // emailNotifications/pushNotifications pattern).
   notificationPolicy?: {
-    for_not_following: 'accept' | 'filter' | 'drop'
-    for_not_followers: 'accept' | 'filter' | 'drop'
-    for_new_accounts: 'accept' | 'filter' | 'drop'
-    for_private_mentions: 'accept' | 'filter' | 'drop'
-    for_limited_accounts: 'accept' | 'filter' | 'drop'
+    for_not_following?: 'accept' | 'filter' | 'drop'
+    for_not_followers?: 'accept' | 'filter' | 'drop'
+    for_new_accounts?: 'accept' | 'filter' | 'drop'
+    for_private_mentions?: 'accept' | 'filter' | 'drop'
+    for_limited_accounts?: 'accept' | 'filter' | 'drop'
   }
+  // Per-sender accept list: senders in this list always have their notifications
+  // accepted regardless of the notification policy dimensions.
+  notificationAcceptedSenders?: string[]
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null

@@ -77,7 +77,21 @@ export const PATCH = traceApiRoute(
         })
       }
 
-      const body = await req.json().catch(() => null)
+      let body: unknown
+      try {
+        body = await req.json()
+      } catch {
+        const formData = await req.formData().catch(() => null)
+        if (formData) {
+          const obj: Record<string, string> = {}
+          formData.forEach((value, key) => {
+            obj[key] = String(value)
+          })
+          body = obj
+        } else {
+          body = {}
+        }
+      }
       const parsed = UpdatePolicyBody.safeParse(body)
       if (!parsed.success) {
         return apiResponse({

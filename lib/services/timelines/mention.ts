@@ -65,14 +65,19 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
           })
           if (repliedStatus && repliedStatus.actorId === currentActor.id) {
             addToTimeline = true
-            await createNotificationWithPolicy(database, {
-              actorId: currentActor.id,
-              type: NotificationType.enum.reply,
-              sourceActorId: status.actorId,
-              statusId: status.id,
-              groupKey: `reply:${repliedStatus.id}`
-            })
-            alertEvents.push({ type: NotificationType.enum.reply })
+            const replyNotification = await createNotificationWithPolicy(
+              database,
+              {
+                actorId: currentActor.id,
+                type: NotificationType.enum.reply,
+                sourceActorId: status.actorId,
+                statusId: status.id,
+                groupKey: `reply:${repliedStatus.id}`
+              }
+            )
+            if (replyNotification && !replyNotification.filtered) {
+              alertEvents.push({ type: NotificationType.enum.reply })
+            }
           }
         } catch (error) {
           span.setStatus({
@@ -101,8 +106,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         if (!status.isLocalActor) {
           // Error is recorded but not re-thrown: a notification DB failure
           // should not block the mention from being added to the timeline.
+          let mentionNotification = null
           try {
-            await createNotificationWithPolicy(database, {
+            mentionNotification = await createNotificationWithPolicy(database, {
               actorId: currentActor.id,
               type: NotificationType.enum.mention,
               sourceActorId: status.actorId,
@@ -119,18 +125,20 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             )
           }
 
-          const mentionEvent: NotificationEvent = {
-            type: NotificationType.enum.mention
-          }
-          if (config.email && account && status.actor) {
-            mentionEvent.emailContent = {
-              recipientEmail: account.email,
-              subject: getSubject(status.actor),
-              text: getTextContent(status),
-              html: getHTMLContent(status)
+          if (mentionNotification && !mentionNotification.filtered) {
+            const mentionEvent: NotificationEvent = {
+              type: NotificationType.enum.mention
             }
+            if (config.email && account && status.actor) {
+              mentionEvent.emailContent = {
+                recipientEmail: account.email,
+                subject: getSubject(status.actor),
+                text: getTextContent(status),
+                html: getHTMLContent(status)
+              }
+            }
+            alertEvents.push(mentionEvent)
           }
-          alertEvents.push(mentionEvent)
         }
       }
 

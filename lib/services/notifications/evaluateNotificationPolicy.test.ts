@@ -11,6 +11,7 @@ const NOW = 1_700_000_000_000
 
 type MockDb = {
   getNotificationPolicy: jest.Mock
+  getActorSettings: jest.Mock
   isCurrentActorFollowing: jest.Mock
   getActorFromId: jest.Mock
   getStatus: jest.Mock
@@ -24,6 +25,8 @@ const createDatabase = (
     getNotificationPolicy: jest
       .fn()
       .mockResolvedValue({ ...DEFAULT_NOTIFICATION_POLICY, ...policy }),
+    // Default: no accepted senders list.
+    getActorSettings: jest.fn().mockResolvedValue(undefined),
     // Default: neither side follows the other.
     isCurrentActorFollowing: jest.fn().mockResolvedValue(false),
     getActorFromId: jest.fn().mockResolvedValue({ createdAt: 0 }),

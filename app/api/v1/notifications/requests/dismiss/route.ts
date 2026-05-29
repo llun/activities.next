@@ -17,13 +17,16 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-// Mastodon sends the account ids under `id[]`; accept either `id` or `id[]`.
+// Mastodon sends ids under `id[]` (array) or `id` (single string or array).
+const normalizeIds = (v: string | string[] | undefined) =>
+  v === undefined ? [] : Array.isArray(v) ? v : [v]
+
 const BulkBody = z
   .object({
-    id: z.array(z.string()).optional(),
-    'id[]': z.array(z.string()).optional()
+    id: z.union([z.string(), z.array(z.string())]).optional(),
+    'id[]': z.union([z.string(), z.array(z.string())]).optional()
   })
-  .transform((value) => value.id ?? value['id[]'] ?? [])
+  .transform((value) => normalizeIds(value.id ?? value['id[]']))
 
 export const POST = traceApiRoute(
   'dismissNotificationRequests',
@@ -38,8 +41,21 @@ export const POST = traceApiRoute(
       })
     }
 
-    const body = await req.json().catch(() => null)
-    const parsed = BulkBody.safeParse(body)
+    let rawBody: unknown
+    try {
+      rawBody = await req.json()
+    } catch {
+      const formData = await req.formData().catch(() => null)
+      if (formData) {
+        const ids = formData.getAll('id[]')
+        const idSingle = formData.get('id')
+        rawBody =
+          ids.length > 0 ? { 'id[]': ids } : idSingle ? { id: idSingle } : {}
+      } else {
+        rawBody = {}
+      }
+    }
+    const parsed = BulkBody.safeParse(rawBody)
     if (!parsed.success) {
       return apiResponse({
         req,

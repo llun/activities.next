@@ -444,7 +444,6 @@ export const createNoteFromUserInput = async ({
     replyVisibility === 'direct'
       ? mentionTags
       : recipientMentions
-  const notificationPromises = []
   const eligibleNotificationActorIds = await getNotificationEligibleActorIds(
     database,
     [
@@ -454,13 +453,19 @@ export const createNoteFromUserInput = async ({
     currentActor.id
   )
 
+  // Map actorId → notification promise so we can gate alert dispatch on the verdict.
+  const notificationEntries: Array<
+    [string, ReturnType<typeof createNotificationWithPolicy>]
+  > = []
+
   // Create reply notification if this is a reply
   if (
     shouldNotifyReply &&
     replyStatus &&
     eligibleNotificationActorIds.has(replyStatus.actorId)
   ) {
-    notificationPromises.push(
+    notificationEntries.push([
+      replyStatus.actorId,
       createNotificationWithPolicy(database, {
         actorId: replyStatus.actorId,
         type: NotificationType.enum.reply,
@@ -468,7 +473,7 @@ export const createNoteFromUserInput = async ({
         statusId,
         groupKey: `reply:${replyStatus.id}`
       })
-    )
+    ])
   }
 
   // Create mention notifications
@@ -476,7 +481,8 @@ export const createNoteFromUserInput = async ({
     const mentionedActorId = mention.href
     // Don't create notification for self-mentions
     if (eligibleNotificationActorIds.has(mentionedActorId)) {
-      notificationPromises.push(
+      notificationEntries.push([
+        mentionedActorId,
         createNotificationWithPolicy(database, {
           actorId: mentionedActorId,
           type: NotificationType.enum.mention,
@@ -484,13 +490,22 @@ export const createNoteFromUserInput = async ({
           statusId,
           groupKey: `mention:${statusId}`
         })
-      )
+      ])
     }
   }
 
-  if (notificationPromises.length > 0) {
-    await Promise.all(notificationPromises)
-  }
+  // Only send push/email alerts for notifications that were accepted (non-null, filtered=false).
+  const notificationResults = await Promise.all(
+    notificationEntries.map(([, p]) => p)
+  )
+  const alertActorIds = new Set(
+    notificationEntries
+      .filter((_, i) => {
+        const n = notificationResults[i]
+        return n !== null && !n.filtered
+      })
+      .map(([actorId]) => actorId)
+  )
 
   const status = (await database.getStatus({
     statusId,
@@ -508,7 +523,7 @@ export const createNoteFromUserInput = async ({
   if (
     shouldNotifyReply &&
     replyStatus &&
-    eligibleNotificationActorIds.has(replyStatus.actorId)
+    alertActorIds.has(replyStatus.actorId)
   ) {
     seenActorIds.add(replyStatus.actorId)
     database
@@ -542,7 +557,7 @@ export const createNoteFromUserInput = async ({
     const mentionedActorId = mention.href
     if (
       !seenActorIds.has(mentionedActorId) &&
-      eligibleNotificationActorIds.has(mentionedActorId)
+      alertActorIds.has(mentionedActorId)
     ) {
       seenActorIds.add(mentionedActorId)
       database

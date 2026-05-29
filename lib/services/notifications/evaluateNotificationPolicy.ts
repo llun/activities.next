@@ -5,6 +5,30 @@ import {
 } from '@/lib/types/database/operations'
 import { getVisibility } from '@/lib/utils/getVisibility'
 
+export const isAcceptedSender = async (
+  database: Database,
+  actorId: string,
+  sourceActorId: string
+): Promise<boolean> => {
+  const settings = await database.getActorSettings({ actorId })
+  const accepted = settings?.notificationAcceptedSenders ?? []
+  return accepted.includes(sourceActorId)
+}
+
+export const addAcceptedSender = async (
+  database: Database,
+  actorId: string,
+  sourceActorId: string
+): Promise<void> => {
+  const settings = await database.getActorSettings({ actorId })
+  const existing = settings?.notificationAcceptedSenders ?? []
+  if (existing.includes(sourceActorId)) return
+  await database.updateActor({
+    actorId,
+    notificationAcceptedSenders: [...existing, sourceActorId]
+  })
+}
+
 // Mastodon treats accounts younger than 30 days as "new".
 const NEW_ACCOUNT_AGE_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -53,6 +77,9 @@ export const evaluateNotificationPolicy = async (
   // Notifications from yourself (e.g. activity imports) are never filtered.
   if (sourceActorId === actorId) return 'accept'
 
+  // Senders the user has explicitly accepted always bypass all policy dimensions.
+  if (await isAcceptedSender(database, actorId, sourceActorId)) return 'accept'
+
   const policy = await database.getNotificationPolicy({ actorId })
   if (Object.values(policy).every((value) => value === 'accept')) {
     return 'accept'
@@ -60,11 +87,19 @@ export const evaluateNotificationPolicy = async (
 
   const candidates: NotificationPolicyValue[] = []
 
+  // Resolve follow relationships once; used by both for_not_following,
+  // for_not_followers, and for_private_mentions (follows bypass DM filter).
+  let recipientFollowsSource: boolean | undefined
+  let sourceFollowsRecipient: boolean | undefined
+
   if (
     policy.for_not_following !== 'accept' ||
-    policy.for_not_followers !== 'accept'
+    policy.for_not_followers !== 'accept' ||
+    (policy.for_private_mentions !== 'accept' &&
+      statusId &&
+      (type === 'mention' || type === 'reply'))
   ) {
-    const [recipientFollowsSource, sourceFollowsRecipient] = await Promise.all([
+    ;[recipientFollowsSource, sourceFollowsRecipient] = await Promise.all([
       database.isCurrentActorFollowing({
         currentActorId: actorId,
         followingActorId: sourceActorId
@@ -74,6 +109,12 @@ export const evaluateNotificationPolicy = async (
         followingActorId: actorId
       })
     ])
+  }
+
+  if (
+    policy.for_not_following !== 'accept' ||
+    policy.for_not_followers !== 'accept'
+  ) {
     if (!recipientFollowsSource) candidates.push(policy.for_not_following)
     if (!sourceFollowsRecipient) candidates.push(policy.for_not_followers)
   }
@@ -91,7 +132,13 @@ export const evaluateNotificationPolicy = async (
     (type === 'mention' || type === 'reply')
   ) {
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (status && getVisibility(status.to, status.cc) === 'direct') {
+    // If the recipient already follows the source, direct messages from them
+    // are not subject to the private-mentions filter.
+    if (
+      status &&
+      getVisibility(status.to, status.cc) === 'direct' &&
+      !recipientFollowsSource
+    ) {
       candidates.push(policy.for_private_mentions)
     }
   }

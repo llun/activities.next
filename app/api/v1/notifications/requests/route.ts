@@ -5,6 +5,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 40
@@ -26,17 +27,44 @@ export const GET = traceApiRoute(
     }
 
     const url = new URL(req.url)
+    const parsedLimit = parseInt(url.searchParams.get('limit') ?? '', 10)
     const limit = Math.min(
-      parseInt(url.searchParams.get('limit') || `${DEFAULT_LIMIT}`, 10),
+      Number.isNaN(parsedLimit) ? DEFAULT_LIMIT : parsedLimit,
       MAX_LIMIT
     )
-    const page = parseInt(url.searchParams.get('page') || '1', 10)
-    const offset = (page - 1) * limit
+    const parsedPage = parseInt(url.searchParams.get('page') ?? '', 10)
+    const page = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage
+
+    const maxIdParam = url.searchParams.get('max_id')
+    const sinceIdParam =
+      url.searchParams.get('since_id') ?? url.searchParams.get('min_id')
+
+    let maxUpdatedAt: number | undefined
+    let sinceUpdatedAt: number | undefined
+
+    if (maxIdParam) {
+      const cursor = await database.getNotificationRequest({
+        actorId: currentActor.id,
+        sourceActorId: idToUrl(maxIdParam)
+      })
+      if (cursor) maxUpdatedAt = cursor.updatedAt
+    } else if (sinceIdParam) {
+      const cursor = await database.getNotificationRequest({
+        actorId: currentActor.id,
+        sourceActorId: idToUrl(sinceIdParam)
+      })
+      if (cursor) sinceUpdatedAt = cursor.updatedAt
+    }
+
+    const useCursor = maxUpdatedAt !== undefined || sinceUpdatedAt !== undefined
+    const offset = useCursor ? 0 : (page - 1) * limit
 
     const requests = await database.getNotificationRequests({
       actorId: currentActor.id,
       limit,
-      offset
+      offset,
+      maxUpdatedAt,
+      sinceUpdatedAt
     })
 
     const data = (
