@@ -145,5 +145,5 @@
   "resolutions": {
     "postcss": "8.5.15"
   },
-  "packageManager": "yarn@4.13.0"
+  "packageManager": "yarn@4.15.0"
 }
