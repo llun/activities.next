@@ -13,8 +13,9 @@ import {
 
 const fixNotificationDataDate = (data: Notification): Notification => ({
   ...data,
-  // SQLite stores booleans as 0/1; normalize to a real boolean to honor the type.
+  // SQLite stores booleans as 0/1; normalize to real booleans to honor the type.
   filtered: Boolean(data.filtered),
+  isRead: Boolean(data.isRead),
   createdAt: getCompatibleTime(data.createdAt),
   updatedAt: getCompatibleTime(data.updatedAt),
   readAt: data.readAt ? getCompatibleTime(data.readAt) : undefined
@@ -181,13 +182,10 @@ export const NotificationSQLDatabaseMixin = (
     // Mastodon caps unread_count at a limit; emulate by counting rows from a
     // bounded subquery rather than the whole table.
     if (limit !== undefined) {
-      const subquery = query
-        .clone()
-        .select('id')
-        .orderBy('createdAt', 'desc')
-        .orderBy('id', 'desc')
-        .limit(limit)
-        .as('capped')
+      // ORDER BY is intentionally omitted: for a COUNT the sort order does not
+      // affect the result, and skipping it lets the query planner avoid a
+      // potentially expensive sort before the LIMIT.
+      const subquery = query.clone().select('id').limit(limit).as('capped')
       const result = await database
         .count<{ count: string }>('* as count')
         .from(subquery)
