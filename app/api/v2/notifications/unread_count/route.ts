@@ -25,6 +25,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 const QueryParams = z.object({
   limit: z.coerce
     .number()
+    .int()
     .min(1)
     .max(MAX_LIMIT)
     .default(DEFAULT_LIMIT)
@@ -53,10 +54,21 @@ export const GET = traceApiRoute(
     for (const key of new Set(url.searchParams.keys())) {
       const normalizedKey = key.replace(/\[\]$/, '')
       const allValues = url.searchParams.getAll(key)
-      queryParams[normalizedKey] =
+      const normalizedValue =
         ARRAY_QUERY_PARAMS.has(normalizedKey) || allValues.length > 1
           ? allValues
           : allValues[0]
+      const existing = queryParams[normalizedKey]
+      if (existing === undefined) {
+        queryParams[normalizedKey] = normalizedValue
+      } else {
+        queryParams[normalizedKey] = [
+          ...(Array.isArray(existing) ? existing : [existing]),
+          ...(Array.isArray(normalizedValue)
+            ? normalizedValue
+            : [normalizedValue])
+        ]
+      }
     }
 
     const parsed = QueryParams.safeParse(queryParams)

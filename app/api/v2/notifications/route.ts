@@ -35,6 +35,7 @@ const QueryParams = z.object({
   min_id: z.string().optional(),
   limit: z.coerce
     .number()
+    .int()
     .min(1)
     .max(MAX_LIMIT)
     .default(DEFAULT_LIMIT)
@@ -44,8 +45,11 @@ const QueryParams = z.object({
   grouped_types: z.array(z.string()).optional(),
   account_id: z.string().optional(),
   include_filtered: z
-    .enum(['true', 'false'])
-    .transform((value) => value === 'true')
+    .string()
+    .transform((val) => {
+      const n = val.toLowerCase()
+      return n === 'true' || n === '1' || n === 'on'
+    })
     .optional()
 })
 
@@ -67,10 +71,21 @@ export const GET = traceApiRoute(
     for (const key of new Set(url.searchParams.keys())) {
       const normalizedKey = key.replace(/\[\]$/, '')
       const allValues = url.searchParams.getAll(key)
-      queryParams[normalizedKey] =
+      const normalizedValue =
         ARRAY_QUERY_PARAMS.has(normalizedKey) || allValues.length > 1
           ? allValues
           : allValues[0]
+      const existing = queryParams[normalizedKey]
+      if (existing === undefined) {
+        queryParams[normalizedKey] = normalizedValue
+      } else {
+        queryParams[normalizedKey] = [
+          ...(Array.isArray(existing) ? existing : [existing]),
+          ...(Array.isArray(normalizedValue)
+            ? normalizedValue
+            : [normalizedValue])
+        ]
+      }
     }
 
     const parsed = QueryParams.safeParse(queryParams)

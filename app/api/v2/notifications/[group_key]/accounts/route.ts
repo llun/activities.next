@@ -2,7 +2,12 @@ import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -34,6 +39,14 @@ export const GET = traceApiRoute(
         groupKey,
         includeFiltered: true
       })
+      if (notifications.length === 0) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
 
       // Distinct source actors, most-recent-first (notifications come ordered).
       const seen = new Set<string>()
