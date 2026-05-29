@@ -708,6 +708,10 @@ export const PostBox: FC<Props> = ({
   const onTextChange = (value: string) => {
     setText(value)
     textRef.current = value
+    if (value.length > MAX_STATUS_LENGTH) {
+      setAllowPost(false)
+      return
+    }
     if (value.trim().length === 0) {
       setAllowPost(
         editStatus
@@ -990,6 +994,16 @@ export const PostBox: FC<Props> = ({
                 disabled={isPosting}
                 onFileSelected={(file) => {
                   setWarningMsg(null)
+                  postExtensionRef.current.attachments.forEach((attachment) => {
+                    if (attachment.url.startsWith('blob:')) {
+                      URL.revokeObjectURL(attachment.url)
+                    }
+                  })
+                  dispatch(setAttachments([]))
+                  postExtensionRef.current = {
+                    ...postExtensionRef.current,
+                    attachments: []
+                  }
                   dispatch(setFitnessFile(file))
                   setAllowPost(true)
                 }}
@@ -1067,7 +1081,14 @@ export const PostBox: FC<Props> = ({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span
+              className={cn(
+                'text-xs tabular-nums',
+                text.length > MAX_STATUS_LENGTH
+                  ? 'text-destructive'
+                  : 'text-muted-foreground'
+              )}
+            >
               {MAX_STATUS_LENGTH - text.length}
             </span>
             {editStatus ? (

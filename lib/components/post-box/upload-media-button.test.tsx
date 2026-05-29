@@ -357,7 +357,7 @@ describe('UploadMediaButton', () => {
       )
 
       expect(
-        screen.getByRole('button', { name: 'Add media' })
+        screen.getByRole('button', { name: `Add media (0/${MAX_ATTACHMENTS})` })
       ).toBeInTheDocument()
     })
 
@@ -407,10 +407,9 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      expect(screen.getByRole('button', { name: 'Add media' })).toHaveAttribute(
-        'title',
-        `Add media (2/${MAX_ATTACHMENTS})`
-      )
+      expect(
+        screen.getByRole('button', { name: `Add media (2/${MAX_ATTACHMENTS})` })
+      ).toBeInTheDocument()
     })
   })
 })

@@ -132,8 +132,9 @@ export const UploadMediaButton: FC<Props> = ({
         variant="ghost"
         size="icon-sm"
         onClick={onOpenFile}
+        disabled={attachments.length >= MAX_ATTACHMENTS}
         className="text-muted-foreground hover:text-foreground"
-        aria-label="Add media"
+        aria-label={`Add media (${attachments.length}/${MAX_ATTACHMENTS})`}
         title={`Add media (${attachments.length}/${MAX_ATTACHMENTS})`}
       >
         <ImagePlus className="size-4" />
