@@ -11,6 +11,7 @@ import {
   MarkNotificationsReadParams,
   Notification,
   NotificationDatabase,
+  NotificationGroupKeyParams,
   NotificationRequest,
   ResolveNotificationRequestsParams,
   UpdateNotificationParams
@@ -388,6 +389,39 @@ export const NotificationSQLDatabaseMixin = (
           .delete()
       )
     )
+  },
+
+  async getNotificationsForGroupKey({
+    actorId,
+    groupKey,
+    includeFiltered
+  }: NotificationGroupKeyParams) {
+    let query = database('notifications')
+      .where('actorId', actorId)
+      .andWhere(function () {
+        this.where('groupKey', groupKey).orWhere('id', groupKey)
+      })
+      .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
+
+    if (!includeFiltered) {
+      query = query.andWhere('filtered', false)
+    }
+
+    const results = await query
+    return results.map(fixNotificationDataDate)
+  },
+
+  async dismissNotificationGroup({
+    actorId,
+    groupKey
+  }: NotificationGroupKeyParams) {
+    await database('notifications')
+      .where('actorId', actorId)
+      .andWhere(function () {
+        this.where('groupKey', groupKey).orWhere('id', groupKey)
+      })
+      .delete()
   },
 
   async deleteNotification(notificationId: string) {

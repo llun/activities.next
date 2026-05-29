@@ -35,3 +35,43 @@ export const mastodonTypesToInternal = (
   if (!types) return undefined
   return [...new Set(types.flatMap(mastodonTypeToInternal))]
 }
+
+// Mastodon notification entity type names.
+export type MastodonNotificationType =
+  | 'mention'
+  | 'status'
+  | 'reblog'
+  | 'follow'
+  | 'follow_request'
+  | 'favourite'
+  | 'poll'
+  | 'update'
+  | 'admin.sign_up'
+  | 'admin.report'
+
+/**
+ * Maps this codebase's internal NotificationType to the Mastodon entity type.
+ * Inverse direction of mastodonTypeToInternal (see the `status` note there).
+ */
+export const internalTypeToMastodon = (
+  type: NotificationType
+): MastodonNotificationType => {
+  switch (type) {
+    case 'like':
+      return 'favourite'
+    case 'reply':
+      return 'mention'
+    case 'reblog':
+      return 'reblog'
+    case 'follow':
+      return 'follow'
+    case 'follow_request':
+      return 'follow_request'
+    case 'mention':
+      return 'mention'
+    case 'activity_import':
+      return 'status'
+    default:
+      return 'mention'
+  }
+}
