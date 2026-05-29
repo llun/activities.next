@@ -7,6 +7,7 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/reblog'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { getQueue } from '@/lib/services/queue'
@@ -65,7 +66,7 @@ export const userAnnounce = async ({
         currentActor.id
       )
     ) {
-      await database.createNotification({
+      const reblogNotification = await createNotificationWithPolicy(database, {
         actorId: originalStatus.actorId,
         type: NotificationType.enum.reblog,
         sourceActorId: currentActor.id,
@@ -73,33 +74,35 @@ export const userAnnounce = async ({
         groupKey: `reblog:${originalStatus.id}`
       })
 
-      // Fire-and-forget: notification delivery must not fail the announce action
-      database
-        .getActorFromId({ id: originalStatus.actorId })
-        .catch(() => null)
-        .then((targetActor) => {
-          const editableStatus = getOriginalStatus(originalStatus)
-          sendNotificationAlerts({
-            database,
-            actorId: originalStatus.actorId,
-            sourceActorId: currentActor.id,
-            sourceActor: currentActor,
-            statusId: originalStatus.id,
-            events: [
-              {
-                type: NotificationType.enum.reblog,
-                emailContent: targetActor?.account
-                  ? {
-                      recipientEmail: targetActor.account.email,
-                      subject: getSubject(currentActor),
-                      text: getTextContent(currentActor, editableStatus),
-                      html: getHTMLContent(currentActor, editableStatus)
-                    }
-                  : undefined
-              }
-            ]
+      if (reblogNotification && !reblogNotification.filtered) {
+        // Fire-and-forget: notification delivery must not fail the announce action
+        database
+          .getActorFromId({ id: originalStatus.actorId })
+          .then((targetActor) => {
+            const editableStatus = getOriginalStatus(originalStatus)
+            sendNotificationAlerts({
+              database,
+              actorId: originalStatus.actorId,
+              sourceActorId: currentActor.id,
+              sourceActor: currentActor,
+              statusId: originalStatus.id,
+              events: [
+                {
+                  type: NotificationType.enum.reblog,
+                  emailContent: targetActor?.account
+                    ? {
+                        recipientEmail: targetActor.account.email,
+                        subject: getSubject(currentActor),
+                        text: getTextContent(currentActor, editableStatus),
+                        html: getHTMLContent(currentActor, editableStatus)
+                      }
+                    : undefined
+                }
+              ]
+            })
           })
-        })
+          .catch(() => undefined)
+      }
     }
 
     await getQueue().publish({

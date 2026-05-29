@@ -661,6 +661,45 @@ describe('ActorDatabase', () => {
       })
     })
 
+    describe('notification policy', () => {
+      const policyActorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+
+      it('returns the all-accept default when unset', async () => {
+        const policy = await database.getNotificationPolicy({
+          actorId: policyActorId
+        })
+        expect(policy).toEqual({
+          for_not_following: 'accept',
+          for_not_followers: 'accept',
+          for_new_accounts: 'accept',
+          for_private_mentions: 'accept',
+          for_limited_accounts: 'accept'
+        })
+      })
+
+      it('merges partial updates over the existing policy', async () => {
+        await database.updateNotificationPolicy({
+          actorId: policyActorId,
+          for_not_following: 'filter'
+        })
+        await database.updateNotificationPolicy({
+          actorId: policyActorId,
+          for_new_accounts: 'drop'
+        })
+
+        const policy = await database.getNotificationPolicy({
+          actorId: policyActorId
+        })
+        expect(policy).toEqual({
+          for_not_following: 'filter',
+          for_not_followers: 'accept',
+          for_new_accounts: 'drop',
+          for_private_mentions: 'accept',
+          for_limited_accounts: 'accept'
+        })
+      })
+    })
+
     describe('#updateActor', () => {
       it('updates actor information and returns it in mastodon actor', async () => {
         await database.updateActor({

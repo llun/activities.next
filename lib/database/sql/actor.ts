@@ -24,7 +24,8 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
   deleteRowsByColumnChunks,
-  getWhereInBatchSize
+  getWhereInBatchSize,
+  isPostgresClient
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
@@ -41,6 +42,7 @@ import {
   ActorDatabase,
   CancelActorDeletionParams,
   CreateActorParams,
+  DEFAULT_NOTIFICATION_POLICY,
   DeleteActorDataParams,
   DeleteActorParams,
   GetActorFollowersCountParams,
@@ -53,9 +55,11 @@ import {
   GetActorsScheduledForDeletionParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
+  NotificationPolicy,
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
-  UpdateActorParams
+  UpdateActorParams,
+  UpdateNotificationPolicyParams
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
@@ -753,6 +757,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     postLineLimit,
     emailNotifications,
     pushNotifications,
+    notificationPolicy,
+    notificationAcceptedSenders,
+    appendNotificationAcceptedSenders,
     fitness,
 
     publicKey,
@@ -777,6 +784,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(postLineLimit !== undefined ? { postLineLimit } : null),
       ...(emailNotifications !== undefined ? { emailNotifications } : null),
       ...(pushNotifications !== undefined ? { pushNotifications } : null),
+      ...(notificationPolicy !== undefined ? { notificationPolicy } : null),
+      ...(notificationAcceptedSenders !== undefined
+        ? { notificationAcceptedSenders }
+        : null),
+      // appendNotificationAcceptedSenders is handled inside the transaction
+      // with a fresh read to prevent lost-update races.
       ...(fitness !== undefined ? { fitness } : null),
 
       ...(followersUrl ? { followersUrl } : null),
@@ -796,6 +809,35 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     }
 
     await database.transaction(async (trx) => {
+      let finalSettings = settings
+
+      if (appendNotificationAcceptedSenders !== undefined) {
+        // Re-read inside the transaction (with row lock on PostgreSQL) to merge
+        // accepted senders atomically and avoid lost-update races.
+        const freshActorQuery = trx<SQLActor>('actors').where('id', actorId)
+        if (isPostgresClient(database)) freshActorQuery.forUpdate()
+        const freshActor = await freshActorQuery.first()
+        if (freshActor) {
+          const freshSettings = getCompatibleJSON<ActorSettings>(
+            freshActor.settings
+          )
+          const existing = new Set(
+            freshSettings?.notificationAcceptedSenders ?? []
+          )
+          const toAdd = appendNotificationAcceptedSenders.filter(
+            (id) => !existing.has(id)
+          )
+          // Base the merge on freshSettings so all settings fields (policy,
+          // email/push notifications, etc.) come from the locked row, not the
+          // stale pre-transaction snapshot. This prevents concurrent settings
+          // changes from being clobbered by this write.
+          finalSettings = {
+            ...freshSettings,
+            notificationAcceptedSenders: [...existing, ...toAdd]
+          }
+        }
+      }
+
       await trx<SQLActor>('actors')
         .where('id', actorId)
         .update({
@@ -805,12 +847,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
           ...(publicKey ? { publicKey } : null),
 
-          settings: JSON.stringify(settings),
+          settings: JSON.stringify(finalSettings),
           updatedAt: currentTime
         })
       await indexActorSearchDocument(trx, {
         id: actorId,
-        actor: updatedActor
+        actor: { ...updatedActor, settings: JSON.stringify(finalSettings) }
       })
     })
     return this.getActorFromId({ id: actorId })
@@ -897,6 +939,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return undefined
     return getCompatibleJSON(persistedActor.settings) as ActorSettings
+  },
+
+  async getNotificationPolicy({ actorId }: GetActorSettingsParams) {
+    const settings = await this.getActorSettings({ actorId })
+    return {
+      ...DEFAULT_NOTIFICATION_POLICY,
+      ...(settings?.notificationPolicy ?? {})
+    }
+  },
+
+  async updateNotificationPolicy({
+    actorId,
+    ...partial
+  }: UpdateNotificationPolicyParams) {
+    const current = await this.getNotificationPolicy({ actorId })
+    const notificationPolicy: NotificationPolicy = { ...current, ...partial }
+    await this.updateActor({ actorId, notificationPolicy })
+    return notificationPolicy
   },
 
   async scheduleActorDeletion({

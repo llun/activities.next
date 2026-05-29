@@ -1,13 +1,18 @@
 import { Knex } from 'knex'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
 import {
   CreateNotificationParams,
+  GetNotificationRequestParams,
+  GetNotificationRequestsParams,
   GetNotificationsCountParams,
   GetNotificationsParams,
   MarkNotificationsReadParams,
   Notification,
   NotificationDatabase,
+  NotificationRequest,
+  ResolveNotificationRequestsParams,
   UpdateNotificationParams
 } from '@/lib/types/database/operations'
 
@@ -159,11 +164,14 @@ export const NotificationSQLDatabaseMixin = (
     types,
     excludeTypes,
     limit,
-    includeFiltered
+    includeFiltered,
+    filteredOnly
   }: GetNotificationsCountParams) {
     let query = database('notifications').where('actorId', actorId)
 
-    if (!includeFiltered) {
+    if (filteredOnly) {
+      query = query.where('filtered', true)
+    } else if (!includeFiltered) {
       query = query.where('filtered', false)
     }
 
@@ -234,7 +242,183 @@ export const NotificationSQLDatabaseMixin = (
     await database('notifications').where('id', notificationId).update(updates)
   },
 
+  async getNotificationRequests({
+    actorId,
+    limit,
+    offset = 0,
+    maxCursor,
+    sinceCursor
+  }: GetNotificationRequestsParams) {
+    let query = database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .groupBy('sourceActorId')
+      .select('sourceActorId')
+      .count<
+        {
+          sourceActorId: string
+          count: string | number
+          firstCreatedAt: number | Date | string
+          lastCreatedAt: number | Date | string
+        }[]
+      >('* as count')
+      .min('createdAt as firstCreatedAt')
+      .max('createdAt as lastCreatedAt')
+      .orderBy('lastCreatedAt', 'desc')
+      .orderBy('sourceActorId', 'asc')
+      .limit(limit)
+
+    if (maxCursor !== undefined) {
+      // Groups older than cursor: (MAX(createdAt) < cursor) OR
+      // (MAX(createdAt) = cursor AND sourceActorId > cursor.sourceActorId)
+      query = query.havingRaw(
+        'MAX(createdAt) < ? OR (MAX(createdAt) = ? AND sourceActorId > ?)',
+        [
+          new Date(maxCursor.updatedAt),
+          new Date(maxCursor.updatedAt),
+          maxCursor.sourceActorId
+        ]
+      )
+    } else if (sinceCursor !== undefined) {
+      // Groups newer than cursor: (MAX(createdAt) > cursor) OR
+      // (MAX(createdAt) = cursor AND sourceActorId < cursor.sourceActorId)
+      query = query.havingRaw(
+        'MAX(createdAt) > ? OR (MAX(createdAt) = ? AND sourceActorId < ?)',
+        [
+          new Date(sinceCursor.updatedAt),
+          new Date(sinceCursor.updatedAt),
+          sinceCursor.sourceActorId
+        ]
+      )
+    } else {
+      query = query.offset(offset)
+    }
+
+    const groups = await query
+
+    const requests = (
+      await Promise.all(
+        groups.map((group) =>
+          buildNotificationRequest(
+            database,
+            actorId,
+            group.sourceActorId,
+            Number(group.count),
+            group.firstCreatedAt,
+            group.lastCreatedAt
+          )
+        )
+      )
+    ).filter((r): r is NotificationRequest => r !== null)
+    return requests
+  },
+
+  async getNotificationRequest({
+    actorId,
+    sourceActorId
+  }: GetNotificationRequestParams) {
+    const group = await database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .andWhere('sourceActorId', sourceActorId)
+      .groupBy('sourceActorId')
+      .select('sourceActorId')
+      .count<
+        {
+          count: string | number
+          firstCreatedAt: number | Date | string
+          lastCreatedAt: number | Date | string
+        }[]
+      >('* as count')
+      .min('createdAt as firstCreatedAt')
+      .max('createdAt as lastCreatedAt')
+      .first()
+    if (!group) return null
+
+    return buildNotificationRequest(
+      database,
+      actorId,
+      sourceActorId,
+      Number(group.count),
+      group.firstCreatedAt,
+      group.lastCreatedAt
+    )
+  },
+
+  async getNotificationRequestsCount({ actorId }: { actorId: string }) {
+    // Mastodon caps pending_requests_count at 100 in the policy summary.
+    const MAX_REQUESTS_COUNT = 100
+    const result = await database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .countDistinct<{ count: string }>('sourceActorId as count')
+      .first()
+    return Math.min(parseInt(result?.count ?? '0', 10), MAX_REQUESTS_COUNT)
+  },
+
+  async acceptNotificationRequests({
+    actorId,
+    sourceActorIds
+  }: ResolveNotificationRequestsParams) {
+    if (sourceActorIds.length === 0) return
+    const batchSize = getWhereInBatchSize(database)
+    await Promise.all(
+      chunkArray(sourceActorIds, batchSize).map((chunk) =>
+        database('notifications')
+          .where('actorId', actorId)
+          .andWhere('filtered', true)
+          .whereIn('sourceActorId', chunk)
+          .update({ filtered: false, updatedAt: new Date() })
+      )
+    )
+  },
+
+  async dismissNotificationRequests({
+    actorId,
+    sourceActorIds
+  }: ResolveNotificationRequestsParams) {
+    if (sourceActorIds.length === 0) return
+    const batchSize = getWhereInBatchSize(database)
+    await Promise.all(
+      chunkArray(sourceActorIds, batchSize).map((chunk) =>
+        database('notifications')
+          .where('actorId', actorId)
+          .andWhere('filtered', true)
+          .whereIn('sourceActorId', chunk)
+          .delete()
+      )
+    )
+  },
+
   async deleteNotification(notificationId: string) {
     await database('notifications').where('id', notificationId).delete()
   }
 })
+
+// Resolves the most recent filtered notification from a source actor and packs
+// it with the group counts into a NotificationRequest.
+const buildNotificationRequest = async (
+  database: Knex,
+  actorId: string,
+  sourceActorId: string,
+  notificationsCount: number,
+  firstCreatedAt: number | Date | string,
+  lastCreatedAt: number | Date | string
+): Promise<NotificationRequest | null> => {
+  const last = await database<Notification>('notifications')
+    .where('actorId', actorId)
+    .andWhere('filtered', true)
+    .andWhere('sourceActorId', sourceActorId)
+    .orderBy('createdAt', 'desc')
+    .orderBy('id', 'desc')
+    .first()
+  if (!last) return null
+
+  return {
+    sourceActorId,
+    notificationsCount,
+    lastNotification: fixNotificationDataDate(last),
+    createdAt: getCompatibleTime(firstCreatedAt),
+    updatedAt: getCompatibleTime(lastCreatedAt)
+  }
+}

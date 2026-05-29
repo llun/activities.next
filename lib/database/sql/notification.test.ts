@@ -391,6 +391,124 @@ describe('Notification Database', () => {
       })
     })
 
+    describe('notification requests', () => {
+      const actor3Id = 'https://example.com/users/actor3'
+
+      beforeEach(async () => {
+        const existing = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 100,
+          includeFiltered: true
+        })
+        for (const notif of existing) {
+          await database.deleteNotification(notif.id)
+        }
+
+        // Two filtered notifications from actor2, one from actor3, plus one
+        // accepted (unfiltered) notification that must never appear as a request.
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.mention,
+          sourceActorId: actor2Id,
+          statusId,
+          filtered: true
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.like,
+          sourceActorId: actor2Id,
+          statusId,
+          filtered: true
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor3Id,
+          filtered: true
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.like,
+          sourceActorId: actor2Id,
+          statusId
+        })
+      })
+
+      it('groups filtered notifications by source actor', async () => {
+        const requests = await database.getNotificationRequests({
+          actorId: actor1Id,
+          limit: 40
+        })
+
+        expect(requests).toHaveLength(2)
+        const actor2Request = requests.find((r) => r.sourceActorId === actor2Id)
+        expect(actor2Request?.notificationsCount).toBe(2)
+        expect(actor2Request?.lastNotification.filtered).toBe(true)
+      })
+
+      it('counts distinct source actors with filtered notifications', async () => {
+        const count = await database.getNotificationRequestsCount({
+          actorId: actor1Id
+        })
+        expect(count).toBe(2)
+      })
+
+      it('fetches a single request by source actor', async () => {
+        const request = await database.getNotificationRequest({
+          actorId: actor1Id,
+          sourceActorId: actor2Id
+        })
+        expect(request?.notificationsCount).toBe(2)
+
+        const missing = await database.getNotificationRequest({
+          actorId: actor1Id,
+          sourceActorId: 'https://example.com/users/nobody'
+        })
+        expect(missing).toBeNull()
+      })
+
+      it('accept clears the filtered flag and surfaces notifications', async () => {
+        await database.acceptNotificationRequests({
+          actorId: actor1Id,
+          sourceActorIds: [actor2Id]
+        })
+
+        const remaining = await database.getNotificationRequests({
+          actorId: actor1Id,
+          limit: 40
+        })
+        expect(remaining.map((r) => r.sourceActorId)).toEqual([actor3Id])
+
+        // The two accepted notifications now show in the default (unfiltered) list.
+        const visible = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 40
+        })
+        const fromActor2 = visible.filter((n) => n.sourceActorId === actor2Id)
+        expect(fromActor2).toHaveLength(3)
+        expect(fromActor2.every((n) => n.filtered === false)).toBe(true)
+      })
+
+      it('dismiss deletes the filtered notifications', async () => {
+        await database.dismissNotificationRequests({
+          actorId: actor1Id,
+          sourceActorIds: [actor2Id]
+        })
+
+        const all = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 40,
+          includeFiltered: true
+        })
+        const filteredFromActor2 = all.filter(
+          (n) => n.sourceActorId === actor2Id && n.filtered
+        )
+        expect(filteredFromActor2).toHaveLength(0)
+        // The previously-accepted actor2 notification is untouched.
+        expect(all.filter((n) => n.sourceActorId === actor2Id)).toHaveLength(1)
+      })
+    })
+
     describe('deleteNotification', () => {
       it('should delete a notification', async () => {
         const notification = await database.createNotification({

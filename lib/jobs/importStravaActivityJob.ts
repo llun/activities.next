@@ -17,6 +17,7 @@ import {
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { getQueue } from '@/lib/services/queue'
 import {
   StravaActivity,
@@ -553,7 +554,7 @@ export const importStravaActivityJob = createJobHandle(
         })
 
         if (isNewFallback) {
-          await database.createNotification({
+          await createNotificationWithPolicy(database, {
             actorId,
             type: 'activity_import',
             sourceActorId: actorId,
@@ -689,7 +690,7 @@ export const importStravaActivityJob = createJobHandle(
     })
 
     if (isNewImport) {
-      await database.createNotification({
+      await createNotificationWithPolicy(database, {
         actorId,
         type: 'activity_import',
         sourceActorId: actorId,
