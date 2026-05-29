@@ -5,7 +5,7 @@ This guide provides an overview of how to set up Activity.next for development o
 ## Prerequisites
 
 - **Node.js 24** or higher
-- **Yarn** package manager (v4.13.0 via Corepack)
+- **Yarn** package manager (v4.15.0 via Corepack)
 - **Git** (to clone the repository)
 - A **domain name** (required for federation with other servers)
 
