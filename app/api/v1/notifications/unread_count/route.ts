@@ -1,13 +1,37 @@
+import { z } from 'zod'
+
 import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_422,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+const DEFAULT_LIMIT = 100
+const MAX_LIMIT = 1000
+const ARRAY_QUERY_PARAMS = new Set(['types', 'exclude_types'])
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+const UnreadCountQueryParams = z.object({
+  limit: z.coerce
+    .number()
+    .min(1)
+    .max(MAX_LIMIT)
+    .default(DEFAULT_LIMIT)
+    .optional(),
+  types: z.array(z.string()).optional(),
+  exclude_types: z.array(z.string()).optional(),
+  account_id: z.string().optional()
+})
 
 export const GET = traceApiRoute(
   'getUnreadNotificationsCount',
@@ -22,9 +46,61 @@ export const GET = traceApiRoute(
       })
     }
 
+    const url = new URL(req.url)
+    // Normalize repeated array params (types[], exclude_types[]) to bare keys.
+    const queryParams: Record<string, string | string[]> = {}
+    for (const key of new Set(url.searchParams.keys())) {
+      const normalizedKey = key.replace(/\[\]$/, '')
+      const allValues = url.searchParams.getAll(key)
+      queryParams[normalizedKey] =
+        ARRAY_QUERY_PARAMS.has(normalizedKey) || allValues.length > 1
+          ? allValues
+          : allValues[0]
+    }
+
+    const parsedParams = UnreadCountQueryParams.safeParse(queryParams)
+    if (!parsedParams.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+
+    const {
+      limit = DEFAULT_LIMIT,
+      types,
+      exclude_types: excludeTypes,
+      account_id: accountId
+    } = parsedParams.data
+
+    const internalTypes = mastodonTypesToInternal(types)
+    const internalExcludeTypes = mastodonTypesToInternal(excludeTypes)
+
+    // account_id is the Mastodon short id of the source actor; sourceActorId is
+    // stored as a full URL, so (like the list route) it is matched post-fetch
+    // via urlToId rather than in SQL.
+    if (accountId) {
+      const notifications = await database.getNotifications({
+        actorId: currentActor.id,
+        limit,
+        onlyUnread: true,
+        types: internalTypes,
+        excludeTypes: internalExcludeTypes
+      })
+      const count = notifications.filter(
+        (n) => urlToId(n.sourceActorId) === accountId
+      ).length
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
+    }
+
     const count = await database.getNotificationsCount({
       actorId: currentActor.id,
-      onlyUnread: true
+      onlyUnread: true,
+      types: internalTypes,
+      excludeTypes: internalExcludeTypes,
+      limit
     })
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })

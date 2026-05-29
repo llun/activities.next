@@ -74,4 +74,39 @@ describe('GET /api/v1/notifications', () => {
       })
     )
   })
+
+  it('excludes filtered notifications by default', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+    const request = new NextRequest('https://llun.test/api/v1/notifications', {
+      method: 'GET'
+    })
+
+    await GET(request, { params: Promise.resolve({}) })
+
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: mockCurrentActor.id,
+        includeFiltered: false
+      })
+    )
+  })
+
+  it('passes include_filtered=true through to the database', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v1/notifications?include_filtered=true',
+      { method: 'GET' }
+    )
+
+    await GET(request, { params: Promise.resolve({}) })
+
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: mockCurrentActor.id,
+        includeFiltered: true
+      })
+    )
+  })
 })

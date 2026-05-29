@@ -6,7 +6,8 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
-import { NotificationType, Scope } from '@/lib/types/database/operations'
+import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
+import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
@@ -41,6 +42,10 @@ const NotificationQueryParams = z.object({
   types: z.array(z.string()).optional(),
   exclude_types: z.array(z.string()).optional(),
   account_id: z.string().optional(),
+  include_filtered: z
+    .enum(['true', 'false'])
+    .transform((val) => val === 'true')
+    .optional(),
   grouped: z
     .enum(['true', 'false'])
     .transform((val) => val === 'true')
@@ -102,27 +107,13 @@ export const GET = traceApiRoute(
       types,
       exclude_types: excludeTypes,
       account_id: accountId,
+      include_filtered: includeFiltered = false,
       grouped = false
     } = parsedParams.data
 
-    // Convert Mastodon types to internal types for filtering
-    const internalTypes = types?.map((type) => {
-      if (type === 'favourite') return 'like'
-      if (type === 'reblog') return 'reblog'
-      // Maps Mastodon 'status' type to internal 'activity_import'.
-      // This codebase has no native follow-post 'status' notifications;
-      // if one is ever added, this mapping must be updated.
-      if (type === 'status') return 'activity_import'
-      return type
-    }) as NotificationType[] | undefined
-
-    const internalExcludeTypes = excludeTypes?.map((type) => {
-      if (type === 'favourite') return 'like'
-      if (type === 'reblog') return 'reblog'
-      // See comment above about 'status' → 'activity_import' mapping
-      if (type === 'status') return 'activity_import'
-      return type
-    }) as NotificationType[] | undefined
+    // Convert Mastodon type names to internal types for filtering
+    const internalTypes = mastodonTypesToInternal(types)
+    const internalExcludeTypes = mastodonTypesToInternal(excludeTypes)
 
     // Fetch notifications
     const notifications = await database.getNotifications({
@@ -131,7 +122,8 @@ export const GET = traceApiRoute(
       maxNotificationId: maxId,
       minNotificationId: minId || sinceId,
       types: internalTypes,
-      excludeTypes: internalExcludeTypes
+      excludeTypes: internalExcludeTypes,
+      includeFiltered
     })
 
     // Group notifications if requested
@@ -182,6 +174,9 @@ export const GET = traceApiRoute(
       }
       if (accountId) {
         params.set('account_id', accountId)
+      }
+      if (includeFiltered) {
+        params.set('include_filtered', 'true')
       }
       if (grouped) {
         params.set('grouped', 'true')

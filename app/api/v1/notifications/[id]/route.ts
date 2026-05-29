@@ -22,6 +22,9 @@ interface Params {
   id: string
 }
 
+// Mastodon's `supported_types[]` query param is accepted and ignored: every
+// internal notification type maps to a first-class Mastodon type, so there is
+// never an unsupported type that would need a fallback representation.
 export const GET = traceApiRoute(
   'getNotification',
   OAuthGuard<Params>(
