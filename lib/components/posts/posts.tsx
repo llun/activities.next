@@ -91,46 +91,50 @@ export const Posts: FC<Props> = ({
   }
 
   return (
-    <section className={cn('flex w-full min-w-0 flex-col gap-3', className)}>
-      {statuses.map((status) => (
-        <article
-          key={status.id}
-          className="min-w-0 rounded-xl border bg-card p-4 shadow-sm"
-        >
-          <Post
-            host={host}
-            currentTime={currentTime}
-            currentActor={currentActor}
-            status={status}
-            showActions={showActions}
-            editable={currentActor?.id === status.actorId}
-            collapsible
-            postLineLimit={postLineLimit}
-            onReply={handleReply}
-            onEdit={onEdit}
-            onPostDeleted={onPostDeleted}
-            onBookmarkChanged={onBookmarkChanged}
-            onOpenStatus={openStatus}
-            onShowAttachment={(allMedias, index) => {
-              setModalMedias({ medias: allMedias, initialSelection: index })
-            }}
-          />
-          {replyingToStatusId === status.id && currentActor && (
-            <StatusReplyBox
-              profile={currentActor}
-              replyStatus={status}
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              onCancel={handleCancelReply}
-              onPostCreated={handleReplyCreated}
+    <>
+      <section
+        className={cn(
+          'w-full min-w-0 divide-y overflow-hidden rounded-xl border bg-card shadow-sm',
+          className
+        )}
+      >
+        {statuses.map((status) => (
+          <article key={status.id} className="min-w-0 px-4 py-3">
+            <Post
+              host={host}
+              currentTime={currentTime}
+              currentActor={currentActor}
+              status={status}
+              showActions={showActions}
+              editable={currentActor?.id === status.actorId}
+              collapsible
+              postLineLimit={postLineLimit}
+              onReply={handleReply}
+              onEdit={onEdit}
+              onPostDeleted={onPostDeleted}
+              onBookmarkChanged={onBookmarkChanged}
+              onOpenStatus={openStatus}
+              onShowAttachment={(allMedias, index) => {
+                setModalMedias({ medias: allMedias, initialSelection: index })
+              }}
             />
-          )}
-        </article>
-      ))}
+            {replyingToStatusId === status.id && currentActor && (
+              <StatusReplyBox
+                profile={currentActor}
+                replyStatus={status}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                onCancel={handleCancelReply}
+                onPostCreated={handleReplyCreated}
+              />
+            )}
+          </article>
+        ))}
+      </section>
       <MediasModal
         medias={modalMedias?.medias ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
         onClosed={() => setModalMedias(null)}
       />
-    </section>
+    </>
   )
 }

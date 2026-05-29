@@ -18,6 +18,8 @@
 - `yarn lint` runs ESLint across the workspace.
 - `yarn test` runs the full Jest suite (all tests run in parallel with SQLite in-memory databases).
 - `yarn migrate` applies Knex migrations; `yarn migrate:make <name>` creates a new migration.
+- **Local database is local-only.** For development and tests, use either **SQLite** on `localhost` (`ACTIVITIES_DATABASE_CLIENT=better-sqlite3` with a local `*.sqlite3` file, or the `ACTIVITIES_DATABASE` JSON equivalent) or the **PostgreSQL in the docker-compose stack at `activities.local`**. **Never run the dev server, migrations, or tests against a remote/shared/production database** (e.g. a non-local `ACTIVITIES_DATABASE_PG_HOST` such as `34.79.77.243`). Verify the resolved database target is local before migrating or starting the app. When working in a git worktree, do not copy a main-checkout `.env.local` that points at a remote DB; create a worktree-local SQLite config instead.
+- **Creating test/mock users is allowed** for local verification (for example, to log in and check UI changes), but only against a local database as defined above — never against a remote/shared/production database.
 
 ## Runtime Configuration Guidelines
 
@@ -234,6 +236,7 @@ chore: update dependencies                            ← patch
 
 - Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`). MySQL-compatible Knex configuration paths also exist and should not be broken casually.
 - Local SQLite is the simplest for development; run `yarn migrate` after updating schema or migrations.
+- **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.
 - Tests use isolated SQLite in-memory databases for fast, parallel execution.
 - Docker users should mount a persistent volume to `/opt/activities.next` (see `docs/setup.md`).
 

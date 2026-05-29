@@ -17,8 +17,9 @@
   4. `yarn test`
 - Start the local dev server with `yarn dev` unless a checkout-specific override says otherwise. The package script binds Next.js to `0.0.0.0`, so only run it on trusted local networks.
 - Use the browser to verify any UI changes.
-- Do **not** create test users.
-- Activity logs: `fediverse_local-activitynext-dev-1` container; DB: `postgres` container.
+- Creating **test/mock users** for local verification is allowed. Only create them against a local database (see the database rule below) — never against a remote/shared/production database.
+- **Local development must use only a local database:** either **SQLite** (e.g. `ACTIVITIES_DATABASE_CLIENT=better-sqlite3` with a local `*.sqlite3` file) when running on `localhost`, or the **PostgreSQL in the docker-compose stack reachable at `activities.local`**. **Never point local dev/tests at the remote database** (e.g. `34.79.77.243` or any non-local `ACTIVITIES_DATABASE_PG_HOST`). Before running migrations, the dev server, or creating users, confirm `ACTIVITIES_DATABASE` / `ACTIVITIES_DATABASE_PG_HOST` resolves to a local target. In a git worktree, do not reuse the main checkout's `.env.local` if it points at a remote DB — write a worktree-local SQLite config instead.
+- Activity logs: `fediverse_local-activitynext-dev-1` container; local DB: `postgres` container (docker compose, `activities.local`).
 - For major changes: commit → push → open PR to `main`.
 - Every commit message must start with a conventional commit prefix: `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc.
 - Use `none:` to mark a commit as no-release, `major:` for breaking changes, and `minor:` for new backwards-compatible features. `.github/`-only commits are also treated as no-bump unless they explicitly use `major:` or `minor:`. See `AGENTS.md` for the full version bump guide.
