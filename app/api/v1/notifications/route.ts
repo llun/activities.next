@@ -235,7 +235,8 @@ export const POST = traceApiRoute(
     while (true) {
       const notifications = await database.getNotifications({
         actorId: currentActor.id,
-        limit: batchSize
+        limit: batchSize,
+        includeFiltered: true
       })
 
       if (notifications.length === 0) {

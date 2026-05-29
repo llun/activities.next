@@ -93,6 +93,21 @@ describe('GET /api/v1/notifications/unread_count', () => {
     )
   })
 
+  it('merges bare and bracketed forms of the same array param', async () => {
+    mockDatabase.getNotificationsCount.mockResolvedValueOnce(1)
+
+    const request = new NextRequest(
+      'https://llun.test/api/v1/notifications/unread_count?types=favourite&types[]=reblog',
+      { method: 'GET' }
+    )
+
+    await GET(request, { params: Promise.resolve({}) })
+
+    expect(mockDatabase.getNotificationsCount).toHaveBeenCalledWith(
+      expect.objectContaining({ types: ['like', 'reblog'] })
+    )
+  })
+
   it('counts via post-fetch account_id filtering on sourceActorId', async () => {
     const aliceId = 'https://other.test/users/alice'
     const bobId = 'https://other.test/users/bob'
