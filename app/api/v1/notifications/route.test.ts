@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { GET } from './route'
+import { GET, POST } from './route'
 
 const mockDatabase = {
   getNotifications: jest.fn(),
@@ -102,6 +102,30 @@ describe('GET /api/v1/notifications', () => {
 
     await GET(request, { params: Promise.resolve({}) })
 
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: mockCurrentActor.id,
+        includeFiltered: true
+      })
+    )
+  })
+})
+
+describe('POST /api/v1/notifications (clear-all)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('fetches notifications with includeFiltered: true so filtered notifications are cleared', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+    const request = new NextRequest('https://llun.test/api/v1/notifications', {
+      method: 'POST'
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
     expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: mockCurrentActor.id,
