@@ -154,38 +154,35 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
         description="Saved posts from your timelines."
       />
 
-      <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        {currentStatuses.length > 0 ? (
-          <Posts
-            host={host}
-            className="mt-0"
-            currentTime={currentTime}
-            statuses={currentStatuses}
-            currentActor={currentActor}
-            showActions
-            postLineLimit={postLineLimit}
-            onPostDeleted={removeStatus}
-            onBookmarkChanged={onBookmarkChanged}
-          />
-        ) : (
-          <div className="p-8 text-center text-muted-foreground">
-            <h2 className="mb-2 text-xl font-semibold">No bookmarks yet</h2>
-            <p>Bookmark posts to find them here later.</p>
-          </div>
-        )}
+      {currentStatuses.length > 0 ? (
+        <Posts
+          host={host}
+          currentTime={currentTime}
+          statuses={currentStatuses}
+          currentActor={currentActor}
+          showActions
+          postLineLimit={postLineLimit}
+          onPostDeleted={removeStatus}
+          onBookmarkChanged={onBookmarkChanged}
+        />
+      ) : (
+        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+          <h2 className="mb-2 text-xl font-semibold">No bookmarks yet</h2>
+          <p>Bookmark posts to find them here later.</p>
+        </div>
+      )}
 
-        {hasMoreStatuses && lastBookmarkIdRef.current && (
-          <div ref={loadMoreRef} className="border-t p-4 text-center">
-            <Button
-              variant="outline"
-              disabled={isLoadingMoreStatuses}
-              onClick={loadMoreStatuses}
-            >
-              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-            </Button>
-          </div>
-        )}
-      </section>
+      {hasMoreStatuses && lastBookmarkIdRef.current && (
+        <div ref={loadMoreRef} className="text-center">
+          <Button
+            variant="outline"
+            disabled={isLoadingMoreStatuses}
+            onClick={loadMoreStatuses}
+          >
+            {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

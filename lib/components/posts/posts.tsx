@@ -22,6 +22,12 @@ import { StatusReplyBox } from './status-reply-box'
 interface Props {
   host: string
   className?: string
+  /**
+   * When true (default) the feed renders as a self-contained bordered card
+   * (the merged-feed box). Set to false to render only the divided rows so the
+   * feed can be embedded inside an existing card (e.g. the search results card).
+   */
+  framed?: boolean
   currentActor?: ActorProfile
   showActions?: boolean
   currentTime: number
@@ -41,6 +47,7 @@ interface Props {
 export const Posts: FC<Props> = ({
   host,
   className,
+  framed = true,
   currentActor,
   showActions = false,
   currentTime,
@@ -94,7 +101,8 @@ export const Posts: FC<Props> = ({
     <>
       <section
         className={cn(
-          'w-full min-w-0 divide-y overflow-hidden rounded-xl border bg-card shadow-sm',
+          'w-full min-w-0 divide-y',
+          framed && 'overflow-hidden rounded-xl border bg-card shadow-sm',
           className
         )}
       >

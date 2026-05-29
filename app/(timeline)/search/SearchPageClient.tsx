@@ -447,7 +447,7 @@ export const SearchPageClient = ({
   const renderPosts = (statuses: Status[]) => (
     <Posts
       host={host}
-      className="mt-0"
+      framed={false}
       currentTime={currentTime}
       statuses={statuses}
       currentActor={currentActor}

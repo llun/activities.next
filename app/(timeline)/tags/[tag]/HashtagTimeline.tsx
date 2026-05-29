@@ -130,37 +130,34 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
         </p>
       </div>
 
-      <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        {currentStatuses.length > 0 ? (
-          <Posts
-            host={host}
-            className="mt-0"
-            currentTime={currentTime}
-            statuses={currentStatuses}
-            currentActor={currentActor}
-            showActions={Boolean(currentActor)}
-            postLineLimit={postLineLimit}
-            onPostDeleted={onPostDeleted}
-          />
-        ) : (
-          <div className="p-8 text-center text-muted-foreground">
-            <h2 className="text-xl font-semibold mb-2">No posts with #{tag}</h2>
-            <p>Be the first to post with this hashtag.</p>
-          </div>
-        )}
+      {currentStatuses.length > 0 ? (
+        <Posts
+          host={host}
+          currentTime={currentTime}
+          statuses={currentStatuses}
+          currentActor={currentActor}
+          showActions={Boolean(currentActor)}
+          postLineLimit={postLineLimit}
+          onPostDeleted={onPostDeleted}
+        />
+      ) : (
+        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+          <h2 className="text-xl font-semibold mb-2">No posts with #{tag}</h2>
+          <p>Be the first to post with this hashtag.</p>
+        </div>
+      )}
 
-        {hasMoreStatuses && lastStatusIdRef.current && (
-          <div ref={loadMoreRef} className="p-4 text-center border-t">
-            <Button
-              variant="outline"
-              disabled={isLoadingMoreStatuses}
-              onClick={loadMoreStatuses}
-            >
-              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-            </Button>
-          </div>
-        )}
-      </section>
+      {hasMoreStatuses && lastStatusIdRef.current && (
+        <div ref={loadMoreRef} className="text-center">
+          <Button
+            variant="outline"
+            disabled={isLoadingMoreStatuses}
+            onClick={loadMoreStatuses}
+          >
+            {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
