@@ -982,7 +982,7 @@ export const PostBox: FC<Props> = ({
               onUploadStart={() => setWarningMsg(null)}
               onBeforeAddAttachments={onRemoveFitnessFile}
             />
-            {!replyStatus ? (
+            {!replyStatus && !editStatus ? (
               <UploadFitnessFileButton
                 disabled={isPosting}
                 onFileSelected={(file) => {
