@@ -21,8 +21,9 @@ export const addAcceptedSender = async (
   sourceActorId: string
 ): Promise<void> => addAcceptedSenders(database, actorId, [sourceActorId])
 
-// Atomically appends sourceActorIds inside updateActor's transaction to
-// prevent concurrent accept calls clobbering each other's entries.
+// Appends sourceActorIds via updateActor's appendNotificationAcceptedSenders,
+// which re-reads the actor row inside a transaction (with SELECT FOR UPDATE on
+// PostgreSQL) to prevent concurrent accept calls clobbering each other.
 export const addAcceptedSenders = async (
   database: Database,
   actorId: string,

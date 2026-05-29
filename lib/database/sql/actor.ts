@@ -24,7 +24,8 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
   deleteRowsByColumnChunks,
-  getWhereInBatchSize
+  getWhereInBatchSize,
+  isPostgresClient
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
@@ -787,16 +788,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(notificationAcceptedSenders !== undefined
         ? { notificationAcceptedSenders }
         : null),
-      ...(appendNotificationAcceptedSenders !== undefined
-        ? {
-            notificationAcceptedSenders: [
-              ...new Set([
-                ...(persistedSettings?.notificationAcceptedSenders ?? []),
-                ...appendNotificationAcceptedSenders
-              ])
-            ]
-          }
-        : null),
+      // appendNotificationAcceptedSenders is handled inside the transaction
+      // with a fresh read to prevent lost-update races.
       ...(fitness !== undefined ? { fitness } : null),
 
       ...(followersUrl ? { followersUrl } : null),
@@ -816,6 +809,33 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     }
 
     await database.transaction(async (trx) => {
+      let finalSettings = settings
+
+      if (appendNotificationAcceptedSenders !== undefined) {
+        // Re-read inside the transaction (with row lock on PostgreSQL) to merge
+        // accepted senders atomically and avoid lost-update races.
+        const freshActorQuery = trx<SQLActor>('actors').where('id', actorId)
+        if (isPostgresClient(database)) freshActorQuery.forUpdate()
+        const freshActor = await freshActorQuery.first()
+        if (freshActor) {
+          const freshSettings = getCompatibleJSON<ActorSettings>(
+            freshActor.settings
+          )
+          const existing = new Set(
+            freshSettings?.notificationAcceptedSenders ?? []
+          )
+          const toAdd = appendNotificationAcceptedSenders.filter(
+            (id) => !existing.has(id)
+          )
+          if (toAdd.length > 0) {
+            finalSettings = {
+              ...finalSettings,
+              notificationAcceptedSenders: [...existing, ...toAdd]
+            }
+          }
+        }
+      }
+
       await trx<SQLActor>('actors')
         .where('id', actorId)
         .update({
@@ -825,12 +845,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
           ...(publicKey ? { publicKey } : null),
 
-          settings: JSON.stringify(settings),
+          settings: JSON.stringify(finalSettings),
           updatedAt: currentTime
         })
       await indexActorSearchDocument(trx, {
         id: actorId,
-        actor: updatedActor
+        actor: { ...updatedActor, settings: JSON.stringify(finalSettings) }
       })
     })
     return this.getActorFromId({ id: actorId })
