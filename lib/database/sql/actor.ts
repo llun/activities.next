@@ -41,6 +41,7 @@ import {
   ActorDatabase,
   CancelActorDeletionParams,
   CreateActorParams,
+  DEFAULT_NOTIFICATION_POLICY,
   DeleteActorDataParams,
   DeleteActorParams,
   GetActorFollowersCountParams,
@@ -53,9 +54,11 @@ import {
   GetActorsScheduledForDeletionParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
+  NotificationPolicy,
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
-  UpdateActorParams
+  UpdateActorParams,
+  UpdateNotificationPolicyParams
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
@@ -753,6 +756,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     postLineLimit,
     emailNotifications,
     pushNotifications,
+    notificationPolicy,
     fitness,
 
     publicKey,
@@ -777,6 +781,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(postLineLimit !== undefined ? { postLineLimit } : null),
       ...(emailNotifications !== undefined ? { emailNotifications } : null),
       ...(pushNotifications !== undefined ? { pushNotifications } : null),
+      ...(notificationPolicy !== undefined ? { notificationPolicy } : null),
       ...(fitness !== undefined ? { fitness } : null),
 
       ...(followersUrl ? { followersUrl } : null),
@@ -897,6 +902,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return undefined
     return getCompatibleJSON(persistedActor.settings) as ActorSettings
+  },
+
+  async getNotificationPolicy({ actorId }: GetActorSettingsParams) {
+    const settings = await this.getActorSettings({ actorId })
+    return {
+      ...DEFAULT_NOTIFICATION_POLICY,
+      ...(settings?.notificationPolicy ?? {})
+    }
+  },
+
+  async updateNotificationPolicy({
+    actorId,
+    ...partial
+  }: UpdateNotificationPolicyParams) {
+    const current = await this.getNotificationPolicy({ actorId })
+    const notificationPolicy: NotificationPolicy = { ...current, ...partial }
+    await this.updateActor({ actorId, notificationPolicy })
+    return notificationPolicy
   },
 
   async scheduleActorDeletion({

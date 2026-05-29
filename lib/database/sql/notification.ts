@@ -3,11 +3,15 @@ import { Knex } from 'knex'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateNotificationParams,
+  GetNotificationRequestParams,
+  GetNotificationRequestsParams,
   GetNotificationsCountParams,
   GetNotificationsParams,
   MarkNotificationsReadParams,
   Notification,
   NotificationDatabase,
+  NotificationRequest,
+  ResolveNotificationRequestsParams,
   UpdateNotificationParams
 } from '@/lib/types/database/operations'
 
@@ -159,11 +163,14 @@ export const NotificationSQLDatabaseMixin = (
     types,
     excludeTypes,
     limit,
-    includeFiltered
+    includeFiltered,
+    filteredOnly
   }: GetNotificationsCountParams) {
     let query = database('notifications').where('actorId', actorId)
 
-    if (!includeFiltered) {
+    if (filteredOnly) {
+      query = query.where('filtered', true)
+    } else if (!includeFiltered) {
       query = query.where('filtered', false)
     }
 
@@ -234,7 +241,139 @@ export const NotificationSQLDatabaseMixin = (
     await database('notifications').where('id', notificationId).update(updates)
   },
 
+  async getNotificationRequests({
+    actorId,
+    limit,
+    offset = 0
+  }: GetNotificationRequestsParams) {
+    const groups = await database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .groupBy('sourceActorId')
+      .select('sourceActorId')
+      .count<
+        {
+          sourceActorId: string
+          count: string | number
+          firstCreatedAt: number | Date | string
+          lastCreatedAt: number | Date | string
+        }[]
+      >('* as count')
+      .min('createdAt as firstCreatedAt')
+      .max('createdAt as lastCreatedAt')
+      .orderBy('lastCreatedAt', 'desc')
+      .limit(limit)
+      .offset(offset)
+
+    const requests: NotificationRequest[] = []
+    for (const group of groups) {
+      const request = await buildNotificationRequest(
+        database,
+        actorId,
+        group.sourceActorId,
+        Number(group.count),
+        group.firstCreatedAt,
+        group.lastCreatedAt
+      )
+      if (request) requests.push(request)
+    }
+    return requests
+  },
+
+  async getNotificationRequest({
+    actorId,
+    sourceActorId
+  }: GetNotificationRequestParams) {
+    const group = await database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .andWhere('sourceActorId', sourceActorId)
+      .groupBy('sourceActorId')
+      .select('sourceActorId')
+      .count<
+        {
+          count: string | number
+          firstCreatedAt: number | Date | string
+          lastCreatedAt: number | Date | string
+        }[]
+      >('* as count')
+      .min('createdAt as firstCreatedAt')
+      .max('createdAt as lastCreatedAt')
+      .first()
+    if (!group) return null
+
+    return buildNotificationRequest(
+      database,
+      actorId,
+      sourceActorId,
+      Number(group.count),
+      group.firstCreatedAt,
+      group.lastCreatedAt
+    )
+  },
+
+  async getNotificationRequestsCount({ actorId }: { actorId: string }) {
+    const result = await database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .countDistinct<{ count: string }>('sourceActorId as count')
+      .first()
+    return parseInt(result?.count ?? '0', 10)
+  },
+
+  async acceptNotificationRequests({
+    actorId,
+    sourceActorIds
+  }: ResolveNotificationRequestsParams) {
+    if (sourceActorIds.length === 0) return
+    await database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .whereIn('sourceActorId', sourceActorIds)
+      .update({ filtered: false, updatedAt: new Date() })
+  },
+
+  async dismissNotificationRequests({
+    actorId,
+    sourceActorIds
+  }: ResolveNotificationRequestsParams) {
+    if (sourceActorIds.length === 0) return
+    await database('notifications')
+      .where('actorId', actorId)
+      .andWhere('filtered', true)
+      .whereIn('sourceActorId', sourceActorIds)
+      .delete()
+  },
+
   async deleteNotification(notificationId: string) {
     await database('notifications').where('id', notificationId).delete()
   }
 })
+
+// Resolves the most recent filtered notification from a source actor and packs
+// it with the group counts into a NotificationRequest.
+const buildNotificationRequest = async (
+  database: Knex,
+  actorId: string,
+  sourceActorId: string,
+  notificationsCount: number,
+  firstCreatedAt: number | Date | string,
+  lastCreatedAt: number | Date | string
+): Promise<NotificationRequest | null> => {
+  const last = await database<Notification>('notifications')
+    .where('actorId', actorId)
+    .andWhere('filtered', true)
+    .andWhere('sourceActorId', sourceActorId)
+    .orderBy('createdAt', 'desc')
+    .orderBy('id', 'desc')
+    .first()
+  if (!last) return null
+
+  return {
+    sourceActorId,
+    notificationsCount,
+    lastNotification: fixNotificationDataDate(last),
+    createdAt: getCompatibleTime(firstCreatedAt),
+    updatedAt: getCompatibleTime(lastCreatedAt)
+  }
+}

@@ -15,6 +15,7 @@ import {
   getSubject as getReplySubject,
   getTextContent as getReplyTextContent
 } from '@/lib/services/email/templates/reply'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -460,7 +461,7 @@ export const createNoteFromUserInput = async ({
     eligibleNotificationActorIds.has(replyStatus.actorId)
   ) {
     notificationPromises.push(
-      database.createNotification({
+      createNotificationWithPolicy(database, {
         actorId: replyStatus.actorId,
         type: NotificationType.enum.reply,
         sourceActorId: currentActor.id,
@@ -476,7 +477,7 @@ export const createNoteFromUserInput = async ({
     // Don't create notification for self-mentions
     if (eligibleNotificationActorIds.has(mentionedActorId)) {
       notificationPromises.push(
-        database.createNotification({
+        createNotificationWithPolicy(database, {
           actorId: mentionedActorId,
           type: NotificationType.enum.mention,
           sourceActorId: currentActor.id,

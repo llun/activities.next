@@ -7,6 +7,7 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/reblog'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { getQueue } from '@/lib/services/queue'
@@ -65,7 +66,7 @@ export const userAnnounce = async ({
         currentActor.id
       )
     ) {
-      await database.createNotification({
+      await createNotificationWithPolicy(database, {
         actorId: originalStatus.actorId,
         type: NotificationType.enum.reblog,
         sourceActorId: currentActor.id,

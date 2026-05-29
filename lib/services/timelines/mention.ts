@@ -6,6 +6,7 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/mention'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import {
   NotificationEvent,
   sendNotificationAlerts
@@ -64,7 +65,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
           })
           if (repliedStatus && repliedStatus.actorId === currentActor.id) {
             addToTimeline = true
-            await database.createNotification({
+            await createNotificationWithPolicy(database, {
               actorId: currentActor.id,
               type: NotificationType.enum.reply,
               sourceActorId: status.actorId,
@@ -101,7 +102,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
           // Error is recorded but not re-thrown: a notification DB failure
           // should not block the mention from being added to the timeline.
           try {
-            await database.createNotification({
+            await createNotificationWithPolicy(database, {
               actorId: currentActor.id,
               type: NotificationType.enum.mention,
               sourceActorId: status.actorId,

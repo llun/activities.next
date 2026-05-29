@@ -12,6 +12,7 @@ import {
   getSubject as getFollowRequestSubject,
   getTextContent as getFollowRequestTextContent
 } from '@/lib/services/email/templates/followRequest'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -64,7 +65,7 @@ export const createFollower = async ({
     })
 
     // Create follow_request notification
-    await database.createNotification({
+    await createNotificationWithPolicy(database, {
       actorId: targetActor.id,
       type: NotificationType.enum.follow_request,
       sourceActorId: followerActor.id,
@@ -103,7 +104,7 @@ export const createFollower = async ({
     await Promise.all([
       acceptFollow(targetActor, followerActor.inboxUrl, followRequest),
       // Create follow notification (auto-accepted)
-      database.createNotification({
+      createNotificationWithPolicy(database, {
         actorId: targetActor.id,
         type: NotificationType.enum.follow,
         sourceActorId: followerActor.id,
