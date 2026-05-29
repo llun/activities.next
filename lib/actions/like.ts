@@ -5,6 +5,7 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/like'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { NotificationType } from '@/lib/types/database/operations'
@@ -34,7 +35,7 @@ export const likeRequest = async ({
     status &&
     (await shouldCreateNotification(database, status.actorId, request.actor))
   ) {
-    await database.createNotification({
+    const likeNotification = await createNotificationWithPolicy(database, {
       actorId: status.actorId,
       type: NotificationType.enum.like,
       sourceActorId: request.actor,
@@ -42,35 +43,37 @@ export const likeRequest = async ({
       groupKey: `like:${status.id}`
     })
 
-    // Fire-and-forget: notification delivery must not fail the like action
-    Promise.all([
-      database.getActorFromId({ id: status.actorId }),
-      database.getActorFromId({ id: request.actor })
-    ])
-      .then(([targetActor, sourceActor]) => {
-        if (!sourceActor) return
-        const editableStatus = getOriginalStatus(status)
-        sendNotificationAlerts({
-          database,
-          actorId: status.actorId,
-          sourceActorId: request.actor,
-          sourceActor,
-          statusId: status.id,
-          events: [
-            {
-              type: NotificationType.enum.like,
-              emailContent: targetActor?.account
-                ? {
-                    recipientEmail: targetActor.account.email,
-                    subject: getSubject(sourceActor),
-                    text: getTextContent(sourceActor, editableStatus),
-                    html: getHTMLContent(sourceActor, editableStatus)
-                  }
-                : undefined
-            }
-          ]
+    if (likeNotification && !likeNotification.filtered) {
+      // Fire-and-forget: notification delivery must not fail the like action
+      Promise.all([
+        database.getActorFromId({ id: status.actorId }),
+        database.getActorFromId({ id: request.actor })
+      ])
+        .then(([targetActor, sourceActor]) => {
+          if (!sourceActor) return
+          const editableStatus = getOriginalStatus(status)
+          sendNotificationAlerts({
+            database,
+            actorId: status.actorId,
+            sourceActorId: request.actor,
+            sourceActor,
+            statusId: status.id,
+            events: [
+              {
+                type: NotificationType.enum.like,
+                emailContent: targetActor?.account
+                  ? {
+                      recipientEmail: targetActor.account.email,
+                      subject: getSubject(sourceActor),
+                      text: getTextContent(sourceActor, editableStatus),
+                      html: getHTMLContent(sourceActor, editableStatus)
+                    }
+                  : undefined
+              }
+            ]
+          })
         })
-      })
-      .catch(() => undefined)
+        .catch(() => undefined)
+    }
   }
 }

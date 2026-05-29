@@ -97,6 +97,11 @@ export type UpdateActorParams = {
       clientSecret: string
     }
   }
+  notificationPolicy?: NotificationPolicy
+  notificationAcceptedSenders?: string[]
+  // Atomically appends IDs to notificationAcceptedSenders inside updateActor's
+  // transaction, avoiding the read-modify-write race of separate read + write.
+  appendNotificationAcceptedSenders?: string[]
 
   publicKey?: string
 
@@ -174,6 +179,14 @@ export interface ActorDatabase {
   getActorSettings(
     params: GetActorSettingsParams
   ): Promise<ActorSettings | undefined>
+  // Notification policy is persisted on actor settings. getNotificationPolicy
+  // always resolves a full policy (Mastodon defaults applied for missing keys).
+  getNotificationPolicy(
+    params: GetActorSettingsParams
+  ): Promise<NotificationPolicy>
+  updateNotificationPolicy(
+    params: UpdateNotificationPolicyParams
+  ): Promise<NotificationPolicy>
   getNodeInfoStats(): Promise<{
     totalUsers: number
     activeMonth: number
@@ -1434,6 +1447,9 @@ export type GetNotificationsCountParams = {
   // 100 by default, max 1000). When omitted, counts all matching rows.
   limit?: number
   includeFiltered?: boolean
+  // Count only policy-filtered notifications (overrides includeFiltered). Used
+  // for the notification policy summary's pending_notifications_count.
+  filteredOnly?: boolean
 }
 
 export type MarkNotificationsReadParams = {
@@ -1487,6 +1503,36 @@ export interface PushSubscriptionDatabase {
   deletePushSubscriptionsForActor(params: { actorId: string }): Promise<void>
 }
 
+// A grouped, per-source-actor view of policy-filtered notifications — the
+// backing data for Mastodon's NotificationRequest entity.
+export interface NotificationRequest {
+  // The source actor id (full URL) the filtered notifications came from.
+  sourceActorId: string
+  notificationsCount: number
+  // The most recent filtered notification from this source actor.
+  lastNotification: Notification
+  createdAt: number
+  updatedAt: number
+}
+
+export type GetNotificationRequestsParams = {
+  actorId: string
+  limit: number
+  offset?: number
+  maxCursor?: { updatedAt: number; sourceActorId: string }
+  sinceCursor?: { updatedAt: number; sourceActorId: string }
+}
+
+export type GetNotificationRequestParams = {
+  actorId: string
+  sourceActorId: string
+}
+
+export type ResolveNotificationRequestsParams = {
+  actorId: string
+  sourceActorIds: string[]
+}
+
 export interface NotificationDatabase {
   createNotification(params: CreateNotificationParams): Promise<Notification>
   getNotifications(params: GetNotificationsParams): Promise<Notification[]>
@@ -1494,7 +1540,52 @@ export interface NotificationDatabase {
   markNotificationsRead(params: MarkNotificationsReadParams): Promise<void>
   updateNotification(params: UpdateNotificationParams): Promise<void>
   deleteNotification(notificationId: string): Promise<void>
+
+  // Notification requests: grouped views over filtered = true notifications.
+  getNotificationRequests(
+    params: GetNotificationRequestsParams
+  ): Promise<NotificationRequest[]>
+  getNotificationRequest(
+    params: GetNotificationRequestParams
+  ): Promise<NotificationRequest | null>
+  getNotificationRequestsCount(params: { actorId: string }): Promise<number>
+  // Accept = clear the filtered flag so the notifications surface in the main
+  // timeline. Dismiss = delete the filtered notifications.
+  acceptNotificationRequests(
+    params: ResolveNotificationRequestsParams
+  ): Promise<void>
+  dismissNotificationRequests(
+    params: ResolveNotificationRequestsParams
+  ): Promise<void>
 }
+
+// ============================================================================
+// Notification Policy (stored on actor settings)
+// ============================================================================
+
+export const NotificationPolicyValue = z.enum(['accept', 'filter', 'drop'])
+export type NotificationPolicyValue = z.infer<typeof NotificationPolicyValue>
+
+export interface NotificationPolicy {
+  for_not_following: NotificationPolicyValue
+  for_not_followers: NotificationPolicyValue
+  for_new_accounts: NotificationPolicyValue
+  for_private_mentions: NotificationPolicyValue
+  for_limited_accounts: NotificationPolicyValue
+}
+
+// Mastodon's default policy accepts everything; filtering is strictly opt-in.
+export const DEFAULT_NOTIFICATION_POLICY: NotificationPolicy = {
+  for_not_following: 'accept',
+  for_not_followers: 'accept',
+  for_new_accounts: 'accept',
+  for_private_mentions: 'accept',
+  for_limited_accounts: 'accept'
+}
+
+export type UpdateNotificationPolicyParams = {
+  actorId: string
+} & Partial<NotificationPolicy>
 
 // ============================================================================
 // OAuth Database
