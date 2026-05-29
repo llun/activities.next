@@ -201,6 +201,6 @@ Other tables: sessions, notifications, medias, fitness_files,
 | **Logging**          | Pino                                                         |
 | **Testing**          | Jest (with SWC transforms)                                   |
 | **Code Quality**     | ESLint + Prettier                                            |
-| **Package Manager**  | Yarn 4.13.0                                                  |
+| **Package Manager**  | Yarn 4.15.0                                                  |
 | **Containerization** | Docker (Alpine-based)                                        |
 | **Observability**    | OpenTelemetry (optional)                                     |
