@@ -24,6 +24,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 const UnreadCountQueryParams = z.object({
   limit: z.coerce
     .number()
+    .int()
     .min(1)
     .max(MAX_LIMIT)
     .default(DEFAULT_LIMIT)
