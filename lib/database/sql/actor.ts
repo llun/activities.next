@@ -827,11 +827,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           const toAdd = appendNotificationAcceptedSenders.filter(
             (id) => !existing.has(id)
           )
-          // Always use the fresh value so a concurrent write to
-          // notificationAcceptedSenders is never clobbered, even when toAdd
-          // is empty (all IDs were already present in the fresh row).
+          // Base the merge on freshSettings so all settings fields (policy,
+          // email/push notifications, etc.) come from the locked row, not the
+          // stale pre-transaction snapshot. This prevents concurrent settings
+          // changes from being clobbered by this write.
           finalSettings = {
-            ...finalSettings,
+            ...freshSettings,
             notificationAcceptedSenders: [...existing, ...toAdd]
           }
         }
