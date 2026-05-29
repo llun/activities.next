@@ -97,16 +97,13 @@ export const getNotificationGroupsEnvelope = async (
   }
 }
 
-// Convenience: group raw notifications then build the envelope.
-// For v2, follow notifications without a groupKey are assigned a synthetic
-// 'follow' groupKey so they appear as a single group (Mastodon v2 behaviour).
-export const buildNotificationGroupsEnvelope = (
-  database: Database,
+// Groups notifications and injects a synthetic 'follow' groupKey for follow
+// notifications that have no DB-level groupKey. Returns the GroupedNotification
+// array without resolving accounts/statuses — callers can slice before hydrating.
+export const prepareGroupedNotifications = (
   notifications: Notification[],
-  currentActorId?: string,
-  groupedTypes?: Set<NotificationType>,
-  filterRecords?: ActiveFilterRecord[]
-): Promise<NotificationGroupsEnvelope> => {
+  groupedTypes?: Set<NotificationType>
+): GroupedNotification[] => {
   const canGroupFollows =
     !groupedTypes || groupedTypes.has(NotificationType.enum.follow)
   const prepared = notifications.map((n) =>
@@ -114,10 +111,20 @@ export const buildNotificationGroupsEnvelope = (
       ? { ...n, groupKey: 'follow' }
       : n
   )
-  return getNotificationGroupsEnvelope(
+  return groupNotifications(prepared, true, groupedTypes)
+}
+
+// Convenience: group raw notifications then build the envelope.
+export const buildNotificationGroupsEnvelope = (
+  database: Database,
+  notifications: Notification[],
+  currentActorId?: string,
+  groupedTypes?: Set<NotificationType>,
+  filterRecords?: ActiveFilterRecord[]
+): Promise<NotificationGroupsEnvelope> =>
+  getNotificationGroupsEnvelope(
     database,
-    groupNotifications(prepared, true, groupedTypes),
+    prepareGroupedNotifications(notifications, groupedTypes),
     currentActorId,
     filterRecords
   )
-}

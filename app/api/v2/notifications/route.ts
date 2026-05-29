@@ -4,7 +4,10 @@ import { getDatabase } from '@/lib/database'
 import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { buildNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
+import {
+  getNotificationGroupsEnvelope,
+  prepareGroupedNotifications
+} from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -138,25 +141,22 @@ export const GET = traceApiRoute(
       ? []
       : await getActiveFilters(database, currentActor.id, 'notifications')
 
-    // Build the envelope then truncate groups to the requested limit.
-    // Accounts and statuses are already deduped across all fetched groups;
-    // returning the full set is safe — clients use only those referenced by
-    // the groups they received.
-    const fullEnvelope = await buildNotificationGroupsEnvelope(
-      database,
+    // Prepare groups (follow-groupKey injection + groupNotifications) and slice
+    // to limit BEFORE resolving accounts/statuses to avoid unnecessary DB work.
+    const groupedSlice = prepareGroupedNotifications(
       filtered,
+      internalGroupedTypes
+    ).slice(0, limit)
+    const envelope = await getNotificationGroupsEnvelope(
+      database,
+      groupedSlice,
       currentActor.id,
-      internalGroupedTypes,
       filterRecords
     )
-    const envelope = {
-      notification_groups: fullEnvelope.notification_groups.slice(0, limit),
-      accounts: fullEnvelope.accounts,
-      statuses: fullEnvelope.statuses
-    }
 
-    // Pagination links: cursors come from the most-recent notification ids in the
-    // first and last returned groups. This anchors pagination to group boundaries.
+    // Pagination links: "next" (older page) uses page_min_id of the last group
+    // so that all members of that group are excluded from the next fetch.
+    // "prev" (newer page) uses most_recent_notification_id of the first group.
     const returnedGroups = envelope.notification_groups
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
@@ -169,13 +169,13 @@ export const GET = traceApiRoute(
       params.set(cursorParam, cursorValue)
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
+    const lastGroup = returnedGroups[returnedGroups.length - 1]
     const links =
       returnedGroups.length > 0
         ? [
             buildLink(
               'max_id',
-              returnedGroups[returnedGroups.length - 1]
-                .most_recent_notification_id
+              lastGroup.page_min_id ?? lastGroup.most_recent_notification_id
             ),
             buildLink('min_id', returnedGroups[0].most_recent_notification_id)
           ].join(', ')

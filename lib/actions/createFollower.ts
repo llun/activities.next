@@ -113,7 +113,8 @@ export const createFollower = async ({
         actorId: targetActor.id,
         type: NotificationType.enum.follow,
         sourceActorId: followerActor.id,
-        followId: follow.id
+        followId: follow.id,
+        groupKey: 'follow'
       })
     ])
 
