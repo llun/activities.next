@@ -22,6 +22,12 @@ import { StatusReplyBox } from './status-reply-box'
 interface Props {
   host: string
   className?: string
+  /**
+   * When true (default) the feed renders as a self-contained bordered card
+   * (the merged-feed box). Set to false to render only the divided rows so the
+   * feed can be embedded inside an existing card (e.g. the search results card).
+   */
+  framed?: boolean
   currentActor?: ActorProfile
   showActions?: boolean
   currentTime: number
@@ -41,6 +47,7 @@ interface Props {
 export const Posts: FC<Props> = ({
   host,
   className,
+  framed = true,
   currentActor,
   showActions = false,
   currentTime,
@@ -91,46 +98,62 @@ export const Posts: FC<Props> = ({
   }
 
   return (
-    <section className={cn('flex w-full min-w-0 flex-col gap-3', className)}>
-      {statuses.map((status) => (
-        <article
-          key={status.id}
-          className="min-w-0 rounded-xl border bg-card p-4 shadow-sm"
-        >
-          <Post
-            host={host}
-            currentTime={currentTime}
-            currentActor={currentActor}
-            status={status}
-            showActions={showActions}
-            editable={currentActor?.id === status.actorId}
-            collapsible
-            postLineLimit={postLineLimit}
-            onReply={handleReply}
-            onEdit={onEdit}
-            onPostDeleted={onPostDeleted}
-            onBookmarkChanged={onBookmarkChanged}
-            onOpenStatus={openStatus}
-            onShowAttachment={(allMedias, index) => {
-              setModalMedias({ medias: allMedias, initialSelection: index })
-            }}
-          />
-          {replyingToStatusId === status.id && currentActor && (
-            <StatusReplyBox
-              profile={currentActor}
-              replyStatus={status}
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              onCancel={handleCancelReply}
-              onPostCreated={handleReplyCreated}
+    <>
+      <section
+        className={cn(
+          // `divide-border` keeps the hairlines on the theme border color in
+          // dark mode. No `overflow-hidden`: posts render non-portaled overlays
+          // (edit-history panel, inline error bubbles) that must escape the box.
+          'w-full min-w-0 divide-y divide-border',
+          framed && 'rounded-xl border bg-card shadow-sm',
+          className
+        )}
+      >
+        {statuses.map((status) => (
+          <article
+            key={status.id}
+            className={cn(
+              'min-w-0 px-4 py-3',
+              // Match the framed box's corners so any child background can't
+              // bleed past the rounded edges now that overflow-hidden is gone.
+              framed && 'first:rounded-t-xl last:rounded-b-xl'
+            )}
+          >
+            <Post
+              host={host}
+              currentTime={currentTime}
+              currentActor={currentActor}
+              status={status}
+              showActions={showActions}
+              editable={currentActor?.id === status.actorId}
+              collapsible
+              postLineLimit={postLineLimit}
+              onReply={handleReply}
+              onEdit={onEdit}
+              onPostDeleted={onPostDeleted}
+              onBookmarkChanged={onBookmarkChanged}
+              onOpenStatus={openStatus}
+              onShowAttachment={(allMedias, index) => {
+                setModalMedias({ medias: allMedias, initialSelection: index })
+              }}
             />
-          )}
-        </article>
-      ))}
+            {replyingToStatusId === status.id && currentActor && (
+              <StatusReplyBox
+                profile={currentActor}
+                replyStatus={status}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                onCancel={handleCancelReply}
+                onPostCreated={handleReplyCreated}
+              />
+            )}
+          </article>
+        ))}
+      </section>
       <MediasModal
         medias={modalMedias?.medias ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
         onClosed={() => setModalMedias(null)}
       />
-    </section>
+    </>
   )
 }

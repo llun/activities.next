@@ -67,13 +67,11 @@ const Page = async ({ params, searchParams }: Props) => {
           No public posts with #{tag.replace(/^#+/, '')}
         </div>
       ) : (
-        <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-          <AdminHashtagPosts
-            host={host}
-            statuses={statuses.map((s) => cleanJson(s))}
-            currentTime={Date.now()}
-          />
-        </section>
+        <AdminHashtagPosts
+          host={host}
+          statuses={statuses.map((s) => cleanJson(s))}
+          currentTime={Date.now()}
+        />
       )}
 
       {totalPages > 1 && (

@@ -193,11 +193,18 @@ export const ActorTimelines: FC<Props> = ({
         </TabsTrigger>
       </TabsList>
 
+      {/*
+        framed={false} on the feeds below is intentional: this whole tabbed
+        component is already wrapped in the bordered card in
+        app/(timeline)/[actor]/page.tsx (the `border-b` tab strip is its
+        header). A framed Posts box here would nest a bordered card inside that
+        card and produce a concentric double border. Do not change to framed.
+      */}
       <TabsContent value="posts" className="mt-0">
         {postStatuses.length > 0 ? (
           <Posts
             host={host}
-            className="mt-0"
+            framed={false}
             currentTime={currentTime}
             statuses={postStatuses}
             postLineLimit={postLineLimit}
@@ -210,7 +217,7 @@ export const ActorTimelines: FC<Props> = ({
       <TabsContent value="replies" className="mt-0">
         <Posts
           host={host}
-          className="mt-0"
+          framed={false}
           currentTime={currentTime}
           statuses={currentStatuses}
           postLineLimit={postLineLimit}
