@@ -158,9 +158,10 @@ export const GET = traceApiRoute(
       filterRecords
     )
 
-    // Pagination links: use groupedSlice (pre-content-filter) as cursor source so
-    // clients keep paginating even when all visible groups on this page were
-    // hide-filtered. "next" uses page_min_id of the last pre-filter group.
+    // Pagination cursors mirror the v1 approach: use the last/first raw notification
+    // in the overscan window. This avoids permanent gaps that would occur if we used
+    // group-member IDs as cursors (groups can span interleaved non-group notifications).
+    // Clients handle boundary group duplication via page_min_id merging.
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
     const buildLink = (cursorParam: string, cursorValue: string) => {
@@ -172,21 +173,11 @@ export const GET = traceApiRoute(
       params.set(cursorParam, cursorValue)
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
-    const lastPreFilterGroup = groupedSlice[groupedSlice.length - 1]
     const links =
-      groupedSlice.length > 0
+      filtered.length > 0
         ? [
-            // oldest member of last pre-filter group → safe max_id for next page
-            buildLink(
-              'max_id',
-              lastPreFilterGroup.groupedIds
-                ? lastPreFilterGroup.groupedIds[
-                    lastPreFilterGroup.groupedIds.length - 1
-                  ]
-                : lastPreFilterGroup.id
-            ),
-            // most recent of first pre-filter group → safe min_id for prev page
-            buildLink('min_id', groupedSlice[0].id)
+            buildLink('max_id', filtered[filtered.length - 1].id),
+            buildLink('min_id', filtered[0].id)
           ].join(', ')
         : ''
 

@@ -103,11 +103,17 @@ export const getNotificationGroupsEnvelope = async (
   )
   const accounts = await resolveAccounts(database, actorIds)
 
-  return {
-    notification_groups: survivingResults.map((r) => r.group),
-    accounts,
-    statuses
-  }
+  // Remove sample_account_ids that are absent from the resolved accounts (e.g.
+  // deleted remote actors). This mirrors the dangling status_id removal above.
+  const resolvedActorIds = new Set(accounts.map((a) => a.id))
+  const notification_groups = survivingResults.map((r) => ({
+    ...r.group,
+    sample_account_ids: r.group.sample_account_ids.filter((id) =>
+      resolvedActorIds.has(id)
+    )
+  }))
+
+  return { notification_groups, accounts, statuses }
 }
 
 // Groups notifications and injects a synthetic 'follow' groupKey for follow
