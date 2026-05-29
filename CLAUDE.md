@@ -17,7 +17,11 @@
   4. `yarn test`
 - Start the local dev server with `yarn dev` unless a checkout-specific override says otherwise. The package script binds Next.js to `0.0.0.0`, so only run it on trusted local networks.
 - Use the browser to verify any UI changes.
-- Do **not** create test users.
+- Do **not** create ad-hoc test users against the shared/production (`postgres`) database. For local UI/browser testing, use a throwaway **SQLite** `dev.sqlite3` with the sanctioned `scripts/createMockUser.ts` + `scripts/createMockStatuses.ts`, as documented under **"Local Manual / Browser Testing (SQLite + mock data)"** in `AGENTS.md`.
+- Local browser-testing quick reference (full details + gotchas in `AGENTS.md`):
+  - `.env.local` needs `ACTIVITIES_INSECURE_AUTH=true` (else local `http` sign-in returns `403 Invalid origin`), single-quoted `ACTIVITIES_ALLOW_EMAILS='["test@example.com"]'`, and `ACTIVITIES_HOST` matching the `yarn dev --port`.
+  - `yarn migrate` auto-loads `.env.local`; the `swc-node` mock scripts do not — run `set -a; . ./.env.local; set +a` before them.
+  - Sign in at `/auth/signin` with `test@example.com` / `testpassword123`.
 - Activity logs: `fediverse_local-activitynext-dev-1` container; DB: `postgres` container.
 - For major changes: commit → push → open PR to `main`.
 - Every commit message must start with a conventional commit prefix: `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc.
@@ -26,3 +30,4 @@
 - **Do NOT** manually change the `version` in `package.json`. A CI workflow handles version bumps automatically based on commit prefixes.
 - **Never call `fetch()` directly in React components.** All client-side API calls must be added to `lib/client.ts` as named exported functions and imported from there.
 - **Never pass `new Date()` as a prop from a Server Component to a Client Component.** Pass `Date.now()` (a `number`) instead. Client Components should accept `currentTime: number` and call `new Date(currentTime)` internally. This prevents hydration mismatches.
+- **Never call `Date.now()` (or `new Date()`) during a Client Component's render** when the value feeds time-dependent output (e.g. relative timestamps in `Posts`/`Post`). The server SSR call and the client hydration call return different values and break hydration. Instead, take `currentTime: number` from the parent Server Component and forward it. This was the timeline hydration bug: `MainPageTimeline` rendered `<Posts currentTime={Date.now()} />`; the fix passes `currentTime` from `app/(timeline)/page.tsx`.
