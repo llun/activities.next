@@ -1,0 +1,50 @@
+app/api/v1/notifications/route.ts
+  s_fa22e9bcf5886a::t_c317703efabc73 45-48
+  s_fa22e9bcf5886a::t_f91601f2ab69d5 178-180
+  s_fa22e9bcf5886a::t_75607e6cef5af2 110,114-116,125-126
+  s_fa22e9bcf5886a::t_20de172485c0bd 9-10
+lib/database/sql/notification.test.ts
+  s_fa22e9bcf5886a::t_4c8d32a95d7f83 289-393
+lib/types/database/operations.ts
+  s_fa22e9bcf5886a::t_e5a34629f95c54 1393-1395
+  s_fa22e9bcf5886a::t_a62b726df4430f 1407-1409
+  s_fa22e9bcf5886a::t_14868d0bbcfed4 1423-1425,1432-1436
+app/api/v1/notifications/[id]/route.ts
+  s_fa22e9bcf5886a::t_17daf1f8f04076 25-27
+lib/services/notifications/notificationTypeMapping.ts
+  s_fa22e9bcf5886a::t_9f5ba607e889db 1-29
+app/api/v1/notifications/route.test.ts
+  s_fa22e9bcf5886a::t_6b0dee4d3631af 77-111
+lib/database/sql/notification.ts
+  s_fa22e9bcf5886a::t_0cb612bda7d74a 158-161,165-168,177-195
+  s_fa22e9bcf5886a::t_326b16bae258d3 16-17
+  s_fa22e9bcf5886a::t_bfbc9e44e7af05 32-33,45
+  s_fa22e9bcf5886a::t_985083b6083183 69-70,78-82
+migrations/20260529000000_add_notification_filtered.js
+  s_fa22e9bcf5886a::t_da5260ff57ed71 1-25,30-32
+  s_fa22e9bcf5886a::t_5cbde1e711b2b6 26-29
+app/api/v1/notifications/unread_count/route.test.ts
+  s_fa22e9bcf5886a::t_fe09fc8eb687ee 3-4
+  s_fa22e9bcf5886a::t_4a8f7023004fd0 97-98,100-102,105,107
+  s_fa22e9bcf5886a::t_247788acc36d37 1-2,5-96,99,103-104,106,108-125
+app/api/v1/notifications/unread_count/route.ts
+  s_fa22e9bcf5886a::t_071e6a7e95d201 15
+  s_fa22e9bcf5886a::t_a9b36d5cdaf7ca 78-97,101-102
+  s_fa22e9bcf5886a::t_7353fc3c5b02bb 1-2,5,8-13,18-20,24-35,49-76,100,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2f1ecd9c2285eec3f38e1841b881977a77cea824",
+  "prompts": {},
+  "sessions": {
+    "s_fa22e9bcf5886a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fda05fc-0d7e-4ea0-9245-8a6c12dd5340",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
