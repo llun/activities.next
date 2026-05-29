@@ -101,8 +101,11 @@ export const Posts: FC<Props> = ({
     <>
       <section
         className={cn(
-          'w-full min-w-0 divide-y',
-          framed && 'overflow-hidden rounded-xl border bg-card shadow-sm',
+          // `divide-border` keeps the hairlines on the theme border color in
+          // dark mode. No `overflow-hidden`: posts render non-portaled overlays
+          // (edit-history panel, inline error bubbles) that must escape the box.
+          'w-full min-w-0 divide-y divide-border',
+          framed && 'rounded-xl border bg-card shadow-sm',
           className
         )}
       >

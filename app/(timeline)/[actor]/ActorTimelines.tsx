@@ -197,7 +197,7 @@ export const ActorTimelines: FC<Props> = ({
         {postStatuses.length > 0 ? (
           <Posts
             host={host}
-            className="mt-0"
+            framed={false}
             currentTime={currentTime}
             statuses={postStatuses}
             postLineLimit={postLineLimit}
@@ -210,7 +210,7 @@ export const ActorTimelines: FC<Props> = ({
       <TabsContent value="replies" className="mt-0">
         <Posts
           host={host}
-          className="mt-0"
+          framed={false}
           currentTime={currentTime}
           statuses={currentStatuses}
           postLineLimit={postLineLimit}
