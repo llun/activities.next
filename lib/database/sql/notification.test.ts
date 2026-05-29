@@ -286,6 +286,111 @@ describe('Notification Database', () => {
       })
     })
 
+    describe('filtered notifications', () => {
+      beforeEach(async () => {
+        const existing = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 100,
+          includeFiltered: true
+        })
+        for (const notif of existing) {
+          await database.deleteNotification(notif.id)
+        }
+
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.like,
+          sourceActorId: actor2Id,
+          statusId
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.mention,
+          sourceActorId: actor2Id,
+          statusId,
+          filtered: true
+        })
+      })
+
+      it('hides filtered notifications by default', async () => {
+        const notifications = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 10
+        })
+
+        expect(notifications).toHaveLength(1)
+        expect(notifications[0].type).toBe('like')
+        expect(notifications[0].filtered).toBe(false)
+      })
+
+      it('includes filtered notifications when includeFiltered is true', async () => {
+        const notifications = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 10,
+          includeFiltered: true
+        })
+
+        expect(notifications).toHaveLength(2)
+        expect(notifications.some((n) => n.filtered === true)).toBe(true)
+      })
+
+      it('excludes filtered notifications from the default count', async () => {
+        const count = await database.getNotificationsCount({
+          actorId: actor1Id
+        })
+        expect(count).toBe(1)
+
+        const allCount = await database.getNotificationsCount({
+          actorId: actor1Id,
+          includeFiltered: true
+        })
+        expect(allCount).toBe(2)
+      })
+    })
+
+    describe('getNotificationsCount', () => {
+      beforeEach(async () => {
+        const existing = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 100,
+          includeFiltered: true
+        })
+        for (const notif of existing) {
+          await database.deleteNotification(notif.id)
+        }
+
+        for (let i = 0; i < 5; i++) {
+          await database.createNotification({
+            actorId: actor1Id,
+            type: NotificationType.enum.like,
+            sourceActorId: actor2Id,
+            statusId
+          })
+        }
+      })
+
+      it('caps the count at the provided limit', async () => {
+        const capped = await database.getNotificationsCount({
+          actorId: actor1Id,
+          limit: 3
+        })
+        expect(capped).toBe(3)
+
+        const uncapped = await database.getNotificationsCount({
+          actorId: actor1Id
+        })
+        expect(uncapped).toBe(5)
+      })
+
+      it('filters the count by excludeTypes', async () => {
+        const count = await database.getNotificationsCount({
+          actorId: actor1Id,
+          excludeTypes: [NotificationType.enum.like]
+        })
+        expect(count).toBe(0)
+      })
+    })
+
     describe('deleteNotification', () => {
       it('should delete a notification', async () => {
         const notification = await database.createNotification({

@@ -1390,6 +1390,9 @@ export interface Notification {
   isRead: boolean
   readAt?: number
   groupKey?: string
+  // When true, the recipient's notification policy routed this notification to
+  // the per-sender requests queue instead of the main timeline.
+  filtered: boolean
   createdAt: number
   updatedAt: number
 }
@@ -1401,6 +1404,9 @@ export type CreateNotificationParams = {
   statusId?: string
   followId?: string
   groupKey?: string
+  // Set true to route this notification to the per-sender requests queue
+  // (computed by the notification policy). Defaults to false.
+  filtered?: boolean
 }
 
 export type GetNotificationsParams = {
@@ -1414,12 +1420,20 @@ export type GetNotificationsParams = {
   maxNotificationId?: string
   minNotificationId?: string
   sinceNotificationId?: string
+  // When omitted/false, policy-filtered notifications (filtered = true) are
+  // excluded. Pass true to include them (Mastodon `include_filtered`).
+  includeFiltered?: boolean
 }
 
 export type GetNotificationsCountParams = {
   actorId: string
   onlyUnread?: boolean
   types?: NotificationType[]
+  excludeTypes?: NotificationType[]
+  // Cap the count at this many notifications (Mastodon `unread_count` caps at
+  // 100 by default, max 1000). When omitted, counts all matching rows.
+  limit?: number
+  includeFiltered?: boolean
 }
 
 export type MarkNotificationsReadParams = {
