@@ -99,6 +99,9 @@ export type UpdateActorParams = {
   }
   notificationPolicy?: NotificationPolicy
   notificationAcceptedSenders?: string[]
+  // Atomically appends IDs to notificationAcceptedSenders inside updateActor's
+  // transaction, avoiding the read-modify-write race of separate read + write.
+  appendNotificationAcceptedSenders?: string[]
 
   publicKey?: string
 
@@ -1516,8 +1519,8 @@ export type GetNotificationRequestsParams = {
   actorId: string
   limit: number
   offset?: number
-  maxUpdatedAt?: number
-  sinceUpdatedAt?: number
+  maxCursor?: { updatedAt: number; sourceActorId: string }
+  sinceCursor?: { updatedAt: number; sourceActorId: string }
 }
 
 export type GetNotificationRequestParams = {

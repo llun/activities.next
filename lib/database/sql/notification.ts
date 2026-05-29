@@ -246,8 +246,8 @@ export const NotificationSQLDatabaseMixin = (
     actorId,
     limit,
     offset = 0,
-    maxUpdatedAt,
-    sinceUpdatedAt
+    maxCursor,
+    sinceCursor
   }: GetNotificationRequestsParams) {
     let query = database('notifications')
       .where('actorId', actorId)
@@ -265,12 +265,31 @@ export const NotificationSQLDatabaseMixin = (
       .min('createdAt as firstCreatedAt')
       .max('createdAt as lastCreatedAt')
       .orderBy('lastCreatedAt', 'desc')
+      .orderBy('sourceActorId', 'asc')
       .limit(limit)
 
-    if (maxUpdatedAt !== undefined) {
-      query = query.havingRaw('MAX(createdAt) < ?', [new Date(maxUpdatedAt)])
-    } else if (sinceUpdatedAt !== undefined) {
-      query = query.havingRaw('MAX(createdAt) > ?', [new Date(sinceUpdatedAt)])
+    if (maxCursor !== undefined) {
+      // Groups older than cursor: (MAX(createdAt) < cursor) OR
+      // (MAX(createdAt) = cursor AND sourceActorId > cursor.sourceActorId)
+      query = query.havingRaw(
+        'MAX(createdAt) < ? OR (MAX(createdAt) = ? AND sourceActorId > ?)',
+        [
+          new Date(maxCursor.updatedAt),
+          new Date(maxCursor.updatedAt),
+          maxCursor.sourceActorId
+        ]
+      )
+    } else if (sinceCursor !== undefined) {
+      // Groups newer than cursor: (MAX(createdAt) > cursor) OR
+      // (MAX(createdAt) = cursor AND sourceActorId < cursor.sourceActorId)
+      query = query.havingRaw(
+        'MAX(createdAt) > ? OR (MAX(createdAt) = ? AND sourceActorId < ?)',
+        [
+          new Date(sinceCursor.updatedAt),
+          new Date(sinceCursor.updatedAt),
+          sinceCursor.sourceActorId
+        ]
+      )
     } else {
       query = query.offset(offset)
     }
@@ -327,12 +346,14 @@ export const NotificationSQLDatabaseMixin = (
   },
 
   async getNotificationRequestsCount({ actorId }: { actorId: string }) {
+    // Mastodon caps pending_requests_count at 100 in the policy summary.
+    const MAX_REQUESTS_COUNT = 100
     const result = await database('notifications')
       .where('actorId', actorId)
       .andWhere('filtered', true)
       .countDistinct<{ count: string }>('sourceActorId as count')
       .first()
-    return parseInt(result?.count ?? '0', 10)
+    return Math.min(parseInt(result?.count ?? '0', 10), MAX_REQUESTS_COUNT)
   },
 
   async acceptNotificationRequests({

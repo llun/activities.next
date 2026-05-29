@@ -21,21 +21,17 @@ export const addAcceptedSender = async (
   sourceActorId: string
 ): Promise<void> => addAcceptedSenders(database, actorId, [sourceActorId])
 
-// Appends all sourceActorIds in a single read-modify-write to avoid racing
-// concurrent accept calls clobbering each other's entries.
+// Atomically appends sourceActorIds inside updateActor's transaction to
+// prevent concurrent accept calls clobbering each other's entries.
 export const addAcceptedSenders = async (
   database: Database,
   actorId: string,
   sourceActorIds: string[]
 ): Promise<void> => {
   if (sourceActorIds.length === 0) return
-  const settings = await database.getActorSettings({ actorId })
-  const existing = new Set(settings?.notificationAcceptedSenders ?? [])
-  const toAdd = sourceActorIds.filter((id) => !existing.has(id))
-  if (toAdd.length === 0) return
   await database.updateActor({
     actorId,
-    notificationAcceptedSenders: [...existing, ...toAdd]
+    appendNotificationAcceptedSenders: sourceActorIds
   })
 }
 
@@ -142,14 +138,25 @@ export const evaluateNotificationPolicy = async (
     (type === 'mention' || type === 'reply')
   ) {
     const status = await database.getStatus({ statusId, withReplies: false })
-    // If the recipient already follows the source, direct messages from them
-    // are not subject to the private-mentions filter.
     if (
       status &&
       getVisibility(status.to, status.cc) === 'direct' &&
       !recipientFollowsSource
     ) {
-      candidates.push(policy.for_private_mentions)
+      // Exempt replies to threads the recipient initiated: if the replied-to
+      // status was authored by actorId, the source is replying to a DM the
+      // recipient sent, so it would be wrong to filter/drop the reply.
+      const replyId = 'reply' in status ? (status.reply as string) : null
+      const repliedToStatus = replyId
+        ? await database
+            .getStatus({ statusId: replyId, withReplies: false })
+            .catch(() => null)
+        : null
+      const isReplyToRecipientStatus = repliedToStatus?.actorId === actorId
+
+      if (!isReplyToRecipientStatus) {
+        candidates.push(policy.for_private_mentions)
+      }
     }
   }
 

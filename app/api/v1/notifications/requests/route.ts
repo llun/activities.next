@@ -30,7 +30,7 @@ export const GET = traceApiRoute(
     const url = new URL(req.url)
     const parsedLimit = parseInt(url.searchParams.get('limit') ?? '', 10)
     const limit = Math.min(
-      Number.isNaN(parsedLimit) ? DEFAULT_LIMIT : parsedLimit,
+      Math.max(1, Number.isNaN(parsedLimit) ? DEFAULT_LIMIT : parsedLimit),
       MAX_LIMIT
     )
     const parsedPage = parseInt(url.searchParams.get('page') ?? '', 10)
@@ -40,40 +40,42 @@ export const GET = traceApiRoute(
     const sinceIdParam =
       url.searchParams.get('since_id') ?? url.searchParams.get('min_id')
 
-    let maxUpdatedAt: number | undefined
-    let sinceUpdatedAt: number | undefined
+    let maxCursor: { updatedAt: number; sourceActorId: string } | undefined
+    let sinceCursor: { updatedAt: number; sourceActorId: string } | undefined
 
     if (maxIdParam) {
+      const sourceActorId = idToUrl(maxIdParam)
       const cursor = await database.getNotificationRequest({
         actorId: currentActor.id,
-        sourceActorId: idToUrl(maxIdParam)
+        sourceActorId
       })
       // Cursor not found (request was accepted/dismissed): return empty list
       // rather than falling back to page 1, which would cause clients to loop.
       if (!cursor) {
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
-      maxUpdatedAt = cursor.updatedAt
+      maxCursor = { updatedAt: cursor.updatedAt, sourceActorId }
     } else if (sinceIdParam) {
+      const sourceActorId = idToUrl(sinceIdParam)
       const cursor = await database.getNotificationRequest({
         actorId: currentActor.id,
-        sourceActorId: idToUrl(sinceIdParam)
+        sourceActorId
       })
       if (!cursor) {
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
-      sinceUpdatedAt = cursor.updatedAt
+      sinceCursor = { updatedAt: cursor.updatedAt, sourceActorId }
     }
 
-    const useCursor = maxUpdatedAt !== undefined || sinceUpdatedAt !== undefined
+    const useCursor = maxCursor !== undefined || sinceCursor !== undefined
     const offset = useCursor ? 0 : (page - 1) * limit
 
     const requests = await database.getNotificationRequests({
       actorId: currentActor.id,
       limit,
       offset,
-      maxUpdatedAt,
-      sinceUpdatedAt
+      maxCursor,
+      sinceCursor
     })
 
     const data = (

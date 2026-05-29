@@ -758,6 +758,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     pushNotifications,
     notificationPolicy,
     notificationAcceptedSenders,
+    appendNotificationAcceptedSenders,
     fitness,
 
     publicKey,
@@ -785,6 +786,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(notificationPolicy !== undefined ? { notificationPolicy } : null),
       ...(notificationAcceptedSenders !== undefined
         ? { notificationAcceptedSenders }
+        : null),
+      ...(appendNotificationAcceptedSenders !== undefined
+        ? {
+            notificationAcceptedSenders: [
+              ...new Set([
+                ...(persistedSettings?.notificationAcceptedSenders ?? []),
+                ...appendNotificationAcceptedSenders
+              ])
+            ]
+          }
         : null),
       ...(fitness !== undefined ? { fitness } : null),
 
