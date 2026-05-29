@@ -871,6 +871,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                 )}
                 <Posts
                   host={host}
+                  framed={false}
                   currentTime={currentTime}
                   statuses={displayStatuses}
                   currentActor={currentActor}
