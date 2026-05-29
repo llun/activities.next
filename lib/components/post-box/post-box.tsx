@@ -999,7 +999,7 @@ export const PostBox: FC<Props> = ({
                   }
                   const nextExtension = {
                     ...postExtensionRef.current,
-                    fitnessFile: { file }
+                    fitnessFile: { file, uploading: false }
                   }
                   postExtensionRef.current = nextExtension
                   dispatch(setFitnessFile(file))
