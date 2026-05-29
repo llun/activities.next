@@ -1,0 +1,19 @@
+lib/components/posts/posts.tsx
+  s_178c76a887ab68::t_4486170c39bef3 113-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5f31b585a2986885195048fd4025fb124b6627f2",
+  "prompts": {},
+  "sessions": {
+    "s_178c76a887ab68": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f3b8ff8-4c4a-44e2-86e6-8b42abfa89f0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
