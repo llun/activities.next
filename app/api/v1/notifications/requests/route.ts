@@ -1,5 +1,6 @@
 import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonNotificationRequest } from '@/lib/services/notifications/getMastodonNotificationRequest'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -83,6 +84,24 @@ export const GET = traceApiRoute(
       )
     ).filter(Boolean)
 
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
+    // Build Link headers so Mastodon clients can paginate with max_id/min_id.
+    const host = headerHost(req.headers)
+    const pathBase = '/api/v1/notifications/requests'
+    const buildLink = (cursorParam: string, cursorValue: string) =>
+      `<https://${host}${pathBase}?limit=${limit}&${cursorParam}=${cursorValue}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
+
+    const nextLink =
+      data.length > 0 ? buildLink('max_id', data[data.length - 1]!.id) : null
+    const prevLink = data.length > 0 ? buildLink('min_id', data[0]!.id) : null
+    const links = [nextLink, prevLink].filter(Boolean).join(', ')
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data,
+      additionalHeaders: [
+        ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+      ]
+    })
   })
 )

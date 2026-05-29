@@ -41,10 +41,12 @@ export const POST = traceApiRoute(
       })
     }
 
+    const contentType = req.headers.get('content-type') ?? ''
     let rawBody: unknown
-    try {
-      rawBody = await req.json()
-    } catch {
+    if (
+      contentType.includes('application/x-www-form-urlencoded') ||
+      contentType.includes('multipart/form-data')
+    ) {
       const formData = await req.formData().catch(() => null)
       if (formData) {
         const ids = formData.getAll('id[]')
@@ -54,6 +56,8 @@ export const POST = traceApiRoute(
       } else {
         rawBody = {}
       }
+    } else {
+      rawBody = await req.json().catch(() => ({}))
     }
     const parsed = BulkBody.safeParse(rawBody)
     if (!parsed.success) {

@@ -42,10 +42,12 @@ export const POST = traceApiRoute(
       })
     }
 
+    const contentType = req.headers.get('content-type') ?? ''
     let rawBody: unknown
-    try {
-      rawBody = await req.json()
-    } catch {
+    if (
+      contentType.includes('application/x-www-form-urlencoded') ||
+      contentType.includes('multipart/form-data')
+    ) {
       const formData = await req.formData().catch(() => null)
       if (formData) {
         const ids = formData.getAll('id[]')
@@ -55,6 +57,8 @@ export const POST = traceApiRoute(
       } else {
         rawBody = {}
       }
+    } else {
+      rawBody = await req.json().catch(() => ({}))
     }
     const parsed = BulkBody.safeParse(rawBody)
     if (!parsed.success) {
@@ -66,7 +70,20 @@ export const POST = traceApiRoute(
       })
     }
 
-    const sourceActorIds = parsed.data.map((id) => idToUrl(id))
+    const allSourceActorIds = parsed.data.map((id) => idToUrl(id))
+    // Only add senders that have an actual pending request to prevent arbitrary
+    // allowlisting of accounts the user never intentionally accepted.
+    const pendingRequests = await Promise.all(
+      allSourceActorIds.map((sourceActorId) =>
+        database.getNotificationRequest({
+          actorId: currentActor.id,
+          sourceActorId
+        })
+      )
+    )
+    const sourceActorIds = allSourceActorIds.filter(
+      (_, i) => pendingRequests[i] !== null
+    )
     await Promise.all([
       database.acceptNotificationRequests({
         actorId: currentActor.id,

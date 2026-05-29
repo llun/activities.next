@@ -77,10 +77,12 @@ export const PATCH = traceApiRoute(
         })
       }
 
+      const contentType = req.headers.get('content-type') ?? ''
       let body: unknown
-      try {
-        body = await req.json()
-      } catch {
+      if (
+        contentType.includes('application/x-www-form-urlencoded') ||
+        contentType.includes('multipart/form-data')
+      ) {
         const formData = await req.formData().catch(() => null)
         if (formData) {
           const obj: Record<string, string> = {}
@@ -91,6 +93,8 @@ export const PATCH = traceApiRoute(
         } else {
           body = {}
         }
+      } else {
+        body = await req.json().catch(() => ({}))
       }
       const parsed = UpdatePolicyBody.safeParse(body)
       if (!parsed.success) {

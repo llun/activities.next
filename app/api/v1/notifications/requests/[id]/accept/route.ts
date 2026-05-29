@@ -35,7 +35,7 @@ export const POST = traceApiRoute(
         })
       }
 
-      const sourceActorId = idToUrl(decodeURIComponent((await params).id))
+      const sourceActorId = idToUrl((await params).id)
       const request = await database.getNotificationRequest({
         actorId: currentActor.id,
         sourceActorId
