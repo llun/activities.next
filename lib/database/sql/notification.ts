@@ -13,6 +13,9 @@ import {
 
 const fixNotificationDataDate = (data: Notification): Notification => ({
   ...data,
+  // SQLite stores booleans as 0/1; normalize to real booleans to honor the type.
+  filtered: Boolean(data.filtered),
+  isRead: Boolean(data.isRead),
   createdAt: getCompatibleTime(data.createdAt),
   updatedAt: getCompatibleTime(data.updatedAt),
   readAt: data.readAt ? getCompatibleTime(data.readAt) : undefined
@@ -27,7 +30,8 @@ export const NotificationSQLDatabaseMixin = (
     sourceActorId,
     statusId,
     followId,
-    groupKey
+    groupKey,
+    filtered = false
   }: CreateNotificationParams) {
     const currentTime = new Date()
     const notification: Notification = {
@@ -39,6 +43,7 @@ export const NotificationSQLDatabaseMixin = (
       followId,
       groupKey,
       isRead: false,
+      filtered,
       createdAt: currentTime.getTime(),
       updatedAt: currentTime.getTime()
     }
@@ -62,13 +67,20 @@ export const NotificationSQLDatabaseMixin = (
     ids,
     maxNotificationId,
     minNotificationId,
-    sinceNotificationId
+    sinceNotificationId,
+    includeFiltered
   }: GetNotificationsParams) {
     let query = database('notifications')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc') // Secondary sort for deterministic ordering
       .limit(limit)
+
+    // By default hide policy-filtered notifications (they live in the requests
+    // queue). Mastodon's `include_filtered` opts back into seeing them.
+    if (!includeFiltered) {
+      query = query.where('filtered', false)
+    }
 
     // Support cursor-based pagination
     // Scope cursor lookups to actorId to prevent information leaks
@@ -144,9 +156,16 @@ export const NotificationSQLDatabaseMixin = (
   async getNotificationsCount({
     actorId,
     onlyUnread,
-    types
+    types,
+    excludeTypes,
+    limit,
+    includeFiltered
   }: GetNotificationsCountParams) {
     let query = database('notifications').where('actorId', actorId)
+
+    if (!includeFiltered) {
+      query = query.where('filtered', false)
+    }
 
     if (onlyUnread) {
       query = query.where('isRead', false)
@@ -154,6 +173,24 @@ export const NotificationSQLDatabaseMixin = (
 
     if (types && types.length > 0) {
       query = query.whereIn('type', types)
+    }
+
+    if (excludeTypes && excludeTypes.length > 0) {
+      query = query.whereNotIn('type', excludeTypes)
+    }
+
+    // Mastodon caps unread_count at a limit; emulate by counting rows from a
+    // bounded subquery rather than the whole table.
+    if (limit !== undefined) {
+      // ORDER BY is intentionally omitted: for a COUNT the sort order does not
+      // affect the result, and skipping it lets the query planner avoid a
+      // potentially expensive sort before the LIMIT.
+      const subquery = query.clone().select('id').limit(limit).as('capped')
+      const result = await database
+        .count<{ count: string }>('* as count')
+        .from(subquery)
+        .first()
+      return parseInt(result?.count ?? '0', 10)
     }
 
     const result = await query.count<{ count: string }>('* as count').first()

@@ -39,12 +39,14 @@ export const POST = traceApiRoute(
       })
     }
 
-    // Verify all notifications belong to the current actor
+    // Verify all notifications belong to the current actor (include filtered so
+    // notifications returned via include_filtered=true can also be marked read)
     const notifications = await database.getNotifications({
       actorId: currentActor.id,
       limit: notificationIds.length,
       offset: 0,
-      ids: notificationIds
+      ids: notificationIds,
+      includeFiltered: true
     })
 
     const validIds = notifications

@@ -45,11 +45,12 @@ export const POST = traceApiRoute(
 
     const { id } = parsed.data
 
-    // Verify ownership
+    // Verify ownership (include filtered so filtered notifications can be dismissed)
     const notifications = await database.getNotifications({
       actorId: currentActor.id,
       ids: [id],
-      limit: 1
+      limit: 1,
+      includeFiltered: true
     })
 
     if (notifications.length === 0) {

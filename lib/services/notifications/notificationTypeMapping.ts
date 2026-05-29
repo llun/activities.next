@@ -1,0 +1,37 @@
+import { NotificationType } from '@/lib/types/database/operations'
+
+/**
+ * Maps a Mastodon notification type name to this codebase's internal
+ * NotificationType values. Returns an array because some Mastodon types cover
+ * multiple internal types: Mastodon `mention` maps to both internal `mention`
+ * and `reply` since both are serialised as `mention` in the Mastodon API.
+ * Unknown Mastodon types are passed through unchanged and cast — callers use
+ * these for SQL `whereIn`/`whereNotIn`, so an unrecognised value matches zero
+ * rows.
+ *
+ * Note on `status`: Mastodon's `status` type means "a followed account posted".
+ * This codebase has no native follow-post notification, so it is mapped to the
+ * closest internal concept, `activity_import`. If a native follow-post
+ * notification is ever added, update this mapping.
+ */
+export const mastodonTypeToInternal = (type: string): NotificationType[] => {
+  switch (type) {
+    case 'favourite':
+      return [NotificationType.enum.like]
+    case 'reblog':
+      return [NotificationType.enum.reblog]
+    case 'status':
+      return [NotificationType.enum.activity_import]
+    case 'mention':
+      return [NotificationType.enum.mention, NotificationType.enum.reply]
+    default:
+      return [type as NotificationType]
+  }
+}
+
+export const mastodonTypesToInternal = (
+  types: string[] | undefined
+): NotificationType[] | undefined => {
+  if (!types) return undefined
+  return [...new Set(types.flatMap(mastodonTypeToInternal))]
+}
