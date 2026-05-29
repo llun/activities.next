@@ -167,6 +167,74 @@
 - Jest is configured via `jest.config.mjs` with SWC transforms.
 - Prefer unit tests near `lib/` and route tests near `app/`.
 - All tests run in parallel using isolated SQLite in-memory databases.
+- Client components that fan out to children which render relative timestamps
+  (e.g. `Posts`/`Post`) must receive `currentTime: number` from a Server
+  Component and forward it. Add a regression test that renders the component
+  with a fixed `currentTime` and a post created a known interval earlier, then
+  asserts the rendered relative time (for example `posted 5 minutes ago`). If
+  the component calls `Date.now()` internally instead, the assertion fails. See
+  `app/(timeline)/MainPageTimeline.test.tsx` for the pattern.
+
+### Local Manual / Browser Testing (SQLite + mock data)
+
+Use this to run the app locally with a logged-in test user and seeded posts —
+for example to verify UI changes or reproduce hydration issues in a browser.
+These exact steps are verified to work; the gotchas below are load-bearing.
+
+1. Create a git-ignored `.env.local` at the repo root:
+
+   ```bash
+   ACTIVITIES_HOST=localhost:3000
+   ACTIVITIES_INSECURE_AUTH=true
+   ACTIVITIES_SECRET_PHASE=local-dev-secret-phrase-change-me
+   ACTIVITIES_ALLOW_EMAILS='["test@example.com"]'
+   ACTIVITIES_DATABASE_CLIENT=better-sqlite3
+   ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
+   ```
+
+   - `ACTIVITIES_INSECURE_AUTH=true` is **required** for local sign-in over
+     `http`. Without it, `getBaseURL()` defaults to `https://…`, so better-auth's
+     trusted origin becomes `https://localhost:…` and sign-in fails with
+     `403 Invalid origin: http://localhost:…`.
+   - Wrap JSON-valued vars like `ACTIVITIES_ALLOW_EMAILS` in **single quotes** so
+     both `dotenv-flow` and shell `source` keep the inner double quotes.
+   - `ACTIVITIES_HOST` must match the port the dev server actually serves on (the
+     mock actor's domain is `config.host`). If port 3000 is taken, pick a free
+     port and set both `ACTIVITIES_HOST` and `yarn dev --port` to it.
+
+2. Install deps, migrate, and seed mock data:
+
+   ```bash
+   yarn install          # Node.js 24
+   yarn migrate          # knexfile uses dotenv-flow → auto-loads .env.local
+
+   # The mock scripts run via swc-node, which does NOT auto-load .env.local.
+   # Export the vars into the shell first, then run them:
+   set -a; . ./.env.local; set +a
+   node -r @swc-node/register scripts/createMockUser.ts      # testuser / test@example.com / testpassword123
+   node -r @swc-node/register scripts/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
+   ```
+
+   The mock user is created already email-verified, so credential sign-in works.
+
+3. Run the server and sign in:
+
+   ```bash
+   yarn dev --port 3000   # port must match ACTIVITIES_HOST
+   ```
+
+   Open `http://localhost:3000/auth/signin` and sign in with
+   `test@example.com` / `testpassword123`. The seeded posts appear on the
+   timeline at `/`.
+
+4. Reproducing hydration mismatches in a browser: relative timestamps round
+   coarsely (date-fns boundaries at 30s, 90s, …), so the natural SSR→hydration
+   gap rarely crosses a boundary. To force a deterministic mismatch, override the
+   browser clock before load (e.g. Playwright `addInitScript` setting
+   `Date.now = () => realNow() + 180000`). With the bug present this throws a
+   React hydration error naming the timestamp node; with `currentTime` passed
+   from the server it does not, because both SSR and hydration use the identical
+   server value.
 
 ## Commit & Pull Request Guidelines
 
