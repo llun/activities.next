@@ -268,9 +268,9 @@ export const NotificationSQLDatabaseMixin = (
       .limit(limit)
 
     if (maxUpdatedAt !== undefined) {
-      query = query.havingRaw('MAX(createdAt) < ?', [maxUpdatedAt])
+      query = query.havingRaw('MAX(createdAt) < ?', [new Date(maxUpdatedAt)])
     } else if (sinceUpdatedAt !== undefined) {
-      query = query.havingRaw('MAX(createdAt) > ?', [sinceUpdatedAt])
+      query = query.havingRaw('MAX(createdAt) > ?', [new Date(sinceUpdatedAt)])
     } else {
       query = query.offset(offset)
     }

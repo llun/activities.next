@@ -47,13 +47,21 @@ export const GET = traceApiRoute(
         actorId: currentActor.id,
         sourceActorId: idToUrl(maxIdParam)
       })
-      if (cursor) maxUpdatedAt = cursor.updatedAt
+      // Cursor not found (request was accepted/dismissed): return empty list
+      // rather than falling back to page 1, which would cause clients to loop.
+      if (!cursor) {
+        return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
+      }
+      maxUpdatedAt = cursor.updatedAt
     } else if (sinceIdParam) {
       const cursor = await database.getNotificationRequest({
         actorId: currentActor.id,
         sourceActorId: idToUrl(sinceIdParam)
       })
-      if (cursor) sinceUpdatedAt = cursor.updatedAt
+      if (!cursor) {
+        return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
+      }
+      sinceUpdatedAt = cursor.updatedAt
     }
 
     const useCursor = maxUpdatedAt !== undefined || sinceUpdatedAt !== undefined

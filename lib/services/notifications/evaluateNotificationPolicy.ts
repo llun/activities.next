@@ -19,13 +19,23 @@ export const addAcceptedSender = async (
   database: Database,
   actorId: string,
   sourceActorId: string
+): Promise<void> => addAcceptedSenders(database, actorId, [sourceActorId])
+
+// Appends all sourceActorIds in a single read-modify-write to avoid racing
+// concurrent accept calls clobbering each other's entries.
+export const addAcceptedSenders = async (
+  database: Database,
+  actorId: string,
+  sourceActorIds: string[]
 ): Promise<void> => {
+  if (sourceActorIds.length === 0) return
   const settings = await database.getActorSettings({ actorId })
-  const existing = settings?.notificationAcceptedSenders ?? []
-  if (existing.includes(sourceActorId)) return
+  const existing = new Set(settings?.notificationAcceptedSenders ?? [])
+  const toAdd = sourceActorIds.filter((id) => !existing.has(id))
+  if (toAdd.length === 0) return
   await database.updateActor({
     actorId,
-    notificationAcceptedSenders: [...existing, sourceActorId]
+    notificationAcceptedSenders: [...existing, ...toAdd]
   })
 }
 
