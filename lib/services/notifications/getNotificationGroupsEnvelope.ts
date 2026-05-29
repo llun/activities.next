@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import {
   MastodonNotificationGroup,
@@ -9,7 +10,11 @@ import {
   groupNotifications
 } from '@/lib/services/notifications/groupNotifications'
 import { Mastodon } from '@/lib/types/activitypub'
-import { Notification } from '@/lib/types/database/operations'
+import {
+  ActiveFilterRecord,
+  Notification,
+  NotificationType
+} from '@/lib/types/database/operations'
 
 // Mastodon's dehydrated grouped-notifications response: groups reference shared
 // accounts and statuses by id, deduped into top-level arrays.
@@ -30,16 +35,30 @@ const resolveAccounts = async (
 const resolveStatuses = async (
   database: Database,
   statusIds: string[],
-  currentActorId?: string
+  currentActorId?: string,
+  filterRecords?: ActiveFilterRecord[]
 ): Promise<Mastodon.Status[]> => {
-  const statuses = await Promise.all(
-    statusIds.map(async (statusId) => {
-      const status = await database.getStatus({ statusId, withReplies: false })
-      if (!status) return null
-      return getMastodonStatus(database, status, currentActorId)
-    })
-  )
-  return statuses.filter((status): status is Mastodon.Status => status !== null)
+  if (statusIds.length === 0) return []
+  const domainStatuses = await database.getStatusesByIds({
+    statusIds,
+    currentActorId,
+    visibleToActorId: currentActorId,
+    withReplies: false
+  })
+  const results: Mastodon.Status[] = []
+  for (const domainStatus of domainStatuses) {
+    if (filterRecords && filterRecords.length > 0) {
+      const matches = applyFiltersToStatus(domainStatus, filterRecords)
+      if (matches.some((m) => m.filter.filter_action === 'hide')) continue
+    }
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      domainStatus,
+      currentActorId
+    )
+    if (mastodonStatus) results.push(mastodonStatus)
+  }
+  return results
 }
 
 /**
@@ -50,7 +69,8 @@ const resolveStatuses = async (
 export const getNotificationGroupsEnvelope = async (
   database: Database,
   grouped: GroupedNotification[],
-  currentActorId?: string
+  currentActorId?: string,
+  filterRecords?: ActiveFilterRecord[]
 ): Promise<NotificationGroupsEnvelope> => {
   const results = grouped.map(getNotificationGroup)
 
@@ -67,7 +87,7 @@ export const getNotificationGroupsEnvelope = async (
 
   const [accounts, statuses] = await Promise.all([
     resolveAccounts(database, actorIds),
-    resolveStatuses(database, statusIds, currentActorId)
+    resolveStatuses(database, statusIds, currentActorId, filterRecords)
   ])
 
   return {
@@ -78,13 +98,26 @@ export const getNotificationGroupsEnvelope = async (
 }
 
 // Convenience: group raw notifications then build the envelope.
+// For v2, follow notifications without a groupKey are assigned a synthetic
+// 'follow' groupKey so they appear as a single group (Mastodon v2 behaviour).
 export const buildNotificationGroupsEnvelope = (
   database: Database,
   notifications: Notification[],
-  currentActorId?: string
-): Promise<NotificationGroupsEnvelope> =>
-  getNotificationGroupsEnvelope(
-    database,
-    groupNotifications(notifications, true),
-    currentActorId
+  currentActorId?: string,
+  groupedTypes?: Set<NotificationType>,
+  filterRecords?: ActiveFilterRecord[]
+): Promise<NotificationGroupsEnvelope> => {
+  const canGroupFollows =
+    !groupedTypes || groupedTypes.has(NotificationType.enum.follow)
+  const prepared = notifications.map((n) =>
+    n.type === NotificationType.enum.follow && !n.groupKey && canGroupFollows
+      ? { ...n, groupKey: 'follow' }
+      : n
   )
+  return getNotificationGroupsEnvelope(
+    database,
+    groupNotifications(prepared, true, groupedTypes),
+    currentActorId,
+    filterRecords
+  )
+}

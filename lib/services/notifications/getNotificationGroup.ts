@@ -56,7 +56,10 @@ export const getNotificationGroup = (
       // groupNotifications keeps the most recent notification as the base.
       most_recent_notification_id: notification.id,
       page_max_id: notification.id,
-      page_min_id: notification.id,
+      // groupedIds[last] is the oldest notification in the group (DB returns most-recent-first).
+      page_min_id: notification.groupedIds
+        ? notification.groupedIds[notification.groupedIds.length - 1]
+        : notification.id,
       sample_account_ids: sampleActorIds.map((id) => urlToId(id)),
       ...(notification.statusId
         ? { status_id: urlToId(notification.statusId) }

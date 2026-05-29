@@ -5,7 +5,9 @@ import { GET } from './route'
 const mockDatabase = {
   getNotifications: jest.fn(),
   getMastodonActorsFromIds: jest.fn(),
-  getStatus: jest.fn()
+  getStatus: jest.fn(),
+  getStatusesByIds: jest.fn(),
+  getActiveFiltersForActor: jest.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
@@ -41,6 +43,10 @@ describe('GET /api/v2/notifications', () => {
       ({ ids }: { ids: string[] }) => Promise.resolve(ids.map((id) => ({ id })))
     )
     mockDatabase.getStatus.mockResolvedValue({ id: 'status-url' })
+    mockDatabase.getStatusesByIds.mockImplementation(
+      ({ statusIds }: { statusIds: string[] }) =>
+        Promise.resolve(statusIds.map((id) => ({ id })))
+    )
   })
 
   it('returns the grouped envelope with deduped accounts and statuses', async () => {

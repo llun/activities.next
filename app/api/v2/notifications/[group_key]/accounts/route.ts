@@ -28,7 +28,7 @@ export const GET = traceApiRoute(
         })
       }
 
-      const groupKey = decodeURIComponent((await params).group_key)
+      const groupKey = (await params).group_key
       const notifications = await database.getNotificationsForGroupKey({
         actorId: currentActor.id,
         groupKey,

@@ -1,11 +1,12 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { buildNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
-import { Scope } from '@/lib/types/database/operations'
+import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
@@ -40,6 +41,7 @@ const QueryParams = z.object({
     .optional(),
   types: z.array(z.string()).optional(),
   exclude_types: z.array(z.string()).optional(),
+  grouped_types: z.array(z.string()).optional(),
   account_id: z.string().optional(),
   include_filtered: z
     .enum(['true', 'false'])
@@ -88,6 +90,7 @@ export const GET = traceApiRoute(
       since_id: sinceId,
       types,
       exclude_types: excludeTypes,
+      grouped_types: groupedTypesMastodon,
       account_id: accountId,
       include_filtered: includeFiltered = false
     } = parsed.data
@@ -106,10 +109,22 @@ export const GET = traceApiRoute(
       ? notifications.filter((n) => urlToId(n.sourceActorId) === accountId)
       : notifications
 
+    const internalGroupedTypes = groupedTypesMastodon
+      ? new Set(
+          mastodonTypesToInternal(groupedTypesMastodon) as NotificationType[]
+        )
+      : undefined
+
+    const filterRecords = includeFiltered
+      ? []
+      : await getActiveFilters(database, currentActor.id, 'notifications')
+
     const envelope = await buildNotificationGroupsEnvelope(
       database,
       filtered,
-      currentActor.id
+      currentActor.id,
+      internalGroupedTypes,
+      filterRecords
     )
 
     // Pagination links from the raw notification page (pre-grouping), mirroring
@@ -117,10 +132,12 @@ export const GET = traceApiRoute(
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
     const buildLink = (cursorParam: string, cursorValue: string) => {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams(url.searchParams)
+      params.delete('max_id')
+      params.delete('min_id')
+      params.delete('since_id')
       params.set('limit', limit.toString())
       params.set(cursorParam, cursorValue)
-      if (includeFiltered) params.set('include_filtered', 'true')
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
     const links =

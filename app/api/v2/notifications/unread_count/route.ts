@@ -4,7 +4,7 @@ import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
-import { Scope } from '@/lib/types/database/operations'
+import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
@@ -13,6 +13,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 100
@@ -29,7 +30,9 @@ const QueryParams = z.object({
     .default(DEFAULT_LIMIT)
     .optional(),
   types: z.array(z.string()).optional(),
-  exclude_types: z.array(z.string()).optional()
+  exclude_types: z.array(z.string()).optional(),
+  grouped_types: z.array(z.string()).optional(),
+  account_id: z.string().optional()
 })
 
 export const GET = traceApiRoute(
@@ -69,8 +72,16 @@ export const GET = traceApiRoute(
     const {
       limit = DEFAULT_LIMIT,
       types,
-      exclude_types: excludeTypes
+      exclude_types: excludeTypes,
+      grouped_types: groupedTypesMastodon,
+      account_id: accountId
     } = parsed.data
+
+    const internalGroupedTypes = groupedTypesMastodon
+      ? new Set(
+          mastodonTypesToInternal(groupedTypesMastodon) as NotificationType[]
+        )
+      : undefined
 
     // Mastodon's grouped unread_count counts unread groups (capped).
     const notifications = await database.getNotifications({
@@ -80,7 +91,23 @@ export const GET = traceApiRoute(
       types: mastodonTypesToInternal(types),
       excludeTypes: mastodonTypesToInternal(excludeTypes)
     })
-    const count = groupNotifications(notifications, true).length
+    const filtered = accountId
+      ? notifications.filter((n) => urlToId(n.sourceActorId) === accountId)
+      : notifications
+    // Apply same follow-grouping as the main v2 envelope.
+    const canGroupFollows =
+      !internalGroupedTypes ||
+      internalGroupedTypes.has(NotificationType.enum.follow)
+    const prepared = filtered.map((n) =>
+      n.type === NotificationType.enum.follow && !n.groupKey && canGroupFollows
+        ? { ...n, groupKey: 'follow' }
+        : n
+    )
+    const count = groupNotifications(
+      prepared,
+      true,
+      internalGroupedTypes
+    ).length
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
   })

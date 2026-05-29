@@ -37,7 +37,12 @@ describe('#getNotificationGroupsEnvelope', () => {
         .mockImplementation(({ ids }: { ids: string[] }) =>
           Promise.resolve(ids.map((id) => ({ id })))
         ),
-      getStatus: jest.fn().mockResolvedValue({ id: STATUS })
+      getStatus: jest.fn().mockResolvedValue({ id: STATUS }),
+      getStatusesByIds: jest
+        .fn()
+        .mockImplementation(({ statusIds }: { statusIds: string[] }) =>
+          Promise.resolve(statusIds.map((id) => ({ id })))
+        )
     } as unknown as Database
     mockGetMastodonStatus.mockResolvedValue({ id: 'status-1' })
 
@@ -81,15 +86,18 @@ describe('#getNotificationGroupsEnvelope', () => {
       .calls[0][0].ids
     expect([...accountIds].sort()).toEqual([ALICE, BOB].sort())
 
-    // The status is fetched once despite two groups referencing it.
-    expect(mockDatabase.getStatus).toHaveBeenCalledTimes(1)
+    // The status is fetched once via batch despite two groups referencing it.
+    expect(mockDatabase.getStatusesByIds).toHaveBeenCalledTimes(1)
+    expect(
+      (mockDatabase.getStatusesByIds as jest.Mock).mock.calls[0][0].statusIds
+    ).toHaveLength(1)
     expect(envelope.statuses).toHaveLength(1)
   })
 
   it('returns empty accounts/statuses when there is nothing to resolve', async () => {
     const mockDatabase = {
       getMastodonActorsFromIds: jest.fn().mockResolvedValue([]),
-      getStatus: jest.fn()
+      getStatusesByIds: jest.fn()
     } as unknown as Database
 
     const envelope = await getNotificationGroupsEnvelope(mockDatabase, [])
@@ -100,6 +108,6 @@ describe('#getNotificationGroupsEnvelope', () => {
       statuses: []
     })
     expect(mockDatabase.getMastodonActorsFromIds).not.toHaveBeenCalled()
-    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockDatabase.getStatusesByIds).not.toHaveBeenCalled()
   })
 })

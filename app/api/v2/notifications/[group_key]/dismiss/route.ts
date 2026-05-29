@@ -28,7 +28,7 @@ export const POST = traceApiRoute(
         })
       }
 
-      const groupKey = decodeURIComponent((await params).group_key)
+      const groupKey = (await params).group_key
       await database.dismissNotificationGroup({
         actorId: currentActor.id,
         groupKey

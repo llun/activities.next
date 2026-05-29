@@ -1,4 +1,4 @@
-import { Notification } from '@/lib/types/database/operations'
+import { Notification, NotificationType } from '@/lib/types/database/operations'
 
 export interface GroupedNotification extends Notification {
   groupedActors?: string[]
@@ -8,7 +8,8 @@ export interface GroupedNotification extends Notification {
 
 export const groupNotifications = (
   notifications: Notification[],
-  enableGrouping: boolean = true
+  enableGrouping: boolean = true,
+  groupedTypes?: Set<NotificationType>
 ): GroupedNotification[] => {
   // If grouping is disabled, return notifications as-is with minimal GroupedNotification fields
   if (!enableGrouping) {
@@ -23,9 +24,12 @@ export const groupNotifications = (
   const groups: Map<string, GroupedNotification> = new Map()
 
   for (const notification of notifications) {
-    // Group by groupKey (e.g., "like:statusId" or "reply:statusId")
-    if (notification.groupKey) {
-      const existing = groups.get(notification.groupKey)
+    const canGroup =
+      notification.groupKey &&
+      (!groupedTypes || groupedTypes.has(notification.type))
+
+    if (canGroup) {
+      const existing = groups.get(notification.groupKey!)
       if (existing) {
         // Add to existing group
         if (!existing.groupedActors) {
@@ -54,8 +58,9 @@ export const groupNotifications = (
       }
     }
 
-    // First notification with this groupKey or no groupKey
-    groups.set(notification.groupKey || notification.id, {
+    // First notification with this groupKey, not groupable, or no groupKey
+    const mapKey = canGroup ? notification.groupKey! : notification.id
+    groups.set(mapKey, {
       ...notification,
       groupedActors: undefined,
       groupedCount: 1,
