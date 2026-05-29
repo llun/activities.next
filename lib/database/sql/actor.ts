@@ -827,11 +827,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           const toAdd = appendNotificationAcceptedSenders.filter(
             (id) => !existing.has(id)
           )
-          if (toAdd.length > 0) {
-            finalSettings = {
-              ...finalSettings,
-              notificationAcceptedSenders: [...existing, ...toAdd]
-            }
+          // Always use the fresh value so a concurrent write to
+          // notificationAcceptedSenders is never clobbered, even when toAdd
+          // is empty (all IDs were already present in the fresh row).
+          finalSettings = {
+            ...finalSettings,
+            notificationAcceptedSenders: [...existing, ...toAdd]
           }
         }
       }
