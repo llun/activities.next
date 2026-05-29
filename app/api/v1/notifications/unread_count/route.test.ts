@@ -108,6 +108,39 @@ describe('GET /api/v1/notifications/unread_count', () => {
     )
   })
 
+  it('returns 422 when limit is a float', async () => {
+    const request = new NextRequest(
+      'https://llun.test/api/v1/notifications/unread_count?limit=1.5',
+      { method: 'GET' }
+    )
+
+    const response = await GET(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.getNotificationsCount).not.toHaveBeenCalled()
+  })
+
+  it('caps account_id match count at the requested limit', async () => {
+    const aliceId = 'https://other.test/users/alice'
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      { id: 'n1', sourceActorId: aliceId },
+      { id: 'n2', sourceActorId: aliceId },
+      { id: 'n3', sourceActorId: aliceId }
+    ])
+
+    const accountId = urlToId(aliceId)
+    const request = new NextRequest(
+      `https://llun.test/api/v1/notifications/unread_count?account_id=${encodeURIComponent(accountId)}&limit=2`,
+      { method: 'GET' }
+    )
+
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data).toEqual({ count: 2 })
+  })
+
   it('counts via post-fetch account_id filtering on sourceActorId', async () => {
     const aliceId = 'https://other.test/users/alice'
     const bobId = 'https://other.test/users/bob'

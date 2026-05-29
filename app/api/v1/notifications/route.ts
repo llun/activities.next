@@ -35,6 +35,7 @@ const NotificationQueryParams = z.object({
   min_id: z.string().optional(),
   limit: z.coerce
     .number()
+    .int()
     .min(1)
     .max(MAX_LIMIT)
     .default(DEFAULT_LIMIT)
