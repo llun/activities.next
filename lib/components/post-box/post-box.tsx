@@ -1,4 +1,11 @@
-import { Activity, AlertTriangle, BarChart3, Loader2, X } from 'lucide-react'
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Eye,
+  Loader2,
+  X
+} from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -24,12 +31,6 @@ import {
 } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/lib/components/ui/tabs'
 import {
   ActorProfile,
   getMention,
@@ -88,6 +89,8 @@ interface Props {
   onPostUpdated: (status: Status) => void
   onDiscardEdit: () => void
 }
+
+const MAX_STATUS_LENGTH = 500
 
 const getEditableStatusText = (status: EditableStatus) => status.text
 
@@ -295,7 +298,7 @@ export const PostBox: FC<Props> = ({
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
-  const [currentTab, setCurrentTab] = useState<string>('write')
+  const [showPreview, setShowPreview] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
@@ -865,7 +868,7 @@ export const PostBox: FC<Props> = ({
   return (
     <div>
       <form ref={formRef} onSubmit={onPost}>
-        <div className="flex items-start gap-4 mb-3">
+        <div className="flex items-start gap-3 mb-3">
           <Avatar className="size-12">
             <AvatarImage
               src={profile.iconUrl}
@@ -882,63 +885,58 @@ export const PostBox: FC<Props> = ({
               status={replyStatus}
               onClose={onCloseReply}
             />
-            <Tabs value={currentTab} onValueChange={setCurrentTab}>
-              {postExtension.contentWarningVisible ? (
-                <input
-                  type="text"
-                  className="mb-3 flex h-9 w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  aria-label="Content warning"
-                  name="contentWarning"
-                  placeholder="Write your warning here"
-                  value={postExtension.contentWarning}
-                  onChange={(event) =>
-                    onContentWarningChange(event.target.value)
-                  }
-                />
-              ) : null}
-              <TabsList className="mb-3">
-                <TabsTrigger value="write">Write</TabsTrigger>
-                <TabsTrigger value="preview">Preview</TabsTrigger>
-              </TabsList>
+            {postExtension.contentWarningVisible ? (
+              <input
+                type="text"
+                className="flex h-9 w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-label="Content warning"
+                name="contentWarning"
+                placeholder="Write your warning here"
+                value={postExtension.contentWarning}
+                onChange={(event) => onContentWarningChange(event.target.value)}
+              />
+            ) : null}
 
-              <TabsContent value="write" className="mt-0">
-                <textarea
-                  ref={postBoxRef}
-                  className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none resize-none md:text-sm"
-                  rows={5}
-                  onKeyDown={onQuickPost}
-                  onChange={(e) => onTextChange(e.target.value)}
-                  name="message"
-                  placeholder="What's on your mind?"
-                  value={text}
-                />
-              </TabsContent>
+            <textarea
+              ref={postBoxRef}
+              className="flex min-h-[72px] w-full resize-none bg-transparent text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
+              rows={2}
+              onKeyDown={onQuickPost}
+              onChange={(e) => onTextChange(e.target.value)}
+              name="message"
+              placeholder="What is on your mind?"
+              value={text}
+            />
 
-              <TabsContent value="preview" className="mt-0">
-                <div className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm">
-                  {text ? (
-                    <div className="markdown-content max-w-none">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkBreaks]}
-                        rehypePlugins={[
-                          [
-                            rehypeSanitize,
-                            {
-                              tagNames: SANITIZED_OPTION.allowedTags,
-                              attributes: SANITIZED_OPTION.allowedAttributes
-                            }
-                          ]
-                        ]}
-                      >
-                        {text}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">Nothing to preview</p>
-                  )}
+            {showPreview ? (
+              <div className="rounded-lg border bg-background p-3">
+                <div className="mb-2 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <Eye className="size-3" /> Preview
                 </div>
-              </TabsContent>
-            </Tabs>
+                {text ? (
+                  <div className="markdown-content max-w-none text-sm">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      rehypePlugins={[
+                        [
+                          rehypeSanitize,
+                          {
+                            tagNames: SANITIZED_OPTION.allowedTags,
+                            attributes: SANITIZED_OPTION.allowedAttributes
+                          }
+                        ]
+                      ]}
+                    >
+                      {text}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Nothing to preview
+                  </p>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -954,7 +952,7 @@ export const PostBox: FC<Props> = ({
           }
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
         />
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="mt-3 flex flex-wrap items-center gap-y-2 border-t pt-3">
           <div className="flex flex-wrap items-center gap-1">
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
@@ -1023,6 +1021,11 @@ export const PostBox: FC<Props> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className={cn(
+                postExtension.contentWarningVisible
+                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
               aria-label={
                 postExtension.contentWarningVisible
                   ? 'Remove content warning'
@@ -1035,11 +1038,6 @@ export const PostBox: FC<Props> = ({
                   ? 'Remove content warning'
                   : 'Add content warning'
               }
-              className={cn(
-                postExtension.contentWarningVisible
-                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
               onClick={onToggleContentWarning}
             >
               <AlertTriangle className="size-4" />
@@ -1051,19 +1049,38 @@ export const PostBox: FC<Props> = ({
               }
               disabled={isPosting}
             />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                'text-muted-foreground hover:text-foreground',
+                showPreview && 'bg-primary/10 text-primary'
+              )}
+              aria-label="Toggle preview"
+              aria-pressed={showPreview}
+              title="Toggle preview"
+              onClick={() => setShowPreview((value) => !value)}
+            >
+              <Eye className="size-4" />
+            </Button>
           </div>
-          <div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {MAX_STATUS_LENGTH - text.length}
+            </span>
             {editStatus ? (
               <Button
-                className="mr-2"
                 type="button"
                 variant="destructive"
+                size="sm"
                 onClick={onDiscardEdit}
               >
                 Cancel Edit
               </Button>
             ) : null}
-            <Button disabled={!allowPost || isPosting} type="submit">
+            <Button disabled={!allowPost || isPosting} type="submit" size="sm">
               {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
             </Button>
           </div>

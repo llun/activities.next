@@ -252,7 +252,7 @@ describe('PostBox edit media', () => {
     )
 
     const postButton = screen.getByRole('button', { name: 'Post' })
-    const textbox = screen.getByPlaceholderText("What's on your mind?")
+    const textbox = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textbox, { target: { value: 'caption' } })
 
     const fileInput = Array.from(
@@ -332,12 +332,12 @@ describe('PostBox edit media', () => {
       />
     )
 
-    expect(screen.getByPlaceholderText("What's on your mind?")).toHaveValue(
+    expect(screen.getByPlaceholderText('What is on your mind?')).toHaveValue(
       'a & b < c > d'
     )
     expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
 
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: 'a & b < c > d!' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
@@ -480,7 +480,7 @@ describe('PostBox edit media', () => {
       />
     )
 
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: 'Updated post text' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
@@ -513,7 +513,7 @@ describe('PostBox edit media', () => {
       />
     )
 
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: '' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
@@ -542,7 +542,7 @@ describe('PostBox edit media', () => {
     )
 
     const updateButton = screen.getByRole('button', { name: 'Update' })
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: '' }
     })
     expect(updateButton).toBeEnabled()
@@ -580,7 +580,7 @@ describe('PostBox edit media', () => {
         />
       )
 
-      fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
         target: { value: 'Updated post text' }
       })
       fireEvent.click(screen.getByRole('button', { name: 'Update' }))
@@ -665,7 +665,7 @@ describe('PostBox edit media', () => {
       await Promise.resolve()
     })
 
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: 'Original post text updated' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
@@ -794,7 +794,7 @@ describe('PostBox edit media', () => {
       />
     )
 
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: 'Updated post text' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
@@ -865,7 +865,7 @@ describe('PostBox edit media', () => {
       />
     )
 
-    fireEvent.change(screen.getByPlaceholderText("What's on your mind?"), {
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: 'Updated post text' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
@@ -968,10 +968,10 @@ describe('PostBox markdown preview', () => {
       />
     )
 
-    const textarea = screen.getByPlaceholderText("What's on your mind?")
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textarea, { target: { value: '~~strikethrough~~' } })
 
-    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
 
     const mockRemarkGfm = jest.requireMock('remark-gfm').default
     const mockRemarkBreaks = jest.requireMock('remark-breaks').default
@@ -1002,7 +1002,7 @@ describe('PostBox markdown preview', () => {
       />
     )
 
-    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
 
     expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
     expect(mockReactMarkdown).not.toHaveBeenCalled()
