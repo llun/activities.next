@@ -1,0 +1,76 @@
+app/api/v2/notifications/unread_count/route.ts
+  s_fa22e9bcf5886a::t_106a6cd3de59a6 1-24,31-87
+  s_fa22e9bcf5886a::t_3affdfbc087855 25-30
+app/api/v2/notifications/[group_key]/route.ts
+  s_fa22e9bcf5886a::t_6d6a8d95be2493 1-24,37,43,52,58,62
+  s_fa22e9bcf5886a::t_3affdfbc087855 25-36,38-42,44-51,53-57,59-61
+app/api/v2/notifications/[group_key]/dismiss/route.ts
+  s_fa22e9bcf5886a::t_d385fbd2eb8a44 1-40
+lib/services/notifications/getNotificationGroup.test.ts
+  s_fa22e9bcf5886a::t_ee47d220992d77 1-66
+lib/services/notifications/getNotificationGroupsEnvelope.test.ts
+  s_fa22e9bcf5886a::t_4a98e7ec27eb5c 1,3-79,82-105
+  s_fa22e9bcf5886a::t_22f9dd893c6f07 2,80-81
+lib/services/notifications/notificationTypeMapping.ts
+  s_fa22e9bcf5886a::t_9f5ba607e889db 1-4,11-16,18-19,21,23,27,29-33
+  s_fa22e9bcf5886a::t_227eac952126da 38-77
+lib/types/database/operations.ts
+  s_fa22e9bcf5886a::t_ace43d25fc7437 100
+  s_fa22e9bcf5886a::t_45487cc766def0 182-189
+  s_fa22e9bcf5886a::t_e5a34629f95c54 1397-1399
+  s_fa22e9bcf5886a::t_a62b726df4430f 1411-1413
+  s_fa22e9bcf5886a::t_14868d0bbcfed4 1427-1429,1436-1440
+  s_fa22e9bcf5886a::t_ed770172797554 1450-1452
+  s_fa22e9bcf5886a::t_c55f84365a3083 1506-1521,1524-1535,1550-1566,1576-1590,1600-1602
+  s_fa22e9bcf5886a::t_f075123c343b97 1536-1542
+  s_fa22e9bcf5886a::t_6e6b76477ab455 1567-1573
+  s_fa22e9bcf5886a::t_219e76ef3d38e2 1591-1599
+app/api/v2/notifications/route.test.ts
+  s_fa22e9bcf5886a::t_5b57380c3b1aaa 1-2,5-102
+  s_fa22e9bcf5886a::t_22f9dd893c6f07 3-4
+lib/database/sql/notification.ts
+  s_fa22e9bcf5886a::t_bd52e6e2a0f17e 7-8,15-16
+  s_fa22e9bcf5886a::t_ec09257c47fbe7 14
+  s_fa22e9bcf5886a::t_326b16bae258d3 18-19
+  s_fa22e9bcf5886a::t_bfbc9e44e7af05 35-36,48
+  s_fa22e9bcf5886a::t_985083b6083183 72-73,81-85
+  s_fa22e9bcf5886a::t_0cb612bda7d74a 161-164,170-171,180-193
+  s_fa22e9bcf5886a::t_17a70af9f26fe1 168-169,173-175
+  s_fa22e9bcf5886a::t_265edf76548bdd 246-248,252,254-268,270,293,296,314-349,352-356,358-364,375-381,425-426,431-454,457-458
+  s_fa22e9bcf5886a::t_61bc291d56e42d 394-424
+  s_fa22e9bcf5886a::t_0e08bc2c9db430 455-456
+app/api/v2/notifications/route.ts
+  s_fa22e9bcf5886a::t_e752fdc2742e7d 1-34,41-137,139-141
+  s_fa22e9bcf5886a::t_3affdfbc087855 35-40
+  s_fa22e9bcf5886a::t_3cb0a67ea59977 138
+lib/services/notifications/getNotificationGroup.ts
+  s_fa22e9bcf5886a::t_2d992bf9bc2414 1-34,38-68
+  s_fa22e9bcf5886a::t_3affdfbc087855 35-37
+lib/services/notifications/getNotificationGroupsEnvelope.ts
+  s_fa22e9bcf5886a::t_a58c823ec7891d 1-6,11-90
+  s_fa22e9bcf5886a::t_3affdfbc087855 7-10
+app/api/v2/notifications/[group_key]/accounts/route.ts
+  s_fa22e9bcf5886a::t_09f92be4fcbaf2 1-17,30,37,46,51,55
+  s_fa22e9bcf5886a::t_3affdfbc087855 18-29,31-36,38-45,47-50,52-54
+lib/database/sql/notification.test.ts
+  s_fa22e9bcf5886a::t_4c8d32a95d7f83 289-393
+  s_fa22e9bcf5886a::t_ace2c2b1dbda19 394-443,445-507,509-511
+  s_fa22e9bcf5886a::t_1e3c9d0fa46023 444,508
+  s_fa22e9bcf5886a::t_e7ad4e90ea852d 512-575
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d98056766b0329c807c11599283cb2893ae1836e",
+  "prompts": {},
+  "sessions": {
+    "s_fa22e9bcf5886a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fda05fc-0d7e-4ea0-9245-8a6c12dd5340",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
