@@ -74,9 +74,7 @@ export const getNotificationGroupsEnvelope = async (
 ): Promise<NotificationGroupsEnvelope> => {
   const results = grouped.map(getNotificationGroup)
 
-  const actorIds = Array.from(
-    new Set(results.flatMap((result) => result.sampleActorIds))
-  )
+  // Resolve statuses first so we can filter groups by hide-filter results.
   const statusIds = Array.from(
     new Set(
       results
@@ -84,20 +82,32 @@ export const getNotificationGroupsEnvelope = async (
         .filter((statusId): statusId is string => Boolean(statusId))
     )
   )
-
-  const [accounts, statuses] = await Promise.all([
-    resolveAccounts(database, actorIds),
-    resolveStatuses(database, statusIds, currentActorId, filterRecords)
-  ])
+  const statuses = await resolveStatuses(
+    database,
+    statusIds,
+    currentActorId,
+    filterRecords
+  )
 
   // Drop groups whose referenced status was removed by a hide filter to avoid
   // dangling status_id references in the response.
   const resolvedStatusIds = new Set(statuses.map((s) => s.id))
-  const notification_groups = results
-    .map((result) => result.group)
-    .filter((g) => !g.status_id || resolvedStatusIds.has(g.status_id))
+  const survivingResults = results.filter(
+    (r) => !r.group.status_id || resolvedStatusIds.has(r.group.status_id)
+  )
 
-  return { notification_groups, accounts, statuses }
+  // Resolve accounts only for groups that survived the filter so we don't leak
+  // actor data from hide-filtered notifications.
+  const actorIds = Array.from(
+    new Set(survivingResults.flatMap((result) => result.sampleActorIds))
+  )
+  const accounts = await resolveAccounts(database, actorIds)
+
+  return {
+    notification_groups: survivingResults.map((r) => r.group),
+    accounts,
+    statuses
+  }
 }
 
 // Groups notifications and injects a synthetic 'follow' groupKey for follow

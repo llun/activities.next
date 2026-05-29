@@ -137,9 +137,13 @@ export const GET = traceApiRoute(
         )
       : undefined
 
-    const filterRecords = includeFiltered
-      ? []
-      : await getActiveFilters(database, currentActor.id, 'notifications')
+    // include_filtered controls only the DB-level filter flag (NotificationPolicy).
+    // Content filters (keyword/status hide rules) are applied regardless.
+    const filterRecords = await getActiveFilters(
+      database,
+      currentActor.id,
+      'notifications'
+    )
 
     // Prepare groups (follow-groupKey injection + groupNotifications) and slice
     // to limit BEFORE resolving accounts/statuses to avoid unnecessary DB work.
@@ -154,10 +158,9 @@ export const GET = traceApiRoute(
       filterRecords
     )
 
-    // Pagination links: "next" (older page) uses page_min_id of the last group
-    // so that all members of that group are excluded from the next fetch.
-    // "prev" (newer page) uses most_recent_notification_id of the first group.
-    const returnedGroups = envelope.notification_groups
+    // Pagination links: use groupedSlice (pre-content-filter) as cursor source so
+    // clients keep paginating even when all visible groups on this page were
+    // hide-filtered. "next" uses page_min_id of the last pre-filter group.
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
     const buildLink = (cursorParam: string, cursorValue: string) => {
@@ -169,15 +172,21 @@ export const GET = traceApiRoute(
       params.set(cursorParam, cursorValue)
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
-    const lastGroup = returnedGroups[returnedGroups.length - 1]
+    const lastPreFilterGroup = groupedSlice[groupedSlice.length - 1]
     const links =
-      returnedGroups.length > 0
+      groupedSlice.length > 0
         ? [
+            // oldest member of last pre-filter group → safe max_id for next page
             buildLink(
               'max_id',
-              lastGroup.page_min_id ?? lastGroup.most_recent_notification_id
+              lastPreFilterGroup.groupedIds
+                ? lastPreFilterGroup.groupedIds[
+                    lastPreFilterGroup.groupedIds.length - 1
+                  ]
+                : lastPreFilterGroup.id
             ),
-            buildLink('min_id', returnedGroups[0].most_recent_notification_id)
+            // most recent of first pre-filter group → safe min_id for prev page
+            buildLink('min_id', groupedSlice[0].id)
           ].join(', ')
         : ''
 
