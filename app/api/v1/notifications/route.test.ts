@@ -109,6 +109,32 @@ describe('GET /api/v1/notifications', () => {
       })
     )
   })
+
+  it.each([
+    ['1', true],
+    ['on', true],
+    ['ON', true],
+    ['True', true],
+    ['false', false],
+    ['0', false],
+    ['off', false]
+  ])(
+    'parses include_filtered=%s as %s (Mastodon boolean compat)',
+    async (value, expected) => {
+      mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+      const request = new NextRequest(
+        `https://llun.test/api/v1/notifications?include_filtered=${value}`,
+        { method: 'GET' }
+      )
+
+      await GET(request, { params: Promise.resolve({}) })
+
+      expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+        expect.objectContaining({ includeFiltered: expected })
+      )
+    }
+  )
 })
 
 describe('POST /api/v1/notifications (clear-all)', () => {
