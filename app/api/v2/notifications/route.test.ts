@@ -17,7 +17,14 @@ jest.mock('@/lib/database', () => ({
 }))
 
 jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: jest.fn().mockResolvedValue({ id: 'status-1' })
+  // Return id matching urlToId(domainStatus.id) so the hide-filter check works.
+  getMastodonStatus: jest
+    .fn()
+    .mockImplementation((_db: unknown, domainStatus: { id: string }) =>
+      Promise.resolve({
+        id: domainStatus.id.replace(/https?:\/\//, '').replaceAll('/', ':')
+      })
+    )
 }))
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({

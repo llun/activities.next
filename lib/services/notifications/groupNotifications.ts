@@ -58,10 +58,15 @@ export const groupNotifications = (
       }
     }
 
-    // First notification with this groupKey, not groupable, or no groupKey
+    // First notification with this groupKey, not groupable, or no groupKey.
+    // When not grouping a notification that has a shared groupKey, use the
+    // notification's own id as the key so each individual entry gets a unique
+    // group_key in the Mastodon response rather than sharing the original key.
     const mapKey = canGroup ? notification.groupKey! : notification.id
     groups.set(mapKey, {
       ...notification,
+      // Override groupKey so the Mastodon group_key is unique per notification.
+      groupKey: canGroup ? notification.groupKey : notification.id,
       groupedActors: undefined,
       groupedCount: 1,
       groupedIds: undefined

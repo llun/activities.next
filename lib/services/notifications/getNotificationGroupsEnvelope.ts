@@ -90,11 +90,14 @@ export const getNotificationGroupsEnvelope = async (
     resolveStatuses(database, statusIds, currentActorId, filterRecords)
   ])
 
-  return {
-    notification_groups: results.map((result) => result.group),
-    accounts,
-    statuses
-  }
+  // Drop groups whose referenced status was removed by a hide filter to avoid
+  // dangling status_id references in the response.
+  const resolvedStatusIds = new Set(statuses.map((s) => s.id))
+  const notification_groups = results
+    .map((result) => result.group)
+    .filter((g) => !g.status_id || resolvedStatusIds.has(g.status_id))
+
+  return { notification_groups, accounts, statuses }
 }
 
 // Groups notifications and injects a synthetic 'follow' groupKey for follow
