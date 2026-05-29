@@ -78,7 +78,6 @@ export const userAnnounce = async ({
         // Fire-and-forget: notification delivery must not fail the announce action
         database
           .getActorFromId({ id: originalStatus.actorId })
-          .catch(() => null)
           .then((targetActor) => {
             const editableStatus = getOriginalStatus(originalStatus)
             sendNotificationAlerts({
@@ -102,6 +101,7 @@ export const userAnnounce = async ({
               ]
             })
           })
+          .catch(() => undefined)
       }
     }
 
