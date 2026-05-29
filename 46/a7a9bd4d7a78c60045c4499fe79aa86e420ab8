@@ -1,0 +1,21 @@
+lib/database/sql/notification.ts
+  s_b976f920c7fbe8::t_33f2e68df49b47 16,18
+  s_b976f920c7fbe8::t_a62c5ddc8a9413 188
+  s_b976f920c7fbe8::t_488a056035deb2 185-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "46a7a9bd4d7a78c60045c4499fe79aa86e420ab8",
+  "prompts": {},
+  "sessions": {
+    "s_b976f920c7fbe8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "13bb7ca9-89e5-446d-b4ec-55646b22d3be",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
