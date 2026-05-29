@@ -1,0 +1,22 @@
+lib/components/post-box/post-box.tsx
+  s_c7d90f6f740d10::t_9f747aa3c61173 720
+  s_c7d90f6f740d10::t_8753f5f37840bb 140,145-148,155-158
+  s_c7d90f6f740d10::t_a37113cb808f02 139
+  s_c7d90f6f740d10::t_16fb995fb419fd 459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c22bb807d2fe011d091465d6db927b384a7acb78",
+  "prompts": {},
+  "sessions": {
+    "s_c7d90f6f740d10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8d80617-83ec-4c3d-876b-7769abbf10c3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
