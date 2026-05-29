@@ -1,0 +1,19 @@
+lib/services/notifications/getNotificationGroupsEnvelope.test.ts
+  s_0289375c3b8b18::t_cf4f4e8bd916a6 47-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0fa12843b37f58f7c0eec6103d4f9a4dd5fe426b",
+  "prompts": {},
+  "sessions": {
+    "s_0289375c3b8b18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f35aa937-fe21-4ae9-9b3f-fbe728f6847d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
