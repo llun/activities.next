@@ -44,7 +44,10 @@ describe('#getNotificationGroupsEnvelope', () => {
           Promise.resolve(statusIds.map((id) => ({ id })))
         )
     } as unknown as Database
-    mockGetMastodonStatus.mockResolvedValue({ id: 'status-1' })
+    // Return id in urlToId format so the hide-filter check in resolveStatuses
+    // can match it against the group's status_id field.
+    // urlToId('https://other.test/statuses/1') = 'other.test:statuses:1'
+    mockGetMastodonStatus.mockResolvedValue({ id: 'other.test:statuses:1' })
 
     // Two like groups on the same status from alice and bob (status referenced
     // twice), plus a follow group from alice (alice referenced again).
