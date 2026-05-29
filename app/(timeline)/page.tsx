@@ -39,6 +39,7 @@ const Page = async () => {
   return (
     <MainPageTimeline
       host={host}
+      currentTime={Date.now()}
       statuses={statuses.map((item) => cleanJson(item))}
       initialNextMaxStatusId={nextMaxStatusId}
       profile={getActorProfile(actor)}

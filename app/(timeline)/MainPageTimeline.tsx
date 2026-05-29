@@ -37,6 +37,7 @@ const TIMELINES_TABS: Tab[] = [
 interface MainPageTimelineProps {
   host: string
   profile: ActorProfile
+  currentTime: number
   isMediaUploadEnabled: boolean
   statuses: Status[]
   initialNextMaxStatusId?: string | null
@@ -46,6 +47,7 @@ interface MainPageTimelineProps {
 export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   host,
   profile,
+  currentTime,
   isMediaUploadEnabled,
   statuses,
   initialNextMaxStatusId = null,
@@ -282,7 +284,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           {currentStatuses.length > 0 ? (
             <Posts
               host={host}
-              currentTime={Date.now()}
+              currentTime={currentTime}
               statuses={currentStatuses}
               currentActor={profile}
               showActions
