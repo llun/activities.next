@@ -1,0 +1,38 @@
+lib/database/sql/actor.ts
+  s_f1cb87d470a98e::t_a9a8941c460772 27-28
+  s_fa22e9bcf5886a::t_6d835be99ce6c8 44,57,60-61
+  s_fa22e9bcf5886a::t_8e68f39d79a84f 759
+  s_f1cb87d470a98e::t_7a4d29a5d002cd 760
+  s_f1cb87d470a98e::t_da242fd002123d 761
+  s_fa22e9bcf5886a::t_7d5173af5cfb12 784
+  s_f1cb87d470a98e::t_0fcde1bad26b45 786-788
+  s_f1cb87d470a98e::t_f76db34be89a25 790,793-799
+  s_f1cb87d470a98e::t_14efb699e89469 791-792
+  s_f1cb87d470a98e::t_4ef7f95ad00050 812-829,836-839,849,854
+  s_f1cb87d470a98e::t_87876836d9d254 830-835
+  s_fa22e9bcf5886a::t_c64023f4529a1c 908-925
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1d67a734b9058cea7252e3109709fe0b387742fd",
+  "prompts": {},
+  "sessions": {
+    "s_f1cb87d470a98e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d97bc6f1-1664-4784-b116-542bc6beeb42",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fa22e9bcf5886a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fda05fc-0d7e-4ea0-9245-8a6c12dd5340",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
