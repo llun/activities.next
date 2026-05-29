@@ -25,6 +25,7 @@ import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
+import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
 import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
 
@@ -205,6 +206,8 @@ const Page: FC<Props> = async ({ params }) => {
             variant="detail"
           />
         </div>
+
+        {!currentActorProfile ? <SignInCallout /> : null}
       </div>
     )
   }
@@ -239,6 +242,8 @@ const Page: FC<Props> = async ({ params }) => {
           isMediaUploadEnabled={Boolean(mediaStorage)}
         />
       </div>
+
+      {!currentActorProfile ? <SignInCallout /> : null}
 
       {replies.length > 0 ? (
         <div>
