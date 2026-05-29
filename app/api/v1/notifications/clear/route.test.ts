@@ -133,9 +133,9 @@ describe('Notification Endpoints', () => {
       })
 
       // Delete them all
-      await Promise.all(
-        notifications.map((n) => database.deleteNotification(n.id))
-      )
+      for (const n of notifications) {
+        await database.deleteNotification(n.id)
+      }
 
       // Verify all are gone
       const remaining = await database.getNotifications({
@@ -144,6 +144,41 @@ describe('Notification Endpoints', () => {
       })
 
       expect(remaining.length).toBe(0)
+    })
+
+    it('clear also deletes filtered notifications', async () => {
+      await database.createNotification({
+        actorId: ACTOR1_ID,
+        type: 'follow',
+        sourceActorId: ACTOR2_ID,
+        statusId: null,
+        filtered: true,
+        createdAt: Date.now()
+      })
+
+      const before = await database.getNotifications({
+        actorId: ACTOR1_ID,
+        limit: 100,
+        includeFiltered: true
+      })
+      expect(before.some((n) => n.filtered)).toBe(true)
+
+      // Clear using includeFiltered: true (as the route does)
+      const all = await database.getNotifications({
+        actorId: ACTOR1_ID,
+        limit: 1000,
+        includeFiltered: true
+      })
+      for (const n of all) {
+        await database.deleteNotification(n.id)
+      }
+
+      const after = await database.getNotifications({
+        actorId: ACTOR1_ID,
+        limit: 100,
+        includeFiltered: true
+      })
+      expect(after.length).toBe(0)
     })
   })
 

@@ -36,12 +36,10 @@ export const POST = traceApiRoute(
         break
       }
 
-      // Delete batch
-      await Promise.all(
-        notifications.map((notification) =>
-          database.deleteNotification(notification.id)
-        )
-      )
+      // Delete sequentially to avoid concurrent-write contention on SQLite
+      for (const notification of notifications) {
+        await database.deleteNotification(notification.id)
+      }
 
       // If we got fewer than batchSize, we're done
       if (notifications.length < batchSize) {

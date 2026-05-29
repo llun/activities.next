@@ -44,12 +44,18 @@ const NotificationQueryParams = z.object({
   exclude_types: z.array(z.string()).optional(),
   account_id: z.string().optional(),
   include_filtered: z
-    .enum(['true', 'false'])
-    .transform((val) => val === 'true')
+    .string()
+    .transform((val) => {
+      const n = val.toLowerCase()
+      return n === 'true' || n === '1' || n === 'on'
+    })
     .optional(),
   grouped: z
-    .enum(['true', 'false'])
-    .transform((val) => val === 'true')
+    .string()
+    .transform((val) => {
+      const n = val.toLowerCase()
+      return n === 'true' || n === '1' || n === 'on'
+    })
     .optional()
 })
 
@@ -244,12 +250,10 @@ export const POST = traceApiRoute(
         break
       }
 
-      // Delete batch
-      await Promise.all(
-        notifications.map((notification) =>
-          database.deleteNotification(notification.id)
-        )
-      )
+      // Delete sequentially to avoid concurrent-write contention on SQLite
+      for (const notification of notifications) {
+        await database.deleteNotification(notification.id)
+      }
 
       // If we got fewer than batchSize, we're done
       if (notifications.length < batchSize) {
