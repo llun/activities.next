@@ -997,8 +997,15 @@ export const PostBox: FC<Props> = ({
                     ...postExtensionRef.current,
                     attachments: []
                   }
+                  const nextExtension = {
+                    ...postExtensionRef.current,
+                    fitnessFile: { file }
+                  }
+                  postExtensionRef.current = nextExtension
                   dispatch(setFitnessFile(file))
-                  setAllowPost(true)
+                  setAllowPost(
+                    hasNewPostContent(textRef.current, nextExtension)
+                  )
                 }}
                 onError={(message) => setWarningMsg(message)}
               />
