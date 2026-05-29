@@ -1,0 +1,34 @@
+lib/components/post-box/post-box.tsx
+  s_c7d90f6f740d10::t_b0614b2732da7d 2-8
+  s_c7d90f6f740d10::t_fcbe63353a266b 50
+  s_c7d90f6f740d10::t_03b93b9aadb4e3 93-94
+  s_c7d90f6f740d10::t_9b8a4dcf731997 305
+  s_c7d90f6f740d10::t_cca9c1d7d6c33d 868,885-911,913-936
+  s_c7d90f6f740d10::t_ae792037274485 952
+  s_c7d90f6f740d10::t_a4802d75d983d3 986-989,1005,1009-1016,1028-1038,1042-1043,1051-1063,1068-1080,1082-1083,1092-1093,1098,1104,140
+  s_c7d90f6f740d10::t_5acc72f7aea7f6 1065
+  s_c7d90f6f740d10::t_042966b26395a1 990-996,998
+  s_c7d90f6f740d10::t_5b957d830cb363 997,999,1000-1001,1003-1004
+  s_c7d90f6f740d10::t_fc725c5580a05d 1084-1091
+  s_c7d90f6f740d10::t_a37113cb808f02 139
+  s_c7d90f6f740d10::t_8753f5f37840bb 145-148,155-158
+  s_c7d90f6f740d10::t_16fb995fb419fd 459
+  s_c7d90f6f740d10::t_9f747aa3c61173 720
+  s_c7d90f6f740d10::t_410057333031ae 1006-1008
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3c5e3454a35b37d5f1e05e9fe099a221352b5460",
+  "prompts": {},
+  "sessions": {
+    "s_c7d90f6f740d10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8d80617-83ec-4c3d-876b-7769abbf10c3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
