@@ -117,7 +117,7 @@ describe('GET /api/v1/notifications/unread_count', () => {
       expect.objectContaining({
         actorId: mockCurrentActor.id,
         onlyUnread: true,
-        limit: 100
+        limit: 1000
       })
     )
     expect(mockDatabase.getNotificationsCount).not.toHaveBeenCalled()

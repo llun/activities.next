@@ -48,14 +48,26 @@ export const GET = traceApiRoute(
 
     const url = new URL(req.url)
     // Normalize repeated array params (types[], exclude_types[]) to bare keys.
+    // Merge values when both bare and bracketed forms appear (e.g. types + types[]).
     const queryParams: Record<string, string | string[]> = {}
     for (const key of new Set(url.searchParams.keys())) {
       const normalizedKey = key.replace(/\[\]$/, '')
       const allValues = url.searchParams.getAll(key)
-      queryParams[normalizedKey] =
+      const normalizedValue =
         ARRAY_QUERY_PARAMS.has(normalizedKey) || allValues.length > 1
           ? allValues
           : allValues[0]
+      const existing = queryParams[normalizedKey]
+      if (existing === undefined) {
+        queryParams[normalizedKey] = normalizedValue
+      } else {
+        queryParams[normalizedKey] = [
+          ...(Array.isArray(existing) ? existing : [existing]),
+          ...(Array.isArray(normalizedValue)
+            ? normalizedValue
+            : [normalizedValue])
+        ]
+      }
     }
 
     const parsedParams = UnreadCountQueryParams.safeParse(queryParams)
@@ -80,18 +92,22 @@ export const GET = traceApiRoute(
 
     // account_id is the Mastodon short id of the source actor; sourceActorId is
     // stored as a full URL, so (like the list route) it is matched post-fetch
-    // via urlToId rather than in SQL.
+    // via urlToId rather than in SQL. Fetch up to MAX_LIMIT rows so that
+    // matching notifications are not missed if the target account's items fall
+    // beyond the first `limit` unread entries; cap the returned count at `limit`.
     if (accountId) {
       const notifications = await database.getNotifications({
         actorId: currentActor.id,
-        limit,
+        limit: MAX_LIMIT,
         onlyUnread: true,
         types: internalTypes,
         excludeTypes: internalExcludeTypes
       })
-      const count = notifications.filter(
-        (n) => urlToId(n.sourceActorId) === accountId
-      ).length
+      const count = Math.min(
+        notifications.filter((n) => urlToId(n.sourceActorId) === accountId)
+          .length,
+        limit
+      )
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
     }
 
