@@ -1,4 +1,12 @@
-import { Globe, Lock, Mail, Unlock } from 'lucide-react'
+import {
+  AtSign,
+  Check,
+  ChevronDown,
+  Globe,
+  Lock,
+  type LucideIcon,
+  Unlock
+} from 'lucide-react'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -8,84 +16,112 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 interface Props {
   visibility: MastodonVisibility
   onVisibilityChange: (visibility: MastodonVisibility) => void
+  disabled?: boolean
 }
 
 const VISIBILITY_OPTIONS: {
   value: MastodonVisibility
   label: string
-  icon: React.ReactNode
+  Icon: LucideIcon
   description: string
 }[] = [
   {
     value: 'public',
     label: 'Public',
-    icon: <Globe className="size-4" />,
-    description: 'Visible to everyone'
+    Icon: Globe,
+    description: 'Visible to everyone, shown in public timelines'
   },
   {
     value: 'unlisted',
     label: 'Unlisted',
-    icon: <Unlock className="size-4" />,
-    description: 'Not shown in public timelines'
+    Icon: Unlock,
+    description: 'Visible to everyone, hidden from public timelines'
   },
   {
     value: 'private',
     label: 'Followers only',
-    icon: <Lock className="size-4" />,
-    description: 'Only visible to your followers'
+    Icon: Lock,
+    description: 'Visible to your followers only'
   },
   {
     value: 'direct',
     label: 'Direct',
-    icon: <Mail className="size-4" />,
-    description: 'Only mentioned users'
+    Icon: AtSign,
+    description: 'Visible only to mentioned people'
   }
 ]
 
 export const VisibilitySelector: FC<Props> = ({
   visibility,
-  onVisibilityChange
+  onVisibilityChange,
+  disabled
 }) => {
   const currentOption =
     VISIBILITY_OPTIONS.find((opt) => opt.value === visibility) ||
     VISIBILITY_OPTIONS[0]
+  const CurrentIcon = currentOption.Icon
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="link"
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
           title={currentOption.label}
-          aria-label={currentOption.label}
+          aria-label={`Set visibility, current: ${currentOption.label}`}
+          className="gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
         >
-          {currentOption.icon}
+          <CurrentIcon className="size-4" />
+          <span>{currentOption.label}</span>
+          <ChevronDown className="size-3.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {VISIBILITY_OPTIONS.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onClick={() => onVisibilityChange(option.value)}
-            className="flex items-start gap-3 cursor-pointer"
-          >
-            <div className="mt-0.5">{option.icon}</div>
-            <div className="flex-1">
-              <div className="font-medium">{option.label}</div>
-              <div className="text-xs text-muted-foreground">
-                {option.description}
-              </div>
-            </div>
-            {option.value === visibility && (
-              <div className="text-primary">✓</div>
-            )}
-          </DropdownMenuItem>
-        ))}
+      <DropdownMenuContent align="start" className="w-64">
+        {VISIBILITY_OPTIONS.map((option) => {
+          const active = option.value === visibility
+          const { Icon } = option
+          return (
+            <DropdownMenuItem
+              key={option.value}
+              role="menuitemradio"
+              aria-checked={active}
+              onSelect={() => onVisibilityChange(option.value)}
+              className={cn(
+                'flex cursor-pointer items-start gap-2.5',
+                active &&
+                  'bg-primary/10 text-primary focus:bg-primary/15 focus:text-primary'
+              )}
+            >
+              <Icon
+                className={cn(
+                  'mt-0.5 size-4',
+                  active ? 'text-primary' : 'text-muted-foreground'
+                )}
+              />
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn('block font-medium', active && 'text-primary')}
+                >
+                  {option.label}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+              {active ? (
+                <Check className="mt-0.5 ml-auto size-4 text-primary" />
+              ) : null}
+            </DropdownMenuItem>
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )

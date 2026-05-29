@@ -199,7 +199,9 @@ describe('PostBox edit media', () => {
     expect(postButton).toBeDisabled()
 
     const fileInput = Array.from(
-      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
     ).at(-1)!
     fireEvent.change(fileInput, {
       target: {
@@ -254,7 +256,9 @@ describe('PostBox edit media', () => {
     fireEvent.change(textbox, { target: { value: 'caption' } })
 
     const fileInput = Array.from(
-      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
     ).at(-1)!
     fireEvent.change(fileInput, {
       target: {
@@ -288,7 +292,9 @@ describe('PostBox edit media', () => {
 
     const postButton = screen.getByRole('button', { name: 'Post' })
     const fileInput = Array.from(
-      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
     ).at(-1)!
     fireEvent.change(fileInput, {
       target: {
@@ -367,7 +373,9 @@ describe('PostBox edit media', () => {
     ).not.toBeInTheDocument()
 
     const fileInput = Array.from(
-      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
     ).at(-1)!
     fireEvent.change(fileInput, {
       target: {
@@ -607,7 +615,9 @@ describe('PostBox edit media', () => {
         screen.getByRole('button', { name: 'Remove media existing.jpg' })
       )
       const fileInput = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+        document.querySelectorAll<HTMLInputElement>(
+          'input[type="file"][name="file"]'
+        )
       ).at(-1)!
       fireEvent.change(fileInput, {
         target: {
@@ -696,7 +706,9 @@ describe('PostBox edit media', () => {
       screen.getByRole('button', { name: 'Remove media existing.jpg' })
     )
     const fileInput = Array.from(
-      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
     ).at(-1)!
     fireEvent.change(fileInput, {
       target: {
@@ -897,7 +909,9 @@ describe('PostBox edit media', () => {
       screen.getByRole('button', { name: 'Remove media existing.jpg' })
     )
     const fileInput = Array.from(
-      document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
     ).at(-1)!
     fireEvent.change(fileInput, {
       target: {
