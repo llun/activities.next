@@ -46,6 +46,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
@@ -953,49 +954,8 @@ export const PostBox: FC<Props> = ({
           }
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
         />
-        <div className="flex justify-between mb-3">
-          <div>
-            <VisibilitySelector
-              visibility={postExtension.visibility}
-              onVisibilityChange={(visibility) =>
-                dispatch(setVisibility(visibility))
-              }
-            />
-            <Button
-              type="button"
-              variant={
-                postExtension.contentWarningVisible ? 'secondary' : 'link'
-              }
-              aria-label={
-                postExtension.contentWarningVisible
-                  ? 'Remove content warning'
-                  : 'Add content warning'
-              }
-              title="Content warning"
-              onClick={onToggleContentWarning}
-            >
-              <AlertTriangle className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="link"
-              onClick={() =>
-                dispatch(setPollVisibility(!postExtension.poll.showing))
-              }
-            >
-              <BarChart3 className="size-4" />
-            </Button>
-            {!replyStatus ? (
-              <UploadFitnessFileButton
-                disabled={isPosting}
-                onFileSelected={(file) => {
-                  setWarningMsg(null)
-                  dispatch(setFitnessFile(file))
-                  setAllowPost(true)
-                }}
-                onError={(message) => setWarningMsg(message)}
-              />
-            ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-1">
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
@@ -1026,6 +986,70 @@ export const PostBox: FC<Props> = ({
               }
               onUploadStart={() => setWarningMsg(null)}
               onBeforeAddAttachments={onRemoveFitnessFile}
+            />
+            {!replyStatus ? (
+              <UploadFitnessFileButton
+                disabled={isPosting}
+                onFileSelected={(file) => {
+                  setWarningMsg(null)
+                  dispatch(setFitnessFile(file))
+                  setAllowPost(true)
+                }}
+                onError={(message) => setWarningMsg(message)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={
+                postExtension.poll.showing ? 'Remove poll' : 'Add poll'
+              }
+              aria-pressed={postExtension.poll.showing}
+              disabled={isPosting}
+              title={postExtension.poll.showing ? 'Remove poll' : 'Add poll'}
+              className={cn(
+                postExtension.poll.showing
+                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() =>
+                dispatch(setPollVisibility(!postExtension.poll.showing))
+              }
+            >
+              <BarChart3 className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={
+                postExtension.contentWarningVisible
+                  ? 'Remove content warning'
+                  : 'Add content warning'
+              }
+              aria-pressed={postExtension.contentWarningVisible}
+              disabled={isPosting}
+              title={
+                postExtension.contentWarningVisible
+                  ? 'Remove content warning'
+                  : 'Add content warning'
+              }
+              className={cn(
+                postExtension.contentWarningVisible
+                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={onToggleContentWarning}
+            >
+              <AlertTriangle className="size-4" />
+            </Button>
+            <VisibilitySelector
+              visibility={postExtension.visibility}
+              onVisibilityChange={(visibility) =>
+                dispatch(setVisibility(visibility))
+              }
+              disabled={isPosting}
             />
           </div>
           <div>

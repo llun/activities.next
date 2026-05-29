@@ -58,7 +58,9 @@ export const UploadFitnessFileButton: FC<Props> = ({
       />
       <Button
         type="button"
-        variant="link"
+        variant="ghost"
+        size="icon-sm"
+        className="text-muted-foreground hover:text-foreground"
         onClick={onOpenFile}
         disabled={disabled}
         title="Upload fitness activity file (.fit, .gpx, .tcx)"
