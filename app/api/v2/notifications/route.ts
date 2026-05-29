@@ -20,6 +20,9 @@ import { urlToId } from '@/lib/utils/urlToId'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 40
 const MAX_LIMIT = 80
+// Over-fetch row multiplier: ensures that after grouping we have enough distinct
+// groups for the requested page even if many rows share the same groupKey.
+const GROUP_OVERSCAN = 5
 const ARRAY_QUERY_PARAMS = new Set([
   'types',
   'exclude_types',
@@ -110,9 +113,10 @@ export const GET = traceApiRoute(
       include_filtered: includeFiltered = false
     } = parsed.data
 
+    // Over-fetch rows so that after grouping we produce at least `limit` groups.
     const notifications = await database.getNotifications({
       actorId: currentActor.id,
-      limit,
+      limit: limit * GROUP_OVERSCAN,
       maxNotificationId: maxId,
       minNotificationId: minId || sinceId,
       types: mastodonTypesToInternal(types),
@@ -134,16 +138,26 @@ export const GET = traceApiRoute(
       ? []
       : await getActiveFilters(database, currentActor.id, 'notifications')
 
-    const envelope = await buildNotificationGroupsEnvelope(
+    // Build the envelope then truncate groups to the requested limit.
+    // Accounts and statuses are already deduped across all fetched groups;
+    // returning the full set is safe — clients use only those referenced by
+    // the groups they received.
+    const fullEnvelope = await buildNotificationGroupsEnvelope(
       database,
       filtered,
       currentActor.id,
       internalGroupedTypes,
       filterRecords
     )
+    const envelope = {
+      notification_groups: fullEnvelope.notification_groups.slice(0, limit),
+      accounts: fullEnvelope.accounts,
+      statuses: fullEnvelope.statuses
+    }
 
-    // Pagination links from the raw notification page (pre-grouping), mirroring
-    // the v1 list route so clients keep paginating.
+    // Pagination links: cursors come from the most-recent notification ids in the
+    // first and last returned groups. This anchors pagination to group boundaries.
+    const returnedGroups = envelope.notification_groups
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
     const buildLink = (cursorParam: string, cursorValue: string) => {
@@ -156,10 +170,14 @@ export const GET = traceApiRoute(
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
     const links =
-      filtered.length > 0
+      returnedGroups.length > 0
         ? [
-            buildLink('max_id', filtered[filtered.length - 1].id),
-            buildLink('min_id', filtered[0].id)
+            buildLink(
+              'max_id',
+              returnedGroups[returnedGroups.length - 1]
+                .most_recent_notification_id
+            ),
+            buildLink('min_id', returnedGroups[0].most_recent_notification_id)
           ].join(', ')
         : ''
 

@@ -95,10 +95,11 @@ export const GET = traceApiRoute(
         )
       : undefined
 
-    // Mastodon's grouped unread_count counts unread groups (capped).
+    // Fetch MAX_LIMIT rows so grouping produces an accurate group count regardless
+    // of how many individual rows belong to the same group. We cap after grouping.
     const notifications = await database.getNotifications({
       actorId: currentActor.id,
-      limit,
+      limit: MAX_LIMIT,
       onlyUnread: true,
       types: mastodonTypesToInternal(types),
       excludeTypes: mastodonTypesToInternal(excludeTypes)
@@ -115,11 +116,10 @@ export const GET = traceApiRoute(
         ? { ...n, groupKey: 'follow' }
         : n
     )
-    const count = groupNotifications(
-      prepared,
-      true,
-      internalGroupedTypes
-    ).length
+    const count = Math.min(
+      groupNotifications(prepared, true, internalGroupedTypes).length,
+      limit
+    )
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
   })
