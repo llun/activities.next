@@ -20,6 +20,7 @@ import { ActorMediaGallery } from './ActorMediaGallery'
 interface Props {
   host: string
   actorId: string
+  currentTime: number
   statuses: Status[]
   attachments: Attachment[]
   statusPagination?: {
@@ -62,12 +63,12 @@ const appendUniqueStatuses = (
 export const ActorTimelines: FC<Props> = ({
   host,
   actorId,
+  currentTime,
   statuses,
   attachments,
   statusPagination,
   postLineLimit
 }) => {
-  const currentTime = Date.now()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,

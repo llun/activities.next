@@ -185,6 +185,7 @@ const Page: FC<Props> = async ({ params }) => {
           key={person.id}
           host={host}
           actorId={person.id}
+          currentTime={Date.now()}
           statuses={statuses}
           attachments={attachments}
           statusPagination={statusPagination}

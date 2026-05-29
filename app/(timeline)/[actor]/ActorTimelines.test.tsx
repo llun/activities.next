@@ -15,8 +15,15 @@ jest.mock('@/lib/client', () => ({
 }))
 
 jest.mock('@/lib/components/posts/posts', () => ({
-  Posts: ({ statuses }: { statuses: Status[] }) => (
+  Posts: ({
+    statuses,
+    currentTime
+  }: {
+    statuses: Status[]
+    currentTime: number
+  }) => (
     <div>
+      <div data-testid="posts-current-time">{currentTime}</div>
       {statuses.map((status) => (
         <div key={status.id}>{status.id}</div>
       ))}
@@ -79,6 +86,8 @@ const createStatus = (id: string): Status => {
   }
 }
 
+const FIXED_CURRENT_TIME = new Date('2026-04-30T10:05:00.000Z').getTime()
+
 describe('ActorTimelines', () => {
   const getActorStatusesMock = getActorStatuses as jest.Mock
 
@@ -100,6 +109,7 @@ describe('ActorTimelines', () => {
         actorId="https://remote.example/users/actor"
         statuses={[createStatus('https://remote.example/statuses/newer')]}
         attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
         statusPagination={{
           nextPageUrl:
             'https://remote.example/users/actor/outbox?page=true&max_id=1',
@@ -147,6 +157,7 @@ describe('ActorTimelines', () => {
         actorId="https://remote.example/users/actor"
         statuses={[createStatus('https://remote.example/statuses/newer')]}
         attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
         statusPagination={{
           nextPageUrl:
             'https://remote.example/users/actor/outbox?page=true&max_id=1',
@@ -187,6 +198,7 @@ describe('ActorTimelines', () => {
         actorId="https://remote.example/users/actor"
         statuses={[]}
         attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
         statusPagination={{
           nextPageUrl:
             'https://remote.example/users/actor/outbox?page=true&max_id=1',
@@ -217,6 +229,7 @@ describe('ActorTimelines', () => {
         actorId="https://remote.example/users/actor"
         statuses={[createStatus('https://remote.example/statuses/newer')]}
         attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
         statusPagination={{
           nextPageUrl:
             'https://remote.example/users/actor/outbox?page=true&max_id=1',
@@ -252,6 +265,7 @@ describe('ActorTimelines', () => {
         actorId="https://remote.example/users/actor"
         statuses={[createStatus('https://remote.example/statuses/newer')]}
         attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
         statusPagination={{
           nextPageUrl: repeatedPageUrl,
           prevPageUrl: null
@@ -267,5 +281,40 @@ describe('ActorTimelines', () => {
     expect(
       screen.queryByRole('button', { name: 'Load more' })
     ).not.toBeInTheDocument()
+  })
+
+  it('renders posts using the currentTime prop, not a freshly computed Date.now()', () => {
+    // Regression test for React hydration mismatch (error #418): the relative
+    // timestamps in Posts must derive from the server-provided currentTime prop
+    // so the SSR and client-hydration output match. Computing Date.now() inside
+    // this client component produces a different value on the client and breaks
+    // hydration.
+    const dateNowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(FIXED_CURRENT_TIME + 5 * 60 * 1000)
+
+    try {
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://remote.example/users/actor"
+          statuses={[createStatus('https://remote.example/statuses/newer')]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          statusPagination={{
+            nextPageUrl: null,
+            prevPageUrl: null
+          }}
+        />
+      )
+
+      const renderedTimes = screen.getAllByTestId('posts-current-time')
+      expect(renderedTimes.length).toBeGreaterThan(0)
+      for (const node of renderedTimes) {
+        expect(node).toHaveTextContent(String(FIXED_CURRENT_TIME))
+      }
+    } finally {
+      dateNowSpy.mockRestore()
+    }
   })
 })
