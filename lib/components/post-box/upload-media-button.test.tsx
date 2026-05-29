@@ -356,7 +356,9 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      expect(screen.getByText('Add media')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: `Add media (0/${MAX_ATTACHMENTS})` })
+      ).toBeInTheDocument()
     })
 
     it('does not render when media upload is disabled', () => {
@@ -405,7 +407,9 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      expect(screen.getByText(`2/${MAX_ATTACHMENTS}`)).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: `Add media (2/${MAX_ATTACHMENTS})` })
+      ).toBeInTheDocument()
     })
   })
 })
