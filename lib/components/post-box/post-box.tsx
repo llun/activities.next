@@ -136,22 +136,26 @@ const areAttachmentIdsEqualInOrder = (
   return currentIds.every((id, index) => id === baselineIds[index])
 }
 
+const isWithinLengthLimit = (value: string) => value.length <= MAX_STATUS_LENGTH
+
 const hasNewPostContent = (
   value: string,
   extension: { attachments: PostBoxAttachment[]; fitnessFile?: unknown }
 ) =>
-  value.trim().length > 0 ||
-  extension.attachments.length > 0 ||
-  Boolean(extension.fitnessFile)
+  isWithinLengthLimit(value) &&
+  (value.trim().length > 0 ||
+    extension.attachments.length > 0 ||
+    Boolean(extension.fitnessFile))
 
 const hasEditPostContent = (
   status: EditableStatus,
   value: string,
   extension: { attachments: PostBoxAttachment[] }
 ) =>
-  value.trim().length > 0 ||
-  extension.attachments.length > 0 ||
-  getPreservedStatusAttachments(status.attachments).length > 0
+  isWithinLengthLimit(value) &&
+  (value.trim().length > 0 ||
+    extension.attachments.length > 0 ||
+    getPreservedStatusAttachments(status.attachments).length > 0)
 
 type UpdateNoteResponse = Awaited<ReturnType<typeof updateNote>>
 type UpdateNoteMediaAttachment = UpdateNoteResponse['mediaAttachments'][number]
@@ -452,6 +456,7 @@ export const PostBox: FC<Props> = ({
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
+    if (!isWithinLengthLimit(textRef.current)) return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
 
@@ -708,23 +713,11 @@ export const PostBox: FC<Props> = ({
   const onTextChange = (value: string) => {
     setText(value)
     textRef.current = value
-    if (value.length > MAX_STATUS_LENGTH) {
-      setAllowPost(false)
-      return
-    }
-    if (value.trim().length === 0) {
-      setAllowPost(
-        editStatus
-          ? isEditSubmittable(value)
-          : hasNewPostContent(value, postExtensionRef.current)
-      )
-      return
-    }
     if (editStatus) {
       setAllowPost(isEditSubmittable(value))
       return
     }
-    setAllowPost(true)
+    setAllowPost(hasNewPostContent(value, postExtensionRef.current))
   }
 
   const onContentWarningChange = (value: string) => {
