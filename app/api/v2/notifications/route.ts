@@ -158,15 +158,21 @@ export const GET = traceApiRoute(
       filterRecords
     )
 
-    // Pagination cursors: "next" uses the oldest notification that is a member of
-    // any returned group, so we don't skip groups that lie beyond the slice but
-    // within the overscan window. "prev" uses the newest raw notification on the page.
+    // Pagination cursor for "next": use the last raw notification BEFORE the first
+    // gap (first notification not part of any returned group). This prevents
+    // skipping intervening groups when a returned group spans non-contiguous rows.
     const sliceNotificationIds = new Set(
       groupedSlice.flatMap((g) => [g.id, ...(g.groupedIds ?? [])])
     )
-    const lastSliceNotification = filtered
-      .filter((n) => sliceNotificationIds.has(n.id))
-      .at(-1)
+    const firstGapIndex = filtered.findIndex(
+      (n) => !sliceNotificationIds.has(n.id)
+    )
+    const maxIdCursorNotification =
+      firstGapIndex > 0
+        ? filtered[firstGapIndex - 1]
+        : firstGapIndex === -1
+          ? filtered[filtered.length - 1]
+          : filtered[0]
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
     const buildLink = (cursorParam: string, cursorValue: string) => {
@@ -179,9 +185,9 @@ export const GET = traceApiRoute(
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
     const links =
-      groupedSlice.length > 0 && lastSliceNotification
+      groupedSlice.length > 0 && maxIdCursorNotification
         ? [
-            buildLink('max_id', lastSliceNotification.id),
+            buildLink('max_id', maxIdCursorNotification.id),
             buildLink('min_id', filtered[0].id)
           ].join(', ')
         : ''

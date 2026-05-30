@@ -4,7 +4,8 @@ import { GET } from './route'
 
 const mockDatabase = {
   getNotificationsForGroupKey: jest.fn(),
-  getMastodonActorsFromIds: jest.fn()
+  getMastodonActorsFromIds: jest.fn(),
+  getActiveFiltersForActor: jest.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }

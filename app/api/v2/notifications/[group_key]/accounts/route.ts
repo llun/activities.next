@@ -1,4 +1,8 @@
 import { getDatabase } from '@/lib/database'
+import {
+  applyFiltersToStatus,
+  getActiveFilters
+} from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -51,6 +55,42 @@ export const GET = traceApiRoute(
           data: ERROR_404,
           responseStatusCode: 404
         })
+      }
+
+      // Apply content filters: if the group's status matches a hide filter, return
+      // 404 to match the envelope behaviour (group is suppressed on the list route).
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor.id,
+        'notifications'
+      )
+      if (filterRecords.length > 0) {
+        const statusIds = [
+          ...new Set(
+            notifications
+              .map((n) => n.statusId)
+              .filter((id): id is string => Boolean(id))
+          )
+        ]
+        if (statusIds.length > 0) {
+          const statuses = await database.getStatusesByIds({
+            statusIds,
+            withReplies: false
+          })
+          const isHidden = statuses.some((s) =>
+            applyFiltersToStatus(s, filterRecords).some(
+              (m) => m.filter.filter_action === 'hide'
+            )
+          )
+          if (isHidden) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_404,
+              responseStatusCode: 404
+            })
+          }
+        }
       }
 
       // Distinct source actors, most-recent-first (notifications come ordered).
