@@ -175,19 +175,19 @@ export const ActorTimelines: FC<Props> = ({
       <TabsList className="grid w-full grid-cols-3 rounded-none border-b bg-muted/40 p-1">
         <TabsTrigger
           value="posts"
-          className="rounded-md data-[state=active]:bg-background"
+          className="rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
         >
           Posts
         </TabsTrigger>
         <TabsTrigger
           value="replies"
-          className="rounded-md data-[state=active]:bg-background"
+          className="rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
         >
           Posts & Replies
         </TabsTrigger>
         <TabsTrigger
           value="media"
-          className="rounded-md data-[state=active]:bg-background"
+          className="rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
         >
           Media
         </TabsTrigger>
