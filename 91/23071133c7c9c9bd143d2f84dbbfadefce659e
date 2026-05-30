@@ -1,0 +1,42 @@
+app/api/v1/push/subscription/route.test.ts
+  s_0286db854ecabc::t_701cf0f658a64c 1-92,94-104,109-120,125-136,141-190,195-207,212-246
+  s_0286db854ecabc::t_c1e1f92e7a8512 93,105-108,121-124,137-140,191-194,208-211
+app/api/v1/push/subscription/route.ts
+  s_0286db854ecabc::t_49f08e464453e6 1-5,7-142
+  s_0286db854ecabc::t_c1e1f92e7a8512 6
+lib/types/database/operations.ts
+  s_0286db854ecabc::t_d2f2a59b91d9d7 1469-1488,1495-1497,1507-1516,1528-1531,1536-1538,1543-1545
+app/api/v1/push/subscription/types.ts
+  s_0286db854ecabc::t_c1e1f92e7a8512 60-66,92-95
+  s_0286db854ecabc::t_5501a4d8676555 1-59,67-91,96-143
+lib/database/sql/pushSubscription.test.ts
+  s_0286db854ecabc::t_502998d7b48b7e 60-147
+lib/database/sql/pushSubscription.ts
+  s_0286db854ecabc::t_2d246325a91b4d 4,9,11-12,14-15,24-26,31-76,88-91,95-97,106-108,113-121,127-162,178-188
+migrations/20260530120000_add_push_subscription_alerts.js
+  s_0286db854ecabc::t_4e474941f73fd2 1-25
+app/api/v1/accounts/route.test.ts
+  s_0286db854ecabc::t_0058499ab0491b 1-81
+app/api/v1/push/subscription/types.test.ts
+  s_0286db854ecabc::t_b15bc3aa8545e8 1-89
+app/api/v1/accounts/route.ts
+  s_0286db854ecabc::t_c1e1f92e7a8512 31-60,64,67
+  s_0286db854ecabc::t_8bff447be4b9e9 84-97
+  s_0286db854ecabc::t_64e33c0285b343 9,15,21-25,29-30,61-63,65-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9123071133c7c9c9bd143d2f84dbbfadefce659e",
+  "prompts": {},
+  "sessions": {
+    "s_0286db854ecabc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a2fb078-8e8e-46e6-b1f1-5c8667e29f13",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
