@@ -132,6 +132,13 @@ describe('POST /api/v1/push/subscribe', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.id).toBe('sub1')
+    // Legacy subscriptions enable every alert so delivery (which now honors
+    // per-subscription alerts) keeps sending them all notifications.
+    expect(mockDatabase!.createPushSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        alerts: expect.objectContaining({ mention: true, favourite: true })
+      })
+    )
   })
 })
 

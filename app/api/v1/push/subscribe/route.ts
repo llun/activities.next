@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { ALL_PUSH_ALERTS_ENABLED } from '@/lib/database/sql/pushSubscription'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
@@ -36,7 +37,11 @@ export const POST = traceApiRoute(
       actorId: currentActor.id,
       endpoint: parsed.data.endpoint,
       p256dh: parsed.data.keys.p256dh,
-      auth: parsed.data.keys.auth
+      auth: parsed.data.keys.auth,
+      // The legacy route has no per-type alert concept; enable every alert so
+      // these subscriptions keep receiving all notifications once delivery
+      // honors per-subscription alerts (gating stays at actor-level settings).
+      alerts: ALL_PUSH_ALERTS_ENABLED
     })
 
     return apiResponse({

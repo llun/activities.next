@@ -2,11 +2,26 @@ import webpush from 'web-push'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/types/database/operations'
+import { NotificationType, PushAlerts } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { shouldSendPushForNotification } from './pushNotificationSettings'
+
+// Maps this app's internal NotificationType to the Mastodon WebPushSubscription
+// alert key, so a subscription that disabled an alert (e.g. `mention`) is not
+// sent that notification. Types without a Mastodon alert (e.g. the internal
+// `activity_import`) are not gated by per-subscription alerts.
+const NOTIFICATION_TYPE_TO_ALERT: Partial<
+  Record<NotificationType, keyof PushAlerts>
+> = {
+  follow: 'follow',
+  follow_request: 'follow_request',
+  like: 'favourite',
+  mention: 'mention',
+  reply: 'mention',
+  reblog: 'reblog'
+}
 
 let vapidInitialized = false
 const initVapid = () => {
@@ -107,10 +122,17 @@ export const sendPushNotification = async (params: {
   const allSubscriptions = await database.getPushSubscriptionsForActor({
     actorId
   })
-  // Honor the Mastodon WebPushSubscription policy: `none` opts a subscription
-  // out of all push notifications. (`followed`/`follower` require relationship
-  // checks against the source actor and are not yet enforced here.)
-  const subscriptions = allSubscriptions.filter((sub) => sub.policy !== 'none')
+  const alertKey = NOTIFICATION_TYPE_TO_ALERT[type]
+  const subscriptions = allSubscriptions.filter((sub) => {
+    // Honor the Mastodon WebPushSubscription policy: `none` opts a subscription
+    // out of all push notifications. (`followed`/`follower` require
+    // relationship checks against the source actor and are not yet enforced.)
+    if (sub.policy === 'none') return false
+    // Honor the per-subscription alert toggle for this notification type, when
+    // a row carries alert preferences and the type maps to a Mastodon alert.
+    if (alertKey && sub.alerts && sub.alerts[alertKey] === false) return false
+    return true
+  })
   if (subscriptions.length === 0) return
 
   initVapid()

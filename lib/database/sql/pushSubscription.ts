@@ -45,6 +45,25 @@ export const DEFAULT_PUSH_ALERTS: PushAlerts = {
   'admin.report': false
 }
 
+// Every alert flag enabled. Used by the legacy `/api/v1/push/subscribe` route,
+// which has no per-type alert concept and expects to receive every
+// notification (gated only by actor-level settings), so its subscriptions must
+// not be filtered out by the per-subscription alert check in delivery.
+export const ALL_PUSH_ALERTS_ENABLED: PushAlerts = {
+  mention: true,
+  status: true,
+  reblog: true,
+  follow: true,
+  follow_request: true,
+  favourite: true,
+  poll: true,
+  update: true,
+  quote: true,
+  quoted_update: true,
+  'admin.sign_up': true,
+  'admin.report': true
+}
+
 const normalizeAlerts = (input?: Partial<PushAlerts> | null): PushAlerts => {
   const result = { ...DEFAULT_PUSH_ALERTS }
   if (!input) return result
