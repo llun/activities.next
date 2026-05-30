@@ -1,0 +1,19 @@
+lib/services/guards/AdminApiGuard.test.ts
+  s_25ea3130350b5c::t_9e114b7930b314 103-106,125-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e0b86cd7a6421f4ff3758ba751444ac7dad33cb7",
+  "prompts": {},
+  "sessions": {
+    "s_25ea3130350b5c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1fcde5d-be30-4660-ae1d-44eb1406a2d6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
