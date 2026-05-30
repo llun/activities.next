@@ -35,9 +35,8 @@ export const GET = traceApiRoute(
     async (req, context) => {
       const { currentActor, database } = context
       const requested = new URL(req.url).searchParams.getAll('timeline[]')
-      const timelines = (requested.length > 0 ? requested : TIMELINES).filter(
-        (value): value is MarkerTimeline =>
-          TIMELINES.includes(value as MarkerTimeline)
+      const timelines = requested.filter((value): value is MarkerTimeline =>
+        TIMELINES.includes(value as MarkerTimeline)
       )
       const rows = await database.getMarkers({
         actorId: currentActor.id,
@@ -81,12 +80,7 @@ export const POST = traceApiRoute(
       try {
         json = await parseBody(req)
       } catch {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: { error: 'Invalid request body' },
-          responseStatusCode: 400
-        })
+        json = {}
       }
 
       const parsed = PostBody.safeParse(json)

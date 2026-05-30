@@ -160,4 +160,30 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     )
     updateActor.mockRestore()
   })
+
+  it('accepts a JSON body with boolean locked', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({ display_name: 'JSON Name', locked: true })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'JSON Name',
+        manuallyApprovesFollowers: true
+      })
+    )
+    updateActor.mockRestore()
+  })
 })

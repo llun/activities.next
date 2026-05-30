@@ -1486,6 +1486,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete bookmarks made by this actor
       await trx('bookmarks').where('actorId', actorId).delete()
 
+      // Delete markers made by this actor
+      await trx('markers').where('actorId', actorId).delete()
+
       const pollAnswersMadeByActor: { statusId: string; choice: number }[] =
         await trx('poll_answers')
           .where('actorId', actorId)

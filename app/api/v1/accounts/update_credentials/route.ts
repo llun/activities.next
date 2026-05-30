@@ -14,15 +14,18 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const UpdateCredentialsRequest = z.object({
   display_name: z.string().max(255).optional(),
   note: z.string().optional(),
-  locked: z.string().optional()
+  locked: z.union([z.boolean(), z.string()]).optional()
 })
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.PATCH]
 
 const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
-const parseBoolean = (value: string | undefined): boolean | undefined => {
+const parseBoolean = (
+  value: string | boolean | undefined
+): boolean | undefined => {
   if (value === undefined) return undefined
+  if (typeof value === 'boolean') return value
   if (value === 'true' || value === '1') return true
   if (value === 'false' || value === '0') return false
   return undefined
@@ -37,17 +40,17 @@ export const PATCH = traceApiRoute(
     async (req, context) => {
       const { currentActor, database } = context
 
-      let fields: Record<string, string>
+      let fields: Record<string, unknown>
       try {
         const contentType = req.headers.get('content-type') ?? ''
         if (contentType.includes('application/json')) {
           const json = await req.json()
-          const rawFields: Record<string, string> = {}
+          const rawFields: Record<string, unknown> = {}
           if (typeof json === 'object' && json !== null) {
             const obj = json as Record<string, unknown>
             for (const key of ['display_name', 'note', 'locked']) {
-              if (typeof obj[key] === 'string') {
-                rawFields[key] = obj[key] as string
+              if (obj[key] !== undefined) {
+                rawFields[key] = obj[key]
               }
             }
           }
@@ -61,12 +64,7 @@ export const PATCH = traceApiRoute(
           )
         }
       } catch {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: { error: 'Invalid request body' },
-          responseStatusCode: 400
-        })
+        fields = {}
       }
 
       const parsed = UpdateCredentialsRequest.safeParse(fields)

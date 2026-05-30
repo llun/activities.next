@@ -171,4 +171,42 @@ describe('/api/v1/markers', () => {
     const data = await response.json()
     expect(data).toEqual({})
   })
+
+  it('GET without timeline[] returns empty object even when markers exist', async () => {
+    // First POST a marker so one exists for this actor
+    await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({ home: { last_read_id: 'X1' } })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    // GET with no timeline[] param must return {}
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/markers'),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({})
+  })
+
+  it('POST with malformed body returns 200 and empty object', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: 'not json'
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({})
+  })
 })

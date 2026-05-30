@@ -1536,6 +1536,46 @@ describe('ActorDatabase', () => {
           await knexDatabase.destroy()
         }
       })
+
+      it('deletes markers when actor is deleted', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-markers-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        await database.upsertMarker({
+          actorId,
+          timeline: 'home',
+          lastReadId: 'marker-delete-test'
+        })
+        await database.upsertMarker({
+          actorId,
+          timeline: 'notifications',
+          lastReadId: 'marker-delete-test-2'
+        })
+
+        const before = await database.getMarkers({
+          actorId,
+          timelines: ['home', 'notifications']
+        })
+        expect(before).toHaveLength(2)
+
+        await database.deleteActorData({ actorId })
+
+        const after = await database.getMarkers({
+          actorId,
+          timelines: ['home', 'notifications']
+        })
+        expect(after).toEqual([])
+      })
     })
   })
 })
