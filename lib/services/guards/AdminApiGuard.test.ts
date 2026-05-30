@@ -93,17 +93,12 @@ describe('AdminApiGuard', () => {
     )
 
     expect(response.status).toBe(200)
-    // Admin GET accepts read, admin:read, and any granular admin:read:* scope
-    // so that least-privilege admin clients work without requesting coarse read.
-    const calledScopes = mockOAuthGuardAnyScope.mock.calls[0][0] as Scope[]
-    expect(calledScopes).toContain(Scope.enum.read)
-    expect(calledScopes).toContain(Scope.enum['admin:read'])
-    expect(calledScopes).toContain(Scope.enum['admin:read:domain_blocks'])
-    expect(calledScopes).toContain(Scope.enum['admin:read:accounts'])
-    // write scopes must not leak into the GET list
-    expect(calledScopes).not.toContain(Scope.enum.write)
-    expect(calledScopes).not.toContain(Scope.enum['admin:write'])
-    expect(calledScopes).not.toContain(Scope.enum['admin:write:domain_blocks'])
+    // Admin GET accepts coarse read OR the aggregate admin:read scope.
+    // Granular admin:read:* tokens require per-route guard support (Tier 2).
+    expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
+      [Scope.enum.read, Scope.enum['admin:read']],
+      expect.any(Function)
+    )
   })
 
   it('requires write scope for non-GET admin routes', async () => {
@@ -116,16 +111,11 @@ describe('AdminApiGuard', () => {
       { params: Promise.resolve({}) }
     )
 
-    // Admin POST accepts write, admin:write, and any granular admin:write:* scope.
-    const calledScopes = mockOAuthGuardAnyScope.mock.calls[0][0] as Scope[]
-    expect(calledScopes).toContain(Scope.enum.write)
-    expect(calledScopes).toContain(Scope.enum['admin:write'])
-    expect(calledScopes).toContain(Scope.enum['admin:write:domain_blocks'])
-    expect(calledScopes).toContain(Scope.enum['admin:write:accounts'])
-    // read scopes must not leak into the mutating list
-    expect(calledScopes).not.toContain(Scope.enum.read)
-    expect(calledScopes).not.toContain(Scope.enum['admin:read'])
-    expect(calledScopes).not.toContain(Scope.enum['admin:read:domain_blocks'])
+    // Admin POST accepts coarse write OR the aggregate admin:write scope.
+    expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
+      [Scope.enum.write, Scope.enum['admin:write']],
+      expect.any(Function)
+    )
   })
 
   it('rejects a non-admin OAuth bearer token', async () => {
