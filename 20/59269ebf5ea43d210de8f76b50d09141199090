@@ -1,0 +1,23 @@
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_b1f1f42a61e7ae::t_8e3e3e0368526d 208-248
+app/api/v1/accounts/update_credentials/route.ts
+  s_b1f1f42a61e7ae::t_0853b6778e3e52 24-35
+  s_b1f1f42a61e7ae::t_2d89887fc9f302 80,85
+  s_b1f1f42a61e7ae::t_779d1cdb0967f4 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2059269ebf5ea43d210de8f76b50d09141199090",
+  "prompts": {},
+  "sessions": {
+    "s_b1f1f42a61e7ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88c6092d-a010-43cd-bc98-d9275159565f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
