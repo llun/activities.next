@@ -74,9 +74,12 @@ export const GET = traceApiRoute(
   }
 )
 
-// Detects a Mastodon API client (vs. the HTML web sign-up form). API clients
-// send a Bearer token, a JSON content type, or an `Accept` that prefers JSON;
-// the web form posts urlencoded/multipart with `Accept: text/html`.
+// Detects a Mastodon API client (vs. the HTML web sign-up form). The web form
+// is a browser navigation that always sends `Accept: text/html`; any request
+// that does not accept HTML — including form-encoded API registrations with
+// `Accept: */*` — is treated as an API client, as is anything sending a Bearer
+// token or a JSON content type. API clients are declined before any account is
+// created, since the registration Token response is not implemented.
 const isApiClient = (request: NextRequest): boolean => {
   const authorization = request.headers.get('authorization') ?? ''
   if (/^bearer\s/i.test(authorization.trim())) return true
@@ -85,7 +88,7 @@ const isApiClient = (request: NextRequest): boolean => {
   if (contentType.includes('application/json')) return true
 
   const accept = request.headers.get('accept') ?? ''
-  return accept.includes('application/json') && !accept.includes('text/html')
+  return !accept.includes('text/html')
 }
 
 export const POST = traceApiRoute(

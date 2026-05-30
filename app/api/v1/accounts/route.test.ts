@@ -101,4 +101,20 @@ describe('POST /api/v1/accounts', () => {
     const res = await POST(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(501)
   })
+
+  it('declines form-encoded API clients (no text/html Accept) with 501', async () => {
+    const createAccount = jest.fn()
+    mockDatabase = { ...mockDatabase!, createAccount } as never
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'username=alice&email=alice@example.com&password=password123',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: '*/*'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(501)
+    expect(createAccount).not.toHaveBeenCalled()
+  })
 })

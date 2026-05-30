@@ -59,6 +59,19 @@ describe('parseSubscribeInput', () => {
     ).toBeNull()
   })
 
+  it('accepts standard base64 keys (with + and /), not only base64url', () => {
+    const standardBase64P256dh =
+      'BEl62iUYgUivxIkv69yViEuiBIa+Ib9+SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8'
+    const parsed = parseSubscribeInput({
+      subscription: {
+        endpoint,
+        keys: { p256dh: standardBase64P256dh, auth: 'tBHItJI5svbpez7KI4CC+g' }
+      }
+    })
+    expect(parsed).not.toBeNull()
+    expect(parsed?.p256dh).toBe(standardBase64P256dh)
+  })
+
   it('returns null for malformed or truncated web push keys', () => {
     expect(
       parseSubscribeInput({
