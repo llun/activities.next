@@ -3,6 +3,28 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 
+import { ALL_PUSH_ALERTS_ENABLED, parseStoredAlerts } from './pushSubscription'
+
+describe('parseStoredAlerts', () => {
+  it('treats a missing alerts column as all-enabled (legacy/rolling-deploy rows)', () => {
+    expect(parseStoredAlerts(null)).toEqual(ALL_PUSH_ALERTS_ENABLED)
+    expect(parseStoredAlerts('')).toEqual(ALL_PUSH_ALERTS_ENABLED)
+  })
+
+  it('treats an unparseable alerts column as all-enabled', () => {
+    expect(parseStoredAlerts('not json')).toEqual(ALL_PUSH_ALERTS_ENABLED)
+  })
+
+  it('returns the stored alert values when present', () => {
+    const stored = JSON.stringify({ mention: true, favourite: false })
+    const parsed = parseStoredAlerts(stored)
+    expect(parsed.mention).toBe(true)
+    expect(parsed.favourite).toBe(false)
+    // Unspecified keys fall back to the all-false write-path default.
+    expect(parsed.reblog).toBe(false)
+  })
+})
+
 describe('PushSubscription Database', () => {
   const table = getTestDatabaseTable()
 

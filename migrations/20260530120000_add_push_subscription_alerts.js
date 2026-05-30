@@ -29,7 +29,12 @@ exports.up = async function (knex) {
     // string (text, not jsonb) so SQLite/MySQL/PostgreSQL all behave the same.
     table.text('alerts').nullable()
     table.string('policy').notNullable().defaultTo('all')
-    table.boolean('standard').notNullable().defaultTo(false)
+    // Default `standard` to true so rows inserted by an old app instance during
+    // a rolling deploy (which doesn't set the column) keep the standard
+    // `aes128gcm` encoding they were always delivered with. The new Mastodon
+    // route always writes `standard` explicitly, so it still honors a client's
+    // `subscription[standard]=false` request.
+    table.boolean('standard').notNullable().defaultTo(true)
   })
 
   // Backfill pre-existing rows (identified by the not-yet-populated `alerts`

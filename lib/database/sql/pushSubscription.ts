@@ -75,12 +75,18 @@ const normalizeAlerts = (input?: Partial<PushAlerts> | null): PushAlerts => {
   return result
 }
 
-const parseStoredAlerts = (raw: string | null): PushAlerts => {
-  if (!raw) return { ...DEFAULT_PUSH_ALERTS }
+export const parseStoredAlerts = (raw: string | null): PushAlerts => {
+  // A missing/unreadable `alerts` column means the row predates per-type alerts
+  // — a legacy `/subscribe` row, or one inserted by an old app instance during
+  // a rolling deploy before it learned about the column. Treat it as
+  // all-enabled (the legacy "send everything" behavior) so those subscriptions
+  // are not silently dropped by the alert filter. New-route rows always store
+  // an explicit JSON object, so their opted-out alerts are still honored.
+  if (!raw) return { ...ALL_PUSH_ALERTS_ENABLED }
   try {
     return normalizeAlerts(getCompatibleJSON<Partial<PushAlerts>>(raw))
   } catch {
-    return { ...DEFAULT_PUSH_ALERTS }
+    return { ...ALL_PUSH_ALERTS_ENABLED }
   }
 }
 
