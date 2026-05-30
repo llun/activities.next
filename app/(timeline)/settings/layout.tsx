@@ -72,7 +72,7 @@ const Layout: FC<Props> = ({ children }) => {
         contentWidth="wide"
       />
       <PageHeaderSectionProvider>
-        <div data-layout-width="wide" className="mx-auto w-full max-w-4xl">
+        <div data-layout-width="wide" className="mx-auto w-full max-w-4xl pt-4">
           {/* Mobile and tablet: dropdown */}
           <div className="mb-4 lg:hidden">
             <DropdownMenu>

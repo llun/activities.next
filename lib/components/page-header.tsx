@@ -87,7 +87,7 @@ export const PageHeader = ({
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
             {description && (
-              <div className="mt-0.5 text-xs text-muted-foreground">
+              <div className="mt-1 text-sm text-muted-foreground">
                 {description}
               </div>
             )}
