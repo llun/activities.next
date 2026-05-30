@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { OAuthGuard, corsErrorResponse } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { getMastodonMarkers } from '@/lib/services/mastodon/getMastodonMarkers'
 import { MarkerTimeline, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -27,8 +30,8 @@ const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
 export const GET = traceApiRoute(
   'getMarkers',
-  OAuthGuard<{}>(
-    [Scope.enum.read],
+  OAuthGuardAnyScope<{}>(
+    [Scope.enum.read, Scope.enum['read:statuses']],
     async (req, context) => {
       const { currentActor, database } = context
       const requested = new URL(req.url).searchParams.getAll('timeline[]')
@@ -69,8 +72,8 @@ const parseBody = async (req: Request): Promise<unknown> => {
 
 export const POST = traceApiRoute(
   'updateMarkers',
-  OAuthGuard<{}>(
-    [Scope.enum.write],
+  OAuthGuardAnyScope<{}>(
+    [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
       const { currentActor, database } = context
 

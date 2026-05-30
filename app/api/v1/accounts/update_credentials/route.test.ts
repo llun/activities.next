@@ -114,4 +114,31 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     })
     expect(response.status).toBe(200)
   })
+
+  it('accepts avatar file part and ignores it, updating only text fields', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('display_name', 'With Avatar')
+    form.set(
+      'avatar',
+      new Blob(['fake-image'], { type: 'image/png' }),
+      'avatar.png'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'With Avatar' })
+    )
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        iconUrl: expect.anything(),
+        headerImageUrl: expect.anything()
+      })
+    )
+    updateActor.mockRestore()
+  })
 })

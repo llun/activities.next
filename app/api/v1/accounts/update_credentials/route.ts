@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { OAuthGuard, corsErrorResponse } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -29,8 +32,8 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const PATCH = traceApiRoute(
   'updateCredentials',
-  OAuthGuard(
-    [Scope.enum.write],
+  OAuthGuardAnyScope(
+    [Scope.enum.write, Scope.enum['write:accounts']],
     async (req, context) => {
       const { currentActor, database } = context
 
