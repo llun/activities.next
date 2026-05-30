@@ -7,6 +7,7 @@ import memoize from 'lodash/memoize'
 
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
+import { UsableScopes } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
 
 import { knexAdapter } from './knexAdapter'
@@ -45,26 +46,10 @@ export const getAuth = memoize(() => {
       oauthProvider({
         loginPage: '/auth/signin',
         consentPage: '/oauth/authorize',
-        scopes: [
-          'openid',
-          'profile',
-          'email',
-          'read',
-          'read:accounts',
-          'read:bookmarks',
-          'read:conversations',
-          'read:filters',
-          'read:search',
-          'read:statuses',
-          'write',
-          'write:accounts',
-          'write:bookmarks',
-          'write:conversations',
-          'write:filters',
-          'write:statuses',
-          'follow',
-          'push'
-        ],
+        // Derived from the single scope vocabulary so the authorize endpoint
+        // accepts exactly the scopes registration validates and metadata
+        // advertises. better-auth rejects any requested scope not in this list.
+        scopes: [...UsableScopes],
         accessTokenExpiresIn: 7 * 24 * 60 * 60,
         refreshTokenExpiresIn: 30 * 24 * 60 * 60,
         codeExpiresIn: 10 * 60,
