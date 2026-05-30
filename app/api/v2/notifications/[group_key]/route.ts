@@ -53,9 +53,14 @@ export const GET = traceApiRoute(
         })
       }
 
+      // Disable grouping for ungrouped- keys so the stored groupKey is not used
+      // and the returned group_key matches the client's request.
       const envelope = await getNotificationGroupsEnvelope(
         database,
-        groupNotifications(notifications, true),
+        groupNotifications(
+          notifications,
+          !rawGroupKey.startsWith('ungrouped-')
+        ),
         currentActor.id
       )
 
