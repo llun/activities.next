@@ -74,6 +74,20 @@ export const GET = traceApiRoute(
   }
 )
 
+// Detects a Mastodon API client (vs. the HTML web sign-up form). API clients
+// send a Bearer token, a JSON content type, or an `Accept` that prefers JSON;
+// the web form posts urlencoded/multipart with `Accept: text/html`.
+const isApiClient = (request: NextRequest): boolean => {
+  const authorization = request.headers.get('authorization') ?? ''
+  if (/^bearer\s/i.test(authorization.trim())) return true
+
+  const contentType = request.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) return true
+
+  const accept = request.headers.get('accept') ?? ''
+  return accept.includes('application/json') && !accept.includes('text/html')
+}
+
 export const POST = traceApiRoute(
   'createAccount',
   async (request: NextRequest) => {
@@ -88,9 +102,25 @@ export const POST = traceApiRoute(
       })
     }
 
+    // Mastodon's "Register an account" returns a Token bound to an OAuth app.
+    // Minting a real access token requires the authorization-code flow (and the
+    // account is unverified at creation), so it is not implemented here. Decline
+    // API clients cleanly *before* creating anything — returning the web-form
+    // 307 redirect would leave them with an account they cannot authenticate and
+    // cannot re-create (username/email already taken).
+    if (isApiClient(request)) {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          error: 'Account registration via the API is not supported'
+        },
+        responseStatusCode: 501
+      })
+    }
+
     const { host: domain, allowEmails } = config
-    // Accept both HTML form submissions (web sign-up) and JSON/form bodies from
-    // Mastodon API clients without throwing on an unexpected content type.
+    // The web sign-up form posts urlencoded/multipart form data.
     let body: Record<string, unknown>
     try {
       body = await getRequestBody(request)

@@ -16,6 +16,7 @@ export const ERROR_409 = { status: 'Conflict' }
 export const ERROR_422 = { status: 'Unprocessable entity' }
 export const ERROR_429 = { status: 'Too Many Requests' }
 export const ERROR_413 = { status: 'Payload Too Large' }
+export const ERROR_501 = { status: 'Not Implemented' }
 
 export const DEFAULT_200 = { status: 'OK' }
 export const DEFAULT_202 = { status: 'Accepted' }
@@ -31,7 +32,8 @@ export const HTTP_STATUS = {
   PAYLOAD_TOO_LARGE: 413,
   UNPROCESSABLE_ENTITY: 422,
   TOO_MANY_REQUESTS: 429,
-  INTERNAL_SERVER_ERROR: 500
+  INTERNAL_SERVER_ERROR: 500,
+  NOT_IMPLEMENTED: 501
 } as const
 
 export const codeMap = {
@@ -47,7 +49,8 @@ export const codeMap = {
   [HTTP_STATUS.UNPROCESSABLE_ENTITY]: ERROR_422,
   [HTTP_STATUS.TOO_MANY_REQUESTS]: ERROR_429,
 
-  [HTTP_STATUS.INTERNAL_SERVER_ERROR]: ERROR_500
+  [HTTP_STATUS.INTERNAL_SERVER_ERROR]: ERROR_500,
+  [HTTP_STATUS.NOT_IMPLEMENTED]: ERROR_501
 }
 
 export type StatusCode = keyof typeof codeMap

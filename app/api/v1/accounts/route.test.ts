@@ -69,15 +69,36 @@ describe('GET /api/v1/accounts', () => {
 })
 
 describe('POST /api/v1/accounts', () => {
-  it('returns 422 (not 500) for a JSON body that fails validation', async () => {
+  it('declines JSON API clients with 501 and does not create an account', async () => {
+    const createAccount = jest.fn()
+    mockDatabase = {
+      ...mockDatabase!,
+      createAccount
+    } as never
     const req = new NextRequest('http://localhost/api/v1/accounts', {
       method: 'POST',
-      body: JSON.stringify({ username: 'a', email: 'not-an-email' }),
+      body: JSON.stringify({
+        username: 'alice',
+        email: 'alice@example.com',
+        password: 'password123'
+      }),
       headers: { 'Content-Type': 'application/json' }
     })
     const res = await POST(req, { params: Promise.resolve({}) })
-    expect(res.status).toBe(422)
-    const body = await res.json()
-    expect(body.error).toBe('Validation failed')
+    expect(res.status).toBe(501)
+    expect(createAccount).not.toHaveBeenCalled()
+  })
+
+  it('declines Bearer-authenticated clients with 501', async () => {
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'username=alice&email=alice@example.com&password=password123',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: 'Bearer sometoken'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(501)
   })
 })
