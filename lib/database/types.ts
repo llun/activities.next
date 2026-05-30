@@ -14,6 +14,7 @@ import {
   FollowDatabase,
   InstanceActivityDatabase,
   LikeDatabase,
+  MarkerDatabase,
   MediaDatabase,
   MuteDatabase,
   NotificationDatabase,
@@ -39,6 +40,7 @@ export type Database = AccountDatabase &
   DirectConversationDatabase &
   FollowDatabase &
   LikeDatabase &
+  MarkerDatabase &
   MediaDatabase &
   NotificationDatabase &
   OAuthDatabase &
