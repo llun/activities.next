@@ -42,6 +42,10 @@ interface CollectResult {
   groups: GroupedNotification[]
   // True when the DB ran out of matching rows (no further pages exist).
   exhausted: boolean
+  // The id of the last raw row scanned (the next-page cursor), regardless of
+  // account filtering — set even when every scanned row was filtered out, so the
+  // caller can keep paging toward matching rows further down the timeline.
+  lastScannedId?: string
 }
 
 /**
@@ -65,6 +69,7 @@ export const collectNotificationGroups = async ({
 }: CollectParams): Promise<CollectResult> => {
   const accumulated: Notification[] = []
   let cursor = startCursor
+  let lastScannedId: string | undefined
   let exhausted = false
 
   for (let iteration = 0; iteration < maxIterations; iteration += 1) {
@@ -84,8 +89,10 @@ export const collectNotificationGroups = async ({
     accumulated.push(...filteredBatch)
 
     // Advance the cursor by the raw batch tail regardless of account filtering so
-    // account_id paging keeps scanning past bursts from other accounts.
+    // account_id paging keeps scanning past bursts from other accounts. Track it
+    // even when every row was filtered out, so the caller can keep paging.
     cursor = batch[batch.length - 1].id
+    lastScannedId = cursor
 
     // Fewer rows than requested means the DB has no more matching notifications.
     if (batch.length < batchSize) {
@@ -103,6 +110,7 @@ export const collectNotificationGroups = async ({
   return {
     rawNotifications: accumulated,
     groups: prepareGroupedNotifications(accumulated, groupedTypes),
-    exhausted
+    exhausted,
+    lastScannedId
   }
 }

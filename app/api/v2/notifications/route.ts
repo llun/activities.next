@@ -130,22 +130,25 @@ export const GET = traceApiRoute(
     // Iteratively fetch+group until we have `limit` distinct groups (or the
     // source is exhausted), so a single bursty group can't underfill the page
     // and account_id paging scans past bursts from other accounts.
-    const { rawNotifications: filtered, exhausted } =
-      await collectNotificationGroups({
-        database,
-        baseQuery: {
-          actorId: currentActor.id,
-          minNotificationId: minId || sinceId,
-          types: mastodonTypesToInternal(types),
-          excludeTypes: mastodonTypesToInternal(excludeTypes),
-          includeFiltered
-        },
-        limit,
-        batchSize: limit * GROUP_OVERSCAN,
-        accountId,
-        groupedTypes: internalGroupedTypes,
-        startCursor: maxId
-      })
+    const {
+      rawNotifications: filtered,
+      exhausted,
+      lastScannedId
+    } = await collectNotificationGroups({
+      database,
+      baseQuery: {
+        actorId: currentActor.id,
+        minNotificationId: minId || sinceId,
+        types: mastodonTypesToInternal(types),
+        excludeTypes: mastodonTypesToInternal(excludeTypes),
+        includeFiltered
+      },
+      limit,
+      batchSize: limit * GROUP_OVERSCAN,
+      accountId,
+      groupedTypes: internalGroupedTypes,
+      startCursor: maxId
+    })
 
     // include_filtered controls only the DB-level filter flag (NotificationPolicy).
     // Content filters (keyword/status hide rules) are applied regardless.
@@ -209,10 +212,12 @@ export const GET = traceApiRoute(
         buildLink('max_id', lastGroup.most_recent_notification_id),
         buildLink('min_id', firstGroup.most_recent_notification_id)
       ].join(', ')
-    } else if (!exhausted && filtered.length > 0) {
-      // No visible groups on this page but more rows exist: emit only a next link
-      // so the client continues paging instead of stopping prematurely.
-      links = buildLink('max_id', filtered[filtered.length - 1].id)
+    } else if (!exhausted && lastScannedId) {
+      // No visible groups on this page but the source isn't exhausted (e.g. the
+      // iteration cap was hit, or account_id filtered out the whole window): emit
+      // only a next link from the last scanned row so the client keeps paging
+      // toward matching/visible groups further down instead of stopping.
+      links = buildLink('max_id', lastScannedId)
     }
 
     return apiResponse({

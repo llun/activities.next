@@ -150,4 +150,38 @@ describe('#collectNotificationGroups', () => {
     expect(getNotifications).toHaveBeenCalledTimes(3)
     expect(result.exhausted).toBe(false)
   })
+
+  it('reports lastScannedId even when account filtering drops every row', async () => {
+    const BOB = 'https://other.test/users/bob'
+    // Two full batches entirely from BOB; the requested ALICE account matches none
+    // within the iteration cap, so accumulation is empty but the scan progressed.
+    let seq = 0
+    const bobBatch = () =>
+      Array.from({ length: 2 }, () => {
+        seq += 1
+        return notif({
+          id: `bob${seq}`,
+          sourceActorId: BOB,
+          createdAt: 1000 - seq
+        })
+      })
+    const getNotifications = jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(bobBatch()))
+    const database = { getNotifications } as unknown as Database
+
+    const result = await collectNotificationGroups({
+      database,
+      baseQuery: { actorId: 'https://llun.test/users/me' },
+      limit: 1,
+      batchSize: 2,
+      accountId: 'other.test:users:alice',
+      maxIterations: 2
+    })
+
+    expect(result.rawNotifications).toHaveLength(0)
+    expect(result.exhausted).toBe(false)
+    // lastScannedId is the id of the last raw row scanned, so the caller can page on.
+    expect(result.lastScannedId).toBe('bob4')
+  })
 })
