@@ -146,9 +146,14 @@ export const PUT = traceApiRoute(
           responseStatusCode: 422
         })
       }
+      // PUT replaces the alert set, so pass the parsed alerts through as-is
+      // (omitted flags become false in the DB layer). When the request carries
+      // no alert keys at all, pass `undefined` so a policy-only update does not
+      // wipe the stored alerts.
+      const parsedAlerts = parseAlertsInput(body)
       const subscription = await database.updatePushSubscription({
         actorId: currentActor.id,
-        alerts: parseAlertsInput(body),
+        alerts: Object.keys(parsedAlerts).length > 0 ? parsedAlerts : undefined,
         policy: parsePolicyInput(body)
       })
       if (!subscription) {

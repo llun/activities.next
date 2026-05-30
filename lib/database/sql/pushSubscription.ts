@@ -169,9 +169,12 @@ export const PushSubscriptionSQLDatabaseMixin = (
 
     const update: Record<string, unknown> = { updatedAt: new Date() }
     if (alerts !== undefined) {
-      update.alerts = JSON.stringify(
-        normalizeAlerts({ ...parseStoredAlerts(existing.alerts), ...alerts })
-      )
+      // Mastodon's "change types" PUT replaces the alert set: alert flags not
+      // included in the request are treated as false, not merged with the
+      // previous value. Callers pass `undefined` (not an empty object) when the
+      // request carries no alerts at all, so a policy-only update leaves the
+      // stored alerts untouched.
+      update.alerts = JSON.stringify(normalizeAlerts(alerts))
     }
     if (policy !== undefined) {
       update.policy = policy

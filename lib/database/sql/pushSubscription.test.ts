@@ -123,14 +123,14 @@ describe('PushSubscription Database', () => {
     })
 
     describe('updatePushSubscription', () => {
-      it('merges alerts and updates policy for the actor', async () => {
+      it('replaces the alert set (omitted flags become false) and updates policy', async () => {
         const actorId = 'https://example.com/users/push-update'
         await database.createPushSubscription({
           actorId,
           endpoint: 'https://push.example.com/endpoint/update',
           p256dh: 'k',
           auth: 'a',
-          alerts: { mention: true },
+          alerts: { mention: true, reblog: true },
           policy: 'all'
         })
 
@@ -141,9 +141,32 @@ describe('PushSubscription Database', () => {
         })
 
         expect(updated).not.toBeNull()
-        expect(updated?.alerts.mention).toBe(true)
+        // Replace semantics: previously-enabled flags not in the update reset.
+        expect(updated?.alerts.mention).toBe(false)
+        expect(updated?.alerts.reblog).toBe(false)
         expect(updated?.alerts.favourite).toBe(true)
         expect(updated?.policy).toBe('follower')
+      })
+
+      it('leaves stored alerts untouched when only policy is updated', async () => {
+        const actorId = 'https://example.com/users/push-policy-only'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: 'https://push.example.com/endpoint/policy-only',
+          p256dh: 'k',
+          auth: 'a',
+          alerts: { mention: true, favourite: true },
+          policy: 'all'
+        })
+
+        const updated = await database.updatePushSubscription({
+          actorId,
+          policy: 'none'
+        })
+
+        expect(updated?.policy).toBe('none')
+        expect(updated?.alerts.mention).toBe(true)
+        expect(updated?.alerts.favourite).toBe(true)
       })
 
       it('returns null when the actor has no subscription', async () => {
