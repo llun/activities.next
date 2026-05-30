@@ -1674,7 +1674,6 @@ export const Scope = z.enum([
   'read:lists',
   'read:mutes',
   'read:notifications',
-  'read:reports',
   'read:search',
   'read:statuses',
   // Write

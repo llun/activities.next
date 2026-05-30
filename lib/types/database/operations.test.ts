@@ -1,4 +1,4 @@
-import { Scope, UsableScopes } from './operations'
+import { Scope } from './operations'
 
 // The OAuth scope vocabulary is the compatibility contract with Mastodon
 // clients. Mastodon rejects unknown scopes at app registration and at the
@@ -6,6 +6,8 @@ import { Scope, UsableScopes } from './operations'
 // recognized here or the client cannot connect at all. This list mirrors the
 // documented Mastodon OAuth scopes:
 // https://docs.joinmastodon.org/api/oauth-scopes/
+// Note: `read:reports` is NOT a documented Mastodon user-level scope (only
+// admin:read:reports and write:reports exist); it is excluded here intentionally.
 const MASTODON_DOCUMENTED_SCOPES = [
   'profile',
   'read',
@@ -18,7 +20,6 @@ const MASTODON_DOCUMENTED_SCOPES = [
   'read:lists',
   'read:mutes',
   'read:notifications',
-  'read:reports',
   'read:search',
   'read:statuses',
   'write',
@@ -67,7 +68,19 @@ describe('OAuth Scope vocabulary', () => {
     expect(Scope.options).toContain('email')
   })
 
-  it('advertises exactly the recognized scopes (no drift between enum and UsableScopes)', () => {
-    expect([...UsableScopes].sort()).toEqual([...Scope.options].sort())
+  it('every scope in the enum is in the documented list or is a known server extension', () => {
+    // UsableScopes === Scope.options by definition, so a meaningful check is
+    // verifying every enum entry is either a documented Mastodon scope, an
+    // OIDC scope, or an intentional server extension (read:conversations).
+    const documentedSet = new Set([
+      ...MASTODON_DOCUMENTED_SCOPES,
+      'openid',
+      'email',
+      // Server-specific: kept for existing clients, not in Mastodon's list
+      'read:conversations'
+    ])
+    for (const scope of Scope.options) {
+      expect(documentedSet).toContain(scope)
+    }
   })
 })

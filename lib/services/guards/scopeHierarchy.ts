@@ -11,18 +11,16 @@ const isInScopeFamily = (scope: string, coarse: string) =>
 /**
  * Decide whether a token's granted scopes satisfy a single required scope.
  *
- * Two relationships make a required scope satisfied:
- *  1. Coarse → granular (Mastodon-standard): a granted coarse scope satisfies
- *     any required child, e.g. granted `read` satisfies required
- *     `read:notifications`, and granted `admin:read` satisfies required
- *     `admin:read:domain_blocks`.
- *  2. Granular → coarse (our routes express read/write intent only at coarse
- *     granularity): when a coarse scope is required, any granted granular scope
- *     of the same family satisfies it, e.g. granted `read:notifications`
- *     satisfies required `read`. This keeps granular-only tokens from getting a
- *     confusing 401 on a route guarded with the coarse scope, while never
- *     letting one family reach another (a `read:*` token never satisfies
- *     `write` or `admin:read`).
+ * Coarse → granular (Mastodon-standard): a granted coarse scope satisfies any
+ * required child in its family, e.g. granted `read` satisfies required
+ * `read:notifications`; granted `admin:read` satisfies `admin:read:domain_blocks`.
+ *
+ * The reverse direction (granular satisfying a coarse requirement) is
+ * intentionally NOT implemented. Allowing it would over-grant: a token with
+ * only `write:media` would satisfy any route guarded with `write`, which is
+ * not what the user consented to when they authorized `write:media`. Routes
+ * that need to accept granular-only tokens must explicitly list those scopes
+ * (e.g. OAuthGuardAnyScope([write, write:statuses]) on the statuses route).
  */
 export const hasGrantedScope = (
   grantedScopes: string[],
@@ -30,7 +28,7 @@ export const hasGrantedScope = (
 ): boolean => {
   if (grantedScopes.includes(requiredScope)) return true
 
-  // 1) Coarse → granular: a granted coarse parent satisfies a required child.
+  // Coarse → granular: a granted coarse parent satisfies a required child.
   for (const coarse of COARSE_SCOPES) {
     if (
       requiredScope !== coarse &&
@@ -39,15 +37,6 @@ export const hasGrantedScope = (
     ) {
       return true
     }
-  }
-
-  // 2) Granular → coarse: a required coarse scope is satisfied by any granted
-  //    granular scope in the same family.
-  if ((COARSE_SCOPES as readonly string[]).includes(requiredScope)) {
-    return grantedScopes.some(
-      (granted) =>
-        granted !== requiredScope && isInScopeFamily(granted, requiredScope)
-    )
   }
 
   return false

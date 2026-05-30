@@ -14,6 +14,7 @@ describe('hasGrantedScope', () => {
 
     it('lets write satisfy any write:* requirement', () => {
       expect(hasGrantedScope(['write'], 'write:statuses')).toBe(true)
+      expect(hasGrantedScope(['write'], 'write:media')).toBe(true)
     })
 
     it('lets admin:read satisfy granular admin:read:* requirements', () => {
@@ -27,21 +28,23 @@ describe('hasGrantedScope', () => {
     })
   })
 
-  describe('granular → coarse (a granular grant satisfies its coarse family)', () => {
-    it('lets a read:* token satisfy a route requiring coarse read', () => {
-      // The key compatibility fix: granular-only tokens must not 401 on a route
-      // guarded with the coarse scope.
-      expect(hasGrantedScope(['read:notifications'], 'read')).toBe(true)
-      expect(hasGrantedScope(['read:statuses'], 'read')).toBe(true)
+  describe('granular does NOT satisfy coarse (no reverse direction)', () => {
+    // Allowing granular → coarse would over-grant: a token with only
+    // write:media would satisfy any route guarded with write, bypassing
+    // the principle of least privilege the user consented to.
+    it('does not let a granular read:* token satisfy coarse read', () => {
+      expect(hasGrantedScope(['read:notifications'], 'read')).toBe(false)
+      expect(hasGrantedScope(['read:statuses'], 'read')).toBe(false)
     })
 
-    it('lets a write:* token satisfy a route requiring coarse write', () => {
-      expect(hasGrantedScope(['write:statuses'], 'write')).toBe(true)
+    it('does not let a granular write:* token satisfy coarse write', () => {
+      expect(hasGrantedScope(['write:media'], 'write')).toBe(false)
+      expect(hasGrantedScope(['write:statuses'], 'write')).toBe(false)
     })
 
-    it('lets a granular admin token satisfy the aggregate admin scope', () => {
+    it('does not let a granular admin token satisfy the aggregate admin scope', () => {
       expect(hasGrantedScope(['admin:read:domain_blocks'], 'admin:read')).toBe(
-        true
+        false
       )
     })
   })
@@ -51,7 +54,8 @@ describe('hasGrantedScope', () => {
       expect(hasGrantedScope(['read', 'read:statuses'], 'write')).toBe(false)
     })
 
-    it('does not let a read:* token satisfy write', () => {
+    it('does not let a read:* token satisfy write or write:*', () => {
+      expect(hasGrantedScope(['read:statuses'], 'write')).toBe(false)
       expect(hasGrantedScope(['read:statuses'], 'write:statuses')).toBe(false)
     })
 
