@@ -1,8 +1,10 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { collectNotificationGroups } from '@/lib/services/notifications/collectNotificationGroups'
+import { getNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import {
   DEFAULT_GROUPABLE_TYPES,
   mastodonTypesToInternal
@@ -115,7 +117,22 @@ export const GET = traceApiRoute(
       accountId,
       groupedTypes: internalGroupedTypes
     })
-    const count = Math.min(groups.length, limit)
+
+    // Count only groups the list endpoint would actually show: build the same
+    // envelope (with content filters) so hide-filtered, deleted-status, or
+    // unresolvable-actor groups don't inflate the unread badge.
+    const filterRecords = await getActiveFilters(
+      database,
+      currentActor.id,
+      'notifications'
+    )
+    const envelope = await getNotificationGroupsEnvelope(
+      database,
+      groups,
+      currentActor.id,
+      filterRecords
+    )
+    const count = Math.min(envelope.notification_groups.length, limit)
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
   })

@@ -130,21 +130,22 @@ export const GET = traceApiRoute(
     // Iteratively fetch+group until we have `limit` distinct groups (or the
     // source is exhausted), so a single bursty group can't underfill the page
     // and account_id paging scans past bursts from other accounts.
-    const { rawNotifications: filtered } = await collectNotificationGroups({
-      database,
-      baseQuery: {
-        actorId: currentActor.id,
-        minNotificationId: minId || sinceId,
-        types: mastodonTypesToInternal(types),
-        excludeTypes: mastodonTypesToInternal(excludeTypes),
-        includeFiltered
-      },
-      limit,
-      batchSize: limit * GROUP_OVERSCAN,
-      accountId,
-      groupedTypes: internalGroupedTypes,
-      startCursor: maxId
-    })
+    const { rawNotifications: filtered, exhausted } =
+      await collectNotificationGroups({
+        database,
+        baseQuery: {
+          actorId: currentActor.id,
+          minNotificationId: minId || sinceId,
+          types: mastodonTypesToInternal(types),
+          excludeTypes: mastodonTypesToInternal(excludeTypes),
+          includeFiltered
+        },
+        limit,
+        batchSize: limit * GROUP_OVERSCAN,
+        accountId,
+        groupedTypes: internalGroupedTypes,
+        startCursor: maxId
+      })
 
     // include_filtered controls only the DB-level filter flag (NotificationPolicy).
     // Content filters (keyword/status hide rules) are applied regardless.
@@ -181,26 +182,14 @@ export const GET = traceApiRoute(
       statuses: fullEnvelope.statuses.filter((s) => keptStatusIds.has(s.id))
     }
 
-    // Pagination cursor for "next": use the last raw notification BEFORE the first
-    // gap (first notification not part of any returned group). This prevents
-    // skipping intervening groups when a returned group spans non-contiguous rows.
-    // Map each surviving group back to its source rows via its group_key.
-    const groupByKey = new Map(allGroups.map((g) => [g.groupKey ?? g.id, g]))
-    const sliceNotificationIds = new Set(
-      survivingGroups.flatMap((g) => {
-        const src = groupByKey.get(g.group_key)
-        return src ? [src.id, ...(src.groupedIds ?? [])] : []
-      })
-    )
-    const firstGapIndex = filtered.findIndex(
-      (n) => !sliceNotificationIds.has(n.id)
-    )
-    const maxIdCursorNotification =
-      firstGapIndex > 0
-        ? filtered[firstGapIndex - 1]
-        : firstGapIndex === -1
-          ? filtered[filtered.length - 1]
-          : filtered[0]
+    // Pagination cursors anchor on the returned groups' most-recent notification
+    // ids. Groups are ordered by most-recent member, so the last returned group's
+    // most_recent id is newer than every not-yet-shown group — using it as max_id
+    // never skips a group (it can only re-show the last group's older members,
+    // which clients merge via page_min_id). This also steps past leading rows that
+    // were hidden by envelope suppression. When suppression empties the page but
+    // the source isn't exhausted, fall back to the oldest collected row so the
+    // client keeps paging toward the visible groups further down the timeline.
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
     const buildLink = (cursorParam: string, cursorValue: string) => {
@@ -212,13 +201,19 @@ export const GET = traceApiRoute(
       params.set(cursorParam, cursorValue)
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
-    const links =
-      survivingGroups.length > 0 && maxIdCursorNotification
-        ? [
-            buildLink('max_id', maxIdCursorNotification.id),
-            buildLink('min_id', filtered[0].id)
-          ].join(', ')
-        : ''
+    let links = ''
+    if (survivingGroups.length > 0) {
+      const lastGroup = survivingGroups[survivingGroups.length - 1]
+      const firstGroup = survivingGroups[0]
+      links = [
+        buildLink('max_id', lastGroup.most_recent_notification_id),
+        buildLink('min_id', firstGroup.most_recent_notification_id)
+      ].join(', ')
+    } else if (!exhausted && filtered.length > 0) {
+      // No visible groups on this page but more rows exist: emit only a next link
+      // so the client continues paging instead of stopping prematurely.
+      links = buildLink('max_id', filtered[filtered.length - 1].id)
+    }
 
     return apiResponse({
       req,

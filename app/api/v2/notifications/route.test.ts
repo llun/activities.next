@@ -118,4 +118,45 @@ describe('GET /api/v2/notifications', () => {
     expect(response.status).toBe(422)
     expect(mockDatabase.getNotifications).not.toHaveBeenCalled()
   })
+
+  it('anchors the next (max_id) Link on the last returned group most-recent id', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'like-new',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 3000,
+        updatedAt: 3000
+      },
+      {
+        id: 'follow-old',
+        type: 'follow',
+        sourceActorId: 'https://other.test/users/bob',
+        groupKey: 'follow:1',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?limit=2',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const link = response.headers.get('Link') ?? ''
+    // next/max_id anchors on the LAST returned group (the follow group).
+    expect(link).toContain('max_id=follow-old')
+    expect(link).toContain('rel="next"')
+    // prev/min_id anchors on the FIRST returned group (the like group).
+    expect(link).toContain('min_id=like-new')
+    expect(link).toContain('rel="prev"')
+  })
 })
