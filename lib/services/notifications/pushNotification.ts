@@ -147,7 +147,13 @@ export const sendPushNotification = async (params: {
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth }
           },
-          payload
+          payload,
+          {
+            // Match the encryption to the encoding advertised in the
+            // WebPushSubscription `standard` flag: `true` → RFC8291 standard
+            // `aes128gcm` (the web-push default), `false` → legacy `aesgcm`.
+            contentEncoding: sub.standard ? 'aes128gcm' : 'aesgcm'
+          }
         )
       } catch (error) {
         const webPushError = error as { statusCode?: number }

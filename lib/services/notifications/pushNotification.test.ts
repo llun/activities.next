@@ -69,7 +69,72 @@ describe('sendPushNotification', () => {
       expect.objectContaining({
         endpoint: 'https://push.example.com/endpoint/abc'
       }),
-      expect.stringContaining('"title"')
+      expect.stringContaining('"title"'),
+      expect.objectContaining({ contentEncoding: expect.any(String) })
+    )
+  })
+
+  it('uses standard aes128gcm encoding when the subscription is standard', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          alerts: { favourite: true },
+          standard: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ contentEncoding: 'aes128gcm' })
+    )
+  })
+
+  it('uses legacy aesgcm encoding when the subscription is not standard', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          alerts: { favourite: true },
+          standard: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ contentEncoding: 'aesgcm' })
     )
   })
 
