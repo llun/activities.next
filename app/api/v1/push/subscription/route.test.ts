@@ -204,6 +204,20 @@ describe('PUT /api/v1/push/subscription', () => {
     )
   })
 
+  it('returns 422 for a malformed body', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'PUT',
+      body: 'not json',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
+    })
+    const res = await PUT(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(422)
+    expect(mockDatabase!.updatePushSubscription).not.toHaveBeenCalled()
+  })
+
   it('returns 404 when there is no subscription to update', async () => {
     mockDatabase!.updatePushSubscription = jest.fn().mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {

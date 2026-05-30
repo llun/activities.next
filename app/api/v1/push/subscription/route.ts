@@ -134,7 +134,18 @@ export const PUT = traceApiRoute(
       const pushDisabled = requirePushConfig(req)
       if (pushDisabled) return pushDisabled
 
-      const body = (await readBody(req)) ?? {}
+      const body = await readBody(req)
+      if (!body) {
+        // A malformed/unreadable body means none of the submitted preferences
+        // could be parsed — fail loudly instead of reporting a no-op success,
+        // matching the POST path.
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Validation failed' },
+          responseStatusCode: 422
+        })
+      }
       const subscription = await database.updatePushSubscription({
         actorId: currentActor.id,
         alerts: parseAlertsInput(body),
