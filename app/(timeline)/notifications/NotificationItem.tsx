@@ -13,6 +13,7 @@ import {
 import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import type { Mastodon } from '@/lib/types/activitypub'
 import type { Status } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { ActivityImportNotification } from './components/ActivityImportNotification'
 import { FollowNotification } from './components/FollowNotification'
@@ -146,7 +147,10 @@ export const NotificationItem = ({
   const statusPath = statusNotification
     ? getNotificationStatusPath(statusNotification.status)
     : null
-  const relativeCreatedAt = formatDistance(notification.createdAt, currentTime)
+  const relativeCreatedAt = formatDistance(
+    new Date(notification.createdAt),
+    currentTime
+  )
 
   return (
     <div
@@ -171,7 +175,17 @@ export const NotificationItem = ({
       <span className="pointer-events-none absolute right-4 top-4 z-10 text-xs text-muted-foreground">
         {relativeCreatedAt}
       </span>
-      <div className="pointer-events-none relative z-10 pr-14 [&_a]:pointer-events-auto [&_button]:pointer-events-auto">
+      <div
+        className={cn(
+          'relative z-10 pr-14',
+          // Only neutralise pointer events when the whole-row overlay link is
+          // present, so it catches clicks on empty areas while inner links and
+          // buttons stay interactive. Without an overlay (follow / follow
+          // request rows) leave normal pointer behaviour and text selection.
+          statusPath &&
+            'pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto'
+        )}
+      >
         {content}
       </div>
     </div>
