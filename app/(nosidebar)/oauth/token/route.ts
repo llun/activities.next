@@ -16,7 +16,12 @@ import {
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const MAX_TOKEN_REQUEST_BODY_BYTES = 64 * 1024
 const FORM_URLENCODED_MEDIA_TYPE = 'application/x-www-form-urlencoded'
-const TOKEN_PROXY_EXCLUDED_HEADERS = ['content-length', 'host']
+// `cookie` is stripped so a forwarded browser session cookie does not trigger
+// better-auth's cookie-gated CSRF origin check on the token back-channel. Native
+// OAuth clients (e.g. the Mastodon iOS app) send no Origin header, so leaving the
+// cookie in place makes better-auth reject the request with MISSING_OR_NULL_ORIGIN.
+// The token endpoint is authenticated by client credentials / PKCE, not cookies.
+const TOKEN_PROXY_EXCLUDED_HEADERS = ['content-length', 'host', 'cookie']
 const BASIC_CREDENTIALS_PATTERN = /^basic\s+([A-Za-z0-9+/]+={0,2})$/i
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
