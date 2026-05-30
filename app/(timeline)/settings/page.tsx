@@ -8,6 +8,7 @@ import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -200,12 +201,10 @@ const Page = async () => {
               name="manuallyApprovesFollowers_marker"
               value="true"
             />
-            <input
-              type="checkbox"
+            <Switch
               id="manuallyApprovesFollowersInput"
               name="manuallyApprovesFollowers"
               defaultChecked={profile.manuallyApprovesFollowers ?? true}
-              className="h-4 w-4 rounded border-gray-300"
             />
           </div>
         </section>
