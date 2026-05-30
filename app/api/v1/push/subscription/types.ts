@@ -85,14 +85,16 @@ export const parseAlertsInput = (
   return alerts
 }
 
+// Mastodon's "change types of notifications" (PUT) documents the policy as a
+// top-level `policy` field, while "subscribe" (POST) nests it under
+// `data[policy]`. Read either.
+const readPolicyValue = (body: Record<string, unknown>): unknown =>
+  readValue(body, ['policy']) ?? readValue(body, ['data', 'policy'])
+
 export const parsePolicyInput = (
   body: Record<string, unknown>
 ): PushPolicy | undefined => {
-  // Mastodon's "change types of notifications" (PUT) documents the policy as a
-  // top-level `policy` field, while "subscribe" (POST) nests it under
-  // `data[policy]`. Accept either so both flows work.
-  const value =
-    readValue(body, ['policy']) ?? readValue(body, ['data', 'policy'])
+  const value = readPolicyValue(body)
   if (
     typeof value === 'string' &&
     PUSH_POLICIES.includes(value as PushPolicy)
@@ -100,6 +102,18 @@ export const parsePolicyInput = (
     return value as PushPolicy
   }
   return undefined
+}
+
+// True when the request carries a `policy` value that is present but not one of
+// the supported values. Callers reject these with 4xx instead of silently
+// dropping the policy (which would otherwise leave it unchanged on PUT or fall
+// back to the broader `all` default on POST).
+export const hasInvalidPolicy = (body: Record<string, unknown>): boolean => {
+  const value = readPolicyValue(body)
+  if (value === undefined || value === null || value === '') return false
+  return !(
+    typeof value === 'string' && PUSH_POLICIES.includes(value as PushPolicy)
+  )
 }
 
 // Web Push keys are base64url-encoded: p256dh is a 65-byte ECDH public key

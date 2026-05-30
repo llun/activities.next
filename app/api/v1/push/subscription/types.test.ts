@@ -1,4 +1,5 @@
 import {
+  hasInvalidPolicy,
   parseAlertsInput,
   parsePolicyInput,
   parseSubscribeInput
@@ -111,5 +112,22 @@ describe('parsePolicyInput', () => {
   it('ignores invalid policies', () => {
     expect(parsePolicyInput({ data: { policy: 'invalid' } })).toBeUndefined()
     expect(parsePolicyInput({})).toBeUndefined()
+  })
+})
+
+describe('hasInvalidPolicy', () => {
+  it('is false when policy is absent or empty', () => {
+    expect(hasInvalidPolicy({})).toBe(false)
+    expect(hasInvalidPolicy({ data: { policy: '' } })).toBe(false)
+  })
+
+  it('is false for valid policies', () => {
+    expect(hasInvalidPolicy({ policy: 'none' })).toBe(false)
+    expect(hasInvalidPolicy({ data: { policy: 'followed' } })).toBe(false)
+  })
+
+  it('is true for a present but unsupported policy', () => {
+    expect(hasInvalidPolicy({ policy: 'everyone' })).toBe(true)
+    expect(hasInvalidPolicy({ data: { policy: 'invalid' } })).toBe(true)
   })
 })

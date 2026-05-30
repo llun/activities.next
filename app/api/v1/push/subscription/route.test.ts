@@ -132,6 +132,23 @@ describe('POST /api/v1/push/subscription', () => {
     expect(res.status).toBe(422)
   })
 
+  it('returns 422 for an unsupported policy value', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: { endpoint, keys: { p256dh, auth } },
+        data: { policy: 'everyone' }
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(422)
+    expect(mockDatabase!.createPushSubscription).not.toHaveBeenCalled()
+  })
+
   it('creates a subscription and returns the WebPushSubscription shape', async () => {
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {
       method: 'POST',
@@ -202,6 +219,20 @@ describe('PUT /api/v1/push/subscription', () => {
     expect(mockDatabase!.updatePushSubscription).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: ACTOR1_ID })
     )
+  })
+
+  it('returns 422 for an unsupported policy value', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'PUT',
+      body: JSON.stringify({ policy: 'everyone' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
+    })
+    const res = await PUT(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(422)
+    expect(mockDatabase!.updatePushSubscription).not.toHaveBeenCalled()
   })
 
   it('returns 422 for a malformed body', async () => {

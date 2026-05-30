@@ -9,6 +9,7 @@ import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import {
+  hasInvalidPolicy,
   parseAlertsInput,
   parsePolicyInput,
   parseSubscribeInput,
@@ -65,7 +66,7 @@ export const POST = traceApiRoute(
 
       const body = await readBody(req)
       const parsed = body ? parseSubscribeInput(body) : null
-      if (!parsed) {
+      if (!parsed || (body && hasInvalidPolicy(body))) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -135,10 +136,10 @@ export const PUT = traceApiRoute(
       if (pushDisabled) return pushDisabled
 
       const body = await readBody(req)
-      if (!body) {
-        // A malformed/unreadable body means none of the submitted preferences
-        // could be parsed — fail loudly instead of reporting a no-op success,
-        // matching the POST path.
+      if (!body || hasInvalidPolicy(body)) {
+        // A malformed/unreadable body, or a present-but-invalid policy, means
+        // the submitted preferences can't be applied — fail loudly instead of
+        // reporting a no-op success, matching the POST path.
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
