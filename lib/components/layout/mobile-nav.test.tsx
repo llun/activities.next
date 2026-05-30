@@ -67,4 +67,38 @@ describe('MobileNav', () => {
       '/settings'
     )
   })
+
+  it('adds a Profile entry to the overflow menu when profileUrl is provided', async () => {
+    render(<MobileNav profileUrl="/@llun@llun.test" />)
+
+    const nav = screen.getByRole('navigation')
+    // Profile lives in the overflow, never as a direct item.
+    expect(
+      within(nav).queryByRole('link', { name: /profile/i })
+    ).not.toBeInTheDocument()
+
+    fireEvent.keyDown(
+      within(nav).getByRole('button', { name: 'More navigation' }),
+      { key: 'ArrowDown' }
+    )
+
+    expect(
+      await screen.findByRole('menuitem', { name: /profile/i })
+    ).toHaveAttribute('href', '/@llun@llun.test')
+  })
+
+  it('omits the Profile entry when no profileUrl is provided', async () => {
+    render(<MobileNav />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    // Wait for the menu to open via a known overflow item, then assert Profile
+    // is absent.
+    await screen.findByRole('menuitem', { name: /bookmarks/i })
+    expect(
+      screen.queryByRole('menuitem', { name: /profile/i })
+    ).not.toBeInTheDocument()
+  })
 })
