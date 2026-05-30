@@ -11,6 +11,7 @@ import {
   MarkNotificationsReadParams,
   Notification,
   NotificationDatabase,
+  NotificationGroupKeyParams,
   NotificationRequest,
   ResolveNotificationRequestsParams,
   UpdateNotificationParams
@@ -25,6 +26,16 @@ const fixNotificationDataDate = (data: Notification): Notification => ({
   updatedAt: getCompatibleTime(data.updatedAt),
   readAt: data.readAt ? getCompatibleTime(data.readAt) : undefined
 })
+
+// Match a group by its shared groupKey (e.g. 'like:<status>' or 'follow:<day>')
+// or, for ungrouped notifications, by the notification id itself.
+const applyGroupKeyMatch = (
+  builder: Knex.QueryBuilder,
+  groupKey: string
+): Knex.QueryBuilder =>
+  builder.where(function () {
+    this.where('groupKey', groupKey).orWhere('id', groupKey)
+  })
 
 export const NotificationSQLDatabaseMixin = (
   database: Knex
@@ -388,6 +399,41 @@ export const NotificationSQLDatabaseMixin = (
           .delete()
       )
     )
+  },
+
+  async getNotificationsForGroupKey({
+    actorId,
+    groupKey,
+    includeFiltered
+  }: NotificationGroupKeyParams) {
+    let query = applyGroupKeyMatch(
+      database('notifications').where('actorId', actorId),
+      groupKey
+    )
+      .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
+
+    if (!includeFiltered) {
+      query = query.andWhere('filtered', false)
+    }
+
+    const results = await query
+    return results.map(fixNotificationDataDate)
+  },
+
+  async dismissNotificationGroup({
+    actorId,
+    groupKey
+  }: NotificationGroupKeyParams) {
+    // Only dismiss visible (non-filtered) rows. Policy-filtered notifications can
+    // share a groupKey with visible ones but live in the requests queue; deleting
+    // them here would silently discard pending requests the user never saw.
+    await applyGroupKeyMatch(
+      database('notifications').where('actorId', actorId),
+      groupKey
+    )
+      .andWhere('filtered', false)
+      .delete()
   },
 
   async deleteNotification(notificationId: string) {

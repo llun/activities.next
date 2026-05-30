@@ -1,6 +1,18 @@
 import { NotificationType } from '@/lib/types/database/operations'
 
 /**
+ * The internal notification types Mastodon groups by default when a client does
+ * not pass `grouped_types[]`. Mastodon only groups favourites, reblogs and
+ * follows by default; mentions/replies and "status" (a followed account posted)
+ * stay individual unless the client explicitly opts into grouping them.
+ */
+export const DEFAULT_GROUPABLE_TYPES: ReadonlySet<NotificationType> = new Set([
+  NotificationType.enum.like,
+  NotificationType.enum.reblog,
+  NotificationType.enum.follow
+])
+
+/**
  * Maps a Mastodon notification type name to this codebase's internal
  * NotificationType values. Returns an array because some Mastodon types cover
  * multiple internal types: Mastodon `mention` maps to both internal `mention`
@@ -34,4 +46,44 @@ export const mastodonTypesToInternal = (
 ): NotificationType[] | undefined => {
   if (!types) return undefined
   return [...new Set(types.flatMap(mastodonTypeToInternal))]
+}
+
+// Mastodon notification entity type names.
+export type MastodonNotificationType =
+  | 'mention'
+  | 'status'
+  | 'reblog'
+  | 'follow'
+  | 'follow_request'
+  | 'favourite'
+  | 'poll'
+  | 'update'
+  | 'admin.sign_up'
+  | 'admin.report'
+
+/**
+ * Maps this codebase's internal NotificationType to the Mastodon entity type.
+ * Inverse direction of mastodonTypeToInternal (see the `status` note there).
+ */
+export const internalTypeToMastodon = (
+  type: NotificationType
+): MastodonNotificationType => {
+  switch (type) {
+    case 'like':
+      return 'favourite'
+    case 'reply':
+      return 'mention'
+    case 'reblog':
+      return 'reblog'
+    case 'follow':
+      return 'follow'
+    case 'follow_request':
+      return 'follow_request'
+    case 'mention':
+      return 'mention'
+    case 'activity_import':
+      return 'status'
+    default:
+      return 'mention'
+  }
 }
