@@ -24,8 +24,11 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getGroupedNotificationAccounts',
+  // Mastodon's grouped-notifications docs require write:notifications for this
+  // endpoint (unusual for a GET, but per spec), unlike the read-scoped list/
+  // single/unread endpoints.
   OAuthGuard<Params>(
-    [Scope.enum.read],
+    [Scope.enum.write],
     async (req, { currentActor, params }) => {
       const database = getDatabase()
       if (!database) {
