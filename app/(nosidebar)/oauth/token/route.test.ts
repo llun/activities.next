@@ -428,6 +428,7 @@ describe('OAuth token endpoint', () => {
       )
       expect(request.headers.has('host')).toBe(false)
       expect(request.headers.has('content-length')).toBe(false)
+      expect(request.headers.has('cookie')).toBe(false)
       await expect(request.text()).resolves.toBe(body.toString())
       return Response.json({ access_token: 'issued' })
     })
@@ -438,7 +439,41 @@ describe('OAuth token endpoint', () => {
         authorization: 'Bearer original',
         'content-type': 'application/x-www-form-urlencoded',
         host: 'llun.test',
-        'content-length': '999'
+        'content-length': '999',
+        cookie: 'better-auth.session_token=should-not-forward'
+      },
+      body
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      access_token: 'issued',
+      created_at: expect.any(Number)
+    })
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
+  test('strips forwarded cookies so native OAuth clients are not rejected by the CSRF origin check', async () => {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: 'non-pkce-client',
+      code: 'authorization-code',
+      code_verifier: 'verifier',
+      redirect_uri: 'https://client.llun.dev/callback'
+    })
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      expect(request.headers.has('cookie')).toBe(false)
+      await expect(request.text()).resolves.toBe(body.toString())
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        cookie: 'better-auth.session_token=from-in-app-browser'
       },
       body
     })
