@@ -53,7 +53,7 @@ const Page = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Settings"
+        title="General"
         description="Manage your profile and account settings."
       />
 

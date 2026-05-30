@@ -137,29 +137,43 @@ section-navigation patterns; pick by section type.
 ### Vertical nav rail (settings-style sections — the design-system default)
 
 - Settings-style sections (settings, fitness settings) use a **vertical icon nav rail** beside the content, matching the design system: an orange-wash active state (`bg-primary/10 text-primary`), a Lucide icon per item, and **sentence-case** labels ("Blocked accounts", not "Blocked Accounts"). On mobile and tablet (below `lg`) the rail collapses to a dropdown so the content gets the full width.
-- Wrap the layout in `PageHeaderSectionProvider` from `@/lib/components/page-header`. That switches every descendant `PageHeader` into **section mode**: a plain, non-sticky, non-breakout in-panel title block that sits at the top of the content column instead of spanning the rail. Render the rail directly in the layout (do **not** use `PageSubnavProvider` here) and opt the wrapper into the wide layout with `data-layout-width="wide"`.
+- The section layout renders **two tiers of header**, matching the design system:
+  1. A **shared section header** at the very top (e.g. `Settings` / "Manage your account and preferences") that uses the same full-width sticky chrome as the other top-level routes, so the section reads like every other page. Render a `PageHeader` with `contentWidth="wide"` **outside** `PageHeaderSectionProvider` so it keeps the sticky breakout chrome; `contentWidth="wide"` aligns its centered title row to the `max-w-4xl` rail column instead of the default `max-w-2xl` timeline column.
+  2. The **per-page title** ("General", "Account Settings", …) below it, rendered by each page's own `<PageHeader>` in **section mode**.
+- Wrap the rail + content in `PageHeaderSectionProvider` from `@/lib/components/page-header`. That switches every descendant `PageHeader` into **section mode**: a plain, non-sticky, non-breakout in-panel title block that sits at the top of the content column instead of spanning the rail. Render the rail directly in the layout (do **not** use `PageSubnavProvider` here) and opt the wrapper into the wide layout with `data-layout-width="wide"`.
 
   ```tsx
   // app/(timeline)/<section>/layout.tsx
   'use client'
-  import { PageHeaderSectionProvider } from '@/lib/components/page-header'
+  import {
+    PageHeader,
+    PageHeaderSectionProvider
+  } from '@/lib/components/page-header'
 
   export default function Layout({ children }) {
     return (
-      <PageHeaderSectionProvider>
-        <div data-layout-width="wide" className="mx-auto w-full max-w-4xl">
-          {/* dropdown below lg, vertical rail at lg+ */}
-          <div className="flex gap-6 lg:gap-8">
-            {/* <nav> rail … */}
-            <div className="min-w-0 flex-1">{children}</div>
+      <>
+        {/* Shared section header — sticky chrome, outside the section provider. */}
+        <PageHeader
+          title="Settings"
+          description="Manage your account and preferences"
+          contentWidth="wide"
+        />
+        <PageHeaderSectionProvider>
+          <div data-layout-width="wide" className="mx-auto w-full max-w-4xl">
+            {/* dropdown below lg, vertical rail at lg+ */}
+            <div className="flex gap-6 lg:gap-8">
+              {/* <nav> rail … */}
+              <div className="min-w-0 flex-1">{children}</div>
+            </div>
           </div>
-        </div>
-      </PageHeaderSectionProvider>
+        </PageHeaderSectionProvider>
+      </>
     )
   }
   ```
 
-- A **nested** sub-nav inside a rail section (e.g. fitness General/Privacy/Strava) renders as a small **in-content segmented control**, not a second rail. See `app/(timeline)/settings/layout.tsx` and `app/(timeline)/settings/fitness/layout.tsx`.
+- A **nested** sub-nav inside a rail section (e.g. fitness General/Privacy/Strava) renders as a small **in-content segmented control**, not a second rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. See `app/(timeline)/settings/layout.tsx` and `app/(timeline)/settings/fitness/layout.tsx`.
 
 ### Sticky-header sub-nav (admin-style sections)
 
