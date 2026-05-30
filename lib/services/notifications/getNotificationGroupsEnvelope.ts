@@ -130,7 +130,17 @@ export const getNotificationGroupsEnvelope = async (
     }))
     .filter((g) => g.sample_account_ids.length > 0)
 
-  return { notification_groups, accounts, statuses }
+  // Prune top-level statuses to those still referenced by a surviving group so we
+  // don't leak an orphaned status for a group that was dropped (e.g. all its
+  // sampled actors were deleted).
+  const referencedStatusIds = new Set(
+    notification_groups
+      .map((g) => g.status_id)
+      .filter((id): id is string => Boolean(id))
+  )
+  const prunedStatuses = statuses.filter((s) => referencedStatusIds.has(s.id))
+
+  return { notification_groups, accounts, statuses: prunedStatuses }
 }
 
 // Groups notifications and injects a synthetic 'follow' groupKey for follow

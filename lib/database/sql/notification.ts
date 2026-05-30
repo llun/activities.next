@@ -27,6 +27,24 @@ const fixNotificationDataDate = (data: Notification): Notification => ({
   readAt: data.readAt ? getCompatibleTime(data.readAt) : undefined
 })
 
+// The synthetic 'follow' group key (see prepareGroupedNotifications) groups every
+// follow notification — including legacy rows persisted before the groupKey
+// backfill, which have a null groupKey. Match those legacy rows too so the
+// detail/accounts/dismiss routes resolve and dismiss the whole follow group.
+const FOLLOW_GROUP_KEY = 'follow'
+const applyGroupKeyMatch = (
+  builder: Knex.QueryBuilder,
+  groupKey: string
+): Knex.QueryBuilder =>
+  builder.where(function () {
+    this.where('groupKey', groupKey).orWhere('id', groupKey)
+    if (groupKey === FOLLOW_GROUP_KEY) {
+      this.orWhere(function () {
+        this.where('type', FOLLOW_GROUP_KEY).whereNull('groupKey')
+      })
+    }
+  })
+
 export const NotificationSQLDatabaseMixin = (
   database: Knex
 ): NotificationDatabase => ({
@@ -396,11 +414,10 @@ export const NotificationSQLDatabaseMixin = (
     groupKey,
     includeFiltered
   }: NotificationGroupKeyParams) {
-    let query = database('notifications')
-      .where('actorId', actorId)
-      .andWhere(function () {
-        this.where('groupKey', groupKey).orWhere('id', groupKey)
-      })
+    let query = applyGroupKeyMatch(
+      database('notifications').where('actorId', actorId),
+      groupKey
+    )
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
 
@@ -416,12 +433,10 @@ export const NotificationSQLDatabaseMixin = (
     actorId,
     groupKey
   }: NotificationGroupKeyParams) {
-    await database('notifications')
-      .where('actorId', actorId)
-      .andWhere(function () {
-        this.where('groupKey', groupKey).orWhere('id', groupKey)
-      })
-      .delete()
+    await applyGroupKeyMatch(
+      database('notifications').where('actorId', actorId),
+      groupKey
+    ).delete()
   },
 
   async deleteNotification(notificationId: string) {

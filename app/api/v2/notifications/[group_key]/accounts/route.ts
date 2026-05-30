@@ -122,6 +122,17 @@ export const GET = traceApiRoute(
           ? await database.getMastodonActorsFromIds({ ids: orderedActorIds })
           : []
 
+      // Mirror the envelope: if no sampled account resolves (all deleted), the
+      // group is suppressed everywhere else — return 404 instead of an empty list.
+      if (accounts.length === 0) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: accounts })
     }
   )

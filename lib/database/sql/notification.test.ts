@@ -571,6 +571,53 @@ describe('Notification Database', () => {
         })
         expect(remaining).toHaveLength(0)
       })
+
+      it('resolves legacy and persisted follow rows under the follow key', async () => {
+        // Legacy follow row created before the groupKey backfill (no groupKey).
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id
+        })
+        // New follow row with the persisted synthetic key.
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: 'https://example.com/users/actor3',
+          groupKey: 'follow'
+        })
+
+        const notifications = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: 'follow'
+        })
+        expect(notifications).toHaveLength(2)
+      })
+
+      it('dismisses both legacy and persisted follow rows', async () => {
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: 'https://example.com/users/actor3',
+          groupKey: 'follow'
+        })
+
+        await database.dismissNotificationGroup({
+          actorId: actor1Id,
+          groupKey: 'follow'
+        })
+
+        const remaining = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: 'follow'
+        })
+        expect(remaining).toHaveLength(0)
+      })
     })
 
     describe('deleteNotification', () => {
