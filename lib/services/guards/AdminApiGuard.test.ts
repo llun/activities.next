@@ -10,7 +10,7 @@ import { AdminApiGuard } from './AdminApiGuard'
 const mockDatabase = {} as Database
 const mockGetServerSession = jest.fn()
 const mockGetAdminFromSession = jest.fn()
-const mockOAuthGuard = jest.fn()
+const mockOAuthGuardAnyScope = jest.fn()
 let mockOAuthActor = {
   account: { role: 'admin' }
 } as Actor
@@ -29,7 +29,8 @@ jest.mock('@/lib/utils/getAdminFromSession', () => ({
 }))
 
 jest.mock('./OAuthGuard', () => ({
-  OAuthGuard: (...params: unknown[]) => mockOAuthGuard(...params)
+  OAuthGuardAnyScope: (...params: unknown[]) =>
+    mockOAuthGuardAnyScope(...params)
 }))
 
 describe('AdminApiGuard', () => {
@@ -40,7 +41,7 @@ describe('AdminApiGuard', () => {
     } as Actor
     mockGetServerSession.mockResolvedValue(null)
     mockGetAdminFromSession.mockResolvedValue(null)
-    mockOAuthGuard.mockImplementation(
+    mockOAuthGuardAnyScope.mockImplementation(
       (
         _scopes: Scope[],
         handle: (
@@ -79,7 +80,7 @@ describe('AdminApiGuard', () => {
       expect.any(NextRequest),
       expect.objectContaining({ database: mockDatabase })
     )
-    expect(mockOAuthGuard).not.toHaveBeenCalled()
+    expect(mockOAuthGuardAnyScope).not.toHaveBeenCalled()
   })
 
   it('allows an admin OAuth bearer token for read routes', async () => {
@@ -92,8 +93,10 @@ describe('AdminApiGuard', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockOAuthGuard).toHaveBeenCalledWith(
-      [Scope.enum.read],
+    // Admin GET accepts coarse read OR the aggregate admin:read scope.
+    // Granular admin:read:* tokens require per-route guard support (Tier 2).
+    expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
+      [Scope.enum.read, Scope.enum['admin:read']],
       expect.any(Function)
     )
   })
@@ -108,8 +111,9 @@ describe('AdminApiGuard', () => {
       { params: Promise.resolve({}) }
     )
 
-    expect(mockOAuthGuard).toHaveBeenCalledWith(
-      [Scope.enum.write],
+    // Admin POST accepts coarse write OR the aggregate admin:write scope.
+    expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
+      [Scope.enum.write, Scope.enum['admin:write']],
       expect.any(Function)
     )
   })
@@ -138,6 +142,6 @@ describe('AdminApiGuard', () => {
     )
 
     expect(response.status).toBe(403)
-    expect(mockOAuthGuard).not.toHaveBeenCalled()
+    expect(mockOAuthGuardAnyScope).not.toHaveBeenCalled()
   })
 })

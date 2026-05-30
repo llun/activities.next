@@ -19,6 +19,7 @@ import {
 } from '@/lib/utils/response'
 
 import { isTrustedHeaderHost } from './headerHost'
+import { hasGrantedScope } from './scopeHierarchy'
 import {
   AppRouterParams,
   AuthenticatedApiHandle,
@@ -50,16 +51,6 @@ const parseStoredScopes = (raw: string): string[] => {
     }
   }
   return raw.split(' ')
-}
-
-const hasGrantedScope = (grantedScopes: string[], requiredScope: Scope) => {
-  if (grantedScopes.includes(requiredScope)) return true
-  const parentScope = requiredScope.split(':')[0]
-  return (
-    parentScope !== requiredScope &&
-    (parentScope === Scope.enum.read || parentScope === Scope.enum.write) &&
-    grantedScopes.includes(parentScope)
-  )
 }
 
 const hasRequiredScopes = ({

@@ -180,6 +180,55 @@ describe('createApplication', () => {
     ])
   })
 
+  test('it accepts the full set of documented Mastodon scopes', async () => {
+    // The compatibility contract: a client may request any scope Mastodon
+    // documents. Registration must succeed and persist them verbatim, or the
+    // client can never complete the OAuth flow.
+    const mastodonScopes = [
+      'read',
+      'read:accounts',
+      'read:blocks',
+      'read:bookmarks',
+      'read:favourites',
+      'read:filters',
+      'read:follows',
+      'read:lists',
+      'read:mutes',
+      'read:notifications',
+      'read:search',
+      'read:statuses',
+      'write',
+      'write:accounts',
+      'write:blocks',
+      'write:bookmarks',
+      'write:conversations',
+      'write:favourites',
+      'write:filters',
+      'write:follows',
+      'write:lists',
+      'write:media',
+      'write:mutes',
+      'write:notifications',
+      'write:reports',
+      'write:statuses',
+      'follow',
+      'push'
+    ]
+    const response = (await createApplication({
+      client_name: 'fullMastodonScopesClient',
+      redirect_uris: 'https://test.llun.dev/apps/redirect',
+      scopes: mastodonScopes.join(' '),
+      website: 'https://test.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.scopes)).toEqual(mastodonScopes)
+  })
+
   test('it defaults omitted scopes to read', async () => {
     const response = (await createApplication({
       client_name: 'defaultScopesClient',

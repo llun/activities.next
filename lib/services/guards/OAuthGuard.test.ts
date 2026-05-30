@@ -851,7 +851,12 @@ describe('#OAuthGuard', () => {
       expect(mockHandler).not.toHaveBeenCalled()
     })
 
-    test('rejects child read scope when parent read is required', async () => {
+    test('rejects a granular-only token when the route requires a coarse scope', async () => {
+      // Granular-only tokens do not satisfy a coarse scope requirement. Allowing
+      // the reverse direction would over-grant: a write:media token would satisfy
+      // any route guarded with write, bypassing the consent the user gave.
+      // Routes that need to serve granular-only clients must explicitly include
+      // the granular scope in their guard (e.g. OAuthGuardAnyScope([read, read:conversations])).
       mockGetServerSession.mockResolvedValue(null)
 
       const primaryActor = await database.getActorFromEmail({
