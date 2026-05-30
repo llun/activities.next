@@ -100,6 +100,10 @@ describe('AdminApiGuard', () => {
     expect(calledScopes).toContain(Scope.enum['admin:read'])
     expect(calledScopes).toContain(Scope.enum['admin:read:domain_blocks'])
     expect(calledScopes).toContain(Scope.enum['admin:read:accounts'])
+    // write scopes must not leak into the GET list
+    expect(calledScopes).not.toContain(Scope.enum.write)
+    expect(calledScopes).not.toContain(Scope.enum['admin:write'])
+    expect(calledScopes).not.toContain(Scope.enum['admin:write:domain_blocks'])
   })
 
   it('requires write scope for non-GET admin routes', async () => {
@@ -118,6 +122,10 @@ describe('AdminApiGuard', () => {
     expect(calledScopes).toContain(Scope.enum['admin:write'])
     expect(calledScopes).toContain(Scope.enum['admin:write:domain_blocks'])
     expect(calledScopes).toContain(Scope.enum['admin:write:accounts'])
+    // read scopes must not leak into the mutating list
+    expect(calledScopes).not.toContain(Scope.enum.read)
+    expect(calledScopes).not.toContain(Scope.enum['admin:read'])
+    expect(calledScopes).not.toContain(Scope.enum['admin:read:domain_blocks'])
   })
 
   it('rejects a non-admin OAuth bearer token', async () => {
