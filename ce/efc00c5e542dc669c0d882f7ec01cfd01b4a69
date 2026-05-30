@@ -1,0 +1,30 @@
+app/api/v2/notifications/[group_key]/route.ts
+  s_0289375c3b8b18::t_bbaf29c1397de7 38-41
+app/api/v2/notifications/[group_key]/dismiss/route.ts
+  s_0289375c3b8b18::t_c5ac4376efc762 31-34
+app/api/v2/notifications/[group_key]/accounts/route.ts
+  s_0289375c3b8b18::t_3c0c8aebb876e5 36-40
+lib/services/notifications/getNotificationGroupsEnvelope.ts
+  s_0289375c3b8b18::t_25323b200d7075 55-72
+lib/services/notifications/groupNotifications.ts
+  s_0289375c3b8b18::t_ec4f3d065deb4c 63-68,70
+  s_0289375c3b8b18::t_c1b3484f4b02e1 14,18
+app/api/v2/notifications/route.ts
+  s_0289375c3b8b18::t_f9efec3696a781 161-169,182,184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ceefc00c5e542dc669c0d882f7ec01cfd01b4a69",
+  "prompts": {},
+  "sessions": {
+    "s_0289375c3b8b18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f35aa937-fe21-4ae9-9b3f-fbe728f6847d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
