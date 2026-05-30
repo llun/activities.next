@@ -100,6 +100,21 @@ describe('MarkerSQLDatabaseMixin', () => {
     expect(persisted2[0].version).toBe(3)
   })
 
+  it('stores a long opaque lastReadId without truncation', async () => {
+    const LONG_ID_ACTOR = 'https://llun.test/users/marker-longid'
+    const longId = 'apurl_' + 'a'.repeat(400)
+    await database.upsertMarker({
+      actorId: LONG_ID_ACTOR,
+      timeline: 'home',
+      lastReadId: longId
+    })
+    const markers = await database.getMarkers({
+      actorId: LONG_ID_ACTOR,
+      timelines: ['home']
+    })
+    expect(markers[0].lastReadId).toBe(longId)
+  })
+
   it('reads back only the requested timelines', async () => {
     // Use a distinct actor so this test is self-contained regardless of order.
     await database.upsertMarker({

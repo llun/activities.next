@@ -7,7 +7,7 @@ exports.up = (knex) =>
     table.string('id').primary()
     table.string('actorId').notNullable()
     table.string('timeline').notNullable()
-    table.string('lastReadId').notNullable()
+    table.text('lastReadId').notNullable()
     table.integer('version').notNullable().defaultTo(1)
     table
       .timestamp('updatedAt', { useTz: true })

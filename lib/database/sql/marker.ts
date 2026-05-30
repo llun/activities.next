@@ -45,18 +45,21 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
     // `version` still increments atomically so clients can detect concurrent updates.
     const updatedAt = new Date()
 
-    const incrementAndUpdate = async (): Promise<MarkerRow> => {
-      await database('markers')
+    const incrementAndUpdate = async (prior: SQLMarker): Promise<MarkerRow> => {
+      await database<SQLMarker>('markers')
         .where({ actorId, timeline })
         .update({
           lastReadId,
-          version: database.raw('?? + 1', ['version']),
-          updatedAt
+          updatedAt,
+          version: database.raw('?? + 1', ['version'])
         })
-      const row = await database<SQLMarker>('markers')
-        .where({ actorId, timeline })
-        .first()
-      return toMarkerRow(row as SQLMarker)
+      return {
+        actorId,
+        timeline: timeline as MarkerTimeline,
+        lastReadId,
+        version: Number(prior.version) + 1,
+        updatedAt: getCompatibleTime(updatedAt)
+      }
     }
 
     const existing = await database<SQLMarker>('markers')
@@ -64,7 +67,7 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
       .first()
 
     if (existing) {
-      return incrementAndUpdate()
+      return incrementAndUpdate(existing)
     }
 
     try {
@@ -92,7 +95,7 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
         .where({ actorId, timeline })
         .first()
       if (duplicated) {
-        return incrementAndUpdate()
+        return incrementAndUpdate(duplicated)
       }
       throw error
     }
