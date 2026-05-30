@@ -27,11 +27,11 @@ const breakoutStyle: CSSProperties = {
 const PageSubnavContext = createContext<ReactNode>(null)
 
 /**
- * Hosts a section-level sub-navigation (admin tabs, settings tabs, etc.) that
- * the closest `PageHeader` will render inside its sticky chrome, directly
- * below the title row. Wrap the layout that owns the sub-nav so every child
- * page automatically gets the sub-nav pinned beneath the page header instead
- * of scrolling above it.
+ * Hosts a section-level sub-navigation (admin tabs, etc.) that the closest
+ * `PageHeader` will render inside its sticky chrome, directly below the title
+ * row. Wrap the layout that owns the sub-nav so every child page automatically
+ * gets the sub-nav pinned beneath the page header instead of scrolling above
+ * it.
  */
 export const PageSubnavProvider = ({
   subnav,
@@ -45,6 +45,26 @@ export const PageSubnavProvider = ({
   </PageSubnavContext.Provider>
 )
 
+const PageHeaderSectionContext = createContext<boolean>(false)
+
+/**
+ * Switches every descendant `PageHeader` into "section" mode: a plain,
+ * non-sticky, non-breakout in-panel title block instead of the full-width
+ * sticky chrome. Used by section layouts (settings, fitness) that render their
+ * own vertical nav rail beside the content, so the per-page title sits at the
+ * top of the content column rather than spanning the rail. Default (no
+ * provider) keeps the original sticky header untouched for timeline and admin.
+ */
+export const PageHeaderSectionProvider = ({
+  children
+}: {
+  children: ReactNode
+}) => (
+  <PageHeaderSectionContext.Provider value={true}>
+    {children}
+  </PageHeaderSectionContext.Provider>
+)
+
 export const PageHeader = ({
   title,
   description,
@@ -52,6 +72,26 @@ export const PageHeader = ({
   className
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
+  const isSection = useContext(PageHeaderSectionContext)
+
+  if (isSection) {
+    return (
+      <div className={cn('mb-6', className)}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+            {description && (
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                {description}
+              </div>
+            )}
+          </div>
+          {actions && <div className="shrink-0 self-center">{actions}</div>}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className={cn(
