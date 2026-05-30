@@ -40,7 +40,7 @@ export const PATCH = traceApiRoute(
     async (req, context) => {
       const { currentActor, database } = context
 
-      let fields: Record<string, unknown>
+      let fields: Record<string, unknown> = {}
       const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
       if (contentType.includes('application/json')) {
         const text = await req.text()
@@ -58,16 +58,9 @@ export const PATCH = traceApiRoute(
               responseStatusCode: 400
             })
           }
-          const rawFields: Record<string, unknown> = {}
           if (typeof json === 'object' && json !== null) {
-            const obj = json as Record<string, unknown>
-            for (const key of ['display_name', 'note', 'locked']) {
-              if (obj[key] !== undefined) {
-                rawFields[key] = obj[key]
-              }
-            }
+            fields = json as Record<string, unknown>
           }
-          fields = rawFields
         }
       } else {
         try {
