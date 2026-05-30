@@ -33,7 +33,11 @@ export const GET = traceApiRoute(
         })
       }
 
-      const groupKey = (await params).group_key
+      const rawGroupKey = (await params).group_key
+      // ungrouped-{id} keys use the notification id as the DB lookup key.
+      const groupKey = rawGroupKey.startsWith('ungrouped-')
+        ? rawGroupKey.slice('ungrouped-'.length)
+        : rawGroupKey
       const notifications = await database.getNotificationsForGroupKey({
         actorId: currentActor.id,
         groupKey,

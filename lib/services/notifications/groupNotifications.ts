@@ -11,10 +11,11 @@ export const groupNotifications = (
   enableGrouping: boolean = true,
   groupedTypes?: Set<NotificationType>
 ): GroupedNotification[] => {
-  // If grouping is disabled, return notifications as-is with minimal GroupedNotification fields
+  // If grouping is disabled, return each notification as its own group.
   if (!enableGrouping) {
     return notifications.map((notification) => ({
       ...notification,
+      groupKey: `ungrouped-${notification.id}`,
       groupedActors: undefined,
       groupedCount: 1,
       groupedIds: undefined
@@ -59,14 +60,14 @@ export const groupNotifications = (
     }
 
     // First notification with this groupKey, not groupable, or no groupKey.
-    // When not grouping a notification that has a shared groupKey, use the
-    // notification's own id as the key so each individual entry gets a unique
-    // group_key in the Mastodon response rather than sharing the original key.
-    const mapKey = canGroup ? notification.groupKey! : notification.id
-    groups.set(mapKey, {
+    // Mastodon specifies ungrouped entries use 'ungrouped-{id}' as the group_key
+    // so clients can address them individually via the single-group endpoints.
+    const ungroupedKey = canGroup
+      ? notification.groupKey!
+      : `ungrouped-${notification.id}`
+    groups.set(ungroupedKey, {
       ...notification,
-      // Override groupKey so the Mastodon group_key is unique per notification.
-      groupKey: canGroup ? notification.groupKey : notification.id,
+      groupKey: ungroupedKey,
       groupedActors: undefined,
       groupedCount: 1,
       groupedIds: undefined

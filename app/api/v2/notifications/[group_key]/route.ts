@@ -35,7 +35,10 @@ export const GET = traceApiRoute(
         })
       }
 
-      const groupKey = (await params).group_key
+      const rawGroupKey = (await params).group_key
+      const groupKey = rawGroupKey.startsWith('ungrouped-')
+        ? rawGroupKey.slice('ungrouped-'.length)
+        : rawGroupKey
       const notifications = await database.getNotificationsForGroupKey({
         actorId: currentActor.id,
         groupKey,

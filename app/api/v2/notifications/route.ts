@@ -158,10 +158,15 @@ export const GET = traceApiRoute(
       filterRecords
     )
 
-    // Pagination cursors mirror the v1 approach: use the last/first raw notification
-    // in the overscan window. This avoids permanent gaps that would occur if we used
-    // group-member IDs as cursors (groups can span interleaved non-group notifications).
-    // Clients handle boundary group duplication via page_min_id merging.
+    // Pagination cursors: "next" uses the oldest notification that is a member of
+    // any returned group, so we don't skip groups that lie beyond the slice but
+    // within the overscan window. "prev" uses the newest raw notification on the page.
+    const sliceNotificationIds = new Set(
+      groupedSlice.flatMap((g) => [g.id, ...(g.groupedIds ?? [])])
+    )
+    const lastSliceNotification = filtered
+      .filter((n) => sliceNotificationIds.has(n.id))
+      .at(-1)
     const host = headerHost(req.headers)
     const pathBase = '/api/v2/notifications'
     const buildLink = (cursorParam: string, cursorValue: string) => {
@@ -174,9 +179,9 @@ export const GET = traceApiRoute(
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
     const links =
-      filtered.length > 0
+      groupedSlice.length > 0 && lastSliceNotification
         ? [
-            buildLink('max_id', filtered[filtered.length - 1].id),
+            buildLink('max_id', lastSliceNotification.id),
             buildLink('min_id', filtered[0].id)
           ].join(', ')
         : ''

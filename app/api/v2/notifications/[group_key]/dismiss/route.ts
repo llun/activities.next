@@ -28,7 +28,10 @@ export const POST = traceApiRoute(
         })
       }
 
-      const groupKey = (await params).group_key
+      const rawGroupKey = (await params).group_key
+      const groupKey = rawGroupKey.startsWith('ungrouped-')
+        ? rawGroupKey.slice('ungrouped-'.length)
+        : rawGroupKey
       await database.dismissNotificationGroup({
         actorId: currentActor.id,
         groupKey

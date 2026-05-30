@@ -47,16 +47,29 @@ const resolveStatuses = async (
   })
   const results: Mastodon.Status[] = []
   for (const domainStatus of domainStatuses) {
-    if (filterRecords && filterRecords.length > 0) {
-      const matches = applyFiltersToStatus(domainStatus, filterRecords)
-      if (matches.some((m) => m.filter.filter_action === 'hide')) continue
-    }
     const mastodonStatus = await getMastodonStatus(
       database,
       domainStatus,
       currentActorId
     )
-    if (mastodonStatus) results.push(mastodonStatus)
+    if (!mastodonStatus) continue
+    if (filterRecords && filterRecords.length > 0) {
+      const matches = applyFiltersToStatus(domainStatus, filterRecords)
+      if (matches.some((m) => m.filter.filter_action === 'hide')) continue
+      if (matches.length > 0) {
+        // Attach warn-filter matches so clients can show the configured warning.
+        results.push(
+          mastodonStatus.reblog
+            ? {
+                ...mastodonStatus,
+                reblog: { ...mastodonStatus.reblog, filtered: matches }
+              }
+            : { ...mastodonStatus, filtered: matches }
+        )
+        continue
+      }
+    }
+    results.push(mastodonStatus)
   }
   return results
 }
