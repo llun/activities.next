@@ -1,13 +1,18 @@
 import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreatePushSubscriptionParams,
   DeletePushSubscriptionParams,
+  GetPushSubscriptionForActorParams,
   GetPushSubscriptionsForActorParams,
+  PushAlerts,
+  PushPolicy,
   PushSubscription,
-  PushSubscriptionDatabase
+  PushSubscriptionDatabase,
+  UpdatePushSubscriptionParams
 } from '@/lib/types/database/operations'
 
 interface SQLPushSubscription {
@@ -16,14 +21,59 @@ interface SQLPushSubscription {
   endpoint: string
   p256dh: string
   auth: string
+  alerts: string | null
+  policy: string | null
+  standard: boolean | number | null
   createdAt: number | Date
   updatedAt: number | Date
 }
 
-const fixPushSubscriptionDates = (
-  row: SQLPushSubscription
-): PushSubscription => ({
-  ...row,
+// All alert flags default to false, matching the Mastodon WebPushSubscription
+// documentation. Callers opt in to the alerts they want.
+export const DEFAULT_PUSH_ALERTS: PushAlerts = {
+  mention: false,
+  status: false,
+  reblog: false,
+  follow: false,
+  follow_request: false,
+  favourite: false,
+  poll: false,
+  update: false,
+  quote: false,
+  quoted_update: false,
+  'admin.sign_up': false,
+  'admin.report': false
+}
+
+const normalizeAlerts = (input?: Partial<PushAlerts> | null): PushAlerts => {
+  const result = { ...DEFAULT_PUSH_ALERTS }
+  if (!input) return result
+  for (const key of Object.keys(DEFAULT_PUSH_ALERTS) as (keyof PushAlerts)[]) {
+    if (typeof input[key] === 'boolean') {
+      result[key] = input[key] as boolean
+    }
+  }
+  return result
+}
+
+const parseStoredAlerts = (raw: string | null): PushAlerts => {
+  if (!raw) return { ...DEFAULT_PUSH_ALERTS }
+  try {
+    return normalizeAlerts(getCompatibleJSON<Partial<PushAlerts>>(raw))
+  } catch {
+    return { ...DEFAULT_PUSH_ALERTS }
+  }
+}
+
+const fixPushSubscription = (row: SQLPushSubscription): PushSubscription => ({
+  id: row.id,
+  actorId: row.actorId,
+  endpoint: row.endpoint,
+  p256dh: row.p256dh,
+  auth: row.auth,
+  alerts: parseStoredAlerts(row.alerts),
+  policy: (row.policy as PushPolicy) ?? 'all',
+  standard: Boolean(row.standard),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -35,10 +85,16 @@ export const PushSubscriptionSQLDatabaseMixin = (
     actorId,
     endpoint,
     p256dh,
-    auth
+    auth,
+    alerts,
+    policy,
+    standard
   }: CreatePushSubscriptionParams): Promise<PushSubscription> {
     const id = randomUUID()
     const now = new Date()
+    const alertsValue = JSON.stringify(normalizeAlerts(alerts))
+    const policyValue = policy ?? 'all'
+    const standardValue = standard ?? false
 
     await database('push_subscriptions')
       .insert({
@@ -47,17 +103,63 @@ export const PushSubscriptionSQLDatabaseMixin = (
         endpoint,
         p256dh,
         auth,
+        alerts: alertsValue,
+        policy: policyValue,
+        standard: standardValue,
         createdAt: now,
         updatedAt: now
       })
       .onConflict('endpoint')
-      .merge({ actorId, p256dh, auth, updatedAt: now })
+      .merge({
+        actorId,
+        p256dh,
+        auth,
+        alerts: alertsValue,
+        policy: policyValue,
+        standard: standardValue,
+        updatedAt: now
+      })
 
     const row = await database<SQLPushSubscription>('push_subscriptions')
       .where({ endpoint })
       .first()
 
-    return fixPushSubscriptionDates(row!)
+    return fixPushSubscription(row!)
+  },
+
+  async updatePushSubscription({
+    actorId,
+    endpoint,
+    alerts,
+    policy
+  }: UpdatePushSubscriptionParams): Promise<PushSubscription | null> {
+    const query = database<SQLPushSubscription>('push_subscriptions').where({
+      actorId
+    })
+    if (endpoint) {
+      query.andWhere({ endpoint })
+    }
+    const existing = await query.orderBy('updatedAt', 'desc').first()
+    if (!existing) return null
+
+    const update: Record<string, unknown> = { updatedAt: new Date() }
+    if (alerts !== undefined) {
+      update.alerts = JSON.stringify(
+        normalizeAlerts({ ...parseStoredAlerts(existing.alerts), ...alerts })
+      )
+    }
+    if (policy !== undefined) {
+      update.policy = policy
+    }
+
+    await database('push_subscriptions')
+      .where({ id: existing.id })
+      .update(update)
+
+    const row = await database<SQLPushSubscription>('push_subscriptions')
+      .where({ id: existing.id })
+      .first()
+    return row ? fixPushSubscription(row) : null
   },
 
   async deletePushSubscription({
@@ -73,7 +175,17 @@ export const PushSubscriptionSQLDatabaseMixin = (
     const rows = await database<SQLPushSubscription>(
       'push_subscriptions'
     ).where({ actorId })
-    return rows.map(fixPushSubscriptionDates)
+    return rows.map(fixPushSubscription)
+  },
+
+  async getPushSubscriptionForActor({
+    actorId
+  }: GetPushSubscriptionForActorParams): Promise<PushSubscription | null> {
+    const row = await database<SQLPushSubscription>('push_subscriptions')
+      .where({ actorId })
+      .orderBy('updatedAt', 'desc')
+      .first()
+    return row ? fixPushSubscription(row) : null
   },
 
   async deletePushSubscriptionsForActor({
