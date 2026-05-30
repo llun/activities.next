@@ -246,6 +246,44 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('treats locked=on as locked (HTML checkbox form)', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('locked', 'on')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        manuallyApprovesFollowers: true
+      })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('treats locked=off as unlocked (HTML checkbox form)', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('locked', 'off')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        manuallyApprovesFollowers: false
+      })
+    )
+    updateActor.mockRestore()
+  })
+
   it('accepts an empty JSON body as a no-op (200)', async () => {
     const updateActor = jest.spyOn(database, 'updateActor')
     const req = new NextRequest(
