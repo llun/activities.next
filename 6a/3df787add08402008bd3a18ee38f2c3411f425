@@ -1,0 +1,32 @@
+lib/database/sql/notification.ts
+  s_0289375c3b8b18::t_c821ff9ef6e71d 436-438,442-444
+lib/database/sql/notification.test.ts
+  s_0289375c3b8b18::t_f21fb04ed672e6 597-628
+app/api/v2/notifications/route.ts
+  s_0289375c3b8b18::t_263bd93555aadc 11-14
+  s_0289375c3b8b18::t_4470ce7e532fce 137-138,143
+app/api/v2/notifications/[group_key]/route.ts
+  s_0289375c3b8b18::t_1c7c98742e123e 4-7
+  s_0289375c3b8b18::t_998bb8ee02a055 68-74,77
+lib/services/notifications/notificationTypeMapping.ts
+  s_0289375c3b8b18::t_ca30a928a4b379 4-14
+app/api/v2/notifications/unread_count/route.ts
+  s_0289375c3b8b18::t_b13d659dc87f79 6-9
+  s_0289375c3b8b18::t_37d2f12136a536 95-96,101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6a3df787add08402008bd3a18ee38f2c3411f425",
+  "prompts": {},
+  "sessions": {
+    "s_0289375c3b8b18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f35aa937-fe21-4ae9-9b3f-fbe728f6847d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
