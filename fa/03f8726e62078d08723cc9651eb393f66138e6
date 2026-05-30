@@ -1,0 +1,27 @@
+lib/services/guards/OAuthGuard.test.ts
+  s_0286db854ecabc::t_5aeb27299e5ea1 372-391
+migrations/20260530120000_add_push_subscription_alerts.js
+  s_0286db854ecabc::t_2711a986107ace 1-21,26-27,34-37
+lib/database/sql/pushSubscription.test.ts
+  s_0286db854ecabc::t_da58c2a28855be 53-56,62-67
+app/api/v1/accounts/route.test.ts
+  s_0286db854ecabc::t_05f7ca882ede55 49,56-57,59
+app/api/v1/push/subscription/route.test.ts
+  s_0286db854ecabc::t_d499f9e79f69e5 292-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fa03f8726e62078d08723cc9651eb393f66138e6",
+  "prompts": {},
+  "sessions": {
+    "s_0286db854ecabc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a2fb078-8e8e-46e6-b1f1-5c8667e29f13",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
