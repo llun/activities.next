@@ -66,15 +66,12 @@ export const GET = traceApiRoute(
       )
 
       // For ungrouped- keys, disable grouping so the stored groupKey is not used
-      // and the returned group_key matches the client's request. Otherwise use
-      // prepareGroupedNotifications so legacy null-key follow rows get the
-      // synthetic 'follow' key and merge into a single group, matching the list.
-      // The client addressed one specific group key, so group all fetched rows
-      // into that single group regardless of the default groupable types (e.g. a
+      // and the returned group_key matches the client's request (legacy null-key
+      // follows surface here as their own ungrouped-<id> entry). Otherwise the
+      // client addressed one specific shared key, so group all fetched rows into
+      // that single group regardless of the default groupable types — e.g. a
       // mention:* key is only ever obtained via an explicit grouped_types=mention
-      // request, where grouping it is correct). prepareGroupedNotifications also
-      // injects the synthetic 'follow' key so legacy null-key rows merge. The
-      // ungrouped- path disables grouping so each entry stays individual.
+      // request, where grouping it is correct.
       const grouped = rawGroupKey.startsWith('ungrouped-')
         ? groupNotifications(notifications, false)
         : prepareGroupedNotifications(notifications)
