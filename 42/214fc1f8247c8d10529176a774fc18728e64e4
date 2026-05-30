@@ -1,0 +1,34 @@
+lib/types/database/operations.test.ts
+  s_25ea3130350b5c::t_7f0b1eda8468c9 2-8,11-41,57-70,85-86
+  s_25ea3130350b5c::t_fe814cc2c60653 42-56
+  s_25ea3130350b5c::t_d9e77629da1863 1,9-10,71-84
+app/api/v1/apps/createApplication.test.ts
+  s_25ea3130350b5c::t_e795c61ed15086 183-231
+lib/services/guards/OAuthGuard.test.ts
+  s_25ea3130350b5c::t_5cdeb00a621c95 854-859,878-879
+lib/types/database/operations.ts
+  s_25ea3130350b5c::t_2040d5b4ebde6f 1651-1659,1661,1665,1668,1671,1673-1676,1679,1682,1685,1687-1694,1696,1702,1721-1724
+  s_25ea3130350b5c::t_082ead49b152ef 1697,1703-1717
+lib/services/guards/scopeHierarchy.test.ts
+  s_25ea3130350b5c::t_b0cdbc8bc2c554 1-16,18-30,38-39,43-44,46,48-56,59-83
+  s_25ea3130350b5c::t_73f4d54cd52a1f 17,31-37,40-42,45,47,57-58
+lib/services/guards/scopeHierarchy.ts
+  s_25ea3130350b5c::t_d8fd75c712d943 1-13,24-30,32-39,42-43
+  s_25ea3130350b5c::t_456d7edfaba15d 14-23,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "42214fc1f8247c8d10529176a774fc18728e64e4",
+  "prompts": {},
+  "sessions": {
+    "s_25ea3130350b5c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1fcde5d-be30-4660-ae1d-44eb1406a2d6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
