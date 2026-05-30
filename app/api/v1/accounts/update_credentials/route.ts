@@ -41,12 +41,23 @@ export const PATCH = traceApiRoute(
       const { currentActor, database } = context
 
       let fields: Record<string, unknown>
-      try {
-        const contentType = (
-          req.headers.get('content-type') ?? ''
-        ).toLowerCase()
-        if (contentType.includes('application/json')) {
-          const json = await req.json()
+      const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
+      if (contentType.includes('application/json')) {
+        const text = await req.text()
+        if (text.trim() === '') {
+          fields = {}
+        } else {
+          let json: unknown
+          try {
+            json = JSON.parse(text)
+          } catch {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Invalid request body' },
+              responseStatusCode: 400
+            })
+          }
           const rawFields: Record<string, unknown> = {}
           if (typeof json === 'object' && json !== null) {
             const obj = json as Record<string, unknown>
@@ -57,16 +68,18 @@ export const PATCH = traceApiRoute(
             }
           }
           fields = rawFields
-        } else {
+        }
+      } else {
+        try {
           const form = await req.formData()
           fields = Object.fromEntries(
             Array.from(form.entries())
               .filter(([, value]) => typeof value === 'string')
               .map(([key, value]) => [key, value as string])
           )
+        } catch {
+          fields = {}
         }
-      } catch {
-        fields = {}
       }
 
       const parsed = UpdateCredentialsRequest.safeParse(fields)

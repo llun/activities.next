@@ -218,7 +218,7 @@ describe('/api/v1/markers', () => {
     await expect(response.json()).resolves.toEqual({})
   })
 
-  it('POST with malformed body returns 200 and empty object', async () => {
+  it('POST with malformed JSON body returns 400', async () => {
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/markers', {
         method: 'POST',
@@ -227,6 +227,21 @@ describe('/api/v1/markers', () => {
           origin: 'https://llun.test'
         },
         body: 'not json'
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(400)
+  })
+
+  it('POST with empty body returns 200 and empty object', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: ''
       }),
       { params: Promise.resolve({}) }
     )

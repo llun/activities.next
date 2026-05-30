@@ -186,4 +186,57 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     )
     updateActor.mockRestore()
   })
+
+  it('rejects malformed JSON body with 400', async () => {
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: 'not json'
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('accepts an empty JSON body as a no-op (200)', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: ''
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: expect.anything()
+      })
+    )
+    expect(updateActor).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: expect.anything()
+      })
+    )
+    expect(updateActor).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        manuallyApprovesFollowers: expect.anything()
+      })
+    )
+    updateActor.mockRestore()
+  })
 })

@@ -59,7 +59,9 @@ export const GET = traceApiRoute(
 const parseBody = async (req: Request): Promise<unknown> => {
   const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
   if (contentType.includes('application/json')) {
-    return req.json()
+    const text = await req.text()
+    if (text.trim() === '') return {}
+    return JSON.parse(text)
   }
   // Mastodon clients send form fields like `home[last_read_id]`.
   // multipart/form-data is parsed via req.formData() at runtime; the
@@ -92,7 +94,12 @@ export const POST = traceApiRoute(
       try {
         json = await parseBody(req)
       } catch {
-        json = {}
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Invalid request body' },
+          responseStatusCode: 400
+        })
       }
 
       const parsed = PostBody.safeParse(json)
