@@ -31,6 +31,8 @@ describe('#getNotificationGroup', () => {
       notifications_count: 2,
       type: 'favourite',
       most_recent_notification_id: 'n1',
+      // ISO-8601 of the group's most-recent notification createdAt (1000ms epoch).
+      latest_page_notification_at: '1970-01-01T00:00:01Z',
       status_id: urlToId('https://other.test/statuses/1')
     })
     expect(group.sample_account_ids).toEqual([

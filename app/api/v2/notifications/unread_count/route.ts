@@ -22,6 +22,9 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 100
 const MAX_LIMIT = 1000
+// Bound on outer collect+suppress rounds so a window full of suppressed unread
+// groups can't make the badge scan unbounded rows.
+const MAX_COLLECT_ROUNDS = 5
 const ARRAY_QUERY_PARAMS = new Set(['types', 'exclude_types', 'grouped_types'])
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -101,23 +104,6 @@ export const GET = traceApiRoute(
         )
       : new Set(DEFAULT_GROUPABLE_TYPES)
 
-    // Iteratively fetch+group unread notifications until we reach `limit` groups
-    // (or run out), so a single bursty group can't make the badge undercount the
-    // other unread groups that exist just past a fixed raw-row window.
-    const { groups } = await collectNotificationGroups({
-      database,
-      baseQuery: {
-        actorId: currentActor.id,
-        onlyUnread: true,
-        types: mastodonTypesToInternal(types),
-        excludeTypes: mastodonTypesToInternal(excludeTypes)
-      },
-      limit,
-      batchSize: MAX_LIMIT,
-      accountId,
-      groupedTypes: internalGroupedTypes
-    })
-
     // Count only groups the list endpoint would actually show: build the same
     // envelope (with content filters) so hide-filtered, deleted-status, or
     // unresolvable-actor groups don't inflate the unread badge.
@@ -126,13 +112,43 @@ export const GET = traceApiRoute(
       currentActor.id,
       'notifications'
     )
-    const envelope = await getNotificationGroupsEnvelope(
-      database,
-      groups,
-      currentActor.id,
-      filterRecords
-    )
-    const count = Math.min(envelope.notification_groups.length, limit)
+
+    // Iteratively collect+suppress until we reach `limit` SURVIVING unread groups
+    // or run out of rows. Counting survivors (post-envelope) and looping past
+    // suppressed windows prevents both bursty-group undercounts and the case
+    // where the newest unread groups are all hidden/deleted while older visible
+    // unread groups still exist. Survivors are deduped by group_key across loops.
+    const survivingKeys = new Set<string>()
+    let cursor: string | undefined
+    for (let round = 0; round < MAX_COLLECT_ROUNDS; round += 1) {
+      const { groups, exhausted, lastScannedId } =
+        await collectNotificationGroups({
+          database,
+          baseQuery: {
+            actorId: currentActor.id,
+            onlyUnread: true,
+            types: mastodonTypesToInternal(types),
+            excludeTypes: mastodonTypesToInternal(excludeTypes)
+          },
+          limit,
+          batchSize: MAX_LIMIT,
+          accountId,
+          groupedTypes: internalGroupedTypes,
+          startCursor: cursor
+        })
+      const envelope = await getNotificationGroupsEnvelope(
+        database,
+        groups,
+        currentActor.id,
+        filterRecords
+      )
+      for (const group of envelope.notification_groups) {
+        survivingKeys.add(group.group_key)
+      }
+      if (survivingKeys.size >= limit || exhausted || !lastScannedId) break
+      cursor = lastScannedId
+    }
+    const count = Math.min(survivingKeys.size, limit)
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
   })
