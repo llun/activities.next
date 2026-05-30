@@ -5,7 +5,8 @@ import { GET } from './route'
 const mockDatabase = {
   getNotificationsForGroupKey: jest.fn(),
   getMastodonActorsFromIds: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([])
+  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
+  getStatusesByIds: jest.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
@@ -77,5 +78,26 @@ describe('GET /api/v2/notifications/:group_key/accounts', () => {
     expect(
       (mockDatabase.getMastodonActorsFromIds as jest.Mock).mock.calls[0][0].ids
     ).toEqual([ALICE, BOB])
+  })
+
+  it('returns 404 when a referenced status is deleted/invisible (no active filters)', async () => {
+    const ALICE = 'https://other.test/users/alice'
+    mockDatabase.getNotificationsForGroupKey.mockResolvedValueOnce([
+      { id: 'n1', sourceActorId: ALICE, statusId: 'https://other.test/s/1' }
+    ])
+    // No active filters, but the referenced status does not resolve.
+    mockDatabase.getActiveFiltersForActor.mockResolvedValueOnce([])
+    mockDatabase.getStatusesByIds.mockResolvedValueOnce([])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications/like%3As1/accounts',
+      { method: 'GET' }
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ group_key: 'like:s1' })
+    })
+
+    expect(response.status).toBe(404)
+    expect(mockDatabase.getMastodonActorsFromIds).not.toHaveBeenCalled()
   })
 })

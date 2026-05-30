@@ -57,38 +57,41 @@ export const GET = traceApiRoute(
         })
       }
 
-      // Apply content filters: if the group's status matches a hide filter, return
-      // 404 to match the envelope behaviour (group is suppressed on the list route).
+      // Resolve referenced statuses to mirror the envelope's group suppression.
+      // The envelope drops a group when its status_id is unresolvable (deleted or
+      // not visible) regardless of active filters, so this check must run
+      // unconditionally; the hide-filter check below additionally needs the records.
       const filterRecords = await getActiveFilters(
         database,
         currentActor.id,
         'notifications'
       )
-      if (filterRecords.length > 0) {
-        const statusIds = [
-          ...new Set(
-            notifications
-              .map((n) => n.statusId)
-              .filter((id): id is string => Boolean(id))
-          )
-        ]
-        if (statusIds.length > 0) {
-          const statuses = await database.getStatusesByIds({
-            statusIds,
-            currentActorId: currentActor.id,
-            visibleToActorId: currentActor.id,
-            withReplies: false
+      const statusIds = [
+        ...new Set(
+          notifications
+            .map((n) => n.statusId)
+            .filter((id): id is string => Boolean(id))
+        )
+      ]
+      if (statusIds.length > 0) {
+        const statuses = await database.getStatusesByIds({
+          statusIds,
+          currentActorId: currentActor.id,
+          visibleToActorId: currentActor.id,
+          withReplies: false
+        })
+        // If any referenced status is deleted/invisible, the envelope suppresses
+        // the group — return 404 here too for consistency.
+        if (statuses.length < statusIds.length) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: 404
           })
-          // If any referenced status is deleted/invisible, the envelope suppresses
-          // the group — return 404 here too for consistency.
-          if (statuses.length < statusIds.length) {
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: ERROR_404,
-              responseStatusCode: 404
-            })
-          }
+        }
+        // Hide-filter check requires active filter records.
+        if (filterRecords.length > 0) {
           const isHidden = statuses.some((s) =>
             applyFiltersToStatus(s, filterRecords).some(
               (m) => m.filter.filter_action === 'hide'
