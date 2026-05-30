@@ -13,6 +13,7 @@ import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSetti
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
+import { MarkerSQLDatabaseMixin } from '@/lib/database/sql/marker'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
@@ -34,6 +35,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const fitnessSettingsDatabase = FitnessSettingsSQLDatabaseMixin(database)
   const bookmarkDatabase = BookmarkSQLDatabaseMixin(database)
   const blockDatabase = BlockSQLDatabaseMixin(database)
+  const markerDatabase = MarkerSQLDatabaseMixin(database)
   const muteDatabase = MuteSQLDatabaseMixin(database)
   const filterDatabase = FilterSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
@@ -77,6 +79,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...instanceActivityDatabase,
     ...bookmarkDatabase,
     ...blockDatabase,
+    ...markerDatabase,
     ...muteDatabase,
     ...filterDatabase,
     ...followerDatabase,

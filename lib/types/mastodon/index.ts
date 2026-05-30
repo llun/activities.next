@@ -7,6 +7,7 @@ export * from './conversation'
 export * from './filterResult'
 export * from './previewCard'
 export * from './tag'
+export * from './marker'
 
 export * from './filter/index'
 export * from './filter/keyword'

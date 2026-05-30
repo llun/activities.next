@@ -1043,6 +1043,32 @@ export type GetMutesParams = {
   sinceId?: string | null
 }
 
+export type MarkerTimeline = 'home' | 'notifications'
+
+export interface MarkerRow {
+  actorId: string
+  timeline: MarkerTimeline
+  lastReadId: string
+  version: number
+  updatedAt: number
+}
+
+export interface GetMarkersParams {
+  actorId: string
+  timelines: MarkerTimeline[]
+}
+
+export interface UpsertMarkerParams {
+  actorId: string
+  timeline: MarkerTimeline
+  lastReadId: string
+}
+
+export interface MarkerDatabase {
+  getMarkers(params: GetMarkersParams): Promise<MarkerRow[]>
+  upsertMarker(params: UpsertMarkerParams): Promise<MarkerRow>
+}
+
 export interface MuteDatabase {
   createMute(params: CreateMuteParams): Promise<Mute>
   deleteMute(params: DeleteMuteParams): Promise<Mute | null>
