@@ -509,6 +509,172 @@ describe('Notification Database', () => {
       })
     })
 
+    describe('grouped notification lookup', () => {
+      beforeEach(async () => {
+        const existing = await database.getNotifications({
+          actorId: actor1Id,
+          limit: 100,
+          includeFiltered: true
+        })
+        for (const notif of existing) {
+          await database.deleteNotification(notif.id)
+        }
+
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.like,
+          sourceActorId: actor2Id,
+          statusId,
+          groupKey: `like:${statusId}`
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.like,
+          sourceActorId: 'https://example.com/users/actor3',
+          statusId,
+          groupKey: `like:${statusId}`
+        })
+      })
+
+      it('resolves all notifications for a shared group key', async () => {
+        const notifications = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`
+        })
+        expect(notifications).toHaveLength(2)
+      })
+
+      it('resolves an ungrouped notification by its id', async () => {
+        const created = await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id
+        })
+
+        const notifications = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: created.id
+        })
+        expect(notifications).toHaveLength(1)
+        expect(notifications[0].id).toBe(created.id)
+      })
+
+      it('dismisses every notification in a group', async () => {
+        await database.dismissNotificationGroup({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`
+        })
+
+        const remaining = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`
+        })
+        expect(remaining).toHaveLength(0)
+      })
+
+      it('resolves persisted day-bucketed follow rows under their bucket key', async () => {
+        // Two follows in the same day bucket share the persisted key.
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id,
+          groupKey: 'follow:20000'
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: 'https://example.com/users/actor3',
+          groupKey: 'follow:20000'
+        })
+        // A follow in a different day bucket is a separate group.
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: 'https://example.com/users/actor4',
+          groupKey: 'follow:20001'
+        })
+
+        const bucket = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: 'follow:20000'
+        })
+        expect(bucket).toHaveLength(2)
+      })
+
+      it('resolves a legacy null-key follow row by its notification id', async () => {
+        const legacy = await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id
+        })
+
+        const byId = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: legacy.id
+        })
+        expect(byId).toHaveLength(1)
+        expect(byId[0].id).toBe(legacy.id)
+      })
+
+      it('does not dismiss filtered rows sharing the group key', async () => {
+        // A pending policy-filtered like sharing the same group key.
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.like,
+          sourceActorId: 'https://example.com/users/actor4',
+          statusId,
+          groupKey: `like:${statusId}`,
+          filtered: true
+        })
+
+        await database.dismissNotificationGroup({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`
+        })
+
+        // Visible rows are gone, the filtered request row survives.
+        const visible = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`,
+          includeFiltered: false
+        })
+        expect(visible).toHaveLength(0)
+        const withFiltered = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`,
+          includeFiltered: true
+        })
+        expect(withFiltered).toHaveLength(1)
+        expect(withFiltered[0].filtered).toBe(true)
+      })
+
+      it('dismisses every follow row in a day bucket', async () => {
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id,
+          groupKey: 'follow:20000'
+        })
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: 'https://example.com/users/actor3',
+          groupKey: 'follow:20000'
+        })
+
+        await database.dismissNotificationGroup({
+          actorId: actor1Id,
+          groupKey: 'follow:20000'
+        })
+
+        const remaining = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: 'follow:20000'
+        })
+        expect(remaining).toHaveLength(0)
+      })
+    })
+
     describe('deleteNotification', () => {
       it('should delete a notification', async () => {
         const notification = await database.createNotification({

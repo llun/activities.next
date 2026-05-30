@@ -1,4 +1,4 @@
-import { Notification } from '@/lib/types/database/operations'
+import { Notification, NotificationType } from '@/lib/types/database/operations'
 
 export interface GroupedNotification extends Notification {
   groupedActors?: string[]
@@ -8,12 +8,14 @@ export interface GroupedNotification extends Notification {
 
 export const groupNotifications = (
   notifications: Notification[],
-  enableGrouping: boolean = true
+  enableGrouping: boolean = true,
+  groupedTypes?: Set<NotificationType>
 ): GroupedNotification[] => {
-  // If grouping is disabled, return notifications as-is with minimal GroupedNotification fields
+  // If grouping is disabled, return each notification as its own group.
   if (!enableGrouping) {
     return notifications.map((notification) => ({
       ...notification,
+      groupKey: `ungrouped-${notification.id}`,
       groupedActors: undefined,
       groupedCount: 1,
       groupedIds: undefined
@@ -23,9 +25,12 @@ export const groupNotifications = (
   const groups: Map<string, GroupedNotification> = new Map()
 
   for (const notification of notifications) {
-    // Group by groupKey (e.g., "like:statusId" or "reply:statusId")
-    if (notification.groupKey) {
-      const existing = groups.get(notification.groupKey)
+    const canGroup =
+      notification.groupKey &&
+      (!groupedTypes || groupedTypes.has(notification.type))
+
+    if (canGroup) {
+      const existing = groups.get(notification.groupKey!)
       if (existing) {
         // Add to existing group
         if (!existing.groupedActors) {
@@ -54,9 +59,15 @@ export const groupNotifications = (
       }
     }
 
-    // First notification with this groupKey or no groupKey
-    groups.set(notification.groupKey || notification.id, {
+    // First notification with this groupKey, not groupable, or no groupKey.
+    // Mastodon specifies ungrouped entries use 'ungrouped-{id}' as the group_key
+    // so clients can address them individually via the single-group endpoints.
+    const ungroupedKey = canGroup
+      ? notification.groupKey!
+      : `ungrouped-${notification.id}`
+    groups.set(ungroupedKey, {
       ...notification,
+      groupKey: ungroupedKey,
       groupedActors: undefined,
       groupedCount: 1,
       groupedIds: undefined

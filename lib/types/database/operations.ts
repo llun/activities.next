@@ -1576,6 +1576,13 @@ export type ResolveNotificationRequestsParams = {
   sourceActorIds: string[]
 }
 
+export type NotificationGroupKeyParams = {
+  actorId: string
+  // A shared groupKey, or (for ungrouped notifications) a notification id.
+  groupKey: string
+  includeFiltered?: boolean
+}
+
 export interface NotificationDatabase {
   createNotification(params: CreateNotificationParams): Promise<Notification>
   getNotifications(params: GetNotificationsParams): Promise<Notification[]>
@@ -1600,6 +1607,13 @@ export interface NotificationDatabase {
   dismissNotificationRequests(
     params: ResolveNotificationRequestsParams
   ): Promise<void>
+
+  // Grouped notifications (v2): resolve and dismiss by group key (or, for
+  // ungrouped notifications, by notification id).
+  getNotificationsForGroupKey(
+    params: NotificationGroupKeyParams
+  ): Promise<Notification[]>
+  dismissNotificationGroup(params: NotificationGroupKeyParams): Promise<void>
 }
 
 // ============================================================================
