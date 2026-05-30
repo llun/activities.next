@@ -75,6 +75,8 @@ export const GET = traceApiRoute(
         if (statusIds.length > 0) {
           const statuses = await database.getStatusesByIds({
             statusIds,
+            currentActorId: currentActor.id,
+            visibleToActorId: currentActor.id,
             withReplies: false
           })
           const isHidden = statuses.some((s) =>
