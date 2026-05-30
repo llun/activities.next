@@ -1,32 +1,23 @@
 'use client'
 
-import { ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
-import { PageSubnavProvider } from '@/lib/components/page-header'
-import { Button } from '@/lib/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/lib/components/ui/dropdown-menu'
-import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
+import { cn } from '@/lib/utils'
 
 interface Props {
   children: ReactNode
 }
 
+const tabs = [
+  { name: 'General', url: '/settings/fitness/general' },
+  { name: 'Privacy', url: '/settings/fitness/privacy' },
+  { name: 'Strava', url: '/settings/fitness/strava' }
+]
+
 const Layout: FC<Props> = ({ children }) => {
   const pathname = usePathname()
-
-  const tabs = [
-    { name: 'General', url: '/settings/fitness/general' },
-    { name: 'Privacy', url: '/settings/fitness/privacy' },
-    { name: 'Strava', url: '/settings/fitness/strava' }
-  ]
 
   const activeTab =
     tabs
@@ -35,41 +26,35 @@ const Layout: FC<Props> = ({ children }) => {
       )
       .sort((a, b) => b.url.length - a.url.length)[0] || tabs[0]
 
-  const subnav = (
-    <>
-      <div className="md:hidden">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
-              {activeTab.name}
-              <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-            {tabs.map((tab) => (
-              <DropdownMenuItem key={tab.url} asChild>
-                <Link href={tab.url}>{tab.name}</Link>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+  return (
+    <div className="space-y-6">
+      {/* Nested fitness sub-nav: an in-content segmented control. */}
+      <nav aria-label="Fitness settings">
+        <div className="inline-flex gap-1 rounded-lg bg-muted p-1">
+          {tabs.map((tab) => {
+            const isActive = tab.url === activeTab.url
+            return (
+              <Link
+                key={tab.url}
+                href={tab.url}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.name}
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
 
-      <div className="hidden md:block">
-        <Tabs value={activeTab.url} className="w-full">
-          <TabsList>
-            {tabs.map((tab) => (
-              <TabsTrigger key={tab.url} value={tab.url} asChild>
-                <Link href={tab.url}>{tab.name}</Link>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </div>
-    </>
+      {children}
+    </div>
   )
-
-  return <PageSubnavProvider subnav={subnav}>{children}</PageSubnavProvider>
 }
 
 export default Layout

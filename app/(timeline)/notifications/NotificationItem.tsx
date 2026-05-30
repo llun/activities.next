@@ -1,7 +1,10 @@
 'use client'
 
+import { formatDistance } from 'date-fns'
+import Link from 'next/link'
 import { type ComponentType, useEffect, useRef } from 'react'
 
+import { getNotificationStatusPath } from '@/app/(timeline)/notifications/getNotificationStatusPath'
 import {
   type NotificationWithAccount,
   type NotificationWithStatus,
@@ -10,6 +13,7 @@ import {
 import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import type { Mastodon } from '@/lib/types/activitypub'
 import type { Status } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { ActivityImportNotification } from './components/ActivityImportNotification'
 import { FollowNotification } from './components/FollowNotification'
@@ -27,6 +31,7 @@ interface Props {
   currentActorId: string
   host: string
   isRead: boolean
+  currentTime: number
   observeElement: (element: HTMLElement | null) => void
 }
 
@@ -56,6 +61,7 @@ export const NotificationItem = ({
   currentActorId,
   host,
   isRead,
+  currentTime,
   observeElement
 }: Props) => {
   const elementRef = useRef<HTMLDivElement>(null)
@@ -125,20 +131,70 @@ export const NotificationItem = ({
 
   const content = renderNotification()
 
+  const statusNotification =
+    notification.account &&
+    hasStatusActor({
+      ...notification,
+      account: notification.account,
+      status: notification.status ?? null
+    })
+      ? ({
+          ...notification,
+          account: notification.account,
+          status: notification.status
+        } as NotificationWithStatus)
+      : null
+  const statusPath = statusNotification
+    ? getNotificationStatusPath(statusNotification.status)
+    : null
+  const relativeCreatedAt = formatDistance(
+    new Date(notification.createdAt),
+    currentTime,
+    { addSuffix: true }
+  )
+
   return (
     <div
       ref={elementRef}
       data-notification-id={notification.id}
       data-grouped-ids={notification.groupedIds?.join(',') || notification.id}
-      className="relative rounded-xl border bg-background/80 p-4"
+      className="relative rounded-xl border bg-background/80 p-4 transition-colors hover:bg-muted/50"
     >
       {!isRead && (
         <div
-          className="absolute left-2 top-2 h-2 w-2 rounded-full bg-red-500"
+          className="pointer-events-none absolute left-2 top-2 z-20 h-2 w-2 rounded-full bg-red-500"
           aria-label="Unread"
         />
       )}
-      {content}
+      {statusPath && (
+        // Whole-row overlay link. Kept out of the tab order and hidden from
+        // assistive tech (aria-hidden + tabIndex={-1}) because every overlaid
+        // notification already renders a real inner "post" link to the same
+        // status — this avoids a duplicate tab stop / redundant SR link while
+        // preserving the full-row mouse click target.
+        <Link
+          href={statusPath}
+          aria-hidden="true"
+          tabIndex={-1}
+          className="absolute inset-0 rounded-xl"
+        />
+      )}
+      <div
+        className={cn(
+          'relative z-10 flex items-start gap-3',
+          // Only neutralise pointer events when the whole-row overlay link is
+          // present, so it catches clicks on empty areas while inner links and
+          // buttons stay interactive. Without an overlay (follow / follow
+          // request rows) leave normal pointer behaviour and text selection.
+          statusPath &&
+            'pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto'
+        )}
+      >
+        <div className="min-w-0 flex-1">{content}</div>
+        <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+          {relativeCreatedAt}
+        </span>
+      </div>
     </div>
   )
 }

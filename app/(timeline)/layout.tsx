@@ -102,6 +102,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
         <MobileNav
           unreadCount={unreadCount}
           fitnessUrl={fitnessUrl}
+          profileUrl={user ? `/${user.handle}` : undefined}
           isAdmin={isAdmin}
         />
       )}
