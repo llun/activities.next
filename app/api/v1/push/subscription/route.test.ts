@@ -169,6 +169,7 @@ describe('POST /api/v1/push/subscription', () => {
       endpoint,
       standard: false,
       alerts: storedSubscription.alerts,
+      policy: 'all',
       server_key: 'test-vapid-public-key'
     })
     expect(mockDatabase!.createPushSubscription).toHaveBeenCalledWith(

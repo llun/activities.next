@@ -6,11 +6,17 @@ import {
 
 // Mastodon WebPushSubscription entity.
 // https://docs.joinmastodon.org/entities/WebPushSubscription/
+//
+// `policy` is not in the documented entity's attribute list, but it is included
+// so a client can read back the push policy it saved (the GET response is
+// otherwise the only way to observe the current setting). It is an additive,
+// forward-compatible field and does not affect the documented fields.
 export interface WebPushSubscription {
   id: string
   endpoint: string
   standard: boolean
   alerts: PushAlerts
+  policy: PushPolicy
   server_key: string
 }
 
@@ -39,6 +45,7 @@ export const toWebPushSubscription = (
   endpoint: subscription.endpoint,
   standard: subscription.standard,
   alerts: subscription.alerts,
+  policy: subscription.policy,
   server_key: serverKey
 })
 
