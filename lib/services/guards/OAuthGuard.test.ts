@@ -851,7 +851,11 @@ describe('#OAuthGuard', () => {
       expect(mockHandler).not.toHaveBeenCalled()
     })
 
-    test('rejects child read scope when parent read is required', async () => {
+    test('accepts a granular read:* token when the route requires coarse read', async () => {
+      // Granular-only tokens (e.g. read:conversations) must satisfy routes
+      // guarded with the coarse read scope. Clients that request specific scopes
+      // instead of the broad read/write must still be able to use matching
+      // endpoints — this is the granular → coarse direction of the scope hierarchy.
       mockGetServerSession.mockResolvedValue(null)
 
       const primaryActor = await database.getActorFromEmail({
@@ -870,8 +874,8 @@ describe('#OAuthGuard', () => {
       })
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(401)
-      expect(mockHandler).not.toHaveBeenCalled()
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
     })
 
     test('returns 401 when opaque token has no referenceId', async () => {

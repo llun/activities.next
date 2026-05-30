@@ -18,8 +18,16 @@ type AdminApiHandle<P> = (
   }
 ) => Promise<Response> | Response
 
+// Admin endpoints accept either the coarse read/write scopes (kept for
+// backwards compatibility) or Mastodon's aggregate admin scopes. The actor's
+// admin role checked below is the real authorization gate; the scope only has
+// to prove the token was granted read/write-style access. Granular admin scopes
+// (admin:read:domain_blocks, ...) satisfy the aggregate ones via the OAuthGuard
+// hierarchy, so they are accepted too.
 const getRequiredOAuthScopes = (method: string): Scope[] =>
-  method === HttpMethod.enum.GET ? [Scope.enum.read] : [Scope.enum.write]
+  method === HttpMethod.enum.GET
+    ? [Scope.enum.read, Scope.enum['admin:read']]
+    : [Scope.enum.write, Scope.enum['admin:write']]
 
 export const AdminApiGuard =
   <P>(allowedMethods: HttpMethod[], handle: AdminApiHandle<P>) =>
@@ -49,8 +57,8 @@ export const AdminApiGuard =
       })
     }
 
-    const { OAuthGuard } = await import('./OAuthGuard')
-    return OAuthGuard<P>(
+    const { OAuthGuardAnyScope } = await import('./OAuthGuard')
+    return OAuthGuardAnyScope<P>(
       getRequiredOAuthScopes(req.method),
       async (oauthReq, { currentActor, database: oauthDatabase, params }) => {
         if (currentActor.account?.role !== 'admin') {

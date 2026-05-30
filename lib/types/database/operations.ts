@@ -1674,6 +1674,7 @@ export const Scope = z.enum([
   'read:lists',
   'read:mutes',
   'read:notifications',
+  'read:reports',
   'read:search',
   'read:statuses',
   // Write
@@ -1694,13 +1695,27 @@ export const Scope = z.enum([
   // Aggregate / push
   'follow',
   'push',
-  // Admin. Only the top-level admin scopes are recognized; the granular
-  // Mastodon admin scopes (admin:read:accounts, admin:write:reports, ...) are
-  // intentionally omitted because this server exposes no granular admin API.
-  // These are recognized for client compatibility only — admin API access is
-  // gated on the actor's admin role in AdminApiGuard, not on these scopes.
+  // Admin. The aggregate admin scopes plus Mastodon's documented granular admin
+  // scopes. These are recognized so admin/moderation clients can register and
+  // authorize; admin API access is still gated on the actor's admin role in
+  // AdminApiGuard (the aggregate `admin:read`/`admin:write` satisfy the granular
+  // entries via the scope hierarchy in OAuthGuard).
   'admin:read',
-  'admin:write'
+  'admin:read:accounts',
+  'admin:read:reports',
+  'admin:read:domain_allows',
+  'admin:read:domain_blocks',
+  'admin:read:ip_blocks',
+  'admin:read:email_domain_blocks',
+  'admin:read:canonical_email_blocks',
+  'admin:write',
+  'admin:write:accounts',
+  'admin:write:reports',
+  'admin:write:domain_allows',
+  'admin:write:domain_blocks',
+  'admin:write:ip_blocks',
+  'admin:write:email_domain_blocks',
+  'admin:write:canonical_email_blocks'
 ])
 export type Scope = z.infer<typeof Scope>
 
