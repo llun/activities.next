@@ -1695,10 +1695,11 @@ export const Scope = z.enum([
   'follow',
   'push',
   // Admin. The aggregate admin scopes plus Mastodon's documented granular admin
-  // scopes. These are recognized so admin/moderation clients can register and
-  // authorize; admin API access is still gated on the actor's admin role in
-  // AdminApiGuard (the aggregate `admin:read`/`admin:write` satisfy the granular
-  // entries via the scope hierarchy in OAuthGuard).
+  // scopes. These are recognized so admin clients can register and authorize
+  // with specific granular scopes. Note: AdminApiGuard currently only accepts
+  // the aggregate admin:read / admin:write (or coarse read / write) at the OAuth
+  // bearer gate — a token granted only a granular admin:read:* scope is rejected
+  // there today. Per-route granular admin scope enforcement is Tier 2 work.
   'admin:read',
   'admin:read:accounts',
   'admin:read:reports',
