@@ -1,0 +1,21 @@
+app/(timeline)/notifications/NotificationItem.tsx
+  s_8a1ce604de13fd::t_f65478e32c71aa 178-188
+  s_8a1ce604de13fd::t_d12263dd24df4f 150-153
+  s_8a1ce604de13fd::t_2b9870f5fe0137 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ffc4a7f430a3426a6345b8d49fe69817afb283f9",
+  "prompts": {},
+  "sessions": {
+    "s_8a1ce604de13fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9eb9f592-582d-4135-b2c9-a6408721f3a7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
