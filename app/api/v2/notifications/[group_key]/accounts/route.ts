@@ -79,6 +79,16 @@ export const GET = traceApiRoute(
             visibleToActorId: currentActor.id,
             withReplies: false
           })
+          // If any referenced status is deleted/invisible, the envelope suppresses
+          // the group — return 404 here too for consistency.
+          if (statuses.length < statusIds.length) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_404,
+              responseStatusCode: 404
+            })
+          }
           const isHidden = statuses.some((s) =>
             applyFiltersToStatus(s, filterRecords).some(
               (m) => m.filter.filter_action === 'hide'

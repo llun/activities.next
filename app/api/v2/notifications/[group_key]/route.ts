@@ -74,6 +74,17 @@ export const GET = traceApiRoute(
         filterRecords
       )
 
+      // If the content filter or missing status removed the only group, return 404
+      // rather than 200 with an empty notification_groups array.
+      if (envelope.notification_groups.length === 0) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: envelope })
     }
   )

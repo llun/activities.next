@@ -32,10 +32,15 @@ describe('#getNotificationGroupsEnvelope', () => {
 
   it('dedupes accounts and statuses referenced across groups', async () => {
     const mockDatabase = {
+      // Return id in urlToId format so sample_account_ids filtering works.
       getMastodonActorsFromIds: jest
         .fn()
         .mockImplementation(({ ids }: { ids: string[] }) =>
-          Promise.resolve(ids.map((id) => ({ id })))
+          Promise.resolve(
+            ids.map((id) => ({
+              id: id.replace(/https?:\/\//, '').replaceAll('/', ':')
+            }))
+          )
         ),
       getStatus: jest.fn().mockResolvedValue({ id: STATUS }),
       getStatusesByIds: jest

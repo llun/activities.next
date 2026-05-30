@@ -117,14 +117,18 @@ export const getNotificationGroupsEnvelope = async (
   const accounts = await resolveAccounts(database, actorIds)
 
   // Remove sample_account_ids that are absent from the resolved accounts (e.g.
-  // deleted remote actors). This mirrors the dangling status_id removal above.
+  // deleted remote actors). Drop groups where every sampled actor was deleted so
+  // clients don't receive an unrenderable group with no account object (mirrors
+  // the v1 route which drops notifications whose source account cannot be loaded).
   const resolvedActorIds = new Set(accounts.map((a) => a.id))
-  const notification_groups = survivingResults.map((r) => ({
-    ...r.group,
-    sample_account_ids: r.group.sample_account_ids.filter((id) =>
-      resolvedActorIds.has(id)
-    )
-  }))
+  const notification_groups = survivingResults
+    .map((r) => ({
+      ...r.group,
+      sample_account_ids: r.group.sample_account_ids.filter((id) =>
+        resolvedActorIds.has(id)
+      )
+    }))
+    .filter((g) => g.sample_account_ids.length > 0)
 
   return { notification_groups, accounts, statuses }
 }

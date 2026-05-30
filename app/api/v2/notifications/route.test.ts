@@ -46,8 +46,14 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 describe('GET /api/v2/notifications', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // Return id in urlToId format so sample_account_ids filtering works.
     mockDatabase.getMastodonActorsFromIds.mockImplementation(
-      ({ ids }: { ids: string[] }) => Promise.resolve(ids.map((id) => ({ id })))
+      ({ ids }: { ids: string[] }) =>
+        Promise.resolve(
+          ids.map((id) => ({
+            id: id.replace(/https?:\/\//, '').replaceAll('/', ':')
+          }))
+        )
     )
     mockDatabase.getStatus.mockResolvedValue({ id: 'status-url' })
     mockDatabase.getStatusesByIds.mockImplementation(
