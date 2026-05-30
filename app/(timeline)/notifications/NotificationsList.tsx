@@ -18,12 +18,14 @@ interface Props {
   notifications: NotificationWithData[]
   currentActorId: string
   host: string
+  currentTime: number
 }
 
 export const NotificationsList = ({
   notifications,
   currentActorId,
-  host
+  host,
+  currentTime
 }: Props) => {
   const router = useRouter()
   const [readNotifications, setReadNotifications] = useState<Set<string>>(
@@ -157,6 +159,7 @@ export const NotificationsList = ({
           currentActorId={currentActorId}
           host={host}
           isRead={notification.isRead || readNotifications.has(notification.id)}
+          currentTime={currentTime}
           observeElement={observeElement}
         />
       ))}

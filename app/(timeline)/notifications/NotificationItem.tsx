@@ -1,7 +1,10 @@
 'use client'
 
+import { formatDistance } from 'date-fns'
+import Link from 'next/link'
 import { type ComponentType, useEffect, useRef } from 'react'
 
+import { getNotificationStatusPath } from '@/app/(timeline)/notifications/getNotificationStatusPath'
 import {
   type NotificationWithAccount,
   type NotificationWithStatus,
@@ -27,6 +30,7 @@ interface Props {
   currentActorId: string
   host: string
   isRead: boolean
+  currentTime: number
   observeElement: (element: HTMLElement | null) => void
 }
 
@@ -56,6 +60,7 @@ export const NotificationItem = ({
   currentActorId,
   host,
   isRead,
+  currentTime,
   observeElement
 }: Props) => {
   const elementRef = useRef<HTMLDivElement>(null)
@@ -125,20 +130,50 @@ export const NotificationItem = ({
 
   const content = renderNotification()
 
+  const statusNotification =
+    notification.account &&
+    hasStatusActor({
+      ...notification,
+      account: notification.account,
+      status: notification.status ?? null
+    })
+      ? ({
+          ...notification,
+          account: notification.account,
+          status: notification.status
+        } as NotificationWithStatus)
+      : null
+  const statusPath = statusNotification
+    ? getNotificationStatusPath(statusNotification.status)
+    : null
+  const relativeCreatedAt = formatDistance(notification.createdAt, currentTime)
+
   return (
     <div
       ref={elementRef}
       data-notification-id={notification.id}
       data-grouped-ids={notification.groupedIds?.join(',') || notification.id}
-      className="relative rounded-xl border bg-background/80 p-4"
+      className="relative rounded-xl border bg-background/80 p-4 transition-colors hover:bg-muted/50"
     >
       {!isRead && (
         <div
-          className="absolute left-2 top-2 h-2 w-2 rounded-full bg-red-500"
+          className="pointer-events-none absolute left-2 top-2 z-20 h-2 w-2 rounded-full bg-red-500"
           aria-label="Unread"
         />
       )}
-      {content}
+      {statusPath && (
+        <Link
+          href={statusPath}
+          aria-label="Open related post"
+          className="absolute inset-0 rounded-xl"
+        />
+      )}
+      <span className="pointer-events-none absolute right-4 top-4 z-10 text-xs text-muted-foreground">
+        {relativeCreatedAt}
+      </span>
+      <div className="pointer-events-none relative z-10 pr-14 [&_a]:pointer-events-auto [&_button]:pointer-events-auto">
+        {content}
+      </div>
     </div>
   )
 }

@@ -108,6 +108,7 @@ const renderNotificationItemWithOptions = (
       currentActorId={options.currentActorId ?? notification.actorId}
       host="llun.social"
       isRead={options.isRead ?? true}
+      currentTime={currentTime}
       observeElement={options.observeElement ?? jest.fn()}
     />
   )

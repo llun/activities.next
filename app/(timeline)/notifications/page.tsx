@@ -94,6 +94,7 @@ const Page = async ({ searchParams }: Props) => {
             notifications={notificationsWithData}
             currentActorId={actor.id}
             host={host}
+            currentTime={Date.now()}
           />
 
           {totalPages > 1 && (
