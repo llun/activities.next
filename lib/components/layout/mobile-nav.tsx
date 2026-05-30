@@ -1,10 +1,10 @@
 'use client'
 
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, User } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { buildNavItems } from '@/lib/components/layout/nav-items'
+import { type NavItem, buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 interface MobileNavProps {
   unreadCount?: number
   fitnessUrl?: string
+  profileUrl?: string
   isAdmin?: boolean
 }
 
@@ -25,10 +26,17 @@ const mobileDirectHrefs = ['/', '/search', '/messages', '/notifications']
 export function MobileNav({
   unreadCount = 0,
   fitnessUrl,
+  profileUrl,
   isAdmin = false
 }: MobileNavProps) {
   const pathname = usePathname()
-  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
+  const profileNavItem: NavItem | null = profileUrl
+    ? { href: profileUrl, label: 'Profile', icon: User }
+    : null
+  const allNavItems = [
+    ...buildNavItems({ fitnessUrl, isAdmin }),
+    ...(profileNavItem ? [profileNavItem] : [])
+  ]
   const hasOverflow = allNavItems.length > 5
   const directNavItems = hasOverflow
     ? mobileDirectHrefs.flatMap((href) => {
