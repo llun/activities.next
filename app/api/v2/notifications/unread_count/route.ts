@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
+import { collectNotificationGroups } from '@/lib/services/notifications/collectNotificationGroups'
 import {
   DEFAULT_GROUPABLE_TYPES,
   mastodonTypesToInternal
@@ -16,7 +16,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 100
@@ -100,31 +99,23 @@ export const GET = traceApiRoute(
         )
       : new Set(DEFAULT_GROUPABLE_TYPES)
 
-    // Fetch MAX_LIMIT rows so grouping produces an accurate group count regardless
-    // of how many individual rows belong to the same group. We cap after grouping.
-    const notifications = await database.getNotifications({
-      actorId: currentActor.id,
-      limit: MAX_LIMIT,
-      onlyUnread: true,
-      types: mastodonTypesToInternal(types),
-      excludeTypes: mastodonTypesToInternal(excludeTypes)
+    // Iteratively fetch+group unread notifications until we reach `limit` groups
+    // (or run out), so a single bursty group can't make the badge undercount the
+    // other unread groups that exist just past a fixed raw-row window.
+    const { groups } = await collectNotificationGroups({
+      database,
+      baseQuery: {
+        actorId: currentActor.id,
+        onlyUnread: true,
+        types: mastodonTypesToInternal(types),
+        excludeTypes: mastodonTypesToInternal(excludeTypes)
+      },
+      limit,
+      batchSize: MAX_LIMIT,
+      accountId,
+      groupedTypes: internalGroupedTypes
     })
-    const filtered = accountId
-      ? notifications.filter((n) => urlToId(n.sourceActorId) === accountId)
-      : notifications
-    // Apply same follow-grouping as the main v2 envelope.
-    const canGroupFollows =
-      !internalGroupedTypes ||
-      internalGroupedTypes.has(NotificationType.enum.follow)
-    const prepared = filtered.map((n) =>
-      n.type === NotificationType.enum.follow && !n.groupKey && canGroupFollows
-        ? { ...n, groupKey: 'follow' }
-        : n
-    )
-    const count = Math.min(
-      groupNotifications(prepared, true, internalGroupedTypes).length,
-      limit
-    )
+    const count = Math.min(groups.length, limit)
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
   })

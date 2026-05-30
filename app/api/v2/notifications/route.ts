@@ -4,6 +4,7 @@ import { getDatabase } from '@/lib/database'
 import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { collectNotificationGroups } from '@/lib/services/notifications/collectNotificationGroups'
 import {
   getNotificationGroupsEnvelope,
   prepareGroupedNotifications
@@ -21,7 +22,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 40
@@ -119,21 +119,6 @@ export const GET = traceApiRoute(
       include_filtered: includeFiltered = false
     } = parsed.data
 
-    // Over-fetch rows so that after grouping we produce at least `limit` groups.
-    const notifications = await database.getNotifications({
-      actorId: currentActor.id,
-      limit: limit * GROUP_OVERSCAN,
-      maxNotificationId: maxId,
-      minNotificationId: minId || sinceId,
-      types: mastodonTypesToInternal(types),
-      excludeTypes: mastodonTypesToInternal(excludeTypes),
-      includeFiltered
-    })
-
-    const filtered = accountId
-      ? notifications.filter((n) => urlToId(n.sourceActorId) === accountId)
-      : notifications
-
     // When grouped_types is omitted, fall back to Mastodon's default groupable
     // types (favourite/reblog/follow) so mentions/replies are not collapsed.
     const internalGroupedTypes = groupedTypesMastodon
@@ -141,6 +126,25 @@ export const GET = traceApiRoute(
           mastodonTypesToInternal(groupedTypesMastodon) as NotificationType[]
         )
       : new Set(DEFAULT_GROUPABLE_TYPES)
+
+    // Iteratively fetch+group until we have `limit` distinct groups (or the
+    // source is exhausted), so a single bursty group can't underfill the page
+    // and account_id paging scans past bursts from other accounts.
+    const { rawNotifications: filtered } = await collectNotificationGroups({
+      database,
+      baseQuery: {
+        actorId: currentActor.id,
+        minNotificationId: minId || sinceId,
+        types: mastodonTypesToInternal(types),
+        excludeTypes: mastodonTypesToInternal(excludeTypes),
+        includeFiltered
+      },
+      limit,
+      batchSize: limit * GROUP_OVERSCAN,
+      accountId,
+      groupedTypes: internalGroupedTypes,
+      startCursor: maxId
+    })
 
     // include_filtered controls only the DB-level filter flag (NotificationPolicy).
     // Content filters (keyword/status hide rules) are applied regardless.

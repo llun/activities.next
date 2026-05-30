@@ -6,7 +6,6 @@ import {
   prepareGroupedNotifications
 } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
-import { DEFAULT_GROUPABLE_TYPES } from '@/lib/services/notifications/notificationTypeMapping'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -70,14 +69,15 @@ export const GET = traceApiRoute(
       // and the returned group_key matches the client's request. Otherwise use
       // prepareGroupedNotifications so legacy null-key follow rows get the
       // synthetic 'follow' key and merge into a single group, matching the list.
-      // Group with the same default types as the list route so mentions/replies
-      // stay individual instead of collapsing under their stored DB group key.
+      // The client addressed one specific group key, so group all fetched rows
+      // into that single group regardless of the default groupable types (e.g. a
+      // mention:* key is only ever obtained via an explicit grouped_types=mention
+      // request, where grouping it is correct). prepareGroupedNotifications also
+      // injects the synthetic 'follow' key so legacy null-key rows merge. The
+      // ungrouped- path disables grouping so each entry stays individual.
       const grouped = rawGroupKey.startsWith('ungrouped-')
         ? groupNotifications(notifications, false)
-        : prepareGroupedNotifications(
-            notifications,
-            new Set(DEFAULT_GROUPABLE_TYPES)
-          )
+        : prepareGroupedNotifications(notifications)
       const envelope = await getNotificationGroupsEnvelope(
         database,
         grouped,
