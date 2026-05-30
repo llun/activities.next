@@ -88,6 +88,7 @@ export const PageHeader = ({
           </div>
           {actions && <div className="shrink-0 self-center">{actions}</div>}
         </div>
+        {subnav && <div className="mt-4">{subnav}</div>}
       </div>
     )
   }
