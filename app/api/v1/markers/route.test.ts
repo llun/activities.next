@@ -76,6 +76,25 @@ describe('/api/v1/markers', () => {
     await expect(response.json()).resolves.toEqual({})
   })
 
+  it('POST accepts form-encoded body and upserts the marker', async () => {
+    const formResponse = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          origin: 'https://llun.test'
+        },
+        body: new URLSearchParams({ 'notifications[last_read_id]': '9999' })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(formResponse.status).toBe(200)
+    const formPosted = await formResponse.json()
+    expect(formPosted.notifications).toEqual(
+      expect.objectContaining({ last_read_id: '9999' })
+    )
+  })
+
   it('POST upserts and GET reads back the marker', async () => {
     const postResponse = await POST(
       new NextRequest('https://llun.test/api/v1/markers', {
