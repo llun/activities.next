@@ -41,7 +41,11 @@ export const POST = traceApiRoute(
       // The legacy route has no per-type alert concept; enable every alert so
       // these subscriptions keep receiving all notifications once delivery
       // honors per-subscription alerts (gating stays at actor-level settings).
-      alerts: ALL_PUSH_ALERTS_ENABLED
+      alerts: ALL_PUSH_ALERTS_ENABLED,
+      // These subscriptions come from the browser PushManager and were always
+      // delivered with the standard `aes128gcm` encoding; mark them `standard`
+      // so delivery keeps using it now that encoding follows this flag.
+      standard: true
     })
 
     return apiResponse({
