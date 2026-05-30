@@ -108,6 +108,7 @@ const renderNotificationItemWithOptions = (
       currentActorId={options.currentActorId ?? notification.actorId}
       host="llun.social"
       isRead={options.isRead ?? true}
+      currentTime={currentTime}
       observeElement={options.observeElement ?? jest.fn()}
     />
   )
@@ -360,5 +361,68 @@ describe('NotificationItem', () => {
     expect(
       screen.getByText('This notification is no longer available.')
     ).toBeInTheDocument()
+  })
+
+  // The whole-row overlay link is aria-hidden + tabIndex={-1}, so role queries
+  // can't see it; query the DOM directly.
+  const overlayLink = (container: HTMLElement) =>
+    container.querySelector('a[aria-hidden="true"]')
+
+  it.each(['like', 'reply', 'mention', 'reblog'] as const)(
+    'renders a hidden whole-row overlay link to the status for %s notifications',
+    (type) => {
+      const { container } = renderNotificationItem({
+        id: `notification-overlay-${type}`,
+        actorId: 'https://llun.social/users/llun',
+        type,
+        sourceActorId: account.id,
+        statusId: status.id,
+        isRead: true,
+        createdAt: currentTime,
+        updatedAt: currentTime,
+        account,
+        status
+      })
+
+      const overlay = overlayLink(container)
+      expect(overlay).not.toBeNull()
+      expect(overlay).toHaveAttribute('tabindex', '-1')
+      expect(overlay).toHaveAttribute(
+        'href',
+        expect.stringContaining('/@ride@llun.social/')
+      )
+    }
+  )
+
+  it('renders no whole-row overlay link for follow notifications', () => {
+    const { container } = renderNotificationItem({
+      id: 'notification-no-overlay-follow',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow',
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account
+    })
+
+    expect(overlayLink(container)).toBeNull()
+  })
+
+  it('renders no whole-row overlay link when the status is no longer available', () => {
+    const { container } = renderNotificationItem({
+      id: 'notification-overlay-stale',
+      actorId: 'https://llun.social/users/llun',
+      type: 'like',
+      sourceActorId: account.id,
+      statusId: status.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account,
+      status: null
+    })
+
+    expect(overlayLink(container)).toBeNull()
   })
 })

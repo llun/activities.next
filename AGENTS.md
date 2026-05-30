@@ -129,24 +129,48 @@
 
 ## Page Header & Sub-Navigation
 
-- Use `PageHeader` from `@/lib/components/page-header` for every page title in the `(timeline)` route group. It renders the sticky, full-width chrome (translucent background + backdrop blur + bottom border) that the design system expects, and centers the title above the post column.
-- **Section-level sub-navigation (admin tabs, settings tabs, etc.) MUST be rendered inside the page header**, never above it. When a sub-nav scrolls above the sticky page header, the page header visually detaches from the rest of the chrome and the sub-nav disappears on scroll.
-- To add a sub-nav for a new route group, wrap the layout's `{children}` in `PageSubnavProvider` from `@/lib/components/page-header` and pass the rendered tabs as `subnav`. The closest `PageHeader` will read that context and render the tabs directly under the title row, inside the sticky chrome.
+The **design system is the source of truth** for page chrome. There are two
+section-navigation patterns; pick by section type.
+
+- Use `PageHeader` from `@/lib/components/page-header` for every page title in the `(timeline)` route group. By default it renders the sticky, full-width chrome (translucent background + backdrop blur + bottom border) and centers the title above the post column. Pages always call `<PageHeader title="…" description="…" actions={…} />`; they don't need to know which sub-nav pattern (if any) wraps them.
+
+### Vertical nav rail (settings-style sections — the design-system default)
+
+- Settings-style sections (settings, fitness settings) use a **vertical icon nav rail** beside the content, matching the design system: an orange-wash active state (`bg-primary/10 text-primary`), a Lucide icon per item, and **sentence-case** labels ("Blocked accounts", not "Blocked Accounts"). On mobile and tablet (below `lg`) the rail collapses to a dropdown so the content gets the full width.
+- Wrap the layout in `PageHeaderSectionProvider` from `@/lib/components/page-header`. That switches every descendant `PageHeader` into **section mode**: a plain, non-sticky, non-breakout in-panel title block that sits at the top of the content column instead of spanning the rail. Render the rail directly in the layout (do **not** use `PageSubnavProvider` here) and opt the wrapper into the wide layout with `data-layout-width="wide"`.
 
   ```tsx
   // app/(timeline)/<section>/layout.tsx
   'use client'
-  import { PageSubnavProvider } from '@/lib/components/page-header'
+  import { PageHeaderSectionProvider } from '@/lib/components/page-header'
 
   export default function Layout({ children }) {
-    const subnav = (/* tabs strip — desktop tabs + mobile dropdown */)
-    return <PageSubnavProvider subnav={subnav}>{children}</PageSubnavProvider>
+    return (
+      <PageHeaderSectionProvider>
+        <div data-layout-width="wide" className="mx-auto w-full max-w-4xl">
+          {/* dropdown below lg, vertical rail at lg+ */}
+          <div className="flex gap-6 lg:gap-8">
+            {/* <nav> rail … */}
+            <div className="min-w-0 flex-1">{children}</div>
+          </div>
+        </div>
+      </PageHeaderSectionProvider>
+    )
   }
   ```
 
-- Do **not** render the sub-nav directly in the layout JSX (e.g. `<div>{tabs}{children}</div>`) — that puts the sub-nav above the sticky page header in the document, which breaks the design.
-- Pages keep calling `<PageHeader title="…" description="…" actions={…} />` exactly as before; they don't need to know whether a sub-nav exists.
-- See `app/(timeline)/settings/layout.tsx`, `app/(timeline)/admin/layout.tsx`, and `app/(timeline)/settings/fitness/layout.tsx` for working examples.
+- A **nested** sub-nav inside a rail section (e.g. fitness General/Privacy/Strava) renders as a small **in-content segmented control**, not a second rail. See `app/(timeline)/settings/layout.tsx` and `app/(timeline)/settings/fitness/layout.tsx`.
+
+### Sticky-header sub-nav (admin-style sections)
+
+- For sections that keep horizontal tabs inside the sticky header (admin), wrap the layout's `{children}` in `PageSubnavProvider` and pass the rendered tabs as `subnav`. The closest `PageHeader` renders the tabs directly under the title row, inside the sticky chrome. Do **not** render the sub-nav directly in the layout JSX above the header. See `app/(timeline)/admin/layout.tsx`.
+
+  ```tsx
+  import { PageSubnavProvider } from '@/lib/components/page-header'
+
+  // const subnav = (/* tabs strip — desktop tabs + mobile dropdown */)
+  // return <PageSubnavProvider subnav={subnav}>{children}</PageSubnavProvider>
+  ```
 
 ## Settings Forms (Client Components)
 

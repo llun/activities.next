@@ -1,10 +1,10 @@
 'use client'
 
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, User } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { buildNavItems } from '@/lib/components/layout/nav-items'
+import { type NavItem, buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 interface MobileNavProps {
   unreadCount?: number
   fitnessUrl?: string
+  profileUrl?: string
   isAdmin?: boolean
 }
 
@@ -25,10 +26,17 @@ const mobileDirectHrefs = ['/', '/search', '/messages', '/notifications']
 export function MobileNav({
   unreadCount = 0,
   fitnessUrl,
+  profileUrl,
   isAdmin = false
 }: MobileNavProps) {
   const pathname = usePathname()
-  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
+  const profileNavItem: NavItem | null = profileUrl
+    ? { href: profileUrl, label: 'Profile', icon: User }
+    : null
+  const allNavItems = [
+    ...buildNavItems({ fitnessUrl, isAdmin }),
+    ...(profileNavItem ? [profileNavItem] : [])
+  ]
   const hasOverflow = allNavItems.length > 5
   const directNavItems = hasOverflow
     ? mobileDirectHrefs.flatMap((href) => {
@@ -55,6 +63,7 @@ export function MobileNav({
             <li key={item.href} className="min-w-0">
               <Link
                 href={item.href}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors',
                   isActive ? 'text-primary' : 'text-muted-foreground'
@@ -99,6 +108,7 @@ export function MobileNav({
                     <DropdownMenuItem key={item.href} asChild>
                       <Link
                         href={item.href}
+                        aria-current={isActive ? 'page' : undefined}
                         className={cn(
                           'flex items-center gap-2',
                           isActive && 'text-primary'

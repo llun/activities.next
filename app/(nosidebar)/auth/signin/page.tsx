@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
@@ -37,9 +38,21 @@ const Page: FC = async () => {
 
   return (
     <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your account</CardDescription>
+      <CardHeader className="items-center text-center">
+        <Image
+          src="/logo-nav.png"
+          alt=""
+          aria-hidden="true"
+          width={48}
+          height={48}
+          className="mx-auto mb-2 h-12 w-12 object-contain"
+        />
+        <CardTitle className="text-2xl">
+          Sign in to {serviceName ?? 'Activities'}
+        </CardTitle>
+        <CardDescription>
+          Your self-hosted corner of the Fediverse.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {credentialEnabled && (
