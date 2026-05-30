@@ -18,16 +18,23 @@ type AdminApiHandle<P> = (
   }
 ) => Promise<Response> | Response
 
-// Admin endpoints accept either the coarse read/write scopes (kept for
-// backwards compatibility) or Mastodon's aggregate admin scopes. The actor's
-// admin role checked below is the real authorization gate; the scope only has
-// to prove the token was granted read/write-style access. Granular admin scopes
-// (admin:read:domain_blocks, ...) satisfy the aggregate ones via the OAuthGuard
-// hierarchy, so they are accepted too.
+// Admin endpoints accept coarse read/write, the aggregate Mastodon admin
+// scopes, or any of Mastodon's granular admin scopes. The actor's admin role
+// checked inside the guard is the real authorization gate; the scope list only
+// proves the token was granted some form of read/write or admin access.
+// Derived from Scope.options so it stays in sync when new admin scopes are added.
+const ADMIN_GET_SCOPES = Scope.options.filter(
+  (s): s is Scope =>
+    s === 'read' || s === 'admin:read' || s.startsWith('admin:read:')
+)
+
+const ADMIN_MUTATE_SCOPES = Scope.options.filter(
+  (s): s is Scope =>
+    s === 'write' || s === 'admin:write' || s.startsWith('admin:write:')
+)
+
 const getRequiredOAuthScopes = (method: string): Scope[] =>
-  method === HttpMethod.enum.GET
-    ? [Scope.enum.read, Scope.enum['admin:read']]
-    : [Scope.enum.write, Scope.enum['admin:write']]
+  method === HttpMethod.enum.GET ? ADMIN_GET_SCOPES : ADMIN_MUTATE_SCOPES
 
 export const AdminApiGuard =
   <P>(allowedMethods: HttpMethod[], handle: AdminApiHandle<P>) =>
