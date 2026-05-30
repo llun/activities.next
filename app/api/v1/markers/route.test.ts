@@ -1,0 +1,104 @@
+import { NextRequest } from 'next/server'
+
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+
+import { GET, POST } from './route'
+
+const mockGetServerSession = jest.fn()
+jest.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
+}))
+
+let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+jest.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
+
+jest.mock('next/headers', () => ({
+  cookies: jest.fn().mockResolvedValue({
+    get: jest.fn().mockReturnValue(undefined)
+  })
+}))
+
+jest.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: jest.fn()
+}))
+
+jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
+  getConfig: jest.fn().mockReturnValue({
+    allowEmails: [],
+    host: 'llun.test',
+    secretPhase: 'test-secret'
+  })
+}))
+
+describe('/api/v1/markers', () => {
+  const database = getTestSQLDatabase()
+
+  beforeAll(async () => {
+    await database.migrate()
+    await seedDatabase(database)
+    mockDatabase = database
+  })
+
+  afterAll(async () => {
+    mockDatabase = null
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+  })
+
+  it('GET requires authentication', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/markers'),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(401)
+  })
+
+  it('GET returns an empty object when nothing is set', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/markers?timeline[]=home&timeline[]=notifications'
+      ),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({})
+  })
+
+  it('POST upserts and GET reads back the marker', async () => {
+    const postResponse = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({ home: { last_read_id: '4321' } })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(postResponse.status).toBe(200)
+    const posted = await postResponse.json()
+    expect(posted.home).toEqual(
+      expect.objectContaining({ last_read_id: '4321', version: 1 })
+    )
+
+    const getResponse = await GET(
+      new NextRequest('https://llun.test/api/v1/markers?timeline[]=home'),
+      { params: Promise.resolve({}) }
+    )
+    const fetched = await getResponse.json()
+    expect(fetched.home.last_read_id).toBe('4321')
+  })
+})
