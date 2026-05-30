@@ -1694,8 +1694,11 @@ export const Scope = z.enum([
   // Aggregate / push
   'follow',
   'push',
-  // Admin (recognized for client compatibility; admin API access is gated on
-  // the actor's admin role in AdminApiGuard, not on these scopes)
+  // Admin. Only the top-level admin scopes are recognized; the granular
+  // Mastodon admin scopes (admin:read:accounts, admin:write:reports, ...) are
+  // intentionally omitted because this server exposes no granular admin API.
+  // These are recognized for client compatibility only — admin API access is
+  // gated on the actor's admin role in AdminApiGuard, not on these scopes.
   'admin:read',
   'admin:write'
 ])
