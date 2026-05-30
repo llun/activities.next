@@ -5,8 +5,9 @@ import {
 } from './types'
 
 const endpoint = 'https://push.example.com/endpoint/test'
-const p256dh = 'p256dh-key'
-const auth = 'auth-key'
+const p256dh =
+  'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8'
+const auth = 'tBHItJI5svbpez7KI4CCXg'
 
 describe('parseSubscribeInput', () => {
   it('parses a nested JSON body', () => {
@@ -55,6 +56,31 @@ describe('parseSubscribeInput', () => {
         subscription: { endpoint: 'not-a-url', keys: { p256dh, auth } }
       })
     ).toBeNull()
+  })
+
+  it('returns null for malformed or truncated web push keys', () => {
+    expect(
+      parseSubscribeInput({
+        subscription: { endpoint, keys: { p256dh: 'too-short', auth } }
+      })
+    ).toBeNull()
+    expect(
+      parseSubscribeInput({
+        subscription: { endpoint, keys: { p256dh, auth: 'short' } }
+      })
+    ).toBeNull()
+    expect(
+      parseSubscribeInput({
+        subscription: {
+          endpoint,
+          keys: { p256dh: `${p256dh}!!not base64!!`, auth }
+        }
+      })
+    ).toBeNull()
+  })
+
+  it('reads the top-level policy field for updates', () => {
+    expect(parsePolicyInput({ policy: 'none' })).toBe('none')
   })
 })
 

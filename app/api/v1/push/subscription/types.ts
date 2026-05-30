@@ -88,7 +88,11 @@ export const parseAlertsInput = (
 export const parsePolicyInput = (
   body: Record<string, unknown>
 ): PushPolicy | undefined => {
-  const value = readValue(body, ['data', 'policy'])
+  // Mastodon's "change types of notifications" (PUT) documents the policy as a
+  // top-level `policy` field, while "subscribe" (POST) nests it under
+  // `data[policy]`. Accept either so both flows work.
+  const value =
+    readValue(body, ['policy']) ?? readValue(body, ['data', 'policy'])
   if (
     typeof value === 'string' &&
     PUSH_POLICIES.includes(value as PushPolicy)
@@ -97,6 +101,18 @@ export const parsePolicyInput = (
   }
   return undefined
 }
+
+// Web Push keys are base64url-encoded: p256dh is a 65-byte ECDH public key
+// (~87 chars) and auth is a 16-byte secret (~22 chars). Validate the charset
+// and a lenient minimum length so obviously malformed/truncated keys are
+// rejected before they are stored, without being so strict that valid keys
+// (with or without padding) are refused.
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+={0,2}$/
+const MIN_P256DH_LENGTH = 80
+const MIN_AUTH_LENGTH = 16
+
+const isValidWebPushKey = (value: string, minLength: number): boolean =>
+  value.length >= minLength && BASE64URL_PATTERN.test(value)
 
 export interface ParsedSubscribeInput {
   endpoint: string
@@ -121,6 +137,13 @@ export const parseSubscribeInput = (
     !endpoint ||
     !p256dh ||
     !auth
+  ) {
+    return null
+  }
+
+  if (
+    !isValidWebPushKey(p256dh, MIN_P256DH_LENGTH) ||
+    !isValidWebPushKey(auth, MIN_AUTH_LENGTH)
   ) {
     return null
   }

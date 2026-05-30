@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
 
 import { DELETE, GET, POST, PUT } from './route'
+
+const mockGetConfig = getConfig as jest.Mock
 
 const mockOAuthGuard = jest.fn()
 const mockCurrentActor = { ...seedActor1, id: ACTOR1_ID }
@@ -32,6 +35,7 @@ jest.mock('@/lib/database', () => ({
 }))
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+  corsErrorResponse: () => () => new Response(null, { status: 401 }),
   OAuthGuard:
     (
       scopes: Scope[],
@@ -55,8 +59,9 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 }))
 
 const endpoint = 'https://push.example.com/endpoint/test'
-const p256dh = 'test-p256dh-key'
-const auth = 'test-auth-key'
+const p256dh =
+  'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8'
+const auth = 'tBHItJI5svbpez7KI4CCXg'
 
 const storedSubscription = {
   id: 'sub1',
@@ -160,7 +165,6 @@ describe('POST /api/v1/push/subscription', () => {
       })
     )
   })
-
 })
 
 describe('GET /api/v1/push/subscription', () => {
@@ -242,5 +246,47 @@ describe('DELETE /api/v1/push/subscription', () => {
     const res = await DELETE(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
     expect(mockDatabase!.deletePushSubscription).not.toHaveBeenCalled()
+  })
+})
+
+describe('push subscription when push is not configured', () => {
+  it('POST/GET/PUT return 404', async () => {
+    const noPushConfig = {
+      host: 'llun.test',
+      allowEmails: [],
+      allowActorDomains: []
+    }
+    mockGetConfig.mockReturnValue(noPushConfig)
+
+    const post = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: { endpoint, keys: { p256dh, auth } }
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
+    })
+    expect((await POST(post, { params: Promise.resolve({}) })).status).toBe(404)
+    expect(mockDatabase!.createPushSubscription).not.toHaveBeenCalled()
+
+    const get = new NextRequest('http://localhost/api/v1/push/subscription')
+    expect((await GET(get, { params: Promise.resolve({}) })).status).toBe(404)
+
+    const put = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'PUT',
+      body: JSON.stringify({ policy: 'none' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
+    })
+    expect((await PUT(put, { params: Promise.resolve({}) })).status).toBe(404)
+
+    mockGetConfig.mockReturnValue({
+      ...noPushConfig,
+      push: { vapidPublicKey: 'test-vapid-public-key' }
+    })
   })
 })

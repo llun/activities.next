@@ -28,6 +28,14 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // GET /api/v1/accounts — fetch multiple accounts by id.
 // https://docs.joinmastodon.org/methods/accounts/#index
+//
+// Intentionally public (no OAuthGuard), matching the Mastodon spec which lists
+// this index endpoint as public. The single-account endpoint
+// (`app/api/v1/accounts/[id]/route.ts`) requires `read` because it also serves
+// the authenticated client UI, but the data returned here is the same
+// already-public actor profile exposed over ActivityPub, WebFinger, and the
+// public profile pages, so requiring auth would diverge from Mastodon without
+// protecting anything that is not already public.
 export const GET = traceApiRoute(
   'getAccounts',
   async (request: NextRequest) => {

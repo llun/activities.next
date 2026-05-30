@@ -104,7 +104,13 @@ export const sendPushNotification = async (params: {
     if (!shouldSend) return
   }
 
-  const subscriptions = await database.getPushSubscriptionsForActor({ actorId })
+  const allSubscriptions = await database.getPushSubscriptionsForActor({
+    actorId
+  })
+  // Honor the Mastodon WebPushSubscription policy: `none` opts a subscription
+  // out of all push notifications. (`followed`/`follower` require relationship
+  // checks against the source actor and are not yet enforced here.)
+  const subscriptions = allSubscriptions.filter((sub) => sub.policy !== 'none')
   if (subscriptions.length === 0) return
 
   initVapid()
