@@ -3,7 +3,10 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
-import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
+import {
+  DEFAULT_GROUPABLE_TYPES,
+  mastodonTypesToInternal
+} from '@/lib/services/notifications/notificationTypeMapping'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -89,11 +92,13 @@ export const GET = traceApiRoute(
       account_id: accountId
     } = parsed.data
 
+    // Default to Mastodon's groupable types so mentions/replies are counted
+    // individually when grouped_types is omitted (matches the list endpoint).
     const internalGroupedTypes = groupedTypesMastodon
       ? new Set(
           mastodonTypesToInternal(groupedTypesMastodon) as NotificationType[]
         )
-      : undefined
+      : new Set(DEFAULT_GROUPABLE_TYPES)
 
     // Fetch MAX_LIMIT rows so grouping produces an accurate group count regardless
     // of how many individual rows belong to the same group. We cap after grouping.

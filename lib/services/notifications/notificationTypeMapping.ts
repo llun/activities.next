@@ -1,6 +1,18 @@
 import { NotificationType } from '@/lib/types/database/operations'
 
 /**
+ * The internal notification types Mastodon groups by default when a client does
+ * not pass `grouped_types[]`. Mastodon only groups favourites, reblogs and
+ * follows by default; mentions/replies and "status" (a followed account posted)
+ * stay individual unless the client explicitly opts into grouping them.
+ */
+export const DEFAULT_GROUPABLE_TYPES: ReadonlySet<NotificationType> = new Set([
+  NotificationType.enum.like,
+  NotificationType.enum.reblog,
+  NotificationType.enum.follow
+])
+
+/**
  * Maps a Mastodon notification type name to this codebase's internal
  * NotificationType values. Returns an array because some Mastodon types cover
  * multiple internal types: Mastodon `mention` maps to both internal `mention`

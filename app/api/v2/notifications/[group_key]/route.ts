@@ -1,7 +1,10 @@
 import { getDatabase } from '@/lib/database'
 import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { getNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
+import {
+  getNotificationGroupsEnvelope,
+  prepareGroupedNotifications
+} from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -62,14 +65,16 @@ export const GET = traceApiRoute(
         'notifications'
       )
 
-      // Disable grouping for ungrouped- keys so the stored groupKey is not used
-      // and the returned group_key matches the client's request.
+      // For ungrouped- keys, disable grouping so the stored groupKey is not used
+      // and the returned group_key matches the client's request. Otherwise use
+      // prepareGroupedNotifications so legacy null-key follow rows get the
+      // synthetic 'follow' key and merge into a single group, matching the list.
+      const grouped = rawGroupKey.startsWith('ungrouped-')
+        ? groupNotifications(notifications, false)
+        : prepareGroupedNotifications(notifications)
       const envelope = await getNotificationGroupsEnvelope(
         database,
-        groupNotifications(
-          notifications,
-          !rawGroupKey.startsWith('ungrouped-')
-        ),
+        grouped,
         currentActor.id,
         filterRecords
       )

@@ -594,6 +594,38 @@ describe('Notification Database', () => {
         expect(notifications).toHaveLength(2)
       })
 
+      it('does not dismiss filtered rows sharing the group key', async () => {
+        // A pending policy-filtered like sharing the same group key.
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.like,
+          sourceActorId: 'https://example.com/users/actor4',
+          statusId,
+          groupKey: `like:${statusId}`,
+          filtered: true
+        })
+
+        await database.dismissNotificationGroup({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`
+        })
+
+        // Visible rows are gone, the filtered request row survives.
+        const visible = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`,
+          includeFiltered: false
+        })
+        expect(visible).toHaveLength(0)
+        const withFiltered = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`,
+          includeFiltered: true
+        })
+        expect(withFiltered).toHaveLength(1)
+        expect(withFiltered[0].filtered).toBe(true)
+      })
+
       it('dismisses both legacy and persisted follow rows', async () => {
         await database.createNotification({
           actorId: actor1Id,

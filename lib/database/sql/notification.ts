@@ -433,10 +433,15 @@ export const NotificationSQLDatabaseMixin = (
     actorId,
     groupKey
   }: NotificationGroupKeyParams) {
+    // Only dismiss visible (non-filtered) rows. Policy-filtered notifications can
+    // share a groupKey with visible ones but live in the requests queue; deleting
+    // them here would silently discard pending requests the user never saw.
     await applyGroupKeyMatch(
       database('notifications').where('actorId', actorId),
       groupKey
-    ).delete()
+    )
+      .andWhere('filtered', false)
+      .delete()
   },
 
   async deleteNotification(notificationId: string) {

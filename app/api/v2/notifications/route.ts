@@ -8,7 +8,10 @@ import {
   getNotificationGroupsEnvelope,
   prepareGroupedNotifications
 } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
-import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
+import {
+  DEFAULT_GROUPABLE_TYPES,
+  mastodonTypesToInternal
+} from '@/lib/services/notifications/notificationTypeMapping'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -131,11 +134,13 @@ export const GET = traceApiRoute(
       ? notifications.filter((n) => urlToId(n.sourceActorId) === accountId)
       : notifications
 
+    // When grouped_types is omitted, fall back to Mastodon's default groupable
+    // types (favourite/reblog/follow) so mentions/replies are not collapsed.
     const internalGroupedTypes = groupedTypesMastodon
       ? new Set(
           mastodonTypesToInternal(groupedTypesMastodon) as NotificationType[]
         )
-      : undefined
+      : new Set(DEFAULT_GROUPABLE_TYPES)
 
     // include_filtered controls only the DB-level filter flag (NotificationPolicy).
     // Content filters (keyword/status hide rules) are applied regardless.
