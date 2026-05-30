@@ -1,4 +1,5 @@
 import { getDatabase } from '@/lib/database'
+import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
@@ -39,10 +40,11 @@ export const GET = traceApiRoute(
       const groupKey = rawGroupKey.startsWith('ungrouped-')
         ? rawGroupKey.slice('ungrouped-'.length)
         : rawGroupKey
+      // Mirror the list endpoint: hide policy-filtered notifications by default.
       const notifications = await database.getNotificationsForGroupKey({
         actorId: currentActor.id,
         groupKey,
-        includeFiltered: true
+        includeFiltered: false
       })
       if (notifications.length === 0) {
         return apiResponse({
@@ -53,6 +55,13 @@ export const GET = traceApiRoute(
         })
       }
 
+      // Apply the same content filters as the list route.
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor.id,
+        'notifications'
+      )
+
       // Disable grouping for ungrouped- keys so the stored groupKey is not used
       // and the returned group_key matches the client's request.
       const envelope = await getNotificationGroupsEnvelope(
@@ -61,7 +70,8 @@ export const GET = traceApiRoute(
           notifications,
           !rawGroupKey.startsWith('ungrouped-')
         ),
-        currentActor.id
+        currentActor.id,
+        filterRecords
       )
 
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: envelope })

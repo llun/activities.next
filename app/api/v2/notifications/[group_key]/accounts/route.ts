@@ -38,10 +38,11 @@ export const GET = traceApiRoute(
       const groupKey = rawGroupKey.startsWith('ungrouped-')
         ? rawGroupKey.slice('ungrouped-'.length)
         : rawGroupKey
+      // Mirror the list endpoint: hide policy-filtered notifications by default.
       const notifications = await database.getNotificationsForGroupKey({
         actorId: currentActor.id,
         groupKey,
-        includeFiltered: true
+        includeFiltered: false
       })
       if (notifications.length === 0) {
         return apiResponse({
