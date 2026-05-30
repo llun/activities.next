@@ -13,7 +13,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 // ignored here; wiring them through the media-storage pipeline is a follow-up.
 const UpdateCredentialsRequest = z.object({
   display_name: z.string().max(255).optional(),
-  note: z.string().optional(),
+  note: z.string().max(500).optional(),
   locked: z.union([z.boolean(), z.string()]).optional()
 })
 
@@ -42,7 +42,9 @@ export const PATCH = traceApiRoute(
 
       let fields: Record<string, unknown>
       try {
-        const contentType = req.headers.get('content-type') ?? ''
+        const contentType = (
+          req.headers.get('content-type') ?? ''
+        ).toLowerCase()
         if (contentType.includes('application/json')) {
           const json = await req.json()
           const rawFields: Record<string, unknown> = {}

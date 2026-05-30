@@ -28,6 +28,14 @@ const toMarkerRow = (row: SQLMarker): MarkerRow => ({
   updatedAt: getCompatibleTime(row.updatedAt)
 })
 
+const isNewer = (incoming: string, current: string): boolean => {
+  try {
+    return BigInt(incoming) > BigInt(current)
+  } catch {
+    return incoming > current
+  }
+}
+
 export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
   async getMarkers({ actorId, timelines }: GetMarkersParams) {
     if (timelines.length === 0) return []
@@ -59,6 +67,8 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
       .first()
 
     if (existing) {
+      if (!isNewer(lastReadId, existing.lastReadId))
+        return toMarkerRow(existing)
       return incrementAndUpdate()
     }
 
@@ -86,6 +96,8 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
         .where({ actorId, timeline })
         .first()
       if (duplicated) {
+        if (!isNewer(lastReadId, duplicated.lastReadId))
+          return toMarkerRow(duplicated)
         return incrementAndUpdate()
       }
       throw error

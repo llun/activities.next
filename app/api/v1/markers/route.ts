@@ -53,7 +53,7 @@ export const GET = traceApiRoute(
 )
 
 const parseBody = async (req: Request): Promise<unknown> => {
-  const contentType = req.headers.get('content-type') ?? ''
+  const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
   if (contentType.includes('application/json')) {
     return req.json()
   }
