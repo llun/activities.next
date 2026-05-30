@@ -87,7 +87,7 @@ const Layout: FC<Props> = ({ children }) => {
 
         <div className="flex gap-6 lg:gap-8">
           {/* Desktop: vertical nav rail */}
-          <nav className="hidden w-52 shrink-0 lg:block">
+          <nav aria-label="Settings" className="hidden w-52 shrink-0 lg:block">
             <ul className="sticky top-4 space-y-1">
               {tabs.map((tab) => {
                 const isActive = tab.url === activeTab.url
@@ -95,6 +95,7 @@ const Layout: FC<Props> = ({ children }) => {
                   <li key={tab.url}>
                     <Link
                       href={tab.url}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cn(
                         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                         isActive

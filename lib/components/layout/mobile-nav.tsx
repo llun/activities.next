@@ -63,6 +63,7 @@ export function MobileNav({
             <li key={item.href} className="min-w-0">
               <Link
                 href={item.href}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors',
                   isActive ? 'text-primary' : 'text-muted-foreground'
@@ -107,6 +108,7 @@ export function MobileNav({
                     <DropdownMenuItem key={item.href} asChild>
                       <Link
                         href={item.href}
+                        aria-current={isActive ? 'page' : undefined}
                         className={cn(
                           'flex items-center gap-2',
                           isActive && 'text-primary'

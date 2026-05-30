@@ -166,18 +166,21 @@ export const NotificationItem = ({
         />
       )}
       {statusPath && (
+        // Whole-row overlay link. Kept out of the tab order and hidden from
+        // assistive tech (aria-hidden + tabIndex={-1}) because every overlaid
+        // notification already renders a real inner "post" link to the same
+        // status — this avoids a duplicate tab stop / redundant SR link while
+        // preserving the full-row mouse click target.
         <Link
           href={statusPath}
-          aria-label="Open related post"
+          aria-hidden="true"
+          tabIndex={-1}
           className="absolute inset-0 rounded-xl"
         />
       )}
-      <span className="pointer-events-none absolute right-4 top-4 z-10 text-xs text-muted-foreground">
-        {relativeCreatedAt}
-      </span>
       <div
         className={cn(
-          'relative z-10 pr-14',
+          'relative z-10 flex items-start gap-3',
           // Only neutralise pointer events when the whole-row overlay link is
           // present, so it catches clicks on empty areas while inner links and
           // buttons stay interactive. Without an overlay (follow / follow
@@ -186,7 +189,10 @@ export const NotificationItem = ({
             'pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto'
         )}
       >
-        {content}
+        <div className="min-w-0 flex-1">{content}</div>
+        <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+          {relativeCreatedAt}
+        </span>
       </div>
     </div>
   )
