@@ -62,9 +62,17 @@ const parseBody = async (req: Request): Promise<unknown> => {
     return req.json()
   }
   // Mastodon clients send form fields like `home[last_read_id]`.
-  const params = new URLSearchParams(await req.text())
+  // multipart/form-data is parsed via req.formData() at runtime; the
+  // urlencoded branch uses URLSearchParams. Both are iterable as [string, …].
+  // NOTE: req.formData() is runtime-only — not exercised by unit tests (jest
+  // synthetic bodies throw); only the urlencoded/json branches are unit-tested.
+  const entries: Iterable<[string, FormDataEntryValue | string]> =
+    contentType.includes('multipart/form-data')
+      ? await req.formData()
+      : new URLSearchParams(await req.text())
   const body: Record<string, { last_read_id?: string }> = {}
-  for (const [key, value] of params.entries()) {
+  for (const [key, value] of entries) {
+    if (typeof value !== 'string') continue
     const match = key.match(/^(home|notifications)\[last_read_id\]$/)
     if (match) {
       body[match[1]] = { last_read_id: value }
