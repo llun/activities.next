@@ -1648,48 +1648,63 @@ export type UpdateNotificationPolicyParams = {
 // OAuth Database
 // ============================================================================
 
+// OAuth scope vocabulary. This is the compatibility contract with Mastodon
+// clients: Mastodon rejects unknown scopes both at app registration and at the
+// authorize endpoint, so any scope a real Mastodon client may request must be
+// recognized here or the client cannot connect at all. The list mirrors the
+// documented Mastodon OAuth scopes (https://docs.joinmastodon.org/api/oauth-scopes/),
+// plus the OpenID Connect scopes (openid/email) this server also issues, and
+// the legacy server-specific `read:conversations` scope kept for existing
+// clients. Granting a coarse scope (read/write) still satisfies routes that
+// require a granular one via the scope hierarchy in OAuthGuard.
 export const Scope = z.enum([
+  // OpenID Connect
   'openid',
   'profile',
   'email',
+  // Read
   'read',
   'read:accounts',
+  'read:blocks',
   'read:bookmarks',
   'read:conversations',
+  'read:favourites',
   'read:filters',
+  'read:follows',
+  'read:lists',
+  'read:mutes',
+  'read:notifications',
   'read:search',
   'read:statuses',
+  // Write
   'write',
   'write:accounts',
+  'write:blocks',
   'write:bookmarks',
-  'write:statuses',
   'write:conversations',
+  'write:favourites',
   'write:filters',
+  'write:follows',
+  'write:lists',
+  'write:media',
+  'write:mutes',
+  'write:notifications',
+  'write:reports',
+  'write:statuses',
+  // Aggregate / push
   'follow',
-  'push'
+  'push',
+  // Admin (recognized for client compatibility; admin API access is gated on
+  // the actor's admin role in AdminApiGuard, not on these scopes)
+  'admin:read',
+  'admin:write'
 ])
 export type Scope = z.infer<typeof Scope>
 
-export const UsableScopes = [
-  Scope.enum.openid,
-  Scope.enum.profile,
-  Scope.enum.email,
-  Scope.enum.read,
-  Scope.enum['read:accounts'],
-  Scope.enum['read:bookmarks'],
-  Scope.enum['read:conversations'],
-  Scope.enum['read:filters'],
-  Scope.enum['read:search'],
-  Scope.enum['read:statuses'],
-  Scope.enum.write,
-  Scope.enum['write:accounts'],
-  Scope.enum['write:bookmarks'],
-  Scope.enum['write:statuses'],
-  Scope.enum['write:conversations'],
-  Scope.enum['write:filters'],
-  Scope.enum.follow,
-  Scope.enum.push
-]
+// Single source of truth for the scopes the server registers, authorizes, and
+// advertises in OAuth/OpenID metadata. Derived from the enum so the registration
+// validator, better-auth provider config, and `scopes_supported` can never drift.
+export const UsableScopes = Scope.options
 
 export const GetClientFromNameParams = z.object({
   name: z.string()
