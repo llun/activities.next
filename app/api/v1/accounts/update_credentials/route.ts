@@ -21,6 +21,18 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.PATCH]
 
 const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
+const ALLOWED_FIELDS = ['display_name', 'note', 'locked'] as const
+
+const pickAllowedFields = (
+  source: Record<string, unknown>
+): Record<string, unknown> => {
+  const result: Record<string, unknown> = {}
+  for (const key of ALLOWED_FIELDS) {
+    if (source[key] !== undefined) result[key] = source[key]
+  }
+  return result
+}
+
 const parseBoolean = (
   value: string | boolean | undefined
 ): boolean | undefined => {
@@ -59,17 +71,18 @@ export const PATCH = traceApiRoute(
             })
           }
           if (typeof json === 'object' && json !== null) {
-            fields = json as Record<string, unknown>
+            fields = pickAllowedFields(json as Record<string, unknown>)
           }
         }
       } else {
         try {
           const form = await req.formData()
-          fields = Object.fromEntries(
+          const record = Object.fromEntries(
             Array.from(form.entries())
               .filter(([, value]) => typeof value === 'string')
               .map(([key, value]) => [key, value as string])
           )
+          fields = pickAllowedFields(record)
         } catch {
           fields = {}
         }

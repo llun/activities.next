@@ -205,6 +205,47 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(response.status).toBe(400)
   })
 
+  it('ignores unknown/unexpected fields (no mass assignment)', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          display_name: 'Safe',
+          id: 'attacker',
+          role: 'admin',
+          privateKey: 'x',
+          publicKey: 'y'
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Safe' })
+    )
+    expect(updateActor).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: expect.anything() })
+    )
+    expect(updateActor).not.toHaveBeenCalledWith(
+      expect.objectContaining({ role: expect.anything() })
+    )
+    expect(updateActor).not.toHaveBeenCalledWith(
+      expect.objectContaining({ privateKey: expect.anything() })
+    )
+    expect(updateActor).not.toHaveBeenCalledWith(
+      expect.objectContaining({ publicKey: expect.anything() })
+    )
+    updateActor.mockRestore()
+  })
+
   it('accepts an empty JSON body as a no-op (200)', async () => {
     const updateActor = jest.spyOn(database, 'updateActor')
     const req = new NextRequest(
