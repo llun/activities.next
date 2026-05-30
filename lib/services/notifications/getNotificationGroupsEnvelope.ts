@@ -143,22 +143,14 @@ export const getNotificationGroupsEnvelope = async (
   return { notification_groups, accounts, statuses: prunedStatuses }
 }
 
-// Groups notifications and injects a synthetic 'follow' groupKey for follow
-// notifications that have no DB-level groupKey. Returns the GroupedNotification
-// array without resolving accounts/statuses — callers can slice before hydrating.
+// Groups notifications for the grouped-notifications envelope. New follow rows
+// carry a day-bucketed 'follow:<day>' key from creation; legacy follows without
+// a stored groupKey stay individual (addressable via their notification id).
 export const prepareGroupedNotifications = (
   notifications: Notification[],
   groupedTypes?: Set<NotificationType>
-): GroupedNotification[] => {
-  const canGroupFollows =
-    !groupedTypes || groupedTypes.has(NotificationType.enum.follow)
-  const prepared = notifications.map((n) =>
-    n.type === NotificationType.enum.follow && !n.groupKey && canGroupFollows
-      ? { ...n, groupKey: 'follow' }
-      : n
-  )
-  return groupNotifications(prepared, true, groupedTypes)
-}
+): GroupedNotification[] =>
+  groupNotifications(notifications, true, groupedTypes)
 
 // Convenience: group raw notifications then build the envelope.
 export const buildNotificationGroupsEnvelope = (

@@ -27,22 +27,14 @@ const fixNotificationDataDate = (data: Notification): Notification => ({
   readAt: data.readAt ? getCompatibleTime(data.readAt) : undefined
 })
 
-// The synthetic 'follow' group key (see prepareGroupedNotifications) groups every
-// follow notification — including legacy rows persisted before the groupKey
-// backfill, which have a null groupKey. Match those legacy rows too so the
-// detail/accounts/dismiss routes resolve and dismiss the whole follow group.
-const FOLLOW_GROUP_KEY = 'follow'
+// Match a group by its shared groupKey (e.g. 'like:<status>' or 'follow:<day>')
+// or, for ungrouped notifications, by the notification id itself.
 const applyGroupKeyMatch = (
   builder: Knex.QueryBuilder,
   groupKey: string
 ): Knex.QueryBuilder =>
   builder.where(function () {
     this.where('groupKey', groupKey).orWhere('id', groupKey)
-    if (groupKey === FOLLOW_GROUP_KEY) {
-      this.orWhere(function () {
-        this.where('type', FOLLOW_GROUP_KEY).whereNull('groupKey')
-      })
-    }
   })
 
 export const NotificationSQLDatabaseMixin = (

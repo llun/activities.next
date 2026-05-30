@@ -572,26 +572,48 @@ describe('Notification Database', () => {
         expect(remaining).toHaveLength(0)
       })
 
-      it('resolves legacy and persisted follow rows under the follow key', async () => {
-        // Legacy follow row created before the groupKey backfill (no groupKey).
+      it('resolves persisted day-bucketed follow rows under their bucket key', async () => {
+        // Two follows in the same day bucket share the persisted key.
         await database.createNotification({
           actorId: actor1Id,
           type: NotificationType.enum.follow,
-          sourceActorId: actor2Id
+          sourceActorId: actor2Id,
+          groupKey: 'follow:20000'
         })
-        // New follow row with the persisted synthetic key.
         await database.createNotification({
           actorId: actor1Id,
           type: NotificationType.enum.follow,
           sourceActorId: 'https://example.com/users/actor3',
-          groupKey: 'follow'
+          groupKey: 'follow:20000'
+        })
+        // A follow in a different day bucket is a separate group.
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: 'https://example.com/users/actor4',
+          groupKey: 'follow:20001'
         })
 
-        const notifications = await database.getNotificationsForGroupKey({
+        const bucket = await database.getNotificationsForGroupKey({
           actorId: actor1Id,
-          groupKey: 'follow'
+          groupKey: 'follow:20000'
         })
-        expect(notifications).toHaveLength(2)
+        expect(bucket).toHaveLength(2)
+      })
+
+      it('resolves a legacy null-key follow row by its notification id', async () => {
+        const legacy = await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id
+        })
+
+        const byId = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: legacy.id
+        })
+        expect(byId).toHaveLength(1)
+        expect(byId[0].id).toBe(legacy.id)
       })
 
       it('does not dismiss filtered rows sharing the group key', async () => {
@@ -626,27 +648,28 @@ describe('Notification Database', () => {
         expect(withFiltered[0].filtered).toBe(true)
       })
 
-      it('dismisses both legacy and persisted follow rows', async () => {
+      it('dismisses every follow row in a day bucket', async () => {
         await database.createNotification({
           actorId: actor1Id,
           type: NotificationType.enum.follow,
-          sourceActorId: actor2Id
+          sourceActorId: actor2Id,
+          groupKey: 'follow:20000'
         })
         await database.createNotification({
           actorId: actor1Id,
           type: NotificationType.enum.follow,
           sourceActorId: 'https://example.com/users/actor3',
-          groupKey: 'follow'
+          groupKey: 'follow:20000'
         })
 
         await database.dismissNotificationGroup({
           actorId: actor1Id,
-          groupKey: 'follow'
+          groupKey: 'follow:20000'
         })
 
         const remaining = await database.getNotificationsForGroupKey({
           actorId: actor1Id,
-          groupKey: 'follow'
+          groupKey: 'follow:20000'
         })
         expect(remaining).toHaveLength(0)
       })

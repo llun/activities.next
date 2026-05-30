@@ -13,6 +13,7 @@ import {
   getTextContent as getFollowRequestTextContent
 } from '@/lib/services/email/templates/followRequest'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
+import { followGroupKey } from '@/lib/services/notifications/followGrouping'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -108,13 +109,14 @@ export const createFollower = async ({
 
     const [, followNotification] = await Promise.all([
       acceptFollow(targetActor, followerActor.inboxUrl, followRequest),
-      // Create follow notification (auto-accepted)
+      // Create follow notification (auto-accepted). Bucket follows by UTC day so
+      // they group within a bounded window instead of one ever-growing group.
       createNotificationWithPolicy(database, {
         actorId: targetActor.id,
         type: NotificationType.enum.follow,
         sourceActorId: followerActor.id,
         followId: follow.id,
-        groupKey: 'follow'
+        groupKey: followGroupKey(Date.now())
       })
     ])
 

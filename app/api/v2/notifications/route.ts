@@ -154,24 +154,43 @@ export const GET = traceApiRoute(
       'notifications'
     )
 
-    // Prepare groups (follow-groupKey injection + groupNotifications) and slice
-    // to limit BEFORE resolving accounts/statuses to avoid unnecessary DB work.
-    const groupedSlice = prepareGroupedNotifications(
+    // Build the envelope over ALL accumulated groups, then slice the SURVIVING
+    // groups to `limit`. Slicing before the envelope would let hide-filtered,
+    // deleted, or actorless groups (which the envelope drops) consume the page
+    // limit and underfill — or empty — a page while visible groups exist later.
+    const allGroups = prepareGroupedNotifications(
       filtered,
       internalGroupedTypes
-    ).slice(0, limit)
-    const envelope = await getNotificationGroupsEnvelope(
+    )
+    const fullEnvelope = await getNotificationGroupsEnvelope(
       database,
-      groupedSlice,
+      allGroups,
       currentActor.id,
       filterRecords
     )
+    const survivingGroups = fullEnvelope.notification_groups.slice(0, limit)
+    const keptStatusIds = new Set(
+      survivingGroups.map((g) => g.status_id).filter(Boolean)
+    )
+    const keptActorIds = new Set(
+      survivingGroups.flatMap((g) => g.sample_account_ids)
+    )
+    const envelope = {
+      notification_groups: survivingGroups,
+      accounts: fullEnvelope.accounts.filter((a) => keptActorIds.has(a.id)),
+      statuses: fullEnvelope.statuses.filter((s) => keptStatusIds.has(s.id))
+    }
 
     // Pagination cursor for "next": use the last raw notification BEFORE the first
     // gap (first notification not part of any returned group). This prevents
     // skipping intervening groups when a returned group spans non-contiguous rows.
+    // Map each surviving group back to its source rows via its group_key.
+    const groupByKey = new Map(allGroups.map((g) => [g.groupKey ?? g.id, g]))
     const sliceNotificationIds = new Set(
-      groupedSlice.flatMap((g) => [g.id, ...(g.groupedIds ?? [])])
+      survivingGroups.flatMap((g) => {
+        const src = groupByKey.get(g.group_key)
+        return src ? [src.id, ...(src.groupedIds ?? [])] : []
+      })
     )
     const firstGapIndex = filtered.findIndex(
       (n) => !sliceNotificationIds.has(n.id)
@@ -194,7 +213,7 @@ export const GET = traceApiRoute(
       return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
     }
     const links =
-      groupedSlice.length > 0 && maxIdCursorNotification
+      survivingGroups.length > 0 && maxIdCursorNotification
         ? [
             buildLink('max_id', maxIdCursorNotification.id),
             buildLink('min_id', filtered[0].id)
