@@ -46,15 +46,17 @@ describe('GET /api/v1/accounts', () => {
     expect(mockDatabase!.getMastodonActorsFromIds).not.toHaveBeenCalled()
   })
 
-  it('returns the requested accounts for id[] params', async () => {
+  it('returns the requested accounts for id[] params and decodes the ids', async () => {
     const req = new NextRequest(
       'http://localhost/api/v1/accounts?id[]=abc&id[]=def'
     )
     const res = await GET(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([mastodonAccount])
+    // Each encoded id is decoded via idToUrl before the DB lookup; a plain
+    // (non-`apurl_`) value like `abc` decodes to `https://abc/`.
     expect(mockDatabase!.getMastodonActorsFromIds).toHaveBeenCalledWith({
-      ids: expect.arrayContaining([expect.any(String)])
+      ids: ['https://abc/', 'https://def/']
     })
   })
 

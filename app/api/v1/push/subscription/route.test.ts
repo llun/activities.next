@@ -289,4 +289,26 @@ describe('push subscription when push is not configured', () => {
       push: { vapidPublicKey: 'test-vapid-public-key' }
     })
   })
+
+  it('DELETE still succeeds when push is not configured (cleanup is always allowed)', async () => {
+    const noPushConfig = {
+      host: 'llun.test',
+      allowEmails: [],
+      allowActorDomains: []
+    }
+    mockGetConfig.mockReturnValue(noPushConfig)
+
+    const del = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'DELETE',
+      headers: { Origin: 'http://localhost' }
+    })
+    const res = await DELETE(del, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({})
+
+    mockGetConfig.mockReturnValue({
+      ...noPushConfig,
+      push: { vapidPublicKey: 'test-vapid-public-key' }
+    })
+  })
 })

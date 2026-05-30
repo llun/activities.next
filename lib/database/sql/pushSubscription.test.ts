@@ -50,12 +50,21 @@ describe('PushSubscription Database', () => {
           actorId: actor2Id,
           endpoint: endpoint2,
           p256dh: 'newKey',
-          auth: 'newAuth'
+          auth: 'newAuth',
+          alerts: { mention: true, favourite: true },
+          policy: 'followed',
+          standard: true
         })
 
         expect(updated.p256dh).toBe('newKey')
         expect(updated.auth).toBe('newAuth')
         expect(updated.actorId).toBe(actor2Id)
+        // The upsert merge must also persist the new alert/policy/standard
+        // fields, not just the keys.
+        expect(updated.alerts.mention).toBe(true)
+        expect(updated.alerts.favourite).toBe(true)
+        expect(updated.policy).toBe('followed')
+        expect(updated.standard).toBe(true)
       })
 
       it('defaults alerts, policy and standard', async () => {
