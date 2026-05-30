@@ -172,6 +172,30 @@ describe('/api/v1/markers', () => {
     expect(data).toEqual({})
   })
 
+  it('GET accepts bare timeline param (no brackets)', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({ home: { last_read_id: 'Z' } })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/markers?timeline=home'),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.home.last_read_id).toBe('Z')
+  })
+
   it('GET without timeline[] returns empty object even when markers exist', async () => {
     // First POST a marker so one exists for this actor
     await POST(

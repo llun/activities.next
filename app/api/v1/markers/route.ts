@@ -34,7 +34,11 @@ export const GET = traceApiRoute(
     [Scope.enum.read, Scope.enum['read:statuses']],
     async (req, context) => {
       const { currentActor, database } = context
-      const requested = new URL(req.url).searchParams.getAll('timeline[]')
+      const url = new URL(req.url)
+      const requested = [
+        ...url.searchParams.getAll('timeline[]'),
+        ...url.searchParams.getAll('timeline')
+      ]
       const timelines = requested.filter((value): value is MarkerTimeline =>
         TIMELINES.includes(value as MarkerTimeline)
       )

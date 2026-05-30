@@ -53,6 +53,11 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
           updatedAt,
           version: database.raw('?? + 1', ['version'])
         })
+      const row = await database<SQLMarker>('markers')
+        .where({ actorId, timeline })
+        .first()
+      if (row) return toMarkerRow(row)
+      // Row was concurrently deleted after the update; return the values this request applied.
       return {
         actorId,
         timeline: timeline as MarkerTimeline,
