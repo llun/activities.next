@@ -1,6 +1,7 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
 describe('MarkerSQLDatabaseMixin', () => {
   const database = getTestSQLDatabase()
@@ -53,8 +54,19 @@ describe('MarkerSQLDatabaseMixin', () => {
   })
 
   it('reads back only the requested timelines', async () => {
+    // Use a distinct actor so this test is self-contained regardless of order.
+    await database.upsertMarker({
+      actorId: ACTOR2_ID,
+      timeline: 'home',
+      lastReadId: '200'
+    })
+    await database.upsertMarker({
+      actorId: ACTOR2_ID,
+      timeline: 'notifications',
+      lastReadId: '300'
+    })
     const markers = await database.getMarkers({
-      actorId: ACTOR1_ID,
+      actorId: ACTOR2_ID,
       timelines: ['home']
     })
     expect(markers).toHaveLength(1)

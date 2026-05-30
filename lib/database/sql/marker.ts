@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
   GetMarkersParams,
   MarkerDatabase,
@@ -38,38 +39,58 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
 
   async upsertMarker({ actorId, timeline, lastReadId }: UpsertMarkerParams) {
     const updatedAt = new Date()
-    const existing = await database<SQLMarker>('markers')
-      .where({ actorId, timeline })
-      .first()
 
-    if (existing) {
+    const incrementAndUpdate = async (
+      existing: SQLMarker
+    ): Promise<MarkerRow> => {
       const version = Number(existing.version) + 1
       await database<SQLMarker>('markers')
         .where({ actorId, timeline })
         .update({ lastReadId, version, updatedAt })
       return {
         actorId,
-        timeline,
+        timeline: timeline as MarkerTimeline,
         lastReadId,
         version,
         updatedAt: getCompatibleTime(updatedAt)
       }
     }
 
-    await database<SQLMarker>('markers').insert({
-      id: randomUUID(),
-      actorId,
-      timeline,
-      lastReadId,
-      version: 1,
-      updatedAt
-    })
-    return {
-      actorId,
-      timeline,
-      lastReadId,
-      version: 1,
-      updatedAt: getCompatibleTime(updatedAt)
+    const existing = await database<SQLMarker>('markers')
+      .where({ actorId, timeline })
+      .first()
+
+    if (existing) {
+      return incrementAndUpdate(existing)
+    }
+
+    try {
+      await database<SQLMarker>('markers').insert({
+        id: randomUUID(),
+        actorId,
+        timeline,
+        lastReadId,
+        version: 1,
+        updatedAt
+      })
+      return {
+        actorId,
+        timeline: timeline as MarkerTimeline,
+        lastReadId,
+        version: 1,
+        updatedAt: getCompatibleTime(updatedAt)
+      }
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+
+      // Race: another request inserted between our SELECT and INSERT — update it.
+      const duplicated = await database<SQLMarker>('markers')
+        .where({ actorId, timeline })
+        .first()
+      if (duplicated) {
+        return incrementAndUpdate(duplicated)
+      }
+      throw error
     }
   }
 })
