@@ -2,11 +2,28 @@ import webpush from 'web-push'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/types/database/operations'
+import { NotificationType, PushAlerts } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { shouldSendPushForNotification } from './pushNotificationSettings'
+
+// Maps this app's internal NotificationType to the Mastodon WebPushSubscription
+// alert key, so a subscription that disabled an alert (e.g. `mention`) is not
+// sent that notification. `activity_import` maps to the Mastodon `status`
+// alert (see `notificationTypeMapping.ts`, where Mastodon `status` ↔ internal
+// `activity_import`).
+const NOTIFICATION_TYPE_TO_ALERT: Partial<
+  Record<NotificationType, keyof PushAlerts>
+> = {
+  follow: 'follow',
+  follow_request: 'follow_request',
+  like: 'favourite',
+  mention: 'mention',
+  reply: 'mention',
+  reblog: 'reblog',
+  activity_import: 'status'
+}
 
 let vapidInitialized = false
 const initVapid = () => {
@@ -104,7 +121,20 @@ export const sendPushNotification = async (params: {
     if (!shouldSend) return
   }
 
-  const subscriptions = await database.getPushSubscriptionsForActor({ actorId })
+  const allSubscriptions = await database.getPushSubscriptionsForActor({
+    actorId
+  })
+  const alertKey = NOTIFICATION_TYPE_TO_ALERT[type]
+  const subscriptions = allSubscriptions.filter((sub) => {
+    // Honor the Mastodon WebPushSubscription policy: `none` opts a subscription
+    // out of all push notifications. (`followed`/`follower` require
+    // relationship checks against the source actor and are not yet enforced.)
+    if (sub.policy === 'none') return false
+    // Honor the per-subscription alert toggle for this notification type, when
+    // a row carries alert preferences and the type maps to a Mastodon alert.
+    if (alertKey && sub.alerts && sub.alerts[alertKey] === false) return false
+    return true
+  })
   if (subscriptions.length === 0) return
 
   initVapid()
@@ -119,7 +149,13 @@ export const sendPushNotification = async (params: {
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth }
           },
-          payload
+          payload,
+          {
+            // Match the encryption to the encoding advertised in the
+            // WebPushSubscription `standard` flag: `true` → RFC8291 standard
+            // `aes128gcm` (the web-push default), `false` → legacy `aesgcm`.
+            contentEncoding: sub.standard ? 'aes128gcm' : 'aesgcm'
+          }
         )
       } catch (error) {
         const webPushError = error as { statusCode?: number }

@@ -369,6 +369,26 @@ describe('#OAuthGuard', () => {
       expect(response.status).toBe(401)
     })
 
+    test('uses the provided errorResponse for auth failures', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const errorResponse = jest
+        .fn()
+        .mockImplementation(
+          (_req: NextRequest, status: number) =>
+            new NextResponse(null, { status })
+        )
+      const guard = OAuthGuard([Scope.enum.read], mockHandler, {
+        errorResponse
+      })
+      const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(errorResponse).toHaveBeenCalledWith(req, 401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
     test('allows request with valid JWT access token', async () => {
       mockGetServerSession.mockResolvedValue(null)
 

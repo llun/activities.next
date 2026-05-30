@@ -286,7 +286,13 @@ const resolveAuthenticatedContext = async <P>({
 
 const createOAuthGuard =
   (matchMode: ScopeMatchMode) =>
-  <P>(scopes: Scope[], handle: AuthenticatedApiHandle<P>) =>
+  <P>(
+    scopes: Scope[],
+    handle: AuthenticatedApiHandle<P>,
+    options: {
+      errorResponse?: (req: NextRequest, statusCode: StatusCode) => Response
+    } = {}
+  ) =>
   async (req: NextRequest, context: AppRouterParams<P>) => {
     const result = await resolveAuthenticatedContext({
       req,
@@ -295,7 +301,13 @@ const createOAuthGuard =
       matchMode
     })
     if (!result.authenticated) {
-      return result.response ?? apiErrorResponse(401)
+      const response = result.response ?? apiErrorResponse(401)
+      // Let CORS-enabled routes attach their allowed-method CORS headers to the
+      // guard's 401/403/500 responses so cross-origin clients can read the
+      // error instead of seeing an opaque browser CORS failure.
+      return options.errorResponse
+        ? options.errorResponse(req, response.status as StatusCode)
+        : response
     }
 
     return handle(req, result.context)

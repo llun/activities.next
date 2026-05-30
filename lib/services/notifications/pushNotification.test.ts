@@ -69,8 +69,184 @@ describe('sendPushNotification', () => {
       expect.objectContaining({
         endpoint: 'https://push.example.com/endpoint/abc'
       }),
-      expect.stringContaining('"title"')
+      expect.stringContaining('"title"'),
+      expect.objectContaining({ contentEncoding: expect.any(String) })
     )
+  })
+
+  it('uses standard aes128gcm encoding when the subscription is standard', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          alerts: { favourite: true },
+          standard: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ contentEncoding: 'aes128gcm' })
+    )
+  })
+
+  it('uses legacy aesgcm encoding when the subscription is not standard', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          alerts: { favourite: true },
+          standard: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ contentEncoding: 'aesgcm' })
+    )
+  })
+
+  it('skips a subscription whose policy is none', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'none',
+          alerts: { favourite: true },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).not.toHaveBeenCalled()
+  })
+
+  it('skips a subscription that disabled the alert for this type', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          // `like` maps to the Mastodon `favourite` alert, which is disabled.
+          alerts: { favourite: false, mention: true },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).not.toHaveBeenCalled()
+  })
+
+  it('sends when the alert for this type is enabled', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          alerts: { favourite: true },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips activity_import when the status alert is disabled', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          // activity_import maps to the Mastodon `status` alert, disabled here.
+          alerts: { status: false },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.activity_import,
+      sourceActor,
+      skipSettingsCheck: true
+    })
+
+    expect(mockWebpush.sendNotification).not.toHaveBeenCalled()
   })
 
   it('skips sending when no subscriptions exist', async () => {
