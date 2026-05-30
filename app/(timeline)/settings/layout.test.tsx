@@ -48,6 +48,23 @@ describe('Settings Layout', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
+  it('renders the section-level Settings header above the rail', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/settings')
+    renderLayout()
+
+    const heading = screen.getByRole('heading', { name: 'Settings' })
+    const rail = screen.getByRole('navigation', { name: 'Settings' })
+
+    // The shared "Settings" header must precede the nav rail so every settings
+    // page leads with the same full-width chrome the other top-level routes use.
+    expect(
+      heading.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      screen.getByText('Manage your account and preferences')
+    ).toBeInTheDocument()
+  })
+
   it('marks General as current on the settings root', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/settings')
     renderLayout()
