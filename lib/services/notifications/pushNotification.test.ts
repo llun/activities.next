@@ -220,6 +220,35 @@ describe('sendPushNotification', () => {
     expect(mockWebpush.sendNotification).toHaveBeenCalledTimes(1)
   })
 
+  it('skips activity_import when the status alert is disabled', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          // activity_import maps to the Mastodon `status` alert, disabled here.
+          alerts: { status: false },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.activity_import,
+      sourceActor,
+      skipSettingsCheck: true
+    })
+
+    expect(mockWebpush.sendNotification).not.toHaveBeenCalled()
+  })
+
   it('skips sending when no subscriptions exist', async () => {
     const db = makeDb({
       getPushSubscriptionsForActor: jest.fn().mockResolvedValue([])

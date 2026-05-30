@@ -10,8 +10,9 @@ import { shouldSendPushForNotification } from './pushNotificationSettings'
 
 // Maps this app's internal NotificationType to the Mastodon WebPushSubscription
 // alert key, so a subscription that disabled an alert (e.g. `mention`) is not
-// sent that notification. Types without a Mastodon alert (e.g. the internal
-// `activity_import`) are not gated by per-subscription alerts.
+// sent that notification. `activity_import` maps to the Mastodon `status`
+// alert (see `notificationTypeMapping.ts`, where Mastodon `status` ↔ internal
+// `activity_import`).
 const NOTIFICATION_TYPE_TO_ALERT: Partial<
   Record<NotificationType, keyof PushAlerts>
 > = {
@@ -20,7 +21,8 @@ const NOTIFICATION_TYPE_TO_ALERT: Partial<
   like: 'favourite',
   mention: 'mention',
   reply: 'mention',
-  reblog: 'reblog'
+  reblog: 'reblog',
+  activity_import: 'status'
 }
 
 let vapidInitialized = false
