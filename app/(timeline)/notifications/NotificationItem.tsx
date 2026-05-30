@@ -149,7 +149,8 @@ export const NotificationItem = ({
     : null
   const relativeCreatedAt = formatDistance(
     new Date(notification.createdAt),
-    currentTime
+    currentTime,
+    { addSuffix: true }
   )
 
   return (
