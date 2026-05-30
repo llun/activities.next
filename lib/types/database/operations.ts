@@ -1466,12 +1466,35 @@ export type UpdateNotificationParams = {
 // Push Subscription Database
 // ============================================================================
 
+// Mastodon WebPushSubscription alert flags. Keys mirror
+// https://docs.joinmastodon.org/entities/WebPushSubscription/#alerts
+export type PushAlerts = {
+  mention: boolean
+  status: boolean
+  reblog: boolean
+  follow: boolean
+  follow_request: boolean
+  favourite: boolean
+  poll: boolean
+  update: boolean
+  quote: boolean
+  quoted_update: boolean
+  'admin.sign_up': boolean
+  'admin.report': boolean
+}
+
+// Mastodon WebPushSubscription policy — who can generate notifications.
+export type PushPolicy = 'all' | 'followed' | 'follower' | 'none'
+
 export interface PushSubscription {
   id: string
   actorId: string
   endpoint: string
   p256dh: string
   auth: string
+  alerts: PushAlerts
+  policy: PushPolicy
+  standard: boolean
   createdAt: number
   updatedAt: number
 }
@@ -1481,6 +1504,16 @@ export type CreatePushSubscriptionParams = {
   endpoint: string
   p256dh: string
   auth: string
+  alerts?: Partial<PushAlerts>
+  policy?: PushPolicy
+  standard?: boolean
+}
+
+export type UpdatePushSubscriptionParams = {
+  actorId: string
+  endpoint?: string
+  alerts?: Partial<PushAlerts>
+  policy?: PushPolicy
 }
 
 export type DeletePushSubscriptionParams = {
@@ -1492,14 +1525,24 @@ export type GetPushSubscriptionsForActorParams = {
   actorId: string
 }
 
+export type GetPushSubscriptionForActorParams = {
+  actorId: string
+}
+
 export interface PushSubscriptionDatabase {
   createPushSubscription(
     params: CreatePushSubscriptionParams
   ): Promise<PushSubscription>
+  updatePushSubscription(
+    params: UpdatePushSubscriptionParams
+  ): Promise<PushSubscription | null>
   deletePushSubscription(params: DeletePushSubscriptionParams): Promise<void>
   getPushSubscriptionsForActor(
     params: GetPushSubscriptionsForActorParams
   ): Promise<PushSubscription[]>
+  getPushSubscriptionForActor(
+    params: GetPushSubscriptionForActorParams
+  ): Promise<PushSubscription | null>
   deletePushSubscriptionsForActor(params: { actorId: string }): Promise<void>
 }
 

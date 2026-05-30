@@ -132,6 +132,15 @@ describe('POST /api/v1/push/subscribe', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.id).toBe('sub1')
+    // Legacy subscriptions enable every alert and use the standard aes128gcm
+    // encoding, so delivery (which now honors per-subscription alerts and the
+    // standard flag) keeps sending them all notifications as before.
+    expect(mockDatabase!.createPushSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        alerts: expect.objectContaining({ mention: true, favourite: true }),
+        standard: true
+      })
+    )
   })
 })
 
