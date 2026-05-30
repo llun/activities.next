@@ -39,12 +39,27 @@ export const PATCH = traceApiRoute(
 
       let fields: Record<string, string>
       try {
-        const form = await req.formData()
-        fields = Object.fromEntries(
-          Array.from(form.entries())
-            .filter(([, value]) => typeof value === 'string')
-            .map(([key, value]) => [key, value as string])
-        )
+        const contentType = req.headers.get('content-type') ?? ''
+        if (contentType.includes('application/json')) {
+          const json = await req.json()
+          const rawFields: Record<string, string> = {}
+          if (typeof json === 'object' && json !== null) {
+            const obj = json as Record<string, unknown>
+            for (const key of ['display_name', 'note', 'locked']) {
+              if (typeof obj[key] === 'string') {
+                rawFields[key] = obj[key] as string
+              }
+            }
+          }
+          fields = rawFields
+        } else {
+          const form = await req.formData()
+          fields = Object.fromEntries(
+            Array.from(form.entries())
+              .filter(([, value]) => typeof value === 'string')
+              .map(([key, value]) => [key, value as string])
+          )
+        }
       } catch {
         return apiResponse({
           req,
@@ -79,6 +94,14 @@ export const PATCH = traceApiRoute(
       const actor = await database.getMastodonActorFromId({
         id: currentActor.id
       })
+      if (!actor) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Account not found' },
+          responseStatusCode: 500
+        })
+      }
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: actor })
     },
     guardOptions

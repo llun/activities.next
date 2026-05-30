@@ -141,4 +141,23 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     )
     updateActor.mockRestore()
   })
+
+  it('unlocks the account when locked=false', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('locked', 'false')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        manuallyApprovesFollowers: false
+      })
+    )
+    updateActor.mockRestore()
+  })
 })

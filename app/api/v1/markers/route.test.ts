@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
 
 import { GET, POST } from './route'
 
@@ -119,5 +120,55 @@ describe('/api/v1/markers', () => {
     )
     const fetched = await getResponse.json()
     expect(fetched.home.last_read_id).toBe('4321')
+  })
+
+  it('POST requires authentication', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({ home: { last_read_id: 'A1' } })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(401)
+  })
+
+  it('POST writes both home and notifications in one call', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          home: { last_read_id: 'H1' },
+          notifications: { last_read_id: 'N1' }
+        })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.home.last_read_id).toBe('H1')
+    expect(data.notifications.last_read_id).toBe('N1')
+  })
+
+  it('GET ignores invalid timeline values', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/markers?timeline[]=garbage'),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toEqual({})
   })
 })

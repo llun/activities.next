@@ -40,20 +40,18 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
   async upsertMarker({ actorId, timeline, lastReadId }: UpsertMarkerParams) {
     const updatedAt = new Date()
 
-    const incrementAndUpdate = async (
-      existing: SQLMarker
-    ): Promise<MarkerRow> => {
-      const version = Number(existing.version) + 1
-      await database<SQLMarker>('markers')
+    const incrementAndUpdate = async (): Promise<MarkerRow> => {
+      await database('markers')
         .where({ actorId, timeline })
-        .update({ lastReadId, version, updatedAt })
-      return {
-        actorId,
-        timeline: timeline as MarkerTimeline,
-        lastReadId,
-        version,
-        updatedAt: getCompatibleTime(updatedAt)
-      }
+        .update({
+          lastReadId,
+          version: database.raw('?? + 1', ['version']),
+          updatedAt
+        })
+      const row = await database<SQLMarker>('markers')
+        .where({ actorId, timeline })
+        .first()
+      return toMarkerRow(row as SQLMarker)
     }
 
     const existing = await database<SQLMarker>('markers')
@@ -61,7 +59,7 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
       .first()
 
     if (existing) {
-      return incrementAndUpdate(existing)
+      return incrementAndUpdate()
     }
 
     try {
@@ -88,7 +86,7 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
         .where({ actorId, timeline })
         .first()
       if (duplicated) {
-        return incrementAndUpdate(duplicated)
+        return incrementAndUpdate()
       }
       throw error
     }

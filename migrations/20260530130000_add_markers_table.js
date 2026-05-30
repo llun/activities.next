@@ -9,7 +9,10 @@ exports.up = (knex) =>
     table.string('timeline').notNullable()
     table.string('lastReadId').notNullable()
     table.integer('version').notNullable().defaultTo(1)
-    table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
+    table
+      .timestamp('updatedAt', { useTz: true })
+      .notNullable()
+      .defaultTo(knex.fn.now())
 
     table.unique(['actorId', 'timeline'], {
       indexName: 'markers_actor_timeline_unique'
