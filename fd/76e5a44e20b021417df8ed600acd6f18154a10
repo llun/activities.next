@@ -1,0 +1,25 @@
+CLAUDE.md
+  s_2b418eb820203a::t_fe25a495bba24d 20
+app/(timeline)/admin/layout.tsx
+  s_2b418eb820203a::t_3af61749225d09 3,7-13,19-25,27-28,30-47
+AGENTS.md
+  s_2b418eb820203a::t_300610b9af92fe 140
+  s_2b418eb820203a::t_1e800156cbcd7a 188,190,192
+  s_2b418eb820203a::t_fb0515852dee2a 139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fd76e5a44e20b021417df8ed600acd6f18154a10",
+  "prompts": {},
+  "sessions": {
+    "s_2b418eb820203a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b474377f-cd11-4aec-8207-a7e7ae0ac096",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
