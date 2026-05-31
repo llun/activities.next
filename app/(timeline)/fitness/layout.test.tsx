@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
 import Layout from './layout'
@@ -11,32 +11,49 @@ jest.mock('next/navigation', () => ({
   usePathname: jest.fn()
 }))
 
-describe('Fitness layout rail', () => {
+const renderLayout = () =>
+  render(
+    <Layout>
+      <div>content</div>
+    </Layout>
+  )
+
+describe('Fitness Layout', () => {
   it('renders the four rail items', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness')
-    render(<Layout>content</Layout>)
+    renderLayout()
+
+    const rail = screen.getByRole('navigation', { name: 'Fitness' })
     for (const label of ['Overview', 'Files', 'Privacy', 'Strava']) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+      expect(within(rail).getByRole('link', { name: label })).toBeInTheDocument()
     }
   })
 
-  it('marks the longest-prefix match as the active page', () => {
+  it('marks the Strava link as current on /fitness/strava and Overview as not current', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
-    render(<Layout>content</Layout>)
-    const active = screen
-      .getAllByText('Strava')
-      .map((node) => node.closest('a'))
-      .find((anchor) => anchor?.getAttribute('aria-current') === 'page')
-    expect(active).toBeTruthy()
+    renderLayout()
+
+    const rail = screen.getByRole('navigation', { name: 'Fitness' })
+    expect(within(rail).getByRole('link', { name: 'Strava' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(
+      within(rail).getByRole('link', { name: 'Overview' })
+    ).not.toHaveAttribute('aria-current')
   })
 
-  it('does not mark Overview active on a deeper route', () => {
+  it('marks the Privacy link as current on /fitness/privacy and Overview as not current', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/privacy')
-    render(<Layout>content</Layout>)
-    const overview = screen
-      .getAllByText('Overview')
-      .map((node) => node.closest('a'))
-      .find((anchor) => anchor?.getAttribute('aria-current') === 'page')
-    expect(overview).toBeFalsy()
+    renderLayout()
+
+    const rail = screen.getByRole('navigation', { name: 'Fitness' })
+    expect(within(rail).getByRole('link', { name: 'Privacy' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(
+      within(rail).getByRole('link', { name: 'Overview' })
+    ).not.toHaveAttribute('aria-current')
   })
 })
