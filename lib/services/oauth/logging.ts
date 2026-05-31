@@ -23,6 +23,7 @@ const SCHEME_PRESERVING_HEADERS = new Set([
 const FULLY_REDACTED_HEADERS = new Set([
   'cookie',
   'set-cookie',
+  'forwarded',
   'cf-connecting-ip',
   'x-real-ip',
   'x-forwarded-for',
@@ -58,6 +59,7 @@ const SENSITIVE_PARAMS = new Set([
   'mfa_token',
   'username',
   'email',
+  'login_hint',
   'state',
   'nonce',
   'refresh_token',
@@ -113,6 +115,10 @@ const RELATIVE_URL_BASE = 'http://relative.invalid'
 const sanitizeUrlValue = (value: string): string => {
   try {
     const absolute = new URL(value)
+    // Drop any embedded `user:pass@` credentials before logging, for every
+    // scheme. The http(s) branch already does this implicitly via `origin`.
+    absolute.username = ''
+    absolute.password = ''
     // `origin` is the string "null" for non-http(s) schemes (e.g. a mobile
     // deep link `myapp://callback` or a URN), which would log as "null/...".
     // For those, keep the full href minus the secret-bearing query/fragment so

@@ -85,13 +85,24 @@ describe('oauth logging sanitizers', () => {
         'cf-connecting-ip': '203.0.113.10',
         'x-real-ip': '203.0.113.20',
         'x-forwarded-for': '203.0.113.30, 198.51.100.40',
+        forwarded: 'for=203.0.113.10;proto=https',
         'content-type': 'application/x-www-form-urlencoded'
       })
       expect(sanitizeHeaders(headers)).toEqual({
         'cf-connecting-ip': '[REDACTED]',
         'x-real-ip': '[REDACTED]',
         'x-forwarded-for': '[REDACTED]',
+        forwarded: '[REDACTED]',
         'content-type': 'application/x-www-form-urlencoded'
+      })
+    })
+
+    it('strips userinfo from a custom-scheme URL-bearing header', () => {
+      const headers = new Headers({
+        location: 'myapp://user:pass@callback/path?code=secret'
+      })
+      expect(sanitizeHeaders(headers)).toEqual({
+        location: 'myapp://callback/path'
       })
     })
   })
@@ -143,6 +154,14 @@ describe('oauth logging sanitizers', () => {
       expect(sanitizeFormBody(body)).toEqual({
         id_token: '[REDACTED]',
         id_token_hint: '[REDACTED]',
+        client_id: 'abc'
+      })
+    })
+
+    it('redacts the OIDC login_hint param', () => {
+      const body = 'login_hint=alice%40example.test&client_id=abc'
+      expect(sanitizeFormBody(body)).toEqual({
+        login_hint: '[REDACTED]',
         client_id: 'abc'
       })
     })
