@@ -74,8 +74,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     actor ? database.getActorHasFitnessData({ actorId: actor.id }) : false
   ])
 
-  const fitnessUrl =
-    hasFitnessData && user ? `/${user.handle}/fitness` : undefined
+  const fitnessUrl = hasFitnessData ? '/fitness' : undefined
   const isAdmin = actor?.account?.role === 'admin'
 
   return (

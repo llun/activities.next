@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  Activity,
   Ban,
   Bell,
   ChevronDown,
@@ -46,7 +45,6 @@ const tabs: SettingsTab[] = [
   { name: 'Notifications', url: '/settings/notifications', icon: Bell },
   { name: 'Blocked accounts', url: '/settings/blocks', icon: Ban },
   { name: 'Muted accounts', url: '/settings/mutes', icon: VolumeX },
-  { name: 'Fitness', url: '/settings/fitness', icon: Activity },
   { name: 'Sessions', url: '/settings/sessions', icon: Monitor }
 ]
 
