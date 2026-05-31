@@ -3,8 +3,13 @@ import { NextRequest } from 'next/server'
 import { getBaseURL } from '@/lib/config'
 import { getKnex } from '@/lib/database'
 import { getAuth } from '@/lib/services/auth/auth'
+import {
+  oauthLogger,
+  sanitizeFormBody,
+  sanitizeHeaders,
+  sanitizeParams
+} from '@/lib/services/oauth/logging'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   StatusCode,
@@ -250,7 +255,10 @@ const validatePkceTokenExchange = async (
       .first()
     if (!client?.requirePKCE) return null
   } catch (e) {
-    logger.error({ message: 'PKCE token preflight failed', error: e })
+    oauthLogger.error(
+      { endpoint: 'token', reason: 'pkce_preflight', err: e },
+      'PKCE token preflight failed'
+    )
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -272,12 +280,46 @@ const validatePkceTokenExchange = async (
 
 export const POST = async (req: NextRequest) => {
   const auth = getAuth()
+
+  oauthLogger.debug(
+    {
+      endpoint: 'token',
+      headers: sanitizeHeaders(req.headers)
+    },
+    'OAuth token request received'
+  )
+
   const { bodyText, params, error } = await getTokenRequestBody(req)
-  if (error) return error
+  if (error) {
+    // Pre-flight rejection (wrong content-type, oversized/unreadable body).
+    // These are the proxy's own 4xx responses and never reach better-auth.
+    oauthLogger.warn(
+      {
+        endpoint: 'token',
+        status: error.status,
+        reason: 'request_body',
+        headers: sanitizeHeaders(req.headers)
+      },
+      `OAuth token request rejected with ${error.status}`
+    )
+    return error
+  }
 
   if (params) {
     const pkceError = await validatePkceTokenExchange(req, params)
-    if (pkceError) return pkceError
+    if (pkceError) {
+      oauthLogger.warn(
+        {
+          endpoint: 'token',
+          status: pkceError.status,
+          reason: 'pkce',
+          headers: sanitizeHeaders(req.headers),
+          requestBody: sanitizeFormBody(bodyText ?? '')
+        },
+        `OAuth token request rejected with ${pkceError.status}`
+      )
+      return pkceError
+    }
   }
 
   // Rewrite the URL to better-auth's token endpoint
@@ -292,7 +334,10 @@ export const POST = async (req: NextRequest) => {
   try {
     response = await auth.handler(proxyReq)
   } catch (e) {
-    logger.error({ message: 'Token endpoint handler threw', error: e })
+    oauthLogger.error(
+      { endpoint: 'token', reason: 'handler_threw', err: e },
+      'Token endpoint handler threw'
+    )
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -318,6 +363,26 @@ export const POST = async (req: NextRequest) => {
         ? 500
         : 400
   ) as StatusCode
+
+  // Log token exchanges better-auth rejected so 400s from third-party Mastodon
+  // clients can be diagnosed in production: the request the client sent (secrets
+  // redacted) plus the upstream OAuth error body (e.g. invalid_grant /
+  // invalid_client). The error body is non-secret OAuth metadata, but it is run
+  // through sanitizeParams as defense-in-depth in case an upstream error ever
+  // echoes back a sensitive field.
+  if (!response.ok) {
+    oauthLogger.warn(
+      {
+        endpoint: 'token',
+        status: statusCode,
+        reason: 'upstream',
+        headers: sanitizeHeaders(req.headers),
+        requestBody: sanitizeFormBody(bodyText ?? ''),
+        upstreamBody: sanitizeParams(data)
+      },
+      `OAuth token request failed with ${statusCode}`
+    )
+  }
 
   return apiResponse({
     req,
