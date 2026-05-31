@@ -51,7 +51,46 @@ describe('#urlToId', () => {
     expect(idToUrl(urlToId(statusId))).toEqual(statusId)
   })
 
-  it('uses Buffer base64url support in Node before browser fallbacks', () => {
+  it('round trips port-bearing IDs when Buffer lacks base64url support', () => {
+    // Reproduces the browser bundle (Turbopack injects the `buffer` polyfill,
+    // which supports `base64` but NOT `base64url`). Without the fix, urlToId's
+    // bare catch swallows the throw and returns the raw URL with slashes.
+    const actorId = 'https://localhost:3100/users/testuser'
+    const RealBuffer = globalThis.Buffer
+
+    const PolyfillBuffer = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      from(value: string, encoding?: any) {
+        if (encoding === 'base64url') {
+          throw new TypeError('Unknown encoding: base64url')
+        }
+        const buffer = RealBuffer.from(value, encoding)
+        return {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          toString(outEncoding?: any) {
+            if (outEncoding === 'base64url') {
+              throw new TypeError('Unknown encoding: base64url')
+            }
+            return buffer.toString(outEncoding)
+          }
+        }
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(globalThis as any).Buffer = PolyfillBuffer
+
+    try {
+      const encoded = urlToId(actorId)
+      expect(encoded.startsWith('apurl_')).toBe(true)
+      expect(encoded).not.toContain('/')
+      expect(idToUrl(encoded)).toEqual(actorId)
+    } finally {
+      globalThis.Buffer = RealBuffer
+    }
+  })
+
+  it('uses Buffer (not the btoa/atob fallbacks) when Buffer is available', () => {
     const originalBtoa = globalThis.btoa
     const originalAtob = globalThis.atob
     const actorId = 'https://bsky.brid.gy/ap/did:plc:abc123/statuses/post-1'
