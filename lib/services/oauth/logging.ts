@@ -51,17 +51,32 @@ const SENSITIVE_PARAMS = new Set([
 const isSensitiveParam = (key: string): boolean =>
   SENSITIVE_PARAMS.has(key.trim().toLowerCase())
 
+// Origin used only to parse relative URL-valued headers (e.g. a `/callback?...`
+// Referer/Location). It is stripped back off before returning, so it never
+// appears in logs.
+const RELATIVE_URL_BASE = 'http://relative.invalid'
+
 // Strips the query string and fragment from a URL-valued header, keeping only
-// origin + path for diagnostics. OAuth redirect URLs put `code`/`access_token`
-// in exactly those parts, so dropping them avoids persisting secrets. A value
-// that is not a parseable absolute URL is redacted entirely to be safe.
+// origin + path (absolute) or path (relative) for diagnostics. OAuth redirect
+// URLs put `code`/`access_token` in exactly those parts, so dropping them avoids
+// persisting secrets while keeping the useful routing/redirect target. A value
+// that parses to neither an absolute nor a rooted relative URL is redacted
+// entirely to be safe.
 const sanitizeUrlValue = (value: string): string => {
   try {
-    const url = new URL(value)
-    return `${url.origin}${url.pathname}`
+    const absolute = new URL(value)
+    return `${absolute.origin}${absolute.pathname}`
   } catch {
-    return '[REDACTED]'
+    // Not an absolute URL — try it as a path relative to a dummy base.
   }
+  if (value.startsWith('/')) {
+    try {
+      return new URL(value, RELATIVE_URL_BASE).pathname
+    } catch {
+      return '[REDACTED]'
+    }
+  }
+  return '[REDACTED]'
 }
 
 /**

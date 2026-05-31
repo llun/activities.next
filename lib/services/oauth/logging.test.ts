@@ -56,6 +56,15 @@ describe('oauth logging sanitizers', () => {
       })
     })
 
+    it('keeps the path of a relative URL-bearing header, dropping query/fragment', () => {
+      const headers = new Headers({
+        referer: '/oauth/callback?code=auth-secret#access_token=tok'
+      })
+      expect(sanitizeHeaders(headers)).toEqual({
+        referer: '/oauth/callback'
+      })
+    })
+
     it('redacts a URL-bearing header that is not a parseable URL', () => {
       const headers = new Headers({ referer: 'not a url' })
       expect(sanitizeHeaders(headers)).toEqual({ referer: '[REDACTED]' })
