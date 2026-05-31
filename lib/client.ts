@@ -1629,6 +1629,81 @@ export const deleteFitnessFile = async (id: string): Promise<void> => {
   }
 }
 
+// --- Fitness general (privacy location) settings ---
+
+export interface FitnessGeneralSettingsResponse {
+  success?: boolean
+  error?: string
+  privacyLocations?: Array<{
+    latitude: number
+    longitude: number
+    hideRadiusMeters: number
+  }>
+  privacyHomeLatitude?: number | null
+  privacyHomeLongitude?: number | null
+  privacyHideRadiusMeters?: number
+}
+
+export interface FitnessPrivacyLocationInput {
+  latitude: number
+  longitude: number
+  hideRadiusMeters: number
+}
+
+export interface RegenerateFitnessMapsResponse {
+  success?: boolean
+  error?: string
+  queuedCount?: number
+}
+
+export const getFitnessGeneralSettings =
+  async (): Promise<FitnessGeneralSettingsResponse> => {
+    const response = await fetch('/api/v1/fitness/general', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to load fitness privacy settings')
+    }
+
+    return (await response.json()) as FitnessGeneralSettingsResponse
+  }
+
+export const updateFitnessGeneralSettings = async (
+  privacyLocations: FitnessPrivacyLocationInput[]
+): Promise<{ ok: boolean; data: FitnessGeneralSettingsResponse }> => {
+  const response = await fetch('/api/v1/fitness/general', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      privacyLocations
+    })
+  })
+
+  const data = (await response.json()) as FitnessGeneralSettingsResponse
+  return { ok: response.ok, data }
+}
+
+export const regenerateFitnessMaps = async (): Promise<{
+  ok: boolean
+  data: RegenerateFitnessMapsResponse
+}> => {
+  const response = await fetch('/api/v1/fitness/general/regenerate-maps', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+
+  const data = (await response.json()) as RegenerateFitnessMapsResponse
+  return { ok: response.ok, data }
+}
+
 // --- Notification settings ---
 
 export const getVapidKey = async (): Promise<string | null> => {
