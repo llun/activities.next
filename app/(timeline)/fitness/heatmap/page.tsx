@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -46,17 +47,18 @@ const Page: FC = async () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/fitness">
-            <ArrowLeft className="h-5 w-5" />
-            <span className="sr-only">Back to fitness</span>
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold">Fitness Heatmap</h1>
-        </div>
-      </div>
+      <PageHeader
+        title="Heatmap"
+        description="Routes from your imported activities"
+        actions={
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/fitness">
+              <ArrowLeft className="h-5 w-5" />
+              <span className="sr-only">Back to overview</span>
+            </Link>
+          </Button>
+        }
+      />
 
       <div className="overflow-hidden border bg-background">
         <FitnessHeatmapView

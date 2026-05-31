@@ -73,19 +73,25 @@ const Page: FC = async () => {
     )
   }
 
-  const recentFiles = await database.getFitnessFilesWithStatusForAccount({
-    accountId: currentActor.account.id,
-    limit: RECENT_LIMIT
+  // Actor-scoped (matching the dashboard + the hasFitnessData gate above) so a
+  // multi-actor account shows the signed-in actor's own recent activities.
+  const recentFiles = await database.getFitnessFilesByActor({
+    actorId: currentActor.id,
+    limit: RECENT_LIMIT,
+    processingStatus: 'completed',
+    isPrimary: true
   })
   const statusIds = Array.from(
     new Set(
-      recentFiles.items
+      recentFiles
         .map((file) => file.statusId)
         .filter((id): id is string => Boolean(id))
     )
   )
   const loadedStatuses = await Promise.all(
-    statusIds.map((statusId) => database.getStatus({ statusId }))
+    statusIds.map((statusId) =>
+      database.getStatus({ statusId }).catch(() => null)
+    )
   )
   const statuses = loadedStatuses.filter(
     (status): status is Status => status !== null

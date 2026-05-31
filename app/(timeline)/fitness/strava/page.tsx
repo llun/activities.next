@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
@@ -19,9 +20,11 @@ const StravaPage: FC = async () => {
 
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
-  const actorHandle = actor
-    ? getMention(getActorProfile(actor), true)
-    : undefined
+  if (!actor || !actor.account) {
+    return redirect('/auth/signin')
+  }
+
+  const actorHandle = getMention(getActorProfile(actor), true)
 
   return (
     <div className="space-y-6">
