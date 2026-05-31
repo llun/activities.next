@@ -12,7 +12,7 @@ import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Fitness Privacy Settings'
+  title: 'Activities.next: Fitness Privacy'
 }
 
 const Page = async () => {
