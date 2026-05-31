@@ -30,7 +30,7 @@ const getStravaSettingsSavedResponse = (req: NextRequest) =>
     data: {
       success: true,
       message: 'Strava settings saved successfully',
-      authorizeUrl: '/api/v1/settings/fitness/strava/authorize'
+      authorizeUrl: '/api/v1/fitness/strava/authorize'
     },
     responseStatusCode: 200
   })

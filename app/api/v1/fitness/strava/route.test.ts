@@ -98,12 +98,12 @@ describe('Strava Settings API', () => {
     })
   })
 
-  describe('GET /api/v1/settings/fitness/strava', () => {
+  describe('GET /api/v1/fitness/strava', () => {
     it('returns configured: false when no settings exist', async () => {
       mockDb.getFitnessSettings.mockResolvedValue(null)
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'GET'
         }
@@ -130,7 +130,7 @@ describe('Strava Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'GET'
         }
@@ -160,7 +160,7 @@ describe('Strava Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'GET'
         }
@@ -174,12 +174,12 @@ describe('Strava Settings API', () => {
     })
   })
 
-  describe('POST /api/v1/settings/fitness/strava', () => {
+  describe('POST /api/v1/fitness/strava', () => {
     it('saves valid Strava settings', async () => {
       mockDb.getFitnessSettings.mockResolvedValue(null)
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -217,7 +217,7 @@ describe('Strava Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -241,7 +241,7 @@ describe('Strava Settings API', () => {
 
     it('rejects non-numeric client ID', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -260,7 +260,7 @@ describe('Strava Settings API', () => {
 
     it('rejects empty client secret when creating a connection', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -279,7 +279,7 @@ describe('Strava Settings API', () => {
 
     it('rejects invalid visibility values', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -299,7 +299,7 @@ describe('Strava Settings API', () => {
 
     it('returns a bad request response for malformed JSON bodies', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
           body: '{',
@@ -318,7 +318,7 @@ describe('Strava Settings API', () => {
     })
   })
 
-  describe('DELETE /api/v1/settings/fitness/strava', () => {
+  describe('DELETE /api/v1/fitness/strava', () => {
     it('removes existing Strava settings', async () => {
       mockDb.getFitnessSettings.mockResolvedValue({
         actorId: ACTOR1_ID,
@@ -332,7 +332,7 @@ describe('Strava Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'DELETE'
         }
@@ -363,7 +363,7 @@ describe('Strava Settings API', () => {
       mockDb.getFitnessSettings.mockResolvedValue(null)
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/strava',
+        'http://llun.test/api/v1/fitness/strava',
         {
           method: 'DELETE'
         }

@@ -49,7 +49,7 @@ jest.mock('next/headers', () => ({
   })
 }))
 
-describe('POST /api/v1/settings/fitness/general/regenerate-maps', () => {
+describe('POST /api/v1/fitness/general/regenerate-maps', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessFilesByActor: jest.fn(),
     updateFitnessFilesProcessingStatus: jest.fn(),
@@ -157,7 +157,7 @@ describe('POST /api/v1/settings/fitness/general/regenerate-maps', () => {
       .mockResolvedValueOnce([])
 
     const request = new NextRequest(
-      'http://llun.test/api/v1/settings/fitness/general/regenerate-maps',
+      'http://llun.test/api/v1/fitness/general/regenerate-maps',
       {
         method: 'POST'
       }
@@ -203,7 +203,7 @@ describe('POST /api/v1/settings/fitness/general/regenerate-maps', () => {
     mockDb.getFitnessFilesByActor.mockResolvedValueOnce([])
 
     const request = new NextRequest(
-      'http://llun.test/api/v1/settings/fitness/general/regenerate-maps',
+      'http://llun.test/api/v1/fitness/general/regenerate-maps',
       {
         method: 'POST'
       }

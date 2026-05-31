@@ -406,7 +406,7 @@ describe('Strava archive import route', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive',
+      'http://localhost/api/v1/fitness/strava/archive',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -453,7 +453,7 @@ describe('Strava archive import route', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive',
+      'http://localhost/api/v1/fitness/strava/archive',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -492,7 +492,7 @@ describe('Strava archive import route', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive',
+      'http://localhost/api/v1/fitness/strava/archive',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -519,7 +519,7 @@ describe('Strava archive import route', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive',
+      'http://localhost/api/v1/fitness/strava/archive',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -549,7 +549,7 @@ describe('Strava archive import route', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive',
+      'http://localhost/api/v1/fitness/strava/archive',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -579,7 +579,7 @@ describe('Strava archive import route', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive',
+      'http://localhost/api/v1/fitness/strava/archive',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

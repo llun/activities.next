@@ -53,7 +53,7 @@ describe('Strava archive presigned URL endpoint', () => {
     mockGetPresignedFitnessFileUrl.mockResolvedValue(null)
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,7 +76,7 @@ describe('Strava archive presigned URL endpoint', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +100,7 @@ describe('Strava archive presigned URL endpoint', () => {
 
   it('returns 422 on invalid input (non-zip file)', async () => {
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,7 +122,7 @@ describe('Strava archive presigned URL endpoint', () => {
     )
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,7 +147,7 @@ describe('Strava archive presigned URL endpoint', () => {
     })
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,7 +168,7 @@ describe('Strava archive presigned URL endpoint', () => {
     mockGetServerSession.mockResolvedValue(null)
 
     const req = new Request(
-      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

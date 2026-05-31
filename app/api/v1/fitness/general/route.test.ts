@@ -95,10 +95,10 @@ describe('Fitness General Settings API', () => {
     })
   })
 
-  describe('GET /api/v1/settings/fitness/general', () => {
+  describe('GET /api/v1/fitness/general', () => {
     it('returns default values when no settings exist', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'GET'
         }
@@ -134,7 +134,7 @@ describe('Fitness General Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'GET'
         }
@@ -157,7 +157,7 @@ describe('Fitness General Settings API', () => {
     })
   })
 
-  describe('POST /api/v1/settings/fitness/general', () => {
+  describe('POST /api/v1/fitness/general', () => {
     it('saves valid privacy settings', async () => {
       mockDb.createFitnessSettings.mockResolvedValue({
         id: 'general-settings-id',
@@ -171,7 +171,7 @@ describe('Fitness General Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -230,7 +230,7 @@ describe('Fitness General Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -308,7 +308,7 @@ describe('Fitness General Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -359,7 +359,7 @@ describe('Fitness General Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -421,7 +421,7 @@ describe('Fitness General Settings API', () => {
       })
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -453,7 +453,7 @@ describe('Fitness General Settings API', () => {
 
     it('rejects invalid privacyLocations instead of falling back to legacy fields', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -473,7 +473,7 @@ describe('Fitness General Settings API', () => {
 
     it('rejects request when only one coordinate is provided', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -493,7 +493,7 @@ describe('Fitness General Settings API', () => {
 
     it('rejects privacy radius without a home location', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -513,7 +513,7 @@ describe('Fitness General Settings API', () => {
 
     it('returns 422 when the settings payload fails schema validation', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -535,7 +535,7 @@ describe('Fitness General Settings API', () => {
 
     it('returns a bad request error for invalid JSON body', async () => {
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: 'not-json',
@@ -557,7 +557,7 @@ describe('Fitness General Settings API', () => {
       )
 
       const request = new NextRequest(
-        'http://llun.test/api/v1/settings/fitness/general',
+        'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           body: JSON.stringify({

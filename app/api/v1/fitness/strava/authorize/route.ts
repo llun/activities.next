@@ -28,7 +28,7 @@ export const GET = traceApiRoute(
     }
 
     const state = generateAlphanumeric(32)
-    const redirectUri = `https://${config.host}/api/v1/settings/fitness/strava/callback`
+    const redirectUri = `https://${config.host}/api/v1/fitness/strava/callback`
 
     await database.updateFitnessSettings({
       id: fitnessSettings.id,

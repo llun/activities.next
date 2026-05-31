@@ -58,7 +58,7 @@ const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
   typeof deleteFitnessFile
 >
 
-describe('POST /api/v1/settings/fitness/import', () => {
+describe('POST /api/v1/fitness/import', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
