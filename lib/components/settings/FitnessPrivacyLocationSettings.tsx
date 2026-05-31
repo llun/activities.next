@@ -425,7 +425,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         setIsLoading(true)
         setError(null)
 
-        const response = await fetch('/api/v1/settings/fitness/general', {
+        const response = await fetch('/api/v1/fitness/general', {
           method: 'GET',
           headers: {
             Accept: 'application/json'
@@ -703,7 +703,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     try {
       setIsSaving(true)
 
-      const response = await fetch('/api/v1/settings/fitness/general', {
+      const response = await fetch('/api/v1/fitness/general', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -843,7 +843,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
     try {
       const response = await fetch(
-        '/api/v1/settings/fitness/general/regenerate-maps',
+        '/api/v1/fitness/general/regenerate-maps',
         {
           method: 'POST',
           headers: {
