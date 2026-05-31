@@ -17,6 +17,14 @@ env:
   CHECK_REGISTRATION_INTERVAL_SECONDS: 10
   CHECK_REGISTRATION_STABLE_READS: 2
   CHECK_REGISTRATION_TRANSIENT_ERROR_LIMIT: 3
+  # If no required checks have registered after this many attempts, the bot
+  # force-push likely did not trigger the pull_request CI workflows; reopen the
+  # PR once to re-fire them. Kept well below CHECK_REGISTRATION_ATTEMPTS so the
+  # reopened checks still have time to register and pass within the wait window.
+  CHECK_REGISTRATION_KICK_ATTEMPT: 6
+  # How many times to retry reopening the PR after a successful close, so a
+  # transient reopen failure never leaves the bump PR closed.
+  CHECK_REGISTRATION_REOPEN_ATTEMPTS: 3
   DEBOUNCE_SECONDS: 300
   VERSION_BUMP_BRANCH: version-bump/main
 
@@ -411,6 +419,9 @@ jobs:
             local previous_check_names=""
             local required_check
             local stable_reads=0
+            local kicked=0
+            local reopen_attempt
+            local reopened
 
             for attempt in $(seq 1 "$CHECK_REGISTRATION_ATTEMPTS"); do
               : > "$checks_error"
@@ -487,6 +498,48 @@ jobs:
                   fi
                   ;;
               esac
+
+              # Self-heal: a bot force-push that updates the bump PR head
+              # sometimes fails to trigger the pull_request CI workflows, so the
+              # required checks never register and the PR stays blocked forever.
+              # If, after CHECK_REGISTRATION_KICK_ATTEMPT tries, no required
+              # checks have appeared OR a branch-protection check is still
+              # missing (partial registration is just as blocking), close and
+              # reopen the PR once to re-fire those workflows.
+              if [ "$kicked" -eq 0 ] && [ "$attempt" -ge "$CHECK_REGISTRATION_KICK_ATTEMPT" ] && { [ -z "$check_names" ] || [ -n "$missing_checks" ]; }; then
+                if [ -z "$check_names" ]; then
+                  echo "No required PR checks registered after ${attempt} attempts; reopening ${pr_url} to re-trigger CI."
+                else
+                  echo "Required PR checks still missing (${missing_checks}) after ${attempt} attempts; reopening ${pr_url} to re-trigger CI."
+                fi
+
+                if gh pr close "$pr_url"; then
+                  # Once closed, reopening is mandatory: a transient reopen
+                  # failure must not leave the bump PR closed (worse than
+                  # blocked), so retry until it succeeds or the budget is spent.
+                  reopened=0
+                  for reopen_attempt in $(seq 1 "$CHECK_REGISTRATION_REOPEN_ATTEMPTS"); do
+                    if gh pr reopen "$pr_url"; then
+                      reopened=1
+                      break
+                    fi
+                    echo "::warning::Failed to reopen ${pr_url} (reopen ${reopen_attempt}/${CHECK_REGISTRATION_REOPEN_ATTEMPTS}); retrying in ${CHECK_REGISTRATION_INTERVAL_SECONDS}s."
+                    sleep "$CHECK_REGISTRATION_INTERVAL_SECONDS"
+                  done
+
+                  if [ "$reopened" -eq 1 ]; then
+                    kicked=1
+                    stable_reads=0
+                    previous_check_names=""
+                    echo "Reopened ${pr_url}; waiting for pull_request workflows to register."
+                  else
+                    echo "::error::Closed ${pr_url} but could not reopen it after ${CHECK_REGISTRATION_REOPEN_ATTEMPTS} attempts; reopen it manually to resume the version bump."
+                    return 1
+                  fi
+                else
+                  echo "::warning::Failed to close ${pr_url} to re-trigger CI; will retry on the next poll."
+                fi
+              fi
 
               if [ "$attempt" -lt "$CHECK_REGISTRATION_ATTEMPTS" ]; then
                 echo "Retrying required-check registration in ${CHECK_REGISTRATION_INTERVAL_SECONDS}s (${attempt}/${CHECK_REGISTRATION_ATTEMPTS})."
