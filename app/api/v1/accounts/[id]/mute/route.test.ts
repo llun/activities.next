@@ -58,6 +58,16 @@ const createRequest = (
   return req
 }
 
+const createFormRequest = (targetActorId: string, body: string) =>
+  new NextRequest(
+    `https://local.test/api/v1/accounts/${urlToId(targetActorId)}/mute`,
+    {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }
+    }
+  )
+
 describe('POST /api/v1/accounts/:id/mute', () => {
   const applyMuteMock = applyMute as jest.Mock
   const getRelationshipMock = getRelationship as jest.Mock
@@ -163,6 +173,36 @@ describe('POST /api/v1/accounts/:id/mute', () => {
     })
 
     expect(response.status).not.toBe(500)
+    expect(applyMuteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ notifications: true, endsAt: null })
+    )
+  })
+
+  it('reads notifications and duration from a urlencoded body (native clients)', async () => {
+    const targetActorId = 'https://remote.test/users/alice'
+    applyMuteMock.mockResolvedValue({})
+    const before = Date.now()
+
+    await POST(
+      createFormRequest(targetActorId, 'notifications=false&duration=3600'),
+      { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+    )
+
+    const call = applyMuteMock.mock.calls[0][0]
+    // The string "false" must become boolean false, not be coerced to true.
+    expect(call.notifications).toBe(false)
+    expect(call.endsAt).toBeGreaterThanOrEqual(before + 3600 * 1000)
+    expect(call.endsAt).toBeLessThan(before + 3601 * 1000)
+  })
+
+  it('keeps notifications enabled for a urlencoded notifications=true', async () => {
+    const targetActorId = 'https://remote.test/users/alice'
+    applyMuteMock.mockResolvedValue({})
+
+    await POST(createFormRequest(targetActorId, 'notifications=true'), {
+      params: Promise.resolve({ id: urlToId(targetActorId) })
+    })
+
     expect(applyMuteMock).toHaveBeenCalledWith(
       expect.objectContaining({ notifications: true, endsAt: null })
     )
