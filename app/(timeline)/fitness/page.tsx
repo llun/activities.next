@@ -1,7 +1,7 @@
 import { Flame } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
@@ -29,14 +29,12 @@ const Page: FC = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
+  // A missing/expired session on this first-class signed-in section should take
+  // the login path (like Files/Privacy), not look like a missing route.
   const session = await getServerAuthSession()
-  if (!session?.user?.email) {
-    return notFound()
-  }
-
   const currentActor = await getActorFromSession(database, session)
   if (!currentActor || !currentActor.account) {
-    return notFound()
+    return redirect('/auth/signin')
   }
 
   const hasFitnessData = await database.getActorHasFitnessData({

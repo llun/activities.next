@@ -1,7 +1,7 @@
 import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
@@ -25,15 +25,12 @@ const Page: FC = async () => {
   if (!database) throw new Error('Database is not available')
 
   const session = await getServerAuthSession()
-  if (!session?.user?.email) {
-    return notFound()
-  }
-
   const currentActor = await getActorFromSession(database, session)
   if (!currentActor) {
-    return notFound()
+    return redirect('/auth/signin')
   }
 
+  // Reserve notFound for unavailable data — there is no heatmap without activity.
   const hasFitnessData = await database.getActorHasFitnessData({
     actorId: currentActor.id
   })
