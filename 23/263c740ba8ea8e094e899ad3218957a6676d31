@@ -1,0 +1,25 @@
+lib/services/accounts/parseFollowRequestBody.test.ts
+  s_3550bed52eee41::t_d9cc0cac56b70e 80-90
+app/api/v1/accounts/[id]/note/route.ts
+  s_3550bed52eee41::t_ca069b0a1ef141 23-24,26
+lib/services/accounts/parseFollowRequestBody.ts
+  s_3550bed52eee41::t_da5b8dd9b617cd 73-78
+app/api/v1/accounts/[id]/note/route.test.ts
+  s_3550bed52eee41::t_68947e665c5994 153-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "23263c740ba8ea8e094e899ad3218957a6676d31",
+  "prompts": {},
+  "sessions": {
+    "s_3550bed52eee41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9550ec50-0df8-44cf-a07a-94f038da6ca8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
