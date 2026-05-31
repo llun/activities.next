@@ -138,5 +138,28 @@ describe('oauth logging sanitizers', () => {
       expect(sanitizeParams(null)).toBeNull()
       expect(sanitizeParams(undefined)).toBeUndefined()
     })
+
+    it('bounds recursion depth so a deeply nested body cannot blow the stack', () => {
+      // Build a payload far deeper than the cap; sanitizing must not throw.
+      let deep: Record<string, unknown> = { secret: 'value' }
+      for (let i = 0; i < 5000; i += 1) {
+        deep = { nested: deep }
+      }
+
+      let result: unknown
+      expect(() => {
+        result = sanitizeParams(deep)
+      }).not.toThrow()
+
+      // The subtree below the depth cap is dropped, not walked.
+      let cursor = result as Record<string, unknown>
+      let depth = 0
+      while (cursor && typeof cursor === 'object' && 'nested' in cursor) {
+        cursor = cursor.nested as Record<string, unknown>
+        depth += 1
+      }
+      expect(cursor).toBe('[TRUNCATED]')
+      expect(depth).toBeLessThanOrEqual(8)
+    })
   })
 })

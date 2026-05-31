@@ -9,15 +9,16 @@ import {
 
 // Log the authorize params we forward to better-auth. The authorize endpoint
 // itself returns a redirect (302); a downstream 400 is raised by better-auth's
-// /api/auth/oauth2/authorize. Logging the forwarded params (client_id,
-// redirect_uri, response_type, scope, ...) here lets a 400 be correlated to the
-// client request that triggered it.
+// /api/auth/oauth2/authorize. This route only redirects and never observes that
+// failure, so the log is emitted at `info` (not `debug`) — otherwise it would be
+// suppressed at the default production level and there would be nothing to
+// correlate the downstream 400 to the client request that triggered it.
 const logAuthorizeRequest = (
   req: NextRequest,
   url: URL,
   method: 'GET' | 'POST'
 ) => {
-  oauthLogger.debug(
+  oauthLogger.info(
     {
       endpoint: 'authorize',
       method,

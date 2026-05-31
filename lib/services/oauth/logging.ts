@@ -107,23 +107,29 @@ export const sanitizeFormBody = (body: string): Record<string, string> => {
   return result
 }
 
+// Recursion is bounded so a deeply nested, attacker-controlled body (the apps
+// endpoint logs the raw, parse-failed request) cannot blow the stack and turn a
+// 422 into a 500. Beyond this depth the subtree is dropped rather than walked.
+const MAX_SANITIZE_DEPTH = 8
+
 /**
  * Redacts secret keys from an already-parsed value (e.g. a JSON body or
  * query-param record). Recurses into nested objects and arrays so a secret key
  * nested under a non-sensitive parent is still redacted — the apps endpoint
  * logs the raw, parse-failed request body, which is attacker-controlled and may
- * be arbitrarily nested.
+ * be arbitrarily nested. Recursion depth is capped to stay DoS-safe.
  */
-export const sanitizeParams = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeParams(item))
-  }
+export const sanitizeParams = (value: unknown, depth = 0): unknown => {
   if (value && typeof value === 'object') {
+    if (depth >= MAX_SANITIZE_DEPTH) return '[TRUNCATED]'
+    if (Array.isArray(value)) {
+      return value.map((item) => sanitizeParams(item, depth + 1))
+    }
     const result: Record<string, unknown> = {}
     for (const [key, nested] of Object.entries(value)) {
       result[key] = isSensitiveParam(key)
         ? '[REDACTED]'
-        : sanitizeParams(nested)
+        : sanitizeParams(nested, depth + 1)
     }
     return result
   }
