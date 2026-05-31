@@ -4,6 +4,11 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import { getDatabase } from '@/lib/database'
+import {
+  oauthLogger,
+  sanitizeHeaders,
+  sanitizeParams
+} from '@/lib/services/oauth/logging'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -83,6 +88,19 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
   const json = await getRequestBody(req)
   const parseResult = PostRequest.safeParse(json)
   if (!parseResult.success) {
+    // First step of the Mastodon login flow. Log rejected registrations so a
+    // failing third-party client can be diagnosed in production. Secrets are
+    // redacted; client_name / redirect_uris / scopes are not secret.
+    oauthLogger.warn(
+      {
+        endpoint: 'apps',
+        status: 422,
+        headers: sanitizeHeaders(req.headers),
+        body: sanitizeParams(json),
+        validationErrors: parseResult.error.issues
+      },
+      'OAuth app registration request rejected'
+    )
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -95,6 +113,14 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
   })
 
   if (response.type === 'error') {
+    oauthLogger.warn(
+      {
+        endpoint: 'apps',
+        error: response.error,
+        headers: sanitizeHeaders(req.headers)
+      },
+      'OAuth app registration failed'
+    )
     if (response.error === 'Too many application registrations') {
       return apiResponse({
         req,
