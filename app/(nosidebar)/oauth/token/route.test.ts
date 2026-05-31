@@ -363,19 +363,15 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
 
-  test('rejects token requests that are not form encoded before proxying', async () => {
+  test('rejects token requests with an unsupported content type before proxying', async () => {
     mockAuthHandler.mockResolvedValue(
       Response.json({ access_token: 'should-not-issue' })
     )
 
     const req = new NextRequest('https://llun.test/oauth/token', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        client_id: 'pkce-client',
-        code: 'authorization-code'
-      })
+      headers: { 'content-type': 'text/plain' },
+      body: 'grant_type=authorization_code&client_id=pkce-client'
     })
 
     const response = await POST(req)
@@ -383,7 +379,116 @@ describe('OAuth token endpoint', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'invalid_request',
       error_description:
-        'Token requests must use application/x-www-form-urlencoded'
+        'Token requests must use application/x-www-form-urlencoded, multipart/form-data, or application/json'
+    })
+    expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('normalizes multipart/form-data token requests to urlencoded before proxying', async () => {
+    // Reproduces Ivory: it posts the token request as multipart/form-data, which
+    // the proxy previously rejected with a 400 before better-auth ever saw it.
+    const boundary = '_X__X__X___X_XXXX_____X_X__X_X_XX_'
+    const fields = {
+      grant_type: 'authorization_code',
+      client_id: 'non-pkce-client',
+      client_secret: 'client-secret',
+      code: 'authorization-code',
+      code_verifier: 'verifier',
+      redirect_uri: 'https://client.llun.dev/callback'
+    }
+    const multipartBody = `${Object.entries(fields)
+      .map(
+        ([name, value]) =>
+          `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+      )
+      .join('')}--${boundary}--\r\n`
+
+    const expectedBody = new URLSearchParams(fields).toString()
+
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      expect(request.headers.get('content-type')).toBe(
+        'application/x-www-form-urlencoded'
+      )
+      await expect(request.text()).resolves.toBe(expectedBody)
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': `multipart/form-data; boundary=${boundary}`
+      },
+      body: multipartBody
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      access_token: 'issued',
+      created_at: expect.any(Number)
+    })
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
+  test('normalizes application/json token requests to urlencoded before proxying', async () => {
+    const expectedBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: 'non-pkce-client',
+      client_secret: 'client-secret',
+      code: 'authorization-code',
+      code_verifier: 'verifier',
+      redirect_uri: 'https://client.llun.dev/callback'
+    }).toString()
+
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      expect(request.headers.get('content-type')).toBe(
+        'application/x-www-form-urlencoded'
+      )
+      await expect(request.text()).resolves.toBe(expectedBody)
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        client_id: 'non-pkce-client',
+        client_secret: 'client-secret',
+        code: 'authorization-code',
+        code_verifier: 'verifier',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      access_token: 'issued',
+      created_at: expect.any(Number)
+    })
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
+  test('rejects malformed JSON token bodies with a 400', async () => {
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{ not valid json'
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'Unable to read request body'
     })
     expect(response.status).toBe(400)
     expect(mockAuthHandler).not.toHaveBeenCalled()

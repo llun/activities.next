@@ -21,6 +21,18 @@ import {
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const MAX_TOKEN_REQUEST_BODY_BYTES = 64 * 1024
 const FORM_URLENCODED_MEDIA_TYPE = 'application/x-www-form-urlencoded'
+const MULTIPART_FORM_MEDIA_TYPE = 'multipart/form-data'
+const JSON_MEDIA_TYPE = 'application/json'
+// Native Mastodon clients are inconsistent about how they encode the token
+// request: Ivory posts `multipart/form-data`, others post JSON, the spec default
+// is `application/x-www-form-urlencoded`. Accept all three and normalize the
+// non-urlencoded ones to urlencoded before forwarding, since better-auth's token
+// handler only parses urlencoded/JSON — not multipart boundaries.
+const ACCEPTED_TOKEN_MEDIA_TYPES = new Set([
+  FORM_URLENCODED_MEDIA_TYPE,
+  MULTIPART_FORM_MEDIA_TYPE,
+  JSON_MEDIA_TYPE
+])
 // `cookie` is stripped so a forwarded browser session cookie does not trigger
 // better-auth's cookie-gated CSRF origin check on the token back-channel. Native
 // OAuth clients (e.g. the Mastodon iOS app) send no Origin header, so leaving the
@@ -141,6 +153,100 @@ const readTokenRequestBodyWithLimit = async (
   return Buffer.concat(chunks).toString('utf8')
 }
 
+// OAuth token parameters are flat string fields, so flatten any JSON body into
+// urlencoded params and drop non-primitive values.
+const jsonBodyToParams = (parsed: unknown): URLSearchParams => {
+  const params = new URLSearchParams()
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return params
+  }
+  for (const [key, value] of Object.entries(parsed)) {
+    if (value === null || value === undefined || typeof value === 'object') {
+      continue
+    }
+    params.set(key, String(value))
+  }
+  return params
+}
+
+const parseMultipartBoundary = (rawContentType: string): string | null => {
+  const match = rawContentType.match(/;\s*boundary=(?:"([^"]+)"|([^;]+))/i)
+  const boundary = (match?.[1] ?? match?.[2])?.trim()
+  return boundary || null
+}
+
+// Minimal multipart/form-data parser for the simple named text fields an OAuth
+// token request carries. The platform `Response.formData()` parser is not used
+// because it is unavailable in the test runtime; token bodies never contain file
+// parts, so those (Content-Disposition with a `filename`) are skipped.
+const multipartBodyToParams = (
+  rawContentType: string,
+  bodyText: string
+): URLSearchParams => {
+  const boundary = parseMultipartBoundary(rawContentType)
+  if (!boundary) throw new TokenRequestBodyUnreadableError()
+
+  const params = new URLSearchParams()
+  for (const rawSegment of bodyText.split(`--${boundary}`)) {
+    const segment = rawSegment.startsWith('\r\n')
+      ? rawSegment.slice(2)
+      : rawSegment
+    const headerEnd = segment.indexOf('\r\n\r\n')
+    if (headerEnd < 0) continue
+
+    const disposition = segment
+      .slice(0, headerEnd)
+      .split('\r\n')
+      .find((line) => line.toLowerCase().startsWith('content-disposition:'))
+    if (!disposition || /;\s*filename=/i.test(disposition)) continue
+
+    const name = disposition.match(/;\s*name="?([^";]+)"?/i)?.[1]
+    if (!name) continue
+
+    const value = segment.slice(headerEnd + 4)
+    params.set(name, value.endsWith('\r\n') ? value.slice(0, -2) : value)
+  }
+  return params
+}
+
+// Normalize a token request body to urlencoded params. urlencoded bodies are
+// forwarded verbatim (the production-proven path); multipart/JSON bodies are
+// re-serialized to urlencoded and signal a content-type override for the proxy.
+// Malformed JSON / multipart bodies raise TokenRequestBodyUnreadableError so the
+// caller maps them to the existing 400.
+const normalizeTokenRequestBody = (
+  mediaType: string,
+  rawContentType: string,
+  bodyText: string
+): {
+  params: URLSearchParams
+  forwardBodyText: string
+  forwardContentType: string | null
+} => {
+  if (mediaType === FORM_URLENCODED_MEDIA_TYPE) {
+    return {
+      params: new URLSearchParams(bodyText),
+      forwardBodyText: bodyText,
+      forwardContentType: null
+    }
+  }
+
+  try {
+    const params =
+      mediaType === JSON_MEDIA_TYPE
+        ? jsonBodyToParams(JSON.parse(bodyText))
+        : multipartBodyToParams(rawContentType, bodyText)
+    return {
+      params,
+      forwardBodyText: params.toString(),
+      forwardContentType: FORM_URLENCODED_MEDIA_TYPE
+    }
+  } catch (error) {
+    if (error instanceof TokenRequestBodyUnreadableError) throw error
+    throw new TokenRequestBodyUnreadableError()
+  }
+}
+
 const getTokenProxyHeaders = (headers: Headers): Headers => {
   const proxyHeaders = new Headers(headers)
   for (const header of TOKEN_PROXY_EXCLUDED_HEADERS) {
@@ -154,6 +260,7 @@ const getTokenRequestBody = async (
 ): Promise<{
   bodyText: string | null
   params: URLSearchParams | null
+  forwardContentType: string | null
   error: Response | null
 }> => {
   const contentLength = Number(req.headers.get('content-length') ?? 0)
@@ -161,6 +268,7 @@ const getTokenRequestBody = async (
     return {
       bodyText: null,
       params: null,
+      forwardContentType: null,
       error: apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -173,22 +281,21 @@ const getTokenRequestBody = async (
     }
   }
 
-  const contentType = (req.headers.get('content-type') ?? '')
-    .split(';')[0]
-    .trim()
-    .toLowerCase()
+  const rawContentType = req.headers.get('content-type') ?? ''
+  const mediaType = rawContentType.split(';')[0].trim().toLowerCase()
 
-  if (contentType !== FORM_URLENCODED_MEDIA_TYPE) {
+  if (!ACCEPTED_TOKEN_MEDIA_TYPES.has(mediaType)) {
     return {
       bodyText: null,
       params: null,
+      forwardContentType: null,
       error: apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: {
           error: 'invalid_request',
           error_description:
-            'Token requests must use application/x-www-form-urlencoded'
+            'Token requests must use application/x-www-form-urlencoded, multipart/form-data, or application/json'
         },
         responseStatusCode: HTTP_STATUS.BAD_REQUEST
       })
@@ -197,12 +304,20 @@ const getTokenRequestBody = async (
 
   try {
     const bodyText = await readTokenRequestBodyWithLimit(req)
-    return { bodyText, params: new URLSearchParams(bodyText), error: null }
+    const { params, forwardBodyText, forwardContentType } =
+      normalizeTokenRequestBody(mediaType, rawContentType, bodyText)
+    return {
+      bodyText: forwardBodyText,
+      params,
+      forwardContentType,
+      error: null
+    }
   } catch (error) {
     if (error instanceof TokenRequestBodyUnreadableError) {
       return {
         bodyText: null,
         params: null,
+        forwardContentType: null,
         error: apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -219,6 +334,7 @@ const getTokenRequestBody = async (
     return {
       bodyText: null,
       params: null,
+      forwardContentType: null,
       error: apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -289,7 +405,8 @@ export const POST = async (req: NextRequest) => {
     'OAuth token request received'
   )
 
-  const { bodyText, params, error } = await getTokenRequestBody(req)
+  const { bodyText, params, forwardContentType, error } =
+    await getTokenRequestBody(req)
   if (error) {
     // Pre-flight rejection (wrong content-type, oversized/unreadable body).
     // These are the proxy's own 4xx responses and never reach better-auth.
@@ -324,9 +441,15 @@ export const POST = async (req: NextRequest) => {
 
   // Rewrite the URL to better-auth's token endpoint
   const url = new URL('/api/auth/oauth2/token', getBaseURL())
+  const proxyHeaders = getTokenProxyHeaders(req.headers)
+  // multipart/JSON bodies were normalized to urlencoded; override the forwarded
+  // content-type to match so better-auth parses the body it actually receives.
+  if (forwardContentType) {
+    proxyHeaders.set('content-type', forwardContentType)
+  }
   const proxyReq = new Request(url.toString(), {
     method: 'POST',
-    headers: getTokenProxyHeaders(req.headers),
+    headers: proxyHeaders,
     body: bodyText ?? ''
   })
 
