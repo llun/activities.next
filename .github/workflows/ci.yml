@@ -1,0 +1,77 @@
+name: CI
+
+# Runs on every commit (push to any branch + pull requests). The jobs are
+# chained with `needs:` so they gate each other: lint/prettier must pass before
+# build, and build must pass before the test suite. Each job appears as a native
+# status check (CI / Lint and Prettier, CI / Build, CI / All Tests) that can be
+# marked required in branch protection to block merges.
+#
+# Everything runs in the normal push/pull_request context: jobs use the default
+# read-only token, pull_request runs check out the PR merge ref (catching
+# post-merge integration failures), and fork PRs are handled natively without a
+# privileged workflow_run job executing untrusted code.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-prettier:
+    name: Lint and Prettier
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install
+      - name: Run lint
+        run: yarn lint
+      - name: Check prettier formatting
+        run: yarn run prettier --check
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint-prettier
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install
+      - name: Build
+        run: yarn build
+
+  test:
+    name: All Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install
+      - name: Run all tests
+        run: yarn test
+        env:
+          TEST_DATABASE_TYPE: sqlite
