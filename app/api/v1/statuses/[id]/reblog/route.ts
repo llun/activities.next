@@ -45,7 +45,21 @@ export const POST = traceApiRoute(
         responseStatusCode: 404
       })
 
-    const parsedBody = ReblogBodySchema.safeParse(await getRequestBody(req))
+    // getRequestBody calls req.json() for a JSON content type, which rejects on
+    // an empty or malformed body; catch it so a bad body yields a 422 rather
+    // than an untraced 500.
+    let rawBody: Record<string, unknown>
+    try {
+      rawBody = await getRequestBody(req)
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+    const parsedBody = ReblogBodySchema.safeParse(rawBody)
     if (!parsedBody.success)
       return apiResponse({
         req,

@@ -52,4 +52,38 @@ describe('parseFollowRequestBody', () => {
 
     await expect(parseFollowRequestBody(req)).resolves.toEqual({})
   })
+
+  it('keeps an explicitly empty languages array (clear filter) from JSON', async () => {
+    const req = new NextRequest('https://llun.test/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ languages: [] })
+    })
+
+    await expect(parseFollowRequestBody(req)).resolves.toEqual({
+      languages: []
+    })
+  })
+
+  it('keeps an explicitly empty languages[] (clear filter) from urlencoded', async () => {
+    const req = new NextRequest('https://llun.test/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'languages[]='
+    })
+
+    await expect(parseFollowRequestBody(req)).resolves.toEqual({
+      languages: []
+    })
+  })
+
+  it('rejects a malformed JSON body instead of swallowing it', async () => {
+    const req = new NextRequest('https://llun.test/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{ not valid json'
+    })
+
+    await expect(parseFollowRequestBody(req)).rejects.toThrow()
+  })
 })

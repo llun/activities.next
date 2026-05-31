@@ -694,6 +694,42 @@ describe('GET /api/v1/statuses/[id]', () => {
       ).resolves.toBeNull()
     })
 
+    it('rejects a malformed JSON reblog body with 422 (not 500)', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-malformed-json`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog malformed json target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: '{ broken json'
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+      await expect(
+        database.getActorAnnounceStatus({ actorId: ACTOR2_ID, statusId })
+      ).resolves.toBeNull()
+    })
+
     it('bookmarks a readable status and returns bookmarked=true', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }

@@ -231,8 +231,79 @@ describe('Account Action Endpoints', () => {
       expect(response.status).toBe(200)
       const relationship = await response.json()
       // notify updated, reblogs left untouched from the first follow.
+      // showing_reblogs reflects the stored preference on the follow row (the
+      // value the client set), which the locally-initiated follow keeps in the
+      // Requested state until acceptance; it is not gated on acceptance.
       expect(relationship.notifying).toBe(true)
       expect(relationship.showing_reblogs).toBe(true)
+    })
+
+    it('clears an existing language filter when languages: [] is sent', async () => {
+      const targetActorId = await createFollowTargetActor('follow-clear-langs')
+
+      await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ languages: ['en', 'th'] })
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ languages: [] })
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const stored = await database.getAcceptedOrRequestedFollow({
+        actorId: ACTOR1_ID,
+        targetActorId
+      })
+      expect(stored?.languages).toBeNull()
+    })
+
+    it('returns 422 for a malformed JSON body', async () => {
+      const targetActorId = await createFollowTargetActor('follow-bad-json')
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: '{ broken json'
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      expect(response.status).toBe(422)
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId
+        })
+      ).resolves.toBeNull()
     })
   })
 

@@ -105,6 +105,51 @@ describe('POST /api/v1/accounts/:id/note', () => {
     ).resolves.toBe('A private note from form')
   })
 
+  it('returns 404 for a note on an account that does not exist', async () => {
+    const unknownActorId = 'https://remote.test/users/never-seen-here'
+    const response = await updateNote(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(unknownActorId)}/note`,
+        {
+          method: 'POST',
+          headers: {
+            Origin: 'https://llun.test',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ comment: 'note for a ghost' })
+        }
+      ),
+      { params: Promise.resolve({ id: urlToId(unknownActorId) }) }
+    )
+
+    expect(response.status).toBe(404)
+    await expect(
+      database.getAccountNote({
+        actorId: ACTOR1_ID,
+        targetActorId: unknownActorId
+      })
+    ).resolves.toBe('')
+  })
+
+  it('returns 422 for a malformed JSON body', async () => {
+    const response = await updateNote(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(ACTOR2_ID)}/note`,
+        {
+          method: 'POST',
+          headers: {
+            Origin: 'https://llun.test',
+            'Content-Type': 'application/json'
+          },
+          body: '{ broken json'
+        }
+      ),
+      { params: Promise.resolve({ id: urlToId(ACTOR2_ID) }) }
+    )
+
+    expect(response.status).toBe(422)
+  })
+
   it('clears the note when an empty comment is sent', async () => {
     await callNote({
       contentType: 'application/json',

@@ -103,7 +103,8 @@ export const FollowerSQLDatabaseMixin = (
         ...follow,
         inbox,
         sharedInbox,
-        languages: languages ? JSON.stringify(languages) : null,
+        languages:
+          languages && languages.length > 0 ? JSON.stringify(languages) : null,
         createdAt: currentTime,
         updatedAt: currentTime
       })
@@ -147,7 +148,9 @@ export const FollowerSQLDatabaseMixin = (
     if (reblogs !== undefined) updates.reblogs = reblogs
     if (notify !== undefined) updates.notify = notify
     if (languages !== undefined) {
-      updates.languages = languages ? JSON.stringify(languages) : null
+      // An explicit empty list clears the filter (stored as null).
+      updates.languages =
+        languages && languages.length > 0 ? JSON.stringify(languages) : null
     }
 
     if (Object.keys(updates).length === 0) return existingFollow

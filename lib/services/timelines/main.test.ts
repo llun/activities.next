@@ -268,6 +268,35 @@ describe('#mainTimelineRule', () => {
     )
   })
 
+  it('returns null for announce from a following the viewer set reblogs=false on', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    // Actor3 follows Actor4 (accepted); disable boosts from Actor4.
+    await database.updateFollowPreferences({
+      actorId: ACTOR3_ID,
+      targetActorId: ACTOR4_ID,
+      reblogs: false
+    })
+    try {
+      const status = await createAnnounce(
+        database,
+        ACTOR4_ID,
+        `${ACTOR1_ID}/statuses/post-1`
+      )
+      if (!status) fail('Status must be defined')
+      expect(
+        await mainTimelineRule({ database, currentActor, status })
+      ).toBeNull()
+    } finally {
+      await database.updateFollowPreferences({
+        actorId: ACTOR3_ID,
+        targetActorId: ACTOR4_ID,
+        reblogs: true
+      })
+    }
+  })
+
   it('returns null for announce that from non-following', async () => {
     const currentActor = (await database.getActorFromId({
       id: ACTOR3_ID

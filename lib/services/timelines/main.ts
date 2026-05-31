@@ -46,6 +46,18 @@ export const mainTimelineRule: MainTimelineRule = async ({
           return null
         }
 
+        // Honor the follower's reblogs preference: when they followed this
+        // account with reblogs=false, keep that account's boosts out of their
+        // main timeline (matching the relationship's showing_reblogs=false).
+        const announceFollow = await database.getAcceptedOrRequestedFollow({
+          actorId: currentActor.id,
+          targetActorId: status.actorId
+        })
+        if (announceFollow && announceFollow.reblogs === false) {
+          span.end()
+          return null
+        }
+
         const originalStatus = status.originalStatus
         const timeline = await mainTimelineRule({
           database,

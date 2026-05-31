@@ -13,6 +13,7 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_404,
+  ERROR_422,
   HTTP_STATUS,
   apiResponse,
   defaultOptions
@@ -61,15 +62,27 @@ export const POST = traceApiRoute(
         responseStatusCode: 400
       })
 
-    const parsedBody = FollowBodySchema.safeParse(
-      await parseFollowRequestBody(req)
-    )
+    // A malformed JSON body rejects in parseFollowRequestBody; treat it as an
+    // unprocessable request rather than letting it surface as a 500 or be
+    // silently coerced into a default (paramless) follow.
+    let rawBody: Record<string, unknown>
+    try {
+      rawBody = await parseFollowRequestBody(req)
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
+    const parsedBody = FollowBodySchema.safeParse(rawBody)
     if (!parsedBody.success)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: ERROR_422,
+        responseStatusCode: 422
       })
     const { reblogs, notify, languages } = parsedBody.data
 
