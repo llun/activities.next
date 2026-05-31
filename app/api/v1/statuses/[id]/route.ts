@@ -11,6 +11,7 @@ import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
+import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
@@ -140,7 +141,9 @@ export const PUT = traceApiRoute(
       const { database, currentActor } = context
       const statusId = idToUrl(encodedStatusId)
       try {
-        const parsed = EditNoteSchema.safeParse(await req.json())
+        const parsed = EditNoteSchema.safeParse(
+          await parseStatusRequestBody(req)
+        )
         if (!parsed.success) {
           return apiResponse({
             req,

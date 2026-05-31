@@ -16,6 +16,13 @@ export async function getRequestBody(
     return req.json()
   }
 
+  // Parse urlencoded bodies with URLSearchParams rather than formData(): it is
+  // cheaper and, unlike req.formData(), works on the synthetic request bodies
+  // used in tests. multipart/form-data still needs the formData() parser.
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    return Object.fromEntries(new URLSearchParams(await req.text()))
+  }
+
   const formData = await req.formData()
   return Object.fromEntries(formData.entries())
 }

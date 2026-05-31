@@ -12,6 +12,7 @@ const createMockRequest = (
     headers.set('content-type', contentType)
   }
 
+  const entries = Object.entries(body || {})
   const request = {
     url,
     headers,
@@ -19,11 +20,15 @@ const createMockRequest = (
       .fn()
       .mockResolvedValue(
         new Map(
-          Object.entries(body || {}).map(([key, value]) => [
-            key,
-            value as FormDataEntryValue
-          ])
+          entries.map(([key, value]) => [key, value as FormDataEntryValue])
         )
+      ),
+    text: jest
+      .fn()
+      .mockResolvedValue(
+        new URLSearchParams(
+          entries.map(([key, value]) => [key, String(value)])
+        ).toString()
       ),
     json: jest.fn().mockResolvedValue(body || {})
   } as unknown as NextRequest
@@ -47,7 +52,7 @@ describe('getRequestBody', () => {
     expect(result).toEqual(mockBody)
   })
 
-  it('should parse form data request when content-type is not application/json', async () => {
+  it('should parse urlencoded request with URLSearchParams, not formData', async () => {
     const mockBody = {
       client_name: 'Test App',
       redirect_uris: 'https://example.com/callback'
@@ -55,6 +60,34 @@ describe('getRequestBody', () => {
     const mockRequest = createMockRequest(
       'https://example.com/api',
       'application/x-www-form-urlencoded',
+      mockBody
+    )
+    const result = await getRequestBody(mockRequest)
+    expect(mockRequest.text).toHaveBeenCalled()
+    expect(mockRequest.formData).not.toHaveBeenCalled()
+    expect(result).toEqual(mockBody)
+  })
+
+  it('keeps the last value for a repeated urlencoded key (last-write-wins)', async () => {
+    const mockRequest = createMockRequest(
+      'https://example.com/api',
+      'application/x-www-form-urlencoded'
+    )
+    ;(mockRequest.text as jest.Mock).mockResolvedValue('key=first&key=second')
+    const result = await getRequestBody(mockRequest)
+    // Object.fromEntries collapses duplicate keys to the last value; the mute
+    // route's fields are single-valued, so this is the intended contract.
+    expect(result).toEqual({ key: 'second' })
+  })
+
+  it('should parse multipart/form-data request with formData', async () => {
+    const mockBody = {
+      client_name: 'Test App',
+      redirect_uris: 'https://example.com/callback'
+    }
+    const mockRequest = createMockRequest(
+      'https://example.com/api',
+      'multipart/form-data; boundary=abc',
       mockBody
     )
     const result = await getRequestBody(mockRequest)
