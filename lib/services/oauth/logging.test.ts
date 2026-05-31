@@ -102,11 +102,13 @@ describe('oauth logging sanitizers', () => {
       })
     })
 
-    it('redacts OAuth security params (state, assertion)', () => {
-      const body = 'client_id=abc&state=csrf-binding&assertion=jwt-credential'
+    it('redacts OAuth security params (state, nonce, assertion)', () => {
+      const body =
+        'client_id=abc&state=csrf-binding&nonce=replay-binding&assertion=jwt-credential'
       expect(sanitizeFormBody(body)).toEqual({
         client_id: 'abc',
         state: '[REDACTED]',
+        nonce: '[REDACTED]',
         assertion: '[REDACTED]'
       })
     })
@@ -206,6 +208,40 @@ describe('oauth logging sanitizers', () => {
         redirect_uri: 'https://client.example/cb',
         client_id: 'abc'
       })
+    })
+
+    it('strips query/fragment from each element of a URL-valued array', () => {
+      expect(
+        sanitizeParams({
+          redirect_uris: [
+            'https://client.example/cb?session=secret#token',
+            'https://client.example/cb2?code=leak'
+          ]
+        })
+      ).toEqual({
+        redirect_uris: [
+          'https://client.example/cb',
+          'https://client.example/cb2'
+        ]
+      })
+    })
+
+    it('truncates oversized string values', () => {
+      const big = 'a'.repeat(5000)
+      const result = sanitizeParams({ client_name: big }) as {
+        client_name: string
+      }
+      expect(result.client_name.length).toBeLessThan(big.length)
+      expect(result.client_name).toContain('[truncated 3976 chars]')
+    })
+
+    it('caps the number of keys kept per object', () => {
+      const wide: Record<string, string> = {}
+      for (let i = 0; i < 250; i += 1) wide[`k${i}`] = 'v'
+      const result = sanitizeParams(wide) as Record<string, unknown>
+      // 100 kept keys + 1 truncation summary key.
+      expect(Object.keys(result)).toHaveLength(101)
+      expect(result['…']).toBe('[truncated 150 keys]')
     })
 
     it('bounds recursion depth so a deeply nested body cannot blow the stack', () => {

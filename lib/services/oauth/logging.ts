@@ -28,8 +28,8 @@ const URL_BEARING_HEADERS = new Set(['referer', 'referrer', 'location'])
 // Body/query parameter names that carry secrets or PII and must be redacted.
 // `username`/`email` are not part of the configured grant types, but redacting
 // them keeps PII out of logs if a password/custom grant or the registration
-// body ever carries them. `state` is the client's CSRF binding and `assertion`
-// carries a JWT/SAML credential in assertion grants.
+// body ever carries them. `state`/`nonce` are the client's CSRF / OIDC replay
+// bindings and `assertion` carries a JWT/SAML credential in assertion grants.
 const SENSITIVE_PARAMS = new Set([
   'client_secret',
   'client_assertion',
@@ -40,6 +40,7 @@ const SENSITIVE_PARAMS = new Set([
   'username',
   'email',
   'state',
+  'nonce',
   'refresh_token',
   'access_token',
   'id_token',
@@ -136,14 +137,32 @@ export const sanitizeHeaders = (headers: Headers): Record<string, string> => {
   return result
 }
 
-// Redacts a single param value: secret params become [REDACTED], URL-valued
-// params keep scheme+host+path but drop query/fragment, everything else passes
-// through. Shared by sanitizeFormBody and sanitizeParams.
+// String values longer than this are truncated before logging. The 422
+// app-registration path logs the raw, unauthenticated request body, so an
+// oversized field (e.g. a multi-megabyte client_name) must not be written to
+// logs near-verbatim.
+const MAX_LOGGED_STRING_LENGTH = 1024
+
+const truncateString = (value: string): string =>
+  value.length > MAX_LOGGED_STRING_LENGTH
+    ? `${value.slice(0, MAX_LOGGED_STRING_LENGTH)}…[truncated ${value.length - MAX_LOGGED_STRING_LENGTH} chars]`
+    : value
+
+// Redacts a single param value: secret params become [REDACTED]; URL-valued
+// params keep scheme+host+path but drop query/fragment (including each element
+// of a string array, e.g. `redirect_uris`); plain strings are length-capped;
+// everything else passes through. Shared by sanitizeFormBody and sanitizeParams.
 const sanitizeParamValue = (key: string, value: unknown): unknown => {
   if (isSensitiveParam(key)) return '[REDACTED]'
-  if (typeof value === 'string' && isUrlValuedParam(key)) {
-    return sanitizeUrlValue(value)
+  if (isUrlValuedParam(key)) {
+    if (typeof value === 'string') return sanitizeUrlValue(value)
+    if (Array.isArray(value)) {
+      return value.map((item) =>
+        typeof item === 'string' ? sanitizeUrlValue(item) : item
+      )
+    }
   }
+  if (typeof value === 'string') return truncateString(value)
   return value
 }
 
@@ -166,34 +185,54 @@ export const sanitizeFormBody = (body: string): Record<string, string> => {
 // 422 into a 500. Beyond this depth the subtree is dropped rather than walked.
 const MAX_SANITIZE_DEPTH = 8
 
+// Caps on breadth so an oversized rejected body cannot amplify log volume on the
+// unauthenticated 422 path: at most this many object keys / array items are kept
+// per level, the rest summarized.
+const MAX_SANITIZE_ENTRIES = 100
+
 /**
  * Redacts secret keys from an already-parsed value (e.g. a JSON body or
  * query-param record). Recurses into arrays and plain objects so a secret key
  * nested under a non-sensitive parent is still redacted — the apps endpoint
  * logs the raw, parse-failed request body, which is attacker-controlled and may
- * be arbitrarily nested. Recursion depth is capped to stay DoS-safe, and
- * non-plain objects (Date, RegExp, class instances) are returned as-is rather
- * than being flattened to `{}` by `Object.entries`.
+ * be arbitrarily nested. Recursion depth and breadth are capped and long
+ * strings truncated to stay DoS / log-amplification safe, and non-plain objects
+ * (Date, RegExp, class instances) are returned as-is rather than being flattened
+ * to `{}` by `Object.entries`.
  */
 export const sanitizeParams = (value: unknown, depth = 0): unknown => {
+  if (typeof value === 'string') return truncateString(value)
   if (value && typeof value === 'object') {
     if (depth >= MAX_SANITIZE_DEPTH) return '[TRUNCATED]'
     if (Array.isArray(value)) {
-      return value.map((item) => sanitizeParams(item, depth + 1))
+      const kept = value
+        .slice(0, MAX_SANITIZE_ENTRIES)
+        .map((item) => sanitizeParams(item, depth + 1))
+      if (value.length > MAX_SANITIZE_ENTRIES) {
+        kept.push(`[truncated ${value.length - MAX_SANITIZE_ENTRIES} items]`)
+      }
+      return kept
     }
     const proto = Object.getPrototypeOf(value)
     if (proto !== null && proto !== Object.prototype) {
       return value
     }
     const result: Record<string, unknown> = {}
-    for (const [key, nested] of Object.entries(value)) {
+    const entries = Object.entries(value)
+    for (const [key, nested] of entries.slice(0, MAX_SANITIZE_ENTRIES)) {
       if (isSensitiveParam(key)) {
         result[key] = '[REDACTED]'
-      } else if (typeof nested === 'string' && isUrlValuedParam(key)) {
-        result[key] = sanitizeUrlValue(nested)
+      } else if (
+        isUrlValuedParam(key) &&
+        (typeof nested === 'string' || Array.isArray(nested))
+      ) {
+        result[key] = sanitizeParamValue(key, nested)
       } else {
         result[key] = sanitizeParams(nested, depth + 1)
       }
+    }
+    if (entries.length > MAX_SANITIZE_ENTRIES) {
+      result['…'] = `[truncated ${entries.length - MAX_SANITIZE_ENTRIES} keys]`
     }
     return result
   }
