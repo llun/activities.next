@@ -23,11 +23,18 @@ const collectStatusFields = (
     if (typeof value === 'string') body[field] = value
   }
 
-  const mediaIds = MEDIA_ID_FIELDS.flatMap((field) => getAll(field))
-    .filter((value): value is string => typeof value === 'string')
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0)
-  if (mediaIds.length > 0) body.media_ids = mediaIds
+  const rawMediaIds = MEDIA_ID_FIELDS.flatMap((field) => getAll(field)).filter(
+    (value): value is string => typeof value === 'string'
+  )
+  // Distinguish "client did not mention media_ids" (omit → preserve existing
+  // media on edit) from "client sent an explicit, possibly empty media_ids"
+  // (e.g. `media_ids[]=` to clear all attachments). Only the latter sets the
+  // key, so a form client can clear media just as a JSON `media_ids: []` does.
+  if (rawMediaIds.length > 0) {
+    body.media_ids = rawMediaIds
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0)
+  }
 
   return body
 }

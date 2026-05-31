@@ -62,4 +62,16 @@ describe('parseStatusRequestBody', () => {
     expect(body).toEqual({ status: 'no media' })
     expect('media_ids' in body).toBe(false)
   })
+
+  it('keeps an explicit empty media_ids[] so form clients can clear media', async () => {
+    const params = new URLSearchParams()
+    params.append('media_ids[]', '')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    // Present-but-empty differs from absent: this must flow through as an empty
+    // array (clear media), not be omitted (preserve media).
+    expect(body).toEqual({ media_ids: [] })
+    expect('media_ids' in body).toBe(true)
+  })
 })

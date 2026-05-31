@@ -1801,6 +1801,70 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(attachments).toHaveLength(1)
     })
 
+    it('clears media from a urlencoded body with an explicit empty media_ids[]', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-urlencoded-clear-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Keeps text while clearing media',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-urlencoded-clear.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-urlencoded-clear.jpg'
+        },
+        description: 'Cleared media'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-urlencoded-clear.webp',
+        width: 320,
+        height: 240,
+        name: 'Cleared media',
+        mediaId: media!.id
+      })
+
+      // `media_ids[]=` (present but empty) must clear attachments, mirroring a
+      // JSON `media_ids: []`, rather than being dropped as absent.
+      const params = new URLSearchParams({
+        status: 'Keeps text while clearing'
+      })
+      params.append('media_ids[]', '')
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: params.toString(),
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toEqual([])
+      await expect(database.getAttachments({ statusId })).resolves.toEqual([])
+    })
+
     it('applies a visibility-only edit from a urlencoded body', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-urlencoded-visibility`
       await database.createNote({
