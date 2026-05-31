@@ -134,13 +134,14 @@ section-navigation patterns; pick by section type.
 
 - Use `PageHeader` from `@/lib/components/page-header` for every page title in the `(timeline)` route group. By default it renders the sticky, full-width chrome (translucent background + backdrop blur + bottom border) and centers the title above the post column. Pages always call `<PageHeader title="…" description="…" actions={…} />`; they don't need to know which sub-nav pattern (if any) wraps them.
 
-### Vertical nav rail (settings-style sections — the design-system default)
+### Dropdown sub-nav (settings-style sections — the design-system default)
 
-- Settings-style sections (settings, fitness settings) use a **vertical icon nav rail** beside the content, matching the design system: an orange-wash active state (`bg-primary/10 text-primary`), a Lucide icon per item, and **sentence-case** labels ("Blocked accounts", not "Blocked Accounts"). On mobile and tablet (below `lg`) the rail collapses to a dropdown so the content gets the full width.
+- Settings-style sections (settings, fitness) use a **dropdown sub-navigation on every breakpoint, including desktop** — there is **no vertical nav rail**. The earlier desktop "vertical icon rail" is gone: do **not** reintroduce a `lg:block` rail beside the content. The same dropdown that tablet/mobile used now drives desktop too, so the content always gets the full width.
+- The dropdown is a single `<nav aria-label="…">` wrapping a Radix `DropdownMenu`. The trigger is an outline `Button` showing the active tab's Lucide icon (`text-primary`) + **sentence-case** label ("Blocked accounts", not "Blocked Accounts") + a `ChevronDown`; it is `w-full` on mobile and a contained `sm:w-64` from `sm` up. Each menu item is a `<Link>` (with `aria-current="page"` on the active one) inside a `DropdownMenuItem`, and `DropdownMenuContent` uses `w-[--radix-dropdown-menu-trigger-width]` so the menu matches the trigger width.
 - The section layout renders **two tiers of header**, matching the design system:
-  1. A **shared section header** at the very top (e.g. `Settings` / "Manage your account and preferences") that uses the same full-width sticky chrome as the other top-level routes, so the section reads like every other page. Render a `PageHeader` with `contentWidth="wide"` **outside** `PageHeaderSectionProvider` so it keeps the sticky breakout chrome; `contentWidth="wide"` aligns its centered title row to the `max-w-4xl` rail column instead of the default `max-w-2xl` timeline column.
+  1. A **shared section header** at the very top (e.g. `Settings` / "Manage your account and preferences") that uses the same full-width sticky chrome as the other top-level routes, so the section reads like every other page. Render a `PageHeader` with `contentWidth="wide"` **outside** `PageHeaderSectionProvider` so it keeps the sticky breakout chrome; `contentWidth="wide"` aligns its centered title row to the `max-w-4xl` content column instead of the default `max-w-2xl` timeline column.
   2. The **per-page title** ("General", "Account Settings", …) below it, rendered by each page's own `<PageHeader>` in **section mode**.
-- Wrap the rail + content in `PageHeaderSectionProvider` from `@/lib/components/page-header`. That switches every descendant `PageHeader` into **section mode**: a plain, non-sticky, non-breakout in-panel title block that sits at the top of the content column instead of spanning the rail. Render the rail directly in the layout (do **not** use `PageSubnavProvider` here) and opt the wrapper into the wide layout with `data-layout-width="wide"`.
+- Wrap the dropdown + content in `PageHeaderSectionProvider` from `@/lib/components/page-header`. That switches every descendant `PageHeader` into **section mode**: a plain, non-sticky, non-breakout in-panel title block that sits at the top of the content column. Render the dropdown directly in the layout (do **not** use `PageSubnavProvider` here) and opt the wrapper into the wide layout with `data-layout-width="wide"`.
 
   ```tsx
   // app/(timeline)/<section>/layout.tsx
@@ -160,12 +161,15 @@ section-navigation patterns; pick by section type.
           contentWidth="wide"
         />
         <PageHeaderSectionProvider>
-          <div data-layout-width="wide" className="mx-auto w-full max-w-4xl">
-            {/* dropdown below lg, vertical rail at lg+ */}
-            <div className="flex gap-6 lg:gap-8">
-              {/* <nav> rail … */}
-              <div className="min-w-0 flex-1">{children}</div>
-            </div>
+          <div
+            data-layout-width="wide"
+            className="mx-auto w-full max-w-4xl pt-4"
+          >
+            {/* Dropdown sub-nav on every breakpoint — no vertical rail. */}
+            <nav aria-label="Settings" className="mb-4">
+              {/* <DropdownMenu> trigger + items … */}
+            </nav>
+            <div className="min-w-0">{children}</div>
           </div>
         </PageHeaderSectionProvider>
       </>
@@ -173,7 +177,7 @@ section-navigation patterns; pick by section type.
   }
   ```
 
-- A **nested** sub-nav inside a rail section (e.g. fitness General/Privacy/Strava) renders as a small **in-content segmented control**, not a second rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. See `app/(timeline)/settings/layout.tsx` and `app/(timeline)/settings/fitness/layout.tsx`.
+- A **nested** sub-nav inside a section renders as a small **in-content segmented control**, not a second dropdown or rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. See `app/(timeline)/settings/layout.tsx` and `app/(timeline)/fitness/layout.tsx`.
 
 ### Sticky-header sub-nav (admin-style sections)
 

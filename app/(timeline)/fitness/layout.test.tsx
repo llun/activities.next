@@ -19,43 +19,27 @@ const renderLayout = () =>
   )
 
 describe('Fitness Layout', () => {
-  it('renders the four rail items', () => {
+  it('shows the dropdown sub-navigation reflecting the Overview tab on /fitness', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness')
     renderLayout()
 
-    const rail = screen.getByRole('navigation', { name: 'Fitness' })
-    for (const label of ['Overview', 'Files', 'Privacy', 'Strava']) {
-      expect(
-        within(rail).getByRole('link', { name: label })
-      ).toBeInTheDocument()
-    }
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('Overview')
   })
 
-  it('marks the Strava link as current on /fitness/strava and Overview as not current', () => {
+  it('reflects the Strava tab in the dropdown trigger on /fitness/strava', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
     renderLayout()
 
-    const rail = screen.getByRole('navigation', { name: 'Fitness' })
-    expect(within(rail).getByRole('link', { name: 'Strava' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    )
-    expect(
-      within(rail).getByRole('link', { name: 'Overview' })
-    ).not.toHaveAttribute('aria-current')
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('Strava')
   })
 
-  it('marks the Privacy link as current on /fitness/privacy and Overview as not current', () => {
+  it('reflects the Privacy tab in the dropdown trigger on /fitness/privacy', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/privacy')
     renderLayout()
 
-    const rail = screen.getByRole('navigation', { name: 'Fitness' })
-    expect(within(rail).getByRole('link', { name: 'Privacy' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    )
-    expect(
-      within(rail).getByRole('link', { name: 'Overview' })
-    ).not.toHaveAttribute('aria-current')
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('Privacy')
   })
 })
