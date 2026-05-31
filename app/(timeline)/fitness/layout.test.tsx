@@ -43,19 +43,31 @@ describe('Fitness Layout', () => {
     expect(within(nav).getByRole('button')).toHaveTextContent('Privacy')
   })
 
+  it('resolves a nested files path to the Files tab, not Overview', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness/files/abc123')
+    renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    // '/fitness' (Overview) is a prefix of the path but must not win over
+    // '/fitness/files'.
+    expect(within(nav).getByRole('button')).toHaveTextContent('Files')
+  })
+
   // Open the Radix menu the same way the rest of the suite does (keyboard, since
   // jsdom has no pointer layout), then assert the items the rail used to expose.
+  // Scope to the open menu so the test fails loudly if items ever render outside
+  // an opened dropdown.
   it('renders every section as a menu item when the dropdown is opened', async () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness')
     renderLayout()
 
     fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
 
-    expect(
-      await screen.findByRole('menuitem', { name: 'Overview' })
-    ).toBeInTheDocument()
-    for (const label of ['Files', 'Privacy', 'Strava']) {
-      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument()
+    const menu = await screen.findByRole('menu')
+    for (const label of ['Overview', 'Files', 'Privacy', 'Strava']) {
+      expect(
+        within(menu).getByRole('menuitem', { name: label })
+      ).toBeInTheDocument()
     }
   })
 
@@ -65,11 +77,12 @@ describe('Fitness Layout', () => {
 
     fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
 
+    const menu = await screen.findByRole('menu')
     expect(
-      await screen.findByRole('menuitem', { name: 'Strava' })
+      within(menu).getByRole('menuitem', { name: 'Strava' })
     ).toHaveAttribute('aria-current', 'page')
     expect(
-      screen.getByRole('menuitem', { name: 'Overview' })
+      within(menu).getByRole('menuitem', { name: 'Overview' })
     ).not.toHaveAttribute('aria-current')
   })
 })
