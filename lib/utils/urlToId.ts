@@ -10,8 +10,13 @@ const fromBase64Url = (value: string) =>
     .replaceAll('_', '/')
 
 const encodeBase64Url = (value: string) => {
+  // Use plain `base64` rather than `base64url`: the browser `buffer` polyfill
+  // that Turbopack injects exposes a global `Buffer` but does NOT implement the
+  // `base64url` encoding, so `toString('base64url')` throws `Unknown encoding`
+  // in the bundle. Encode as `base64` (supported everywhere) and convert to the
+  // url-safe alphabet ourselves via toBase64Url.
   if (typeof Buffer !== 'undefined') {
-    return Buffer.from(value, 'utf8').toString('base64url')
+    return toBase64Url(Buffer.from(value, 'utf8').toString('base64'))
   }
 
   if (typeof btoa === 'function' && typeof TextEncoder !== 'undefined') {
@@ -26,8 +31,11 @@ const encodeBase64Url = (value: string) => {
 }
 
 const decodeBase64Url = (value: string) => {
+  // Mirror encodeBase64Url: decode via the universally supported `base64`
+  // encoding after restoring padding/alphabet, since the browser Buffer
+  // polyfill cannot parse `base64url`.
   if (typeof Buffer !== 'undefined') {
-    return Buffer.from(value, 'base64url').toString('utf8')
+    return Buffer.from(fromBase64Url(value), 'base64').toString('utf8')
   }
 
   if (typeof atob !== 'function' || typeof TextDecoder === 'undefined') {
