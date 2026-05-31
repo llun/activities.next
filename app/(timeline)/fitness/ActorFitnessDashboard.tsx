@@ -20,6 +20,7 @@ import {
   CalendarMetric,
   FitnessCalendarHeatmap
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
+import { Card } from '@/lib/components/ui/card'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -223,40 +224,40 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <div className="rounded border p-3">
+        <Card className="gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Activity className="size-3.5" />
             Activities
           </div>
-          <div className="mt-2 text-2xl font-semibold">{totals.count}</div>
-        </div>
-        <div className="rounded border p-3">
+          <div className="text-2xl font-semibold">{totals.count}</div>
+        </Card>
+        <Card className="gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Route className="size-3.5" />
             Distance
           </div>
-          <div className="mt-2 text-2xl font-semibold">
+          <div className="text-2xl font-semibold">
             {formatDistance(totals.totalDistanceMeters)}
           </div>
-        </div>
-        <div className="rounded border p-3">
+        </Card>
+        <Card className="gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="size-3.5" />
             Duration
           </div>
-          <div className="mt-2 text-2xl font-semibold">
+          <div className="text-2xl font-semibold">
             {formatDuration(totals.totalDurationSeconds)}
           </div>
-        </div>
-        <div className="rounded border p-3">
+        </Card>
+        <Card className="gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Mountain className="size-3.5" />
             Elevation
           </div>
-          <div className="mt-2 text-2xl font-semibold">
+          <div className="text-2xl font-semibold">
             {Math.round(totals.totalElevationGainMeters)} m
           </div>
-        </div>
+        </Card>
       </div>
 
       {isRangeValid && isLoading && (
@@ -273,46 +274,48 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
 
       {isRangeValid && !isLoading && !error && summary.length > 0 && (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="inline-flex items-center gap-2 text-base font-medium">
-                <CalendarDays className="size-4" />
-                Training Calendar
-              </h2>
-              <div className="flex gap-1 rounded border p-0.5">
-                {CALENDAR_METRICS.map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setCalendarMetric(key)}
-                    className={cn(
-                      'rounded px-2 py-1 text-xs transition-colors',
-                      calendarMetric === key
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
+          <section>
+            <Card className="gap-3 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="inline-flex items-center gap-2 text-base font-medium">
+                  <CalendarDays className="size-4" />
+                  Training Calendar
+                </h2>
+                <div className="flex gap-1 rounded border p-0.5">
+                  {CALENDAR_METRICS.map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setCalendarMetric(key)}
+                      className={cn(
+                        'rounded px-2 py-1 text-xs transition-colors',
+                        calendarMetric === key
+                          ? 'bg-foreground text-background'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <FitnessCalendarHeatmap
-              key={actorId}
-              days={calendarDays}
-              metric={calendarMetric}
-              periodType="all_time"
-              periodKey="all"
-              startDate={startMs}
-              endDate={endMsExclusive - 1}
-            />
+              <FitnessCalendarHeatmap
+                key={actorId}
+                days={calendarDays}
+                metric={calendarMetric}
+                periodType="all_time"
+                periodKey="all"
+                startDate={startMs}
+                endDate={endMsExclusive - 1}
+              />
+            </Card>
           </section>
 
-          <section className="space-y-3">
-            <h2 className="inline-flex items-center gap-2 text-base font-medium">
-              <ArrowDownWideNarrow className="size-4" />
-              Activity Mix
-            </h2>
-            <div className="overflow-hidden rounded border">
+          <section>
+            <Card className="gap-3 p-4">
+              <h2 className="inline-flex items-center gap-2 text-base font-medium">
+                <ArrowDownWideNarrow className="size-4" />
+                Activity Mix
+              </h2>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
@@ -335,7 +338,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
           </section>
         </div>
       )}
