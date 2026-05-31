@@ -34,6 +34,16 @@ describe('oauth logging sanitizers', () => {
         authorization: '[REDACTED]'
       })
     })
+
+    it('redacts a multi-cookie header in full, not just the last pair', () => {
+      const headers = new Headers({
+        cookie: 'session=secret; theme=dark'
+      })
+      // The space after `;` must not be mistaken for an auth scheme delimiter.
+      expect(sanitizeHeaders(headers)).toEqual({
+        cookie: '[REDACTED]'
+      })
+    })
   })
 
   describe('sanitizeFormBody', () => {

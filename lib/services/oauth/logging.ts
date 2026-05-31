@@ -8,13 +8,17 @@ import { logger } from '@/lib/utils/logger'
  */
 export const oauthLogger = logger.child({ module: 'oauth' })
 
-// Header names whose values carry credentials and must never be logged in full.
-const SENSITIVE_HEADERS = new Set([
+// Authorization headers whose secret is dropped but whose scheme (Basic /
+// Bearer / ...) is kept, since clients frequently send the wrong one.
+const SCHEME_PRESERVING_HEADERS = new Set([
   'authorization',
-  'proxy-authorization',
-  'cookie',
-  'set-cookie'
+  'proxy-authorization'
 ])
+
+// Headers that must be redacted entirely. Cookie values are delimited by
+// `; ` and can carry a browser session token in any pair, so no part of them
+// is safe to log.
+const FULLY_REDACTED_HEADERS = new Set(['cookie', 'set-cookie'])
 
 // Body/query parameter names that carry secrets and must be redacted.
 const SENSITIVE_PARAMS = new Set([
@@ -36,13 +40,19 @@ const isSensitiveParam = (key: string): boolean =>
 
 /**
  * Collects request headers into a plain object with credential-bearing values
- * redacted. For `authorization` we keep the auth scheme (e.g. `Basic`,
- * `Bearer`) since clients frequently send the wrong one, but drop the secret.
+ * redacted. For `authorization`/`proxy-authorization` we keep the auth scheme
+ * (e.g. `Basic`, `Bearer`) since clients frequently send the wrong one, but
+ * drop the secret. Cookie headers are redacted in full.
  */
 export const sanitizeHeaders = (headers: Headers): Record<string, string> => {
   const result: Record<string, string> = {}
   headers.forEach((value, key) => {
-    if (SENSITIVE_HEADERS.has(key.toLowerCase())) {
+    const normalizedKey = key.toLowerCase()
+    if (FULLY_REDACTED_HEADERS.has(normalizedKey)) {
+      result[key] = '[REDACTED]'
+      return
+    }
+    if (SCHEME_PRESERVING_HEADERS.has(normalizedKey)) {
       const scheme = value.split(' ')[0]
       result[key] =
         scheme && scheme !== value ? `${scheme} [REDACTED]` : '[REDACTED]'
