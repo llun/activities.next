@@ -77,6 +77,17 @@ describe('parseFollowRequestBody', () => {
     })
   })
 
+  it('treats a well-formed non-object JSON body as empty (no throw)', async () => {
+    for (const body of ['123', '"hello"', 'null', '[1,2]']) {
+      const req = new NextRequest('https://llun.test/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      })
+      await expect(parseFollowRequestBody(req)).resolves.toEqual({})
+    }
+  })
+
   it('rejects a malformed JSON body instead of swallowing it', async () => {
     const req = new NextRequest('https://llun.test/follow', {
       method: 'POST',

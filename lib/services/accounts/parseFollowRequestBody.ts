@@ -70,6 +70,12 @@ export const parseFollowRequestBody = async (
 
   if (contentType.includes('application/json')) {
     const json = (await req.json()) as Record<string, unknown>
+    // A well-formed but non-object JSON body (null, a number, a string, an
+    // array) has no follow fields; treat it as empty rather than letting the
+    // `in`/index access below throw.
+    if (!json || typeof json !== 'object' || Array.isArray(json)) {
+      return {}
+    }
     return collectFollowFields(
       (name) => json[name],
       (name) => {

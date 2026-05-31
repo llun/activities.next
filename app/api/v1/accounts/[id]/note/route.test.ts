@@ -150,6 +150,25 @@ describe('POST /api/v1/accounts/:id/note', () => {
     expect(response.status).toBe(422)
   })
 
+  it('returns 422 for a comment over the length limit', async () => {
+    const response = await updateNote(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(ACTOR2_ID)}/note`,
+        {
+          method: 'POST',
+          headers: {
+            Origin: 'https://llun.test',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ comment: 'x'.repeat(2001) })
+        }
+      ),
+      { params: Promise.resolve({ id: urlToId(ACTOR2_ID) }) }
+    )
+
+    expect(response.status).toBe(422)
+  })
+
   it('clears the note when an empty comment is sent', async () => {
     await callNote({
       contentType: 'application/json',

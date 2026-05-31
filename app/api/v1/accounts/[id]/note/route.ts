@@ -20,9 +20,10 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // Mastodon's note endpoint takes an optional `comment`; an empty comment clears
-// the note. Omitting it entirely is treated the same as an empty string.
+// the note. Omitting it entirely is treated the same as an empty string. Cap
+// the length (Mastodon's limit) so the text column can't be grown unbounded.
 const NoteBodySchema = z.object({
-  comment: z.string().optional()
+  comment: z.string().max(2000).optional()
 })
 
 interface Params {
