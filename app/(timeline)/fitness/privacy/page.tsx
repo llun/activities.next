@@ -34,7 +34,7 @@ const Page = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Fitness Privacy"
+        title="Privacy"
         description="Manage hidden locations for imported fitness routes."
       />
       <FitnessPrivacyLocationSettings mapboxAccessToken={mapboxAccessToken} />

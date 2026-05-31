@@ -26,7 +26,7 @@ const StravaPage: FC = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Strava Integration"
+        title="Strava"
         description={
           <>
             Connect your Strava account to sync fitness activities. You&apos;ll

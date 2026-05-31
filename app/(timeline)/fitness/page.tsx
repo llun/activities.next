@@ -68,7 +68,7 @@ const Page: FC = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Fitness"
+        title="Overview"
         description="Your last 6 months of activity"
         actions={
           <Button variant="outline" size="sm" asChild>
