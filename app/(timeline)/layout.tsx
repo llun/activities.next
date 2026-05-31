@@ -63,19 +63,17 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
       }
     : undefined
 
-  // Get unread notifications count and fitness data status
-  const [unreadCount, hasFitnessData] = await Promise.all([
-    actor
-      ? database.getNotificationsCount({
-          actorId: actor.id,
-          onlyUnread: true
-        })
-      : 0,
-    actor ? database.getActorHasFitnessData({ actorId: actor.id }) : false
-  ])
+  const unreadCount = actor
+    ? await database.getNotificationsCount({
+        actorId: actor.id,
+        onlyUnread: true
+      })
+    : 0
 
-  const fitnessUrl =
-    hasFitnessData && user ? `/${user.handle}/fitness` : undefined
+  // Fitness is a first-class section for every signed-in local account (like
+  // Bookmarks/Messages), so new users can discover the import/Strava setup even
+  // before they have any activity. The Overview itself handles the empty state.
+  const fitnessUrl = actor?.account ? '/fitness' : undefined
   const isAdmin = actor?.account?.role === 'admin'
 
   return (

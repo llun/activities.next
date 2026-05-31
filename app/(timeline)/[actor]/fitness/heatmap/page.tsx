@@ -1,93 +1,11 @@
-import { ArrowLeft } from 'lucide-react'
-import { Metadata } from 'next'
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { FC } from 'react'
+import { redirect } from 'next/navigation'
 
-import { Button } from '@/lib/components/ui/button'
-import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
+// The fitness heatmap moved to the top-level `/fitness/heatmap`. Keep this stub
+// so existing links/bookmarks to `/:actor/fitness/heatmap` still resolve.
+export const dynamic = 'force-dynamic'
 
-import { FitnessHeatmapView } from './FitnessHeatmapView'
-
-interface Props {
-  params: Promise<{ actor: string }>
-}
-
-export const generateMetadata = async ({
-  params
-}: Props): Promise<Metadata> => {
-  const { actor } = await params
-  return {
-    title: `Activities.next: ${decodeURIComponent(actor)} Fitness Heatmap`
-  }
-}
-
-const Page: FC<Props> = async ({ params }) => {
-  const database = getDatabase()
-  if (!database) throw new Error('Database is not available')
-
-  const session = await getServerAuthSession()
-  if (!session?.user?.email) {
-    return notFound()
-  }
-
-  const currentActor = await getActorFromSession(database, session)
-  if (!currentActor) {
-    return notFound()
-  }
-
-  const { actor } = await params
-  const decodedActorHandle = decodeURIComponent(actor)
-  const parts = decodedActorHandle.split('@').slice(1)
-  if (parts.length !== 2) {
-    return notFound()
-  }
-  const [username, actorDomain] = parts
-
-  if (
-    currentActor.username !== username ||
-    currentActor.domain !== actorDomain
-  ) {
-    return notFound()
-  }
-
-  const hasFitnessData = await database.getActorHasFitnessData({
-    actorId: currentActor.id
-  })
-  if (!hasFitnessData) {
-    return notFound()
-  }
-
-  const mapboxAccessToken = getPublicMapboxAccessToken(
-    getConfig().fitnessStorage?.mapboxAccessToken
-  )
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/@${currentActor.username}@${actorDomain}/fitness`}>
-            <ArrowLeft className="h-5 w-5" />
-            <span className="sr-only">Back to fitness</span>
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold">Fitness Heatmap</h1>
-        </div>
-      </div>
-
-      <div className="overflow-hidden border bg-background">
-        <FitnessHeatmapView
-          actorId={currentActor.id}
-          mapboxAccessToken={mapboxAccessToken}
-        />
-      </div>
-    </div>
-  )
+const Page = () => {
+  redirect('/fitness/heatmap')
 }
 
 export default Page

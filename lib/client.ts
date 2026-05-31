@@ -1332,7 +1332,7 @@ export const startFitnessImport = async (
   })
   formData.append('visibility', visibility)
 
-  const response = await fetch('/api/v1/settings/fitness/import', {
+  const response = await fetch('/api/v1/fitness/import', {
     method: 'POST',
     body: formData
   })
@@ -1361,18 +1361,15 @@ interface StravaArchivePresignedResult {
 export const createStravaArchivePresignedUrl = async (
   archive: File
 ): Promise<StravaArchivePresignedResult | null> => {
-  const response = await fetch(
-    '/api/v1/settings/fitness/strava/archive/presigned',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: archive.name,
-        contentType: archive.type || 'application/zip',
-        size: archive.size
-      })
-    }
-  )
+  const response = await fetch('/api/v1/fitness/strava/archive/presigned', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: archive.name,
+      contentType: archive.type || 'application/zip',
+      size: archive.size
+    })
+  })
   if (response.status === 404) return null
   if (!response.ok) {
     const errorDetails = await parseApiError(
@@ -1419,7 +1416,7 @@ export const startStravaArchiveImport = async (
 
     if (presignedResult) {
       // Notify server to create import record and queue the job
-      const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+      const response = await fetch('/api/v1/fitness/strava/archive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fitnessFileId, archiveId, visibility })
@@ -1436,7 +1433,7 @@ export const startStravaArchiveImport = async (
   formData.append('archive', archive)
   formData.append('visibility', visibility)
 
-  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+  const response = await fetch('/api/v1/fitness/strava/archive', {
     method: 'POST',
     body: formData
   })
@@ -1448,7 +1445,7 @@ export const startStravaArchiveImport = async (
 
 export const getActiveStravaArchiveImport =
   async (): Promise<ActiveStravaArchiveImportResponse> => {
-    const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+    const response = await fetch('/api/v1/fitness/strava/archive', {
       method: 'GET',
       headers: {
         Accept: 'application/json'
@@ -1470,7 +1467,7 @@ export const retryStravaArchiveImport = async (): Promise<{
   success: boolean
   activeImport: ActiveStravaArchiveImport | null
 }> => {
-  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+  const response = await fetch('/api/v1/fitness/strava/archive', {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
@@ -1493,7 +1490,7 @@ export const cancelStravaArchiveImport = async (): Promise<{
   success: boolean
   cancelled: boolean
 }> => {
-  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+  const response = await fetch('/api/v1/fitness/strava/archive', {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
@@ -1516,7 +1513,7 @@ export const getFitnessImportBatch = async (
   batchId: string
 ): Promise<FitnessImportBatchResult> => {
   const response = await fetch(
-    `/api/v1/settings/fitness/import/${encodeURIComponent(batchId)}`,
+    `/api/v1/fitness/import/${encodeURIComponent(batchId)}`,
     {
       method: 'GET',
       headers: {
@@ -1541,7 +1538,7 @@ export const retryFitnessImportBatch = async (
   visibility: MastodonVisibility
 ): Promise<{ batchId: string; retried: number }> => {
   const response = await fetch(
-    `/api/v1/settings/fitness/import/${encodeURIComponent(batchId)}`,
+    `/api/v1/fitness/import/${encodeURIComponent(batchId)}`,
     {
       method: 'POST',
       headers: {

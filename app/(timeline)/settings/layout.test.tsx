@@ -33,16 +33,18 @@ describe('Settings Layout', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
-  it('resolves a nested fitness path to the Fitness tab, not General', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings/fitness/privacy')
+  it('resolves a nested account path to the Account tab, not General', () => {
+    ;(usePathname as jest.Mock).mockReturnValue(
+      '/settings/account/verify-email'
+    )
     renderLayout()
 
     const rail = screen.getByRole('navigation', { name: 'Settings' })
-    expect(within(rail).getByRole('link', { name: 'Fitness' })).toHaveAttribute(
+    expect(within(rail).getByRole('link', { name: 'Account' })).toHaveAttribute(
       'aria-current',
       'page'
     )
-    // '/settings' is a prefix of the path but must not win over '/settings/fitness'.
+    // '/settings' is a prefix of the path but must not win over '/settings/account'.
     expect(
       within(rail).getByRole('link', { name: 'General' })
     ).not.toHaveAttribute('aria-current')
