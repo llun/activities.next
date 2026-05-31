@@ -177,7 +177,7 @@ section-navigation patterns; pick by section type.
   }
   ```
 
-- A **nested** sub-nav inside a section renders as a small **in-content segmented control**, not a second dropdown or rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. See `app/(timeline)/settings/layout.tsx` and `app/(timeline)/fitness/layout.tsx`.
+- A **nested** sub-nav inside a section renders as a small **in-content segmented control**, not a second dropdown or rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. (The settings and fitness layouts themselves use the dropdown sub-nav above, not this nested pattern.) For a live `PageSubnavProvider` example, see `app/(timeline)/admin/layout.tsx`.
 
 ### Sticky-header sub-nav (admin-style sections)
 
