@@ -1,0 +1,19 @@
+app/(timeline)/fitness/strava/StravaArchiveImportSection.tsx
+  s_f1e04a6319c868::t_84b40a2ea7eaa9 412,414-416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "074b99ec24b42a4270b1e9c8633a275e4f5bcaf0",
+  "prompts": {},
+  "sessions": {
+    "s_f1e04a6319c868": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a353c2f-880a-4289-a04e-ed72d007ab01",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
