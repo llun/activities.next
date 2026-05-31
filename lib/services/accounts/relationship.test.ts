@@ -10,7 +10,8 @@ describe('#getRelationship', () => {
     isCurrentActorFollowing: jest.fn(),
     getAcceptedOrRequestedFollow: jest.fn(),
     isBlocking: jest.fn(),
-    getMute: jest.fn()
+    getMute: jest.fn(),
+    getAccountNote: jest.fn()
   }
 
   const mockCurrentActor = {
@@ -27,6 +28,7 @@ describe('#getRelationship', () => {
     })
     mockDatabase.isBlocking.mockResolvedValue(false)
     mockDatabase.getMute.mockResolvedValue(null)
+    mockDatabase.getAccountNote.mockResolvedValue('')
   })
 
   it('returns relationship with following=true when following', async () => {
@@ -139,13 +141,16 @@ describe('#getRelationship', () => {
     })
   })
 
-  it('includes note from target actor summary', async () => {
+  it('includes the viewer private note about the target', async () => {
+    // note is the viewer's private comment (Mastodon account note), not the
+    // target's public bio/summary.
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://example.com/users/target',
       summary: 'This is my bio'
     })
     mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getAccountNote.mockResolvedValue('remember to reply')
 
     const relationship = await getRelationship({
       database: mockDatabase as unknown as Database,
@@ -153,16 +158,17 @@ describe('#getRelationship', () => {
       targetActorId: 'https://example.com/users/target'
     })
 
-    expect(relationship.note).toBe('This is my bio')
+    expect(relationship.note).toBe('remember to reply')
   })
 
-  it('returns empty note when actor has no summary', async () => {
+  it('returns empty note when no private note has been set', async () => {
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://example.com/users/target',
-      summary: null
+      summary: 'This is my bio'
     })
     mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getAccountNote.mockResolvedValue('')
 
     const relationship = await getRelationship({
       database: mockDatabase as unknown as Database,

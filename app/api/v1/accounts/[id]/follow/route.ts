@@ -1,5 +1,8 @@
+import { z } from 'zod'
+
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { parseFollowRequestBody } from '@/lib/services/accounts/parseFollowRequestBody'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -21,6 +24,26 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+// Form bodies carry booleans as strings ("false" must become false, not a
+// truthy non-empty string), so coerce known string forms before validation.
+const TRUE_VALUES = new Set(['true', '1', 'on', 'yes'])
+const FALSE_VALUES = new Set(['false', '0', 'off', 'no'])
+const BooleanParam = z.preprocess((value) => {
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase()
+    if (TRUE_VALUES.has(lower)) return true
+    if (FALSE_VALUES.has(lower)) return false
+  }
+  return value
+}, z.boolean())
+
+// Mastodon's follow endpoint accepts optional reblogs, notify, and languages[].
+const FollowBodySchema = z.object({
+  reblogs: BooleanParam.optional(),
+  notify: BooleanParam.optional(),
+  languages: z.array(z.string().min(1)).optional()
+})
+
 interface Params {
   id: string
 }
@@ -37,6 +60,18 @@ export const POST = traceApiRoute(
         data: ERROR_400,
         responseStatusCode: 400
       })
+
+    const parsedBody = FollowBodySchema.safeParse(
+      await parseFollowRequestBody(req)
+    )
+    if (!parsedBody.success)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    const { reblogs, notify, languages } = parsedBody.data
 
     const targetActorId = idToUrl(encodedAccountId)
     if (!(await canFederateWithDomain(database, targetActorId))) {
@@ -74,9 +109,25 @@ export const POST = traceApiRoute(
         targetActorId,
         status: FollowStatus.enum.Requested,
         inbox: `${currentActor.id}/inbox`,
-        sharedInbox: `https://${currentActor.domain}/inbox`
+        sharedInbox: `https://${currentActor.domain}/inbox`,
+        reblogs,
+        notify,
+        languages
       })
       await follow(followItem.id, currentActor, targetActorId, signingActor)
+    } else if (
+      reblogs !== undefined ||
+      notify !== undefined ||
+      languages !== undefined
+    ) {
+      // Re-following with preferences updates the existing local follow row.
+      await database.updateFollowPreferences({
+        actorId: currentActor.id,
+        targetActorId,
+        reblogs,
+        notify,
+        languages
+      })
     }
 
     const relationship = await getRelationship({

@@ -1,8 +1,11 @@
+import { z } from 'zod'
+
 import { userAnnounce } from '@/lib/actions/announce'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
@@ -22,6 +25,13 @@ interface Params {
   id: string
 }
 
+// Mastodon's reblog endpoint accepts an optional visibility param. Boosts can
+// only be public, unlisted, or private (limited/direct are not valid), and the
+// param defaults to the booster's default privacy (public here) when omitted.
+const ReblogBodySchema = z.object({
+  visibility: z.enum(['public', 'unlisted', 'private']).optional()
+})
+
 export const POST = traceApiRoute(
   'reblogStatus',
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
@@ -33,6 +43,15 @@ export const POST = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_404,
         responseStatusCode: 404
+      })
+
+    const parsedBody = ReblogBodySchema.safeParse(await getRequestBody(req))
+    if (!parsedBody.success)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
       })
 
     const statusId = idToUrl(encodedStatusId)
@@ -53,7 +72,8 @@ export const POST = traceApiRoute(
     const announceStatus = await userAnnounce({
       currentActor,
       statusId,
-      database
+      database,
+      visibility: parsedBody.data.visibility
     })
 
     if (!announceStatus) {

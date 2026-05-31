@@ -22,13 +22,40 @@ import {
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
+  UpdateFollowPreferencesParams,
   UpdateFollowStatusParams
 } from '@/lib/types/database/operations'
 import { Account } from '@/lib/types/domain/account'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 
+// languages is persisted as a JSON-encoded text column for cross-backend
+// portability, so it comes back as a string (or null) and must be parsed.
+const parseFollowLanguages = (value: unknown): string[] | null => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string')
+  }
+  if (typeof value !== 'string' || value.trim() === '') return null
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string')
+      : null
+  } catch {
+    return null
+  }
+}
+
 const fixFollowDataDate = (data: Follow): Follow => ({
   ...data,
+  // SQLite stores booleans as 0/1; coerce back to real booleans. Rows created
+  // before this column existed surface as null, which the DB default (true)
+  // covers for reblogs.
+  reblogs:
+    data.reblogs === null || data.reblogs === undefined
+      ? true
+      : Boolean(data.reblogs),
+  notify: Boolean(data.notify),
+  languages: parseFollowLanguages(data.languages),
   createdAt: getCompatibleTime(data.createdAt),
   updatedAt: getCompatibleTime(data.updatedAt)
 })
@@ -42,7 +69,10 @@ export const FollowerSQLDatabaseMixin = (
     targetActorId,
     status,
     inbox,
-    sharedInbox
+    sharedInbox,
+    reblogs = true,
+    notify = false,
+    languages = null
   }: CreateFollowParams) {
     const existingFollow = await this.getAcceptedOrRequestedFollow({
       actorId,
@@ -62,6 +92,9 @@ export const FollowerSQLDatabaseMixin = (
       status,
       inbox,
       sharedInbox,
+      reblogs,
+      notify,
+      languages,
       createdAt: currentTime.getTime(),
       updatedAt: currentTime.getTime()
     }
@@ -70,6 +103,7 @@ export const FollowerSQLDatabaseMixin = (
         ...follow,
         inbox,
         sharedInbox,
+        languages: languages ? JSON.stringify(languages) : null,
         createdAt: currentTime,
         updatedAt: currentTime
       })
@@ -92,6 +126,43 @@ export const FollowerSQLDatabaseMixin = (
       }
     })
     return follow
+  },
+
+  async updateFollowPreferences({
+    actorId,
+    targetActorId,
+    reblogs,
+    notify,
+    languages
+  }: UpdateFollowPreferencesParams) {
+    const existingFollow = await this.getAcceptedOrRequestedFollow({
+      actorId,
+      targetActorId
+    })
+    if (!existingFollow) return null
+
+    // Only persist the preferences the caller actually provided so an update
+    // never clobbers fields the client did not mention.
+    const updates: Record<string, unknown> = {}
+    if (reblogs !== undefined) updates.reblogs = reblogs
+    if (notify !== undefined) updates.notify = notify
+    if (languages !== undefined) {
+      updates.languages = languages ? JSON.stringify(languages) : null
+    }
+
+    if (Object.keys(updates).length === 0) return existingFollow
+
+    const currentTime = new Date()
+    updates.updatedAt = currentTime
+    await database('follows').where('id', existingFollow.id).update(updates)
+
+    return {
+      ...existingFollow,
+      ...(reblogs !== undefined ? { reblogs } : {}),
+      ...(notify !== undefined ? { notify } : {}),
+      ...(languages !== undefined ? { languages } : {}),
+      updatedAt: currentTime.getTime()
+    }
   },
 
   async getFollowFromId({ followId }: GetFollowFromIdParams) {

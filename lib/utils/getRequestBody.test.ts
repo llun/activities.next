@@ -13,6 +13,7 @@ const createMockRequest = (
   }
 
   const entries = Object.entries(body || {})
+
   const request = {
     url,
     headers,
@@ -87,7 +88,7 @@ describe('getRequestBody', () => {
     }
     const mockRequest = createMockRequest(
       'https://example.com/api',
-      'multipart/form-data; boundary=abc',
+      'multipart/form-data; boundary=----boundary',
       mockBody
     )
     const result = await getRequestBody(mockRequest)
@@ -95,18 +96,16 @@ describe('getRequestBody', () => {
     expect(result).toEqual(mockBody)
   })
 
-  it('should parse form data request when content-type is missing', async () => {
-    const mockBody = {
-      client_name: 'Test App',
-      redirect_uris: 'https://example.com/callback'
-    }
+  it('should return an empty object when content-type is missing', async () => {
     const mockRequest = createMockRequest(
       'https://example.com/api',
       undefined,
-      mockBody
+      {
+        client_name: 'Test App'
+      }
     )
     const result = await getRequestBody(mockRequest)
-    expect(mockRequest.formData).toHaveBeenCalled()
-    expect(result).toEqual(mockBody)
+    expect(mockRequest.formData).not.toHaveBeenCalled()
+    expect(result).toEqual({})
   })
 })

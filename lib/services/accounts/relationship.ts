@@ -15,15 +15,14 @@ export const getRelationship = async ({
   currentActor,
   targetActorId
 }: GetRelationshipParams): Promise<Mastodon.Relationship> => {
-  const actor = await database.getActorFromId({ id: targetActorId })
-
   const [
     isFollowing,
     isFollowedBy,
     follow,
     isBlocking,
     isBlockedBy,
-    muteRecord
+    muteRecord,
+    note
   ] = await Promise.all([
     database.isCurrentActorFollowing({
       currentActorId: currentActor.id,
@@ -48,6 +47,10 @@ export const getRelationship = async ({
     database.getMute({
       actorId: currentActor.id,
       targetActorId
+    }),
+    database.getAccountNote({
+      actorId: currentActor.id,
+      targetActorId
     })
   ])
 
@@ -58,8 +61,10 @@ export const getRelationship = async ({
   return Mastodon.Relationship.parse({
     id: urlToId(targetActorId),
     following: isFollowing,
-    showing_reblogs: isFollowing,
-    notifying: false,
+    // Fall back to the follow column defaults (reblogs=true, notify=false) when
+    // a follow exists but predates these preferences.
+    showing_reblogs: follow ? (follow.reblogs ?? true) : false,
+    notifying: follow ? (follow.notify ?? false) : false,
     followed_by: isFollowedBy,
     blocking: isBlocking,
     blocked_by: isBlockedBy,
@@ -69,7 +74,12 @@ export const getRelationship = async ({
     requested_by: false,
     domain_blocking: false,
     endorsed: false,
-    languages: ['en'],
-    note: actor?.summary ?? ''
+    languages:
+      follow?.languages && follow.languages.length > 0
+        ? follow.languages
+        : ['en'],
+    // The relationship note is the viewer's private comment about the target
+    // (Mastodon's account note), not the target's public bio/summary.
+    note
   })
 }

@@ -1,6 +1,9 @@
+import { z } from 'zod'
+
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -9,6 +12,12 @@ import { idToUrl } from '@/lib/utils/urlToId'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+// Mastodon's note endpoint takes an optional `comment`; an empty comment clears
+// the note. Omitting it entirely is treated the same as an empty string.
+const NoteBodySchema = z.object({
+  comment: z.string().optional()
+})
 
 interface Params {
   id: string
@@ -27,10 +36,24 @@ export const POST = traceApiRoute(
         responseStatusCode: 400
       })
 
+    const parsedBody = NoteBodySchema.safeParse(await getRequestBody(req))
+    if (!parsedBody.success)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+
     const targetActorId = idToUrl(encodedAccountId)
 
-    // Private notes not yet implemented - return relationship with empty note
-    // TODO: Implement private notes functionality
+    if (targetActorId !== currentActor.id) {
+      await database.upsertAccountNote({
+        actorId: currentActor.id,
+        targetActorId,
+        comment: parsedBody.data.comment ?? ''
+      })
+    }
 
     const relationship = await getRelationship({
       database,

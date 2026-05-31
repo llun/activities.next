@@ -23,6 +23,14 @@ export async function getRequestBody(
     return Object.fromEntries(new URLSearchParams(await req.text()))
   }
 
-  const formData = await req.formData()
-  return Object.fromEntries(formData.entries())
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await req.formData()
+    return Object.fromEntries(formData.entries())
+  }
+
+  // No body or an unrecognized content type: nothing to parse. Returning an
+  // empty object (rather than calling req.formData(), which rejects on a
+  // bodyless/typeless request) lets endpoints that read optional params handle
+  // a paramless POST without erroring.
+  return {}
 }
