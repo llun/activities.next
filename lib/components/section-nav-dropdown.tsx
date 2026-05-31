@@ -28,7 +28,7 @@ interface SectionNavDropdownProps {
 
 /**
  * Dropdown sub-navigation used by settings-style section layouts (settings,
- * fitness) on every breakpoint, including desktop — the design-system default
+ * fitness, admin) on every breakpoint, including desktop — the design-system default
  * that replaced the desktop vertical nav rail so the content spans the full
  * width. The trigger reflects the active section; the menu lists every section
  * with the active one marked `aria-current="page"`. See the "Page Header &
