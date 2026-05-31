@@ -41,6 +41,7 @@ app/(timeline)/fitness/
 ```
 
 ### Removed
+
 - `app/(timeline)/settings/fitness/**` (all)
 - `app/(timeline)/[actor]/fitness/**` (all)
 - `app/(timeline)/[actor]/ActorFitnessDashboard.tsx` (moved into fitness group)
@@ -54,12 +55,12 @@ orange-wash active state (`bg-primary/10 text-primary`), sentence-case labels,
 one Lucide icon per item. Active-tab resolution: longest matching `url` prefix
 wins (same logic as settings).
 
-| Label    | URL                 | Icon (lucide-react) |
-| -------- | ------------------- | ------------------- |
-| Overview | `/fitness`          | `Activity`          |
-| Files    | `/fitness/files`    | `Files`             |
-| Privacy  | `/fitness/privacy`  | `Lock`              |
-| Strava   | `/fitness/strava`   | `Globe`             |
+| Label    | URL                | Icon (lucide-react) |
+| -------- | ------------------ | ------------------- |
+| Overview | `/fitness`         | `Activity`          |
+| Files    | `/fitness/files`   | `Files`             |
+| Privacy  | `/fitness/privacy` | `Lock`              |
+| Strava   | `/fitness/strava`  | `Globe`             |
 
 The nested General/Privacy/Strava segmented control inside the old
 `settings/fitness/layout.tsx` is **removed** — those become first-class rail
@@ -72,6 +73,7 @@ Server Component. Auth + actor resolution identical to the current
 param to validate). Still 404s when `getActorHasFitnessData` is false.
 
 Renders, in order:
+
 1. `<PageHeader title="Fitness" description="Your last 6 months of activity" />`
    (renders in section mode under the provider). A **Heatmap** link/button
    (`Flame` icon → `/fitness/heatmap`) sits in the header `actions` slot.
@@ -129,7 +131,7 @@ settings/fitness/strava/archive/presigned/route.ts → fitness/strava/archive/pr
   `/api/v1/fitness/strava/authorize`.
 - **`strava/authorize/route.ts`** — `redirectUri` →
   `https://${host}/api/v1/fitness/strava/callback`. (Strava validates the
-  callback *domain* only, not the path, so existing apps keep working.)
+  callback _domain_ only, not the path, so existing apps keep working.)
 - **`strava/callback/route.ts`** — all success/error UI redirects
   `/settings/fitness/strava?...` → `/fitness/strava?...`.
 
