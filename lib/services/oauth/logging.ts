@@ -15,10 +15,20 @@ const SCHEME_PRESERVING_HEADERS = new Set([
   'proxy-authorization'
 ])
 
-// Headers that must be redacted entirely. Cookie values are delimited by
-// `; ` and can carry a browser session token in any pair, so no part of them
-// is safe to log.
-const FULLY_REDACTED_HEADERS = new Set(['cookie', 'set-cookie'])
+// Headers that must be redacted entirely. Cookie values can carry a browser
+// session token. The proxy/CDN IP headers are direct client identifiers (raw
+// user IPs); the app-registration path deliberately hashes the same source IP
+// for rate limiting, so logging them verbatim here would defeat that
+// pseudonymization and persist raw IPs in production logs.
+const FULLY_REDACTED_HEADERS = new Set([
+  'cookie',
+  'set-cookie',
+  'cf-connecting-ip',
+  'x-real-ip',
+  'x-forwarded-for',
+  'x-client-ip',
+  'true-client-ip'
+])
 
 // Headers whose value is a URL that can carry secret query/fragment params
 // (e.g. an authorization `code` or `access_token` in an OAuth redirect URL).
@@ -37,6 +47,15 @@ const SENSITIVE_PARAMS = new Set([
   'code',
   'code_verifier',
   'password',
+  'password_confirmation',
+  'password_confirm',
+  'confirm_password',
+  'current_password',
+  'new_password',
+  'otp',
+  'totp',
+  'mfa_code',
+  'mfa_token',
   'username',
   'email',
   'state',
@@ -85,16 +104,23 @@ const isUrlValuedParam = (key: string): boolean =>
 // appears in logs.
 const RELATIVE_URL_BASE = 'http://relative.invalid'
 
-// Strips the query string and fragment from a URL-valued header, keeping only
-// origin + path (absolute) or path (relative) for diagnostics. OAuth redirect
-// URLs put `code`/`access_token` in exactly those parts, so dropping them avoids
-// persisting secrets while keeping the useful routing/redirect target. A value
-// that parses to neither an absolute nor a rooted relative URL is redacted
-// entirely to be safe.
+// Strips the query string and fragment from a URL-valued header/param, keeping
+// only origin + path (http/https), scheme + path (custom schemes / URNs), or
+// path (relative) for diagnostics. OAuth redirect URLs put `code`/`access_token`
+// in exactly those parts, so dropping them avoids persisting secrets while
+// keeping the useful routing/redirect target. A value that parses to neither an
+// absolute nor a rooted relative URL is redacted entirely to be safe.
 const sanitizeUrlValue = (value: string): string => {
   try {
     const absolute = new URL(value)
-    return `${absolute.origin}${absolute.pathname}`
+    // `origin` is the string "null" for non-http(s) schemes (e.g. a mobile
+    // deep link `myapp://callback` or a URN), which would log as "null/...".
+    // For those, keep the full href minus the secret-bearing query/fragment so
+    // a redirect_uri mismatch is still debuggable.
+    if (absolute.protocol === 'http:' || absolute.protocol === 'https:') {
+      return `${absolute.origin}${absolute.pathname}`
+    }
+    return absolute.href.split('#')[0].split('?')[0]
   } catch {
     // Not an absolute URL — try it as a path relative to a dummy base.
   }
@@ -148,17 +174,31 @@ const truncateString = (value: string): string =>
     ? `${value.slice(0, MAX_LOGGED_STRING_LENGTH)}…[truncated ${value.length - MAX_LOGGED_STRING_LENGTH} chars]`
     : value
 
+// A sanitized URL is still length-capped: a malformed redirect_uri with a
+// megabyte-long path can fail schema validation and reach the logger, so it
+// must not bypass the amplification guard that ordinary strings get.
+const sanitizeUrlValueCapped = (value: string): string =>
+  truncateString(sanitizeUrlValue(value))
+
 // Redacts a single param value: secret params become [REDACTED]; URL-valued
 // params keep scheme+host+path but drop query/fragment (including each element
-// of a string array, e.g. `redirect_uris`); plain strings are length-capped;
-// everything else passes through. Shared by sanitizeFormBody and sanitizeParams.
-const sanitizeParamValue = (key: string, value: unknown): unknown => {
+// of an array, e.g. `redirect_uris` — string entries are URL-sanitized, and
+// non-string entries are recursed so nested secrets are still redacted); plain
+// strings are length-capped; everything else passes through. Shared by
+// sanitizeFormBody and sanitizeParams.
+const sanitizeParamValue = (
+  key: string,
+  value: unknown,
+  depth = 0
+): unknown => {
   if (isSensitiveParam(key)) return '[REDACTED]'
   if (isUrlValuedParam(key)) {
-    if (typeof value === 'string') return sanitizeUrlValue(value)
+    if (typeof value === 'string') return sanitizeUrlValueCapped(value)
     if (Array.isArray(value)) {
       return value.map((item) =>
-        typeof item === 'string' ? sanitizeUrlValue(item) : item
+        typeof item === 'string'
+          ? sanitizeUrlValueCapped(item)
+          : sanitizeParams(item, depth + 1)
       )
     }
   }
@@ -226,7 +266,7 @@ export const sanitizeParams = (value: unknown, depth = 0): unknown => {
         isUrlValuedParam(key) &&
         (typeof nested === 'string' || Array.isArray(nested))
       ) {
-        result[key] = sanitizeParamValue(key, nested)
+        result[key] = sanitizeParamValue(key, nested, depth)
       } else {
         result[key] = sanitizeParams(nested, depth + 1)
       }

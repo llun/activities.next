@@ -69,6 +69,31 @@ describe('oauth logging sanitizers', () => {
       const headers = new Headers({ referer: 'not a url' })
       expect(sanitizeHeaders(headers)).toEqual({ referer: '[REDACTED]' })
     })
+
+    it('keeps the scheme and path of a custom-scheme URL-bearing header', () => {
+      const headers = new Headers({
+        location: 'myapp://callback?code=auth-secret#access_token=tok'
+      })
+      // origin is "null" for non-http schemes; keep scheme+path, drop secrets.
+      expect(sanitizeHeaders(headers)).toEqual({
+        location: 'myapp://callback'
+      })
+    })
+
+    it('fully redacts proxy/CDN client IP headers', () => {
+      const headers = new Headers({
+        'cf-connecting-ip': '203.0.113.10',
+        'x-real-ip': '203.0.113.20',
+        'x-forwarded-for': '203.0.113.30, 198.51.100.40',
+        'content-type': 'application/x-www-form-urlencoded'
+      })
+      expect(sanitizeHeaders(headers)).toEqual({
+        'cf-connecting-ip': '[REDACTED]',
+        'x-real-ip': '[REDACTED]',
+        'x-forwarded-for': '[REDACTED]',
+        'content-type': 'application/x-www-form-urlencoded'
+      })
+    })
   })
 
   describe('sanitizeFormBody', () => {
@@ -118,6 +143,28 @@ describe('oauth logging sanitizers', () => {
       expect(sanitizeFormBody(body)).toEqual({
         id_token: '[REDACTED]',
         id_token_hint: '[REDACTED]',
+        client_id: 'abc'
+      })
+    })
+
+    it('redacts password-confirmation and MFA params', () => {
+      const body =
+        'new_password=p&password_confirmation=p&current_password=old&otp=123456&mfa_token=mt&client_id=abc'
+      expect(sanitizeFormBody(body)).toEqual({
+        new_password: '[REDACTED]',
+        password_confirmation: '[REDACTED]',
+        current_password: '[REDACTED]',
+        otp: '[REDACTED]',
+        mfa_token: '[REDACTED]',
+        client_id: 'abc'
+      })
+    })
+
+    it('keeps scheme and path of a custom-scheme URL-valued param', () => {
+      const body =
+        'redirect_uri=myapp%3A%2F%2Fcallback%3Fcode%3Dsecret%23token&client_id=abc'
+      expect(sanitizeFormBody(body)).toEqual({
+        redirect_uri: 'myapp://callback',
         client_id: 'abc'
       })
     })
@@ -224,6 +271,25 @@ describe('oauth logging sanitizers', () => {
           'https://client.example/cb2'
         ]
       })
+    })
+
+    it('recurses into non-string entries of a URL-valued array', () => {
+      expect(
+        sanitizeParams({
+          redirect_uris: [{ client_secret: 'shh', note: 'ok' }]
+        })
+      ).toEqual({
+        redirect_uris: [{ client_secret: '[REDACTED]', note: 'ok' }]
+      })
+    })
+
+    it('length-caps a sanitized URL-valued param', () => {
+      const longPath = `https://client.example/${'a'.repeat(5000)}`
+      const result = sanitizeParams({ redirect_uri: longPath }) as {
+        redirect_uri: string
+      }
+      expect(result.redirect_uri.length).toBeLessThan(longPath.length)
+      expect(result.redirect_uri).toContain('[truncated')
     })
 
     it('truncates oversized string values', () => {
