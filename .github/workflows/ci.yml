@@ -1,0 +1,112 @@
+name: CI
+
+# Runs on every commit (push to any branch + pull requests). The jobs are
+# chained with `needs:` so they gate each other: lint/prettier must pass before
+# build, and build must pass before the test suite. Each job appears as a native
+# status check (CI / Lint and Prettier, CI / Build, CI / All Tests) that can be
+# marked required in branch protection to block merges.
+#
+# Everything runs in the normal push/pull_request context: jobs use the default
+# read-only token, pull_request runs check out the PR merge ref (catching
+# post-merge integration failures), and fork PRs are handled natively without a
+# privileged workflow_run job executing untrusted code.
+
+on:
+  push:
+  pull_request:
+
+# Least privilege: every job only needs to read the repo to check it out. No job
+# writes statuses, contents, or packages.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same ref so rapid pushes don't pile up the full
+# lint -> build -> test chain.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-prettier:
+    name: Lint and Prettier
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Run lint
+        run: yarn lint
+      - name: Check prettier formatting
+        run: yarn prettier:check
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint-prettier
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Build
+        run: yarn build
+
+  test:
+    name: All Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Run all tests
+        run: yarn test
+        env:
+          TEST_DATABASE_TYPE: sqlite
+
+  # Aggregate gate: this is the single check to mark required in branch
+  # protection. It always runs and fails unless every upstream job succeeded.
+  # Without it, a failing lint job would skip build/test, and GitHub treats a
+  # skipped required check as passing — so requiring build/test directly would
+  # not actually block a lint failure.
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint-prettier, build, test]
+    if: ${{ always() }}
+    steps:
+      - name: Verify all CI jobs succeeded
+        env:
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.build.result }} ${{ needs.test.result }}
+        run: |
+          echo "Upstream job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A required CI job did not succeed (got: $result)"
+              exit 1
+            fi
+          done
+          echo "All CI jobs succeeded."
