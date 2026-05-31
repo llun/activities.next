@@ -74,10 +74,12 @@ export const getRelationship = async ({
     requested_by: false,
     domain_blocking: false,
     endorsed: false,
+    // Report the stored language filter honestly: the saved list when set,
+    // or null (no filter) when absent/cleared — never a misleading default.
     languages:
       follow?.languages && follow.languages.length > 0
         ? follow.languages
-        : ['en'],
+        : null,
     // The relationship note is the viewer's private comment about the target
     // (Mastodon's account note), not the target's public bio/summary.
     note

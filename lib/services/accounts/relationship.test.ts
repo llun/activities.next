@@ -112,8 +112,36 @@ describe('#getRelationship', () => {
       requested_by: false,
       domain_blocking: false,
       endorsed: false,
-      languages: expect.toBeArray()
+      // No stored language filter on this follow -> null (no filter), not a
+      // misleading default.
+      languages: null
     })
+  })
+
+  it('reports the stored language filter, and null once it is cleared', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(true)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValueOnce({
+      status: FollowStatus.enum.Accepted,
+      languages: ['en', 'th']
+    })
+
+    const withFilter = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+    expect(withFilter.languages).toEqual(['en', 'th'])
+
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValueOnce({
+      status: FollowStatus.enum.Accepted,
+      languages: null
+    })
+    const cleared = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+    expect(cleared.languages).toBeNull()
   })
 
   it('sets blocking fields from block relationships in both directions', async () => {

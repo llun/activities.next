@@ -17,8 +17,9 @@ export const Relationship = z.object({
   // Have you enabled notifications for this user?
   notifying: z.boolean(),
 
-  // Which languages are you following from this user?
-  languages: z.array(z.string()),
+  // Which languages are you following from this user? null = no language
+  // filter (all languages), matching Mastodon's nullable field.
+  languages: z.array(z.string()).nullable(),
 
   // Are you followed by this user?
   followed_by: z.boolean(),

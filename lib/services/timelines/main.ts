@@ -1,3 +1,4 @@
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
@@ -37,23 +38,19 @@ export const mainTimelineRule: MainTimelineRule = async ({
     },
     async (span) => {
       if (status.type === StatusType.enum.Announce) {
-        const isFollowing = await database.isCurrentActorFollowing({
-          currentActorId: currentActor.id,
-          followingActorId: status.actorId
-        })
-        if (!isFollowing) {
-          span.end()
-          return null
-        }
-
-        // Honor the follower's reblogs preference: when they followed this
-        // account with reblogs=false, keep that account's boosts out of their
-        // main timeline (matching the relationship's showing_reblogs=false).
+        // A single lookup yields both whether the viewer follows the booster
+        // (accepted) and their reblogs preference. Skip the boost when the
+        // viewer isn't an accepted follower, or followed with reblogs=false
+        // (matching the relationship's showing_reblogs=false).
         const announceFollow = await database.getAcceptedOrRequestedFollow({
           actorId: currentActor.id,
           targetActorId: status.actorId
         })
-        if (announceFollow && announceFollow.reblogs === false) {
+        if (
+          !announceFollow ||
+          announceFollow.status !== FollowStatus.enum.Accepted ||
+          announceFollow.reblogs === false
+        ) {
           span.end()
           return null
         }
