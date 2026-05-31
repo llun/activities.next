@@ -68,6 +68,18 @@ describe('getRequestBody', () => {
     expect(result).toEqual(mockBody)
   })
 
+  it('keeps the last value for a repeated urlencoded key (last-write-wins)', async () => {
+    const mockRequest = createMockRequest(
+      'https://example.com/api',
+      'application/x-www-form-urlencoded'
+    )
+    ;(mockRequest.text as jest.Mock).mockResolvedValue('key=first&key=second')
+    const result = await getRequestBody(mockRequest)
+    // Object.fromEntries collapses duplicate keys to the last value; the mute
+    // route's fields are single-valued, so this is the intended contract.
+    expect(result).toEqual({ key: 'second' })
+  })
+
   it('should parse multipart/form-data request with formData', async () => {
     const mockBody = {
       client_name: 'Test App',

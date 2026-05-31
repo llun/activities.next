@@ -590,6 +590,75 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).toHaveBeenCalled()
   })
 
+  test('normalizes a multipart body with a quoted boundary', async () => {
+    const boundary = 'QUOTED_BOUNDARY'
+    const fields = {
+      grant_type: 'client_credentials',
+      client_id: 'quoted-client',
+      client_secret: 'quoted-secret'
+    }
+    const multipartBody = `${Object.entries(fields)
+      .map(
+        ([name, value]) =>
+          `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+      )
+      .join('')}--${boundary}--\r\n`
+
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      await expect(request.text()).resolves.toBe(
+        new URLSearchParams(fields).toString()
+      )
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      // RFC 2046 permits a quoted boundary; some middleware re-quotes it.
+      headers: {
+        'content-type': `multipart/form-data; boundary="${boundary}"`
+      },
+      body: multipartBody
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
+  test('skips file parts (Content-Disposition with filename) in multipart bodies', async () => {
+    const boundary = 'FILE_BOUNDARY'
+    const multipartBody =
+      `--${boundary}\r\nContent-Disposition: form-data; name="grant_type"\r\n\r\nclient_credentials\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="upload"; filename="secret.txt"\r\n\r\nSHOULD_BE_IGNORED\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="client_id"\r\n\r\nfile-client\r\n` +
+      `--${boundary}--\r\n`
+
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      const text = await request.text()
+      const params = new URLSearchParams(text)
+      expect(params.get('grant_type')).toBe('client_credentials')
+      expect(params.get('client_id')).toBe('file-client')
+      // The file part must not leak into the forwarded params.
+      expect(params.has('upload')).toBe(false)
+      expect(text).not.toContain('SHOULD_BE_IGNORED')
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': `multipart/form-data; boundary=${boundary}`
+      },
+      body: multipartBody
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
   test('does not look up the client during PKCE preflight when code_verifier is present', async () => {
     const body = new URLSearchParams({
       grant_type: 'authorization_code',

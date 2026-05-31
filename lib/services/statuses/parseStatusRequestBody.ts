@@ -73,7 +73,14 @@ export const parseStatusRequestBody = async (
   const text = await req.text()
   if (text.trim() === '') return {}
   try {
-    return JSON.parse(text) as Record<string, unknown>
+    const parsed: unknown = JSON.parse(text)
+    // A non-object root (null, array, string, number) is not a status body;
+    // return {} so the function's Record contract holds and the caller's schema
+    // rejects it cleanly rather than receiving an array/primitive.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+    return parsed as Record<string, unknown>
   } catch {
     return {}
   }

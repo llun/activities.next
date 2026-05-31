@@ -63,6 +63,41 @@ describe('parseStatusRequestBody', () => {
     expect('media_ids' in body).toBe(false)
   })
 
+  it('collects bracket-free repeated media_ids from a urlencoded body', async () => {
+    const params = new URLSearchParams()
+    params.append('media_ids', 'abc')
+    params.append('media_ids', 'def')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    expect(body).toEqual({ media_ids: ['abc', 'def'] })
+  })
+
+  it('parses a urlencoded body when content-type carries a charset param', async () => {
+    const body = await parseStatusRequestBody(
+      createRequest(
+        'application/x-www-form-urlencoded; charset=utf-8',
+        new URLSearchParams({ status: 'charset test' }).toString()
+      )
+    )
+    expect(body).toEqual({ status: 'charset test' })
+  })
+
+  it.each([
+    ['an array', '["id1","id2"]'],
+    ['null', 'null'],
+    ['a string', '"status=hello"'],
+    ['a number', '42']
+  ])(
+    'returns an empty object for a JSON body that is %s',
+    async (_label, raw) => {
+      const body = await parseStatusRequestBody(
+        createRequest('application/json', raw)
+      )
+      expect(body).toEqual({})
+    }
+  )
+
   it('keeps an explicit empty media_ids[] so form clients can clear media', async () => {
     const params = new URLSearchParams()
     params.append('media_ids[]', '')

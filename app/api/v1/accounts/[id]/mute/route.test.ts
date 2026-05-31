@@ -208,6 +208,26 @@ describe('POST /api/v1/accounts/:id/mute', () => {
     )
   })
 
+  it.each([
+    ['0', false],
+    ['no', false],
+    ['off', false],
+    ['1', true],
+    ['yes', true],
+    ['on', true]
+  ])('coerces a urlencoded notifications=%s to %s', async (value, expected) => {
+    const targetActorId = 'https://remote.test/users/alice'
+    applyMuteMock.mockResolvedValue({})
+
+    await POST(createFormRequest(targetActorId, `notifications=${value}`), {
+      params: Promise.resolve({ id: urlToId(targetActorId) })
+    })
+
+    expect(applyMuteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ notifications: expected })
+    )
+  })
+
   it('returns 404 when target actor does not exist', async () => {
     const targetActorId = 'https://remote.test/users/unknown'
     mockDatabase.getActorFromId.mockResolvedValue(null)
