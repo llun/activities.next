@@ -1,15 +1,12 @@
 'use client'
 
 import {
-  Ban,
-  Bell,
+  Activity,
   ChevronDown,
-  Image as ImageIcon,
-  type LucideIcon,
-  Monitor,
-  Settings as SettingsIcon,
-  User,
-  VolumeX
+  Files,
+  Globe,
+  Lock,
+  type LucideIcon
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -32,20 +29,17 @@ interface Props {
   children: ReactNode
 }
 
-interface SettingsTab {
+interface FitnessTab {
   name: string
   url: string
   icon: LucideIcon
 }
 
-const tabs: SettingsTab[] = [
-  { name: 'General', url: '/settings', icon: SettingsIcon },
-  { name: 'Account', url: '/settings/account', icon: User },
-  { name: 'Media', url: '/settings/media', icon: ImageIcon },
-  { name: 'Notifications', url: '/settings/notifications', icon: Bell },
-  { name: 'Blocked accounts', url: '/settings/blocks', icon: Ban },
-  { name: 'Muted accounts', url: '/settings/mutes', icon: VolumeX },
-  { name: 'Sessions', url: '/settings/sessions', icon: Monitor }
+const tabs: FitnessTab[] = [
+  { name: 'Overview', url: '/fitness', icon: Activity },
+  { name: 'Files', url: '/fitness/files', icon: Files },
+  { name: 'Privacy', url: '/fitness/privacy', icon: Lock },
+  { name: 'Strava', url: '/fitness/strava', icon: Globe }
 ]
 
 const Layout: FC<Props> = ({ children }) => {
@@ -60,13 +54,12 @@ const Layout: FC<Props> = ({ children }) => {
 
   return (
     <>
-      {/* Section-level sticky header shared by every settings page, matching the
-          full-width chrome the other top-level routes use. Rendered outside the
-          section provider so it keeps the sticky chrome; per-page titles
-          ("General", "Account Settings", …) render below in section mode. */}
+      {/* Shared section header — sticky chrome, outside the section provider, so
+          the fitness section reads like Settings and the other top-level routes.
+          Per-page titles ("Overview", "Files", …) render below in section mode. */}
       <PageHeader
-        title="Settings"
-        description="Manage your account and preferences"
+        title="Fitness"
+        description="Your training activity and settings"
         contentWidth="wide"
       />
       <PageHeaderSectionProvider>
@@ -98,10 +91,7 @@ const Layout: FC<Props> = ({ children }) => {
 
           <div className="flex gap-6 lg:gap-8">
             {/* Desktop: vertical nav rail */}
-            <nav
-              aria-label="Settings"
-              className="hidden w-52 shrink-0 lg:block"
-            >
+            <nav aria-label="Fitness" className="hidden w-52 shrink-0 lg:block">
               <ul className="sticky top-4 space-y-1">
                 {tabs.map((tab) => {
                   const isActive = tab.url === activeTab.url

@@ -758,7 +758,7 @@ describe('client startStravaArchiveImport', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/settings/fitness/strava/archive/presigned',
+      '/api/v1/fitness/strava/archive/presigned',
       expect.objectContaining({
         method: 'POST'
       })
@@ -794,7 +794,7 @@ describe('client startStravaArchiveImport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
-      '/api/v1/settings/fitness/strava/archive',
+      '/api/v1/fitness/strava/archive',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }

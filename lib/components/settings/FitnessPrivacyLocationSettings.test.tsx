@@ -61,7 +61,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
         if (
           typeof input === 'string' &&
-          input === '/api/v1/settings/fitness/general' &&
+          input === '/api/v1/fitness/general' &&
           method === 'GET'
         ) {
           return {
@@ -74,7 +74,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
         if (
           typeof input === 'string' &&
-          input === '/api/v1/settings/fitness/general' &&
+          input === '/api/v1/fitness/general' &&
           method === 'POST'
         ) {
           const requestBody = JSON.parse(String(init?.body)) as {
@@ -136,7 +136,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
     const postCall = fetchMock.mock.calls.find(([input, init]) => {
       return (
-        input === '/api/v1/settings/fitness/general' &&
+        input === '/api/v1/fitness/general' &&
         (init?.method ?? 'GET') === 'POST'
       )
     })
@@ -276,7 +276,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
         if (
           typeof input === 'string' &&
-          input === '/api/v1/settings/fitness/general' &&
+          input === '/api/v1/fitness/general' &&
           method === 'POST'
         ) {
           return {
@@ -338,7 +338,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       if (
         typeof input === 'string' &&
-        input === '/api/v1/settings/fitness/general' &&
+        input === '/api/v1/fitness/general' &&
         method === 'GET'
       ) {
         return {
@@ -357,7 +357,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       if (
         typeof input === 'string' &&
-        input === '/api/v1/settings/fitness/general' &&
+        input === '/api/v1/fitness/general' &&
         method === 'POST'
       ) {
         return {
@@ -399,7 +399,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       if (
         typeof input === 'string' &&
-        input === '/api/v1/settings/fitness/general' &&
+        input === '/api/v1/fitness/general' &&
         method === 'GET'
       ) {
         return {
@@ -418,7 +418,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       if (
         typeof input === 'string' &&
-        input === '/api/v1/settings/fitness/general' &&
+        input === '/api/v1/fitness/general' &&
         method === 'POST'
       ) {
         const requestBody = JSON.parse(String(init?.body)) as {
@@ -471,7 +471,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
         if (
           typeof input === 'string' &&
-          input === '/api/v1/settings/fitness/general' &&
+          input === '/api/v1/fitness/general' &&
           method === 'GET'
         ) {
           return {
@@ -484,7 +484,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
         if (
           typeof input === 'string' &&
-          input === '/api/v1/settings/fitness/general/regenerate-maps' &&
+          input === '/api/v1/fitness/general/regenerate-maps' &&
           method === 'POST'
         ) {
           return {
@@ -519,7 +519,7 @@ describe('FitnessPrivacyLocationSettings', () => {
     expect(
       fetchMock.mock.calls.some(([input, init]) => {
         return (
-          input === '/api/v1/settings/fitness/general/regenerate-maps' &&
+          input === '/api/v1/fitness/general/regenerate-maps' &&
           (init?.method ?? 'GET') === 'POST'
         )
       })
