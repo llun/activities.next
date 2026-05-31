@@ -21,11 +21,18 @@ const SENSITIVE_PARAMS = new Set([
   'client_secret',
   'client_assertion',
   'code',
+  'code_verifier',
   'password',
   'refresh_token',
   'access_token',
   'token'
 ])
+
+// Keys can carry surrounding whitespace (URLSearchParams and JSON both preserve
+// it), which would slip a secret past an exact-match redaction check. Normalize
+// before comparing so e.g. ` code_verifier ` is still redacted.
+const isSensitiveParam = (key: string): boolean =>
+  SENSITIVE_PARAMS.has(key.trim().toLowerCase())
 
 /**
  * Collects request headers into a plain object with credential-bearing values
@@ -55,7 +62,7 @@ export const sanitizeHeaders = (headers: Headers): Record<string, string> => {
 export const sanitizeFormBody = (body: string): Record<string, string> => {
   const result: Record<string, string> = {}
   new URLSearchParams(body).forEach((value, key) => {
-    result[key] = SENSITIVE_PARAMS.has(key.toLowerCase()) ? '[REDACTED]' : value
+    result[key] = isSensitiveParam(key) ? '[REDACTED]' : value
   })
   return result
 }
@@ -69,7 +76,7 @@ export const sanitizeParams = (
 ): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(params)) {
-    result[key] = SENSITIVE_PARAMS.has(key.toLowerCase()) ? '[REDACTED]' : value
+    result[key] = isSensitiveParam(key) ? '[REDACTED]' : value
   }
   return result
 }
