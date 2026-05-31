@@ -6,7 +6,8 @@ import { getAuth } from '@/lib/services/auth/auth'
 import {
   oauthLogger,
   sanitizeFormBody,
-  sanitizeHeaders
+  sanitizeHeaders,
+  sanitizeParams
 } from '@/lib/services/oauth/logging'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -366,7 +367,9 @@ export const POST = async (req: NextRequest) => {
   // Log token exchanges better-auth rejected so 400s from third-party Mastodon
   // clients can be diagnosed in production: the request the client sent (secrets
   // redacted) plus the upstream OAuth error body (e.g. invalid_grant /
-  // invalid_client), which is non-secret and exactly what we need.
+  // invalid_client). The error body is non-secret OAuth metadata, but it is run
+  // through sanitizeParams as defense-in-depth in case an upstream error ever
+  // echoes back a sensitive field.
   if (!response.ok) {
     oauthLogger.warn(
       {
@@ -375,7 +378,7 @@ export const POST = async (req: NextRequest) => {
         reason: 'upstream',
         headers: sanitizeHeaders(req.headers),
         requestBody: sanitizeFormBody(bodyText ?? ''),
-        upstreamBody: data
+        upstreamBody: sanitizeParams(data)
       },
       `OAuth token request failed with ${statusCode}`
     )

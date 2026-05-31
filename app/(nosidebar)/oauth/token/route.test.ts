@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { POST } from './route'
 
 const mockAuthHandler = jest.fn()
+const mockLoggerWarn = jest.fn()
 const mockClients = new Map<string, Record<string, unknown>>()
 let mockClientLookupCount = 0
 let mockClientLookupError: Error | null = null
@@ -37,10 +38,10 @@ jest.mock('@/lib/services/auth/auth', () => ({
 jest.mock('@/lib/utils/logger', () => {
   const logger = {
     error: jest.fn(),
-    warn: jest.fn(),
+    warn: (...args: unknown[]) => mockLoggerWarn(...args),
     info: jest.fn(),
     debug: jest.fn(),
-    child: jest.fn(() => logger)
+    child: () => logger
   }
   return { logger }
 })
@@ -48,6 +49,7 @@ jest.mock('@/lib/utils/logger', () => {
 describe('OAuth token endpoint', () => {
   beforeEach(() => {
     mockAuthHandler.mockReset()
+    mockLoggerWarn.mockReset()
     mockClients.clear()
     mockClientLookupCount = 0
     mockClientLookupError = null
@@ -613,5 +615,49 @@ describe('OAuth token endpoint', () => {
     })
     expect(response.status).toBe(400)
     expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('logs a redacted request and upstream body when better-auth rejects the exchange', async () => {
+    mockClients.set('non-pkce-client', {
+      clientId: 'non-pkce-client',
+      requirePKCE: false
+    })
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ error: 'invalid_grant' }, { status: 400 })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        cookie: 'session=secret; theme=dark'
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'non-pkce-client',
+        code: 'authorization-code',
+        code_verifier: 'pkce-secret',
+        redirect_uri: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+    expect(response.status).toBe(400)
+
+    const upstreamLog = mockLoggerWarn.mock.calls.find(
+      ([payload]) => (payload as { reason?: string }).reason === 'upstream'
+    )
+    expect(upstreamLog).toBeDefined()
+    const [payload] = upstreamLog as [Record<string, unknown>, string]
+    // Request secrets and the session cookie are redacted; the non-secret
+    // upstream OAuth error passes through.
+    expect(payload.requestBody).toMatchObject({
+      grant_type: 'authorization_code',
+      client_id: 'non-pkce-client',
+      code: '[REDACTED]',
+      code_verifier: '[REDACTED]'
+    })
+    expect(payload.headers).toMatchObject({ cookie: '[REDACTED]' })
+    expect(payload.upstreamBody).toEqual({ error: 'invalid_grant' })
   })
 })
