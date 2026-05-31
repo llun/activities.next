@@ -154,12 +154,14 @@ const readTokenRequestBodyWithLimit = async (
 }
 
 // OAuth token parameters are flat string fields, so flatten any JSON body into
-// urlencoded params and drop non-primitive values.
+// urlencoded params and drop non-primitive values. A body that parses to a
+// non-object (null, array, string, number) is not a valid token request, so it
+// is rejected rather than silently forwarded as an empty urlencoded body.
 const jsonBodyToParams = (parsed: unknown): URLSearchParams => {
-  const params = new URLSearchParams()
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return params
+    throw new TokenRequestBodyUnreadableError()
   }
+  const params = new URLSearchParams()
   for (const [key, value] of Object.entries(parsed)) {
     if (value === null || value === undefined || typeof value === 'object') {
       continue
@@ -186,25 +188,37 @@ const multipartBodyToParams = (
   const boundary = parseMultipartBoundary(rawContentType)
   if (!boundary) throw new TokenRequestBodyUnreadableError()
 
+  const delimiter = `--${boundary}`
+  // A body that never contains its declared boundary is malformed; reject it
+  // rather than forwarding an empty (and silently wrong) urlencoded body.
+  if (!bodyText.includes(delimiter)) {
+    throw new TokenRequestBodyUnreadableError()
+  }
+
+  // Be lenient about line endings: multipart is CRLF per RFC 2046, but some
+  // clients, proxies, and test harnesses emit LF. Normalize to LF before
+  // splitting so both are parsed identically.
+  const normalizedBody = bodyText.replace(/\r\n/g, '\n')
+
   const params = new URLSearchParams()
-  for (const rawSegment of bodyText.split(`--${boundary}`)) {
-    const segment = rawSegment.startsWith('\r\n')
-      ? rawSegment.slice(2)
+  for (const rawSegment of normalizedBody.split(delimiter)) {
+    const segment = rawSegment.startsWith('\n')
+      ? rawSegment.slice(1)
       : rawSegment
-    const headerEnd = segment.indexOf('\r\n\r\n')
+    const headerEnd = segment.indexOf('\n\n')
     if (headerEnd < 0) continue
 
     const disposition = segment
       .slice(0, headerEnd)
-      .split('\r\n')
+      .split('\n')
       .find((line) => line.toLowerCase().startsWith('content-disposition:'))
     if (!disposition || /;\s*filename=/i.test(disposition)) continue
 
     const name = disposition.match(/;\s*name="?([^";]+)"?/i)?.[1]
     if (!name) continue
 
-    const value = segment.slice(headerEnd + 4)
-    params.set(name, value.endsWith('\r\n') ? value.slice(0, -2) : value)
+    const value = segment.slice(headerEnd + 2)
+    params.set(name, value.endsWith('\n') ? value.slice(0, -1) : value)
   }
   return params
 }

@@ -494,6 +494,102 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
 
+  test.each([
+    ['null', 'null'],
+    ['an array', '[]'],
+    ['a string', '"grant_type=client_credentials"']
+  ])(
+    'rejects a JSON token body that parses to %s with a 400',
+    async (_label, body) => {
+      mockAuthHandler.mockResolvedValue(
+        Response.json({ access_token: 'should-not-issue' })
+      )
+
+      const req = new NextRequest('https://llun.test/oauth/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body
+      })
+
+      const response = await POST(req)
+
+      await expect(response.json()).resolves.toEqual({
+        error: 'invalid_request',
+        error_description: 'Unable to read request body'
+      })
+      expect(response.status).toBe(400)
+      expect(mockAuthHandler).not.toHaveBeenCalled()
+    }
+  )
+
+  test('rejects a multipart body that is missing its declared boundary with a 400', async () => {
+    mockAuthHandler.mockResolvedValue(
+      Response.json({ access_token: 'should-not-issue' })
+    )
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'multipart/form-data; boundary=EXPECTED_BOUNDARY'
+      },
+      // Body never contains `--EXPECTED_BOUNDARY`; a garbled multipart body must
+      // map to the 400 unreadable path, not forward as an empty urlencoded body.
+      body: 'grant_type=client_credentials&client_id=c'
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'invalid_request',
+      error_description: 'Unable to read request body'
+    })
+    expect(response.status).toBe(400)
+    expect(mockAuthHandler).not.toHaveBeenCalled()
+  })
+
+  test('parses a multipart body that uses LF line endings', async () => {
+    const boundary = 'LF_BOUNDARY'
+    const fields = {
+      grant_type: 'client_credentials',
+      client_id: 'lf-client',
+      client_secret: 'lf-secret'
+    }
+    // LF-only line endings (some clients/proxies normalize CRLF to LF).
+    const multipartBody = `${Object.entries(fields)
+      .map(
+        ([name, value]) =>
+          `--${boundary}\nContent-Disposition: form-data; name="${name}"\n\n${value}\n`
+      )
+      .join('')}--${boundary}--\n`
+
+    const expectedBody = new URLSearchParams(fields).toString()
+
+    mockAuthHandler.mockImplementation(async (request: Request) => {
+      expect(request.headers.get('content-type')).toBe(
+        'application/x-www-form-urlencoded'
+      )
+      await expect(request.text()).resolves.toBe(expectedBody)
+      return Response.json({ access_token: 'issued' })
+    })
+
+    const req = new NextRequest('https://llun.test/oauth/token', {
+      method: 'POST',
+      headers: {
+        'content-type': `multipart/form-data; boundary=${boundary}`
+      },
+      body: multipartBody
+    })
+
+    const response = await POST(req)
+
+    await expect(response.json()).resolves.toEqual({
+      access_token: 'issued',
+      created_at: expect.any(Number)
+    })
+    expect(response.status).toBe(200)
+    expect(mockAuthHandler).toHaveBeenCalled()
+  })
+
   test('does not look up the client during PKCE preflight when code_verifier is present', async () => {
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
