@@ -224,14 +224,14 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Card className="gap-2 p-4">
+        <Card className="flex flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Activity className="size-3.5" />
             Activities
           </div>
           <div className="text-2xl font-semibold">{totals.count}</div>
         </Card>
-        <Card className="gap-2 p-4">
+        <Card className="flex flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Route className="size-3.5" />
             Distance
@@ -240,7 +240,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
             {formatDistance(totals.totalDistanceMeters)}
           </div>
         </Card>
-        <Card className="gap-2 p-4">
+        <Card className="flex flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="size-3.5" />
             Duration
@@ -249,7 +249,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
             {formatDuration(totals.totalDurationSeconds)}
           </div>
         </Card>
-        <Card className="gap-2 p-4">
+        <Card className="flex flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Mountain className="size-3.5" />
             Elevation
@@ -275,7 +275,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
       {isRangeValid && !isLoading && !error && summary.length > 0 && (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section>
-            <Card className="gap-3 p-4">
+            <Card className="flex flex-col gap-3 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="inline-flex items-center gap-2 text-base font-medium">
                   <CalendarDays className="size-4" />
@@ -311,7 +311,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
           </section>
 
           <section>
-            <Card className="gap-3 p-4">
+            <Card className="flex flex-col gap-3 p-4">
               <h2 className="inline-flex items-center gap-2 text-base font-medium">
                 <ArrowDownWideNarrow className="size-4" />
                 Activity Mix

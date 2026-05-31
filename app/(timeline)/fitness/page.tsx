@@ -6,10 +6,12 @@ import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
+import { Card } from '@/lib/components/ui/card'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Status } from '@/lib/types/domain/status'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorFitnessDashboard } from './ActorFitnessDashboard'
@@ -40,8 +42,35 @@ const Page: FC = async () => {
   const hasFitnessData = await database.getActorHasFitnessData({
     actorId: currentActor.id
   })
+
+  // No activity yet: show a discoverable empty state (instead of a 404) so a
+  // new user can reach the import / Strava setup pages from the section itself.
   if (!hasFitnessData) {
-    return notFound()
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Overview"
+          description="Your last 6 months of activity"
+        />
+        <Card className="flex flex-col items-start gap-4 p-6">
+          <div className="space-y-1">
+            <h2 className="text-base font-medium">No activity yet</h2>
+            <p className="text-sm text-muted-foreground">
+              Import a FIT, GPX, or TCX file — or connect Strava — to start
+              tracking your fitness here.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href="/fitness/files">Import activities</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/fitness/strava">Connect Strava</Link>
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
   }
 
   const recentFiles = await database.getFitnessFilesWithStatusForAccount({
@@ -85,7 +114,7 @@ const Page: FC = async () => {
       <RecentFitnessActivities
         host={host}
         currentTime={currentTime}
-        statuses={statuses}
+        statuses={statuses.map((status) => cleanJson(status))}
       />
     </div>
   )
