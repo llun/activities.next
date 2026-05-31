@@ -4,6 +4,7 @@ import { applyMute } from '@/lib/actions/applyMute'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -18,9 +19,23 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+// Form bodies arrive as strings, so a native client sending `notifications=false`
+// would otherwise be coerced to `true`. Map the textual booleans Mastodon clients
+// send before validating; non-string (JSON) values pass through unchanged.
+const coerceBoolean = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value
+  const normalized = value.trim().toLowerCase()
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true
+  return value
+}
+
 const MuteBodySchema = z.object({
-  notifications: z.boolean().catch(true).optional(),
-  duration: z
+  notifications: z
+    .preprocess(coerceBoolean, z.boolean())
+    .catch(true)
+    .optional(),
+  duration: z.coerce
     .number()
     .finite()
     .min(0)
@@ -59,7 +74,7 @@ export const POST = traceApiRoute(
           responseStatusCode: 404
         })
 
-      const rawBody = await req.json().catch(() => ({}))
+      const rawBody = await getRequestBody(req).catch(() => ({}))
       const body = MuteBodySchema.safeParse(rawBody).data ?? {}
       const notifications: boolean = body.notifications !== false
       const durationSeconds = body.duration ?? 0
