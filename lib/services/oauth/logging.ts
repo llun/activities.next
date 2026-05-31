@@ -180,6 +180,25 @@ const truncateString = (value: string): string =>
 const sanitizeUrlValueCapped = (value: string): string =>
   truncateString(sanitizeUrlValue(value))
 
+// Caps on breadth so an oversized rejected body cannot amplify log volume on the
+// unauthenticated 422 path: at most this many object keys / array items are kept
+// per level, the rest summarized.
+const MAX_SANITIZE_ENTRIES = 100
+
+// Maps at most MAX_SANITIZE_ENTRIES items of an array, appending a summary entry
+// for the remainder. Shared by every array branch so the breadth cap is applied
+// uniformly (including URL-valued arrays like `redirect_uris`).
+const boundedMap = (
+  items: unknown[],
+  mapFn: (item: unknown) => unknown
+): unknown[] => {
+  const kept = items.slice(0, MAX_SANITIZE_ENTRIES).map(mapFn)
+  if (items.length > MAX_SANITIZE_ENTRIES) {
+    kept.push(`[truncated ${items.length - MAX_SANITIZE_ENTRIES} items]`)
+  }
+  return kept
+}
+
 // Redacts a single param value: secret params become [REDACTED]; URL-valued
 // params keep scheme+host+path but drop query/fragment (including each element
 // of an array, e.g. `redirect_uris` — string entries are URL-sanitized, and
@@ -195,7 +214,7 @@ const sanitizeParamValue = (
   if (isUrlValuedParam(key)) {
     if (typeof value === 'string') return sanitizeUrlValueCapped(value)
     if (Array.isArray(value)) {
-      return value.map((item) =>
+      return boundedMap(value, (item) =>
         typeof item === 'string'
           ? sanitizeUrlValueCapped(item)
           : sanitizeParams(item, depth + 1)
@@ -225,11 +244,6 @@ export const sanitizeFormBody = (body: string): Record<string, string> => {
 // 422 into a 500. Beyond this depth the subtree is dropped rather than walked.
 const MAX_SANITIZE_DEPTH = 8
 
-// Caps on breadth so an oversized rejected body cannot amplify log volume on the
-// unauthenticated 422 path: at most this many object keys / array items are kept
-// per level, the rest summarized.
-const MAX_SANITIZE_ENTRIES = 100
-
 /**
  * Redacts secret keys from an already-parsed value (e.g. a JSON body or
  * query-param record). Recurses into arrays and plain objects so a secret key
@@ -245,13 +259,7 @@ export const sanitizeParams = (value: unknown, depth = 0): unknown => {
   if (value && typeof value === 'object') {
     if (depth >= MAX_SANITIZE_DEPTH) return '[TRUNCATED]'
     if (Array.isArray(value)) {
-      const kept = value
-        .slice(0, MAX_SANITIZE_ENTRIES)
-        .map((item) => sanitizeParams(item, depth + 1))
-      if (value.length > MAX_SANITIZE_ENTRIES) {
-        kept.push(`[truncated ${value.length - MAX_SANITIZE_ENTRIES} items]`)
-      }
-      return kept
+      return boundedMap(value, (item) => sanitizeParams(item, depth + 1))
     }
     const proto = Object.getPrototypeOf(value)
     if (proto !== null && proto !== Object.prototype) {

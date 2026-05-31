@@ -292,6 +292,20 @@ describe('oauth logging sanitizers', () => {
       expect(result.redirect_uri).toContain('[truncated')
     })
 
+    it('caps the breadth of a URL-valued array', () => {
+      const uris = Array.from(
+        { length: 250 },
+        (_, i) => `https://client.example/cb${i}?secret=x`
+      )
+      const result = sanitizeParams({ redirect_uris: uris }) as {
+        redirect_uris: unknown[]
+      }
+      // 100 kept entries (query stripped) + 1 truncation summary entry.
+      expect(result.redirect_uris).toHaveLength(101)
+      expect(result.redirect_uris[0]).toBe('https://client.example/cb0')
+      expect(result.redirect_uris[100]).toBe('[truncated 150 items]')
+    })
+
     it('truncates oversized string values', () => {
       const big = 'a'.repeat(5000)
       const result = sanitizeParams({ client_name: big }) as {
