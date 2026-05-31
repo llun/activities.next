@@ -15,6 +15,17 @@ on:
   push:
   pull_request:
 
+# Least privilege: every job only needs to read the repo to check it out. No job
+# writes statuses, contents, or packages.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same ref so rapid pushes don't pile up the full
+# lint -> build -> test chain.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-prettier:
     name: Lint and Prettier
@@ -30,11 +41,11 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Run lint
         run: yarn lint
       - name: Check prettier formatting
-        run: yarn run prettier --check
+        run: yarn prettier:check
 
   build:
     name: Build
@@ -51,7 +62,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
         run: yarn build
 
@@ -70,7 +81,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Run all tests
         run: yarn test
         env:
