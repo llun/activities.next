@@ -17,18 +17,51 @@ import { Actor } from '@/lib/types/domain/actor'
 import { getOriginalStatus } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { getTracer } from '@/lib/utils/trace'
 
 interface UserAnnounceParams {
   currentActor: Actor
   statusId: string
   database: Database
+  // Mastodon's reblog endpoint accepts an optional visibility for the boost.
+  // Limited/direct are not valid for boosts, so only public/unlisted/private
+  // are honored here; anything else falls back to the default public audience.
+  visibility?: MastodonVisibility
+}
+
+// Derives the announce recipient lists from the requested visibility. The
+// default (public) preserves the historical to/cc exactly so existing boosts
+// are unaffected; unlisted moves Public into cc, and private keeps the boost
+// to followers only.
+const getAnnounceRecipients = (
+  currentActor: Actor,
+  visibility: MastodonVisibility | undefined
+): { to: string[]; cc: string[] } => {
+  switch (visibility) {
+    case 'unlisted':
+      return {
+        to: [currentActor.followersUrl],
+        cc: [ACTIVITY_STREAM_PUBLIC, currentActor.id]
+      }
+    case 'private':
+      return {
+        to: [currentActor.followersUrl],
+        cc: [currentActor.id]
+      }
+    default:
+      return {
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [currentActor.id, currentActor.followersUrl]
+      }
+  }
 }
 
 export const userAnnounce = async ({
   currentActor,
   statusId,
-  database
+  database,
+  visibility
 }: UserAnnounceParams) =>
   getTracer().startActiveSpan('userAnnounce', async (span) => {
     const [originalStatus, actorAnnounceStatus] = await Promise.all([
@@ -45,11 +78,12 @@ export const userAnnounce = async ({
     }
 
     const id = `${currentActor.id}/statuses/${crypto.randomUUID()}`
+    const { to, cc } = getAnnounceRecipients(currentActor, visibility)
     const status = await database.createAnnounce({
       id,
       actorId: currentActor.id,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [currentActor.id, currentActor.followersUrl],
+      to,
+      cc,
       originalStatusId: originalStatus.id
     })
     if (!status) {

@@ -10,7 +10,8 @@ describe('#getRelationship', () => {
     isCurrentActorFollowing: jest.fn(),
     getAcceptedOrRequestedFollow: jest.fn(),
     isBlocking: jest.fn(),
-    getMute: jest.fn()
+    getMute: jest.fn(),
+    getAccountNote: jest.fn()
   }
 
   const mockCurrentActor = {
@@ -27,6 +28,7 @@ describe('#getRelationship', () => {
     })
     mockDatabase.isBlocking.mockResolvedValue(false)
     mockDatabase.getMute.mockResolvedValue(null)
+    mockDatabase.getAccountNote.mockResolvedValue('')
   })
 
   it('returns relationship with following=true when following', async () => {
@@ -110,8 +112,36 @@ describe('#getRelationship', () => {
       requested_by: false,
       domain_blocking: false,
       endorsed: false,
-      languages: expect.toBeArray()
+      // No stored language filter on this follow -> null (no filter), not a
+      // misleading default.
+      languages: null
     })
+  })
+
+  it('reports the stored language filter, and null once it is cleared', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(true)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValueOnce({
+      status: FollowStatus.enum.Accepted,
+      languages: ['en', 'th']
+    })
+
+    const withFilter = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+    expect(withFilter.languages).toEqual(['en', 'th'])
+
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValueOnce({
+      status: FollowStatus.enum.Accepted,
+      languages: null
+    })
+    const cleared = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+    expect(cleared.languages).toBeNull()
   })
 
   it('sets blocking fields from block relationships in both directions', async () => {
@@ -139,13 +169,16 @@ describe('#getRelationship', () => {
     })
   })
 
-  it('includes note from target actor summary', async () => {
+  it('includes the viewer private note about the target', async () => {
+    // note is the viewer's private comment (Mastodon account note), not the
+    // target's public bio/summary.
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://example.com/users/target',
       summary: 'This is my bio'
     })
     mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getAccountNote.mockResolvedValue('remember to reply')
 
     const relationship = await getRelationship({
       database: mockDatabase as unknown as Database,
@@ -153,16 +186,17 @@ describe('#getRelationship', () => {
       targetActorId: 'https://example.com/users/target'
     })
 
-    expect(relationship.note).toBe('This is my bio')
+    expect(relationship.note).toBe('remember to reply')
   })
 
-  it('returns empty note when actor has no summary', async () => {
+  it('returns empty note when no private note has been set', async () => {
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://example.com/users/target',
-      summary: null
+      summary: 'This is my bio'
     })
     mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getAccountNote.mockResolvedValue('')
 
     const relationship = await getRelationship({
       database: mockDatabase as unknown as Database,

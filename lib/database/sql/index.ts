@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
+import { AccountNoteSQLDatabaseMixin } from '@/lib/database/sql/accountNote'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
 import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
@@ -27,6 +28,7 @@ import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
   const accountDatabase = AccountSQLDatabaseMixin(database)
+  const accountNoteDatabase = AccountNoteSQLDatabaseMixin(database)
   const actorDatabase = ActorSQLDatabaseMixin(database)
   const adminDatabase = AdminSQLDatabaseMixin(database)
   const fitnessFileDatabase = FitnessFileSQLDatabaseMixin(database)
@@ -71,6 +73,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     },
 
     ...accountDatabase,
+    ...accountNoteDatabase,
     ...actorDatabase,
     ...adminDatabase,
     ...fitnessFileDatabase,

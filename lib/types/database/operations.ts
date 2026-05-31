@@ -877,6 +877,19 @@ export type CreateFollowParams = {
   status: FollowStatus
   inbox: string
   sharedInbox: string
+  // Optional local follow preferences (Mastodon follow params). Default when
+  // omitted: reblogs=true, notify=false, languages=null (no language filter).
+  reblogs?: boolean
+  notify?: boolean
+  languages?: string[] | null
+}
+export type UpdateFollowPreferencesParams = {
+  actorId: string
+  targetActorId: string
+  // Only the fields actually provided are updated; omitted fields are left as-is.
+  reblogs?: boolean
+  notify?: boolean
+  languages?: string[] | null
 }
 export type GetLocalFollowersForActorIdParams = { targetActorId: string }
 export type GetLocalActorsFromFollowerUrlParams = { followerUrl: string }
@@ -922,6 +935,9 @@ export type GetFollowRequestsCountParams = {
 
 export interface FollowDatabase {
   createFollow(params: CreateFollowParams): Promise<Follow>
+  updateFollowPreferences(
+    params: UpdateFollowPreferencesParams
+  ): Promise<Follow | null>
   getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | null>
   getLocalFollowersForActorId(
     params: GetLocalFollowersForActorIdParams
@@ -1076,6 +1092,27 @@ export interface MuteDatabase {
   isMuting(params: IsMutingParams): Promise<boolean>
   getMuteRelations(params: GetMuteRelationsParams): Promise<MuteRelation[]>
   getMutes(params: GetMutesParams): Promise<Mute[]>
+}
+
+// ============================================================================
+// Account Note Database
+// ============================================================================
+
+export type UpsertAccountNoteParams = {
+  actorId: string
+  targetActorId: string
+  comment: string
+}
+export type GetAccountNoteParams = {
+  actorId: string
+  targetActorId: string
+}
+
+export interface AccountNoteDatabase {
+  // Sets the private note for (actorId -> targetActorId). An empty comment
+  // clears the note. Returns the stored comment (empty string when cleared).
+  upsertAccountNote(params: UpsertAccountNoteParams): Promise<string>
+  getAccountNote(params: GetAccountNoteParams): Promise<string>
 }
 
 // ============================================================================

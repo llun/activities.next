@@ -1465,6 +1465,14 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         })
         .delete()
 
+      // Private account notes reference the actor on either side (author or
+      // target); remove both so a recreated actor URL cannot resurface them.
+      await trx('account_notes')
+        .where((builder) => {
+          builder.where('actorId', actorId).orWhere('targetActorId', actorId)
+        })
+        .delete()
+
       // Subquery avoids hitting the SQLite 999-parameter limit when an
       // actor has accumulated many filters; the mute precedent only
       // touches one table per actor so doesn't need this.

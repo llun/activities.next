@@ -13,6 +13,16 @@ const createMockRequest = (
   }
 
   const entries = Object.entries(body || {})
+
+  // Mirror a real NextRequest: text() returns the raw body serialized to match
+  // the content type (JSON for application/json, urlencoded otherwise).
+  const isJson = (contentType || '').includes('application/json')
+  const rawText = isJson
+    ? JSON.stringify(body ?? {})
+    : new URLSearchParams(
+        entries.map(([key, value]) => [key, String(value)])
+      ).toString()
+
   const request = {
     url,
     headers,
@@ -23,13 +33,7 @@ const createMockRequest = (
           entries.map(([key, value]) => [key, value as FormDataEntryValue])
         )
       ),
-    text: jest
-      .fn()
-      .mockResolvedValue(
-        new URLSearchParams(
-          entries.map(([key, value]) => [key, String(value)])
-        ).toString()
-      ),
+    text: jest.fn().mockResolvedValue(rawText),
     json: jest.fn().mockResolvedValue(body || {})
   } as unknown as NextRequest
 
@@ -48,8 +52,26 @@ describe('getRequestBody', () => {
       mockBody
     )
     const result = await getRequestBody(mockRequest)
-    expect(mockRequest.json).toHaveBeenCalled()
     expect(result).toEqual(mockBody)
+  })
+
+  it('should return {} for an empty JSON body (paramless POST)', async () => {
+    const mockRequest = createMockRequest(
+      'https://example.com/api',
+      'application/json'
+    )
+    ;(mockRequest.text as jest.Mock).mockResolvedValue('')
+    const result = await getRequestBody(mockRequest)
+    expect(result).toEqual({})
+  })
+
+  it('should throw on a malformed non-empty JSON body', async () => {
+    const mockRequest = createMockRequest(
+      'https://example.com/api',
+      'application/json'
+    )
+    ;(mockRequest.text as jest.Mock).mockResolvedValue('{ not json')
+    await expect(getRequestBody(mockRequest)).rejects.toThrow()
   })
 
   it('should parse urlencoded request with URLSearchParams, not formData', async () => {
@@ -87,7 +109,7 @@ describe('getRequestBody', () => {
     }
     const mockRequest = createMockRequest(
       'https://example.com/api',
-      'multipart/form-data; boundary=abc',
+      'multipart/form-data; boundary=----boundary',
       mockBody
     )
     const result = await getRequestBody(mockRequest)
@@ -95,18 +117,16 @@ describe('getRequestBody', () => {
     expect(result).toEqual(mockBody)
   })
 
-  it('should parse form data request when content-type is missing', async () => {
-    const mockBody = {
-      client_name: 'Test App',
-      redirect_uris: 'https://example.com/callback'
-    }
+  it('should return an empty object when content-type is missing', async () => {
     const mockRequest = createMockRequest(
       'https://example.com/api',
       undefined,
-      mockBody
+      {
+        client_name: 'Test App'
+      }
     )
     const result = await getRequestBody(mockRequest)
-    expect(mockRequest.formData).toHaveBeenCalled()
-    expect(result).toEqual(mockBody)
+    expect(mockRequest.formData).not.toHaveBeenCalled()
+    expect(result).toEqual({})
   })
 })
