@@ -163,7 +163,10 @@ export const FollowerSQLDatabaseMixin = (
       ...existingFollow,
       ...(reblogs !== undefined ? { reblogs } : {}),
       ...(notify !== undefined ? { notify } : {}),
-      ...(languages !== undefined ? { languages } : {}),
+      // Mirror what is persisted: an empty list clears the filter (null).
+      ...(languages !== undefined
+        ? { languages: languages && languages.length > 0 ? languages : null }
+        : {}),
       updatedAt: currentTime.getTime()
     }
   },
