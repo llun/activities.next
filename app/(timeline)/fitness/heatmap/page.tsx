@@ -13,20 +13,13 @@ import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { FitnessHeatmapView } from './FitnessHeatmapView'
 
-interface Props {
-  params: Promise<{ actor: string }>
+export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Activities.next: Fitness Heatmap'
 }
 
-export const generateMetadata = async ({
-  params
-}: Props): Promise<Metadata> => {
-  const { actor } = await params
-  return {
-    title: `Activities.next: ${decodeURIComponent(actor)} Fitness Heatmap`
-  }
-}
-
-const Page: FC<Props> = async ({ params }) => {
+const Page: FC = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
@@ -37,21 +30,6 @@ const Page: FC<Props> = async ({ params }) => {
 
   const currentActor = await getActorFromSession(database, session)
   if (!currentActor) {
-    return notFound()
-  }
-
-  const { actor } = await params
-  const decodedActorHandle = decodeURIComponent(actor)
-  const parts = decodedActorHandle.split('@').slice(1)
-  if (parts.length !== 2) {
-    return notFound()
-  }
-  const [username, actorDomain] = parts
-
-  if (
-    currentActor.username !== username ||
-    currentActor.domain !== actorDomain
-  ) {
     return notFound()
   }
 
@@ -70,7 +48,7 @@ const Page: FC<Props> = async ({ params }) => {
     <div className="space-y-6">
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" asChild>
-          <Link href={`/@${currentActor.username}@${actorDomain}/fitness`}>
+          <Link href="/fitness">
             <ArrowLeft className="h-5 w-5" />
             <span className="sr-only">Back to fitness</span>
           </Link>
