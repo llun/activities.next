@@ -542,6 +542,232 @@ describe('GET /api/v1/statuses/[id]', () => {
       ).resolves.toBe(false)
     })
 
+    it('reblogs with a private visibility from a JSON body and scopes the boost to followers', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-visibility-json`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog visibility JSON target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ visibility: 'private' })
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const announce = await database.getActorAnnounceStatus({
+        actorId: ACTOR2_ID,
+        statusId
+      })
+      expect(announce).not.toBeNull()
+      expect(announce?.to).toEqual([`${ACTOR2_ID}/followers`])
+      expect(announce?.cc).toEqual([ACTOR2_ID])
+    })
+
+    it('reblogs with an unlisted visibility from a urlencoded body', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-visibility-urlencoded`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog visibility urlencoded target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'visibility=unlisted'
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const announce = await database.getActorAnnounceStatus({
+        actorId: ACTOR2_ID,
+        statusId
+      })
+      expect(announce).not.toBeNull()
+      expect(announce?.to).toEqual([`${ACTOR2_ID}/followers`])
+      expect(announce?.cc).toEqual([ACTIVITY_STREAM_PUBLIC, ACTOR2_ID])
+    })
+
+    it('defaults to a public boost when no visibility is sent', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-visibility-default`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog visibility default target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const announce = await database.getActorAnnounceStatus({
+        actorId: ACTOR2_ID,
+        statusId
+      })
+      expect(announce).not.toBeNull()
+      expect(announce?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+      expect(announce?.cc).toEqual([ACTOR2_ID, `${ACTOR2_ID}/followers`])
+    })
+
+    it('rejects an invalid reblog visibility with 422', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-visibility-invalid`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog visibility invalid target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ visibility: 'nonsense' })
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+      await expect(
+        database.getActorAnnounceStatus({ actorId: ACTOR2_ID, statusId })
+      ).resolves.toBeNull()
+    })
+
+    it('rejects a malformed JSON reblog body with 422 (not 500)', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-malformed-json`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog malformed json target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: '{ broken json'
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+      await expect(
+        database.getActorAnnounceStatus({ actorId: ACTOR2_ID, statusId })
+      ).resolves.toBeNull()
+    })
+
+    it('treats an empty JSON reblog body as a default public boost', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-empty-json`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog empty json target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            }
+            // No body.
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const announce = await database.getActorAnnounceStatus({
+        actorId: ACTOR2_ID,
+        statusId
+      })
+      expect(announce?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+    })
+
     it('bookmarks a readable status and returns bookmarked=true', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }

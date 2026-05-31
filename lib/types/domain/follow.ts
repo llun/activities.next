@@ -21,6 +21,14 @@ export const Follow = z.object({
   inbox: z.string(),
   sharedInbox: z.string().optional(),
 
+  // Local follow preferences (Mastodon POST /accounts/:id/follow params).
+  // reblogs: show this account's boosts in the home timeline.
+  // notify: receive a notification on this account's new posts.
+  // languages: only show posts in these languages (null = no filter).
+  reblogs: z.boolean(),
+  notify: z.boolean(),
+  languages: z.string().array().nullable(),
+
   createdAt: z.number(),
   updatedAt: z.number()
 })

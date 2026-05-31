@@ -1153,6 +1153,54 @@ describe('ActorDatabase', () => {
     })
 
     describe('#deleteActorData', () => {
+      it('removes account notes referencing the deleted actor on either side', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-note-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const peerActorId = `https://${TEST_DOMAIN}/users/delete-note-peer-${suffix}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        await database.createAccount({
+          email: `peer-${suffix}@${TEST_DOMAIN}`,
+          username: `delete-note-peer-${suffix}`,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-peer-${suffix}`,
+          publicKey: `publicKey-peer-${suffix}`
+        })
+
+        // Note authored by the actor, and a note targeting the actor.
+        await database.upsertAccountNote({
+          actorId,
+          targetActorId: peerActorId,
+          comment: 'note I wrote'
+        })
+        await database.upsertAccountNote({
+          actorId: peerActorId,
+          targetActorId: actorId,
+          comment: 'note about me'
+        })
+
+        await database.deleteActorData({ actorId })
+
+        await expect(
+          database.getAccountNote({ actorId, targetActorId: peerActorId })
+        ).resolves.toBe('')
+        await expect(
+          database.getAccountNote({
+            actorId: peerActorId,
+            targetActorId: actorId
+          })
+        ).resolves.toBe('')
+      })
+
       it('deletes actor data and keeps related counters consistent', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-data-${suffix}`

@@ -13,7 +13,12 @@ export async function getRequestBody(
   const contentType = req.headers.get('content-type') || ''
 
   if (contentType.includes('application/json')) {
-    return req.json()
+    // Read the raw text so an empty body (a paramless POST that still carries a
+    // default application/json header) resolves to {} instead of throwing;
+    // a non-empty malformed body still throws so the caller can return a 4xx.
+    const text = await req.text()
+    if (text.trim() === '') return {}
+    return JSON.parse(text) as Record<string, unknown>
   }
 
   // Parse urlencoded bodies with URLSearchParams rather than formData(): it is
@@ -23,6 +28,14 @@ export async function getRequestBody(
     return Object.fromEntries(new URLSearchParams(await req.text()))
   }
 
-  const formData = await req.formData()
-  return Object.fromEntries(formData.entries())
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await req.formData()
+    return Object.fromEntries(formData.entries())
+  }
+
+  // No body or an unrecognized content type: nothing to parse. Returning an
+  // empty object (rather than calling req.formData(), which rejects on a
+  // bodyless/typeless request) lets endpoints that read optional params handle
+  // a paramless POST without erroring.
+  return {}
 }
