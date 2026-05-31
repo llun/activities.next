@@ -11,8 +11,8 @@ interface PageHeaderProps {
   className?: string
   // Width of the centered inner row in sticky mode. `default` aligns the title
   // above the `max-w-2xl` timeline column; `wide` aligns it above the
-  // `max-w-4xl` column used by section layouts (settings, fitness) that render a
-  // nav rail. Ignored in section mode. Defaults to `default`.
+  // `max-w-4xl` column used by section layouts (settings, fitness). Ignored in
+  // section mode. Defaults to `default`.
   contentWidth?: 'default' | 'wide'
 }
 
@@ -56,9 +56,9 @@ const PageHeaderSectionContext = createContext<boolean>(false)
  * Switches every descendant `PageHeader` into "section" mode: a plain,
  * non-sticky, non-breakout in-panel title block instead of the full-width
  * sticky chrome. Used by section layouts (settings, fitness) that render their
- * own vertical nav rail beside the content, so the per-page title sits at the
- * top of the content column rather than spanning the rail. Default (no
- * provider) keeps the original sticky header untouched for timeline and admin.
+ * own dropdown sub-navigation above the content, so the per-page title sits at
+ * the top of the content column. Default (no provider) keeps the original
+ * sticky header untouched for timeline and admin.
  */
 export const PageHeaderSectionProvider = ({
   children
