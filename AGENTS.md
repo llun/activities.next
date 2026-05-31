@@ -137,7 +137,8 @@ section-navigation patterns; pick by section type.
 ### Dropdown sub-nav (settings-style sections — the design-system default)
 
 - Settings-style sections (settings, fitness) use a **dropdown sub-navigation on every breakpoint, including desktop** — there is **no vertical nav rail**. The earlier desktop "vertical icon rail" is gone: do **not** reintroduce a `lg:block` rail beside the content. The same dropdown that tablet/mobile used now drives desktop too, so the content always gets the full width.
-- The dropdown is a single `<nav aria-label="…">` wrapping a Radix `DropdownMenu`. The trigger is an outline `Button` showing the active tab's Lucide icon (`text-primary`) + **sentence-case** label ("Blocked accounts", not "Blocked Accounts") + a `ChevronDown`; it is `w-full` on mobile and a contained `sm:w-64` from `sm` up. Each menu item is a `<Link>` (with `aria-current="page"` on the active one) inside a `DropdownMenuItem`, and `DropdownMenuContent` uses `w-[--radix-dropdown-menu-trigger-width]` so the menu matches the trigger width.
+- **Reuse the shared `SectionNavDropdown` component** from `@/lib/components/section-nav-dropdown` — do **not** re-inline the dropdown markup in each layout. Pass it a `label` (the `<nav>` accessible name) and a `tabs: SectionNavTab[]` array (`{ name, url, icon }`). It owns the active-tab resolution and renders the trigger + menu described below; both `app/(timeline)/settings/layout.tsx` and `app/(timeline)/fitness/layout.tsx` consume it.
+- Under the hood, `SectionNavDropdown` renders a single `<nav aria-label="…">` wrapping a Radix `DropdownMenu`. The trigger is an outline `Button` showing the active tab's Lucide icon (`text-primary`) + **sentence-case** label ("Blocked accounts", not "Blocked Accounts") + a `ChevronDown`; it is `w-full` on mobile and a contained `sm:w-64` from `sm` up. Each menu item is a `<Link>` (with `aria-current="page"` on the active one) inside a `DropdownMenuItem`, and `DropdownMenuContent` uses `align="start"` + `w-[--radix-dropdown-menu-trigger-width]` so the menu lines up with and matches the trigger width.
 - The section layout renders **two tiers of header**, matching the design system:
   1. A **shared section header** at the very top (e.g. `Settings` / "Manage your account and preferences") that uses the same full-width sticky chrome as the other top-level routes, so the section reads like every other page. Render a `PageHeader` with `contentWidth="wide"` **outside** `PageHeaderSectionProvider` so it keeps the sticky breakout chrome; `contentWidth="wide"` aligns its centered title row to the `max-w-4xl` content column instead of the default `max-w-2xl` timeline column.
   2. The **per-page title** ("General", "Account Settings", …) below it, rendered by each page's own `<PageHeader>` in **section mode**.
@@ -150,6 +151,15 @@ section-navigation patterns; pick by section type.
     PageHeader,
     PageHeaderSectionProvider
   } from '@/lib/components/page-header'
+  import {
+    SectionNavDropdown,
+    type SectionNavTab
+  } from '@/lib/components/section-nav-dropdown'
+
+  const tabs: SectionNavTab[] = [
+    { name: 'General', url: '/settings', icon: SettingsIcon }
+    // …
+  ]
 
   export default function Layout({ children }) {
     return (
@@ -166,9 +176,7 @@ section-navigation patterns; pick by section type.
             className="mx-auto w-full max-w-4xl pt-4"
           >
             {/* Dropdown sub-nav on every breakpoint — no vertical rail. */}
-            <nav aria-label="Settings" className="mb-4">
-              {/* <DropdownMenu> trigger + items … */}
-            </nav>
+            <SectionNavDropdown label="Settings" tabs={tabs} />
             <div className="min-w-0">{children}</div>
           </div>
         </PageHeaderSectionProvider>
