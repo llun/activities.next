@@ -42,14 +42,42 @@ const SENSITIVE_PARAMS = new Set([
   'state',
   'refresh_token',
   'access_token',
+  'id_token',
+  'id_token_hint',
   'token'
 ])
 
+// Param names whose value is a URL. Their value is kept (scheme+host+path is the
+// usual signal for a redirect_uri-mismatch 400) but their query string and
+// fragment are dropped, since a client can append secrets there.
+const URL_VALUED_PARAMS = new Set([
+  'redirect_uri',
+  'redirect_uris',
+  'request_uri'
+])
+
+const normalizeKey = (key: string): string => key.trim().toLowerCase()
+
 // Keys can carry surrounding whitespace (URLSearchParams and JSON both preserve
-// it), which would slip a secret past an exact-match redaction check. Normalize
-// before comparing so e.g. ` code_verifier ` is still redacted.
+// it), which would slip a secret past an exact-match redaction check. Mastodon
+// and Rails clients also use bracket notation for nested params (e.g.
+// `user[password]`), so the key is split on brackets/whitespace and each
+// segment is checked. Normalizing this way redacts ` code_verifier ` and
+// `user[password]` alike.
+const matchesParamSet = (key: string, set: Set<string>): boolean => {
+  const normalized = normalizeKey(key)
+  if (set.has(normalized)) return true
+  return normalized
+    .split(/[[\]\s]+/)
+    .filter(Boolean)
+    .some((segment) => set.has(segment))
+}
+
 const isSensitiveParam = (key: string): boolean =>
-  SENSITIVE_PARAMS.has(key.trim().toLowerCase())
+  matchesParamSet(key, SENSITIVE_PARAMS)
+
+const isUrlValuedParam = (key: string): boolean =>
+  matchesParamSet(key, URL_VALUED_PARAMS)
 
 // Origin used only to parse relative URL-valued headers (e.g. a `/callback?...`
 // Referer/Location). It is stripped back off before returning, so it never
@@ -108,16 +136,27 @@ export const sanitizeHeaders = (headers: Headers): Record<string, string> => {
   return result
 }
 
+// Redacts a single param value: secret params become [REDACTED], URL-valued
+// params keep scheme+host+path but drop query/fragment, everything else passes
+// through. Shared by sanitizeFormBody and sanitizeParams.
+const sanitizeParamValue = (key: string, value: unknown): unknown => {
+  if (isSensitiveParam(key)) return '[REDACTED]'
+  if (typeof value === 'string' && isUrlValuedParam(key)) {
+    return sanitizeUrlValue(value)
+  }
+  return value
+}
+
 /**
  * Parses a form-urlencoded (or query string) body into a plain object with
- * secret parameters redacted, keeping the rest (grant_type, client_id,
- * redirect_uri, scope, response_type, ...) which is exactly what is needed to
- * understand a 400.
+ * secret parameters redacted and URL-valued params (redirect_uri, ...) stripped
+ * of query/fragment, keeping the rest (grant_type, client_id, scope,
+ * response_type, ...) which is exactly what is needed to understand a 400.
  */
 export const sanitizeFormBody = (body: string): Record<string, string> => {
   const result: Record<string, string> = {}
   new URLSearchParams(body).forEach((value, key) => {
-    result[key] = isSensitiveParam(key) ? '[REDACTED]' : value
+    result[key] = sanitizeParamValue(key, value) as string
   })
   return result
 }
@@ -129,10 +168,12 @@ const MAX_SANITIZE_DEPTH = 8
 
 /**
  * Redacts secret keys from an already-parsed value (e.g. a JSON body or
- * query-param record). Recurses into nested objects and arrays so a secret key
+ * query-param record). Recurses into arrays and plain objects so a secret key
  * nested under a non-sensitive parent is still redacted — the apps endpoint
  * logs the raw, parse-failed request body, which is attacker-controlled and may
- * be arbitrarily nested. Recursion depth is capped to stay DoS-safe.
+ * be arbitrarily nested. Recursion depth is capped to stay DoS-safe, and
+ * non-plain objects (Date, RegExp, class instances) are returned as-is rather
+ * than being flattened to `{}` by `Object.entries`.
  */
 export const sanitizeParams = (value: unknown, depth = 0): unknown => {
   if (value && typeof value === 'object') {
@@ -140,11 +181,19 @@ export const sanitizeParams = (value: unknown, depth = 0): unknown => {
     if (Array.isArray(value)) {
       return value.map((item) => sanitizeParams(item, depth + 1))
     }
+    const proto = Object.getPrototypeOf(value)
+    if (proto !== null && proto !== Object.prototype) {
+      return value
+    }
     const result: Record<string, unknown> = {}
     for (const [key, nested] of Object.entries(value)) {
-      result[key] = isSensitiveParam(key)
-        ? '[REDACTED]'
-        : sanitizeParams(nested, depth + 1)
+      if (isSensitiveParam(key)) {
+        result[key] = '[REDACTED]'
+      } else if (typeof nested === 'string' && isUrlValuedParam(key)) {
+        result[key] = sanitizeUrlValue(nested)
+      } else {
+        result[key] = sanitizeParams(nested, depth + 1)
+      }
     }
     return result
   }

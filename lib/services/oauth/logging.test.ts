@@ -110,6 +110,32 @@ describe('oauth logging sanitizers', () => {
         assertion: '[REDACTED]'
       })
     })
+
+    it('redacts OIDC id_token params', () => {
+      const body = 'id_token=jwt&id_token_hint=jwt-hint&client_id=abc'
+      expect(sanitizeFormBody(body)).toEqual({
+        id_token: '[REDACTED]',
+        id_token_hint: '[REDACTED]',
+        client_id: 'abc'
+      })
+    })
+
+    it('redacts bracket-notation nested secret keys (user[password])', () => {
+      const body = 'user%5Bpassword%5D=secret&user%5Bname%5D=alice'
+      expect(sanitizeFormBody(body)).toEqual({
+        'user[password]': '[REDACTED]',
+        'user[name]': 'alice'
+      })
+    })
+
+    it('strips query/fragment from URL-valued params (redirect_uri)', () => {
+      const body =
+        'grant_type=authorization_code&redirect_uri=https%3A%2F%2Fclient.example%2Fcb%3Fsession%3Dsecret%23frag'
+      expect(sanitizeFormBody(body)).toEqual({
+        grant_type: 'authorization_code',
+        redirect_uri: 'https://client.example/cb'
+      })
+    })
   })
 
   describe('sanitizeParams', () => {
@@ -146,6 +172,40 @@ describe('oauth logging sanitizers', () => {
       expect(sanitizeParams(42)).toBe(42)
       expect(sanitizeParams(null)).toBeNull()
       expect(sanitizeParams(undefined)).toBeUndefined()
+    })
+
+    it('returns non-plain objects as-is instead of flattening them to {}', () => {
+      const date = new Date('2026-01-01T00:00:00.000Z')
+      const regexp = /secret/i
+      expect(sanitizeParams({ created: date, pattern: regexp })).toEqual({
+        created: date,
+        pattern: regexp
+      })
+      // The Date is returned by reference, not coerced to an empty object.
+      expect(
+        (sanitizeParams({ created: date }) as { created: Date }).created
+      ).toBe(date)
+    })
+
+    it('redacts bracket-notation nested secret keys', () => {
+      expect(
+        sanitizeParams({ 'user[password]': 'secret', 'user[name]': 'alice' })
+      ).toEqual({
+        'user[password]': '[REDACTED]',
+        'user[name]': 'alice'
+      })
+    })
+
+    it('strips query/fragment from URL-valued params', () => {
+      expect(
+        sanitizeParams({
+          redirect_uri: 'https://client.example/cb?session=secret#frag',
+          client_id: 'abc'
+        })
+      ).toEqual({
+        redirect_uri: 'https://client.example/cb',
+        client_id: 'abc'
+      })
     })
 
     it('bounds recursion depth so a deeply nested body cannot blow the stack', () => {
