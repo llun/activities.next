@@ -409,11 +409,11 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
             {archiveBatchResult.summary.failed}
           </p>
           <p>
-            View details in{' '}
+            View details in the{' '}
             <Link href="/fitness/files" className="underline">
-              Fitness settings
-            </Link>
-            .
+              Files
+            </Link>{' '}
+            page.
           </p>
         </div>
       )}

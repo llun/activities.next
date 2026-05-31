@@ -34,7 +34,9 @@ describe('Settings Layout', () => {
   })
 
   it('resolves a nested account path to the Account tab, not General', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings/account/verify-email')
+    ;(usePathname as jest.Mock).mockReturnValue(
+      '/settings/account/verify-email'
+    )
     renderLayout()
 
     const rail = screen.getByRole('navigation', { name: 'Settings' })
