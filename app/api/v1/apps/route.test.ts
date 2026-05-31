@@ -193,4 +193,38 @@ describe('apps route', () => {
     })
     expect(response.status).toBe(429)
   })
+
+  test('redacts secrets in the logged body when registration validation fails', async () => {
+    const req = new NextRequest('https://llun.test/api/v1/apps', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer super-secret-token'
+      },
+      // Malformed body (client_name must be a string): exercises the rejection
+      // path that logs the raw, attacker-controlled payload.
+      body: JSON.stringify({
+        client_name: { client_secret: 'leak-me' },
+        password: 'leak-me-too'
+      })
+    })
+
+    const response = await POST(req)
+    expect(response.status).toBe(422)
+
+    const rejectionLog = mockLoggerWarn.mock.calls.find(
+      ([payload]) =>
+        (payload as { endpoint?: string }).endpoint === 'apps' &&
+        (payload as { status?: number }).status === 422
+    )
+    expect(rejectionLog).toBeDefined()
+    const [payload] = rejectionLog as [Record<string, unknown>, string]
+    expect(payload.body).toEqual({
+      client_name: { client_secret: '[REDACTED]' },
+      password: '[REDACTED]'
+    })
+    expect(payload.headers).toMatchObject({
+      authorization: 'Bearer [REDACTED]'
+    })
+  })
 })

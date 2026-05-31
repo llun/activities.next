@@ -44,6 +44,22 @@ describe('oauth logging sanitizers', () => {
         cookie: '[REDACTED]'
       })
     })
+
+    it('strips query and fragment from URL-bearing headers', () => {
+      const headers = new Headers({
+        referer:
+          'https://app.example.test/callback?code=auth-secret&state=xyz#access_token=tok'
+      })
+      // code/access_token/state in the redirect URL must not be logged.
+      expect(sanitizeHeaders(headers)).toEqual({
+        referer: 'https://app.example.test/callback'
+      })
+    })
+
+    it('redacts a URL-bearing header that is not a parseable URL', () => {
+      const headers = new Headers({ referer: 'not a url' })
+      expect(sanitizeHeaders(headers)).toEqual({ referer: '[REDACTED]' })
+    })
   })
 
   describe('sanitizeFormBody', () => {
@@ -66,6 +82,25 @@ describe('oauth logging sanitizers', () => {
         client_id: 'abc'
       })
     })
+
+    it('redacts PII params (username, email)', () => {
+      const body =
+        'grant_type=password&username=alice&email=alice%40example.test'
+      expect(sanitizeFormBody(body)).toEqual({
+        grant_type: 'password',
+        username: '[REDACTED]',
+        email: '[REDACTED]'
+      })
+    })
+
+    it('redacts OAuth security params (state, assertion)', () => {
+      const body = 'client_id=abc&state=csrf-binding&assertion=jwt-credential'
+      expect(sanitizeFormBody(body)).toEqual({
+        client_id: 'abc',
+        state: '[REDACTED]',
+        assertion: '[REDACTED]'
+      })
+    })
   })
 
   describe('sanitizeParams', () => {
@@ -81,6 +116,27 @@ describe('oauth logging sanitizers', () => {
         ' Client_Secret ': '[REDACTED]',
         redirect_uris: ['https://example.test/cb']
       })
+    })
+
+    it('recurses into nested objects and arrays', () => {
+      expect(
+        sanitizeParams({
+          client_name: 'My App',
+          meta: { client_secret: 'shh', note: 'ok' },
+          items: [{ password: 'p' }, { keep: 'v' }]
+        })
+      ).toEqual({
+        client_name: 'My App',
+        meta: { client_secret: '[REDACTED]', note: 'ok' },
+        items: [{ password: '[REDACTED]' }, { keep: 'v' }]
+      })
+    })
+
+    it('returns primitive and nullish values unchanged', () => {
+      expect(sanitizeParams('a string')).toBe('a string')
+      expect(sanitizeParams(42)).toBe(42)
+      expect(sanitizeParams(null)).toBeNull()
+      expect(sanitizeParams(undefined)).toBeUndefined()
     })
   })
 })

@@ -9,7 +9,6 @@ import {
   sanitizeHeaders
 } from '@/lib/services/oauth/logging'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   StatusCode,
@@ -255,7 +254,10 @@ const validatePkceTokenExchange = async (
       .first()
     if (!client?.requirePKCE) return null
   } catch (e) {
-    logger.error({ message: 'PKCE token preflight failed', error: e })
+    oauthLogger.error(
+      { endpoint: 'token', reason: 'pkce_preflight', err: e },
+      'PKCE token preflight failed'
+    )
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -331,7 +333,10 @@ export const POST = async (req: NextRequest) => {
   try {
     response = await auth.handler(proxyReq)
   } catch (e) {
-    logger.error({ message: 'Token endpoint handler threw', error: e })
+    oauthLogger.error(
+      { endpoint: 'token', reason: 'handler_threw', err: e },
+      'Token endpoint handler threw'
+    )
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,

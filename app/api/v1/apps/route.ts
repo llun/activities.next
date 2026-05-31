@@ -96,10 +96,7 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
         endpoint: 'apps',
         status: 422,
         headers: sanitizeHeaders(req.headers),
-        body:
-          json && typeof json === 'object'
-            ? sanitizeParams(json as Record<string, unknown>)
-            : json,
+        body: sanitizeParams(json),
         validationErrors: parseResult.error.issues
       },
       'OAuth app registration request rejected'

@@ -20,13 +20,26 @@ const SCHEME_PRESERVING_HEADERS = new Set([
 // is safe to log.
 const FULLY_REDACTED_HEADERS = new Set(['cookie', 'set-cookie'])
 
-// Body/query parameter names that carry secrets and must be redacted.
+// Headers whose value is a URL that can carry secret query/fragment params
+// (e.g. an authorization `code` or `access_token` in an OAuth redirect URL).
+// Their query string and fragment are dropped before logging.
+const URL_BEARING_HEADERS = new Set(['referer', 'referrer', 'location'])
+
+// Body/query parameter names that carry secrets or PII and must be redacted.
+// `username`/`email` are not part of the configured grant types, but redacting
+// them keeps PII out of logs if a password/custom grant or the registration
+// body ever carries them. `state` is the client's CSRF binding and `assertion`
+// carries a JWT/SAML credential in assertion grants.
 const SENSITIVE_PARAMS = new Set([
   'client_secret',
   'client_assertion',
+  'assertion',
   'code',
   'code_verifier',
   'password',
+  'username',
+  'email',
+  'state',
   'refresh_token',
   'access_token',
   'token'
@@ -37,6 +50,19 @@ const SENSITIVE_PARAMS = new Set([
 // before comparing so e.g. ` code_verifier ` is still redacted.
 const isSensitiveParam = (key: string): boolean =>
   SENSITIVE_PARAMS.has(key.trim().toLowerCase())
+
+// Strips the query string and fragment from a URL-valued header, keeping only
+// origin + path for diagnostics. OAuth redirect URLs put `code`/`access_token`
+// in exactly those parts, so dropping them avoids persisting secrets. A value
+// that is not a parseable absolute URL is redacted entirely to be safe.
+const sanitizeUrlValue = (value: string): string => {
+  try {
+    const url = new URL(value)
+    return `${url.origin}${url.pathname}`
+  } catch {
+    return '[REDACTED]'
+  }
+}
 
 /**
  * Collects request headers into a plain object with credential-bearing values
@@ -56,6 +82,10 @@ export const sanitizeHeaders = (headers: Headers): Record<string, string> => {
       const scheme = value.split(' ')[0]
       result[key] =
         scheme && scheme !== value ? `${scheme} [REDACTED]` : '[REDACTED]'
+      return
+    }
+    if (URL_BEARING_HEADERS.has(normalizedKey)) {
+      result[key] = sanitizeUrlValue(value)
       return
     }
     result[key] = value
@@ -78,15 +108,24 @@ export const sanitizeFormBody = (body: string): Record<string, string> => {
 }
 
 /**
- * Redacts secret keys from an already-parsed params object (e.g. a JSON body or
- * query-param record).
+ * Redacts secret keys from an already-parsed value (e.g. a JSON body or
+ * query-param record). Recurses into nested objects and arrays so a secret key
+ * nested under a non-sensitive parent is still redacted — the apps endpoint
+ * logs the raw, parse-failed request body, which is attacker-controlled and may
+ * be arbitrarily nested.
  */
-export const sanitizeParams = (
-  params: Record<string, unknown>
-): Record<string, unknown> => {
-  const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(params)) {
-    result[key] = isSensitiveParam(key) ? '[REDACTED]' : value
+export const sanitizeParams = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeParams(item))
   }
-  return result
+  if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, nested] of Object.entries(value)) {
+      result[key] = isSensitiveParam(key)
+        ? '[REDACTED]'
+        : sanitizeParams(nested)
+    }
+    return result
+  }
+  return value
 }
