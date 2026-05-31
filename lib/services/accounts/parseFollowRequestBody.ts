@@ -69,7 +69,12 @@ export const parseFollowRequestBody = async (
   }
 
   if (contentType.includes('application/json')) {
-    const json = (await req.json()) as Record<string, unknown>
+    // An empty body (a paramless follow that still carries a default
+    // application/json header) is a valid default follow → {}. A non-empty
+    // malformed body still throws so the route returns 422.
+    const text = await req.text()
+    if (text.trim() === '') return {}
+    const json = JSON.parse(text) as Record<string, unknown>
     // A well-formed but non-object JSON body (null, a number, a string, an
     // array) has no follow fields; treat it as empty rather than letting the
     // `in`/index access below throw.

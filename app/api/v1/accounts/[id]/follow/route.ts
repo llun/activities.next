@@ -96,27 +96,44 @@ export const POST = traceApiRoute(
       })
     }
 
-    // Check if target actor exists
-    const signingActor = await getFederationSigningActor(database)
-    const person = await getActorPerson({
-      actorId: targetActorId,
-      signingActor
-    })
-    if (!person)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    // Check if already following
+    // Updating preferences on an account the actor already follows is a purely
+    // local operation, so resolve the existing follow before any network call.
+    // This lets clients change reblogs/notify/languages even when the remote
+    // actor is temporarily unreachable.
     const existingFollow = await database.getAcceptedOrRequestedFollow({
       actorId: currentActor.id,
       targetActorId
     })
 
-    if (!existingFollow) {
+    if (existingFollow) {
+      if (
+        reblogs !== undefined ||
+        notify !== undefined ||
+        languages !== undefined
+      ) {
+        await database.updateFollowPreferences({
+          actorId: currentActor.id,
+          targetActorId,
+          reblogs,
+          notify,
+          languages
+        })
+      }
+    } else {
+      // New follow: confirm the target actor exists (network) before creating.
+      const signingActor = await getFederationSigningActor(database)
+      const person = await getActorPerson({
+        actorId: targetActorId,
+        signingActor
+      })
+      if (!person)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
       const followItem = await database.createFollow({
         actorId: currentActor.id,
         targetActorId,
@@ -128,19 +145,6 @@ export const POST = traceApiRoute(
         languages
       })
       await follow(followItem.id, currentActor, targetActorId, signingActor)
-    } else if (
-      reblogs !== undefined ||
-      notify !== undefined ||
-      languages !== undefined
-    ) {
-      // Re-following with preferences updates the existing local follow row.
-      await database.updateFollowPreferences({
-        actorId: currentActor.id,
-        targetActorId,
-        reblogs,
-        notify,
-        languages
-      })
     }
 
     const relationship = await getRelationship({

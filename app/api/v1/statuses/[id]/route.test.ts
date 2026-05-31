@@ -730,6 +730,44 @@ describe('GET /api/v1/statuses/[id]', () => {
       ).resolves.toBeNull()
     })
 
+    it('treats an empty JSON reblog body as a default public boost', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblog-empty-json`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reblog empty json target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await reblogStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblog`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            }
+            // No body.
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const announce = await database.getActorAnnounceStatus({
+        actorId: ACTOR2_ID,
+        statusId
+      })
+      expect(announce?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+    })
+
     it('bookmarks a readable status and returns bookmarked=true', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }

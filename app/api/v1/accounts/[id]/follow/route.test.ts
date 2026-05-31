@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { seedDatabase } from '@/lib/stub/database'
@@ -277,6 +278,77 @@ describe('Account Action Endpoints', () => {
         targetActorId
       })
       expect(stored?.languages).toBeNull()
+    })
+
+    it('treats an empty JSON body as a paramless default follow', async () => {
+      const targetActorId = await createFollowTargetActor('follow-empty-json')
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            }
+            // No body — clients sometimes send a default JSON header anyway.
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const relationship = await response.json()
+      expect(relationship.showing_reblogs).toBe(true)
+      const stored = await database.getAcceptedOrRequestedFollow({
+        actorId: ACTOR1_ID,
+        targetActorId
+      })
+      expect(stored).not.toBeNull()
+    })
+
+    it('updates preferences for an existing follow even when the remote actor is unreachable', async () => {
+      const targetActorId = await createFollowTargetActor('follow-offline')
+
+      // First follow succeeds (actor reachable).
+      await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notify: false })
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      // Remote actor now unreachable: getActorPerson would fail / return null.
+      ;(getActorPerson as jest.Mock).mockResolvedValueOnce(null)
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notify: true })
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      // The preference update must succeed without consulting the network.
+      expect(response.status).toBe(200)
+      const relationship = await response.json()
+      expect(relationship.notifying).toBe(true)
     })
 
     it('returns 422 for a malformed JSON body', async () => {
