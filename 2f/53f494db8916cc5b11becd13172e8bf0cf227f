@@ -1,0 +1,42 @@
+app/api/v1/statuses/route.ts
+  s_15ed438245ef61::t_7f643abebc637e 43
+  s_15ed438245ef61::t_b4ff122caff6b8 8
+app/api/v1/accounts/[id]/mute/route.ts
+  s_15ed438245ef61::t_b26d63e15a3ec1 7,34-37
+  s_15ed438245ef61::t_f36ac43d98ebdd 22-32,38
+  s_15ed438245ef61::t_0b1479c1cf6205 77
+app/api/v1/statuses/[id]/route.test.ts
+  s_15ed438245ef61::t_c36bb18bef60b9 1740-1839
+lib/services/statuses/parseStatusRequestBody.ts
+  s_15ed438245ef61::t_3bd48cb299d05d 1-73
+app/api/v1/statuses/[id]/route.ts
+  s_15ed438245ef61::t_b26d63e15a3ec1 144-146
+  s_15ed438245ef61::t_daf2f443a22d7f 14
+lib/utils/getRequestBody.ts
+  s_15ed438245ef61::t_7c4347974383b0 19-25
+lib/services/statuses/parseStatusRequestBody.test.ts
+  s_15ed438245ef61::t_fbecfe1b9f762a 1-65
+lib/utils/getRequestBody.test.ts
+  s_15ed438245ef61::t_c051f4aef44d05 15,26-31
+  s_15ed438245ef61::t_af100938185309 55,66-78
+  s_15ed438245ef61::t_b26d63e15a3ec1 23
+app/api/v1/accounts/[id]/mute/route.test.ts
+  s_15ed438245ef61::t_c8606e57c959fc 61-70
+  s_15ed438245ef61::t_7bdb9e58a8ee1d 181-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2f53f494db8916cc5b11becd13172e8bf0cf227f",
+  "prompts": {},
+  "sessions": {
+    "s_15ed438245ef61": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95a47b7b-682e-4481-b23e-9446b6a03902",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
