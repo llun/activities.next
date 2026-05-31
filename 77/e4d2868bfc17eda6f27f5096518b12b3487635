@@ -1,0 +1,19 @@
+lib/database/sql/follow.ts
+  s_3550bed52eee41::t_24c4c79ab5af6a 166-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "77e4d2868bfc17eda6f27f5096518b12b3487635",
+  "prompts": {},
+  "sessions": {
+    "s_3550bed52eee41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9550ec50-0df8-44cf-a07a-94f038da6ca8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
