@@ -1,0 +1,25 @@
+lib/components/section-nav-dropdown.test.tsx
+  s_3ec04052f0950b::t_4d9329db4a7869 60-61,64-68
+app/(timeline)/settings/layout.test.tsx
+  s_3ec04052f0950b::t_762557106ed444 75-76,98-99,102-104
+lib/components/section-nav-dropdown.tsx
+  s_3ec04052f0950b::t_d9269e83dc7d54 78-82
+app/(timeline)/fitness/layout.test.tsx
+  s_3ec04052f0950b::t_4c72a53e5babaa 60-76,81-82,96-97,100-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8e720400b0f448d72748c28c6e33679c278db926",
+  "prompts": {},
+  "sessions": {
+    "s_3ec04052f0950b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f64ce4a-02a2-4cb8-9f12-0a23ab6a6068",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
