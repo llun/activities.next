@@ -3,6 +3,11 @@ import { NextRequest } from 'next/server'
 import { getBaseURL } from '@/lib/config'
 import { getKnex } from '@/lib/database'
 import { getAuth } from '@/lib/services/auth/auth'
+import {
+  oauthLogger,
+  sanitizeFormBody,
+  sanitizeHeaders
+} from '@/lib/services/oauth/logging'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -272,12 +277,46 @@ const validatePkceTokenExchange = async (
 
 export const POST = async (req: NextRequest) => {
   const auth = getAuth()
+
+  oauthLogger.debug(
+    {
+      endpoint: 'token',
+      headers: sanitizeHeaders(req.headers)
+    },
+    'OAuth token request received'
+  )
+
   const { bodyText, params, error } = await getTokenRequestBody(req)
-  if (error) return error
+  if (error) {
+    // Pre-flight rejection (wrong content-type, oversized/unreadable body).
+    // These are the proxy's own 4xx responses and never reach better-auth.
+    oauthLogger.warn(
+      {
+        endpoint: 'token',
+        status: error.status,
+        reason: 'request_body',
+        headers: sanitizeHeaders(req.headers)
+      },
+      `OAuth token request rejected with ${error.status}`
+    )
+    return error
+  }
 
   if (params) {
     const pkceError = await validatePkceTokenExchange(req, params)
-    if (pkceError) return pkceError
+    if (pkceError) {
+      oauthLogger.warn(
+        {
+          endpoint: 'token',
+          status: pkceError.status,
+          reason: 'pkce',
+          headers: sanitizeHeaders(req.headers),
+          requestBody: sanitizeFormBody(bodyText ?? '')
+        },
+        `OAuth token request rejected with ${pkceError.status}`
+      )
+      return pkceError
+    }
   }
 
   // Rewrite the URL to better-auth's token endpoint
@@ -318,6 +357,24 @@ export const POST = async (req: NextRequest) => {
         ? 500
         : 400
   ) as StatusCode
+
+  // Log token exchanges better-auth rejected so 400s from third-party Mastodon
+  // clients can be diagnosed in production: the request the client sent (secrets
+  // redacted) plus the upstream OAuth error body (e.g. invalid_grant /
+  // invalid_client), which is non-secret and exactly what we need.
+  if (!response.ok) {
+    oauthLogger.warn(
+      {
+        endpoint: 'token',
+        status: statusCode,
+        reason: 'upstream',
+        headers: sanitizeHeaders(req.headers),
+        requestBody: sanitizeFormBody(bodyText ?? ''),
+        upstreamBody: data
+      },
+      `OAuth token request failed with ${statusCode}`
+    )
+  }
 
   return apiResponse({
     req,

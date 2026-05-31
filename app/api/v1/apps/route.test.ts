@@ -29,11 +29,16 @@ jest.mock('@/lib/config/trustProxyIpHeaders', () => ({
   getTrustProxyIpHeadersConfig: () => mockGetTrustProxyIpHeadersConfig()
 }))
 
-jest.mock('@/lib/utils/logger', () => ({
-  logger: {
-    warn: (...args: unknown[]) => mockLoggerWarn(...args)
+jest.mock('@/lib/utils/logger', () => {
+  const logger = {
+    warn: (...args: unknown[]) => mockLoggerWarn(...args),
+    info: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: () => logger
   }
-}))
+  return { logger }
+})
 
 jest.mock('./createApplication', () => ({
   createApplication: (...args: unknown[]) => mockCreateApplication(...args)

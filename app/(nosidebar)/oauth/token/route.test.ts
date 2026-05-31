@@ -34,13 +34,16 @@ jest.mock('@/lib/services/auth/auth', () => ({
   })
 }))
 
-jest.mock('@/lib/utils/logger', () => ({
-  logger: {
+jest.mock('@/lib/utils/logger', () => {
+  const logger = {
     error: jest.fn(),
     warn: jest.fn(),
-    info: jest.fn()
+    info: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(() => logger)
   }
-}))
+  return { logger }
+})
 
 describe('OAuth token endpoint', () => {
   beforeEach(() => {
