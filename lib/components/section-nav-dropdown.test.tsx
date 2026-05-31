@@ -57,13 +57,15 @@ describe('SectionNavDropdown', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
     renderDropdown()
 
-    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    for (const label of ['Overview', 'Files', 'Privacy', 'Strava']) {
-      expect(
-        within(menu).getByRole('menuitem', { name: label })
-      ).toBeInTheDocument()
+    for (const tab of tabs) {
+      const item = within(menu).getByRole('menuitem', { name: tab.name })
+      expect(item).toBeInTheDocument()
+      // Guard against a tab URL regression going undetected.
+      expect(item).toHaveAttribute('href', tab.url)
     }
     expect(
       within(menu).getByRole('menuitem', { name: 'Strava' })

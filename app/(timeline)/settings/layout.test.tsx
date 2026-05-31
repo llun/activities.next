@@ -72,7 +72,8 @@ describe('Settings Layout', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/settings')
     renderLayout()
 
-    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
     for (const label of [
@@ -94,12 +95,13 @@ describe('Settings Layout', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/settings/account')
     renderLayout()
 
-    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Account' })
-    ).toHaveAttribute('aria-current', 'page')
+    const active = within(menu).getByRole('menuitem', { name: 'Account' })
+    expect(active).toHaveAttribute('aria-current', 'page')
+    expect(active).toHaveAttribute('href', '/settings/account')
     expect(
       within(menu).getByRole('menuitem', { name: 'General' })
     ).not.toHaveAttribute('aria-current')

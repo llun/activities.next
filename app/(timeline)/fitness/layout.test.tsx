@@ -57,11 +57,29 @@ describe('Fitness Layout', () => {
   // jsdom has no pointer layout), then assert the items the rail used to expose.
   // Scope to the open menu so the test fails loudly if items ever render outside
   // an opened dropdown.
+  it('renders the section-level Fitness header above the dropdown nav', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness')
+    renderLayout()
+
+    const heading = screen.getByRole('heading', { name: 'Fitness' })
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+
+    // The shared "Fitness" header must precede the dropdown nav so the section
+    // leads with the same full-width chrome the other top-level routes use.
+    expect(
+      heading.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      screen.getByText('Your training activity and settings')
+    ).toBeInTheDocument()
+  })
+
   it('renders every section as a menu item when the dropdown is opened', async () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness')
     renderLayout()
 
-    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
     for (const label of ['Overview', 'Files', 'Privacy', 'Strava']) {
@@ -75,12 +93,13 @@ describe('Fitness Layout', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
     renderLayout()
 
-    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Strava' })
-    ).toHaveAttribute('aria-current', 'page')
+    const active = within(menu).getByRole('menuitem', { name: 'Strava' })
+    expect(active).toHaveAttribute('aria-current', 'page')
+    expect(active).toHaveAttribute('href', '/fitness/strava')
     expect(
       within(menu).getByRole('menuitem', { name: 'Overview' })
     ).not.toHaveAttribute('aria-current')

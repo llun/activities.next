@@ -75,7 +75,11 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
                     'flex w-full items-center gap-2',
-                    isActive && 'font-medium text-primary'
+                    // The design system's signature active state: a 10% orange
+                    // wash plus orange text. The wash is a non-color-dependent
+                    // cue alongside aria-current, so the state doesn't rely on
+                    // the orange text alone.
+                    isActive && 'bg-primary/10 font-medium text-primary'
                   )}
                 >
                   <tab.icon className="h-4 w-4" />
