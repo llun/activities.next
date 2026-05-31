@@ -3,6 +3,12 @@
 import { ChevronDown } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import {
+  FitnessGeneralSettingsResponse,
+  getFitnessGeneralSettings,
+  regenerateFitnessMaps,
+  updateFitnessGeneralSettings
+} from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -29,25 +35,6 @@ interface PrivacyLocationInput {
   latitude: number
   longitude: number
   hideRadiusMeters: FitnessPrivacyRadiusMeters
-}
-
-interface FitnessGeneralSettingsResponse {
-  success?: boolean
-  error?: string
-  privacyLocations?: Array<{
-    latitude: number
-    longitude: number
-    hideRadiusMeters: number
-  }>
-  privacyHomeLatitude?: number | null
-  privacyHomeLongitude?: number | null
-  privacyHideRadiusMeters?: number
-}
-
-interface RegenerateMapsResponse {
-  success?: boolean
-  error?: string
-  queuedCount?: number
 }
 
 interface MapPointGeometry {
@@ -425,18 +412,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         setIsLoading(true)
         setError(null)
 
-        const response = await fetch('/api/v1/fitness/general', {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json'
-          }
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to load fitness privacy settings')
-        }
-
-        const data = (await response.json()) as FitnessGeneralSettingsResponse
+        const data = await getFitnessGeneralSettings()
 
         if (cancelled) {
           return
@@ -703,19 +679,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     try {
       setIsSaving(true)
 
-      const response = await fetch('/api/v1/fitness/general', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          privacyLocations: locations
-        })
-      })
+      const { ok, data } = await updateFitnessGeneralSettings(locations)
 
-      const data = (await response.json()) as FitnessGeneralSettingsResponse
-
-      if (!response.ok) {
+      if (!ok) {
         setError(
           data?.error || 'Failed to save fitness privacy location settings'
         )
@@ -842,16 +808,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     setIsRegeneratingMaps(true)
 
     try {
-      const response = await fetch('/api/v1/fitness/general/regenerate-maps', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
+      const { ok, data } = await regenerateFitnessMaps()
 
-      const data = (await response.json()) as RegenerateMapsResponse
-
-      if (!response.ok) {
+      if (!ok) {
         setError(data.error || 'Failed to queue map regeneration job.')
         return
       }
