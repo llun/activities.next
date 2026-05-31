@@ -3,8 +3,7 @@ name: Queue Main to OLTP Sync
 on:
   workflow_run:
     workflows:
-      - Dev
-      - Lint and Prettier
+      - CI
       - Package
       - CodeQL
     types:
@@ -32,8 +31,7 @@ jobs:
         with:
           script: |
             const requiredWorkflows = [
-              'Dev',
-              'Lint and Prettier',
+              'CI',
               'Package',
               'CodeQL',
             ]
