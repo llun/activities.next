@@ -1,0 +1,20 @@
+.github/workflows/build.yml
+  s_0961c5c1082cb7::t_79c5c778218f88 1-12,15-22,28-30,32-43,46-48,59-121
+  s_0961c5c1082cb7::t_b575c68e64246e 13-14,23-27,31,44-45,49-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "dbb37459280f3800ff8e3f4754ba7e30c0e2e78a",
+  "prompts": {},
+  "sessions": {
+    "s_0961c5c1082cb7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25d802a1-677d-453d-a1bc-3e070a56022d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
