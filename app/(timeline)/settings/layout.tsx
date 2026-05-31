@@ -26,6 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 interface Props {
   children: ReactNode
@@ -86,21 +87,28 @@ const Layout: FC<Props> = ({ children }) => {
                   <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-                {tabs.map((tab) => (
-                  <DropdownMenuItem key={tab.url} asChild>
-                    <Link
-                      href={tab.url}
-                      aria-current={
-                        tab.url === activeTab.url ? 'page' : undefined
-                      }
-                      className="flex items-center gap-2"
-                    >
-                      <tab.icon className="h-4 w-4" />
-                      {tab.name}
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
+              <DropdownMenuContent
+                align="start"
+                className="w-[--radix-dropdown-menu-trigger-width]"
+              >
+                {tabs.map((tab) => {
+                  const isActive = tab.url === activeTab.url
+                  return (
+                    <DropdownMenuItem key={tab.url} asChild>
+                      <Link
+                        href={tab.url}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'flex w-full items-center gap-2',
+                          isActive && 'font-medium text-primary'
+                        )}
+                      >
+                        <tab.icon className="h-4 w-4" />
+                        {tab.name}
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </nav>

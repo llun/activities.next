@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
 import Layout from './layout'
@@ -62,5 +62,42 @@ describe('Settings Layout', () => {
 
     const nav = screen.getByRole('navigation', { name: 'Settings' })
     expect(within(nav).getByRole('button')).toHaveTextContent('General')
+  })
+
+  // Open the Radix menu the same way the rest of the suite does (keyboard, since
+  // jsdom has no pointer layout), then assert the items the rail used to expose.
+  it('renders every section as a menu item when the dropdown is opened', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/settings')
+    renderLayout()
+
+    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+
+    expect(
+      await screen.findByRole('menuitem', { name: 'General' })
+    ).toBeInTheDocument()
+    for (const label of [
+      'Account',
+      'Media',
+      'Notifications',
+      'Blocked accounts',
+      'Muted accounts',
+      'Sessions'
+    ]) {
+      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument()
+    }
+  })
+
+  it('marks the active section as current in the opened dropdown', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/settings/account')
+    renderLayout()
+
+    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+
+    expect(
+      await screen.findByRole('menuitem', { name: 'Account' })
+    ).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByRole('menuitem', { name: 'General' })
+    ).not.toHaveAttribute('aria-current')
   })
 })
