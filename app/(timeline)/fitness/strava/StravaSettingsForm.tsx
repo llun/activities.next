@@ -49,7 +49,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     const controller = new AbortController()
     const fetchSettings = async () => {
       try {
-        const response = await fetch('/api/v1/settings/fitness/strava', {
+        const response = await fetch('/api/v1/fitness/strava', {
           signal: controller.signal
         })
         const data = await response.json()
@@ -126,7 +126,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/settings/fitness/strava', {
+      const response = await fetch('/api/v1/fitness/strava', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -170,7 +170,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/settings/fitness/strava', {
+      const response = await fetch('/api/v1/fitness/strava', {
         method: 'DELETE'
       })
 

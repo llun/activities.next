@@ -842,15 +842,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     setIsRegeneratingMaps(true)
 
     try {
-      const response = await fetch(
-        '/api/v1/fitness/general/regenerate-maps',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
+      const response = await fetch('/api/v1/fitness/general/regenerate-maps', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
         }
-      )
+      })
 
       const data = (await response.json()) as RegenerateMapsResponse
 

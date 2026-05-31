@@ -410,7 +410,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
           </p>
           <p>
             View details in{' '}
-            <Link href="/settings/fitness/general" className="underline">
+            <Link href="/fitness/files" className="underline">
               Fitness settings
             </Link>
             .

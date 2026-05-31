@@ -405,18 +405,15 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440001'
     })
 
-    const req = new Request(
-      'http://localhost/api/v1/fitness/strava/archive',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fitnessFileId: 'pre-created-fitness-file-id',
-          archiveId: '550e8400-e29b-41d4-a716-446655440001',
-          visibility: 'private'
-        })
-      }
-    )
+    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fitnessFileId: 'pre-created-fitness-file-id',
+        archiveId: '550e8400-e29b-41d4-a716-446655440001',
+        visibility: 'private'
+      })
+    })
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(200)
@@ -452,18 +449,15 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440006'
     })
 
-    const req = new Request(
-      'http://localhost/api/v1/fitness/strava/archive',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fitnessFileId: 'pre-created-fitness-file-id',
-          archiveId: '550e8400-e29b-41d4-a716-446655440006',
-          visibility: 'private'
-        })
-      }
-    )
+    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fitnessFileId: 'pre-created-fitness-file-id',
+        archiveId: '550e8400-e29b-41d4-a716-446655440006',
+        visibility: 'private'
+      })
+    })
 
     const response = await POST(req, { params: Promise.resolve({}) })
 
@@ -491,18 +485,15 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440005'
     })
 
-    const req = new Request(
-      'http://localhost/api/v1/fitness/strava/archive',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fitnessFileId: 'pre-created-fitness-file-id',
-          archiveId: '550e8400-e29b-41d4-a716-446655440005',
-          visibility: 'private'
-        })
-      }
-    )
+    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fitnessFileId: 'pre-created-fitness-file-id',
+        archiveId: '550e8400-e29b-41d4-a716-446655440005',
+        visibility: 'private'
+      })
+    })
 
     const response = await POST(req, { params: Promise.resolve({}) })
 
@@ -518,18 +509,15 @@ describe('Strava archive import route', () => {
       path: 'fitness/2024-01-01/xyz.zip'
     })
 
-    const req = new Request(
-      'http://localhost/api/v1/fitness/strava/archive',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fitnessFileId: 'someone-elses-file',
-          archiveId: '550e8400-e29b-41d4-a716-446655440002',
-          visibility: 'private'
-        })
-      }
-    )
+    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fitnessFileId: 'someone-elses-file',
+        archiveId: '550e8400-e29b-41d4-a716-446655440002',
+        visibility: 'private'
+      })
+    })
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(403)
@@ -548,18 +536,15 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440003'
     })
 
-    const req = new Request(
-      'http://localhost/api/v1/fitness/strava/archive',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fitnessFileId: 'pre-created-fitness-file-id',
-          archiveId: '550e8400-e29b-41d4-a716-446655440003',
-          visibility: 'private'
-        })
-      }
-    )
+    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fitnessFileId: 'pre-created-fitness-file-id',
+        archiveId: '550e8400-e29b-41d4-a716-446655440003',
+        visibility: 'private'
+      })
+    })
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(422)
@@ -578,18 +563,15 @@ describe('Strava archive import route', () => {
       importBatchId: 'strava-archive-source:different-archive-id'
     })
 
-    const req = new Request(
-      'http://localhost/api/v1/fitness/strava/archive',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fitnessFileId: 'pre-created-fitness-file-id',
-          archiveId: '550e8400-e29b-41d4-a716-446655440004',
-          visibility: 'private'
-        })
-      }
-    )
+    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fitnessFileId: 'pre-created-fitness-file-id',
+        archiveId: '550e8400-e29b-41d4-a716-446655440004',
+        visibility: 'private'
+      })
+    })
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(422)

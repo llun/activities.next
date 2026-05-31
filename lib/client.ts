@@ -1361,18 +1361,15 @@ interface StravaArchivePresignedResult {
 export const createStravaArchivePresignedUrl = async (
   archive: File
 ): Promise<StravaArchivePresignedResult | null> => {
-  const response = await fetch(
-    '/api/v1/fitness/strava/archive/presigned',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: archive.name,
-        contentType: archive.type || 'application/zip',
-        size: archive.size
-      })
-    }
-  )
+  const response = await fetch('/api/v1/fitness/strava/archive/presigned', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: archive.name,
+      contentType: archive.type || 'application/zip',
+      size: archive.size
+    })
+  })
   if (response.status === 404) return null
   if (!response.ok) {
     const errorDetails = await parseApiError(

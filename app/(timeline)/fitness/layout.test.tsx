@@ -25,7 +25,9 @@ describe('Fitness Layout', () => {
 
     const rail = screen.getByRole('navigation', { name: 'Fitness' })
     for (const label of ['Overview', 'Files', 'Privacy', 'Strava']) {
-      expect(within(rail).getByRole('link', { name: label })).toBeInTheDocument()
+      expect(
+        within(rail).getByRole('link', { name: label })
+      ).toBeInTheDocument()
     }
   })
 

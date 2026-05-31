@@ -67,7 +67,7 @@ const Page = async ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Fitness"
+        title="Files"
         description="Import activities and manage your fitness file storage."
       />
       <FitnessImport actorHandle={actorHandle} />
