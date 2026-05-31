@@ -18,10 +18,11 @@ exports.up = (knex) =>
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
+    // The composite unique index also serves leftmost-prefix lookups by
+    // actorId, so no separate single-column index is needed.
     table.unique(['actorId', 'targetActorId'], {
       indexName: 'account_notes_actor_target_unique'
     })
-    table.index(['actorId'], 'account_notes_actor')
   })
 
 /**

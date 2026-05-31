@@ -268,6 +268,22 @@ describe('#mainTimelineRule', () => {
     )
   })
 
+  it('returns main timeline for the viewer own announce (self-boost)', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    // A self-boost: the viewer is the booster and does not follow themselves.
+    const status = await createAnnounce(
+      database,
+      ACTOR3_ID,
+      `${ACTOR1_ID}/statuses/post-1`
+    )
+    if (!status) fail('Status must be defined')
+    expect(await mainTimelineRule({ database, currentActor, status })).toEqual(
+      Timeline.MAIN
+    )
+  })
+
   it('returns null for announce from a following the viewer set reblogs=false on', async () => {
     const currentActor = (await database.getActorFromId({
       id: ACTOR3_ID

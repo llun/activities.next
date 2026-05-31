@@ -38,21 +38,25 @@ export const mainTimelineRule: MainTimelineRule = async ({
     },
     async (span) => {
       if (status.type === StatusType.enum.Announce) {
-        // A single lookup yields both whether the viewer follows the booster
-        // (accepted) and their reblogs preference. Skip the boost when the
-        // viewer isn't an accepted follower, or followed with reblogs=false
-        // (matching the relationship's showing_reblogs=false).
-        const announceFollow = await database.getAcceptedOrRequestedFollow({
-          actorId: currentActor.id,
-          targetActorId: status.actorId
-        })
-        if (
-          !announceFollow ||
-          announceFollow.status !== FollowStatus.enum.Accepted ||
-          announceFollow.reblogs === false
-        ) {
-          span.end()
-          return null
+        // The viewer's own boosts always belong in their home timeline; only
+        // boosts from others are gated on the follow. A single lookup yields
+        // both whether the viewer is an accepted follower of the booster and
+        // their reblogs preference, so skip a boost from someone they don't
+        // accept-follow, or followed with reblogs=false (matching the
+        // relationship's showing_reblogs=false).
+        if (status.actorId !== currentActor.id) {
+          const announceFollow = await database.getAcceptedOrRequestedFollow({
+            actorId: currentActor.id,
+            targetActorId: status.actorId
+          })
+          if (
+            !announceFollow ||
+            announceFollow.status !== FollowStatus.enum.Accepted ||
+            announceFollow.reblogs === false
+          ) {
+            span.end()
+            return null
+          }
         }
 
         const originalStatus = status.originalStatus
