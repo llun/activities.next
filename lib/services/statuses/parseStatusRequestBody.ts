@@ -72,16 +72,16 @@ export const parseStatusRequestBody = async (
   // caller's schema for validation. An empty body parses to an empty object.
   const text = await req.text()
   if (text.trim() === '') return {}
-  try {
-    const parsed: unknown = JSON.parse(text)
-    // A non-object root (null, array, string, number) is not a status body;
-    // return {} so the function's Record contract holds and the caller's schema
-    // rejects it cleanly rather than receiving an array/primitive.
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {}
-    }
-    return parsed as Record<string, unknown>
-  } catch {
+  // Let a malformed JSON body throw: both callers wrap this in a try/catch that
+  // returns 400, the correct status for unparseable syntax — swallowing it to {}
+  // would instead surface as a misleading 422. This also matches the urlencoded
+  // and multipart paths, whose parse failures already propagate.
+  const parsed: unknown = JSON.parse(text)
+  // A well-formed but non-object root (null, array, string, number) is not a
+  // status body; normalize it to {} so the Record contract holds and the
+  // caller's schema rejects it as unprocessable rather than receiving a primitive.
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return {}
   }
+  return parsed as Record<string, unknown>
 }

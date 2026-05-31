@@ -98,6 +98,16 @@ describe('parseStatusRequestBody', () => {
     }
   )
 
+  it('propagates a malformed JSON body so the caller can return 400', async () => {
+    // A syntactically broken body must throw (→ caller's 400), not be swallowed
+    // to {} (which would surface as a misleading 422 for missing fields).
+    await expect(
+      parseStatusRequestBody(
+        createRequest('application/json', '{ not valid json')
+      )
+    ).rejects.toThrow()
+  })
+
   it('keeps an explicit empty media_ids[] so form clients can clear media', async () => {
     const params = new URLSearchParams()
     params.append('media_ids[]', '')

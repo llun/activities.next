@@ -1865,6 +1865,42 @@ describe('GET /api/v1/statuses/[id]', () => {
       await expect(database.getAttachments({ statusId })).resolves.toEqual([])
     })
 
+    it('returns 400 for a malformed JSON edit body', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-malformed-json`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Malformed edit target',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            // Syntactically broken JSON must surface as 400 (bad request), not a
+            // 422 from a swallowed empty body.
+            body: '{ "status": "oops" ',
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(400)
+      const updatedStatus = await database.getStatus({ statusId })
+      expect(updatedStatus?.text).toBe('Malformed edit target')
+    })
+
     it('applies a visibility-only edit from a urlencoded body', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-urlencoded-visibility`
       await database.createNote({
