@@ -1,0 +1,22 @@
+lib/database/sql/actor.test.ts
+  s_3550bed52eee41::t_f3af836b0fd6ae 1197-1200
+  s_3550bed52eee41::t_e25060548848a1 1156-1196,1201-1203
+lib/database/sql/actor.ts
+  s_3550bed52eee41::t_624d76f2c2b184 1468-1475
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0eb7f9c16ccfff53c5735dae437a4d59790023c4",
+  "prompts": {},
+  "sessions": {
+    "s_3550bed52eee41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9550ec50-0df8-44cf-a07a-94f038da6ca8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
