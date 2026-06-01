@@ -910,7 +910,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
               </>
             ) : (
               <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-                No conversation selected
+                {selectedConversationId
+                  ? 'No messages yet'
+                  : 'No conversation selected'}
               </div>
             )}
           </div>

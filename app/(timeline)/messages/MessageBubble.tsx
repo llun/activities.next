@@ -4,7 +4,7 @@ import { FC, MouseEvent } from 'react'
 
 import { Media } from '@/lib/components/posts/media'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import {
@@ -51,6 +51,13 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
   const actor = actualStatus.actor
   const authorName = actor?.name || actor?.username || ''
   const mediaAttachments = actualStatus.attachments.filter(isVisualMedia)
+  // Anything that is neither inline visual media nor the parsed fitness file
+  // (e.g. audio, PDFs, generic documents) still needs to surface so it isn't
+  // silently dropped from the bubble.
+  const otherAttachments = actualStatus.attachments.filter(
+    (attachment) =>
+      !isVisualMedia(attachment) && !isFitnessAttachment(attachment)
+  )
   const fitnessFile = actualStatus.fitness
   const hasText = htmlToPlainText(actualStatus.text ?? '').trim().length > 0
   const processedText = hasText
@@ -175,6 +182,34 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
               )}
             />
           </a>
+        )}
+
+        {otherAttachments.map((attachment) =>
+          attachment.mediaType.startsWith('audio') ? (
+            <Media
+              key={attachment.id}
+              className="w-full max-w-80"
+              attachment={attachment}
+            />
+          ) : (
+            <a
+              key={attachment.id}
+              href={attachment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                'flex max-w-full items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm',
+                isOwn
+                  ? 'border-transparent bg-primary text-primary-foreground'
+                  : 'bg-muted text-foreground'
+              )}
+            >
+              <Download className="size-4 shrink-0" />
+              <span className="truncate">
+                {attachment.name || 'Attachment'}
+              </span>
+            </a>
+          )
         )}
 
         {processedText && (

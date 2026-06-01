@@ -1049,6 +1049,45 @@ describe('MessagesPage', () => {
     expect(bold.tagName).toBe('STRONG')
   })
 
+  it('surfaces non-visual attachments as a download link instead of an empty bubble', async () => {
+    const fileStatus: Status = {
+      ...status('file-1', ''),
+      attachments: [
+        {
+          id: 'att-1',
+          actorId: currentActor.id,
+          statusId: 'file-1',
+          type: 'Document',
+          mediaType: 'application/pdf',
+          url: 'https://example.com/files/plan.pdf',
+          name: 'plan.pdf',
+          createdAt: currentTime,
+          updatedAt: currentTime
+        }
+      ]
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [fileStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const link = await screen.findByRole('link', { name: /plan\.pdf/ })
+    expect(link).toHaveAttribute('href', 'https://example.com/files/plan.pdf')
+  })
+
+  it('shows "No messages yet" for a selected conversation with no messages', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    expect(await screen.findByText('No messages yet')).toBeInTheDocument()
+  })
+
   it('prefixes the conversation preview with "You:" for your own last message', () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],
