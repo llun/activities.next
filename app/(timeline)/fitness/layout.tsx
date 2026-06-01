@@ -32,10 +32,9 @@ const Layout: FC<Props> = ({ children }) => {
       <PageHeader
         title="Fitness"
         description="Your training activity and settings"
-        contentWidth="wide"
       />
       <PageHeaderSectionProvider>
-        <div data-layout-width="wide" className="mx-auto w-full max-w-4xl pt-4">
+        <div className="w-full pt-4">
           {/* Dropdown sub-navigation on every breakpoint (desktop included) so
               the content always gets the full width — no vertical rail. */}
           <SectionNavDropdown label="Fitness" tabs={tabs} />
