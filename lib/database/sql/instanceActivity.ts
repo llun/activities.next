@@ -5,6 +5,7 @@ import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   GetInstanceActivityParams,
+  GetInstancePeersParams,
   InstanceActivityDatabase,
   InstanceActivityWeek
 } from '@/lib/types/database/operations'
@@ -209,10 +210,35 @@ export const incrementLocalStatusBucket = async (
   await incrementBucket(database, 'local-statuses', 1, currentTime)
 }
 
+export const getInstancePeersFromActors = async (
+  database: Knex,
+  { localDomain }: GetInstancePeersParams
+): Promise<string[]> => {
+  // Actors store the bare host in `domain`; a configured host may include a
+  // scheme (e.g. `https://example.com`). Normalize so self is excluded.
+  const normalizedLocalDomain = localDomain.includes('://')
+    ? new URL(localDomain).host
+    : localDomain
+  const rows = await database('actors')
+    .distinct('domain')
+    .whereNotNull('domain')
+    .andWhereNot('domain', '')
+    .andWhereNot('domain', normalizedLocalDomain)
+    .orderBy('domain', 'asc')
+    .pluck('domain')
+
+  return rows.filter((domain): domain is string => Boolean(domain))
+}
+
 export const InstanceActivitySQLDatabaseMixin = (
   database: Knex
 ): InstanceActivityDatabase => ({
   getInstanceActivity(params?: GetInstanceActivityParams) {
     return getInstanceActivityFromCounters(database, params)
+  },
+  getInstancePeers(params?: GetInstancePeersParams) {
+    return getInstancePeersFromActors(database, {
+      localDomain: params?.localDomain ?? ''
+    })
   }
 })

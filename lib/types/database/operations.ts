@@ -15,6 +15,7 @@ import {
   FilterStatus
 } from '@/lib/types/domain/filter'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { Mute } from '@/lib/types/domain/mute'
 import { Session } from '@/lib/types/domain/session'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -59,6 +60,12 @@ export type GetActorFromEmailParams = { email: string }
 export type GetActorFromUsernameParams = { username: string; domain: string }
 export type GetActorFromIdParams = { id: string }
 export type GetActorsFromIdsParams = { ids: string[] }
+export type GetLocalActorsParams = {
+  localDomain: string
+  limit?: number
+  offset?: number
+  order?: 'active' | 'new'
+}
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
@@ -152,6 +159,9 @@ export interface ActorDatabase {
   ): Promise<Mastodon.Account | null>
   getMastodonActorsFromIds(
     params: GetActorsFromIdsParams
+  ): Promise<Mastodon.Account[]>
+  getLocalMastodonActors(
+    params: GetLocalActorsParams
   ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
   deleteActor(params: DeleteActorParams): Promise<void>
@@ -1095,6 +1105,138 @@ export interface MuteDatabase {
 }
 
 // ============================================================================
+// List Database
+// ============================================================================
+
+export type CreateListParams = {
+  actorId: string
+  title: string
+  repliesPolicy?: ListRepliesPolicy
+  exclusive?: boolean
+}
+export type UpdateListParams = {
+  id: string
+  actorId: string
+  title?: string
+  repliesPolicy?: ListRepliesPolicy
+  exclusive?: boolean
+}
+export type GetListParams = { id: string; actorId: string }
+export type GetListsParams = { actorId: string }
+export type DeleteListParams = { id: string; actorId: string }
+export type GetListAccountsParams = {
+  listId: string
+  actorId: string
+  limit?: number
+  maxId?: string | null
+  sinceId?: string | null
+}
+export type ListAccountsPage = {
+  accounts: Mastodon.Account[]
+  // Membership-row id of the oldest/newest row on this page, used to build the
+  // Mastodon max_id/min_id pagination cursors. Null when the page is empty.
+  nextMaxId: string | null
+  prevMinId: string | null
+}
+export type AddListAccountsParams = {
+  listId: string
+  actorId: string
+  targetActorIds: string[]
+}
+export type RemoveListAccountsParams = {
+  listId: string
+  actorId: string
+  targetActorIds: string[]
+}
+export type GetListsWithAccountParams = {
+  actorId: string
+  targetActorId: string
+}
+export type GetListTimelineParams = {
+  listId: string
+  actorId: string
+  limit?: number
+  maxStatusId?: string | null
+  minStatusId?: string | null
+}
+
+export interface ListDatabase {
+  createList(params: CreateListParams): Promise<List>
+  updateList(params: UpdateListParams): Promise<List | null>
+  getList(params: GetListParams): Promise<List | null>
+  getLists(params: GetListsParams): Promise<List[]>
+  deleteList(params: DeleteListParams): Promise<boolean>
+  getListAccounts(params: GetListAccountsParams): Promise<ListAccountsPage>
+  addListAccounts(params: AddListAccountsParams): Promise<void>
+  removeListAccounts(params: RemoveListAccountsParams): Promise<void>
+  getListsWithAccount(params: GetListsWithAccountParams): Promise<List[]>
+  getListTimeline(params: GetListTimelineParams): Promise<Status[]>
+}
+
+// ============================================================================
+// Followed Tag Database
+// ============================================================================
+
+export type FollowedTag = {
+  id: string
+  actorId: string
+  name: string
+  createdAt: number
+}
+export type FollowTagParams = { actorId: string; name: string }
+export type UnfollowTagParams = { actorId: string; name: string }
+export type GetFollowedTagParams = { actorId: string; name: string }
+export type GetFollowedTagsParams = {
+  actorId: string
+  limit?: number
+  maxId?: string | null
+  sinceId?: string | null
+}
+export type IsFollowingTagParams = { actorId: string; name: string }
+
+export interface FollowedTagDatabase {
+  followTag(params: FollowTagParams): Promise<FollowedTag>
+  unfollowTag(params: UnfollowTagParams): Promise<FollowedTag | null>
+  getFollowedTag(params: GetFollowedTagParams): Promise<FollowedTag | null>
+  getFollowedTags(params: GetFollowedTagsParams): Promise<FollowedTag[]>
+  isFollowingTag(params: IsFollowingTagParams): Promise<boolean>
+}
+
+// ============================================================================
+// Report Database
+// ============================================================================
+
+export const ReportCategory = z.enum(['spam', 'legal', 'violation', 'other'])
+export type ReportCategory = z.infer<typeof ReportCategory>
+
+export type Report = {
+  id: string
+  actorId: string
+  targetActorId: string
+  category: ReportCategory
+  comment: string
+  forward: boolean
+  statusIds: string[]
+  ruleIds: string[]
+  actionTaken: boolean
+  createdAt: number
+  updatedAt: number
+}
+export type CreateReportParams = {
+  actorId: string
+  targetActorId: string
+  category?: ReportCategory
+  comment?: string
+  forward?: boolean
+  statusIds?: string[]
+  ruleIds?: string[]
+}
+
+export interface ReportDatabase {
+  createReport(params: CreateReportParams): Promise<Report>
+}
+
+// ============================================================================
 // Account Note Database
 // ============================================================================
 
@@ -1800,7 +1942,17 @@ export type GetClientFromIdParams = z.infer<typeof GetClientFromIdParams>
 export interface OAuthDatabase {
   getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
   getClientFromId(params: GetClientFromIdParams): Promise<Client | null>
+  getClientFromAccessToken(
+    params: GetClientFromAccessTokenParams
+  ): Promise<Client | null>
 }
+
+export const GetClientFromAccessTokenParams = z.object({
+  hashedToken: z.string()
+})
+export type GetClientFromAccessTokenParams = z.infer<
+  typeof GetClientFromAccessTokenParams
+>
 
 // ============================================================================
 // Timeline Database
@@ -2043,4 +2195,9 @@ export interface InstanceActivityDatabase {
   getInstanceActivity(
     params?: GetInstanceActivityParams
   ): Promise<InstanceActivityWeek[]>
+  getInstancePeers(params?: GetInstancePeersParams): Promise<string[]>
+}
+
+export type GetInstancePeersParams = {
+  localDomain: string
 }

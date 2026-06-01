@@ -8,6 +8,8 @@ export * from './filterResult'
 export * from './previewCard'
 export * from './tag'
 export * from './marker'
+export * from './list'
+export * from './report'
 
 export * from './filter/index'
 export * from './filter/keyword'

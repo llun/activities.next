@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  GetClientFromAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
   OAuthDatabase
@@ -36,6 +37,17 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
     const row = await database('oauthClient')
       .where('clientId', clientId)
       .first()
+    if (!row) return null
+    return parseClientRow(row)
+  },
+
+  async getClientFromAccessToken({
+    hashedToken
+  }: GetClientFromAccessTokenParams) {
+    const row = await database('oauthAccessToken')
+      .join('oauthClient', 'oauthClient.clientId', 'oauthAccessToken.clientId')
+      .where('oauthAccessToken.token', hashedToken)
+      .first('oauthClient.*')
     if (!row) return null
     return parseClientRow(row)
   }

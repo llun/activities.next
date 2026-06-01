@@ -4,15 +4,19 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { GET } from './route'
 
-const mockGetMastodonStatuses = jest.fn()
 const mockDatabase = {
   getBlockRelations: jest.fn(),
   getMuteRelations: jest.fn(),
-  getStatusesByHashtag: jest.fn()
+  getStatusesByHashtag: jest.fn(),
+  isFollowingTag: jest.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
 }
+
+jest.mock('@/lib/config', () => ({
+  getConfig: () => ({ host: 'local.test' })
+}))
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({
   OptionalOAuthGuard:
@@ -36,11 +40,6 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
   corsErrorResponse: jest.fn()
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatuses: (...params: unknown[]) =>
-    mockGetMastodonStatuses(...params)
-}))
-
 const status = {
   id: 'https://local.test/users/alice/statuses/1',
   actorId: 'https://local.test/users/alice',
@@ -53,20 +52,36 @@ describe('GET /api/v1/tags/:tag', () => {
     mockDatabase.getBlockRelations.mockResolvedValue([])
     mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])
-    mockGetMastodonStatuses.mockResolvedValue([{ id: '1' }])
+    mockDatabase.isFollowingTag.mockResolvedValue(true)
   })
 
-  it('passes the current actor id when batch serializing authenticated Mastodon hashtag statuses', async () => {
+  it('returns the Mastodon Tag entity by default with the following flag', async () => {
     const response = await GET(
       new NextRequest('https://local.test/api/v1/tags/running'),
       { params: Promise.resolve({ tag: 'running' }) }
     )
 
     expect(response.status).toBe(200)
-    expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
-      mockDatabase,
-      [status],
-      mockCurrentActor.id
+    const body = await response.json()
+    expect(body.name).toBe('running')
+    expect(body.following).toBe(true)
+    expect(mockDatabase.isFollowingTag).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      name: 'running'
+    })
+  })
+
+  it('returns the in-app timeline payload for format=activities_next', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://local.test/api/v1/tags/running?format=activities_next'
+      ),
+      { params: Promise.resolve({ tag: 'running' }) }
     )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body.statuses)).toBe(true)
+    expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalled()
   })
 })
