@@ -2,9 +2,10 @@ name: CI
 
 # Runs on every commit (push to any branch + pull requests). The jobs are
 # chained with `needs:` so they gate each other: lint/prettier must pass before
-# build, and build must pass before the test suite. Each job appears as a native
-# status check (CI / Lint and Prettier, CI / Build, CI / All Tests) that can be
-# marked required in branch protection to block merges.
+# build, and build must pass before the test suite. Mark the `CI / CI Success`
+# job (defined below) as the required status check in branch protection — it
+# aggregates every job's result and avoids the skipped-job-counts-as-passing gap
+# that requiring the individual jobs would have.
 #
 # Everything runs in the normal push/pull_request context: jobs use the default
 # read-only token, pull_request runs check out the PR merge ref (catching
