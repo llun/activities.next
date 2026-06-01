@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
+import { Client } from '@/lib/types/oauth2/client'
 
 export type AppRouterParams<P> = { params: Promise<P> }
 
@@ -22,6 +23,19 @@ export type OptionalAuthenticatedApiHandle<P> = (
     currentActor: Actor | null
     params: Promise<P>
     grantedScopes?: string[]
+  }
+) => Promise<Response> | Response
+
+// App tokens (client_credentials) have no associated actor, so the actor is
+// optional and the owning client is surfaced for app-level endpoints.
+export type AuthenticatedAppApiHandle<P> = (
+  request: NextRequest,
+  context: {
+    database: Database
+    currentActor: Actor | null
+    client: Client | null
+    grantedScopes: string[]
+    params: Promise<P>
   }
 ) => Promise<Response> | Response
 

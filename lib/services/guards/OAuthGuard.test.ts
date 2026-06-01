@@ -8,6 +8,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 
 import {
+  OAuthAppGuard,
   OAuthGuard,
   OAuthGuardAnyScope,
   getTokenFromHeader
@@ -911,6 +912,226 @@ describe('#OAuthGuard', () => {
       expect(response.status).toBe(500)
 
       mockDatabase = originalDb
+    })
+  })
+
+  describe('#OAuthAppGuard', () => {
+    // Client resolution goes through the real mockDatabase (getClientFromId),
+    // which has no client rows seeded here — so these unit tests assert auth
+    // outcomes + currentActor, and leave client-detail assertions to the
+    // verify_credentials route test.
+    type CapturedContext = {
+      currentActor: Actor | null
+      grantedScopes: string[]
+    }
+
+    const captureHandler = () => {
+      let captured: CapturedContext | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        captured = {
+          currentActor: context.currentActor,
+          grantedScopes: context.grantedScopes
+        }
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+      return { handler, getCaptured: () => captured }
+    }
+
+    test('accepts an app token with no actor (null referenceId)', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('app-token-no-actor'), {
+        token: hashToken('app-token-no-actor'),
+        referenceId: null,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler, getCaptured } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({ Authorization: 'Bearer app-token-no-actor' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(getCaptured()?.currentActor).toBeNull()
+      expect(getCaptured()?.grantedScopes).toEqual(['read'])
+    })
+
+    test('accepts a JWT app token with no actorId claim (inverse of OAuthGuard)', async () => {
+      // OAuthGuard 401s a JWT with no actorId claim; OAuthAppGuard accepts it
+      // as an actor-less app token. JWT access tokens are issued when a client
+      // requests a `resource`, so this divergent contract must hold.
+      mockGetServerSession.mockResolvedValue(null)
+      const token = 'eyJ.app.sig'
+      mockVerifyAccessToken.mockResolvedValue({ scope: 'read' })
+      mockStoredTokens.set(hashToken(token), {
+        token: hashToken(token),
+        referenceId: null,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler, getCaptured } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({ Authorization: `Bearer ${token}` })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).toHaveBeenCalled()
+      expect(getCaptured()?.currentActor).toBeNull()
+    })
+
+    test('resolves the actor for a user token', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('user-token-app-guard'), {
+        token: hashToken('user-token-app-guard'),
+        referenceId: primaryActor?.id,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler, getCaptured } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({
+        Authorization: 'Bearer user-token-app-guard'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(getCaptured()?.currentActor?.id).toBe(primaryActor?.id)
+    })
+
+    test('returns 401 for an expired app token', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('expired-app-token'), {
+        token: hashToken('expired-app-token'),
+        referenceId: null,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() - 1000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({ Authorization: 'Bearer expired-app-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    test('returns 401 for a revoked/unknown token (not in store)', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({ Authorization: 'Bearer unknown-app-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    test('returns 401 when a delegated actor no longer exists (fail-safe)', async () => {
+      // A user token that references a deleted actor must not silently
+      // downgrade to an actor-less context — it fails closed with 401.
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('deleted-actor-token'), {
+        token: hashToken('deleted-actor-token'),
+        referenceId: 'https://llun.test/users/deleted',
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({
+        Authorization: 'Bearer deleted-actor-token'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    test('returns 401 (not 500) when the stored token has null scopes', async () => {
+      // A corrupt/null scopes column must fail the scope check gracefully
+      // rather than throwing in parseStoredScopes and surfacing a 500.
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('null-scopes-token'), {
+        token: hashToken('null-scopes-token'),
+        referenceId: null,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: null
+      })
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({ Authorization: 'Bearer null-scopes-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    test('returns 401 when the token lacks the required scope', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('read-only-app-token'), {
+        token: hashToken('read-only-app-token'),
+        referenceId: null,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.write], handler)
+      const req = createRequest({ Authorization: 'Bearer read-only-app-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    test('returns 401 without a bearer token and never falls back to a session', async () => {
+      // Even with a valid cookie session present, OAuthAppGuard is bearer-only.
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+      expect(mockGetServerSession).not.toHaveBeenCalled()
     })
   })
 })
