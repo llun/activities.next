@@ -408,24 +408,31 @@ export const OAuthAppGuard =
     const { database } = tokenResult
     const { actorId, clientId, grantedScopes } = tokenResult.context
 
-    // A token that delegates an actor must resolve to a live actor. If the
-    // actor was deleted, fail safe with 401 rather than silently downgrading
-    // to an actor-less (app-level) context. Genuine app tokens have no
-    // actorId and skip this entirely.
     let currentActor: Actor | null = null
-    if (actorId) {
-      const actor = await database.getActorFromId({ id: actorId })
-      if (!actor) {
-        return fail(apiErrorResponse(401))
-      }
-      currentActor = Actor.parse(actor)
-    }
-
-    // Resolve the owning client by id (an indexed primary-key lookup) rather
-    // than re-hashing the token and joining oauthAccessToken again.
     let client: Client | null = null
-    if (clientId) {
-      client = await database.getClientFromId({ clientId })
+    try {
+      // A token that delegates an actor must resolve to a live actor. If the
+      // actor was deleted, fail safe with 401 rather than silently downgrading
+      // to an actor-less (app-level) context. Genuine app tokens have no
+      // actorId and skip this entirely.
+      if (actorId) {
+        const actor = await database.getActorFromId({ id: actorId })
+        if (!actor) {
+          return fail(apiErrorResponse(401))
+        }
+        currentActor = Actor.parse(actor)
+      }
+
+      // Resolve the owning client by id (an indexed primary-key lookup) rather
+      // than re-hashing the token and joining oauthAccessToken again.
+      if (clientId) {
+        client = await database.getClientFromId({ clientId })
+      }
+    } catch (e) {
+      // Mirror resolveAuthenticatedContext: a DB error during actor/client
+      // resolution returns a clean 500 instead of an unhandled rejection.
+      logger.error(e as Error)
+      return fail(apiErrorResponse(500))
     }
 
     return handle(req, {
