@@ -1034,6 +1034,21 @@ describe('MessagesPage', () => {
     expect(theirs.closest('.justify-start')).not.toBeNull()
   })
 
+  it('renders message bubble text as rich DOM rather than escaped HTML', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [status('rich-1', '**bold**')],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    // The markdown is converted to a real <strong> element; if the processed
+    // markup were escaped (e.g. rendered as a raw string), the text node would
+    // read "**bold**" and never resolve to a STRONG tag.
+    const bold = await screen.findByText('bold')
+    expect(bold.tagName).toBe('STRONG')
+  })
+
   it('prefixes the conversation preview with "You:" for your own last message', () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],

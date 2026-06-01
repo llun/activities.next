@@ -70,8 +70,11 @@ const accountLabel = (account: MastodonAccount) =>
 const accountHandle = (account: MastodonAccount) =>
   account.acct.startsWith('@') ? account.acct : `@${account.acct}`
 
-const getInitial = (value: string) =>
-  value.trim().length > 0 ? value.trim()[0].toUpperCase() : '?'
+const getInitial = (value: string) => {
+  const trimmed = value.trim()
+  // Spread to a code-point array so a leading emoji/surrogate pair isn't split.
+  return trimmed ? [...trimmed][0].toUpperCase() : '?'
+}
 
 const conversationTitle = (conversation: DirectConversationView) => {
   if (conversation.accounts.length === 0) return 'You'
@@ -772,7 +775,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                           ? `You: ${preview}`
                           : preview}
                       </span>
-                      <span className="block text-xs text-muted-foreground md:mt-1">
+                      <span
+                        className="block text-xs text-muted-foreground md:mt-1"
+                        suppressHydrationWarning
+                      >
                         {formatTimestamp(conversation.lastStatusCreatedAt)}
                       </span>
                     </span>

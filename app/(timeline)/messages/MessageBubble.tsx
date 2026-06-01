@@ -24,8 +24,11 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit'
 })
 
-const getInitial = (value: string) =>
-  value.trim().length > 0 ? value.trim()[0].toUpperCase() : '?'
+const getInitial = (value: string) => {
+  const trimmed = value.trim()
+  // Spread to a code-point array so a leading emoji/surrogate pair isn't split.
+  return trimmed ? [...trimmed][0].toUpperCase() : '?'
+}
 
 const isVisualMedia = (attachment: Attachment) =>
   attachment.mediaType.startsWith('image') ||
@@ -187,7 +190,12 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        <div className="px-1 text-[11px] text-muted-foreground">{time}</div>
+        <div
+          className="px-1 text-[11px] text-muted-foreground"
+          suppressHydrationWarning
+        >
+          {time}
+        </div>
       </div>
     </div>
   )
