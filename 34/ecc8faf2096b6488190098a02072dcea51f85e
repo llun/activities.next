@@ -1,0 +1,19 @@
+lib/services/guards/OAuthGuard.ts
+  s_45f5fcac872d9c::t_11982371567641 240-242,244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "34ecc8faf2096b6488190098a02072dcea51f85e",
+  "prompts": {},
+  "sessions": {
+    "s_45f5fcac872d9c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a87eead-72fa-4d57-9466-de3771286139",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
