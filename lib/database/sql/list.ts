@@ -3,6 +3,11 @@ import { randomUUID } from 'node:crypto'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import {
+  chunkArray,
+  getInsertBatchSize,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AddListAccountsParams,
@@ -183,12 +188,17 @@ export const ListSQLDatabaseMixin = (
       targetActorId,
       createdAt: currentTime
     }))
-    // Single batch insert; targets already on the list are ignored so repeated
-    // adds stay idempotent (matching Mastodon) without per-row round-trips.
-    await database('list_accounts')
-      .insert(rows)
-      .onConflict(['listId', 'targetActorId'])
-      .ignore()
+    // Batch insert, chunked to stay under SQLite's 999 bound-parameter limit
+    // (the batch size is derived from the column count). Targets already on the
+    // list are ignored so repeated adds stay idempotent (matching Mastodon)
+    // without per-row round-trips.
+    const batchSize = getInsertBatchSize(database, rows[0])
+    for (const chunk of chunkArray(rows, batchSize)) {
+      await database('list_accounts')
+        .insert(chunk)
+        .onConflict(['listId', 'targetActorId'])
+        .ignore()
+    }
   },
 
   async removeListAccounts({
@@ -198,11 +208,15 @@ export const ListSQLDatabaseMixin = (
   }: RemoveListAccountsParams) {
     if (targetActorIds.length === 0) return
     // Scope to the owner defensively so a caller can never delete members from
-    // a list they do not own.
-    await database('list_accounts')
-      .where({ listId, actorId })
-      .whereIn('targetActorId', targetActorIds)
-      .delete()
+    // a list they do not own. Chunk the whereIn list to stay under SQLite's 999
+    // bound-parameter limit, reserving two bindings for listId + actorId.
+    const batchSize = getWhereInBatchSize(database, 2)
+    for (const chunk of chunkArray(targetActorIds, batchSize)) {
+      await database('list_accounts')
+        .where({ listId, actorId })
+        .whereIn('targetActorId', chunk)
+        .delete()
+    }
   },
 
   async getListsWithAccount({
@@ -273,6 +287,8 @@ export const ListSQLDatabaseMixin = (
     const rows = await query
     const statusIds = rows.map((row) => row.id as string)
     if (statusIds.length === 0) return []
+    // getStatusesByIds preserves the input order (it re-maps results over the
+    // requested ids), so the createdAt-desc ordering established above is kept.
     return getStatusesByIds(statusIds)
   }
 })
