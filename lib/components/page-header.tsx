@@ -9,16 +9,11 @@ interface PageHeaderProps {
   description?: ReactNode
   actions?: ReactNode
   className?: string
-  // Width of the centered inner row in sticky mode. `default` aligns the title
-  // above the `max-w-2xl` timeline column; `wide` aligns it above the
-  // `max-w-4xl` column used by section layouts (settings, fitness). Ignored in
-  // section mode. Defaults to `default`.
-  contentWidth?: 'default' | 'wide'
 }
 
-// Break out of the timeline column (`max-w-2xl`) so the chrome spans the full
-// area to the right of the fixed sidebar. The inner row stays centered at
-// `max-w-2xl` so the title aligns above the post column.
+// Break out of the content column (`max-w-content`) so the chrome spans the
+// full area to the right of the fixed sidebar. The inner row stays centered at
+// `max-w-content` so the title aligns above the content column.
 //
 // 50% here is half of the parent's content-box width (Tailwind's `px-4` is part
 // of the box, not the content area). The horizontal pair therefore collapses to
@@ -74,8 +69,7 @@ export const PageHeader = ({
   title,
   description,
   actions,
-  className,
-  contentWidth = 'default'
+  className
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
   const isSection = useContext(PageHeaderSectionContext)
@@ -107,12 +101,7 @@ export const PageHeader = ({
       )}
       style={breakoutStyle}
     >
-      <div
-        className={cn(
-          'mx-auto px-4 py-4',
-          contentWidth === 'wide' ? 'max-w-4xl' : 'max-w-2xl'
-        )}
-      >
+      <div className="mx-auto max-w-content px-4 py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight">{title}</h1>

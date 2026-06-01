@@ -111,7 +111,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
             'pb-20 md:pl-[72px] md:pb-0 md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
         )}
       >
-        <div className="timeline-content mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">
+        <div className="timeline-content mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
           {children}
         </div>
       </main>
