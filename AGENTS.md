@@ -7,6 +7,7 @@
 - `migrations/` holds Knex migration files used for SQL backends.
 - `public/` serves static assets; `uploads/` and `data/` are used for local storage in some deployments.
 - `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities.
+  - **`docs/` is for durable, general-purpose reference documentation only** (setup, architecture, environment variables, feature guides). **Do NOT add** implementation plans, design docs, task/PR-specific writeups, gap analyses, before/after screenshots, or any other artifact tied to a single change or pull request. Those belong in the PR description or issue tracker, not the repo. Do not create `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/`, or similar scratch directories.
 - Configuration files live at the repo root (for example `.env.example`, `knexfile.js`, and framework/tooling configs).
 
 ## Build, Test, and Development Commands
