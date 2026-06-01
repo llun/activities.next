@@ -5,6 +5,7 @@ import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   GetInstanceActivityParams,
+  GetInstancePeersParams,
   InstanceActivityDatabase,
   InstanceActivityWeek
 } from '@/lib/types/database/operations'
@@ -209,10 +210,30 @@ export const incrementLocalStatusBucket = async (
   await incrementBucket(database, 'local-statuses', 1, currentTime)
 }
 
+export const getInstancePeersFromActors = async (
+  database: Knex,
+  { localDomain }: GetInstancePeersParams
+): Promise<string[]> => {
+  const rows = await database('actors')
+    .distinct('domain')
+    .whereNotNull('domain')
+    .andWhereNot('domain', '')
+    .andWhereNot('domain', localDomain)
+    .orderBy('domain', 'asc')
+    .pluck('domain')
+
+  return rows.filter((domain): domain is string => Boolean(domain))
+}
+
 export const InstanceActivitySQLDatabaseMixin = (
   database: Knex
 ): InstanceActivityDatabase => ({
   getInstanceActivity(params?: GetInstanceActivityParams) {
     return getInstanceActivityFromCounters(database, params)
+  },
+  getInstancePeers(params?: GetInstancePeersParams) {
+    return getInstancePeersFromActors(database, {
+      localDomain: params?.localDomain ?? ''
+    })
   }
 })

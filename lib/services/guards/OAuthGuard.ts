@@ -27,7 +27,7 @@ import {
 } from './types'
 
 // better-auth stores tokens as SHA-256 base64url (matching its defaultHasher)
-const hashToken = (token: string): string => {
+export const hashToken = (token: string): string => {
   const hash = crypto.createHash('sha256').update(token).digest()
   return hash
     .toString('base64')

@@ -53,6 +53,7 @@ import {
   GetActorSettingsParams,
   GetActorsFromIdsParams,
   GetActorsScheduledForDeletionParams,
+  GetLocalActorsParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   NotificationPolicy,
@@ -709,6 +710,25 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async getMastodonActor(actorId: string) {
     const actors = await this.getMastodonActors([actorId])
     return actors[0] ?? null
+  },
+
+  async getLocalMastodonActors({
+    localDomain,
+    limit = 40,
+    offset = 0
+  }: GetLocalActorsParams) {
+    // `lastStatusAt` is not persisted on actors (see updateActorLastStatusAt),
+    // so the directory is ordered by account creation time for both the
+    // `active` and `new` Mastodon orderings.
+    const rows = await database<SQLActor>('actors')
+      .where('domain', localDomain)
+      .whereNotNull('accountId')
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .offset(offset)
+      .pluck('id')
+
+    return this.getMastodonActors(rows)
   },
 
   async getMastodonActors(actorIds: string[]) {

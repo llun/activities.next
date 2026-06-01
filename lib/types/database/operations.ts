@@ -59,6 +59,12 @@ export type GetActorFromEmailParams = { email: string }
 export type GetActorFromUsernameParams = { username: string; domain: string }
 export type GetActorFromIdParams = { id: string }
 export type GetActorsFromIdsParams = { ids: string[] }
+export type GetLocalActorsParams = {
+  localDomain: string
+  limit?: number
+  offset?: number
+  order?: 'active' | 'new'
+}
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
@@ -152,6 +158,9 @@ export interface ActorDatabase {
   ): Promise<Mastodon.Account | null>
   getMastodonActorsFromIds(
     params: GetActorsFromIdsParams
+  ): Promise<Mastodon.Account[]>
+  getLocalMastodonActors(
+    params: GetLocalActorsParams
   ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
   deleteActor(params: DeleteActorParams): Promise<void>
@@ -1800,7 +1809,17 @@ export type GetClientFromIdParams = z.infer<typeof GetClientFromIdParams>
 export interface OAuthDatabase {
   getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
   getClientFromId(params: GetClientFromIdParams): Promise<Client | null>
+  getClientFromAccessToken(
+    params: GetClientFromAccessTokenParams
+  ): Promise<Client | null>
 }
+
+export const GetClientFromAccessTokenParams = z.object({
+  hashedToken: z.string()
+})
+export type GetClientFromAccessTokenParams = z.infer<
+  typeof GetClientFromAccessTokenParams
+>
 
 // ============================================================================
 // Timeline Database
@@ -2043,4 +2062,9 @@ export interface InstanceActivityDatabase {
   getInstanceActivity(
     params?: GetInstanceActivityParams
   ): Promise<InstanceActivityWeek[]>
+  getInstancePeers(params?: GetInstancePeersParams): Promise<string[]>
+}
+
+export type GetInstancePeersParams = {
+  localDomain: string
 }

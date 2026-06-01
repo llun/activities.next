@@ -104,4 +104,33 @@ describe('OAuthDatabase', () => {
       expect(client?.updatedAt).toBeNumber()
     })
   })
+
+  describe('getClientFromAccessToken', () => {
+    const hashedToken = 'hashed-access-token-1'
+
+    beforeAll(async () => {
+      const now = new Date()
+      await knexDatabase('oauthAccessToken').insert({
+        id: crypto.randomUUID(),
+        token: hashedToken,
+        clientId: 'test-client-1',
+        scopes: JSON.stringify([Scope.enum.read]),
+        expiresAt: new Date(now.getTime() + 60_000),
+        createdAt: now
+      })
+    })
+
+    it('resolves the owning client for a stored access token', async () => {
+      const client = await database.getClientFromAccessToken({ hashedToken })
+      expect(client?.clientId).toBe('test-client-1')
+      expect(client?.name).toBe('oauth-app1')
+    })
+
+    it('returns null for an unknown access token', async () => {
+      const client = await database.getClientFromAccessToken({
+        hashedToken: 'does-not-exist'
+      })
+      expect(client).toBeNull()
+    })
+  })
 })
