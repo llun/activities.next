@@ -1074,6 +1074,29 @@ describe('#OAuthGuard', () => {
       expect(handler).not.toHaveBeenCalled()
     })
 
+    test('returns 401 (not 500) when the stored token has null scopes', async () => {
+      // A corrupt/null scopes column must fail the scope check gracefully
+      // rather than throwing in parseStoredScopes and surfacing a 500.
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('null-scopes-token'), {
+        token: hashToken('null-scopes-token'),
+        referenceId: null,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: null
+      })
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({ Authorization: 'Bearer null-scopes-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
     test('returns 401 when the token lacks the required scope', async () => {
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('read-only-app-token'), {

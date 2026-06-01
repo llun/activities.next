@@ -226,7 +226,12 @@ const resolveTokenContext = async ({
       if (new Date(storedToken.expiresAt) < new Date()) {
         return { valid: false, response: apiErrorResponse(401) }
       }
-      const storedScopes = parseStoredScopes(storedToken.scopes as string)
+      // Fall back to an empty scope string if the column is null/undefined so
+      // parseStoredScopes can't throw — a scopeless token then fails the scope
+      // check with 401 rather than surfacing a 500.
+      const storedScopes = parseStoredScopes(
+        (storedToken.scopes as string | null) ?? ''
+      )
       grantedScopes = storedScopes
 
       if (
@@ -241,7 +246,7 @@ const resolveTokenContext = async ({
     // absent (undefined) and the opaque referenceId is null/empty — so
     // normalize both to null to honor the string | null context type.
     const actorId = jwtPayload
-      ? ((jwtPayload.actorId as string | null | undefined) ?? null)
+      ? (jwtPayload.actorId as string | null | undefined) || null
       : (storedToken.referenceId as string | null) || null
 
     // storedToken is always fetched above (revocation check) for both JWT and
