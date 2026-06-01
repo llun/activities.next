@@ -12,14 +12,17 @@ import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
+import { FollowedTagSQLDatabaseMixin } from '@/lib/database/sql/followedTag'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
+import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MarkerSQLDatabaseMixin } from '@/lib/database/sql/marker'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscription'
+import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
@@ -41,11 +44,13 @@ export const getSQLDatabase = (database: Knex): Database => {
   const muteDatabase = MuteSQLDatabaseMixin(database)
   const filterDatabase = FilterSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
+  const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
   const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
   const likeDatabase = LikeSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
   const pushSubscriptionDatabase = PushSubscriptionSQLDatabaseMixin(database)
+  const reportDatabase = ReportSQLDatabaseMixin(database)
   const oauthDatabase = OAuthSQLDatabaseMixin(database)
   const searchDatabase = SearchSQLDatabaseMixin(database)
   const stravaArchiveImportDatabase =
@@ -56,6 +61,11 @@ export const getSQLDatabase = (database: Knex): Database => {
     likeDatabase,
     bookmarkDatabase,
     mediaDatabase
+  )
+  const listDatabase = ListSQLDatabaseMixin(
+    database,
+    (actorIds) => actorDatabase.getMastodonActors(actorIds),
+    (statusIds) => statusDatabase.getStatusesByIds({ statusIds })
   )
   const directConversationDatabase = DirectConversationSQLDatabaseMixin(
     database,
@@ -84,12 +94,15 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...blockDatabase,
     ...markerDatabase,
     ...muteDatabase,
+    ...listDatabase,
     ...filterDatabase,
     ...followerDatabase,
+    ...followedTagDatabase,
     ...likeDatabase,
     ...mediaDatabase,
     ...notificationDatabase,
     ...pushSubscriptionDatabase,
+    ...reportDatabase,
     ...oauthDatabase,
     ...searchDatabase,
     ...stravaArchiveImportDatabase,
