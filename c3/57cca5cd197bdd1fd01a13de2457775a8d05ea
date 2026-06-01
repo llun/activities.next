@@ -1,0 +1,33 @@
+app/(timeline)/layout.tsx
+  s_b979dba3ee1b87::t_f8474fe507cf4d 114
+app/(timeline)/messages/MessagesPage.tsx
+  s_b979dba3ee1b87::t_7502ea84e3570d 698
+app/globals.css
+  s_b979dba3ee1b87::t_1872172a34b5fd 51-56
+lib/components/page-header.tsx
+  s_b979dba3ee1b87::t_106ad7ef5259bb 72
+  s_b979dba3ee1b87::t_671e8da51d3eaa 104
+  s_b979dba3ee1b87::t_f4ed9cd43059d6 14-16
+app/(timeline)/fitness/layout.tsx
+  s_b979dba3ee1b87::t_c92e3c7df8631d 37
+app/(timeline)/admin/layout.tsx
+  s_b979dba3ee1b87::t_6dc611ff20d77b 39
+app/(timeline)/settings/layout.tsx
+  s_b979dba3ee1b87::t_1cd00176dd9d0f 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c357cca5cd197bdd1fd01a13de2457775a8d05ea",
+  "prompts": {},
+  "sessions": {
+    "s_b979dba3ee1b87": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bd3bc51-0a8d-40f0-a9ae-dd496922072b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
