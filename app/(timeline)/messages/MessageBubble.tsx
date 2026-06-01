@@ -142,10 +142,10 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              'flex max-w-full items-center gap-3 rounded-2xl border px-3 py-2.5',
+              'flex max-w-full items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
               isOwn
-                ? 'border-transparent bg-primary text-primary-foreground'
-                : 'bg-muted text-foreground'
+                ? 'border-transparent bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'bg-muted text-foreground hover:bg-muted/70'
             )}
           >
             <span
@@ -198,10 +198,10 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                'flex max-w-full items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm',
+                'flex max-w-full items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 isOwn
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground'
+                  ? 'border-transparent bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-foreground hover:bg-muted/70'
               )}
             >
               <Download className="size-4 shrink-0" />
