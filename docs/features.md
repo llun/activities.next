@@ -55,6 +55,10 @@ This document tracks the implemented and planned features for Activity.next.
 
 - ✅ **Mastodon API v1/v2** — Compatible with Mastodon client applications
 - ✅ **Mastodon-compatible status actions** — Favourite, reblog, bookmark, pin, context, history, and relationship endpoints
+- ✅ **Search** — Search accounts, hashtags, and statuses via `/api/v2/search` (status search backed by a full-text index)
+- ✅ **Lists** — Create and manage timeline lists and their members
+- ✅ **Followed hashtags** — Follow and unfollow hashtags and view a followed-tags timeline
+- ✅ **Mutes** — Mute and unmute accounts
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`
 - ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo`
 - ✅ **OAuth Authorization Server metadata** — At `/.well-known/oauth-authorization-server`
@@ -69,17 +73,14 @@ This document tracks the implemented and planned features for Activity.next.
 
 ## In Progress
 
-- 🚧 **Mastodon compatibility gaps** — Lists, followed tags, mutes, and search endpoints exist but are not fully implemented
+- 🚧 **Mastodon compatibility gaps** — Broad v1/v2 coverage is in place; some endpoints (e.g. filters and suggestions) remain partial
 - 🚧 **Fitness import hardening** — Repair and resume scripts cover interrupted or legacy Strava imports while the importer continues to mature
 
 ## Planned Features
 
 - [ ] Streaming API for real-time updates
-- [ ] Expanded moderation workflows and reporting
-- [ ] Tag following
-- [ ] Lists
+- [ ] Expanded moderation workflows
 - [ ] Bookmark collections
-- [ ] Full-text search
 
 ## Feature Requests
 

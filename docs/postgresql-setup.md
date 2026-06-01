@@ -18,6 +18,16 @@ CREATE USER activitynext WITH ENCRYPTED PASSWORD 'your_strong_password';
 GRANT ALL PRIVILEGES ON DATABASE activitynext TO activitynext;
 ```
 
+> On PostgreSQL 15 and newer, `GRANT ALL PRIVILEGES ON DATABASE` no longer
+> grants schema-level access. Also grant ownership/usage of the `public`
+> schema so migrations can create tables (run while connected to the
+> `activitynext` database):
+>
+> ```sql
+> \connect activitynext
+> GRANT ALL ON SCHEMA public TO activitynext;
+> ```
+
 2. Configure the database connection by setting the `ACTIVITIES_DATABASE` environment variable with the following JSON configuration (stringify it first):
 
 ```json
