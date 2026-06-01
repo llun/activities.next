@@ -1002,13 +1002,53 @@ describe('MessagesPage', () => {
     ).not.toBeInTheDocument()
 
     const messageInput = screen.getByRole('textbox', { name: 'Message text' })
-    expect(messageInput).toHaveClass('w-full')
-    expect(
-      screen.getByRole('button', { name: 'Send message' })
-    ).toHaveTextContent('Send')
-    expect(
-      screen.getByRole('button', { name: 'Send message' }).parentElement
-    ).toHaveClass('justify-end')
+    expect(messageInput).toHaveClass('flex-1')
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(sendButton).toHaveTextContent('Send')
+    // The composer is an inline row: the textarea and Send button sit side by
+    // side, bottom-aligned, rather than the button stacked below.
+    expect(sendButton.parentElement).toHaveClass('items-end')
+  })
+
+  it('renders sent and received messages as aligned chat bubbles', async () => {
+    const receivedStatus: Status = {
+      ...status('them-1', 'Theirs'),
+      actorId: 'https://example.com/users/ada',
+      actor: null,
+      isLocalActor: false
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [status('me-1', 'Mine'), receivedStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const mine = await screen.findByText('Mine')
+    const theirs = await screen.findByText('Theirs')
+
+    // Own messages: orange (primary) bubble, right-aligned.
+    expect(mine.closest('.bg-primary')).not.toBeNull()
+    expect(mine.closest('.justify-end')).not.toBeNull()
+    // Received messages: muted bubble, left-aligned.
+    expect(theirs.closest('.bg-muted')).not.toBeNull()
+    expect(theirs.closest('.justify-start')).not.toBeNull()
+  })
+
+  it('prefixes the conversation preview with "You:" for your own last message', () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage(
+      [conversation({ id: 'first', participantName: 'Ada' })],
+      null
+    )
+
+    expect(screen.getByRole('button', { name: /Ada/i })).toHaveTextContent(
+      'You: Last Ada'
+    )
   })
 
   it('shows an error when the conversation thread fails to load', async () => {
