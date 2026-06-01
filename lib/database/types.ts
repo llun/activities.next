@@ -13,14 +13,17 @@ import {
   DirectConversationDatabase,
   FilterDatabase,
   FollowDatabase,
+  FollowedTagDatabase,
   InstanceActivityDatabase,
   LikeDatabase,
+  ListDatabase,
   MarkerDatabase,
   MediaDatabase,
   MuteDatabase,
   NotificationDatabase,
   OAuthDatabase,
   PushSubscriptionDatabase,
+  ReportDatabase,
   SearchDatabase,
   StatusDatabase,
   TimelineDatabase
@@ -37,6 +40,8 @@ export type Database = AccountDatabase &
   StravaArchiveImportDatabase &
   BlockDatabase &
   MuteDatabase &
+  ListDatabase &
+  FollowedTagDatabase &
   FilterDatabase &
   BookmarkDatabase &
   DirectConversationDatabase &
@@ -47,6 +52,7 @@ export type Database = AccountDatabase &
   NotificationDatabase &
   OAuthDatabase &
   PushSubscriptionDatabase &
+  ReportDatabase &
   SearchDatabase &
   StatusDatabase &
   TimelineDatabase &
