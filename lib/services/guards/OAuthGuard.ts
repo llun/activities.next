@@ -237,9 +237,11 @@ const resolveTokenContext = async ({
     }
 
     // Extract actorId: from JWT claims or from stored referenceId (opaque).
-    // App (client_credentials) tokens have no referenceId, so this is null.
+    // App (client_credentials) tokens have no actor — the JWT actorId claim is
+    // absent (undefined) and the opaque referenceId is null/empty — so
+    // normalize both to null to honor the string | null context type.
     const actorId = jwtPayload
-      ? (jwtPayload.actorId as string | null)
+      ? ((jwtPayload.actorId as string | null | undefined) ?? null)
       : (storedToken.referenceId as string | null) || null
 
     // storedToken is always fetched above (revocation check) for both JWT and
