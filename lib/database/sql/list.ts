@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AddListAccountsParams,
@@ -174,22 +173,22 @@ export const ListSQLDatabaseMixin = (
     actorId,
     targetActorIds
   }: AddListAccountsParams) {
+    if (targetActorIds.length === 0) return
+
     const currentTime = new Date()
-    for (const targetActorId of targetActorIds) {
-      try {
-        await database('list_accounts').insert({
-          id: randomUUID(),
-          listId,
-          actorId,
-          targetActorId,
-          createdAt: currentTime
-        })
-      } catch (error) {
-        // A target already on the list is a no-op, matching Mastodon's behavior
-        // of treating repeated adds idempotently.
-        if (!isUniqueConstraintError(error)) throw error
-      }
-    }
+    const rows = targetActorIds.map((targetActorId) => ({
+      id: randomUUID(),
+      listId,
+      actorId,
+      targetActorId,
+      createdAt: currentTime
+    }))
+    // Single batch insert; targets already on the list are ignored so repeated
+    // adds stay idempotent (matching Mastodon) without per-row round-trips.
+    await database('list_accounts')
+      .insert(rows)
+      .onConflict(['listId', 'targetActorId'])
+      .ignore()
   },
 
   async removeListAccounts({
@@ -221,6 +220,7 @@ export const ListSQLDatabaseMixin = (
 
   async getListTimeline({
     listId,
+    actorId,
     limit = PER_PAGE_LIMIT,
     maxStatusId,
     minStatusId
@@ -232,6 +232,9 @@ export const ListSQLDatabaseMixin = (
         'statuses.actorId'
       )
       .where('list_accounts.listId', listId)
+      // Scope to the owner defensively so a caller can never read another
+      // actor's list timeline even if they know the listId.
+      .andWhere('list_accounts.actorId', actorId)
       .orderBy('statuses.createdAt', 'desc')
       .orderBy('statuses.id', 'desc')
       .limit(limit)

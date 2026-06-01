@@ -19,11 +19,13 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const CreateReportBody = z.object({
   account_id: z.string().min(1),
-  status_ids: z.union([z.array(z.string()), z.string()]).optional(),
+  status_ids: z
+    .union([z.array(z.string().min(1)), z.string().min(1)])
+    .optional(),
   comment: z.string().max(1000).optional(),
   forward: z.coerce.boolean().optional(),
   category: ReportCategory.optional(),
-  rule_ids: z.union([z.array(z.string()), z.string()]).optional()
+  rule_ids: z.union([z.array(z.string().min(1)), z.string().min(1)]).optional()
 })
 
 const toArray = (value: string[] | string | undefined): string[] => {
