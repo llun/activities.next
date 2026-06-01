@@ -17,19 +17,19 @@ const hashToken = (token: string) =>
 
 // Token store consulted by the guard's getKnex() lookup.
 const mockStoredTokens = new Map<string, Record<string, unknown>>()
-// Clients resolved by getClientFromAccessToken, keyed by hashed token.
+// Clients resolved by getClientFromId, keyed by clientId.
 const mockClients = new Map<string, Client>()
 
 const mockGetActorFromId = jest.fn().mockResolvedValue(null)
-const mockGetClientFromAccessToken = jest
+const mockGetClientFromId = jest
   .fn()
-  .mockImplementation(({ hashedToken }: { hashedToken: string }) =>
-    Promise.resolve(mockClients.get(hashedToken) ?? null)
+  .mockImplementation(({ clientId }: { clientId: string }) =>
+    Promise.resolve(mockClients.get(clientId) ?? null)
   )
 
 const mockDatabase = {
   getActorFromId: mockGetActorFromId,
-  getClientFromAccessToken: mockGetClientFromAccessToken
+  getClientFromId: mockGetClientFromId
 }
 
 jest.mock('@/lib/database', () => ({
@@ -83,7 +83,7 @@ describe('GET /api/v1/apps/verify_credentials', () => {
     mockStoredTokens.clear()
     mockClients.clear()
     mockGetActorFromId.mockClear()
-    mockGetClientFromAccessToken.mockClear()
+    mockGetClientFromId.mockClear()
   })
 
   test('returns 200 with client details for an app token (null referenceId)', async () => {
@@ -94,7 +94,7 @@ describe('GET /api/v1/apps/verify_credentials', () => {
       expiresAt: new Date(Date.now() + 3600000),
       scopes: JSON.stringify(['read'])
     })
-    mockClients.set(hashToken('app-token'), buildClient())
+    mockClients.set('client-app-1', buildClient())
 
     const response = await GET(createRequest('app-token'), {
       params: Promise.resolve({})
@@ -134,7 +134,7 @@ describe('GET /api/v1/apps/verify_credentials', () => {
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
-    mockClients.set(hashToken('user-token'), buildClient({ name: 'User App' }))
+    mockClients.set('client-app-1', buildClient({ name: 'User App' }))
 
     const response = await GET(createRequest('user-token'), {
       params: Promise.resolve({})

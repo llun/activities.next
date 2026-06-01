@@ -916,10 +916,10 @@ describe('#OAuthGuard', () => {
   })
 
   describe('#OAuthAppGuard', () => {
-    // Client resolution goes through the real mockDatabase
-    // (getClientFromAccessToken), which cannot join the fake getKnex token
-    // store — so these unit tests assert auth outcomes + currentActor, and
-    // leave client-detail assertions to the verify_credentials route test.
+    // Client resolution goes through the real mockDatabase (getClientFromId),
+    // which has no client rows seeded here — so these unit tests assert auth
+    // outcomes + currentActor, and leave client-detail assertions to the
+    // verify_credentials route test.
     type CapturedContext = {
       currentActor: Actor | null
       grantedScopes: string[]
@@ -1015,6 +1015,31 @@ describe('#OAuthGuard', () => {
         matchMode: 'any'
       })
       const req = createRequest({ Authorization: 'Bearer unknown-app-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    test('returns 401 when a delegated actor no longer exists (fail-safe)', async () => {
+      // A user token that references a deleted actor must not silently
+      // downgrade to an actor-less context — it fails closed with 401.
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('deleted-actor-token'), {
+        token: hashToken('deleted-actor-token'),
+        referenceId: 'https://llun.test/users/deleted',
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({
+        Authorization: 'Bearer deleted-actor-token'
+      })
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)

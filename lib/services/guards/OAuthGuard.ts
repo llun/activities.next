@@ -242,9 +242,9 @@ const resolveTokenContext = async ({
       ? (jwtPayload.actorId as string | null)
       : (storedToken.referenceId as string | null) || null
 
-    const clientId = jwtPayload
-      ? null
-      : (storedToken.clientId as string | null) || null
+    // storedToken is always fetched above (revocation check) for both JWT and
+    // opaque tokens, so clientId is available without an extra query.
+    const clientId = (storedToken.clientId as string | null) || null
 
     return {
       valid: true,
@@ -406,20 +406,26 @@ export const OAuthAppGuard =
     }
 
     const { database } = tokenResult
-    const { actorId, grantedScopes } = tokenResult.context
+    const { actorId, clientId, grantedScopes } = tokenResult.context
 
+    // A token that delegates an actor must resolve to a live actor. If the
+    // actor was deleted, fail safe with 401 rather than silently downgrading
+    // to an actor-less (app-level) context. Genuine app tokens have no
+    // actorId and skip this entirely.
     let currentActor: Actor | null = null
     if (actorId) {
       const actor = await database.getActorFromId({ id: actorId })
-      currentActor = actor ? Actor.parse(actor) : null
+      if (!actor) {
+        return fail(apiErrorResponse(401))
+      }
+      currentActor = Actor.parse(actor)
     }
 
-    const token = getTokenFromHeader(authorizationToken)
+    // Resolve the owning client by id (an indexed primary-key lookup) rather
+    // than re-hashing the token and joining oauthAccessToken again.
     let client: Client | null = null
-    if (token) {
-      client = await database.getClientFromAccessToken({
-        hashedToken: hashToken(token)
-      })
+    if (clientId) {
+      client = await database.getClientFromId({ clientId })
     }
 
     return handle(req, {
