@@ -424,9 +424,12 @@ export const OAuthAppGuard =
       }
 
       // Resolve the owning client by id (an indexed primary-key lookup) rather
-      // than re-hashing the token and joining oauthAccessToken again.
+      // than re-hashing the token and joining oauthAccessToken again. Re-parse
+      // at the guard boundary for the same defensive validation applied to
+      // currentActor above.
       if (clientId) {
-        client = await database.getClientFromId({ clientId })
+        const clientRow = await database.getClientFromId({ clientId })
+        client = clientRow ? Client.parse(clientRow) : null
       }
     } catch (e) {
       // Mirror resolveAuthenticatedContext: a DB error during actor/client

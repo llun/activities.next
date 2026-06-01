@@ -111,6 +111,31 @@ describe('GET /api/v1/apps/verify_credentials', () => {
     expect(mockGetActorFromId).not.toHaveBeenCalled()
   })
 
+  test('returns 200 with generic defaults when the owning client row is missing', async () => {
+    // Valid token whose client row was deleted: the route must still respond
+    // 200 with the generic 'Web' / null fallbacks, not crash or 401.
+    mockStoredTokens.set(hashToken('orphan-token'), {
+      token: hashToken('orphan-token'),
+      referenceId: null,
+      clientId: 'client-app-1',
+      expiresAt: new Date(Date.now() + 3600000),
+      scopes: JSON.stringify(['read'])
+    })
+    // mockClients intentionally left empty → getClientFromId returns null.
+
+    const response = await GET(createRequest('orphan-token'), {
+      params: Promise.resolve({})
+    })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data).toEqual({
+      name: 'Web',
+      website: null,
+      vapid_key: 'vapid-public-key'
+    })
+  })
+
   test('returns 200 for a user token', async () => {
     mockStoredTokens.set(hashToken('user-token'), {
       token: hashToken('user-token'),

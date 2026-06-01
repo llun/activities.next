@@ -960,6 +960,34 @@ describe('#OAuthGuard', () => {
       expect(getCaptured()?.grantedScopes).toEqual(['read'])
     })
 
+    test('accepts a JWT app token with no actorId claim (inverse of OAuthGuard)', async () => {
+      // OAuthGuard 401s a JWT with no actorId claim; OAuthAppGuard accepts it
+      // as an actor-less app token. JWT access tokens are issued when a client
+      // requests a `resource`, so this divergent contract must hold.
+      mockGetServerSession.mockResolvedValue(null)
+      const token = 'eyJ.app.sig'
+      mockVerifyAccessToken.mockResolvedValue({ scope: 'read' })
+      mockStoredTokens.set(hashToken(token), {
+        token: hashToken(token),
+        referenceId: null,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const { handler, getCaptured } = captureHandler()
+      const guard = OAuthAppGuard([Scope.enum.read], handler, {
+        matchMode: 'any'
+      })
+      const req = createRequest({ Authorization: `Bearer ${token}` })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).toHaveBeenCalled()
+      expect(getCaptured()?.currentActor).toBeNull()
+    })
+
     test('resolves the actor for a user token', async () => {
       mockGetServerSession.mockResolvedValue(null)
       const primaryActor = await database.getActorFromEmail({
