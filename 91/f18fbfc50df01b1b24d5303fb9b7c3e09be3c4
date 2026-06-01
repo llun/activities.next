@@ -1,0 +1,23 @@
+app/api/v1/apps/verify_credentials/route.test.ts
+  s_45f5fcac872d9c::t_d16f5384e98a8e 114-138
+lib/services/guards/OAuthGuard.ts
+  s_45f5fcac872d9c::t_471b65d5f2d582 427-429,431-432
+lib/services/guards/OAuthGuard.test.ts
+  s_45f5fcac872d9c::t_460805cd29b84e 963-990
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "91f18fbfc50df01b1b24d5303fb9b7c3e09be3c4",
+  "prompts": {},
+  "sessions": {
+    "s_45f5fcac872d9c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a87eead-72fa-4d57-9466-de3771286139",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
