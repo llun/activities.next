@@ -978,13 +978,12 @@ describe('MessagesPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses a wide desktop layout with aligned composer controls', () => {
+  it('fills the unified content column with aligned composer controls', () => {
     const { container } = renderMessagesPage([], null)
 
-    expect(container.firstElementChild).toHaveAttribute(
-      'data-layout-width',
-      'wide'
-    )
+    // The conversation pane stretches to fill the shared content column
+    // (max-w-content on the timeline wrapper) rather than opting into its own
+    // width, so Messages lines up with every other desktop tab.
     expect(container.firstElementChild).toHaveClass('flex-1')
 
     const directMessages = screen.getByLabelText('Direct messages')
