@@ -156,7 +156,6 @@ const renderMessagesPage = (
       initialConversationId={initialConversationId}
       initialStatuses={initialStatuses}
       initialNextMaxStatusId={initialNextMaxStatusId}
-      currentTime={currentTime}
       currentActor={currentActor}
       initialHasMoreConversations={initialHasMoreConversations}
     />

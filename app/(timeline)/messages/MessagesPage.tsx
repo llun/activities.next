@@ -35,7 +35,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Textarea } from '@/lib/components/ui/textarea'
-import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
@@ -52,9 +51,7 @@ interface MessagesPageProps {
   initialConversationId: string | null
   initialStatuses: Status[]
   initialNextMaxStatusId: string | null
-  currentTime: number
   currentActor: ActorProfile
-  postLineLimit?: PostLineLimit
   initialHasMoreConversations?: boolean
 }
 

@@ -34,7 +34,6 @@ const Page = async () => {
     return redirect('/auth/signin')
   }
 
-  const settings = await database.getActorSettings({ actorId: actor.id })
   const conversationsPage = await database.getDirectConversations({
     actorId: actor.id,
     limit: INITIAL_CONVERSATIONS_LIMIT + 1
@@ -77,9 +76,7 @@ const Page = async () => {
           ? initialStatuses[initialStatuses.length - 1].id
           : null
       }
-      currentTime={Date.now()}
       currentActor={getActorProfile(actor)}
-      postLineLimit={settings?.postLineLimit}
       initialHasMoreConversations={hasMoreInitialConversations}
     />
   )
