@@ -64,7 +64,10 @@ export const GET = traceApiRoute(
           actorId: currentActor.id,
           limit,
           maxId: url.searchParams.get('max_id'),
-          sinceId: url.searchParams.get('since_id')
+          // The prev link we emit uses min_id, so accept it as well as the
+          // legacy since_id for newer-page pagination.
+          sinceId:
+            url.searchParams.get('since_id') || url.searchParams.get('min_id')
         }
       )
 
