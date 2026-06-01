@@ -1077,6 +1077,36 @@ describe('MessagesPage', () => {
     expect(link).toHaveAttribute('href', 'https://example.com/files/plan.pdf')
   })
 
+  it('renders a fitness file as a card with its filename and metrics', async () => {
+    const fitnessStatus: Status = {
+      ...status('fit-1', ''),
+      fitness: {
+        id: 'fitness-1',
+        fileName: 'morning-run.gpx',
+        fileType: 'gpx',
+        mimeType: 'application/gpx+xml',
+        bytes: 2048,
+        url: 'https://example.com/files/morning-run.gpx',
+        totalDistanceMeters: 12000,
+        totalDurationSeconds: 3600
+      }
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [fitnessStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const link = await screen.findByRole('link', { name: /morning-run\.gpx/ })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://example.com/files/morning-run.gpx'
+    )
+    expect(link).toHaveTextContent('GPX')
+    expect(link).toHaveTextContent(/km/)
+  })
+
   it('shows "No messages yet" for a selected conversation with no messages', async () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],
