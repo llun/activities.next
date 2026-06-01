@@ -1131,6 +1131,13 @@ export type GetListAccountsParams = {
   maxId?: string | null
   sinceId?: string | null
 }
+export type ListAccountsPage = {
+  accounts: Mastodon.Account[]
+  // Membership-row id of the oldest/newest row on this page, used to build the
+  // Mastodon max_id/min_id pagination cursors. Null when the page is empty.
+  nextMaxId: string | null
+  prevMinId: string | null
+}
 export type AddListAccountsParams = {
   listId: string
   actorId: string
@@ -1159,7 +1166,7 @@ export interface ListDatabase {
   getList(params: GetListParams): Promise<List | null>
   getLists(params: GetListsParams): Promise<List[]>
   deleteList(params: DeleteListParams): Promise<boolean>
-  getListAccounts(params: GetListAccountsParams): Promise<Mastodon.Account[]>
+  getListAccounts(params: GetListAccountsParams): Promise<ListAccountsPage>
   addListAccounts(params: AddListAccountsParams): Promise<void>
   removeListAccounts(params: RemoveListAccountsParams): Promise<void>
   getListsWithAccount(params: GetListsWithAccountParams): Promise<List[]>

@@ -26,7 +26,8 @@ exports.up = async (knex) => {
     table.unique(['listId', 'targetActorId'], {
       indexName: 'list_accounts_list_target_unique'
     })
-    table.index(['listId'], 'list_accounts_list')
+    // No separate index on listId: it is the leftmost column of the composite
+    // unique index above, which already serves listId-prefixed lookups.
     table.index(['targetActorId'], 'list_accounts_target')
   })
 }

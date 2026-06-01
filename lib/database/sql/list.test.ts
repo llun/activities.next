@@ -5,6 +5,7 @@ import {
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { EXTERNAL_ACTORS, TEST_DOMAIN } from '@/lib/stub/const'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
@@ -145,8 +146,9 @@ describe('ListDatabase', () => {
         listId: list.id,
         actorId: owner.id
       })
-      expect(members).toHaveLength(1)
-      expect(members[0].id).toBeDefined()
+      expect(members.accounts).toHaveLength(1)
+      expect(members.accounts[0].id).toBeDefined()
+      expect(members.nextMaxId).not.toBeNull()
 
       const withAccount = await database.getListsWithAccount({
         actorId: owner.id,
@@ -161,8 +163,104 @@ describe('ListDatabase', () => {
         targetActorIds: [EXTERNAL_ACTORS[0].id]
       })
       expect(
-        await database.getListAccounts({ listId: list.id, actorId: owner.id })
+        (await database.getListAccounts({ listId: list.id, actorId: owner.id }))
+          .accounts
       ).toHaveLength(0)
+    })
+  })
+
+  it('does not leak or mutate another owner list members', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'other')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const other = await database.getActorFromUsername({
+        username: 'other',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !other) throw new Error('actors not created')
+
+      await database.createActor({
+        actorId: EXTERNAL_ACTORS[0].id,
+        username: EXTERNAL_ACTORS[0].username,
+        domain: EXTERNAL_ACTORS[0].domain,
+        followersUrl: EXTERNAL_ACTORS[0].followers_url,
+        inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        publicKey: 'remote-public-key',
+        createdAt: Date.now()
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Owner list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [EXTERNAL_ACTORS[0].id]
+      })
+
+      // Another actor passing the same listId must see nothing and must not be
+      // able to remove the real owner's members (defensive owner scoping).
+      expect(
+        (await database.getListAccounts({ listId: list.id, actorId: other.id }))
+          .accounts
+      ).toHaveLength(0)
+      await database.removeListAccounts({
+        listId: list.id,
+        actorId: other.id,
+        targetActorIds: [EXTERNAL_ACTORS[0].id]
+      })
+      expect(
+        (await database.getListAccounts({ listId: list.id, actorId: owner.id }))
+          .accounts
+      ).toHaveLength(1)
+    })
+  })
+
+  it('returns statuses from list members in the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'hello from a list member',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Timeline list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(statuses.map((status) => status.id)).toContain(statusId)
     })
   })
 })

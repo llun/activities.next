@@ -11,7 +11,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -85,8 +85,10 @@ export const POST = traceApiRoute(
           comment: report.comment,
           forwarded: report.forward,
           created_at: getISOTimeUTC(report.createdAt),
-          status_ids: statusIds.length > 0 ? report.statusIds : null,
-          rule_ids: ruleIds.length > 0 ? report.ruleIds : null,
+          // Echo ids back in the Mastodon short form clients sent, not the
+          // internal URL form we persist.
+          status_ids: report.statusIds.map((id) => urlToId(id)),
+          rule_ids: report.ruleIds,
           target_account: targetAccount
         }
       })

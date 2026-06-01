@@ -214,11 +214,16 @@ export const getInstancePeersFromActors = async (
   database: Knex,
   { localDomain }: GetInstancePeersParams
 ): Promise<string[]> => {
+  // Actors store the bare host in `domain`; a configured host may include a
+  // scheme (e.g. `https://example.com`). Normalize so self is excluded.
+  const normalizedLocalDomain = localDomain.includes('://')
+    ? new URL(localDomain).host
+    : localDomain
   const rows = await database('actors')
     .distinct('domain')
     .whereNotNull('domain')
     .andWhereNot('domain', '')
-    .andWhereNot('domain', localDomain)
+    .andWhereNot('domain', normalizedLocalDomain)
     .orderBy('domain', 'asc')
     .pluck('domain')
 

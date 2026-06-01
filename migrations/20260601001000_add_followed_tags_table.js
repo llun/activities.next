@@ -15,7 +15,8 @@ exports.up = (knex) =>
     table.unique(['actorId', 'nameNormalized'], {
       indexName: 'followed_tags_actor_name_unique'
     })
-    table.index(['actorId'], 'followed_tags_actor')
+    // No separate index on actorId: it is the leftmost column of the composite
+    // unique index above, which already serves actorId-prefixed lookups.
     table.index(['nameNormalized'], 'followed_tags_name')
   })
 

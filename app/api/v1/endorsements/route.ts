@@ -1,4 +1,4 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -10,10 +10,14 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // https://docs.joinmastodon.org/methods/endorsements/
 // Profile endorsements (featured accounts) are not supported; return an empty
-// list so clients render the profile without error.
+// list so clients render the profile without error. Mastodon scopes this with
+// read:accounts.
 export const GET = traceApiRoute(
   'getEndorsements',
-  OAuthGuard([Scope.enum.read], async (req) => {
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
-  })
+  OAuthGuardAnyScope(
+    [Scope.enum.read, Scope.enum['read:accounts']],
+    async (req) => {
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
+    }
+  )
 )

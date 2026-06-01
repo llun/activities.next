@@ -5,6 +5,7 @@ import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -57,14 +58,42 @@ export const GET = traceApiRoute(
           ? Math.min(parsedLimit, MAX_LIMIT)
           : PER_PAGE_LIMIT
 
-      const accounts = await database.getListAccounts({
-        listId: id,
-        actorId: currentActor.id,
-        limit,
-        maxId: url.searchParams.get('max_id'),
-        sinceId: url.searchParams.get('since_id')
+      const { accounts, nextMaxId, prevMinId } = await database.getListAccounts(
+        {
+          listId: id,
+          actorId: currentActor.id,
+          limit,
+          maxId: url.searchParams.get('max_id'),
+          sinceId: url.searchParams.get('since_id')
+        }
+      )
+
+      const host = headerHost(req.headers)
+      const buildLink = (cursorParam: 'max_id' | 'min_id', value: string) => {
+        const params = new URLSearchParams()
+        params.set('limit', `${limit}`)
+        params.set(cursorParam, value)
+        return `<https://${host}/api/v1/lists/${id}/accounts?${params.toString()}>; rel="${
+          cursorParam === 'max_id' ? 'next' : 'prev'
+        }"`
+      }
+      const links = [
+        accounts.length === limit && nextMaxId
+          ? buildLink('max_id', nextMaxId)
+          : null,
+        prevMinId ? buildLink('min_id', prevMinId) : null
+      ]
+        .filter(Boolean)
+        .join(', ')
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: accounts,
+        additionalHeaders: [
+          ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+        ]
       })
-      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: accounts })
     }
   )
 )

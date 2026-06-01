@@ -1,10 +1,10 @@
 import { getConfig } from '@/lib/config'
 import {
-  OAuthGuard,
+  OAuthGuardAnyScope,
   getTokenFromHeader,
   hashToken
 } from '@/lib/services/guards/OAuthGuard'
-import { Scope } from '@/lib/types/database/operations'
+import { UsableScopes } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -14,12 +14,13 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // https://docs.joinmastodon.org/methods/apps/#verify_credentials
-// Confirms the OAuth application the current access token belongs to. The guard
-// has already validated the token, so here we only resolve the owning client to
-// echo its public-facing details back to the client.
+// Mastodon 4.3+ accepts any valid app/access token here (no specific scope is
+// required), so authenticate against the full usable-scope set rather than
+// requiring `read`. The guard validates the token, then we resolve the owning
+// client to echo its public-facing details back.
 export const GET = traceApiRoute(
   'verifyAppCredentials',
-  OAuthGuard([Scope.enum.read], async (req, { database }) => {
+  OAuthGuardAnyScope([...UsableScopes], async (req, { database }) => {
     const token = getTokenFromHeader(req.headers.get('Authorization'))
     const client = token
       ? await database.getClientFromAccessToken({

@@ -92,11 +92,36 @@ export const FollowedTagSQLDatabaseMixin = (
   }: GetFollowedTagsParams) {
     const query = database<SQLFollowedTag>('followed_tags')
       .where('actorId', actorId)
+      .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
       .limit(limit)
 
-    if (maxId) query.andWhere('id', '<', maxId)
-    if (sinceId) query.andWhere('id', '>', sinceId)
+    // Ids are random UUIDs, so they cannot drive chronological pagination.
+    // Resolve the cursor row's createdAt and paginate on that, using id as a
+    // stable tie-breaker.
+    const applyCursor = async (
+      cursorId: string,
+      direction: 'older' | 'newer'
+    ) => {
+      const cursor = await database<SQLFollowedTag>('followed_tags')
+        .where({ actorId, id: cursorId })
+        .select('createdAt')
+        .first<{ createdAt: number | Date }>()
+      if (!cursor) return
+      const operator = direction === 'older' ? '<' : '>'
+      query.andWhere((builder) => {
+        builder
+          .where('createdAt', operator, cursor.createdAt)
+          .orWhere((tie) => {
+            tie
+              .where('createdAt', cursor.createdAt)
+              .andWhere('id', operator, cursorId)
+          })
+      })
+    }
+
+    if (maxId) await applyCursor(maxId, 'older')
+    if (sinceId) await applyCursor(sinceId, 'newer')
 
     const rows = await query
     return rows.map(fixFollowedTag)

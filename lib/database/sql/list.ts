@@ -117,21 +117,56 @@ export const ListSQLDatabaseMixin = (
 
   async getListAccounts({
     listId,
+    actorId,
     limit = PER_PAGE_LIMIT,
     maxId,
     sinceId
   }: GetListAccountsParams) {
+    // Scope to the owner defensively so this never leaks another actor's list
+    // members even if a caller forgets the route-level ownership check.
     const query = database('list_accounts')
-      .where('listId', listId)
+      .where({ listId, actorId })
       .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
       .limit(limit)
 
-    if (maxId) query.andWhere('id', '<', maxId)
-    if (sinceId) query.andWhere('id', '>', sinceId)
+    // Membership ids are random UUIDs, so they cannot be compared with </> for
+    // chronological pagination. Resolve the cursor row's createdAt and paginate
+    // on that, using id only as a stable tie-breaker.
+    const applyCursor = async (
+      cursorId: string,
+      direction: 'older' | 'newer'
+    ) => {
+      const cursor = await database('list_accounts')
+        .where({ listId, actorId, id: cursorId })
+        .select('createdAt')
+        .first<{ createdAt: number | Date }>()
+      if (!cursor) return
+      const operator = direction === 'older' ? '<' : '>'
+      query.andWhere((builder) => {
+        builder
+          .where('createdAt', operator, cursor.createdAt)
+          .orWhere((tie) => {
+            tie
+              .where('createdAt', cursor.createdAt)
+              .andWhere('id', operator, cursorId)
+          })
+      })
+    }
 
-    const rows = await query.select('targetActorId')
+    if (maxId) await applyCursor(maxId, 'older')
+    if (sinceId) await applyCursor(sinceId, 'newer')
+
+    const rows = await query.select('id', 'targetActorId')
     const targetActorIds = rows.map((row) => row.targetActorId as string)
-    return getMastodonActors(targetActorIds)
+    const accounts = await getMastodonActors(targetActorIds)
+    return {
+      accounts,
+      // Rows are newest-first, so the last row is the oldest (next page) and the
+      // first row is the newest (previous page).
+      nextMaxId: rows.length > 0 ? (rows[rows.length - 1].id as string) : null,
+      prevMinId: rows.length > 0 ? (rows[0].id as string) : null
+    }
   },
 
   async addListAccounts({
@@ -159,11 +194,14 @@ export const ListSQLDatabaseMixin = (
 
   async removeListAccounts({
     listId,
+    actorId,
     targetActorIds
   }: RemoveListAccountsParams) {
     if (targetActorIds.length === 0) return
+    // Scope to the owner defensively so a caller can never delete members from
+    // a list they do not own.
     await database('list_accounts')
-      .where('listId', listId)
+      .where({ listId, actorId })
       .whereIn('targetActorId', targetActorIds)
       .delete()
   },
@@ -198,8 +236,11 @@ export const ListSQLDatabaseMixin = (
       .orderBy('statuses.id', 'desc')
       .limit(limit)
       .select('statuses.id')
-      .distinct()
 
+    // A status appears at most once: list_accounts is unique on
+    // (listId, targetActorId), so the join cannot duplicate a status row.
+    // Avoid SELECT DISTINCT, which on PostgreSQL would require every ORDER BY
+    // column (statuses.createdAt) to also appear in the select list.
     // Status IDs are URIs (not chronologically ordered), so paginate on the
     // referenced status's createdAt with the id as a stable tie-breaker.
     const applyCursor = async (
