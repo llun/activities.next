@@ -1,4 +1,3 @@
-import _ from 'lodash'
 import { Activity, Download } from 'lucide-react'
 import { FC, MouseEvent } from 'react'
 
@@ -61,10 +60,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
   const fitnessFile = actualStatus.fitness
   const hasText = htmlToPlainText(actualStatus.text ?? '').trim().length > 0
   const processedText = hasText
-    ? _.chain(status)
-        .thru((value) => processStatusText(host, value))
-        .thru(cleanClassName)
-        .value()
+    ? cleanClassName(processStatusText(host, status))
     : null
   const time = timeFormatter.format(new Date(actualStatus.createdAt))
 

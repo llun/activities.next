@@ -1042,11 +1042,13 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         </div>
       </section>
 
-      <MediasModal
-        medias={modalMedias?.medias ?? null}
-        initialSelection={modalMedias?.initialSelection ?? 0}
-        onClosed={() => setModalMedias(null)}
-      />
+      {modalMedias && (
+        <MediasModal
+          medias={modalMedias.medias}
+          initialSelection={modalMedias.initialSelection}
+          onClosed={() => setModalMedias(null)}
+        />
+      )}
     </div>
   )
 }
