@@ -48,6 +48,12 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Unified desktop content width. Every top-level page in the (timeline)
+     route group centers its content (and its page-header title row) at this
+     single width, so the column stays aligned as you switch tabs. Exposed as
+     the `max-w-content` utility via Tailwind's `--container-*` namespace. */
+  --container-content: 940px;
 }
 
 :root {
@@ -176,11 +182,6 @@
 @layer utilities {
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-
-  /* Child pages opt into a wider timeline wrapper with data-layout-width="wide". */
-  .timeline-content:has([data-layout-width='wide']) {
-    max-width: none;
   }
 }
 

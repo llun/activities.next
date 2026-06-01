@@ -694,12 +694,8 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     ]
   )
 
-  // Opts the timeline wrapper into the wide-layout rule in globals.css.
   return (
-    <div
-      data-layout-width="wide"
-      className="flex min-h-0 flex-1 flex-col gap-5 md:gap-6"
-    >
+    <div className="flex min-h-0 flex-1 flex-col gap-5 md:gap-6">
       <PageHeader
         title="Messages"
         description="Direct conversations with people you follow."
