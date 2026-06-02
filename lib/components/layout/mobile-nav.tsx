@@ -33,21 +33,23 @@ export function MobileNav({
   const profileNavItem: NavItem | null = profileUrl
     ? { href: profileUrl, label: 'Profile', icon: User }
     : null
-  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
+  const navItems = buildNavItems({ fitnessUrl, isAdmin })
+  let allNavItems = navItems
   if (profileNavItem) {
     // Match the design system's overflow order: Profile sits with the
-    // account-level entries, just before Admin/Settings.
-    const adminIndex = allNavItems.findIndex((item) => item.href === '/admin')
-    const settingsIndex = allNavItems.findIndex(
-      (item) => item.href === '/settings'
+    // account-level entries, just before the first of Admin/Settings.
+    // `buildNavItems` keeps Admin ahead of Settings, so the first match
+    // resolves to Admin when present and Settings otherwise. Build a new
+    // array rather than mutating the one `buildNavItems` returned.
+    const accountIndex = navItems.findIndex(
+      (item) => item.href === '/admin' || item.href === '/settings'
     )
-    const profileIndex =
-      adminIndex >= 0
-        ? adminIndex
-        : settingsIndex >= 0
-          ? settingsIndex
-          : allNavItems.length
-    allNavItems.splice(profileIndex, 0, profileNavItem)
+    const profileIndex = accountIndex >= 0 ? accountIndex : navItems.length
+    allNavItems = [
+      ...navItems.slice(0, profileIndex),
+      profileNavItem,
+      ...navItems.slice(profileIndex)
+    ]
   }
   const hasOverflow = allNavItems.length > 5
   const directNavItems = hasOverflow
