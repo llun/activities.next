@@ -109,6 +109,38 @@ describe('MobileNav', () => {
     ])
   })
 
+  it('places Profile before Admin in the overflow menu (no fitness)', async () => {
+    render(<MobileNav profileUrl="/@llun@llun.test" isAdmin />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    const items = await screen.findAllByRole('menuitem')
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      'Bookmarks',
+      'Profile',
+      'Admin',
+      'Settings'
+    ])
+  })
+
+  it('places Profile before Settings in the overflow menu (no admin)', async () => {
+    render(<MobileNav profileUrl="/@llun@llun.test" />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    const items = await screen.findAllByRole('menuitem')
+    // No Admin entry, so Profile anchors directly before Settings.
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      'Bookmarks',
+      'Profile',
+      'Settings'
+    ])
+  })
+
   it('adds a Profile entry to the overflow menu when profileUrl is provided', async () => {
     render(<MobileNav profileUrl="/@llun@llun.test" />)
 
