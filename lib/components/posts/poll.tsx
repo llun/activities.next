@@ -153,7 +153,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
           const percentage = Math.round((choice.totalVotes / totalVotes) * 100)
           return (
             <div
-              key={`poll-${index}`}
+              key={`poll-${status.id}-${index}`}
               className={cn(
                 'relative overflow-hidden rounded-lg border px-3 py-2.5 text-sm',
                 mine ? 'border-primary' : 'border-border'
