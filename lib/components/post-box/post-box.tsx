@@ -948,6 +948,7 @@ export const PostBox: FC<Props> = ({
             dispatch(setPollDurationInSeconds(durationInSeconds))
           }
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
+          onRemove={() => dispatch(setPollVisibility(false))}
         />
         <div className="mt-3 flex flex-wrap items-center gap-y-2 border-t pt-3">
           <div className="flex flex-wrap items-center gap-1">
