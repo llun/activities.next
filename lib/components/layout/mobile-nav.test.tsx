@@ -20,9 +20,12 @@ describe('MobileNav', () => {
     render(<MobileNav fitnessUrl="/@llun@llun.test/fitness" isAdmin />)
 
     const nav = screen.getByRole('navigation')
-    expect(
-      within(nav).getByRole('link', { name: /timeline/i })
-    ).toHaveAttribute('href', '/')
+    // The bottom bar uses compact labels: Timeline -> Home, Notifications ->
+    // Alerts (see NavItem.shortLabel).
+    expect(within(nav).getByRole('link', { name: /home/i })).toHaveAttribute(
+      'href',
+      '/'
+    )
     expect(within(nav).getByRole('link', { name: /search/i })).toHaveAttribute(
       'href',
       '/search'
@@ -30,9 +33,10 @@ describe('MobileNav', () => {
     expect(
       within(nav).getByRole('link', { name: /messages/i })
     ).toHaveAttribute('href', '/messages')
-    expect(
-      within(nav).getByRole('link', { name: /notifications/i })
-    ).toHaveAttribute('href', '/notifications')
+    expect(within(nav).getByRole('link', { name: /alerts/i })).toHaveAttribute(
+      'href',
+      '/notifications'
+    )
     expect(
       within(nav).queryByRole('link', { name: /bookmarks/i })
     ).not.toBeInTheDocument()
@@ -66,6 +70,75 @@ describe('MobileNav', () => {
       'href',
       '/settings'
     )
+  })
+
+  it('uses compact labels (Home, Alerts) for the bottom-bar direct items', () => {
+    render(<MobileNav />)
+
+    const nav = screen.getByRole('navigation')
+    expect(within(nav).getByText('Home')).toBeInTheDocument()
+    expect(within(nav).getByText('Alerts')).toBeInTheDocument()
+    // The full desktop labels must not leak into the compact bottom bar.
+    expect(within(nav).queryByText('Timeline')).not.toBeInTheDocument()
+    expect(within(nav).queryByText('Notifications')).not.toBeInTheDocument()
+  })
+
+  it('orders Profile before account entries in the overflow menu', async () => {
+    render(
+      <MobileNav
+        fitnessUrl="/@llun@llun.test/fitness"
+        profileUrl="/@llun@llun.test"
+        isAdmin
+      />
+    )
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    const items = await screen.findAllByRole('menuitem')
+    const names = items.map((item) => item.textContent?.trim())
+    // Design-system overflow order: Bookmarks, Fitness, Profile, Admin,
+    // Settings.
+    expect(names).toEqual([
+      'Bookmarks',
+      'Fitness',
+      'Profile',
+      'Admin',
+      'Settings'
+    ])
+  })
+
+  it('places Profile before Admin in the overflow menu (no fitness)', async () => {
+    render(<MobileNav profileUrl="/@llun@llun.test" isAdmin />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    const items = await screen.findAllByRole('menuitem')
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      'Bookmarks',
+      'Profile',
+      'Admin',
+      'Settings'
+    ])
+  })
+
+  it('places Profile before Settings in the overflow menu (no admin)', async () => {
+    render(<MobileNav profileUrl="/@llun@llun.test" />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    const items = await screen.findAllByRole('menuitem')
+    // No Admin entry, so Profile anchors directly before Settings.
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      'Bookmarks',
+      'Profile',
+      'Settings'
+    ])
   })
 
   it('adds a Profile entry to the overflow menu when profileUrl is provided', async () => {

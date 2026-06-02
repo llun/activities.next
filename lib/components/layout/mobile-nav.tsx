@@ -33,10 +33,24 @@ export function MobileNav({
   const profileNavItem: NavItem | null = profileUrl
     ? { href: profileUrl, label: 'Profile', icon: User }
     : null
-  const allNavItems = [
-    ...buildNavItems({ fitnessUrl, isAdmin }),
-    ...(profileNavItem ? [profileNavItem] : [])
-  ]
+  const navItems = buildNavItems({ fitnessUrl, isAdmin })
+  let allNavItems = navItems
+  if (profileNavItem) {
+    // Match the design system's overflow order: Profile sits with the
+    // account-level entries, just before the first of Admin/Settings.
+    // `buildNavItems` keeps Admin ahead of Settings, so the first match
+    // resolves to Admin when present and Settings otherwise. Build a new
+    // array rather than mutating the one `buildNavItems` returned.
+    const accountIndex = navItems.findIndex(
+      (item) => item.href === '/admin' || item.href === '/settings'
+    )
+    const profileIndex = accountIndex >= 0 ? accountIndex : navItems.length
+    allNavItems = [
+      ...navItems.slice(0, profileIndex),
+      profileNavItem,
+      ...navItems.slice(profileIndex)
+    ]
+  }
   const hasOverflow = allNavItems.length > 5
   const directNavItems = hasOverflow
     ? mobileDirectHrefs.flatMap((href) => {
@@ -70,9 +84,7 @@ export function MobileNav({
                 )}
               >
                 <div className="relative">
-                  <item.icon
-                    className={cn('h-6 w-6', isActive && 'fill-primary')}
-                  />
+                  <item.icon className="h-6 w-6" />
                   {isNotifications && unreadCount > 0 && (
                     <NotificationBadge
                       count={unreadCount}
@@ -80,7 +92,9 @@ export function MobileNav({
                     />
                   )}
                 </div>
-                <span className="max-w-full truncate">{item.label}</span>
+                <span className="max-w-full truncate">
+                  {item.shortLabel ?? item.label}
+                </span>
               </Link>
             </li>
           )

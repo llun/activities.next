@@ -13,15 +13,23 @@ import { type LucideIcon } from 'lucide-react'
 export interface NavItem {
   href: string
   label: string
+  // Compact label used by space-constrained surfaces (the mobile bottom bar).
+  // Falls back to `label` when omitted.
+  shortLabel?: string
   icon: LucideIcon
 }
 
 const baseNavItems: NavItem[] = [
-  { href: '/', label: 'Timeline', icon: Home },
+  { href: '/', label: 'Timeline', shortLabel: 'Home', icon: Home },
   { href: '/search', label: 'Search', icon: Search },
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
-  { href: '/notifications', label: 'Notifications', icon: Bell },
+  {
+    href: '/notifications',
+    label: 'Notifications',
+    shortLabel: 'Alerts',
+    icon: Bell
+  },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
 
