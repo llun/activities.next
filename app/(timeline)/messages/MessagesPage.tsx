@@ -29,19 +29,20 @@ import {
   searchAccounts
 } from '@/lib/client'
 import type { DirectConversationView } from '@/lib/client'
+import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { PageHeader } from '@/lib/components/page-header'
-import { Posts } from '@/lib/components/posts/posts'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Textarea } from '@/lib/components/ui/textarea'
-import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { cn } from '@/lib/utils'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
+import { MessageBubble } from './MessageBubble'
 import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
 
 interface MessagesPageProps {
@@ -50,9 +51,7 @@ interface MessagesPageProps {
   initialConversationId: string | null
   initialStatuses: Status[]
   initialNextMaxStatusId: string | null
-  currentTime: number
   currentActor: ActorProfile
-  postLineLimit?: PostLineLimit
   initialHasMoreConversations?: boolean
 }
 
@@ -71,8 +70,11 @@ const accountLabel = (account: MastodonAccount) =>
 const accountHandle = (account: MastodonAccount) =>
   account.acct.startsWith('@') ? account.acct : `@${account.acct}`
 
-const getInitial = (value: string) =>
-  value.trim().length > 0 ? value.trim()[0].toUpperCase() : '?'
+const getInitial = (value: string) => {
+  const trimmed = value.trim()
+  // Spread to a code-point array so a leading emoji/surrogate pair isn't split.
+  return trimmed ? [...trimmed][0].toUpperCase() : '?'
+}
 
 const conversationTitle = (conversation: DirectConversationView) => {
   if (conversation.accounts.length === 0) return 'You'
@@ -120,9 +122,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   initialConversationId,
   initialStatuses,
   initialNextMaxStatusId,
-  currentTime,
   currentActor,
-  postLineLimit,
   initialHasMoreConversations = false
 }) => {
   const [currentConversations, setCurrentConversations] =
@@ -156,6 +156,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     useState(!initialConversationId)
   const [readRetryNonce, setReadRetryNonce] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [modalMedias, setModalMedias] = useState<{
+    medias: Attachment[]
+    initialSelection: number
+  } | null>(null)
   const latestThreadRequestIdRef = useRef(0)
   const selectedConversationIdRef = useRef(selectedConversationId)
   const threadContainerRef = useRef<HTMLDivElement | null>(null)
@@ -211,6 +215,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   const composerRecipients = selectedConversation
     ? selectedConversation.accounts
     : selectedRecipients
+  const headerAccount = composerRecipients[0] ?? null
+  const headerTitle = selectedConversation
+    ? conversationTitle(selectedConversation)
+    : 'New message'
 
   const clearRecipientSearchTimeout = useCallback(() => {
     if (recipientSearchTimeoutRef.current === null) return
@@ -709,7 +717,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
       <section
         aria-label="Direct messages"
-        className="grid min-w-0 flex-1 overflow-hidden rounded-lg border bg-background md:min-h-0 md:grid-cols-[minmax(260px,34%)_minmax(0,1fr)] lg:grid-cols-[minmax(320px,30%)_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]"
+        className="grid min-w-0 flex-1 overflow-hidden rounded-xl border bg-background shadow-sm md:min-h-0 md:grid-cols-[minmax(260px,34%)_minmax(0,1fr)] lg:grid-cols-[minmax(320px,30%)_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]"
       >
         <aside
           aria-label="Conversation list"
@@ -724,6 +732,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                 const isSelected = conversation.id === selectedConversationId
                 const title = conversationTitle(conversation)
                 const avatarAccount = conversation.accounts[0]
+                const preview = conversationPreviews.get(conversation.id)
+                const isOwnLastStatus =
+                  conversation.lastStatus.actorId === currentActor.id
                 return (
                   <button
                     key={conversation.id}
@@ -748,19 +759,26 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                         <span
                           className={cn(
                             'truncate text-sm md:text-base',
-                            conversation.unread && 'font-semibold'
+                            conversation.unread
+                              ? 'font-semibold'
+                              : 'font-medium'
                           )}
                         >
                           {title}
                         </span>
                         {conversation.unread && (
-                          <span className="size-2 rounded-full bg-primary" />
+                          <span className="size-2 shrink-0 rounded-full bg-primary" />
                         )}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {conversationPreviews.get(conversation.id)}
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                        {isOwnLastStatus && preview
+                          ? `You: ${preview}`
+                          : preview}
                       </span>
-                      <span className="block text-xs text-muted-foreground md:mt-1">
+                      <span
+                        className="block text-xs text-muted-foreground md:mt-1"
+                        suppressHydrationWarning
+                      >
                         {formatTimestamp(conversation.lastStatusCreatedAt)}
                       </span>
                     </span>
@@ -810,11 +828,19 @@ export const MessagesPage: FC<MessagesPageProps> = ({
             >
               <ArrowLeft className="size-4" />
             </Button>
+            {headerAccount && (
+              <Avatar className="size-9 shrink-0">
+                {headerAccount.avatar && (
+                  <AvatarImage src={headerAccount.avatar} alt="" />
+                )}
+                <AvatarFallback>
+                  {getInitial(accountLabel(headerAccount))}
+                </AvatarFallback>
+              </Avatar>
+            )}
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-base font-semibold md:text-lg">
-                {selectedConversation
-                  ? conversationTitle(selectedConversation)
-                  : 'New message'}
+                {headerTitle}
               </h2>
               {composerRecipients.length > 0 && (
                 <p className="truncate text-xs text-muted-foreground">
@@ -865,19 +891,28 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                     </Button>
                   </div>
                 )}
-                <Posts
-                  host={host}
-                  framed={false}
-                  currentTime={currentTime}
-                  statuses={displayStatuses}
-                  currentActor={currentActor}
-                  postLineLimit={postLineLimit}
-                  className="md:[&>article]:p-6 xl:[&>article]:px-8"
-                />
+                <div className="space-y-3 px-4 py-4 md:px-6">
+                  {displayStatuses.map((status) => (
+                    <MessageBubble
+                      key={status.id}
+                      host={host}
+                      status={status}
+                      isOwn={status.actorId === currentActor.id}
+                      onShowAttachment={(medias, index) =>
+                        setModalMedias({
+                          medias,
+                          initialSelection: index
+                        })
+                      }
+                    />
+                  ))}
+                </div>
               </>
             ) : (
               <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-                No conversation selected
+                {selectedConversationId
+                  ? 'No messages yet'
+                  : 'No conversation selected'}
               </div>
             )}
           </div>
@@ -968,7 +1003,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="flex items-end gap-2">
               <Textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
@@ -977,23 +1012,22 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                 aria-label="Message text"
                 autoComplete="off"
                 placeholder="Write a message"
-                className="min-h-24 resize-y md:min-h-28"
+                className="max-h-40 min-h-10 flex-1 resize-none"
               />
-              <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={isSending || !message.trim()}
-                  aria-label="Send message"
-                  title="Send message"
-                >
-                  {isSending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
-                  <span>Send</span>
-                </Button>
-              </div>
+              <Button
+                type="submit"
+                disabled={isSending || !message.trim()}
+                aria-label="Send message"
+                title="Send message"
+                className="shrink-0"
+              >
+                {isSending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
+                <span>Send</span>
+              </Button>
             </div>
             {error && (
               <p
@@ -1007,6 +1041,14 @@ export const MessagesPage: FC<MessagesPageProps> = ({
           </form>
         </div>
       </section>
+
+      {modalMedias && (
+        <MediasModal
+          medias={modalMedias.medias}
+          initialSelection={modalMedias.initialSelection}
+          onClosed={() => setModalMedias(null)}
+        />
+      )}
     </div>
   )
 }

@@ -156,7 +156,6 @@ const renderMessagesPage = (
       initialConversationId={initialConversationId}
       initialStatuses={initialStatuses}
       initialNextMaxStatusId={initialNextMaxStatusId}
-      currentTime={currentTime}
       currentActor={currentActor}
       initialHasMoreConversations={initialHasMoreConversations}
     />
@@ -1002,13 +1001,137 @@ describe('MessagesPage', () => {
     ).not.toBeInTheDocument()
 
     const messageInput = screen.getByRole('textbox', { name: 'Message text' })
-    expect(messageInput).toHaveClass('w-full')
-    expect(
-      screen.getByRole('button', { name: 'Send message' })
-    ).toHaveTextContent('Send')
-    expect(
-      screen.getByRole('button', { name: 'Send message' }).parentElement
-    ).toHaveClass('justify-end')
+    expect(messageInput).toHaveClass('flex-1')
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(sendButton).toHaveTextContent('Send')
+    // The composer is an inline row: the textarea and Send button sit side by
+    // side, bottom-aligned, rather than the button stacked below.
+    expect(sendButton.parentElement).toHaveClass('items-end')
+  })
+
+  it('renders sent and received messages as aligned chat bubbles', async () => {
+    const receivedStatus: Status = {
+      ...status('them-1', 'Theirs'),
+      actorId: 'https://example.com/users/ada',
+      actor: null,
+      isLocalActor: false
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [status('me-1', 'Mine'), receivedStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const mine = await screen.findByText('Mine')
+    const theirs = await screen.findByText('Theirs')
+
+    // Own messages: orange (primary) bubble, right-aligned.
+    expect(mine.closest('.bg-primary')).not.toBeNull()
+    expect(mine.closest('.justify-end')).not.toBeNull()
+    // Received messages: muted bubble, left-aligned.
+    expect(theirs.closest('.bg-muted')).not.toBeNull()
+    expect(theirs.closest('.justify-start')).not.toBeNull()
+  })
+
+  it('renders message bubble text as rich DOM rather than escaped HTML', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [status('rich-1', '**bold**')],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    // The markdown is converted to a real <strong> element; if the processed
+    // markup were escaped (e.g. rendered as a raw string), the text node would
+    // read "**bold**" and never resolve to a STRONG tag.
+    const bold = await screen.findByText('bold')
+    expect(bold.tagName).toBe('STRONG')
+  })
+
+  it('surfaces non-visual attachments as a download link instead of an empty bubble', async () => {
+    const fileStatus: Status = {
+      ...status('file-1', ''),
+      attachments: [
+        {
+          id: 'att-1',
+          actorId: currentActor.id,
+          statusId: 'file-1',
+          type: 'Document',
+          mediaType: 'application/pdf',
+          url: 'https://example.com/files/plan.pdf',
+          name: 'plan.pdf',
+          createdAt: currentTime,
+          updatedAt: currentTime
+        }
+      ]
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [fileStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const link = await screen.findByRole('link', { name: /plan\.pdf/ })
+    expect(link).toHaveAttribute('href', 'https://example.com/files/plan.pdf')
+  })
+
+  it('renders a fitness file as a card with its filename and metrics', async () => {
+    const fitnessStatus: Status = {
+      ...status('fit-1', ''),
+      fitness: {
+        id: 'fitness-1',
+        fileName: 'morning-run.gpx',
+        fileType: 'gpx',
+        mimeType: 'application/gpx+xml',
+        bytes: 2048,
+        url: 'https://example.com/files/morning-run.gpx',
+        totalDistanceMeters: 12000,
+        totalDurationSeconds: 3600
+      }
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [fitnessStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const link = await screen.findByRole('link', { name: /morning-run\.gpx/ })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://example.com/files/morning-run.gpx'
+    )
+    expect(link).toHaveTextContent('GPX')
+    expect(link).toHaveTextContent(/km/)
+  })
+
+  it('shows "No messages yet" for a selected conversation with no messages', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    expect(await screen.findByText('No messages yet')).toBeInTheDocument()
+  })
+
+  it('prefixes the conversation preview with "You:" for your own last message', () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage(
+      [conversation({ id: 'first', participantName: 'Ada' })],
+      null
+    )
+
+    expect(screen.getByRole('button', { name: /Ada/i })).toHaveTextContent(
+      'You: Last Ada'
+    )
   })
 
   it('shows an error when the conversation thread fails to load', async () => {
