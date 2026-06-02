@@ -137,10 +137,7 @@ export const PollChoices: FC<Props> = ({
           </Select>
         </label>
 
-        <label
-          htmlFor="poll-multiple"
-          className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
-        >
+        <div className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <Switch
             id="poll-multiple"
             checked={pollType === 'anyOf'}
@@ -148,8 +145,10 @@ export const PollChoices: FC<Props> = ({
               onPollTypeChange(checked ? 'anyOf' : 'oneOf')
             }
           />
-          Allow multiple choices
-        </label>
+          <label htmlFor="poll-multiple" className="cursor-pointer">
+            Allow multiple choices
+          </label>
+        </div>
       </div>
     </div>
   )

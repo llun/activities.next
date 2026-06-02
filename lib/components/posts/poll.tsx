@@ -109,10 +109,11 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
             const checked = selectedChoices.includes(index)
             return (
               <label
-                key={`poll-${index}`}
-                htmlFor={`choice-${index}`}
+                key={`poll-${status.id}-${index}`}
+                htmlFor={`choice-${status.id}-${index}`}
                 className={cn(
                   'flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors',
+                  'has-[:focus-visible]:border-ring has-[:focus-visible]:ring-ring/50 has-[:focus-visible]:ring-[3px]',
                   checked
                     ? 'border-primary bg-primary/5'
                     : 'border-border bg-background hover:bg-muted'
@@ -121,7 +122,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                 <input
                   className="sr-only"
                   type={isMultiple ? 'checkbox' : 'radio'}
-                  id={`choice-${index}`}
+                  id={`choice-${status.id}-${index}`}
                   checked={checked}
                   onChange={() => handleChoiceChange(index)}
                   name={`poll-${status.id}`}
