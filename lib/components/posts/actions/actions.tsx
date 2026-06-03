@@ -6,23 +6,17 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
-import { cn } from '@/lib/utils'
 
 import { BookmarkButton } from './bookmark-button'
-import { DeleteButton } from './delete-button'
-import { EditButton } from './edit-button'
 import { EditHistoryButton } from './edit-history-button'
 import { LikeButton } from './like-button'
+import { PostMenu } from './post-menu'
 import { ReplyButton } from './reply-button'
 import { RepostButton } from './repost-button'
-import { VisibilityButton } from './visibility-button'
 
 interface Props extends PostProps {
   onShowEdits?: (status: Status) => void
 }
-
-const actionRowClassName =
-  'grid w-full items-center justify-items-center gap-2 sm:flex sm:w-auto sm:justify-start sm:gap-6'
 
 export const Actions: FC<Props> = ({
   host,
@@ -49,6 +43,7 @@ export const Actions: FC<Props> = ({
     Boolean(actualStatus.isLocalActor) &&
     currentActor.id === actualStatus.actorId
   const hasEditHistory = actualStatus.edits.length > 0
+
   const primaryActions: ReactNode[] = [
     <ReplyButton key="reply" status={actualStatus} onReply={onReply} />,
     <RepostButton
@@ -67,7 +62,6 @@ export const Actions: FC<Props> = ({
       onBookmarkChanged={onBookmarkChanged}
     />
   ]
-  const secondaryActions: ReactNode[] = []
 
   if (hasEditHistory) {
     primaryActions.push(
@@ -81,46 +75,24 @@ export const Actions: FC<Props> = ({
     )
   }
 
-  if (isOwner) {
-    secondaryActions.push(
-      <VisibilityButton key="visibility" status={actualStatus} />
-    )
-  }
-
-  if (canEdit) {
-    secondaryActions.push(
-      <EditButton key="edit" status={actualStatus} onEdit={onEdit} />,
-      <DeleteButton
-        key="delete"
-        status={actualStatus}
-        onPostDeleted={onPostDeleted}
-      />
-    )
-  }
-
-  const hasSecondaryActions = secondaryActions.length > 0
-  // Use the same mobile grid for both rows so secondary controls align under primary controls.
-  const actionColumnClassName = hasEditHistory ? 'grid-cols-5' : 'grid-cols-4'
-
   return (
-    <div className="mt-3 flex flex-col gap-2 text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
+    <div className="mt-3 flex items-center gap-5 text-muted-foreground sm:gap-6">
       <div
         role="group"
         aria-label="Post primary actions"
-        className={cn(actionRowClassName, actionColumnClassName)}
+        className="flex items-center gap-5 sm:gap-6"
       >
         {primaryActions}
       </div>
 
-      {hasSecondaryActions && (
-        <div
-          role="group"
-          aria-label="Post secondary actions"
-          className={cn(actionRowClassName, actionColumnClassName)}
-        >
-          {secondaryActions}
-        </div>
-      )}
+      <PostMenu
+        status={actualStatus}
+        isOwner={isOwner}
+        canEdit={canEdit}
+        onReply={onReply}
+        onEdit={onEdit}
+        onPostDeleted={onPostDeleted}
+      />
     </div>
   )
 }
