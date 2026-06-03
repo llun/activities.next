@@ -253,8 +253,9 @@ export const PostMenu: FC<Props> = ({
                     <DropdownMenuItem
                       key={option.value}
                       disabled={visibilitySaving}
-                      onSelect={(e) => {
-                        e.preventDefault()
+                      onSelect={() => {
+                        // Let the menu close on select so a failure's inline
+                        // error isn't hidden behind the open (portaled) menu.
                         void handleVisibilityChange(option.value)
                       }}
                     >

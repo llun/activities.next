@@ -302,7 +302,8 @@ export const ReportDialog: FC<ReportDialogProps> = ({
         </fieldset>
         <Textarea
           value={comment}
-          onChange={(e) => setComment(e.target.value.slice(0, 1000))}
+          onChange={(e) => setComment(e.target.value)}
+          maxLength={1000}
           placeholder="Additional comments (optional)"
           aria-label="Additional comments"
           rows={3}
