@@ -1171,6 +1171,8 @@ export const FitnessHeatmapView: FC<Props> = ({
               metric={calendarMetric}
               periodType={periodType}
               periodKey={effectivePeriodKey}
+              // This calendar sits directly on the page background, not a card.
+              surfaceClassName="bg-background"
             />
           </section>
         </main>
