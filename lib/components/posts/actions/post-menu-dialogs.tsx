@@ -103,13 +103,19 @@ export const MuteDialog: FC<MuteDialogProps> = ({
             still see and reply to your posts.
           </DialogDescription>
         </DialogHeader>
-        <Label className="flex items-center gap-2 text-sm font-normal">
+        <div className="flex items-center gap-2">
           <Checkbox
+            id="mute-hide-notifications"
             checked={notifications}
             onChange={(e) => setNotifications(e.target.checked)}
           />
-          Also hide notifications from this account
-        </Label>
+          <Label
+            htmlFor="mute-hide-notifications"
+            className="text-sm font-normal"
+          >
+            Also hide notifications from this account
+          </Label>
+        </div>
         {errorAlert(error)}
         <DialogFooter>
           <Button
@@ -290,13 +296,18 @@ export const ReportDialog: FC<ReportDialogProps> = ({
             onValueChange={(value) => setCategory(value as ReportCategory)}
           >
             {REPORT_CATEGORIES.map((option) => (
-              <Label
-                key={option.value}
-                className="flex items-center gap-2 text-sm font-normal"
-              >
-                <RadioGroupItem value={option.value} />
-                {option.label}
-              </Label>
+              <div key={option.value} className="flex items-center gap-2">
+                <RadioGroupItem
+                  value={option.value}
+                  id={`report-category-${option.value}`}
+                />
+                <Label
+                  htmlFor={`report-category-${option.value}`}
+                  className="text-sm font-normal"
+                >
+                  {option.label}
+                </Label>
+              </div>
             ))}
           </RadioGroup>
         </fieldset>
