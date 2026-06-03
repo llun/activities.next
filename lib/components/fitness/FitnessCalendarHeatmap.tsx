@@ -3,6 +3,7 @@
 import { FC, useMemo } from 'react'
 
 import { FitnessCalendarDay } from '@/lib/client'
+import { cn } from '@/lib/utils'
 
 export type CalendarMetric = 'count' | 'distance' | 'duration'
 
@@ -240,7 +241,11 @@ const StickyLabelRow: FC<{
             style={{ width: segmentWeeks * CELL }}
           >
             <span
-              className={`sticky left-0 inline-block whitespace-nowrap pr-1.5 ${surfaceClassName} ${className}`}
+              className={cn(
+                'sticky left-0 inline-block whitespace-nowrap pr-1.5',
+                surfaceClassName,
+                className
+              )}
             >
               {item.label}
             </span>
@@ -374,7 +379,7 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
                   return (
                     <div
                       key={di}
-                      className={`h-3 w-3 rounded-sm ${colorClass}`}
+                      className={cn('h-3 w-3 rounded-sm', colorClass)}
                       title={tooltip}
                     />
                   )
