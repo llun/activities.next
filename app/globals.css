@@ -82,11 +82,16 @@
   --link-color: oklch(0.588 0.158 241.966);
   --link-color-hover: oklch(0.518 0.158 241.966);
   /* Link color for use ON the orange/primary surface (sent chat bubbles). The
-     default blue link fails contrast on orange, so links there render white +
-     underlined, like the rest of the bubble text. White works on orange in
-     both light and dark themes, so it is declared once here. */
-  --link-color-on-primary: hsl(0 0% 100%);
-  --link-color-on-primary-hover: hsl(0 0% 100% / 0.82);
+     default blue link fails contrast on orange, so links there render in the
+     primary foreground color (white) like the rest of the bubble text. Aliased
+     to --primary-foreground so it stays in sync with the theme; that token is
+     white in both light and dark, so it is declared once here. */
+  --link-color-on-primary: var(--primary-foreground);
+  --link-color-on-primary-hover: color-mix(
+    in srgb,
+    var(--primary-foreground) 82%,
+    transparent
+  );
 
   /* Preserve original charts/sidebar defaults to prevent breaking */
   --chart-1: oklch(0.646 0.222 41.116);
@@ -234,6 +239,14 @@
 
 .markdown-content.on-primary a:hover {
   color: var(--link-color-on-primary-hover);
+}
+
+/* The global focus ring (--ring) is orange, so it is invisible against the
+   orange bubble. Give links here an explicit high-contrast outline so the
+   keyboard focus indicator stays visible (WCAG 2.4.7 / 1.4.11). */
+.markdown-content.on-primary a:focus-visible {
+  outline: 2px solid var(--link-color-on-primary);
+  outline-offset: 2px;
 }
 
 .markdown-content p {
