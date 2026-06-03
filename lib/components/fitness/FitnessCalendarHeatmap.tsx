@@ -13,6 +13,10 @@ interface Props {
   periodKey: string
   startDate?: number
   endDate?: number
+  // Tailwind background class of the surface the calendar sits on. The sticky
+  // period labels use it to occlude the next label as it scrolls underneath, so
+  // it must match the container behind them (a card vs. the page background).
+  surfaceClassName?: string
 }
 
 const DAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', '']
@@ -207,13 +211,15 @@ const getDateRange = (
 // viewport: each label is pinned inside a segment spanning its own period, so it
 // stays visible until the next period scrolls in and pushes it out (the same
 // behaviour as a GitHub contribution graph). The label carries an opaque
-// `bg-card` so it cleanly occludes the next label as that one scrolls under it.
+// `surfaceClassName` so it cleanly occludes the next label as that one scrolls
+// under it.
 const StickyLabelRow: FC<{
   items: PeriodLabel[]
   totalWeeks: number
   height: number
   className: string
-}> = ({ items, totalWeeks, height, className }) => {
+  surfaceClassName: string
+}> = ({ items, totalWeeks, height, className, surfaceClassName }) => {
   if (items.length === 0) {
     return <div style={{ height, width: totalWeeks * CELL }} />
   }
@@ -233,7 +239,7 @@ const StickyLabelRow: FC<{
             style={{ width: segmentWeeks * CELL }}
           >
             <span
-              className={`sticky left-0 inline-block whitespace-nowrap bg-card pr-1.5 ${className}`}
+              className={`sticky left-0 inline-block whitespace-nowrap pr-1.5 ${surfaceClassName} ${className}`}
             >
               {item.label}
             </span>
@@ -250,7 +256,8 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
   periodType,
   periodKey,
   startDate,
-  endDate
+  endDate,
+  surfaceClassName = 'bg-card'
 }) => {
   const dayMap = useMemo(() => {
     const map = new Map<string, FitnessCalendarDay>()
@@ -328,12 +335,14 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
                 totalWeeks={totalWeeks}
                 height={16}
                 className="text-[10px] font-semibold text-foreground"
+                surfaceClassName={surfaceClassName}
               />
               <StickyLabelRow
                 items={grid.monthLabels}
                 totalWeeks={totalWeeks}
                 height={14}
                 className="text-[9px] leading-none text-muted-foreground"
+                surfaceClassName={surfaceClassName}
               />
             </div>
           ) : (
@@ -342,6 +351,7 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
               totalWeeks={totalWeeks}
               height={16}
               className="text-[10px] text-muted-foreground"
+              surfaceClassName={surfaceClassName}
             />
           )}
 
