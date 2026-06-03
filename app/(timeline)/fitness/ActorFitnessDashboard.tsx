@@ -161,7 +161,12 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
   }
 
   return (
-    <div className="space-y-5 p-3 sm:p-4">
+    // Container-query context: the fitness page renders inside the sidebar
+    // layout, so the viewport width is a poor proxy for how much room the
+    // content column actually has. Sizing the cards/calendar against the
+    // container (not the viewport) keeps a narrow desktop column from cramming
+    // four big-number cards side by side — the tablet/mobile complaint.
+    <div className="@container/fitness space-y-5 p-3 sm:p-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded border p-0.5">
           {PRESETS.map((item) => (
@@ -223,38 +228,40 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Card className="flex flex-col gap-2 p-4">
+      <div className="grid grid-cols-2 gap-2 @2xl/fitness:grid-cols-4">
+        <Card className="flex min-w-0 flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Activity className="size-3.5" />
             Activities
           </div>
-          <div className="text-2xl font-semibold">{totals.count}</div>
+          <div className="whitespace-nowrap text-xl font-semibold tabular-nums @3xl/fitness:text-2xl">
+            {totals.count}
+          </div>
         </Card>
-        <Card className="flex flex-col gap-2 p-4">
+        <Card className="flex min-w-0 flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Route className="size-3.5" />
             Distance
           </div>
-          <div className="text-2xl font-semibold">
+          <div className="whitespace-nowrap text-xl font-semibold tabular-nums @3xl/fitness:text-2xl">
             {formatDistance(totals.totalDistanceMeters)}
           </div>
         </Card>
-        <Card className="flex flex-col gap-2 p-4">
+        <Card className="flex min-w-0 flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="size-3.5" />
             Duration
           </div>
-          <div className="text-2xl font-semibold">
+          <div className="whitespace-nowrap text-xl font-semibold tabular-nums @3xl/fitness:text-2xl">
             {formatDuration(totals.totalDurationSeconds)}
           </div>
         </Card>
-        <Card className="flex flex-col gap-2 p-4">
+        <Card className="flex min-w-0 flex-col gap-2 p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Mountain className="size-3.5" />
             Elevation
           </div>
-          <div className="text-2xl font-semibold">
+          <div className="whitespace-nowrap text-xl font-semibold tabular-nums @3xl/fitness:text-2xl">
             {Math.round(totals.totalElevationGainMeters)} m
           </div>
         </Card>
@@ -273,7 +280,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
       )}
 
       {isRangeValid && !isLoading && !error && summary.length > 0 && (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 @3xl/fitness:grid-cols-[minmax(0,1fr)_360px]">
           <section>
             <Card className="flex flex-col gap-3 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
