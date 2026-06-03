@@ -1,0 +1,84 @@
+/**
+ * @jest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import { render, screen } from '@testing-library/react'
+
+import { FitnessCalendarDay } from '@/lib/client'
+
+import { FitnessCalendarHeatmap } from './FitnessCalendarHeatmap'
+
+const day = (date: string, count = 1): FitnessCalendarDay => ({
+  date,
+  count,
+  totalDistanceMeters: count * 1000,
+  totalDurationSeconds: count * 600
+})
+
+describe('FitnessCalendarHeatmap', () => {
+  it('renders an empty-state message when there is no data', () => {
+    render(
+      <FitnessCalendarHeatmap
+        days={[]}
+        metric="count"
+        periodType="all_time"
+        periodKey="all"
+      />
+    )
+    expect(
+      screen.getByText('No activity data for this period')
+    ).toBeInTheDocument()
+  })
+
+  it('always renders the Mon/Wed/Fri day labels', () => {
+    render(
+      <FitnessCalendarHeatmap
+        days={[day('2026-01-15')]}
+        metric="count"
+        periodType="all_time"
+        periodKey="all"
+        startDate={Date.UTC(2026, 0, 1)}
+        endDate={Date.UTC(2026, 1, 28)}
+      />
+    )
+    expect(screen.getByText('Mon')).toBeInTheDocument()
+    expect(screen.getByText('Wed')).toBeInTheDocument()
+    expect(screen.getByText('Fri')).toBeInTheDocument()
+  })
+
+  it('shows month labels (and no year markers) for a short span', () => {
+    render(
+      <FitnessCalendarHeatmap
+        days={[day('2026-01-15'), day('2026-02-10')]}
+        metric="count"
+        periodType="all_time"
+        periodKey="all"
+        startDate={Date.UTC(2026, 0, 1)}
+        endDate={Date.UTC(2026, 1, 28)}
+      />
+    )
+    expect(screen.getByText('Jan')).toBeInTheDocument()
+    expect(screen.getByText('Feb')).toBeInTheDocument()
+    // A short span must not switch to the year-marker header.
+    expect(screen.queryByText('2026')).not.toBeInTheDocument()
+  })
+
+  it('shows year markers alongside month labels for a multi-year span', () => {
+    render(
+      <FitnessCalendarHeatmap
+        days={[day('2023-06-01'), day('2024-06-01'), day('2025-04-01')]}
+        metric="count"
+        periodType="all_time"
+        periodKey="all"
+        startDate={Date.UTC(2023, 0, 1)}
+        endDate={Date.UTC(2025, 5, 1)}
+      />
+    )
+    // Long spans get a year row...
+    expect(screen.getByText('2023')).toBeInTheDocument()
+    expect(screen.getByText('2024')).toBeInTheDocument()
+    expect(screen.getByText('2025')).toBeInTheDocument()
+    // ...with month labels still rendered beneath it.
+    expect(screen.getAllByText('Jan').length).toBeGreaterThan(0)
+  })
+})

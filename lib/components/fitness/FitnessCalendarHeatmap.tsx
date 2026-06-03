@@ -31,6 +31,15 @@ const MONTH_NAMES = [
   'Dec'
 ]
 
+const MS_DAY = 24 * 60 * 60 * 1000
+// Width of a single week column: a 12px (h-3/w-3) cell plus the 2px (gap-0.5)
+// gutter. The label rows are positioned against this stride so they stay
+// aligned with the grid columns.
+const CELL = 14
+// Spans longer than ~14 months switch from dense month labels to a year row
+// (with a lighter month row beneath it) so a multi-year range stays legible.
+const YEAR_LABEL_SPAN_DAYS = 430
+
 const getMetricValue = (day: FitnessCalendarDay, metric: CalendarMetric) => {
   switch (metric) {
     case 'count':
@@ -73,9 +82,17 @@ const formatTooltipValue = (
   }
 }
 
+// A label pinned to the start of the period it names. `weekIndex` is the grid
+// column where the period begins, so the label can be positioned by stride.
+interface PeriodLabel {
+  label: string
+  weekIndex: number
+}
+
 interface CalendarGrid {
   weeks: Array<Array<{ date: string; day: FitnessCalendarDay | null } | null>>
-  monthLabels: Array<{ label: string; weekIndex: number }>
+  monthLabels: PeriodLabel[]
+  yearLabels: PeriodLabel[]
 }
 
 const formatDate = (date: Date): string => {
@@ -91,7 +108,8 @@ const buildGrid = (
   dayMap: Map<string, FitnessCalendarDay>
 ): CalendarGrid => {
   const weeks: CalendarGrid['weeks'] = []
-  const monthLabels: CalendarGrid['monthLabels'] = []
+  const monthLabels: PeriodLabel[] = []
+  const yearLabels: PeriodLabel[] = []
 
   const current = new Date(startDate)
   const dayOfWeek = current.getUTCDay()
@@ -99,6 +117,7 @@ const buildGrid = (
   current.setUTCDate(current.getUTCDate() + mondayOffset)
 
   let lastMonth = -1
+  let lastYear = -1
 
   while (current <= endDate || weeks.length === 0) {
     const week: CalendarGrid['weeks'][0] = []
@@ -112,16 +131,22 @@ const buildGrid = (
           date: dateStr,
           day: dayMap.get(dateStr) ?? null
         })
+
+        const month = current.getUTCMonth()
+        const year = current.getUTCFullYear()
+        if (year !== lastYear) {
+          lastYear = year
+          yearLabels.push({ label: String(year), weekIndex: weeks.length })
+        }
+        if (month !== lastMonth) {
+          lastMonth = month
+          monthLabels.push({
+            label: MONTH_NAMES[month],
+            weekIndex: weeks.length
+          })
+        }
       } else {
         week.push(null)
-      }
-
-      if (current.getUTCMonth() !== lastMonth && inRange) {
-        lastMonth = current.getUTCMonth()
-        monthLabels.push({
-          label: MONTH_NAMES[lastMonth],
-          weekIndex: weeks.length
-        })
       }
 
       current.setUTCDate(current.getUTCDate() + 1)
@@ -130,7 +155,7 @@ const buildGrid = (
     weeks.push(week)
   }
 
-  return { weeks, monthLabels }
+  return { weeks, monthLabels, yearLabels }
 }
 
 const getDateRange = (
@@ -160,6 +185,47 @@ const getDateRange = (
     Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), now.getUTCDate())
   )
   return { start, end: now }
+}
+
+// A horizontal row of labels that "stick" to the left edge of the scroll
+// viewport: each label is pinned inside a segment spanning its own period, so it
+// stays visible until the next period scrolls in and pushes it out (the same
+// behaviour as a GitHub contribution graph). The label carries an opaque
+// `bg-card` so it cleanly occludes the next label as that one scrolls under it.
+const StickyLabelRow: FC<{
+  items: PeriodLabel[]
+  totalWeeks: number
+  height: number
+  className: string
+}> = ({ items, totalWeeks, height, className }) => {
+  if (items.length === 0) {
+    return <div style={{ height, width: totalWeeks * CELL }} />
+  }
+
+  const lead = items[0].weekIndex
+  return (
+    <div className="flex" style={{ height, width: totalWeeks * CELL }}>
+      {lead > 0 && <div className="shrink-0" style={{ width: lead * CELL }} />}
+      {items.map((item, index) => {
+        const next = items[index + 1]
+        const segmentWeeks =
+          (next ? next.weekIndex : totalWeeks) - item.weekIndex
+        return (
+          <div
+            key={index}
+            className="shrink-0"
+            style={{ width: segmentWeeks * CELL }}
+          >
+            <span
+              className={`sticky left-0 inline-block whitespace-nowrap bg-card pr-1.5 ${className}`}
+            >
+              {item.label}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export const FitnessCalendarHeatmap: FC<Props> = ({
@@ -208,60 +274,85 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
     )
   }
 
+  const totalWeeks = grid.weeks.length
+  const gridWidth = totalWeeks * CELL
+  const spanDays = (end.getTime() - start.getTime()) / MS_DAY
+  const useYearLabels = spanDays > YEAR_LABEL_SPAN_DAYS
+  // Year mode stacks a 16px year row over a 14px month row (plus the 2px gap),
+  // so the day-label column needs a matching 32px spacer to stay aligned.
+  const headerHeight = useYearLabels ? 32 : 16
+
   return (
-    <div className="overflow-x-auto">
-      <div className="inline-flex flex-col gap-0.5">
-        {/* Month labels — absolute positioning so labels align with week columns */}
-        <div className="relative h-4" style={{ marginLeft: '30px' }}>
-          {grid.monthLabels.map((ml, i) => (
-            <span
+    <div className="flex gap-0.5">
+      {/* Fixed left column — day labels stay out of the horizontal scroll area,
+          so the scrollbar spans only the grid (never runs under the labels). */}
+      <div className="flex shrink-0 flex-col gap-1">
+        <div style={{ height: headerHeight }} />
+        <div className="flex w-7 flex-col gap-0.5">
+          {DAY_LABELS.map((label, i) => (
+            <div
               key={i}
-              className="absolute top-0 text-xs text-muted-foreground"
-              style={{ left: `${ml.weekIndex * 14}px` }}
+              className="flex h-3 items-center text-[10px] leading-none text-muted-foreground"
             >
-              {ml.label}
-            </span>
+              {label}
+            </div>
           ))}
         </div>
+      </div>
 
-        {/* Grid rows (one per day of week) */}
-        <div className="flex gap-0.5">
-          {/* Day labels */}
-          <div className="flex w-7 flex-col gap-0.5">
-            {DAY_LABELS.map((label, i) => (
-              <div
-                key={i}
-                className="flex h-3 items-center text-[10px] leading-none text-muted-foreground"
-              >
-                {label}
+      {/* Scrollable grid with sticky period labels */}
+      <div className="overflow-x-auto">
+        <div className="inline-flex flex-col gap-1">
+          {useYearLabels ? (
+            <div className="flex flex-col gap-0.5" style={{ width: gridWidth }}>
+              <StickyLabelRow
+                items={grid.yearLabels}
+                totalWeeks={totalWeeks}
+                height={16}
+                className="text-[10px] font-semibold text-foreground"
+              />
+              <StickyLabelRow
+                items={grid.monthLabels}
+                totalWeeks={totalWeeks}
+                height={14}
+                className="text-[9px] leading-none text-muted-foreground"
+              />
+            </div>
+          ) : (
+            <StickyLabelRow
+              items={grid.monthLabels}
+              totalWeeks={totalWeeks}
+              height={16}
+              className="text-[10px] text-muted-foreground"
+            />
+          )}
+
+          {/* Week columns */}
+          <div className="flex gap-0.5">
+            {grid.weeks.map((week, wi) => (
+              <div key={wi} className="flex flex-col gap-0.5">
+                {week.map((cell, di) => {
+                  if (!cell) {
+                    return <div key={di} className="h-3 w-3" />
+                  }
+
+                  const value = cell.day ? getMetricValue(cell.day, metric) : 0
+                  const colorClass = getColorClass(value, maxValue)
+                  const tooltip = cell.day
+                    ? formatTooltipValue(cell.day, metric)
+                    : `${cell.date}: No activity`
+
+                  return (
+                    <div
+                      key={di}
+                      className={`h-3 w-3 rounded-sm ${colorClass}`}
+                      title={tooltip}
+                    />
+                  )
+                })}
               </div>
             ))}
           </div>
-
-          {/* Week columns */}
-          {grid.weeks.map((week, wi) => (
-            <div key={wi} className="flex flex-col gap-0.5">
-              {week.map((cell, di) => {
-                if (!cell) {
-                  return <div key={di} className="h-3 w-3" />
-                }
-
-                const value = cell.day ? getMetricValue(cell.day, metric) : 0
-                const colorClass = getColorClass(value, maxValue)
-                const tooltip = cell.day
-                  ? formatTooltipValue(cell.day, metric)
-                  : `${cell.date}: No activity`
-
-                return (
-                  <div
-                    key={di}
-                    className={`h-3 w-3 rounded-sm ${colorClass}`}
-                    title={tooltip}
-                  />
-                )
-              })}
-            </div>
-          ))}
         </div>
       </div>
     </div>
