@@ -63,6 +63,27 @@ describe('FitnessCalendarHeatmap', () => {
     expect(screen.queryByText('2026')).not.toBeInTheDocument()
   })
 
+  it('keeps a single label per column when a range starts mid-month', () => {
+    // The range starts Jan 30, so the first week (Jan 26–Feb 1) crosses the
+    // Jan→Feb boundary. Both labels would otherwise claim week 0 and overlap;
+    // the column keeps the month it starts in (Jan).
+    render(
+      <FitnessCalendarHeatmap
+        days={[day('2026-02-10')]}
+        metric="count"
+        periodType="all_time"
+        periodKey="all"
+        startDate={Date.UTC(2026, 0, 30)}
+        endDate={Date.UTC(2026, 2, 1)}
+      />
+    )
+    expect(screen.getByText('Jan')).toBeInTheDocument()
+    expect(screen.getByText('Mar')).toBeInTheDocument()
+    // Feb's boundary fell inside the first partial week, so it is collapsed
+    // into the starting column rather than overlapping it.
+    expect(screen.queryByText('Feb')).not.toBeInTheDocument()
+  })
+
   it('shows year markers alongside month labels for a multi-year span', () => {
     render(
       <FitnessCalendarHeatmap

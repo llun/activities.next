@@ -102,6 +102,22 @@ const formatDate = (date: Date): string => {
   return `${y}-${m}-${d}`
 }
 
+// Register at most one label per grid column. When the range starts mid-period
+// and the next period also begins inside that first partial week, both would
+// claim the same `weekIndex` and `StickyLabelRow` would render a zero-width
+// segment, overlapping the two labels at the left edge. Keep the first (the
+// period the column starts in).
+const pushLabel = (
+  labels: PeriodLabel[],
+  label: string,
+  weekIndex: number
+): void => {
+  if (labels.length > 0 && labels[labels.length - 1].weekIndex === weekIndex) {
+    return
+  }
+  labels.push({ label, weekIndex })
+}
+
 const buildGrid = (
   startDate: Date,
   endDate: Date,
@@ -136,14 +152,11 @@ const buildGrid = (
         const year = current.getUTCFullYear()
         if (year !== lastYear) {
           lastYear = year
-          yearLabels.push({ label: String(year), weekIndex: weeks.length })
+          pushLabel(yearLabels, String(year), weeks.length)
         }
         if (month !== lastMonth) {
           lastMonth = month
-          monthLabels.push({
-            label: MONTH_NAMES[month],
-            weekIndex: weeks.length
-          })
+          pushLabel(monthLabels, MONTH_NAMES[month], weeks.length)
         }
       } else {
         week.push(null)
@@ -300,8 +313,10 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
         </div>
       </div>
 
-      {/* Scrollable grid with sticky period labels */}
-      <div className="overflow-x-auto">
+      {/* Scrollable grid with sticky period labels. min-w-0 lets this flex
+          child shrink below its content so it scrolls instead of overflowing
+          the card on narrow screens. */}
+      <div className="min-w-0 overflow-x-auto">
         <div className="inline-flex flex-col gap-1">
           {useYearLabels ? (
             <div className="flex flex-col gap-0.5" style={{ width: gridWidth }}>

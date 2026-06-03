@@ -280,7 +280,7 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
       )}
 
       {isRangeValid && !isLoading && !error && summary.length > 0 && (
-        <div className="grid gap-5 @3xl/fitness:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 @3xl/fitness:grid-cols-[minmax(0,1fr)_360px]">
           <section>
             <Card className="flex flex-col gap-3 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
