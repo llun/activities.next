@@ -86,6 +86,7 @@ export const Actions: FC<Props> = ({
       </div>
 
       <PostMenu
+        key={actualStatus.id}
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}
