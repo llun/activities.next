@@ -105,14 +105,17 @@ const formatDate = (date: Date): string => {
 // Register at most one label per grid column. When the range starts mid-period
 // and the next period also begins inside that first partial week, both would
 // claim the same `weekIndex` and `StickyLabelRow` would render a zero-width
-// segment, overlapping the two labels at the left edge. Keep the first (the
-// period the column starts in).
+// segment, overlapping the two labels at the left edge. Collapse them into the
+// column, keeping the most recent period — it owns the bulk of that first
+// partial week (e.g. a range starting Jan 30 is mostly February).
 const pushLabel = (
   labels: PeriodLabel[],
   label: string,
   weekIndex: number
 ): void => {
-  if (labels.length > 0 && labels[labels.length - 1].weekIndex === weekIndex) {
+  const last = labels[labels.length - 1]
+  if (last && last.weekIndex === weekIndex) {
+    last.label = label
     return
   }
   labels.push({ label, weekIndex })

@@ -63,10 +63,11 @@ describe('FitnessCalendarHeatmap', () => {
     expect(screen.queryByText('2026')).not.toBeInTheDocument()
   })
 
-  it('keeps a single label per column when a range starts mid-month', () => {
+  it('collapses to a single label per column when a range starts mid-month', () => {
     // The range starts Jan 30, so the first week (Jan 26–Feb 1) crosses the
     // Jan→Feb boundary. Both labels would otherwise claim week 0 and overlap;
-    // the column keeps the month it starts in (Jan).
+    // they collapse into the column keeping the most recent period (Feb), which
+    // owns the bulk of that first partial week. Jan is dropped, not overlapped.
     render(
       <FitnessCalendarHeatmap
         days={[day('2026-02-10')]}
@@ -77,11 +78,9 @@ describe('FitnessCalendarHeatmap', () => {
         endDate={Date.UTC(2026, 2, 1)}
       />
     )
-    expect(screen.getByText('Jan')).toBeInTheDocument()
+    expect(screen.getByText('Feb')).toBeInTheDocument()
     expect(screen.getByText('Mar')).toBeInTheDocument()
-    // Feb's boundary fell inside the first partial week, so it is collapsed
-    // into the starting column rather than overlapping it.
-    expect(screen.queryByText('Feb')).not.toBeInTheDocument()
+    expect(screen.queryByText('Jan')).not.toBeInTheDocument()
   })
 
   it('shows year markers alongside month labels for a multi-year span', () => {
