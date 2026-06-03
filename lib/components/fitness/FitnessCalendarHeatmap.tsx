@@ -112,8 +112,8 @@ const formatDate = (date: Date): string => {
 // same `weekIndex` and `StickyLabelRow` would render a zero-width segment,
 // overlapping the two labels at the left edge. Nudge the later label to the
 // next column instead, so both stay visible and neither overlaps. (Only the
-// first partial week can collide, and every range that reaches here spans more
-// than one week, so the shifted column always exists.)
+// first partial week can collide; `StickyLabelRow` clamps the trailing segment
+// so a single-week grid can't produce a zero-width column.)
 const pushLabel = (
   labels: PeriodLabel[],
   label: string,
@@ -232,8 +232,13 @@ const StickyLabelRow: FC<{
       {lead > 0 && <div className="shrink-0" style={{ width: lead * CELL }} />}
       {items.map((item, index) => {
         const next = items[index + 1]
-        const segmentWeeks =
-          (next ? next.weekIndex : totalWeeks) - item.weekIndex
+        // Clamp to at least one column: a label nudged off the end of a
+        // single-week grid (a minimum-range, week-aligned, period-crossing
+        // selection) would otherwise compute a zero-width segment.
+        const segmentWeeks = Math.max(
+          1,
+          (next?.weekIndex ?? totalWeeks) - item.weekIndex
+        )
         return (
           <div
             key={index}
