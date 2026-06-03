@@ -237,7 +237,7 @@ const StickyLabelRow: FC<{
         // selection) would otherwise compute a zero-width segment.
         const segmentWeeks = Math.max(
           1,
-          (next ? next.weekIndex : totalWeeks) - item.weekIndex
+          (next?.weekIndex ?? totalWeeks) - item.weekIndex
         )
         return (
           <div
