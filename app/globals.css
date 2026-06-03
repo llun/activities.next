@@ -81,6 +81,12 @@
   /* Link colors for markdown content */
   --link-color: oklch(0.588 0.158 241.966);
   --link-color-hover: oklch(0.518 0.158 241.966);
+  /* Link color for use ON the orange/primary surface (sent chat bubbles). The
+     default blue link fails contrast on orange, so links there render white +
+     underlined, like the rest of the bubble text. White works on orange in
+     both light and dark themes, so it is declared once here. */
+  --link-color-on-primary: hsl(0 0% 100%);
+  --link-color-on-primary-hover: hsl(0 0% 100% / 0.82);
 
   /* Preserve original charts/sidebar defaults to prevent breaking */
   --chart-1: oklch(0.646 0.222 41.116);
@@ -215,6 +221,19 @@
 
 .markdown-content a:hover {
   color: var(--link-color-hover);
+}
+
+/* Links sitting on the primary/orange surface (sent message bubbles) flip to
+   white so they stay legible against the brand color. The compound
+   `.markdown-content.on-primary` selector outranks `.markdown-content a` above,
+   so it wins regardless of source order. Apply `on-primary` to any
+   orange/primary-filled markdown container. */
+.markdown-content.on-primary a {
+  color: var(--link-color-on-primary);
+}
+
+.markdown-content.on-primary a:hover {
+  color: var(--link-color-on-primary-hover);
 }
 
 .markdown-content p {
