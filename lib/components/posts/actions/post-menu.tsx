@@ -151,11 +151,16 @@ export const PostMenu: FC<Props> = ({
   }
 
   const copyLink = async () => {
+    // navigator.clipboard is undefined in non-secure (HTTP) contexts.
+    if (!navigator.clipboard) {
+      setActionError('Copying links requires a secure (HTTPS) connection.')
+      return
+    }
     try {
       await navigator.clipboard.writeText(statusUrl)
       setCopied(true)
     } catch {
-      setCopied(false)
+      setActionError("Couldn't copy the link. Please try again.")
     }
   }
 
