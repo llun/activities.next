@@ -83,6 +83,24 @@ describe('FitnessCalendarHeatmap', () => {
     expect(screen.getByText('Mar')).toBeInTheDocument()
   })
 
+  it('handles a minimum-range week-aligned span that crosses a month', () => {
+    // Jan 29 2024 is a Monday, so this 7-day range is a single grid week that
+    // still crosses Jan→Feb. The nudged Feb label lands past the only column;
+    // it must render both labels without throwing or collapsing the grid.
+    render(
+      <FitnessCalendarHeatmap
+        days={[day('2024-01-30')]}
+        metric="count"
+        periodType="all_time"
+        periodKey="all"
+        startDate={Date.UTC(2024, 0, 29)}
+        endDate={Date.UTC(2024, 1, 4)}
+      />
+    )
+    expect(screen.getByText('Jan')).toBeInTheDocument()
+    expect(screen.getByText('Feb')).toBeInTheDocument()
+  })
+
   it('shows year markers alongside month labels for a multi-year span', () => {
     render(
       <FitnessCalendarHeatmap
