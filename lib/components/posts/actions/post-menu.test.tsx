@@ -10,7 +10,13 @@ import {
   within
 } from '@testing-library/react'
 
-import { createReport, deleteStatus, getRelationship, mute } from '@/lib/client'
+import {
+  createReport,
+  deleteStatus,
+  getRelationship,
+  mute,
+  unmute
+} from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
@@ -269,6 +275,55 @@ describe('PostMenu', () => {
       expect(mute).toHaveBeenCalledWith(
         expect.objectContaining({ targetActorId: otherStatus.actorId })
       )
+    )
+  })
+
+  it('surfaces an inline error when a direct unmute fails', async () => {
+    ;(getRelationship as jest.Mock).mockResolvedValue(
+      relationship({ muting: true })
+    )
+    ;(unmute as jest.Mock).mockResolvedValue(null)
+
+    render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
+
+    await openMenu()
+    const unmuteItem = await screen.findByRole('menuitem', {
+      name: 'Unmute Maythee'
+    })
+    fireEvent.click(unmuteItem)
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to unmute account. Please try again.'
+      )
+    )
+  })
+
+  it('retries the relationship fetch on a later open when the first fetch fails', async () => {
+    ;(getRelationship as jest.Mock).mockRejectedValueOnce(new Error('network'))
+
+    render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
+
+    const menu = await openMenu()
+    await waitFor(() => expect(getRelationship).toHaveBeenCalledTimes(1))
+
+    // Close (Escape on the open menu — the trigger is aria-hidden while the menu
+    // is open), then reopen. A failed first fetch must not be cached, so it runs
+    // again rather than leaving the menu stuck on the default Mute/Block state.
+    fireEvent.keyDown(menu, { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    )
+    ;(getRelationship as jest.Mock).mockResolvedValue(
+      relationship({ muting: true })
+    )
+    await openMenu()
+
+    await waitFor(() => expect(getRelationship).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('menuitem', { name: 'Unmute Maythee' })
+      ).toBeInTheDocument()
     )
   })
 })

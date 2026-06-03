@@ -18,7 +18,7 @@ import {
   VolumeX
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, ReactNode, useState } from 'react'
+import { FC, ReactNode, useEffect, useState } from 'react'
 
 import {
   type ReportCategory,
@@ -31,6 +31,7 @@ import {
   unmute,
   updateStatusVisibility
 } from '@/lib/client'
+import { getActorIdMention } from '@/lib/components/posts/actor'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -58,8 +59,6 @@ import {
 } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
-
-import { getActorIdMention } from '../actor'
 
 const VISIBILITY_OPTIONS: {
   value: MastodonVisibility
@@ -124,6 +123,16 @@ export const PostMenu: FC<Props> = ({
   const [muteNotifications, setMuteNotifications] = useState(true)
   const [reportCategory, setReportCategory] = useState<ReportCategory>('spam')
   const [reportComment, setReportComment] = useState('')
+  // Failure feedback for the direct (non-dialog) menu actions — unmute,
+  // unblock, change visibility — which close the menu and so have no dialog to
+  // surface an error in. Auto-dismisses.
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!actionError) return
+    const timeoutId = setTimeout(() => setActionError(null), 4000)
+    return () => clearTimeout(timeoutId)
+  }, [actionError])
 
   const targetActorId = status.actorId
   const actorName =
@@ -141,9 +150,18 @@ export const PostMenu: FC<Props> = ({
 
   const loadRelationship = async () => {
     if (isOwner || relationshipLoaded) return
-    setRelationshipLoaded(true)
-    const next = await getRelationship({ targetActorId })
-    if (next) setRelationship(next)
+    try {
+      const next = await getRelationship({ targetActorId })
+      if (next) {
+        setRelationship(next)
+        // Only mark as loaded once we actually have a relationship, so a failed
+        // fetch retries on the next open instead of leaving the menu showing the
+        // wrong Mute/Block (vs. Unmute/Unblock) state forever.
+        setRelationshipLoaded(true)
+      }
+    } catch {
+      // Leave relationshipLoaded false so the next menu open retries.
+    }
   }
 
   const openDialog = (next: ActiveDialog) => {
@@ -172,12 +190,16 @@ export const PostMenu: FC<Props> = ({
     const previous = visibility
     setVisibility(next)
     setVisibilitySaving(true)
+    setActionError(null)
     const success = await updateStatusVisibility({
       statusId: status.id,
       visibility: next
     })
     setVisibilitySaving(false)
-    if (!success) setVisibility(previous)
+    if (!success) {
+      setVisibility(previous)
+      setActionError("Couldn't change post visibility. Please try again.")
+    }
   }
 
   const handleMute = async () => {
@@ -203,9 +225,18 @@ export const PostMenu: FC<Props> = ({
   }
 
   const handleUnmute = async () => {
-    const next = await unmute({ targetActorId })
-    if (next) setRelationship(next)
-    router.refresh()
+    setActionError(null)
+    try {
+      const next = await unmute({ targetActorId })
+      if (!next) {
+        setActionError('Failed to unmute account. Please try again.')
+        return
+      }
+      setRelationship(next)
+      router.refresh()
+    } catch {
+      setActionError('Failed to unmute account. Please try again.')
+    }
   }
 
   const handleBlock = async () => {
@@ -228,9 +259,18 @@ export const PostMenu: FC<Props> = ({
   }
 
   const handleUnblock = async () => {
-    const next = await unblock({ targetActorId })
-    if (next) setRelationship(next)
-    router.refresh()
+    setActionError(null)
+    try {
+      const next = await unblock({ targetActorId })
+      if (!next) {
+        setActionError('Failed to unblock account. Please try again.')
+        return
+      }
+      setRelationship(next)
+      router.refresh()
+    } catch {
+      setActionError('Failed to unblock account. Please try again.')
+    }
   }
 
   const handleReport = async () => {
@@ -260,23 +300,35 @@ export const PostMenu: FC<Props> = ({
   const handleDelete = async () => {
     setSubmitting(true)
     setError(null)
+    let deleted = false
     try {
-      const success = await deleteStatus({ statusId: status.id })
-      if (!success) {
+      deleted = await deleteStatus({ statusId: status.id })
+      if (!deleted) {
         setError('Failed to delete post. Please try again.')
-        return
       }
-      setDialog(null)
-      onPostDeleted?.(status)
     } catch {
       setError('Failed to delete post. Please try again.')
     } finally {
       setSubmitting(false)
     }
+    // Run success side-effects outside the try so a throwing onPostDeleted
+    // callback can't mislabel a delete that already succeeded.
+    if (deleted) {
+      setDialog(null)
+      onPostDeleted?.(status)
+    }
   }
 
   return (
-    <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="relative ml-auto" onClick={(e) => e.stopPropagation()}>
+      {actionError ? (
+        <span
+          className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(14rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"
+          role="alert"
+        >
+          {actionError}
+        </span>
+      ) : null}
       <DropdownMenu
         open={menuOpen}
         onOpenChange={(open) => {
@@ -530,6 +582,7 @@ export const PostMenu: FC<Props> = ({
             value={reportComment}
             onChange={(e) => setReportComment(e.target.value.slice(0, 1000))}
             placeholder="Additional comments (optional)"
+            aria-label="Additional comments"
             rows={3}
             className="w-full resize-none rounded-md border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
