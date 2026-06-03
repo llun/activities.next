@@ -99,6 +99,11 @@ describe('FitnessCalendarHeatmap', () => {
     )
     expect(screen.getByText('Jan')).toBeInTheDocument()
     expect(screen.getByText('Feb')).toBeInTheDocument()
+    // The nudged Feb label's segment (its span's parent) must keep a non-zero
+    // width — without the clamp it would compute to 0px on this single-week grid.
+    expect(screen.getByText('Feb').parentElement).not.toHaveStyle({
+      width: '0px'
+    })
   })
 
   it('shows year markers alongside month labels for a multi-year span', () => {
