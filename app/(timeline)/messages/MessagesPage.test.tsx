@@ -1034,6 +1034,31 @@ describe('MessagesPage', () => {
     expect(theirs.closest('.justify-start')).not.toBeNull()
   })
 
+  it('flags own (orange) bubbles with on-primary so inline links flip to white', async () => {
+    const receivedStatus: Status = {
+      ...status('them-1', 'Theirs'),
+      actorId: 'https://example.com/users/ada',
+      actor: null,
+      isLocalActor: false
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [status('me-1', 'Mine'), receivedStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const mine = await screen.findByText('Mine')
+    const theirs = await screen.findByText('Theirs')
+
+    // The own bubble's text container carries `on-primary`, which the
+    // `.markdown-content.on-primary a` rule in globals.css uses to render links
+    // white instead of the default blue that fails contrast on orange.
+    expect(mine.closest('.markdown-content')).toHaveClass('on-primary')
+    // Received bubbles keep the default link treatment (no on-primary).
+    expect(theirs.closest('.markdown-content')).not.toHaveClass('on-primary')
+  })
+
   it('renders message bubble text as rich DOM rather than escaped HTML', async () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [status('rich-1', '**bold**')],

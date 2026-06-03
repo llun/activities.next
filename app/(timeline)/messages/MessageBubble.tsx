@@ -213,7 +213,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
             className={cn(
               'markdown-content max-w-full overflow-hidden break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed',
               isOwn
-                ? 'rounded-br-md bg-primary text-primary-foreground [&_a]:text-primary-foreground [&_a]:underline'
+                ? 'on-primary rounded-br-md bg-primary text-primary-foreground'
                 : 'rounded-bl-md bg-muted text-foreground'
             )}
           >
