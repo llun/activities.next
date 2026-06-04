@@ -499,9 +499,16 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .first('medias.id')
     if (!owned) return null
 
-    await database('medias')
-      .where('id', mediaId)
-      .update({ description: description ?? null, updatedAt: new Date() })
+    // Only touch `description` when the caller actually provided it, so a
+    // partial update can't blank out existing alt text by omitting the field.
+    const updates: { updatedAt: Date; description?: string | null } = {
+      updatedAt: new Date()
+    }
+    if (description !== undefined) {
+      updates.description = description
+    }
+
+    await database('medias').where('id', mediaId).update(updates)
 
     const data = await database('medias')
       .where('id', mediaId)

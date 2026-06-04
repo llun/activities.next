@@ -35,25 +35,29 @@ export const getFavouritedStatusesPage = async ({
   minId,
   sinceId
 }: GetFavouritedStatusesPageParams): Promise<FavouritedStatusesPage> => {
-  const entries: Array<{ like: Like; status: Status }> = []
-  let cursor = maxId ?? null
+  // `min_id` requests forward (immediately-newer) pagination; every other cursor
+  // (max_id, since_id, none) pages newest-first. The bound we advance between
+  // backfill iterations depends on that direction.
+  const forward = Boolean(minId)
+  const collected: Array<{ like: Like; status: Status }> = []
+  let currentMaxId = maxId ?? null
+  let currentMinId = minId ?? null
   let iterations = 0
-  let lastScannedCursor: string | null = null
   let exhausted = false
 
   // Likes can reference statuses that are no longer readable (deleted, blocked,
   // visibility-narrowed), so backfill across a few pages to fill the requested
   // limit before giving up.
   while (
-    entries.length < limit &&
+    collected.length < limit &&
     iterations < MAX_FAVOURITE_BACKFILL_ITERATIONS
   ) {
     iterations++
     const likes = await database.getLikes({
       actorId,
       limit,
-      maxId: cursor,
-      minId,
+      maxId: currentMaxId,
+      minId: currentMinId,
       sinceId
     })
     if (likes.length === 0) {
@@ -86,14 +90,20 @@ export const getFavouritedStatusesPage = async ({
     const readableStatusIds = new Set(
       readableStatuses.map((status) => status.id)
     )
-    entries.push(
+    collected.push(
       ...orderedEntries.filter((entry) =>
         readableStatusIds.has(entry.status.id)
       )
     )
 
-    cursor = likeCursor(likes[likes.length - 1])
-    lastScannedCursor = cursor
+    // getLikes returns rows newest-first: likes[0] is the newest scanned,
+    // likes[last] the oldest. Advancing the matching bound keeps the next
+    // iteration over a fresh range instead of re-scanning the same band.
+    if (forward) {
+      currentMinId = likeCursor(likes[0])
+    } else {
+      currentMaxId = likeCursor(likes[likes.length - 1])
+    }
 
     if (likes.length < limit) {
       exhausted = true
@@ -101,29 +111,35 @@ export const getFavouritedStatusesPage = async ({
     }
   }
 
-  const visibleEntries = entries.slice(0, limit)
-  const hasBufferedVisibleEntries = entries.length > limit
-  const lastVisibleCursor =
+  // Forward backfill scans bands moving away from `min_id`, so re-select the
+  // favourites closest to the cursor and present them newest-first. The
+  // descending paths are already globally newest-first.
+  const visibleEntries = forward
+    ? [...collected]
+        .sort(
+          (a, b) =>
+            a.like.createdAt - b.like.createdAt ||
+            (a.like.statusId < b.like.statusId
+              ? -1
+              : a.like.statusId > b.like.statusId
+                ? 1
+                : 0)
+        )
+        .slice(0, limit)
+        .reverse()
+    : collected.slice(0, limit)
+
+  const hasMoreOlder = collected.length > limit || !exhausted
+  const newestCursor =
+    visibleEntries.length > 0 ? likeCursor(visibleEntries[0].like) : null
+  const oldestCursor =
     visibleEntries.length > 0
       ? likeCursor(visibleEntries[visibleEntries.length - 1].like)
       : null
-  let nextMaxFavouriteId: string | null = null
-
-  if (
-    hasBufferedVisibleEntries ||
-    (visibleEntries.length === limit && !exhausted)
-  ) {
-    nextMaxFavouriteId = hasBufferedVisibleEntries
-      ? lastVisibleCursor
-      : (lastScannedCursor ?? lastVisibleCursor)
-  } else if (!exhausted) {
-    nextMaxFavouriteId = lastScannedCursor
-  }
 
   return {
     statuses: visibleEntries.map((entry) => entry.status),
-    nextMaxFavouriteId,
-    prevMinFavouriteId:
-      visibleEntries.length > 0 ? likeCursor(visibleEntries[0].like) : null
+    nextMaxFavouriteId: hasMoreOlder ? oldestCursor : null,
+    prevMinFavouriteId: newestCursor
   }
 }
