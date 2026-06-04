@@ -246,6 +246,41 @@ export const deleteStatus = async ({ statusId }: DefaultStatusParams) => {
   return true
 }
 
+export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
+
+interface CreateReportParams {
+  targetActorId: string
+  statusId?: string
+  category?: ReportCategory
+  comment?: string
+}
+
+/**
+ * Reports an account (optionally tied to a status) using the
+ * Mastodon-compatible reports API.
+ * @see https://docs.joinmastodon.org/methods/reports/#post
+ */
+export const createReport = async ({
+  targetActorId,
+  statusId,
+  category,
+  comment
+}: CreateReportParams): Promise<boolean> => {
+  const response = await fetch('/api/v1/reports', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      account_id: urlToId(targetActorId),
+      ...(statusId ? { status_ids: [urlToId(statusId)] } : {}),
+      ...(category ? { category } : {}),
+      ...(comment ? { comment } : {})
+    })
+  })
+  return response.status === 200
+}
+
 /**
  * Reblogs/reposts a status using Mastodon-compatible API
  * @see https://docs.joinmastodon.org/methods/statuses/#boost
