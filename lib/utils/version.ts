@@ -5,9 +5,10 @@ export const VERSION = packageJson.version
 
 /**
  * NodeInfo requires `software.name` to match `^[a-z0-9-]+$`. `SERVICE_NAME`
- * contains a dot (`activities.next`), so derive a schema-safe slug from it.
+ * contains a dot (`activities.next`), so derive a schema-safe slug: lowercase,
+ * collapse runs of non-alphanumerics to a single hyphen, and trim stray
+ * leading/trailing hyphens.
  */
-export const NODE_INFO_SOFTWARE_NAME = SERVICE_NAME.toLowerCase().replace(
-  /[^a-z0-9-]+/g,
-  '-'
-)
+export const NODE_INFO_SOFTWARE_NAME = SERVICE_NAME.toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')

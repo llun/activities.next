@@ -15,6 +15,10 @@ jest.mock('@/lib/database', () => ({
   getDatabase: jest.fn()
 }))
 
+jest.mock('@/lib/utils/logger', () => ({
+  logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() }
+}))
+
 const mockedGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>
 
 describe('#buildNodeInfo20', () => {
@@ -54,5 +58,13 @@ describe('#buildNodeInfo20', () => {
         nodeDescription: 'Test description'
       }
     })
+  })
+
+  it('returns null when the stats query throws', async () => {
+    mockedGetDatabase.mockReturnValue({
+      getNodeInfoStats: jest.fn().mockRejectedValue(new Error('db down'))
+    } as unknown as ReturnType<typeof getDatabase>)
+
+    expect(await buildNodeInfo20()).toBeNull()
   })
 })

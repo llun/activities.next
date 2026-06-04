@@ -1,5 +1,6 @@
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { logger } from '@/lib/utils/logger'
 import { NODE_INFO_SOFTWARE_NAME, VERSION } from '@/lib/utils/version'
 
 export interface NodeInfoLink {
@@ -69,11 +70,17 @@ export const getNodeInfo20 = (stats: NodeInfoStats): NodeInfo20 => {
 
 /**
  * Builds the NodeInfo 2.0 document from live database statistics. Returns
- * `null` when the database is unavailable so callers can emit a 500 response.
+ * `null` when the database is unavailable or the stats query fails so callers
+ * can emit a CORS-aware 500 response instead of crashing.
  */
 export const buildNodeInfo20 = async (): Promise<NodeInfo20 | null> => {
   const database = getDatabase()
   if (!database) return null
-  const stats = await database.getNodeInfoStats()
-  return getNodeInfo20(stats)
+  try {
+    const stats = await database.getNodeInfoStats()
+    return getNodeInfo20(stats)
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to build NodeInfo 2.0 document')
+    return null
+  }
 }
