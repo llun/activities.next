@@ -278,28 +278,50 @@ export const PostMenu: FC<Props> = ({
             <>
               <DropdownMenuItem onSelect={() => onReply?.(status)}>
                 <AtSign className="size-4" />
-                <span className="min-w-0 truncate">Mention {mention}</span>
+                <span className="min-w-0 truncate" title={`Mention ${mention}`}>
+                  Mention {mention}
+                </span>
               </DropdownMenuItem>
               {relationship?.muting ? (
                 <DropdownMenuItem onSelect={() => void handleUnmute()}>
                   <VolumeX className="size-4" />
-                  <span className="min-w-0 truncate">Unmute {actorName}</span>
+                  <span
+                    className="min-w-0 truncate"
+                    title={`Unmute ${actorName}`}
+                  >
+                    Unmute {actorName}
+                  </span>
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem onSelect={() => setDialog('mute')}>
                   <VolumeX className="size-4" />
-                  <span className="min-w-0 truncate">Mute {actorName}</span>
+                  <span
+                    className="min-w-0 truncate"
+                    title={`Mute ${actorName}`}
+                  >
+                    Mute {actorName}
+                  </span>
                 </DropdownMenuItem>
               )}
               {relationship?.blocking ? (
                 <DropdownMenuItem onSelect={() => void handleUnblock()}>
                   <Ban className="size-4" />
-                  <span className="min-w-0 truncate">Unblock {actorName}</span>
+                  <span
+                    className="min-w-0 truncate"
+                    title={`Unblock ${actorName}`}
+                  >
+                    Unblock {actorName}
+                  </span>
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem onSelect={() => setDialog('block')}>
                   <Ban className="size-4" />
-                  <span className="min-w-0 truncate">Block {actorName}</span>
+                  <span
+                    className="min-w-0 truncate"
+                    title={`Block ${actorName}`}
+                  >
+                    Block {actorName}
+                  </span>
                 </DropdownMenuItem>
               )}
             </>
