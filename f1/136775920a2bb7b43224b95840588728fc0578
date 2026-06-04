@@ -1,0 +1,63 @@
+lib/database/sql/utils/favouriteCursor.test.ts
+  s_eb7152d31a900f::t_d83751fa357d8f 23-25
+  s_eb7152d31a900f::t_12bacc92e18338 1-22,26-41
+lib/database/sql/like.test.ts
+  s_eb7152d31a900f::t_c797645b7b9281 1,9
+  s_eb7152d31a900f::t_2e69cc7745683e 230-289,291-311
+  s_eb7152d31a900f::t_501716f4d2d608 290
+lib/services/medias/getMediaAttachment.ts
+  s_eb7152d31a900f::t_107c99f6680a7b 5-55
+  s_eb7152d31a900f::t_4355eea54635cf 1-4
+lib/database/sql/utils/favouriteCursor.ts
+  s_eb7152d31a900f::t_538122b9ca9ade 1-39
+lib/services/medias/getMediaAttachment.test.ts
+  s_eb7152d31a900f::t_c7325fe74bd419 1-82
+app/api/v1/media/[id]/route.ts
+  s_eb7152d31a900f::t_3be11dd2ddc2ec 63
+  s_eb7152d31a900f::t_ef9b70bd0f0c02 1-2,7-8,10-62,64-107,121,131,141,149,172,174,181-183,185,188
+  s_eb7152d31a900f::t_4a1c0637022564 3-6,9
+  s_eb7152d31a900f::t_0066423580ecfc 108-111
+  s_eb7152d31a900f::t_fe8e95e8eb2f4c 112-120,122-130,132-140,142-148,150-171,173,175-180,184
+  s_eb7152d31a900f::t_4b001d35614c2c 186-187
+lib/types/database/operations.ts
+  s_eb7152d31a900f::t_f79af6cbe10948 1599
+  s_eb7152d31a900f::t_2568ce8eef07ff 1417-1432,1438
+  s_eb7152d31a900f::t_b27b5b0c1d92ee 1570-1574
+lib/database/sql/media.test.ts
+  s_eb7152d31a900f::t_2ca6f648000edd 677-761
+app/api/v1/favourites/route.ts
+  s_eb7152d31a900f::t_7ef385ae271f6c 1-91
+lib/services/favourites/getFavouritedStatusesPage.ts
+  s_eb7152d31a900f::t_0610339265a54f 1-4,6-46,51-129
+  s_eb7152d31a900f::t_4355eea54635cf 5,47-50
+app/api/v1/media/[id]/route.test.ts
+  s_eb7152d31a900f::t_913eb9526fa198 71-72
+  s_eb7152d31a900f::t_cf943a738ab2c5 78-83
+  s_eb7152d31a900f::t_847a42b9273dab 1-70,73-77,84-130,137-170
+  s_eb7152d31a900f::t_e4ec43f6e3eaad 131-136
+app/api/v1/favourites/route.test.ts
+  s_eb7152d31a900f::t_80bdeeb6e1d06b 1-174
+lib/database/sql/media.ts
+  s_eb7152d31a900f::t_c089d2297caccc 27-28
+  s_eb7152d31a900f::t_cc16279389110d 490-528
+lib/database/sql/like.ts
+  s_eb7152d31a900f::t_12ee756c7df36f 97-136
+  s_eb7152d31a900f::t_4355eea54635cf 35-41
+  s_eb7152d31a900f::t_7f667fb7103cc6 9-10,15,17,21-34,42-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f1136775920a2bb7b43224b95840588728fc0578",
+  "prompts": {},
+  "sessions": {
+    "s_eb7152d31a900f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "780d42a8-cc20-4711-b73c-c74f3920b527",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
