@@ -8,4 +8,11 @@ export {
 } from './openidConfiguration'
 export { getWebFingerResponse, type WebFingerResponse } from './webfinger'
 export { getHostMetaXML } from './hostMeta'
-export { getNodeInfoLinks, type NodeInfoLinks } from './nodeinfo'
+export {
+  buildNodeInfo20,
+  getNodeInfo20,
+  getNodeInfoLinks,
+  type NodeInfo20,
+  type NodeInfoLinks,
+  type NodeInfoStats
+} from './nodeinfo'

@@ -2,6 +2,7 @@ import { Database } from '@/lib/database/types'
 
 import {
   getHostMetaXML,
+  getNodeInfo20,
   getNodeInfoLinks,
   getOAuthAuthorizationServerMetadata,
   getOpenIDConfiguration,
@@ -130,7 +131,48 @@ describe('wellknown services', () => {
 
       expect(nodeInfoLinks.links[0]).toMatchObject({
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-        href: 'https://test.example.com/.well-known/nodeinfo/2.0'
+        href: 'https://test.example.com/nodeinfo/2.0'
+      })
+    })
+  })
+
+  describe('#getNodeInfo20', () => {
+    const stats = {
+      totalUsers: 5,
+      activeMonth: 3,
+      activeHalfyear: 4,
+      localPosts: 42
+    }
+
+    it('returns a spec-compliant NodeInfo 2.0 document', () => {
+      const nodeInfo = getNodeInfo20(stats)
+
+      expect(nodeInfo).toMatchObject({
+        version: '2.0',
+        protocols: ['activitypub'],
+        services: { inbound: [], outbound: [] },
+        openRegistrations: false,
+        usage: {
+          users: { total: 5, activeMonth: 3, activeHalfyear: 4 },
+          localPosts: 42,
+          localComments: 0
+        }
+      })
+    })
+
+    it('uses a schema-safe software.name (^[a-z0-9-]+$)', () => {
+      const nodeInfo = getNodeInfo20(stats)
+
+      expect(nodeInfo.software.name).toMatch(/^[a-z0-9-]+$/)
+      expect(nodeInfo.software).toHaveProperty('version')
+    })
+
+    it('falls back to host for nodeName when serviceName is unset', () => {
+      const nodeInfo = getNodeInfo20(stats)
+
+      expect(nodeInfo.metadata).toEqual({
+        nodeName: 'test.example.com',
+        nodeDescription: ''
       })
     })
   })

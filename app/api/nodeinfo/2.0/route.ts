@@ -11,7 +11,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = traceApiRoute('nodeinfoV2', async (req: NextRequest) => {
+export const GET = traceApiRoute('nodeInfoV2', async (req: NextRequest) => {
   const nodeInfo = await buildNodeInfo20()
   if (!nodeInfo) {
     return apiResponse({

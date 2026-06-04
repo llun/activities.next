@@ -70,8 +70,8 @@ const nextConfig: NextConfig = {
         destination: '/api/inbox'
       },
       {
-        source: '/nodeinfo',
-        destination: '/api/nodeinfo'
+        source: '/nodeinfo/:path*',
+        destination: '/api/nodeinfo/:path*'
       }
     ]
   }
