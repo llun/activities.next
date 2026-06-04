@@ -129,7 +129,6 @@ export const getFavouritedStatusesPage = async ({
         .reverse()
     : collected.slice(0, limit)
 
-  const hasMoreOlder = collected.length > limit || !exhausted
   const newestCursor =
     visibleEntries.length > 0 ? likeCursor(visibleEntries[0].like) : null
   const oldestCursor =
@@ -137,9 +136,29 @@ export const getFavouritedStatusesPage = async ({
       ? likeCursor(visibleEntries[visibleEntries.length - 1].like)
       : null
 
+  // When more likes remain past the scanned window we must still hand back a
+  // resume cursor, even if this page produced no visible (readable) entries —
+  // otherwise a run of >= MAX_FAVOURITE_BACKFILL_ITERATIONS * limit unreadable
+  // likes returns an empty page with no Link header and the client dead-ends,
+  // stranding readable favourites beyond it. Resume from where the scan
+  // actually stopped (`currentMax/MinId`) so progress is guaranteed; only fall
+  // back to the visible bound when extra readable entries were buffered.
+  const buffered = collected.length > limit
+  const nextMaxFavouriteId = forward
+    ? oldestCursor
+    : buffered
+      ? oldestCursor
+      : exhausted
+        ? null
+        : (currentMaxId ?? oldestCursor)
+  const prevMinFavouriteId =
+    forward && !buffered && !exhausted
+      ? (currentMinId ?? newestCursor)
+      : newestCursor
+
   return {
     statuses: visibleEntries.map((entry) => entry.status),
-    nextMaxFavouriteId: hasMoreOlder ? oldestCursor : null,
-    prevMinFavouriteId: newestCursor
+    nextMaxFavouriteId,
+    prevMinFavouriteId
   }
 }
