@@ -79,4 +79,11 @@ describe('errorBoundaryMeta', () => {
       errorBoundaryMeta('500', { name: 'Error', message: 'sensitive detail' })
     ).toBeUndefined()
   })
+
+  it('does not crash on a missing or non-Error throw value', () => {
+    expect(errorBoundaryMeta('500', undefined)).toBeUndefined()
+    expect(errorBoundaryMeta('500', null)).toBeUndefined()
+    // @ts-expect-error — a non-Error value can be thrown; the guard must hold
+    expect(errorBoundaryMeta('500', 'just a string')).toBeUndefined()
+  })
 })

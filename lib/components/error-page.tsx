@@ -135,10 +135,13 @@ interface ErrorPageProps {
  */
 export function errorBoundaryMeta(
   prefix: string,
-  error: Error & { digest?: string }
+  error?: (Error & { digest?: string }) | null
 ): string | undefined {
-  if (error.digest) return `${prefix} · ${error.digest}`
-  if (process.env.NODE_ENV === 'development' && error.message) {
+  // Defensive: a thrown non-Error value (or a missing one) must not crash the
+  // boundary itself, so guard every property access and fall back to the
+  // per-code default meta.
+  if (error?.digest) return `${prefix} · ${error.digest}`
+  if (process.env.NODE_ENV === 'development' && error?.message) {
     return `${prefix} · ${error.message}`
   }
   return undefined
