@@ -1,0 +1,25 @@
+app/not-found.tsx
+  s_6557827e94f4a9::t_890adc1ea35f65 10-16
+app/global-error.tsx
+  s_6557827e94f4a9::t_9204b12c14664b 21-24,28-35
+lib/components/error-page.tsx
+  s_6557827e94f4a9::t_6541a530171aff 156-162
+app/error.tsx
+  s_6557827e94f4a9::t_3ec30191e10c70 13-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "14405c2687befc2e89760e9d80b44ddb5329d9b1",
+  "prompts": {},
+  "sessions": {
+    "s_6557827e94f4a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "754afb29-9680-4ddb-a12a-ed8175899add",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
