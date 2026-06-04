@@ -171,6 +171,10 @@ describe('next config nodeinfo rewrites', () => {
       destination: '/api/nodeinfo/:path*'
     })
     expect(rules).toContainEqual({
+      source: '/.wellknown/nodeinfo/:path*',
+      destination: '/api/nodeinfo/:path*'
+    })
+    expect(rules).toContainEqual({
       source: '/nodeinfo/:path*',
       destination: '/api/nodeinfo/:path*'
     })
