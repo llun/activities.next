@@ -1,0 +1,21 @@
+lib/components/error-page.tsx
+  s_6557827e94f4a9::t_255053aed4d205 138,140-144
+lib/components/error-page.test.tsx
+  s_6557827e94f4a9::t_5679a1dd1315a0 82-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a328690969efbe113d42cd97cd8a1055b07955d8",
+  "prompts": {},
+  "sessions": {
+    "s_6557827e94f4a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "754afb29-9680-4ddb-a12a-ed8175899add",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
