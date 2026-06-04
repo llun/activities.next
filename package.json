@@ -84,7 +84,7 @@
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.6.0",
     "web-push": "^3.6.7",
-    "yauzl": "^3.3.1",
+    "yauzl": "^3.3.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
