@@ -674,5 +674,90 @@ describe('MediaDatabase', () => {
         expect(retrieved?.original.path).toBe('/test/another-random-xyz789.jpg')
       })
     })
+
+    describe('updateMedia', () => {
+      it('updates the description for media owned by the account', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/update-media-desc.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          description: 'updated alt text'
+        })
+
+        expect(updated?.description).toBe('updated alt text')
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(retrieved?.description).toBe('updated alt text')
+      })
+
+      it('clears the description when null is provided', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          description: 'original',
+          original: {
+            path: '/test/update-media-clear.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          description: null
+        })
+
+        expect(updated?.description).toBeUndefined()
+      })
+
+      it('returns null when the media is not owned by the account', async () => {
+        const otherActor = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/update-media-foreign.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId: otherActor!.account!.id,
+          description: 'should not apply'
+        })
+
+        expect(updated).toBeNull()
+      })
+
+      it('returns null for a nonexistent media id', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const updated = await database.updateMedia({
+          mediaId: '99999999',
+          accountId: actor!.account!.id,
+          description: 'nope'
+        })
+        expect(updated).toBeNull()
+      })
+    })
   })
 })

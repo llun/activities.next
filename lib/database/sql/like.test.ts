@@ -1,3 +1,4 @@
+import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -5,6 +6,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { Like } from '@/lib/types/database/operations'
 
 describe('LikeDatabase', () => {
   const { actors, statuses } = DatabaseSeed
@@ -223,6 +225,88 @@ describe('LikeDatabase', () => {
           statusId: 'https://nonexistent.status/id'
         })
         // Just verifying no errors are thrown
+      })
+    })
+
+    describe('getLikes', () => {
+      // `actors.empty` has no seeded likes, so this block is isolated from the
+      // mutations performed by the create/delete suites above.
+      const favouriteActorId = actors.empty.id
+      const likedStatuses = [
+        statuses.primary.post,
+        statuses.primary.secondPost,
+        statuses.primary.postWithAttachments,
+        statuses.replyAuthor.replyToPrimary
+      ]
+
+      beforeAll(async () => {
+        for (const statusId of likedStatuses) {
+          await database.createLike({ actorId: favouriteActorId, statusId })
+        }
+      })
+
+      const cursorFor = (like: Like) =>
+        encodeFavouriteCursor({
+          createdAt: like.createdAt,
+          statusId: like.statusId
+        })
+
+      it('returns every favourite for the actor', async () => {
+        const likes = await database.getLikes({
+          actorId: favouriteActorId,
+          limit: 20
+        })
+        expect(likes.map((like) => like.statusId).sort()).toEqual(
+          [...likedStatuses].sort()
+        )
+        likes.forEach((like) => {
+          expect(like.actorId).toEqual(favouriteActorId)
+          expect(typeof like.createdAt).toBe('number')
+        })
+      })
+
+      it('paginates with max_id without gaps or duplicates', async () => {
+        const collectedIds: string[] = []
+        let cursor: string | null = null
+        for (let page = 0; page < likedStatuses.length + 1; page++) {
+          const likes: Like[] = await database.getLikes({
+            actorId: favouriteActorId,
+            limit: 2,
+            maxId: cursor
+          })
+          if (likes.length === 0) break
+          collectedIds.push(...likes.map((like) => like.statusId))
+          cursor = cursorFor(likes[likes.length - 1])
+          if (likes.length < 2) break
+        }
+        expect(new Set(collectedIds).size).toBe(likedStatuses.length)
+        expect(collectedIds.sort()).toEqual([...likedStatuses].sort())
+      })
+
+      it('returns an empty page for a malformed cursor', async () => {
+        const likes = await database.getLikes({
+          actorId: favouriteActorId,
+          limit: 10,
+          maxId: '@@@'
+        })
+        expect(likes).toEqual([])
+      })
+
+      it('returns only newer favourites with min_id', async () => {
+        const all = await database.getLikes({
+          actorId: favouriteActorId,
+          limit: 20
+        })
+        const oldest = all[all.length - 1]
+        const newer = await database.getLikes({
+          actorId: favouriteActorId,
+          limit: 20,
+          minId: cursorFor(oldest)
+        })
+        expect(newer.map((like) => like.statusId)).not.toContain(
+          oldest.statusId
+        )
+        expect(newer).toHaveLength(all.length - 1)
       })
     })
   })
