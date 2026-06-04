@@ -146,6 +146,18 @@ describe('/api/v1/media/[id]', () => {
     expect(stored?.description).toBe('a new alt text')
   })
 
+  it('PUT clears the description when null is sent', async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-clear')
+
+    const response = await PUT(putRequest(id, { description: null }), {
+      params: Promise.resolve({ id })
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.description).toBe('')
+  })
+
   it('PUT leaves the description untouched when not provided', async () => {
     const id = await createMediaFor(ACTOR1_ID, 'put-omit')
 

@@ -31,11 +31,13 @@ interface Params {
 }
 
 // `description` is stored in a varchar(255) column; cap it to avoid a runtime
-// DB error. Empty/whitespace-only descriptions are normalised to null.
+// DB error. Empty/whitespace-only (and explicit null) descriptions are
+// normalised to null so clients can clear alt text by sending "" or null.
 const UpdateMediaRequest = z.object({
   description: z
     .string()
     .max(255)
+    .nullable()
     .optional()
     .transform((value) => (value && value.trim() ? value : null))
 })
