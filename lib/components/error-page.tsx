@@ -126,6 +126,24 @@ interface ErrorPageProps {
  * this component intentionally stays backdrop-free and works in both the server
  * tree (`not-found`) and the client error boundaries (`error`/`global-error`).
  */
+/**
+ * Builds the monospace technical-detail line for a Next.js error boundary.
+ * Prefers the production-safe `digest` (a hash that maps to a server log entry);
+ * when there is no digest, surfaces the raw `error.message` only in development
+ * so it never leaks internal details — or clutters the polished card — in
+ * production. Returns `undefined` to fall back to the per-code default meta.
+ */
+export function errorBoundaryMeta(
+  prefix: string,
+  error: Error & { digest?: string }
+): string | undefined {
+  if (error.digest) return `${prefix} · ${error.digest}`
+  if (process.env.NODE_ENV === 'development' && error.message) {
+    return `${prefix} · ${error.message}`
+  }
+  return undefined
+}
+
 export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
   const content = ERROR_PAGES[code] ?? ERROR_PAGES.generic
   const ReasonIcon = content.icon
@@ -133,7 +151,11 @@ export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <main className="flex flex-1 items-center justify-center p-4 sm:p-6">
+      {/* Neutral wrapper (not <main>): this component renders inside the
+          server tree (not-found) and the client error boundaries, so it must
+          not introduce a second <main> landmark when a parent layout already
+          provides one. */}
+      <div className="flex flex-1 items-center justify-center p-4 sm:p-6">
         <div
           className={cn(
             'bg-card flex w-full flex-col items-center rounded-xl border px-[22px] py-7 text-center shadow-sm',
@@ -177,7 +199,7 @@ export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
             </code>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

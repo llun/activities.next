@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
-import { ErrorPage } from '@/lib/components/error-page'
+import { ErrorPage, errorBoundaryMeta } from '@/lib/components/error-page'
 
 describe('ErrorPage', () => {
   it('renders the 404 page by default with its hero code, reason and copy', () => {
@@ -52,5 +52,31 @@ describe('ErrorPage', () => {
     expect(
       screen.getByRole('heading', { name: "Something isn't working" })
     ).toBeInTheDocument()
+  })
+
+  it('does not introduce a <main> landmark (parent layouts own it)', () => {
+    render(<ErrorPage code="404" />)
+
+    expect(screen.queryByRole('main')).not.toBeInTheDocument()
+  })
+})
+
+describe('errorBoundaryMeta', () => {
+  it('prefers the production-safe digest when present', () => {
+    expect(
+      errorBoundaryMeta('500', {
+        name: 'Error',
+        message: 'boom',
+        digest: 'abc123'
+      })
+    ).toBe('500 · abc123')
+  })
+
+  it('does not leak the raw message outside development', () => {
+    // Jest runs with NODE_ENV=test, so the message branch must stay closed and
+    // the boundary falls back to the per-code default meta (undefined here).
+    expect(
+      errorBoundaryMeta('500', { name: 'Error', message: 'sensitive detail' })
+    ).toBeUndefined()
   })
 })
