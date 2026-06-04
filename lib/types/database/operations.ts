@@ -1414,11 +1414,28 @@ export type DeleteLikeParams = BaseLikeParams
 export type GetLikeCountParams = Pick<BaseLikeParams, 'statusId'>
 export type IsActorLikedStatusParams = BaseLikeParams
 
+export interface Like {
+  actorId: string
+  statusId: string
+  createdAt: number
+}
+
+export type GetLikesParams = {
+  actorId: string
+  limit: number
+  // Opaque composite cursors produced by encodeFavouriteCursor; older = max_id,
+  // newer = min_id/since_id. Invalid cursors yield an empty page.
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+
 export interface LikeDatabase {
   createLike(params: CreateLikeParams): Promise<void>
   deleteLike(params: DeleteLikeParams): Promise<void>
   getLikeCount(params: GetLikeCountParams): Promise<number>
   isActorLikedStatus(params: IsActorLikedStatusParams): Promise<boolean>
+  getLikes(params: GetLikesParams): Promise<Like[]>
 }
 
 // ============================================================================
@@ -1550,6 +1567,11 @@ export type GetMediaByIdParams = {
   mediaId: string
   accountId: string
 }
+export type UpdateMediaParams = {
+  mediaId: string
+  accountId: string
+  description?: string | null
+}
 export type MarkMediaUploadVerifiedParams = {
   mediaId: string
   accountId: string
@@ -1574,6 +1596,7 @@ export interface MediaDatabase {
     params: GetMediasForAccountParams
   ): Promise<PaginatedMediaWithStatus>
   getMediaByIdForAccount(params: GetMediaByIdParams): Promise<Media | null>
+  updateMedia(params: UpdateMediaParams): Promise<Media | null>
   getStorageUsageForAccount(
     params: GetStorageUsageForAccountParams
   ): Promise<number>
