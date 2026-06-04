@@ -53,6 +53,17 @@ const nextConfig: NextConfig = {
         source: '/activities/_next/:path*',
         destination: '/_next/:path*'
       },
+      // NodeInfo discovery and documents are served by the canonical
+      // /api/nodeinfo/* handlers. Route the standard .well-known paths there
+      // before the generic .well-known catch-all below so they win the match.
+      {
+        source: '/.well-known/nodeinfo/:path*',
+        destination: '/api/nodeinfo/:path*'
+      },
+      {
+        source: '/.wellknown/nodeinfo/:path*',
+        destination: '/api/nodeinfo/:path*'
+      },
       {
         source: '/.well-known/:path*',
         destination: '/api/well-known/:path*'
