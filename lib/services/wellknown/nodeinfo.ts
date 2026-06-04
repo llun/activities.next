@@ -12,6 +12,14 @@ export interface NodeInfoLinks {
   links: NodeInfoLink[]
 }
 
+/**
+ * NodeInfo's protocol recommends serving the schema document with a
+ * `profile`-parameterised Content-Type so strict crawlers can validate it.
+ * See http://nodeinfo.diaspora.software/protocol.html.
+ */
+export const NODE_INFO_20_CONTENT_TYPE =
+  'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.0#"'
+
 export interface NodeInfoStats {
   totalUsers: number
   activeMonth: number

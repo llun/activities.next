@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { buildNodeInfo20 } from '@/lib/services/wellknown'
+import {
+  NODE_INFO_20_CONTENT_TYPE,
+  buildNodeInfo20
+} from '@/lib/services/wellknown'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -24,6 +27,7 @@ export const GET = traceApiRoute('nodeInfoV2', async (req: NextRequest) => {
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: nodeInfo
+    data: nodeInfo,
+    additionalHeaders: [['Content-Type', NODE_INFO_20_CONTENT_TYPE]]
   })
 })

@@ -9,6 +9,7 @@ export {
 export { getWebFingerResponse, type WebFingerResponse } from './webfinger'
 export { getHostMetaXML } from './hostMeta'
 export {
+  NODE_INFO_20_CONTENT_TYPE,
   buildNodeInfo20,
   getNodeInfo20,
   getNodeInfoLinks,

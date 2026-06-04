@@ -1,6 +1,6 @@
 import { getDatabase } from '@/lib/database'
 
-import { buildNodeInfo20 } from './nodeinfo'
+import { NODE_INFO_20_CONTENT_TYPE, buildNodeInfo20 } from './nodeinfo'
 
 jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
@@ -20,6 +20,14 @@ jest.mock('@/lib/utils/logger', () => ({
 }))
 
 const mockedGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>
+
+describe('NODE_INFO_20_CONTENT_TYPE', () => {
+  it('carries the NodeInfo 2.0 schema profile', () => {
+    expect(NODE_INFO_20_CONTENT_TYPE).toBe(
+      'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.0#"'
+    )
+  })
+})
 
 describe('#buildNodeInfo20', () => {
   afterEach(() => {
