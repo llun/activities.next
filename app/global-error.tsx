@@ -22,10 +22,8 @@ export default function GlobalError({
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=2"
-        />
+        {/* No maximum-scale: do not restrict zoom (WCAG 1.4.4 Resize Text). */}
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Something isn&apos;t working · Activities.next</title>
       </head>
       <body>
