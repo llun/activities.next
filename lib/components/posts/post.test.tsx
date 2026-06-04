@@ -28,6 +28,10 @@ jest.mock('./attachments', () => ({
   Attachments: () => null
 }))
 
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: jest.fn() })
+}))
+
 jest.mock('@/lib/client', () => ({
   bookmarkStatus: jest.fn(),
   undoBookmarkStatus: jest.fn(),
@@ -36,7 +40,13 @@ jest.mock('@/lib/client', () => ({
   undoLikeStatus: jest.fn(),
   repostStatus: jest.fn(),
   undoRepostStatus: jest.fn(),
-  updateStatusVisibility: jest.fn()
+  updateStatusVisibility: jest.fn(),
+  getRelationship: jest.fn().mockResolvedValue(null),
+  mute: jest.fn(),
+  unmute: jest.fn(),
+  block: jest.fn(),
+  unblock: jest.fn(),
+  createReport: jest.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -381,7 +391,7 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('splits owner actions into a five-item primary row and left-aligned secondary row', () => {
+  it('renders the primary action row plus an overflow menu, with owner authoring actions consolidated into the menu', () => {
     render(
       <Post
         host="activities.local"
@@ -403,28 +413,7 @@ describe('Post', () => {
     const primaryActions = screen.getByRole('group', {
       name: 'Post primary actions'
     })
-    const secondaryActions = screen.getByRole('group', {
-      name: 'Post secondary actions'
-    })
 
-    expect(primaryActions).toHaveClass(
-      'grid',
-      'w-full',
-      'grid-cols-5',
-      'justify-items-center',
-      'sm:flex',
-      'sm:w-auto',
-      'sm:justify-start'
-    )
-    expect(secondaryActions).toHaveClass(
-      'grid',
-      'w-full',
-      'grid-cols-5',
-      'justify-items-center',
-      'sm:flex',
-      'sm:w-auto',
-      'sm:justify-start'
-    )
     expect(
       within(primaryActions)
         .getAllByRole('button')
@@ -436,11 +425,15 @@ describe('Post', () => {
       'Bookmark',
       'Show edit history, 1 edit'
     ])
+
+    // Secondary actions (visibility / edit / delete) are no longer inline; they
+    // live behind the overflow "more actions" menu.
     expect(
-      within(secondaryActions)
-        .getAllByRole('button')
-        .map((button) => button.getAttribute('aria-label'))
-    ).toEqual(['Visibility: Direct', 'Edit post', 'Delete post'])
+      screen.queryByRole('group', { name: 'Post secondary actions' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'More actions' })
+    ).toBeInTheDocument()
   })
 
   it('keeps edit history panel open when interacting with panel content', () => {
@@ -608,24 +601,18 @@ describe('Post', () => {
     const primaryActions = screen.getByRole('group', {
       name: 'Post primary actions'
     })
-    const secondaryActions = screen.getByRole('group', {
-      name: 'Post secondary actions'
-    })
 
-    expect(primaryActions).toHaveClass('grid-cols-4')
-    expect(primaryActions).not.toHaveClass('grid-cols-5')
     expect(
       within(primaryActions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
     ).toEqual(['Reply to post', 'Repost', 'Like', 'Bookmark'])
-    expect(secondaryActions).toHaveClass('grid-cols-4')
-    expect(secondaryActions).not.toHaveClass('grid-cols-5')
     expect(
-      within(secondaryActions)
-        .getAllByRole('button')
-        .map((button) => button.getAttribute('aria-label'))
-    ).toEqual(['Visibility: Direct', 'Edit post', 'Delete post'])
+      screen.queryByRole('group', { name: 'Post secondary actions' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'More actions' })
+    ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()
@@ -654,12 +641,10 @@ describe('Post', () => {
       ...within(
         screen.getByRole('group', { name: 'Post primary actions' })
       ).getAllByRole('button'),
-      ...within(
-        screen.getByRole('group', { name: 'Post secondary actions' })
-      ).getAllByRole('button')
+      screen.getByRole('button', { name: 'More actions' })
     ]
 
-    expect(actionButtons).toHaveLength(8)
+    expect(actionButtons).toHaveLength(6)
     actionButtons.forEach((button) => {
       expect(button).toHaveClass('cursor-pointer')
     })
@@ -690,15 +675,6 @@ describe('Post', () => {
     ).toHaveClass('disabled:opacity-50')
     expect(
       within(primaryActions).getByRole('button', { name: 'Bookmark' })
-    ).toHaveClass('disabled:opacity-50')
-
-    const secondaryActions = screen.getByRole('group', {
-      name: 'Post secondary actions'
-    })
-    expect(
-      within(secondaryActions).getByRole('button', {
-        name: 'Visibility: Direct'
-      })
     ).toHaveClass('disabled:opacity-50')
   })
 
