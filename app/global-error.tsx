@@ -9,10 +9,14 @@ import './globals.css'
 // viewport, and document title, since `app/layout.tsx`'s metadata no longer
 // applies here (without the viewport tag the page renders zoomed-out on mobile).
 // Importing `globals.css` keeps the design-system tokens, fonts, and backdrop.
+// Next also passes `reset` (re-render the root). It is typed here to document
+// the full boundary contract, but intentionally not wired to a retry button to
+// match the design's card-only final state.
 export default function GlobalError({
   error
 }: {
   error: Error & { digest?: string }
+  reset: () => void
 }) {
   return (
     <html lang="en">
