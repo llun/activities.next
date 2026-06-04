@@ -153,11 +153,13 @@ export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
   const technicalDetail = meta ?? content.meta
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Neutral wrapper (not <main>): this component renders inside the
-          server tree (not-found) and the client error boundaries, so it must
-          not introduce a second <main> landmark when a parent layout already
-          provides one. */}
+    // min-h-dvh (dynamic viewport height) rather than min-h-screen/100vh so the
+    // card stays centered without the mobile address-bar gap.
+    <div className="flex min-h-dvh flex-col">
+      {/* Neutral wrapper (not <main>): this component renders inside the server
+          tree (not-found) and the client error boundaries. Each entry point
+          provides its own <main> landmark, so the component must not add a
+          second one. */}
       <div className="flex flex-1 items-center justify-center p-4 sm:p-6">
         <div
           className={cn(

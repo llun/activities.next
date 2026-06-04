@@ -18,14 +18,21 @@ export default function GlobalError({
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=2"
+        />
         <title>Something isn&apos;t working · Activities.next</title>
       </head>
       <body>
-        <ErrorPage
-          code="generic"
-          meta={errorBoundaryMeta('unexpected error', error)}
-        />
+        {/* global-error replaces the root layout entirely, so it owns the only
+            <main> landmark on the page. */}
+        <main>
+          <ErrorPage
+            code="generic"
+            meta={errorBoundaryMeta('unexpected error', error)}
+          />
+        </main>
       </body>
     </html>
   )

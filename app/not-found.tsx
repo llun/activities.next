@@ -7,5 +7,11 @@ export const metadata: Metadata = {
 }
 
 export default function NotFound() {
-  return <ErrorPage code="404" />
+  // Wrap in <main> for the page landmark: this renders at the root boundary
+  // (above the route-group layouts), so there is no parent <main> to nest with.
+  return (
+    <main>
+      <ErrorPage code="404" />
+    </main>
+  )
 }

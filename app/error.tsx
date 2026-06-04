@@ -10,5 +10,11 @@ export default function Error({
 }: {
   error: Error & { digest?: string }
 }) {
-  return <ErrorPage code="500" meta={errorBoundaryMeta('500', error)} />
+  // Wrap in <main> for the page landmark: this root boundary renders inside the
+  // root layout (which has no <main>), so there is no nesting risk.
+  return (
+    <main>
+      <ErrorPage code="500" meta={errorBoundaryMeta('500', error)} />
+    </main>
+  )
 }
