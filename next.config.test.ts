@@ -153,6 +153,45 @@ describe('next config runtime isolation', () => {
   })
 })
 
+describe('next config nodeinfo rewrites', () => {
+  const getRewrites = async () => {
+    const rules = await nextConfig.rewrites?.()
+    if (!rules || Array.isArray(rules)) return rules ?? []
+    return rules.afterFiles ?? []
+  }
+
+  const indexOfSource = (rules: { source: string }[], source: string): number =>
+    rules.findIndex((rule) => rule.source === source)
+
+  it('routes the standard .well-known/nodeinfo paths to /api/nodeinfo', async () => {
+    const rules = await getRewrites()
+
+    expect(rules).toContainEqual({
+      source: '/.well-known/nodeinfo/:path*',
+      destination: '/api/nodeinfo/:path*'
+    })
+    expect(rules).toContainEqual({
+      source: '/.wellknown/nodeinfo/:path*',
+      destination: '/api/nodeinfo/:path*'
+    })
+    expect(rules).toContainEqual({
+      source: '/nodeinfo/:path*',
+      destination: '/api/nodeinfo/:path*'
+    })
+  })
+
+  it('orders the nodeinfo rules before the generic .well-known catch-all', async () => {
+    const rules = await getRewrites()
+
+    const nodeInfoIndex = indexOfSource(rules, '/.well-known/nodeinfo/:path*')
+    const catchAllIndex = indexOfSource(rules, '/.well-known/:path*')
+
+    expect(nodeInfoIndex).toBeGreaterThanOrEqual(0)
+    expect(catchAllIndex).toBeGreaterThanOrEqual(0)
+    expect(nodeInfoIndex).toBeLessThan(catchAllIndex)
+  })
+})
+
 describe('next config security hardening', () => {
   it('sets baseline browser security headers', () => {
     withEnv(
