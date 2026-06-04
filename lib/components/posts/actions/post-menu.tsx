@@ -278,28 +278,32 @@ export const PostMenu: FC<Props> = ({
             <>
               <DropdownMenuItem onSelect={() => onReply?.(status)}>
                 <AtSign className="size-4" />
-                Mention {mention}
+                <span className="min-w-0 break-words">Mention {mention}</span>
               </DropdownMenuItem>
               {relationship?.muting ? (
                 <DropdownMenuItem onSelect={() => void handleUnmute()}>
                   <VolumeX className="size-4" />
-                  Unmute {actorName}
+                  <span className="min-w-0 break-words">
+                    Unmute {actorName}
+                  </span>
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem onSelect={() => setDialog('mute')}>
                   <VolumeX className="size-4" />
-                  Mute {actorName}
+                  <span className="min-w-0 break-words">Mute {actorName}</span>
                 </DropdownMenuItem>
               )}
               {relationship?.blocking ? (
                 <DropdownMenuItem onSelect={() => void handleUnblock()}>
                   <Ban className="size-4" />
-                  Unblock {actorName}
+                  <span className="min-w-0 break-words">
+                    Unblock {actorName}
+                  </span>
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem onSelect={() => setDialog('block')}>
                   <Ban className="size-4" />
-                  Block {actorName}
+                  <span className="min-w-0 break-words">Block {actorName}</span>
                 </DropdownMenuItem>
               )}
             </>
