@@ -11,19 +11,22 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = traceApiRoute('nodeinfoV2', async (req: NextRequest) => {
-  const nodeInfo = await buildNodeInfo20()
-  if (!nodeInfo) {
+export const GET = traceApiRoute(
+  'wellKnownNodeInfoV2',
+  async (req: NextRequest) => {
+    const nodeInfo = await buildNodeInfo20()
+    if (!nodeInfo) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
+    }
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: ERROR_500,
-      responseStatusCode: 500
+      data: nodeInfo
     })
   }
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: nodeInfo
-  })
-})
+)

@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { NODE_INFO_SOFTWARE_NAME, VERSION } from '@/lib/utils/version'
 
@@ -33,12 +33,11 @@ export interface NodeInfo20 {
 }
 
 export const getNodeInfoLinks = (): NodeInfoLinks => {
-  const config = getConfig()
   return {
     links: [
       {
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-        href: `https://${config.host}/nodeinfo/2.0`
+        href: `${getBaseURL()}/nodeinfo/2.0`
       }
     ]
   }
