@@ -1,0 +1,23 @@
+app/api/well-known/nodeinfo/2.0/route.ts
+  s_7d56b78fa695bc::t_b41ab9d2d4d195 14-16
+  s_7d56b78fa695bc::t_28cd7cbcdd0a75 17-25,29,32
+lib/services/wellknown/nodeinfo.ts
+  s_7d56b78fa695bc::t_8b5540de266f24 1
+  s_7d56b78fa695bc::t_3b47484c7d00ab 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "06488c45224b56d4b32f55c22720ac92f395436f",
+  "prompts": {},
+  "sessions": {
+    "s_7d56b78fa695bc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "852fa913-bcca-4fda-9906-f7ed14eda59b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
