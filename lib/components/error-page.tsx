@@ -119,14 +119,6 @@ interface ErrorPageProps {
 }
 
 /**
- * Centered hero error card from the design system's `web-errors` UI kit. The
- * hero is the giant status code in Activity orange (or an alert glyph for the
- * uncategorised fallback), wrapped in a reason pill → title → body → mono
- * technical line. The dual-tint backdrop comes from `body` in `globals.css`, so
- * this component intentionally stays backdrop-free and works in both the server
- * tree (`not-found`) and the client error boundaries (`error`/`global-error`).
- */
-/**
  * Builds the monospace technical-detail line for a Next.js error boundary.
  * Prefers the production-safe `digest` (a hash that maps to a server log entry);
  * when there is no digest, surfaces the raw `error.message` only in development
@@ -147,6 +139,14 @@ export function errorBoundaryMeta(
   return undefined
 }
 
+/**
+ * Centered hero error card from the design system's `web-errors` UI kit. The
+ * hero is the giant status code in Activity orange (or an alert glyph for the
+ * uncategorised fallback), wrapped in a reason pill → title → body → mono
+ * technical line. The dual-tint backdrop comes from `body` in `globals.css`, so
+ * this component intentionally stays backdrop-free and works in both the server
+ * tree (`not-found`) and the client error boundaries (`error`/`global-error`).
+ */
 export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
   const content = ERROR_PAGES[code] ?? ERROR_PAGES.generic
   const ReasonIcon = content.icon
@@ -191,7 +191,7 @@ export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
           </h1>
 
           {/* Body */}
-          <p className="text-muted-foreground mt-2.5 max-w-[380px] text-sm leading-relaxed text-pretty sm:text-[15px]">
+          <p className="text-muted-foreground mt-2.5 max-w-[380px] text-sm leading-[1.6] text-pretty sm:text-[15px]">
             {content.body}
           </p>
 
