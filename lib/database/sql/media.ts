@@ -24,7 +24,8 @@ import {
   MarkMediaUploadVerifiedParams,
   Media,
   MediaDatabase,
-  PaginatedMediaWithStatus
+  PaginatedMediaWithStatus,
+  UpdateMediaParams
 } from '@/lib/types/database/operations'
 import { Attachment } from '@/lib/types/domain/attachment'
 
@@ -478,6 +479,52 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'medias.thumbnailMimeType',
         'medias.thumbnailMetaData',
         'medias.description'
+      )
+      .first()
+
+    if (!data) return null
+
+    return parseMediaRow(data)
+  },
+
+  async updateMedia({
+    mediaId,
+    accountId,
+    description
+  }: UpdateMediaParams): Promise<Media | null> {
+    const owned = await database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('medias.id', mediaId)
+      .where('actors.accountId', accountId)
+      .first('medias.id')
+    if (!owned) return null
+
+    // Only touch `description` when the caller actually provided it, so a
+    // partial update can't blank out existing alt text by omitting the field.
+    const updates: { updatedAt: Date; description?: string | null } = {
+      updatedAt: new Date()
+    }
+    if (description !== undefined) {
+      updates.description = description
+    }
+
+    await database('medias').where('id', mediaId).update(updates)
+
+    const data = await database('medias')
+      .where('id', mediaId)
+      .select(
+        'id',
+        'actorId',
+        'original',
+        'originalBytes',
+        'originalMimeType',
+        'originalMetaData',
+        'originalFileName',
+        'thumbnail',
+        'thumbnailBytes',
+        'thumbnailMimeType',
+        'thumbnailMetaData',
+        'description'
       )
       .first()
 
