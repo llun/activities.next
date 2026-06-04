@@ -1,0 +1,21 @@
+app/error.tsx
+  s_6557827e94f4a9::t_221e46a6c89931 8-11,16
+app/global-error.tsx
+  s_6557827e94f4a9::t_a8c5f239fd3984 12-14,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "4bef6a75a2bdb706acf1eaac7268ee32f9f4e420",
+  "prompts": {},
+  "sessions": {
+    "s_6557827e94f4a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "754afb29-9680-4ddb-a12a-ed8175899add",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
