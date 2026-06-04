@@ -1,13 +1,21 @@
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { logger } from '@/lib/utils/logger'
 
-import { NODE_INFO_20_CONTENT_TYPE, buildNodeInfo20 } from './nodeinfo'
+import {
+  NODE_INFO_20_CONTENT_TYPE,
+  buildNodeInfo20,
+  getNodeInfo20
+} from './nodeinfo'
+
+const DEFAULT_CONFIG = {
+  host: 'test.example.com',
+  serviceName: 'Test Service',
+  serviceDescription: 'Test description'
+}
 
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
-    host: 'test.example.com',
-    serviceName: 'Test Service',
-    serviceDescription: 'Test description'
-  }),
+  getConfig: jest.fn(),
   getBaseURL: jest.fn().mockReturnValue('https://test.example.com')
 }))
 
@@ -19,7 +27,22 @@ jest.mock('@/lib/utils/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() }
 }))
 
+const mockedGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 const mockedGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>
+
+beforeEach(() => {
+  jest.clearAllMocks()
+  mockedGetConfig.mockReturnValue(
+    DEFAULT_CONFIG as unknown as ReturnType<typeof getConfig>
+  )
+})
+
+const STATS = {
+  totalUsers: 7,
+  activeMonth: 2,
+  activeHalfyear: 5,
+  localPosts: 99
+}
 
 describe('NODE_INFO_20_CONTENT_TYPE', () => {
   it('carries the NodeInfo 2.0 schema profile', () => {
@@ -29,24 +52,33 @@ describe('NODE_INFO_20_CONTENT_TYPE', () => {
   })
 })
 
-describe('#buildNodeInfo20', () => {
-  afterEach(() => {
-    mockedGetDatabase.mockReset()
+describe('#getNodeInfo20', () => {
+  it('falls back to host when serviceName is a blank string', () => {
+    mockedGetConfig.mockReturnValue({
+      ...DEFAULT_CONFIG,
+      serviceName: ''
+    } as unknown as ReturnType<typeof getConfig>)
+
+    expect(getNodeInfo20(STATS).metadata.nodeName).toBe('test.example.com')
   })
 
-  it('returns null when the database is unavailable', async () => {
+  it('uses serviceName when it is set', () => {
+    expect(getNodeInfo20(STATS).metadata.nodeName).toBe('Test Service')
+  })
+})
+
+describe('#buildNodeInfo20', () => {
+  it('returns null and logs when the database is unavailable', async () => {
     mockedGetDatabase.mockReturnValue(null)
 
     expect(await buildNodeInfo20()).toBeNull()
+    expect(logger.error).toHaveBeenCalledWith(
+      'NodeInfo 2.0 requested but the database is unavailable'
+    )
   })
 
   it('builds the document from database stats', async () => {
-    const getNodeInfoStats = jest.fn().mockResolvedValue({
-      totalUsers: 7,
-      activeMonth: 2,
-      activeHalfyear: 5,
-      localPosts: 99
-    })
+    const getNodeInfoStats = jest.fn().mockResolvedValue(STATS)
     mockedGetDatabase.mockReturnValue({
       getNodeInfoStats
     } as unknown as ReturnType<typeof getDatabase>)

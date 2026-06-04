@@ -70,7 +70,8 @@ export const getNodeInfo20 = (stats: NodeInfoStats): NodeInfo20 => {
       localComments: 0
     },
     metadata: {
-      nodeName: config.serviceName ?? config.host,
+      // `||` (not `??`) so a blank serviceName falls back to the host.
+      nodeName: config.serviceName || config.host,
       nodeDescription: config.serviceDescription ?? ''
     }
   }
@@ -83,7 +84,10 @@ export const getNodeInfo20 = (stats: NodeInfoStats): NodeInfo20 => {
  */
 export const buildNodeInfo20 = async (): Promise<NodeInfo20 | null> => {
   const database = getDatabase()
-  if (!database) return null
+  if (!database) {
+    logger.error('NodeInfo 2.0 requested but the database is unavailable')
+    return null
+  }
   try {
     const stats = await database.getNodeInfoStats()
     return getNodeInfo20(stats)
