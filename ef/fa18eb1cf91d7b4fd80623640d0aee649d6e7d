@@ -1,0 +1,19 @@
+migrations/20260601000000_add_status_mutes_table.js
+  s_68b8b1890fbd4e::t_27a97caad67aab 19-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "effa18eb1cf91d7b4fd80623640d0aee649d6e7d",
+  "prompts": {},
+  "sessions": {
+    "s_68b8b1890fbd4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dccea080-a8de-41b3-ae43-bdc5e271c97e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
