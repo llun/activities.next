@@ -1,0 +1,76 @@
+lib/actions/createNote.ts
+  s_68b8b1890fbd4e::t_6398ea32848e60 289-290,301-302
+  s_68b8b1890fbd4e::t_d4fe5fb071a416 392-394
+app/api/v1/statuses/[id]/route.ts
+  s_68b8b1890fbd4e::t_87728a6631b090 277-278
+  s_68b8b1890fbd4e::t_e96b4a2dacdd79 180-182
+  s_68b8b1890fbd4e::t_93a2f323c2a1ed 30
+  s_68b8b1890fbd4e::t_c56f1eb924d6aa 113-115
+lib/actions/createPoll.ts
+  s_68b8b1890fbd4e::t_85fc5431c7900d 29-30,41-43
+  s_68b8b1890fbd4e::t_dbe73ac5eeb31d 113-115
+lib/database/sql/idempotency.ts
+  s_68b8b1890fbd4e::t_e013e4a2aa392a 1-36
+lib/services/notifications/createNotificationWithPolicy.ts
+  s_68b8b1890fbd4e::t_d500653aa4f43b 25-26,28-29,31-34,36-42
+lib/database/types.ts
+  s_68b8b1890fbd4e::t_59ecdd635ef6cd 17
+  s_68b8b1890fbd4e::t_3d7cbf4fdd2eba 61
+lib/utils/zodBooleanish.ts
+  s_68b8b1890fbd4e::t_7f16d46ffbde4a 1-20
+lib/services/mastodon/constants.ts
+  s_68b8b1890fbd4e::t_0335ff9fc36b87 3-11
+lib/jobs/importStravaActivityJob.test.ts
+  s_68b8b1890fbd4e::t_c8f9524cd0042a 130-132
+  s_68b8b1890fbd4e::t_a04a5f2214a58a 113
+  s_68b8b1890fbd4e::t_e1b5b713f93469 129
+lib/database/sql/index.ts
+  s_68b8b1890fbd4e::t_e6ecdcad6656d5 102
+  s_68b8b1890fbd4e::t_8e80056c519abc 48
+lib/database/sql/status.test.ts
+  s_68b8b1890fbd4e::t_5d0307550974d5 340-341
+lib/services/statuses/parseStatusRequestBody.ts
+  s_68b8b1890fbd4e::t_424a2fe6fbef98 10-11,15,28-31,45-58
+lib/types/domain/status.ts
+  s_68b8b1890fbd4e::t_fc1a41b9a1acfc 79-81,83
+  s_68b8b1890fbd4e::t_18a0eeb5229ab1 76-78,82
+lib/services/mastodon/getMastodonStatus.ts
+  s_68b8b1890fbd4e::t_22da97707e711b 377-378,383
+  s_68b8b1890fbd4e::t_61a72f1ad4c316 374-376
+app/api/v1/statuses/route.ts
+  s_68b8b1890fbd4e::t_57f4e53a14b70f 4,6-13,35-48,55-58,60-65,85-87,95-173,197-203
+  s_68b8b1890fbd4e::t_28ba388a20b7b3 27
+lib/actions/updateNote.ts
+  s_68b8b1890fbd4e::t_708d40a4f236f8 52-54
+  s_68b8b1890fbd4e::t_77a81182081a99 17-18,30-31
+lib/database/sql/status.ts
+  s_68b8b1890fbd4e::t_c0d11b4c2785e4 880-881
+  s_68b8b1890fbd4e::t_c5f5488ec92da4 782-783,793-794
+  s_68b8b1890fbd4e::t_8c56091c51cc43 519-521,536-539
+  s_68b8b1890fbd4e::t_b622f6c635418a 920-921
+  s_68b8b1890fbd4e::t_fbec3e623910ee 2415-2416
+  s_68b8b1890fbd4e::t_522687fa768cf7 411-412,421-423
+  s_68b8b1890fbd4e::t_5e0be5fba4724f 496-497
+migrations/20260601001000_add_idempotency_keys_table.js
+  s_68b8b1890fbd4e::t_5e907ee7685e3d 1-25
+lib/types/database/operations.ts
+  s_68b8b1890fbd4e::t_3cc35d8147aeb1 391-394
+  s_68b8b1890fbd4e::t_b867cb24990137 1156-1172
+  s_68b8b1890fbd4e::t_6d5f525124d2ae 407-409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "30af9f84da4bc8827d6fa9b133ba336f7bd25bb2",
+  "prompts": {},
+  "sessions": {
+    "s_68b8b1890fbd4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dccea080-a8de-41b3-ae43-bdc5e271c97e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
