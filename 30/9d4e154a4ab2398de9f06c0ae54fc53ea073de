@@ -1,0 +1,89 @@
+lib/services/mastodon/accountCursorLinkHeader.ts
+  s_68b8b1890fbd4e::t_5b76b3b49eb699 1-50
+lib/database/sql/status.ts
+  s_68b8b1890fbd4e::t_fab8f9cc543720 14,44,54,70
+  s_68b8b1890fbd4e::t_411a3b94c27cb8 1925-1939,1941-1956,1959-1970,1973-1978
+  s_68b8b1890fbd4e::t_80abc86b66e280 2844
+  s_68b8b1890fbd4e::t_3965e336476963 75
+  s_68b8b1890fbd4e::t_e6b6464ff38247 1000-1019
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_68b8b1890fbd4e::t_10a36f18e6188c 46-49,64-92,96
+lib/services/mastodon/getMastodonStatusEdits.ts
+  s_68b8b1890fbd4e::t_2e4bcc516491d3 1-103
+lib/database/sql/status.test.ts
+  s_68b8b1890fbd4e::t_cdece797c2c655 5
+  s_68b8b1890fbd4e::t_d07a158fda1bc7 1776-1779,1781,1784-1787,1789-1791,1794,1804-1809,1813,1817-1819,1825-1832
+app/api/v1/statuses/[id]/source/route.test.ts
+  s_68b8b1890fbd4e::t_c0859a6574d887 1-129
+app/api/v1/statuses/[id]/history/route.ts
+  s_68b8b1890fbd4e::t_285dfba34db2b7 2,5,49-51,60-64
+app/api/v1/statuses/[id]/route.test.ts
+  s_68b8b1890fbd4e::t_bd583f41bdf99a 1226,1258-1264
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_68b8b1890fbd4e::t_3a1c24ac33203b 6
+  s_68b8b1890fbd4e::t_7b7b57c61bd24d 81,84-86
+  s_68b8b1890fbd4e::t_fab8f9cc543720 4
+app/api/v1/statuses/[id]/mute/route.ts
+  s_68b8b1890fbd4e::t_5f50ed6957f29a 1
+  s_68b8b1890fbd4e::t_0d2ee60599f9a4 26-28
+  s_68b8b1890fbd4e::t_5aecf8172cbf88 2,54-62
+  s_68b8b1890fbd4e::t_fab8f9cc543720 29-44,46-52,65-76,81,83-84
+migrations/20260601000000_add_status_mutes_table.js
+  s_68b8b1890fbd4e::t_8122f7bcf83b40 1-28
+lib/database/sql/statusMute.ts
+  s_68b8b1890fbd4e::t_02dd9d70160c7b 1-48
+lib/database/sql/index.ts
+  s_68b8b1890fbd4e::t_8702ded8d3603d 28
+  s_68b8b1890fbd4e::t_0fea290f9ce237 46
+  s_68b8b1890fbd4e::t_b3e3f102ddd971 99
+lib/services/notifications/createNotificationWithPolicy.ts
+  s_68b8b1890fbd4e::t_9b49f3524f8318 22-43
+  s_68b8b1890fbd4e::t_74abef21e4c6b5 2
+lib/database/sql/utils/favouritedByCursor.ts
+  s_68b8b1890fbd4e::t_1a963397283d89 1-42
+app/api/v1/statuses/[id]/favourited_by/route.ts
+  s_68b8b1890fbd4e::t_fab8f9cc543720 5
+  s_68b8b1890fbd4e::t_7f0078d4ddad95 3-4,27-30,35,57-62,78-104,111-115,120-121
+  s_68b8b1890fbd4e::t_006ce1eda359e0 105-110
+app/api/v1/statuses/[id]/unmute/route.ts
+  s_68b8b1890fbd4e::t_b0bf406f67d8eb 1
+  s_68b8b1890fbd4e::t_453b90640c2f2b 2,26-44,46-52,54-60,63-74,79,81-82
+lib/services/mastodon/conversationMute.ts
+  s_68b8b1890fbd4e::t_fa5d0dff5e2eb5 1-66
+lib/services/mastodon/getMastodonStatus.ts
+  s_68b8b1890fbd4e::t_e38098a31b10fc 291-296
+  s_68b8b1890fbd4e::t_3ec2fd49f2a877 3
+  s_68b8b1890fbd4e::t_1da8672ad84ff2 56-58
+  s_68b8b1890fbd4e::t_033639dc36ef82 320
+  s_68b8b1890fbd4e::t_ba8f170aeb5e80 474-475
+  s_68b8b1890fbd4e::t_b2c3b4373dd1e7 503-505
+  s_68b8b1890fbd4e::t_f0153c9ab2856b 533-535
+app/api/v1/statuses/[id]/context/route.ts
+  s_68b8b1890fbd4e::t_fab8f9cc543720 1,9
+  s_68b8b1890fbd4e::t_dbe788896791d1 2-3,10,20-25,30-120,123,153-178,185-186
+lib/types/database/operations.ts
+  s_68b8b1890fbd4e::t_e67c271a9f2f7a 437-446
+  s_68b8b1890fbd4e::t_fab8f9cc543720 675
+  s_68b8b1890fbd4e::t_c895f30e05bba8 1129-1147
+  s_68b8b1890fbd4e::t_43c2532e052a55 647-649
+  s_68b8b1890fbd4e::t_da8873736c8b4d 536-545
+lib/database/types.ts
+  s_68b8b1890fbd4e::t_199b64c23a1a16 29
+  s_68b8b1890fbd4e::t_b1ee29436646d0 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "309d4e154a4ab2398de9f06c0ae54fc53ea073de",
+  "prompts": {},
+  "sessions": {
+    "s_68b8b1890fbd4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dccea080-a8de-41b3-ae43-bdc5e271c97e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
