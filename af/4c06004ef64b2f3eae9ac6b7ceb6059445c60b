@@ -1,0 +1,26 @@
+lib/services/mastodon/conversationMute.ts
+  s_68b8b1890fbd4e::t_9b1f8bb007d06d 24-26,32,50,52-54
+  s_68b8b1890fbd4e::t_4b1c20a450d445 2
+app/api/v1/statuses/[id]/context/route.ts
+  s_68b8b1890fbd4e::t_a5d85423843a0e 77-80,104-112,123
+lib/database/sql/statusMute.ts
+  s_68b8b1890fbd4e::t_f5b07f2d181c2f 15-16,18-26
+lib/database/sql/status.ts
+  s_68b8b1890fbd4e::t_546fc5733b853b 1032-1033
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "af4c06004ef64b2f3eae9ac6b7ceb6059445c60b",
+  "prompts": {},
+  "sessions": {
+    "s_68b8b1890fbd4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dccea080-a8de-41b3-ae43-bdc5e271c97e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
