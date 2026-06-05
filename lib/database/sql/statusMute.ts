@@ -12,18 +12,18 @@ export const StatusMuteSQLDatabaseMixin = (
   database: Knex
 ): StatusMuteDatabase => ({
   async createStatusMute({ actorId, statusId }: CreateStatusMuteParams) {
-    const existing = await database('status_mutes')
-      .where({ actorId, statusId })
-      .first()
-    if (existing) return
-
+    // Atomic insert-or-ignore: muting an already-muted conversation is a no-op
+    // and safe under concurrent calls, without a separate existence query.
     const currentTime = new Date()
-    await database('status_mutes').insert({
-      actorId,
-      statusId,
-      createdAt: currentTime,
-      updatedAt: currentTime
-    })
+    await database('status_mutes')
+      .insert({
+        actorId,
+        statusId,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      .onConflict(['actorId', 'statusId'])
+      .ignore()
   },
 
   async deleteStatusMute({ actorId, statusId }: DeleteStatusMuteParams) {

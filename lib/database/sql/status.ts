@@ -1029,8 +1029,8 @@ export const StatusSQLDatabaseMixin = (
     return rows.map((row) => {
       const content = getCompatibleJSON(row.data)
       return {
-        text: content.text ?? '',
-        summary: content.summary ?? null,
+        text: content?.text ?? '',
+        summary: content?.summary ?? null,
         supersededAt: getCompatibleTime(row.updatedAt)
       }
     })

@@ -1,5 +1,5 @@
 import { Database } from '@/lib/database/types'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 
 // A defensive cap on how far the reply chain is walked when resolving a thread
 // root, so a malformed (e.g. cyclic) chain can never loop forever.
@@ -21,14 +21,15 @@ export const resolveConversationRootId = async (
   status: Status,
   cache?: Map<string, string>
 ): Promise<string> => {
-  const target =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
+  // getOriginalStatus recursively unwraps Announces (reblogs) to the underlying
+  // Note/Poll, so even a nested boost resolves to the real thread.
+  const target = getOriginalStatus(status)
 
   const cachedRoot = cache?.get(target.id)
   if (cachedRoot) return cachedRoot
 
   let rootId = target.id
-  let replyId = target.type === StatusType.enum.Announce ? '' : target.reply
+  let replyId = target.reply
   // Every node visited on the way up shares the same thread root, so record
   // them all once the root is known.
   const visited = [target.id]
@@ -46,10 +47,11 @@ export const resolveConversationRootId = async (
       withReplies: false
     })
     if (!parent || seen.has(parent.id)) break
+    const parentTarget = getOriginalStatus(parent)
     seen.add(parent.id)
-    visited.push(parent.id)
-    rootId = parent.id
-    replyId = parent.type === StatusType.enum.Announce ? '' : parent.reply
+    visited.push(parentTarget.id)
+    rootId = parentTarget.id
+    replyId = parentTarget.reply
   }
 
   if (cache) {

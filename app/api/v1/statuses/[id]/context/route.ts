@@ -74,9 +74,10 @@ const collectAncestors = async ({
 
 /**
  * Depth-first pre-order traversal of the reply tree under the status, matching
- * Mastodon's flattened `descendants` ordering. `getStatusReplies` already
- * pre-filters by coarse visibility; a final readable filter applies the precise
- * per-actor check.
+ * Mastodon's flattened `descendants` ordering. Readability is filtered *during*
+ * expansion (not after) so only readable replies count toward `limit` and the
+ * traversal never recurses into — or leaks the structure of — unreadable
+ * branches.
  */
 const collectDescendants = async ({
   database,
@@ -100,7 +101,15 @@ const collectDescendants = async ({
       statusId: parentId,
       visibleToActorId: currentActor?.id ?? null
     })
-    for (const reply of replies) {
+    // getStatusReplies pre-filters by coarse visibility; apply the precise
+    // per-actor readable check before a reply counts toward the limit or is
+    // recursed into.
+    const readableReplies = await filterReadableStatuses({
+      database,
+      statuses: replies,
+      currentActor
+    })
+    for (const reply of readableReplies) {
       if (collected.length >= limit) return
       if (visited.has(reply.id)) continue
       visited.add(reply.id)
@@ -111,11 +120,7 @@ const collectDescendants = async ({
 
   await expand(rootStatusId)
 
-  return filterReadableStatuses({
-    database,
-    statuses: collected,
-    currentActor
-  })
+  return collected
 }
 
 export const GET = traceApiRoute(
