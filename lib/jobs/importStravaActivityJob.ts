@@ -6,6 +6,7 @@ import {
   statusRecipientsCC,
   statusRecipientsTo
 } from '@/lib/actions/createNote'
+import { UpdateFitnessFileActivityData } from '@/lib/database/sql/fitnessFile'
 import { Database } from '@/lib/database/types'
 import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import {
@@ -29,6 +30,7 @@ import {
   getStravaActivityPhotos,
   getStravaActivityStartTimeMs,
   getStravaActivityStreams,
+  getStravaActivityUrl,
   getValidStravaAccessToken,
   isSupportedStravaPhotoMimeType,
   mapStravaVisibilityToMastodon
@@ -569,7 +571,8 @@ export const importStravaActivityJob = createJobHandle(
       const storedFitnessFile = await saveFitnessFile(database, actor, {
         file: exportFile,
         description: activity.description?.trim() || undefined,
-        importBatchId: batchId
+        importBatchId: batchId,
+        sourceUrl: getStravaActivityUrl(stravaActivityId) ?? undefined
       })
 
       if (!storedFitnessFile) {
@@ -600,27 +603,51 @@ export const importStravaActivityJob = createJobHandle(
       if (!targetFitnessFile) {
         throw new Error('Stored Strava fitness file was not found in database')
       }
-    } else if (
-      activity.device_name &&
-      (!targetFitnessFile.deviceName || !targetFitnessFile.deviceManufacturer)
-    ) {
-      // Re-import: file already existed before this run, device name not yet stored
-      const manufacturerKey = getManufacturerKeyFromDeviceName(
-        activity.device_name
-      )
-      const deviceData = {
-        deviceName: activity.device_name,
-        ...(manufacturerKey !== undefined
-          ? { deviceManufacturer: manufacturerKey }
-          : {})
+    } else {
+      // Re-import: file already existed before this run. Backfill any source
+      // metadata that was not stored on the earlier import.
+      const backfillData: UpdateFitnessFileActivityData = {}
+
+      if (
+        activity.device_name &&
+        (!targetFitnessFile.deviceName || !targetFitnessFile.deviceManufacturer)
+      ) {
+        const manufacturerKey = getManufacturerKeyFromDeviceName(
+          activity.device_name
+        )
+        backfillData.deviceName = activity.device_name
+        if (manufacturerKey !== undefined) {
+          backfillData.deviceManufacturer = manufacturerKey
+        }
       }
-      await database.updateFitnessFileActivityData(
-        targetFitnessFile.id,
-        deviceData
-      )
-      targetFitnessFile =
-        (await database.getFitnessFile({ id: targetFitnessFile.id })) ??
-        targetFitnessFile
+
+      if (!targetFitnessFile.sourceUrl) {
+        const sourceUrl = getStravaActivityUrl(stravaActivityId)
+        if (sourceUrl) {
+          backfillData.sourceUrl = sourceUrl
+        }
+      }
+
+      if (Object.keys(backfillData).length > 0) {
+        await database.updateFitnessFileActivityData(
+          targetFitnessFile.id,
+          backfillData
+        )
+        // Merge the backfilled fields locally instead of re-reading the row, so
+        // the existing statusId (and other state used below) is preserved.
+        targetFitnessFile = {
+          ...targetFitnessFile,
+          ...(backfillData.deviceName
+            ? { deviceName: backfillData.deviceName }
+            : {}),
+          ...(backfillData.deviceManufacturer
+            ? { deviceManufacturer: backfillData.deviceManufacturer }
+            : {}),
+          ...(backfillData.sourceUrl
+            ? { sourceUrl: backfillData.sourceUrl }
+            : {})
+        }
+      }
     }
 
     const isNewImport = !targetFitnessFile.statusId

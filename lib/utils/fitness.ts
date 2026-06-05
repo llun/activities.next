@@ -111,3 +111,23 @@ export const getFitnessPaceOrSpeed = ({
     speedKmh
   }
 }
+
+// Derive a human-friendly label for an external fitness "source" link from its
+// host. Strava-hosted URLs read as "View on Strava"; anything else falls back to
+// a generic label so the column can hold links from future providers too.
+export const getFitnessSourceLabel = (sourceUrl?: string | null): string => {
+  if (!sourceUrl) return 'View source'
+  try {
+    const { hostname } = new URL(sourceUrl)
+    const normalizedHost = hostname.toLowerCase().replace(/^www\./, '')
+    if (
+      normalizedHost === 'strava.com' ||
+      normalizedHost.endsWith('.strava.com')
+    ) {
+      return 'View on Strava'
+    }
+    return 'View source'
+  } catch {
+    return 'View source'
+  }
+}

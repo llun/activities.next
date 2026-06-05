@@ -16,7 +16,8 @@ import {
   formatFitnessDistance,
   formatFitnessDuration,
   formatFitnessElevation,
-  getFitnessPaceOrSpeed
+  getFitnessPaceOrSpeed,
+  getFitnessSourceLabel
 } from '@/lib/utils/fitness'
 import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
@@ -219,6 +220,20 @@ export const Post: FC<PostProps> = (props) => {
                   />
                 </span>
               ) : null}
+            </div>
+          ) : null}
+
+          {fitnessFile.sourceUrl ? (
+            <div className="mt-2">
+              <a
+                href={fitnessFile.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                <ExternalLink className="size-3.5 shrink-0" />
+                {getFitnessSourceLabel(fitnessFile.sourceUrl)}
+              </a>
             </div>
           ) : null}
         </div>

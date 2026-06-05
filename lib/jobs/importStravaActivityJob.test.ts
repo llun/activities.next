@@ -103,6 +103,7 @@ type MockDatabase = Pick<
   | 'getFitnessFilesByBatchId'
   | 'getFitnessFile'
   | 'getFitnessFilesByActor'
+  | 'updateFitnessFileActivityData'
   | 'getStatus'
   | 'updateNote'
   | 'getAttachments'
@@ -120,6 +121,7 @@ describe('importStravaActivityJob', () => {
     getFitnessFilesByBatchId: jest.fn(),
     getFitnessFile: jest.fn(),
     getFitnessFilesByActor: jest.fn(),
+    updateFitnessFileActivityData: jest.fn(),
     getStatus: jest.fn(),
     updateNote: jest.fn(),
     getAttachments: jest.fn(),
@@ -272,7 +274,8 @@ describe('importStravaActivityJob', () => {
       database,
       expect.anything(),
       expect.objectContaining({
-        file: expect.objectContaining({ name: 'strava-123.gpx' })
+        file: expect.objectContaining({ name: 'strava-123.gpx' }),
+        sourceUrl: 'https://www.strava.com/activities/123'
       })
     )
     expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
@@ -878,6 +881,14 @@ describe('importStravaActivityJob', () => {
     })
 
     expect(database.createNotification).not.toHaveBeenCalled()
+    // The source link is backfilled onto the existing fitness file rather than
+    // injected into the status text.
+    expect(database.updateFitnessFileActivityData).toHaveBeenCalledWith(
+      'existing-file',
+      expect.objectContaining({
+        sourceUrl: 'https://www.strava.com/activities/123'
+      })
+    )
   })
 
   it('does not create duplicate notification on re-import (fallback path)', async () => {

@@ -1,7 +1,9 @@
 import {
   buildGpxFromStravaStreams,
+  buildStravaActivitySummary,
   buildTcxFromStravaStreams,
   getStravaActivityStreams,
+  getStravaActivityUrl,
   getStravaUpload
 } from './activity'
 
@@ -320,5 +322,42 @@ describe('buildTcxFromStravaStreams', () => {
     )
 
     expect(result).toContain('Sport="Run &amp; Bike &lt;test&gt;"')
+  })
+})
+
+describe('buildStravaActivitySummary', () => {
+  it('does not embed the Strava activity link in the status text', () => {
+    const summary = buildStravaActivitySummary({
+      id: 123,
+      name: 'Morning Run',
+      distance: 10000,
+      moving_time: 3000,
+      total_elevation_gain: 50,
+      description: 'Felt great',
+      sport_type: 'Run'
+    })
+
+    expect(summary).not.toContain('strava.com')
+    expect(summary).not.toContain('https://')
+    expect(summary).toContain('Morning Run')
+    expect(summary).toContain('Felt great')
+  })
+})
+
+describe('getStravaActivityUrl', () => {
+  it('builds the public activity URL from a numeric id', () => {
+    expect(getStravaActivityUrl(123)).toBe(
+      'https://www.strava.com/activities/123'
+    )
+    expect(getStravaActivityUrl('456')).toBe(
+      'https://www.strava.com/activities/456'
+    )
+  })
+
+  it('returns null for non-numeric ids (e.g. archive filename fallbacks)', () => {
+    expect(getStravaActivityUrl('activities/run.gpx')).toBeNull()
+    expect(getStravaActivityUrl('')).toBeNull()
+    expect(getStravaActivityUrl(null)).toBeNull()
+    expect(getStravaActivityUrl(undefined)).toBeNull()
   })
 })

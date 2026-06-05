@@ -2,10 +2,31 @@ import {
   formatFitnessDistance,
   formatFitnessDuration,
   formatFitnessElevation,
-  getFitnessPaceOrSpeed
+  getFitnessPaceOrSpeed,
+  getFitnessSourceLabel
 } from '@/lib/utils/fitness'
 
 describe('#fitness utils', () => {
+  describe('#getFitnessSourceLabel', () => {
+    it('labels Strava-hosted URLs as "View on Strava"', () => {
+      expect(
+        getFitnessSourceLabel('https://www.strava.com/activities/123')
+      ).toBe('View on Strava')
+      expect(getFitnessSourceLabel('https://strava.com/activities/123')).toBe(
+        'View on Strava'
+      )
+    })
+
+    it('falls back to "View source" for other or missing URLs', () => {
+      expect(getFitnessSourceLabel('https://example.com/activity/1')).toBe(
+        'View source'
+      )
+      expect(getFitnessSourceLabel('not a url')).toBe('View source')
+      expect(getFitnessSourceLabel(undefined)).toBe('View source')
+      expect(getFitnessSourceLabel(null)).toBe('View source')
+    })
+  })
+
   describe('#formatFitnessDistance', () => {
     it('formats short and long distances', () => {
       expect(formatFitnessDistance(5_234)).toBe('5.23 km')

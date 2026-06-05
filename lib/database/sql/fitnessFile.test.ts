@@ -59,6 +59,29 @@ describe('FitnessFileDatabase', () => {
         expect(actorFiles.some((item) => item.id === created!.id)).toBe(true)
       })
 
+      it('persists and backfills the import sourceUrl', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/source-url.tcx',
+          fileName: 'source-url.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 1024,
+          sourceUrl: 'https://www.strava.com/activities/123'
+        })
+
+        expect(created?.sourceUrl).toBe('https://www.strava.com/activities/123')
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched?.sourceUrl).toBe('https://www.strava.com/activities/123')
+
+        await database.updateFitnessFileActivityData(created!.id, {
+          sourceUrl: 'https://www.strava.com/activities/456'
+        })
+        const updated = await database.getFitnessFile({ id: created!.id })
+        expect(updated?.sourceUrl).toBe('https://www.strava.com/activities/456')
+      })
+
       it('uses a deterministic id tiebreaker when files share createdAt', async () => {
         jest.useFakeTimers()
         jest.setSystemTime(new Date('2030-01-01T00:00:00.000Z'))
