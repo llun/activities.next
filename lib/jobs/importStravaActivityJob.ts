@@ -522,11 +522,18 @@ export const importStravaActivityJob = createJobHandle(
       }
 
       if (!exportFile) {
+        // This branch only runs for a degenerate activity with no positive
+        // duration and no streams (buildTcxFromStravaStreams otherwise falls
+        // back to the activity's elapsed/moving time). Such a status gets no
+        // fitness_files row, so there is no place to store the source link and
+        // the activity link is intentionally not embedded in the note text.
+        // Log it so the omission is observable rather than silent.
         logger.info({
           message:
-            'No exportable file for Strava activity, creating note from activity data',
+            'No exportable file for Strava activity, creating note from activity data without source link',
           actorId,
-          stravaActivityId
+          stravaActivityId,
+          sourceUrl: getStravaActivityUrl(stravaActivityId)
         })
 
         const { status: createdNote, created: isNewFallback } =

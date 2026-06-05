@@ -3,7 +3,8 @@ import {
   formatFitnessDuration,
   formatFitnessElevation,
   getFitnessPaceOrSpeed,
-  getFitnessSourceLabel
+  getFitnessSourceLabel,
+  normalizeFitnessSourceUrl
 } from '@/lib/utils/fitness'
 
 describe('#fitness utils', () => {
@@ -24,6 +25,26 @@ describe('#fitness utils', () => {
       expect(getFitnessSourceLabel('not a url')).toBe('View source')
       expect(getFitnessSourceLabel(undefined)).toBe('View source')
       expect(getFitnessSourceLabel(null)).toBe('View source')
+    })
+  })
+
+  describe('#normalizeFitnessSourceUrl', () => {
+    it('returns http(s) URLs unchanged', () => {
+      expect(
+        normalizeFitnessSourceUrl('https://www.strava.com/activities/123')
+      ).toBe('https://www.strava.com/activities/123')
+      expect(normalizeFitnessSourceUrl('http://example.com/a')).toBe(
+        'http://example.com/a'
+      )
+    })
+
+    it('rejects non-http schemes and invalid/empty values', () => {
+      expect(normalizeFitnessSourceUrl('javascript:alert(1)')).toBeNull()
+      expect(normalizeFitnessSourceUrl('data:text/html,x')).toBeNull()
+      expect(normalizeFitnessSourceUrl('not a url')).toBeNull()
+      expect(normalizeFitnessSourceUrl('')).toBeNull()
+      expect(normalizeFitnessSourceUrl(undefined)).toBeNull()
+      expect(normalizeFitnessSourceUrl(null)).toBeNull()
     })
   })
 
