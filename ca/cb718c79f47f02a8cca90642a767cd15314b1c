@@ -1,0 +1,69 @@
+lib/services/strava/activity.ts
+  s_0fabc22628f62c::t_c6fae28d697b19 246-249,254-264
+lib/utils/fitness.ts
+  s_0fabc22628f62c::t_86a073356afd48 114-133
+lib/services/fitness-files/localFile.ts
+  s_0fabc22628f62c::t_f35c32bca5f4d9 160-161
+  s_0fabc22628f62c::t_c6f3cd5fcac006 119
+lib/jobs/importStravaActivityJob.ts
+  s_0fabc22628f62c::t_a8be42da7f5c3d 9
+  s_0fabc22628f62c::t_ecf15caac21c64 606-635
+  s_0fabc22628f62c::t_5ed32283945a8f 33
+  s_0fabc22628f62c::t_9422901eb05cd6 574-575
+  s_0fabc22628f62c::t_6d244c8e1507ed 636-649
+lib/jobs/importStravaArchiveJob.ts
+  s_0fabc22628f62c::t_5ed32283945a8f 24
+  s_0fabc22628f62c::t_44704cafb6adb2 777-779
+migrations/20260605120000_add_fitness_file_source_url.js
+  s_0fabc22628f62c::t_d2080a91e44ccb 1-15
+lib/components/posts/post.tsx
+  s_0fabc22628f62c::t_bffee965c0d4ed 225-238
+  s_0fabc22628f62c::t_6c1446e1d945ca 19-20
+lib/services/fitness-files/S3StorageFile.ts
+  s_0fabc22628f62c::t_fcb8719fd42838 200-201
+  s_0fabc22628f62c::t_22f41450e6fa42 154
+lib/database/sql/status.ts
+  s_0fabc22628f62c::t_b39b3c4ffe757c 2379-2381
+lib/database/sql/fitnessFile.test.ts
+  s_0fabc22628f62c::t_d59eab50ffb426 62-84
+lib/types/database/fitnessFile.ts
+  s_0fabc22628f62c::t_c2a0751fa17b10 76
+  s_0fabc22628f62c::t_3e1b5b8696bff4 41
+lib/jobs/importStravaActivityJob.test.ts
+  s_0fabc22628f62c::t_97ad69af751289 106
+  s_0fabc22628f62c::t_07976027e8369c 880-887
+  s_0fabc22628f62c::t_301fd8a06f29d3 123
+  s_0fabc22628f62c::t_a7e3f0cc3b3fd9 273-274
+lib/services/fitness-files/types.ts
+  s_0fabc22628f62c::t_d1888155d79030 53-54
+lib/types/domain/status.ts
+  s_0fabc22628f62c::t_c96aeb23535a15 43-44
+lib/services/strava/activity.test.ts
+  s_0fabc22628f62c::t_0f5fe246de572f 327-363
+  s_0fabc22628f62c::t_bbb2d84e5be178 3,6
+lib/utils/fitness.test.ts
+  s_0fabc22628f62c::t_b7056219bd071e 5-6
+  s_0fabc22628f62c::t_c01ab3c0af2419 10-29
+lib/database/sql/fitnessFile.ts
+  s_0fabc22628f62c::t_b2486268ae2c91 288
+  s_0fabc22628f62c::t_02369b530abec1 669-671
+  s_0fabc22628f62c::t_e3110b2f47e525 32
+  s_0fabc22628f62c::t_99dd6f92261154 45
+  s_0fabc22628f62c::t_aefb5cb0d7ff74 244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "cacb718c79f47f02a8cca90642a767cd15314b1c",
+  "prompts": {},
+  "sessions": {
+    "s_0fabc22628f62c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af85b709-4a3f-45b5-aafa-e19af9445d0f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
