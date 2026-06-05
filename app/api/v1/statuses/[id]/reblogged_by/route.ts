@@ -30,73 +30,79 @@ const RebloggedByQueryParams = z.object({
 
 export const GET = traceApiRoute(
   'getStatusRebloggedBy',
-  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId)
+  OptionalOAuthGuard<Params>(
+    [Scope.enum.read, Scope.enum['read:accounts']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const queryParams = Object.fromEntries(new URL(req.url).searchParams)
+      const parsedParams = RebloggedByQueryParams.safeParse(queryParams)
+      if (!parsedParams.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      const { limit, max_id: maxId, since_id: sinceId } = parsedParams.data
+      const statusId = idToUrl(encodedStatusId)
+      const status = await getReadableStatus({
+        database,
+        statusId,
+        currentActor,
+        withReplies: false
+      })
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+
+      const reblogsPage = await database.getRebloggedBy({
+        statusId,
+        limit: limit + 1,
+        maxStatusId: maxId ? idToUrl(maxId) : undefined,
+        sinceStatusId: sinceId ? idToUrl(sinceId) : undefined,
+        visibleToActorId: currentActor?.id ?? null
+      })
+      const hasNextPage = reblogsPage.length > limit
+      const reblogs = reblogsPage.slice(0, limit)
+
+      const paginationLink = buildAccountCursorLinkHeader({
+        req,
+        limit,
+        items: reblogs,
+        hasNextPage,
+        toCursor: (reblog) => urlToId(reblog.statusId)
+      })
+
+      const accounts = await database.getMastodonActorsFromIds({
+        ids: reblogs.map(({ actorId }) => actorId)
+      })
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: accounts,
+        additionalHeaders: paginationLink ? [['Link', paginationLink]] : []
       })
-
-    const queryParams = Object.fromEntries(new URL(req.url).searchParams)
-    const parsedParams = RebloggedByQueryParams.safeParse(queryParams)
-    if (!parsedParams.success) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-
-    const { limit, max_id: maxId, since_id: sinceId } = parsedParams.data
-    const statusId = idToUrl(encodedStatusId)
-    const status = await getReadableStatus({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
-    if (!status)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-
-    const reblogsPage = await database.getRebloggedBy({
-      statusId,
-      limit: limit + 1,
-      maxStatusId: maxId ? idToUrl(maxId) : undefined,
-      sinceStatusId: sinceId ? idToUrl(sinceId) : undefined,
-      visibleToActorId: currentActor?.id ?? null
-    })
-    const hasNextPage = reblogsPage.length > limit
-    const reblogs = reblogsPage.slice(0, limit)
-
-    const paginationLink = buildAccountCursorLinkHeader({
-      req,
-      limit,
-      items: reblogs,
-      hasNextPage,
-      toCursor: (reblog) => urlToId(reblog.statusId)
-    })
-
-    const accounts = await database.getMastodonActorsFromIds({
-      ids: reblogs.map(({ actorId }) => actorId)
-    })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: accounts,
-      additionalHeaders: paginationLink ? [['Link', paginationLink]] : []
-    })
-  }),
+    },
+    // read or read:accounts satisfies the requirement (Mastodon's
+    // reblogged_by_accounts scope), consistent with favourited_by.
+    { matchMode: 'any' }
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params
