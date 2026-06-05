@@ -16,8 +16,10 @@ exports.up = (knex) =>
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
+    // The composite primary key (actorId, statusId) already serves
+    // actorId-prefix lookups (e.g. getActorMutedConversationRootIds), so no
+    // separate actorId index is needed.
     table.primary(['actorId', 'statusId'])
-    table.index(['actorId'], 'status_mutes_actor')
     table.index(['statusId'], 'status_mutes_status')
   })
 
