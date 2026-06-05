@@ -463,7 +463,8 @@ describe('StatusDatabase', () => {
           fileName: 'status.fit',
           fileType: 'fit',
           mimeType: 'application/octet-stream',
-          bytes: 4096
+          bytes: 4096,
+          sourceUrl: 'https://www.strava.com/activities/123'
         })
 
         const status = (await database.getStatus({ statusId })) as StatusNote
@@ -473,7 +474,8 @@ describe('StatusDatabase', () => {
           fileType: 'fit',
           mimeType: 'application/octet-stream',
           bytes: 4096,
-          url: `/api/v1/fitness-files/${fitnessFile?.id}`
+          url: `/api/v1/fitness-files/${fitnessFile?.id}`,
+          sourceUrl: 'https://www.strava.com/activities/123'
         })
       })
 

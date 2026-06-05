@@ -118,7 +118,8 @@ export const GET = traceApiRoute(
             hasMapData: file.hasMapData ?? false,
             description: file.description ?? null,
             deviceManufacturer: file.deviceManufacturer ?? null,
-            deviceName: file.deviceName ?? null
+            deviceName: file.deviceName ?? null,
+            sourceUrl: file.sourceUrl ?? null
           }))
         }
       })

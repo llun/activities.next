@@ -880,4 +880,61 @@ describe('Post', () => {
       screen.getByRole('button', { name: 'Remove bookmark' })
     ).toBeInTheDocument()
   })
+
+  const fitnessBase = {
+    id: 'fitness-1',
+    fileName: 'strava-123.tcx',
+    fileType: 'tcx' as const,
+    mimeType: 'application/vnd.garmin.tcx+xml',
+    bytes: 1024,
+    url: '/api/v1/fitness-files/fitness-1',
+    processingStatus: 'completed' as const
+  }
+
+  it('renders a "View on Strava" source link from the fitness source URL', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            sourceUrl: 'https://www.strava.com/activities/123'
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    const link = screen.getByRole('link', { name: /View on Strava/i })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://www.strava.com/activities/123'
+    )
+  })
+
+  it('does not render a source link when the URL uses an unsafe scheme', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            // eslint-disable-next-line no-script-url
+            sourceUrl: 'javascript:alert(1)'
+          }
+        }}
+        onShowAttachment={jest.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole('link', { name: /View on Strava|View source/i })
+    ).not.toBeInTheDocument()
+  })
 })
