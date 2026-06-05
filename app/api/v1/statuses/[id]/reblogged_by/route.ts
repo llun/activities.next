@@ -84,7 +84,10 @@ export const GET = traceApiRoute(
         req,
         limit,
         items: reblogs,
-        hasNextPage,
+        // Reblog pages are always descending (max_id/since_id), so overflow is
+        // the older boundary (next), and newer results always exist (prev).
+        hasNext: hasNextPage,
+        hasPrev: true,
         toCursor: (reblog) => urlToId(reblog.statusId)
       })
 

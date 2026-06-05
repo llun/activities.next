@@ -3289,6 +3289,49 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(accounts).toHaveLength(1)
       expect(accounts[0].id).toBe(urlToId(secondOldest.actorId))
     })
+
+    it('emits rel=next (older) but omits rel=prev at the newest edge of a min_id page', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-favourited-by-min-id-edge`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Favourited for min_id edge paging',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createLike({ actorId: ACTOR1_ID, statusId })
+      await database.createLike({ actorId: ACTOR2_ID, statusId })
+      await database.createLike({ actorId: ACTOR3_ID, statusId })
+
+      const ordered = await database.getFavouritedBy({ statusId, limit: 10 })
+      expect(ordered).toHaveLength(3)
+      const secondOldest = ordered[ordered.length - 2]
+
+      // Page forward from the second-oldest: only one newer favourite (the
+      // newest) remains, so the page is full but reaches the newest edge.
+      const minIdCursor = encodeFavouritedByCursor({
+        createdAt: secondOldest.createdAt,
+        actorId: secondOldest.actorId
+      })
+      const page = await getStatusFavouritedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/favourited_by?limit=1&min_id=${encodeURIComponent(minIdCursor)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(page.status).toBe(200)
+      const accounts = await page.json()
+      expect(accounts).toHaveLength(1)
+      expect(accounts[0].id).toBe(urlToId(ordered[0].actorId))
+
+      const linkHeader = page.headers.get('Link') ?? ''
+      // Older favourites still exist (the cursor and below), so next must be
+      // offered; there are no newer ones, so prev must be omitted.
+      expect(linkHeader).toContain('rel="next"')
+      expect(linkHeader).toContain('max_id=')
+      expect(linkHeader).not.toContain('rel="prev"')
+    })
   })
 
   describe('edit sensitive/language', () => {

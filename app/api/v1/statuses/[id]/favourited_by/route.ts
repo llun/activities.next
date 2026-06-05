@@ -84,22 +84,33 @@ export const GET = traceApiRoute(
         minId,
         sinceId
       })
-      const hasNextPage = favouritesPage.length > limit
+      const hasOverflow = favouritesPage.length > limit
       // The extra (limit+1)th row is the page-boundary overflow used only to
-      // detect a next page. For descending pages (default/max_id/since_id) it is
-      // the oldest row, at the end. For an ascending min_id page the DB reverses
-      // the rows, so the overflow lands at the front and we must trim there
-      // instead — otherwise the favourite immediately adjacent to the cursor is
-      // dropped and a gap opens.
+      // detect another page. For descending pages (default/max_id/since_id) it
+      // is the oldest row, at the end, so it signals more OLDER results (the
+      // next/max_id link). For an ascending min_id page the DB reverses the
+      // rows, so the overflow lands at the front and signals more NEWER results
+      // (the prev/since_id link); we also trim from the front there so the
+      // favourite immediately adjacent to the cursor is not dropped.
       const favourites = minId
         ? favouritesPage.slice(Math.max(0, favouritesPage.length - limit))
         : favouritesPage.slice(0, limit)
+
+      // Newest-first page: next (older/max_id) and prev (newer/since_id) are
+      // gated independently. A min_id page paged forward toward newer results,
+      // so its overflow indicates more on the prev (newer) side; older results
+      // (the cursor and below) always exist, so next is always offered. Other
+      // pages move older, so overflow indicates more on the next (older) side
+      // and newer results always exist behind them.
+      const hasNext = minId ? true : hasOverflow
+      const hasPrev = minId ? hasOverflow : true
 
       const paginationLink = buildAccountCursorLinkHeader({
         req,
         limit,
         items: favourites,
-        hasNextPage,
+        hasNext,
+        hasPrev,
         toCursor: (favourite) =>
           encodeFavouritedByCursor({
             createdAt: favourite.createdAt,

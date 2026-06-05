@@ -5,23 +5,28 @@ import { headerHost } from '@/lib/services/guards/headerHost'
  * account-list endpoints that paginate with opaque id cursors —
  * `reblogged_by` and `favourited_by`. Mastodon treats `max_id`/`since_id` as
  * opaque tokens, so each endpoint supplies its own `toCursor` to turn a page
- * item into the cursor string. `max_id` (the last/oldest item) advances to the
- * next page; `since_id` (the first/newest item) walks back to the previous one.
+ * item into the cursor string. Pages are always presented newest-first, so
+ * `max_id` (the last/oldest item) advances to the next/older page and
+ * `since_id` (the first/newest item) walks back to the previous/newer one.
  *
- * Returns `undefined` when there is nothing to page over (empty page) or the
- * request host cannot be resolved, so callers omit the header entirely.
+ * `hasNext`/`hasPrev` gate the two links independently: a forward (`min_id`)
+ * page detects overflow on the newer side, so the caller must wire that to
+ * `hasPrev` rather than `hasNext`. Returns `undefined` when there is nothing to
+ * page over (empty page) or the request host cannot be resolved.
  */
 export const buildAccountCursorLinkHeader = <T>({
   req,
   limit,
   items,
-  hasNextPage,
+  hasNext,
+  hasPrev,
   toCursor
 }: {
   req: Request
   limit: number
   items: T[]
-  hasNextPage: boolean
+  hasNext: boolean
+  hasPrev: boolean
   toCursor: (item: T) => string
 }): string | undefined => {
   if (items.length === 0) return undefined
@@ -42,9 +47,11 @@ export const buildAccountCursorLinkHeader = <T>({
 
   const firstItem = items[0]
   const lastItem = items[items.length - 1]
-  const nextLink = hasNextPage
+  const nextLink = hasNext
     ? `<${buildUrl('max_id', toCursor(lastItem))}>; rel="next"`
     : null
-  const prevLink = `<${buildUrl('since_id', toCursor(firstItem))}>; rel="prev"`
-  return [nextLink, prevLink].filter(Boolean).join(', ')
+  const prevLink = hasPrev
+    ? `<${buildUrl('since_id', toCursor(firstItem))}>; rel="prev"`
+    : null
+  return [nextLink, prevLink].filter(Boolean).join(', ') || undefined
 }
