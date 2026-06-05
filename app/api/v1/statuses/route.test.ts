@@ -336,4 +336,192 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(422)
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
+
+  it('honors sensitive and language on a JSON create', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Marked sensitive without a content warning',
+          sensitive: true,
+          language: 'th'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    // Sensitive is honored even though there is no spoiler_text.
+    expect(mastodonStatus.sensitive).toBe(true)
+    expect(mastodonStatus.spoiler_text).toBe('')
+    expect(mastodonStatus.language).toBe('th')
+  })
+
+  it('coerces a form-encoded sensitive=false into a non-sensitive status', async () => {
+    const body = new URLSearchParams()
+    body.set('status', 'Form sensitive false should not be sensitive')
+    body.set('sensitive', 'false')
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.sensitive).toBe(false)
+  })
+
+  it('creates a poll from JSON poll params', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Favourite color?',
+          poll: {
+            options: ['Red', 'Green', 'Blue'],
+            expires_in: 3600,
+            multiple: true
+          }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.poll).not.toBeNull()
+    expect(mastodonStatus.poll.multiple).toBe(true)
+    expect(mastodonStatus.poll.options).toEqual([
+      { title: 'Red', votes_count: 0 },
+      { title: 'Green', votes_count: 0 },
+      { title: 'Blue', votes_count: 0 }
+    ])
+  })
+
+  it('creates a poll from flattened form poll params', async () => {
+    const body = new URLSearchParams()
+    body.set('status', 'Tea or coffee?')
+    body.append('poll[options][]', 'Tea')
+    body.append('poll[options][]', 'Coffee')
+    body.set('poll[expires_in]', '600')
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.poll.options).toEqual([
+      { title: 'Tea', votes_count: 0 },
+      { title: 'Coffee', votes_count: 0 }
+    ])
+    expect(mastodonStatus.poll.multiple).toBe(false)
+  })
+
+  it('rejects a status that carries both media and a poll with 422', async () => {
+    const media = await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/poll-and-media.webp',
+        bytes: 1024,
+        mimeType: 'image/jpeg',
+        metaData: { width: 100, height: 100 },
+        fileName: 'poll-and-media.jpg'
+      }
+    })
+    expect(media).not.toBeNull()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Cannot have both',
+          media_ids: [media!.id],
+          poll: { options: ['a', 'b'], expires_in: 3600 }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+  })
+
+  it('rejects a poll with fewer than two options with 422', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Only one option',
+          poll: { options: ['Lonely'], expires_in: 3600 }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+  })
+
+  it('returns the original status for a repeated Idempotency-Key', async () => {
+    const idempotencyKey = 'idem-key-abc-123'
+    const makeRequest = () =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'Idempotent create' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': idempotencyKey
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    const firstResponse = await makeRequest()
+    expect(firstResponse.status).toBe(200)
+    const firstStatus = await firstResponse.json()
+
+    const secondResponse = await makeRequest()
+    expect(secondResponse.status).toBe(200)
+    const secondStatus = await secondResponse.json()
+
+    // Same status id is returned, and no duplicate was created.
+    expect(secondStatus.id).toBe(firstStatus.id)
+    const owned = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    const matching = owned.filter((status) => status.id === firstStatus.uri)
+    expect(matching).toHaveLength(1)
+  })
 })
