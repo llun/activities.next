@@ -524,4 +524,45 @@ describe('POST /api/v1/statuses', () => {
     const matching = owned.filter((status) => status.id === firstStatus.uri)
     expect(matching).toHaveLength(1)
   })
+
+  it('does not resurrect a deleted status for a reused Idempotency-Key (orphan cleanup)', async () => {
+    const idempotencyKey = 'idem-key-orphan-456'
+    const makeRequest = () =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'Idempotent then deleted' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': idempotencyKey
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    const firstResponse = await makeRequest()
+    const firstStatus = await firstResponse.json()
+
+    // Deleting the status must also drop the idempotency key pointing at it.
+    await database.deleteStatus({ statusId: firstStatus.uri })
+    await expect(
+      database.getIdempotentStatusId({
+        actorId: ACTOR1_ID,
+        key: idempotencyKey
+      })
+    ).resolves.toBeNull()
+
+    // A retry now creates a fresh status (not a 404/duplicate loop) and re-keys.
+    const secondResponse = await makeRequest()
+    expect(secondResponse.status).toBe(200)
+    const secondStatus = await secondResponse.json()
+    expect(secondStatus.id).not.toBe(firstStatus.id)
+    await expect(
+      database.getIdempotentStatusId({
+        actorId: ACTOR1_ID,
+        key: idempotencyKey
+      })
+    ).resolves.toBe(secondStatus.uri)
+  })
 })

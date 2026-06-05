@@ -94,11 +94,24 @@ export const GET = traceApiRoute(
       const accounts = await database.getMastodonActorsFromIds({
         ids: reblogs.map(({ actorId }) => actorId)
       })
+      // Preserve the reblog order: getMastodonActorsFromIds does not guarantee
+      // it, and Mastodon returns accounts newest-reblog-first.
+      const accountById = new Map<string, (typeof accounts)[number]>()
+      for (const account of accounts) {
+        if (typeof account.id === 'string')
+          accountById.set(idToUrl(account.id), account)
+        if (account.url) accountById.set(account.url, account)
+      }
+      const orderedAccounts = reblogs
+        .map(({ actorId }) => accountById.get(actorId))
+        .filter((account): account is NonNullable<typeof account> =>
+          Boolean(account)
+        )
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: accounts,
+        data: orderedAccounts,
         additionalHeaders: paginationLink ? [['Link', paginationLink]] : []
       })
     },

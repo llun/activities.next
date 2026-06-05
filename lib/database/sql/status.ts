@@ -1914,6 +1914,22 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    // Clean up idempotency keys that pointed at the deleted status so a retried
+    // create with the same key does not resolve to a now-missing status (which
+    // would otherwise let the retry create a duplicate). Likewise drop any
+    // conversation mute rows keyed on a deleted thread root.
+    await deleteRowsByColumnChunks(
+      trx,
+      'idempotency_keys',
+      'statusId',
+      statusIdsToDelete
+    )
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_mutes',
+      'statusId',
+      statusIdsToDelete
+    )
     for (const statusIdChunk of chunkArray(
       statusIdsToDelete,
       getWhereInBatchSize(trx)

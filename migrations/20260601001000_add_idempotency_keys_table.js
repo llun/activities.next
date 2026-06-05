@@ -15,6 +15,9 @@ exports.up = (knex) =>
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
 
     table.primary(['actorId', 'key'])
+    // Indexed so deletion by statusId (orphan cleanup when a status is removed)
+    // and expiry sweeps by createdAt stay efficient.
+    table.index(['statusId'], 'idempotency_keys_status')
     table.index(['createdAt'], 'idempotency_keys_created')
   })
 
