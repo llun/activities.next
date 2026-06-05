@@ -92,3 +92,6 @@ AGENTS.override.md
 
 # Git worktrees
 .worktrees/
+
+.gemini/
+gha-creds-*.json
