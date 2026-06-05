@@ -1,0 +1,55 @@
+lib/services/accounts/getFallbackMutedAccount.ts
+  s_1d84ead87fa9e1::t_e097da0529b1cd 3
+  s_1d84ead87fa9e1::t_4e35cf7b51ce82 64
+lib/database/sql/actor.test.ts
+  s_1d84ead87fa9e1::t_2bc19b5582887c 30
+  s_1d84ead87fa9e1::t_83eb5a4fcf7cda 656
+app/api/v1/reports/route.ts
+  s_1d84ead87fa9e1::t_e097da0529b1cd 5
+  s_1d84ead87fa9e1::t_4e35cf7b51ce82 89
+lib/services/mastodon/getMastodonFilter.ts
+  s_1d84ead87fa9e1::t_e097da0529b1cd 9
+  s_1d84ead87fa9e1::t_4e35cf7b51ce82 32
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_1d84ead87fa9e1::t_93ce42af266a93 13
+  s_1d84ead87fa9e1::t_41531198f0c672 459
+lib/utils/getISOTimeUTC.ts
+  s_1d84ead87fa9e1::t_4120810128d274 10-19
+lib/services/mastodon/getMastodonStatus.ts
+  s_1d84ead87fa9e1::t_e097da0529b1cd 12
+  s_1d84ead87fa9e1::t_4e35cf7b51ce82 290,293,406
+lib/services/mastodon/getMastodonFilter.test.ts
+  s_1d84ead87fa9e1::t_34f707c88ceaa1 53-55
+lib/utils/getISOTimeUTC.test.ts
+  s_1d84ead87fa9e1::t_c99adb18558d9d 1,16-27
+lib/database/sql/actor.ts
+  s_1d84ead87fa9e1::t_0daedf7df508a6 69
+  s_1d84ead87fa9e1::t_a5c13915aa91a3 297
+app/api/v1/statuses/[id]/history/route.ts
+  s_1d84ead87fa9e1::t_e097da0529b1cd 4
+  s_1d84ead87fa9e1::t_4e35cf7b51ce82 64
+lib/services/notifications/getNotificationGroup.ts
+  s_1d84ead87fa9e1::t_e097da0529b1cd 6
+  s_1d84ead87fa9e1::t_4e35cf7b51ce82 70
+lib/services/accounts/getFallbackBlockedAccount.ts
+  s_1d84ead87fa9e1::t_e097da0529b1cd 3
+  s_1d84ead87fa9e1::t_4e35cf7b51ce82 64
+lib/services/notifications/getNotificationGroup.test.ts
+  s_1d84ead87fa9e1::t_14ddfd8c849672 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f3d8a392caa102c323be99430bd7ac0a29f4408a",
+  "prompts": {},
+  "sessions": {
+    "s_1d84ead87fa9e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a47e3348-e551-4d77-9460-cadab3dde5e4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
