@@ -434,6 +434,16 @@ export type GetStatusRepliesParams = BaseStatusParams & {
   publicOnly?: boolean
   visibleToActorId?: string | null
 }
+export type GetStatusEditHistoryParams = BaseStatusParams
+// A single superseded revision of a status (a row in `status_history`). `text`
+// and `summary` are the content of that prior version; `supersededAt` is when it
+// was replaced by the next version, which is the creation time of that next
+// version.
+export type StatusEditRevision = {
+  text: string
+  summary: string | null
+  supersededAt: number
+}
 export type DeleteStatusParams = BaseStatusParams & {
   actorId?: string
 }
@@ -523,8 +533,16 @@ export type HasActorAnnouncedStatusParams = BaseStatusParams & {
   actorId?: string
 }
 export type GetFavouritedByParams = BaseStatusParams & {
-  limit?: number
-  offset?: number
+  limit: number
+  // Opaque base64url cursors (see favouritedByCursor). `maxId` pages toward
+  // older favourites, `minId`/`sinceId` toward newer ones.
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+export type FavouritedByAccount = {
+  actorId: string
+  createdAt: number
 }
 export type GetRebloggedByParams = BaseStatusParams & {
   limit?: number
@@ -626,6 +644,9 @@ export interface StatusDatabase {
   updatePoll(params: UpdatePollParams): Promise<Status | null>
   getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
+  getStatusEditHistory(
+    params: GetStatusEditHistoryParams
+  ): Promise<StatusEditRevision[]>
   getStatusFromUrl(params: GetStatusFromUrlParams): Promise<Status | null>
   getStatusFromUrlHash(
     params: GetStatusFromUrlHashParams
@@ -651,7 +672,7 @@ export interface StatusDatabase {
   unpinStatus(params: PinStatusParams): Promise<void>
   getPinnedStatusIds(params: GetPinnedStatusIdsParams): Promise<string[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
-  getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
+  getFavouritedBy(params: GetFavouritedByParams): Promise<FavouritedByAccount[]>
   getRebloggedBy(params: GetRebloggedByParams): Promise<RebloggedByAccount[]>
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
@@ -1102,6 +1123,26 @@ export interface MuteDatabase {
   isMuting(params: IsMutingParams): Promise<boolean>
   getMuteRelations(params: GetMuteRelationsParams): Promise<MuteRelation[]>
   getMutes(params: GetMutesParams): Promise<Mute[]>
+}
+
+// ============================================================================
+// Status (conversation) Mute Database
+// ============================================================================
+
+// `statusId` is the thread-root status id that identifies the muted
+// conversation (see resolveConversationRootId).
+export type CreateStatusMuteParams = { actorId: string; statusId: string }
+export type DeleteStatusMuteParams = { actorId: string; statusId: string }
+export type IsConversationMutedParams = { actorId: string; statusId: string }
+export type GetActorMutedConversationRootIdsParams = { actorId: string }
+
+export interface StatusMuteDatabase {
+  createStatusMute(params: CreateStatusMuteParams): Promise<void>
+  deleteStatusMute(params: DeleteStatusMuteParams): Promise<void>
+  isConversationMuted(params: IsConversationMutedParams): Promise<boolean>
+  getActorMutedConversationRootIds(
+    params: GetActorMutedConversationRootIdsParams
+  ): Promise<string[]>
 }
 
 // ============================================================================

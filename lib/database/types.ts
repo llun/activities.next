@@ -26,6 +26,7 @@ import {
   ReportDatabase,
   SearchDatabase,
   StatusDatabase,
+  StatusMuteDatabase,
   TimelineDatabase
 } from '@/lib/types/database/operations'
 
@@ -55,5 +56,6 @@ export type Database = AccountDatabase &
   ReportDatabase &
   SearchDatabase &
   StatusDatabase &
+  StatusMuteDatabase &
   TimelineDatabase &
   BaseDatabase

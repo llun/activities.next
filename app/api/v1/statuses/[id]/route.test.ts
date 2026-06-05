@@ -1223,7 +1223,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       ).resolves.toBe(false)
     })
 
-    it('deletes bookmarks and returns 404 when the original status is no longer readable', async () => {
+    it('deletes the bookmark and returns the Status with bookmarked=false when the original status is no longer readable', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor3.email }
       })
@@ -1255,8 +1255,13 @@ describe('GET /api/v1/statuses/[id]', () => {
         { params: Promise.resolve({ id: urlToId(statusId) }) }
       )
 
-      expect(response.status).toBe(404)
-      await expect(response.json()).resolves.toEqual({ status: 'Not Found' })
+      // Mastodon returns the Status (not a 404) so the client can reconcile its
+      // local bookmark state, even though the post is no longer visible.
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        id: urlToId(statusId),
+        bookmarked: false
+      })
       await expect(
         database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
       ).resolves.toBe(false)

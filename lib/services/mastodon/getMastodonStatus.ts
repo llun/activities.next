@@ -1,5 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
 import { Mastodon } from '@/lib/types/activitypub'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
 import {
@@ -52,6 +53,9 @@ interface GetMastodonStatusOptions {
   statusMetricsCache?: StatusMetricsCache
   pollVoteCache?: PollVoteCache
   pinnedStatusIds?: Set<string>
+  // The set of thread-root status ids whose conversations the current actor has
+  // muted. An empty set means "no mutes", letting per-status checks short-circuit.
+  mutedConversationRootIds?: Set<string>
 }
 
 const getMastodonAccount = (
@@ -284,6 +288,12 @@ export const getMastodonStatus = async (
       ? await getStatusReblogsCount(database, status.id, options)
       : 0
   const pinned = await isStatusPinned(database, status, currentActorId, options)
+  const muted = await isConversationMutedForActor(
+    database,
+    status,
+    currentActorId,
+    options?.mutedConversationRootIds
+  )
 
   const baseData = {
     id: urlToId(status.id),
@@ -307,7 +317,7 @@ export const getMastodonStatus = async (
 
     favourited: false,
     reblogged: false,
-    muted: false,
+    muted,
     bookmarked: isStatusBookmarked(status),
     ...(pinned === undefined ? {} : { pinned }),
 
@@ -461,7 +471,8 @@ export const getMastodonStatuses = async (
     replyCounts,
     replyStatuses,
     pollVotes,
-    pinnedStatusIds
+    pinnedStatusIds,
+    mutedConversationRootIds
   ] = await Promise.all([
     database.getMastodonActorsFromIds({
       ids: requestedActorIds
@@ -489,6 +500,9 @@ export const getMastodonStatuses = async (
           actorId: currentActorId,
           statusIds: requestedPinnedLookupStatusIds
         })
+      : Promise.resolve<string[]>([]),
+    currentActorId
+      ? database.getActorMutedConversationRootIds({ actorId: currentActorId })
       : Promise.resolve<string[]>([])
   ])
   const requestedActorIdSet = new Set(requestedActorIds)
@@ -516,6 +530,9 @@ export const getMastodonStatuses = async (
     ...inputOptions,
     pinnedStatusIds:
       inputOptions.pinnedStatusIds ?? new Set<string>(pinnedStatusIds),
+    mutedConversationRootIds:
+      inputOptions.mutedConversationRootIds ??
+      new Set<string>(mutedConversationRootIds),
     accountCache,
     statusMetricsCache: {
       reblogs: new Map(

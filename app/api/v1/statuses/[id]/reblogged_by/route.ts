@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { headerHost } from '@/lib/services/guards/headerHost'
+import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
-import { type RebloggedByAccount, Scope } from '@/lib/types/database/operations'
+import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -27,42 +27,6 @@ const RebloggedByQueryParams = z.object({
   max_id: z.string().min(1).optional(),
   since_id: z.string().min(1).optional()
 })
-
-const getPaginationLinkHeader = ({
-  req,
-  limit,
-  reblogs,
-  hasNextPage
-}: {
-  req: Request
-  limit: number
-  reblogs: RebloggedByAccount[]
-  hasNextPage: boolean
-}) => {
-  if (reblogs.length === 0) return undefined
-
-  const requestUrl = new URL(req.url)
-  const host = headerHost(req.headers)
-  if (!host) return undefined
-
-  const buildUrl = (cursor: 'max_id' | 'since_id', statusId: string) => {
-    const params = new URLSearchParams()
-    params.set('limit', `${limit}`)
-    params.set(cursor, urlToId(statusId))
-
-    const url = new URL(requestUrl.pathname, `https://${host}`)
-    url.search = params.toString()
-    return url.toString()
-  }
-
-  const firstReblog = reblogs[0]
-  const lastReblog = reblogs[reblogs.length - 1]
-  const nextLink = hasNextPage
-    ? `<${buildUrl('max_id', lastReblog.statusId)}>; rel="next"`
-    : null
-  const prevLink = `<${buildUrl('since_id', firstReblog.statusId)}>; rel="prev"`
-  return [nextLink, prevLink].filter(Boolean).join(', ')
-}
 
 export const GET = traceApiRoute(
   'getStatusRebloggedBy',
@@ -114,11 +78,12 @@ export const GET = traceApiRoute(
     const hasNextPage = reblogsPage.length > limit
     const reblogs = reblogsPage.slice(0, limit)
 
-    const paginationLink = getPaginationLinkHeader({
+    const paginationLink = buildAccountCursorLinkHeader({
       req,
       limit,
-      reblogs,
-      hasNextPage
+      items: reblogs,
+      hasNextPage,
+      toCursor: (reblog) => urlToId(reblog.statusId)
     })
 
     const accounts = await database.getMastodonActorsFromIds({

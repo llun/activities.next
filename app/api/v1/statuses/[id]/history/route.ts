@@ -1,7 +1,8 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { getMastodonStatusEdits } from '@/lib/services/mastodon/getMastodonStatusEdits'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -45,8 +46,9 @@ export const GET = traceApiRoute(
           responseStatusCode: 404
         })
 
-      // Only note and poll statuses have text content
-      if (status.type === 'Announce') {
+      // Only Note and Poll statuses have editable text content; Announces
+      // (reblogs) have no history.
+      if (status.type === StatusType.enum.Announce) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -55,20 +57,11 @@ export const GET = traceApiRoute(
         })
       }
 
-      // Return current version as history (edit history not tracked)
-      const history = [
-        {
-          content: status.text ?? '',
-          spoiler_text: status.summary ?? '',
-          sensitive: Boolean(status.summary),
-          created_at: getISOTimeUTC(status.createdAt),
-          account: await database.getMastodonActorFromId({
-            id: status.actorId
-          }),
-          emojis: [],
-          media_attachments: []
-        }
-      ]
+      const history = await getMastodonStatusEdits(
+        database,
+        status,
+        currentActor?.id
+      )
 
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: history })
     }

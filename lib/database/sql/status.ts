@@ -11,6 +11,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
+import { decodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
@@ -40,6 +41,7 @@ import {
   CreatePollParams,
   CreateTagParams,
   DeleteStatusParams,
+  FavouritedByAccount,
   GetActorPollVotesForStatusesParams,
   GetActorPollVotesParams,
   GetActorStatusesCountParams,
@@ -49,6 +51,7 @@ import {
   GetPinnedStatusIdsParams,
   GetRebloggedByParams,
   GetStatusCountsParams,
+  GetStatusEditHistoryParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
   GetStatusParams,
@@ -64,11 +67,12 @@ import {
   PinStatusParams,
   RecordPollVotesParams,
   StatusDatabase,
+  StatusEditRevision,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
   UpdatePollParams
 } from '@/lib/types/database/operations'
-import { Actor, getActorProfile } from '@/lib/types/domain/actor'
+import { getActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
@@ -993,6 +997,26 @@ export const StatusSQLDatabaseMixin = (
   const getActorTargetStatusIds = (actorId: string) =>
     database('statuses').select('statuses.id').where('actorId', actorId)
 
+  async function getStatusEditHistory({
+    statusId
+  }: GetStatusEditHistoryParams): Promise<StatusEditRevision[]> {
+    // Each row holds the content of a prior version; `updatedAt` is when that
+    // version was superseded. Ordered oldest-first (insertion order) so the
+    // serializer can reconstruct the revision timeline.
+    const rows = await database('status_history')
+      .where('statusId', statusId)
+      .orderBy('updatedAt', 'asc')
+      .orderBy('id', 'asc')
+    return rows.map((row) => {
+      const content = getCompatibleJSON(row.data)
+      return {
+        text: content.text ?? '',
+        summary: content.summary ?? null,
+        supersededAt: getCompatibleTime(row.updatedAt)
+      }
+    })
+  }
+
   async function getStatusReplies({
     statusId,
     url,
@@ -1898,26 +1922,60 @@ export const StatusSQLDatabaseMixin = (
   async function getFavouritedBy({
     statusId,
     limit,
-    offset = 0
-  }: GetFavouritedByParams): Promise<Actor[]> {
-    let query = database('likes')
-      .where({ statusId })
-      .orderBy('createdAt', 'desc')
-      .orderBy('actorId', 'asc')
+    maxId,
+    minId,
+    sinceId
+  }: GetFavouritedByParams): Promise<FavouritedByAccount[]> {
+    const olderCursorToken = maxId
+    const newerCursorToken = minId || sinceId
 
-    if (typeof limit === 'number') {
-      query = query.limit(limit)
+    // Reject malformed cursors with an empty page instead of scanning from the
+    // top, matching the favourites/bookmarks pagination contract.
+    if (
+      (olderCursorToken && !decodeFavouritedByCursor(olderCursorToken)) ||
+      (newerCursorToken && !decodeFavouritedByCursor(newerCursorToken))
+    ) {
+      return []
     }
 
-    if (offset > 0) {
-      query = query.offset(offset)
+    const applyCursor = (
+      builder: Knex.QueryBuilder,
+      cursor: { createdAt: number; actorId: string },
+      direction: 'newer' | 'older'
+    ) => {
+      const operator = direction === 'older' ? '<' : '>'
+      const createdAtValue = new Date(cursor.createdAt)
+      builder.andWhere((inner) => {
+        inner
+          .where('createdAt', operator, createdAtValue)
+          .orWhere((tieBreaker) => {
+            tieBreaker
+              .where('createdAt', createdAtValue)
+              .andWhere('actorId', operator, cursor.actorId)
+          })
+      })
     }
 
-    const result = await query
-    const actors = await Promise.all(
-      result.map((item) => actorDatabase.getActorFromId({ id: item.actorId }))
-    )
-    return actors.filter((actor): actor is Actor => Boolean(actor))
+    const query = database('likes').where({ statusId }).limit(limit)
+
+    const olderCursor = decodeFavouritedByCursor(olderCursorToken)
+    if (olderCursor) applyCursor(query, olderCursor, 'older')
+
+    const newerCursor = decodeFavouritedByCursor(newerCursorToken)
+    if (newerCursor) applyCursor(query, newerCursor, 'newer')
+
+    if (minId) {
+      query.orderBy('createdAt', 'asc').orderBy('actorId', 'asc')
+    } else {
+      query.orderBy('createdAt', 'desc').orderBy('actorId', 'desc')
+    }
+
+    const rows = await query
+    const ordered = minId ? rows.reverse() : rows
+    return ordered.map((row) => ({
+      actorId: row.actorId,
+      createdAt: getCompatibleTime(row.createdAt)
+    }))
   }
 
   async function getRebloggedBy({
@@ -2783,6 +2841,7 @@ export const StatusSQLDatabaseMixin = (
     updatePoll,
     getStatus,
     getStatusReplies,
+    getStatusEditHistory,
     getStatusFromUrl,
     getStatusFromUrlHash,
     getActorAnnouncedStatusId,

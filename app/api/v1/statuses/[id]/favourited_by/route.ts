@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
+import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -22,13 +24,15 @@ interface Params {
 }
 
 const FavouritedByQueryParams = z.object({
-  limit: z.coerce.number().min(1).max(200).optional(),
-  offset: z.coerce.number().min(0).default(0).optional()
+  limit: z.coerce.number().int().min(1).max(80).default(40),
+  max_id: z.string().min(1).optional(),
+  min_id: z.string().min(1).optional(),
+  since_id: z.string().min(1).optional()
 })
 
 export const GET = traceApiRoute(
   'getStatusFavouritedBy',
-  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId)
@@ -50,7 +54,12 @@ export const GET = traceApiRoute(
       })
     }
 
-    const { limit, offset = 0 } = parsedParams.data
+    const {
+      limit,
+      max_id: maxId,
+      min_id: minId,
+      since_id: sinceId
+    } = parsedParams.data
     const statusId = idToUrl(encodedStatusId)
     const status = await getReadableStatus({
       database,
@@ -66,22 +75,50 @@ export const GET = traceApiRoute(
         responseStatusCode: 404
       })
 
-    const [actors, totalCount] = await Promise.all([
-      database.getFavouritedBy({ statusId, limit, offset }),
-      database.getLikeCount({ statusId })
-    ])
+    const favouritesPage = await database.getFavouritedBy({
+      statusId,
+      limit: limit + 1,
+      maxId,
+      minId,
+      sinceId
+    })
+    const hasNextPage = favouritesPage.length > limit
+    const favourites = favouritesPage.slice(0, limit)
+
+    const paginationLink = buildAccountCursorLinkHeader({
+      req,
+      limit,
+      items: favourites,
+      hasNextPage,
+      toCursor: (favourite) =>
+        encodeFavouritedByCursor({
+          createdAt: favourite.createdAt,
+          actorId: favourite.actorId
+        })
+    })
+
+    const accounts = await database.getMastodonActorsFromIds({
+      ids: favourites.map(({ actorId }) => actorId)
+    })
+    // Preserve the favourite order: getMastodonActorsFromIds does not guarantee
+    // it, and Mastodon returns accounts newest-favourite-first.
+    const accountById = new Map<string, (typeof accounts)[number]>()
+    for (const account of accounts) {
+      if (typeof account.id === 'string')
+        accountById.set(idToUrl(account.id), account)
+      if (account.url) accountById.set(account.url, account)
+    }
+    const orderedAccounts = favourites
+      .map(({ actorId }) => accountById.get(actorId))
+      .filter((account): account is NonNullable<typeof account> =>
+        Boolean(account)
+      )
 
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: await Promise.all(
-        actors.map((actor) => database.getMastodonActorFromId({ id: actor.id }))
-      ),
-      additionalHeaders: [
-        ['X-Total-Count', `${totalCount}`],
-        ['X-Offset', `${offset}`],
-        ['X-Limit', `${limit ?? totalCount}`]
-      ]
+      data: orderedAccounts,
+      additionalHeaders: paginationLink ? [['Link', paginationLink]] : []
     })
   }),
   {
