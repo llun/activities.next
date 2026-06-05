@@ -22,22 +22,24 @@ export const createNotificationWithPolicy = async (
   // Suppress notifications for conversations the recipient has muted. Only
   // status-bound notifications (mention, reply, favourite, reblog, poll, …)
   // belong to a conversation; account-level ones (e.g. follow) carry no
-  // statusId and are never suppressed here.
+  // statusId and are never suppressed here. Check the recipient's (usually
+  // empty) mute list first so the common case skips the thread-root walk.
   if (params.statusId) {
-    const status = await database.getStatus({
-      statusId: params.statusId,
-      withReplies: false
+    const mutedRootIds = await database.getActorMutedConversationRootIds({
+      actorId: params.actorId
     })
-    if (status) {
-      const conversationRootId = await resolveConversationRootId(
-        database,
-        status
-      )
-      const conversationMuted = await database.isConversationMuted({
-        actorId: params.actorId,
-        statusId: conversationRootId
+    if (mutedRootIds.length > 0) {
+      const status = await database.getStatus({
+        statusId: params.statusId,
+        withReplies: false
       })
-      if (conversationMuted) return null
+      if (status) {
+        const conversationRootId = await resolveConversationRootId(
+          database,
+          status
+        )
+        if (mutedRootIds.includes(conversationRootId)) return null
+      }
     }
   }
 

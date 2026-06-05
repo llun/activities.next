@@ -286,6 +286,8 @@ interface CreateNoteFromUserInputParams {
   attachments?: PostBoxAttachment[]
   fitnessFileId?: string
   visibility?: MastodonVisibility
+  sensitive?: boolean
+  language?: string | null
   database: Database
 }
 export const createNoteFromUserInput = async ({
@@ -296,6 +298,8 @@ export const createNoteFromUserInput = async ({
   attachments = [],
   fitnessFileId,
   visibility,
+  sensitive = false,
+  language = null,
   database
 }: CreateNoteFromUserInputParams) => {
   const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
@@ -385,7 +389,9 @@ export const createNoteFromUserInput = async ({
     to,
     cc,
 
-    reply: replyStatus?.id || ''
+    reply: replyStatus?.id || '',
+    sensitive,
+    language
   })
 
   // Tags must be persisted before timeline rules run so that

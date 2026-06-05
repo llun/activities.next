@@ -371,11 +371,16 @@ export const getMastodonStatus = async (
   const emojis = getEmojisFromTags(status.tags)
   const hashtags = getHashtagsFromTags(status.tags, host)
 
-  const sensitive = Boolean(status.summary && status.summary.length > 0)
+  // Mastodon marks a status sensitive when it was explicitly flagged sensitive
+  // OR carries a content warning (spoiler/summary).
+  const sensitive =
+    (status.sensitive ?? false) ||
+    Boolean(status.summary && status.summary.length > 0)
   const mastodonStatus = {
     ...baseData,
     spoiler_text: status.summary ?? '',
     sensitive,
+    language: status.language ?? null,
     url: status.url,
 
     in_reply_to_id: replyStatus ? urlToId(replyStatus.id) : null,

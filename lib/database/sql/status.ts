@@ -408,6 +408,8 @@ export const StatusSQLDatabaseMixin = (
     to,
     cc,
     reply = '',
+    sensitive = false,
+    language = null,
     createdAt
   }: CreateNoteParams) {
     const currentTime = new Date()
@@ -416,7 +418,9 @@ export const StatusSQLDatabaseMixin = (
     const content = {
       url,
       text,
-      summary
+      summary,
+      sensitive,
+      language
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -489,6 +493,8 @@ export const StatusSQLDatabaseMixin = (
       type: StatusType.enum.Note,
       text,
       summary,
+      sensitive,
+      language,
       reply,
       to,
       cc,
@@ -510,7 +516,9 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     text,
     summary,
-    attachments
+    attachments,
+    sensitive,
+    language
   }: UpdateNoteParams): Promise<Status | null> {
     const status = await getStatus({ statusId })
     if (!status) return null
@@ -525,7 +533,10 @@ export const StatusSQLDatabaseMixin = (
     const content = {
       url: status.url,
       text,
-      summary
+      summary,
+      // Preserve the existing flags unless the caller explicitly overrides them.
+      sensitive: sensitive === undefined ? status.sensitive : sensitive,
+      language: language === undefined ? status.language : language
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -768,6 +779,8 @@ export const StatusSQLDatabaseMixin = (
     endAt,
     choices,
     pollType = 'oneOf',
+    sensitive = false,
+    language = null,
     createdAt
   }: CreatePollParams) {
     const currentTime = new Date()
@@ -777,6 +790,8 @@ export const StatusSQLDatabaseMixin = (
       url,
       text,
       summary,
+      sensitive,
+      language,
       endAt,
       pollType
     }
@@ -862,6 +877,8 @@ export const StatusSQLDatabaseMixin = (
       type: StatusType.enum.Poll,
       text,
       summary,
+      sensitive,
+      language,
       reply,
       to,
       cc,
@@ -900,6 +917,8 @@ export const StatusSQLDatabaseMixin = (
       url: data.url,
       text: nextText,
       summary: nextSummary,
+      sensitive: data.sensitive ?? false,
+      language: data.language ?? null,
       endAt: data.endAt,
       pollType: data.pollType
     }
@@ -2393,6 +2412,8 @@ export const StatusSQLDatabaseMixin = (
       type: data.type,
       text: content.text,
       summary: content.summary,
+      sensitive: content.sensitive ?? false,
+      language: content.language ?? null,
       reply: data.reply,
       replies: repliesNote,
       totalLikes,

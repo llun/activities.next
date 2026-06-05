@@ -337,6 +337,8 @@ describe('StatusDatabase', () => {
           url: statuses.primary.post,
           text: 'This is Actor1 post',
           summary: '',
+          sensitive: false,
+          language: null,
           reply: '',
           replies: [],
           actorAnnounceStatusId: null,

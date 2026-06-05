@@ -388,6 +388,10 @@ interface BaseCreateStatusParams {
   summary?: string | null
   reply?: string
 
+  // Mastodon-compatible content flags persisted in the status content blob.
+  sensitive?: boolean
+  language?: string | null
+
   createdAt?: number
 }
 
@@ -400,6 +404,9 @@ type BaseStatusParams = {
 export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
   BaseStatusParams & {
     attachments?: PostBoxAttachment[]
+    // Omit to preserve the existing value; provide to overwrite.
+    sensitive?: boolean
+    language?: string | null
   }
 
 export type UpdateNoteVisibilityParams = BaseStatusParams & {
@@ -1143,6 +1150,24 @@ export interface StatusMuteDatabase {
   getActorMutedConversationRootIds(
     params: GetActorMutedConversationRootIdsParams
   ): Promise<string[]>
+}
+
+// ============================================================================
+// Idempotency Key Database
+// ============================================================================
+
+export type GetIdempotentStatusIdParams = { actorId: string; key: string }
+export type SaveIdempotencyKeyParams = {
+  actorId: string
+  key: string
+  statusId: string
+}
+
+export interface IdempotencyDatabase {
+  getIdempotentStatusId(
+    params: GetIdempotentStatusIdParams
+  ): Promise<string | null>
+  saveIdempotencyKey(params: SaveIdempotencyKeyParams): Promise<void>
 }
 
 // ============================================================================

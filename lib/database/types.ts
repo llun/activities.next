@@ -14,6 +14,7 @@ import {
   FilterDatabase,
   FollowDatabase,
   FollowedTagDatabase,
+  IdempotencyDatabase,
   InstanceActivityDatabase,
   LikeDatabase,
   ListDatabase,
@@ -57,5 +58,6 @@ export type Database = AccountDatabase &
   SearchDatabase &
   StatusDatabase &
   StatusMuteDatabase &
+  IdempotencyDatabase &
   TimelineDatabase &
   BaseDatabase

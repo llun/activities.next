@@ -110,6 +110,7 @@ type MockDatabase = Pick<
   | 'updateFitnessSettings'
   | 'createNote'
   | 'createNotification'
+  | 'getActorMutedConversationRootIds'
 >
 
 describe('importStravaActivityJob', () => {
@@ -125,7 +126,10 @@ describe('importStravaActivityJob', () => {
     createAttachment: jest.fn(),
     updateFitnessSettings: jest.fn(),
     createNote: jest.fn(),
-    createNotification: jest.fn()
+    createNotification: jest.fn(),
+    // createNotificationWithPolicy checks the recipient's conversation-mute
+    // list before persisting; the importer's recipients have none.
+    getActorMutedConversationRootIds: jest.fn().mockResolvedValue([])
   }
 
   beforeEach(() => {

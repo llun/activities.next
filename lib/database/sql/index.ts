@@ -13,6 +13,7 @@ import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessR
 import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { FollowedTagSQLDatabaseMixin } from '@/lib/database/sql/followedTag'
+import { IdempotencySQLDatabaseMixin } from '@/lib/database/sql/idempotency'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
@@ -44,6 +45,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const markerDatabase = MarkerSQLDatabaseMixin(database)
   const muteDatabase = MuteSQLDatabaseMixin(database)
   const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
+  const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
   const filterDatabase = FilterSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
   const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
@@ -97,6 +99,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...markerDatabase,
     ...muteDatabase,
     ...statusMuteDatabase,
+    ...idempotencyDatabase,
     ...listDatabase,
     ...filterDatabase,
     ...followerDatabase,
