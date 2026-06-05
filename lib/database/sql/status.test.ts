@@ -1833,6 +1833,32 @@ describe('StatusDatabase', () => {
         })
         expect(favourites).toHaveLength(0)
       })
+
+      it('pages newer favourites with min_id, distinct from max_id direction', async () => {
+        const statusId = statuses.primary.post
+        await database.createLike({ actorId: primaryActorId, statusId })
+        await database.createLike({ actorId: replyAuthorId, statusId })
+        await database.createLike({ actorId: pollAuthorId, statusId })
+
+        const ordered = await database.getFavouritedBy({ statusId, limit: 40 })
+        expect(ordered.length).toBeGreaterThanOrEqual(3)
+        const oldest = ordered[ordered.length - 1]
+
+        // min_id returns favourites strictly newer than the cursor (everything
+        // except the oldest), and never the cursor row itself.
+        const cursor = encodeFavouritedByCursor({
+          createdAt: oldest.createdAt,
+          actorId: oldest.actorId
+        })
+        const newer = await database.getFavouritedBy({
+          statusId,
+          limit: 40,
+          minId: cursor
+        })
+        const newerIds = newer.map((item) => item.actorId)
+        expect(newerIds).not.toContain(oldest.actorId)
+        expect(newerIds).toHaveLength(ordered.length - 1)
+      })
     })
 
     describe('createNote', () => {

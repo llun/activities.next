@@ -12,27 +12,48 @@ const MAX_THREAD_WALK = 100
  * original status's thread is used. The walk follows `in_reply_to` to the
  * topmost ancestor, ignoring readability (mute state is independent of who can
  * read the thread).
+ *
+ * `cache` (statusId → rootId) memoizes results across a batch render so the
+ * shared ancestors of a thread are walked once, not once per reply.
  */
 export const resolveConversationRootId = async (
   database: Database,
-  status: Status
+  status: Status,
+  cache?: Map<string, string>
 ): Promise<string> => {
   const target =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
 
+  const cachedRoot = cache?.get(target.id)
+  if (cachedRoot) return cachedRoot
+
   let rootId = target.id
   let replyId = target.type === StatusType.enum.Announce ? '' : target.reply
+  // Every node visited on the way up shares the same thread root, so record
+  // them all once the root is known.
+  const visited = [target.id]
   const seen = new Set<string>([target.id])
 
   for (let hops = 0; replyId && hops < MAX_THREAD_WALK; hops++) {
+    const cachedParentRoot = cache?.get(replyId)
+    if (cachedParentRoot) {
+      rootId = cachedParentRoot
+      break
+    }
+
     const parent = await database.getStatus({
       statusId: replyId,
       withReplies: false
     })
     if (!parent || seen.has(parent.id)) break
     seen.add(parent.id)
+    visited.push(parent.id)
     rootId = parent.id
     replyId = parent.type === StatusType.enum.Announce ? '' : parent.reply
+  }
+
+  if (cache) {
+    for (const visitedId of visited) cache.set(visitedId, rootId)
   }
 
   return rootId
@@ -48,17 +69,26 @@ export const isConversationMutedForActor = async (
   database: Database,
   status: Status,
   currentActorId: string | undefined,
-  mutedConversationRootIds?: Set<string>
+  mutedConversationRootIds?: Set<string>,
+  conversationRootCache?: Map<string, string>
 ): Promise<boolean> => {
   if (!currentActorId) return false
 
   if (mutedConversationRootIds) {
     if (mutedConversationRootIds.size === 0) return false
-    const rootId = await resolveConversationRootId(database, status)
+    const rootId = await resolveConversationRootId(
+      database,
+      status,
+      conversationRootCache
+    )
     return mutedConversationRootIds.has(rootId)
   }
 
-  const rootId = await resolveConversationRootId(database, status)
+  const rootId = await resolveConversationRootId(
+    database,
+    status,
+    conversationRootCache
+  )
   return database.isConversationMuted({
     actorId: currentActorId,
     statusId: rootId

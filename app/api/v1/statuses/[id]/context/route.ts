@@ -186,7 +186,9 @@ export const GET = traceApiRoute(
           descendants
         }
       })
-    }
+    },
+    // A token scoped read:statuses OR read satisfies the requirement.
+    { matchMode: 'any' }
   ),
   {
     addAttributes: async (_req, context) => {

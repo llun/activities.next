@@ -1,4 +1,4 @@
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatusEdits } from '@/lib/services/mastodon/getMastodonStatusEdits'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
@@ -18,7 +18,7 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getStatusHistory',
-  OAuthGuardAnyScope<Params>(
+  OptionalOAuthGuard<Params>(
     [Scope.enum.read, Scope.enum['read:statuses']],
     async (req, context) => {
       const { database, currentActor, params } = context
@@ -64,7 +64,10 @@ export const GET = traceApiRoute(
       )
 
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: history })
-    }
+    },
+    // Public for public statuses; a read or read:statuses token unlocks private
+    // ones. matchMode 'any' so either scope satisfies the requirement.
+    { matchMode: 'any' }
   ),
   {
     addAttributes: async (_req, context) => {

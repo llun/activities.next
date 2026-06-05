@@ -23,7 +23,9 @@ export interface MastodonStatusEdit {
   sensitive: boolean
   created_at: string
   account: Mastodon.Account
-  poll: { options: { title: string }[] } | null
+  // Mastodon omits `poll` entirely for non-poll edits (the serializer only emits
+  // it when poll options are present), so the field is optional here.
+  poll?: { options: { title: string }[] }
   media_attachments: Mastodon.Status['media_attachments']
   emojis: Mastodon.Status['emojis']
 }
@@ -50,7 +52,7 @@ export const getMastodonStatusEdits = async (
   const pollOptions =
     status.type === StatusType.enum.Poll
       ? { options: status.choices.map((choice) => ({ title: choice.title })) }
-      : null
+      : undefined
 
   const buildEdit = (
     text: string,
@@ -59,10 +61,14 @@ export const getMastodonStatusEdits = async (
   ): MastodonStatusEdit => ({
     content: processStatusText(host, { ...status, text, summary } as Status),
     spoiler_text: summary ?? '',
-    sensitive: Boolean(summary && summary.length > 0),
+    // Mastodon stores a dedicated sensitive flag per revision; storage here only
+    // snapshots text/summary, so use the status's current sensitive flag,
+    // forced true when this revision carries a content warning.
+    sensitive:
+      (status.sensitive ?? false) || Boolean(summary && summary.length > 0),
     created_at: getISOTimeUTC(createdAtMs),
     account: current.account,
-    poll: pollOptions,
+    ...(pollOptions ? { poll: pollOptions } : {}),
     media_attachments: current.media_attachments,
     emojis: current.emojis
   })

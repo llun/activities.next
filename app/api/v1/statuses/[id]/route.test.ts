@@ -2,6 +2,7 @@ import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
@@ -3172,6 +3173,14 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(history).toHaveLength(3)
       expect(history[0].content).toContain('Version one')
       expect(history[2].content).toContain('Version three')
+      // created_at is non-decreasing oldest→newest (a bug giving every revision
+      // the same timestamp from the wrong column would break ordering).
+      const timestamps = history.map((edit: { created_at: string }) =>
+        Date.parse(edit.created_at)
+      )
+      for (let i = 1; i < timestamps.length; i++) {
+        expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i - 1])
+      }
       for (const edit of history) {
         expect(edit).toMatchObject({
           spoiler_text: expect.any(String),
@@ -3240,6 +3249,173 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       // No legacy offset/X-* headers remain.
       expect(firstPage.headers.get('X-Total-Count')).toBeNull()
+    })
+
+    it('returns the cursor-adjacent favourite (no gap) when paging forward with min_id', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-favourited-by-min-id`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Favourited for min_id paging',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createLike({ actorId: ACTOR1_ID, statusId })
+      await database.createLike({ actorId: ACTOR2_ID, statusId })
+      await database.createLike({ actorId: ACTOR3_ID, statusId })
+
+      // Learn the descending (newest-first) order directly from storage.
+      const ordered = await database.getFavouritedBy({ statusId, limit: 10 })
+      expect(ordered).toHaveLength(3)
+      const oldest = ordered[ordered.length - 1]
+      const secondOldest = ordered[ordered.length - 2]
+
+      // Page forward from the oldest favourite, one at a time. The item
+      // immediately newer than the cursor must be returned (the off-by-one bug
+      // would skip it and return the newest instead).
+      const minIdCursor = encodeFavouritedByCursor({
+        createdAt: oldest.createdAt,
+        actorId: oldest.actorId
+      })
+      const page = await getStatusFavouritedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/favourited_by?limit=1&min_id=${encodeURIComponent(minIdCursor)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(page.status).toBe(200)
+      const accounts = await page.json()
+      expect(accounts).toHaveLength(1)
+      expect(accounts[0].id).toBe(urlToId(secondOldest.actorId))
+    })
+  })
+
+  describe('edit sensitive/language', () => {
+    it('wires sensitive and language through a PUT edit', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-sensitive-language`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Edit me to mark sensitive',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ sensitive: true, language: 'th' }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.sensitive).toBe(true)
+      expect(data.language).toBe('th')
+
+      // Persisted through a fresh read.
+      const reread = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      await expect(reread.json()).resolves.toMatchObject({
+        sensitive: true,
+        language: 'th'
+      })
+    })
+  })
+
+  describe('context visibility filtering', () => {
+    it('excludes unreadable ancestors/descendants for a non-follower but keeps readable ones', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const publicRootId = `${ACTOR1_ID}/statuses/api-context-vis-root`
+      const privateMidId = `${ACTOR1_ID}/statuses/api-context-vis-private-mid`
+      const publicTargetId = `${ACTOR1_ID}/statuses/api-context-vis-target`
+      const privateDescId = `${ACTOR1_ID}/statuses/api-context-vis-private-desc`
+      const publicDescId = `${ACTOR1_ID}/statuses/api-context-vis-public-desc`
+
+      await database.createNote({
+        id: publicRootId,
+        url: publicRootId,
+        actorId: ACTOR1_ID,
+        text: 'Public root ancestor',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // A private node in the middle of the chain: must be traversed through but
+      // excluded from the response.
+      await database.createNote({
+        id: privateMidId,
+        url: privateMidId,
+        actorId: ACTOR1_ID,
+        text: 'Private mid ancestor',
+        reply: publicRootId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      await database.createNote({
+        id: publicTargetId,
+        url: publicTargetId,
+        actorId: ACTOR1_ID,
+        text: 'Public target',
+        reply: privateMidId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: privateDescId,
+        url: privateDescId,
+        actorId: ACTOR1_ID,
+        text: 'Private descendant',
+        reply: publicTargetId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      await database.createNote({
+        id: publicDescId,
+        url: publicDescId,
+        actorId: ACTOR1_ID,
+        text: 'Public descendant',
+        reply: publicTargetId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(publicTargetId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(publicTargetId) }) }
+      )
+      expect(response.status).toBe(200)
+      const context = await response.json()
+
+      const ancestorIds = context.ancestors.map((s: { id: string }) => s.id)
+      const descendantIds = context.descendants.map((s: { id: string }) => s.id)
+
+      // The private mid ancestor is excluded, but the public root above it
+      // remains (the chain is not cut short).
+      expect(ancestorIds).toContain(urlToId(publicRootId))
+      expect(ancestorIds).not.toContain(urlToId(privateMidId))
+
+      // The private descendant is excluded; the public sibling remains.
+      expect(descendantIds).toContain(urlToId(publicDescId))
+      expect(descendantIds).not.toContain(urlToId(privateDescId))
     })
   })
 })

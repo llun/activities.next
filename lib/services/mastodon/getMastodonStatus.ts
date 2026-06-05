@@ -56,6 +56,9 @@ interface GetMastodonStatusOptions {
   // The set of thread-root status ids whose conversations the current actor has
   // muted. An empty set means "no mutes", letting per-status checks short-circuit.
   mutedConversationRootIds?: Set<string>
+  // Memoizes thread-root resolution (statusId → rootId) across a batch render so
+  // a thread's shared ancestors are walked once rather than once per status.
+  conversationRootCache?: Map<string, string>
 }
 
 const getMastodonAccount = (
@@ -292,7 +295,8 @@ export const getMastodonStatus = async (
     database,
     status,
     currentActorId,
-    options?.mutedConversationRootIds
+    options?.mutedConversationRootIds,
+    options?.conversationRootCache
   )
 
   const baseData = {
@@ -538,6 +542,8 @@ export const getMastodonStatuses = async (
     mutedConversationRootIds:
       inputOptions.mutedConversationRootIds ??
       new Set<string>(mutedConversationRootIds),
+    conversationRootCache:
+      inputOptions.conversationRootCache ?? new Map<string, string>(),
     accountCache,
     statusMetricsCache: {
       reblogs: new Map(

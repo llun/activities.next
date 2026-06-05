@@ -21,16 +21,17 @@ export const IdempotencySQLDatabaseMixin = (
     key,
     statusId
   }: SaveIdempotencyKeyParams) {
-    const existing = await database('idempotency_keys')
-      .where({ actorId, key })
-      .first()
-    if (existing) return
-
-    await database('idempotency_keys').insert({
-      actorId,
-      key,
-      statusId,
-      createdAt: new Date()
-    })
+    // Ignore on conflict so a concurrent request that already recorded the same
+    // (actorId, key) does not surface a primary-key violation. The first writer
+    // wins; this keeps the call safe under retries/races.
+    await database('idempotency_keys')
+      .insert({
+        actorId,
+        key,
+        statusId,
+        createdAt: new Date()
+      })
+      .onConflict(['actorId', 'key'])
+      .ignore()
   }
 })
