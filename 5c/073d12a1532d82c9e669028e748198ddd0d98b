@@ -1,0 +1,34 @@
+lib/jobs/importStravaArchiveJob.test.ts
+  s_0fabc22628f62c::t_6e371853293ee5 265-270
+  s_0fabc22628f62c::t_993187c85e5880 295-333
+lib/database/sql/status.test.ts
+  s_0fabc22628f62c::t_4a4e98161c76fa 463-464,474-475
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_0fabc22628f62c::t_ff761fbdd734ef 18-20
+  s_0fabc22628f62c::t_bd82ef6447831f 1027-1028
+  s_0fabc22628f62c::t_e04ef61fe4e011 1480-1491
+  s_0fabc22628f62c::t_2ccec7ba7ac1b7 119
+  s_0fabc22628f62c::t_6fba9db719c7c1 1008-1009
+  s_0fabc22628f62c::t_62b9dcc3eaa95f 1140
+  s_0fabc22628f62c::t_b354e4739cc5de 5
+lib/components/posts/post.test.tsx
+  s_0fabc22628f62c::t_23ee597f6ed03c 883-939
+app/api/v1/fitness-files/by-status/route.ts
+  s_0fabc22628f62c::t_f4b59946643b73 121-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "5c073d12a1532d82c9e669028e748198ddd0d98b",
+  "prompts": {},
+  "sessions": {
+    "s_0fabc22628f62c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af85b709-4a3f-45b5-aafa-e19af9445d0f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
