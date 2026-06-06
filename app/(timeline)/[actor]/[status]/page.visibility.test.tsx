@@ -192,6 +192,61 @@ describe('Page visibility for logged-out visitors', () => {
     expect(screen.getByTestId('status-public-parent')).toBeInTheDocument()
   })
 
+  it('renders a multi-level public ancestor chain', async () => {
+    const focused = buildNote({ id: 'public-reply', reply: 'public-parent' })
+    const publicParent = buildNote({
+      id: 'public-parent',
+      reply: 'public-grandparent',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const publicGrandparent = buildNote({
+      id: 'public-grandparent',
+      reply: '',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'public-reply',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatus.mockImplementation(async ({ statusId }) => {
+      if (statusId === 'public-parent') return publicParent
+      if (statusId === 'public-grandparent') return publicGrandparent
+      return null
+    })
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-public-reply')).toBeInTheDocument()
+    expect(screen.getByTestId('status-public-parent')).toBeInTheDocument()
+    expect(screen.getByTestId('status-public-grandparent')).toBeInTheDocument()
+  })
+
+  it('queries getStatusReplies with publicOnly and without a viewer id', async () => {
+    const focused = buildNote({ id: 'focused' })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatusReplies.mockResolvedValue([])
+
+    await renderPage()
+
+    expect(mockGetStatusReplies).toHaveBeenCalledWith(
+      expect.objectContaining({ publicOnly: true })
+    )
+    expect(mockGetStatusReplies).toHaveBeenCalledWith(
+      expect.not.objectContaining({ visibleToActorId: expect.anything() })
+    )
+  })
+
   it('hides private replies and excludes them from the reply count', async () => {
     const focused = buildNote({ id: 'focused' })
     const publicReply = buildNote({ id: 'public-reply', reply: 'focused' })
@@ -231,13 +286,27 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     mockGetAcceptedOrRequestedFollow.mockResolvedValue(null)
   })
 
-  it('does not render a followers-only ancestor the viewer cannot read', async () => {
-    const focused = buildNote({ id: 'public-reply', reply: 'private-parent' })
-    const privateParent = buildNote({
-      id: 'private-parent',
-      reply: '',
+  it.each([
+    {
+      description:
+        'does not render a followers-only ancestor the viewer cannot read',
+      parentId: 'private-parent',
       // followers-only by another author the viewer does not follow
-      to: [`${AUTHOR_ID}/followers`],
+      parentTo: [`${AUTHOR_ID}/followers`]
+    },
+    {
+      description:
+        'does not render a direct-message ancestor the viewer is not addressed in',
+      parentId: 'dm-parent',
+      // direct message to someone other than the viewer
+      parentTo: ['https://activities.local/users/bob']
+    }
+  ])('$description', async ({ parentId, parentTo }) => {
+    const focused = buildNote({ id: 'public-reply', reply: parentId })
+    const unreadableParent = buildNote({
+      id: parentId,
+      reply: '',
+      to: parentTo,
       cc: []
     })
 
@@ -247,7 +316,43 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
       fullStatusId: focused.url,
       isStatusHash: true
     })
-    mockGetStatus.mockResolvedValue(privateParent)
+    mockGetStatus.mockResolvedValue(unreadableParent)
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-public-reply')).toBeInTheDocument()
+    expect(screen.queryByTestId(`status-${parentId}`)).not.toBeInTheDocument()
+  })
+
+  it('stops climbing the ancestor chain at the first unreadable parent', async () => {
+    // public reply -> followers-only parent (unreadable) -> public grandparent.
+    // The loop must break at the private parent, so neither it nor the readable
+    // grandparent beyond it is rendered.
+    const focused = buildNote({ id: 'public-reply', reply: 'private-parent' })
+    const privateParent = buildNote({
+      id: 'private-parent',
+      reply: 'public-grandparent',
+      to: [`${AUTHOR_ID}/followers`],
+      cc: []
+    })
+    const publicGrandparent = buildNote({
+      id: 'public-grandparent',
+      reply: '',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'public-reply',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatus.mockImplementation(async ({ statusId }) => {
+      if (statusId === 'private-parent') return privateParent
+      if (statusId === 'public-grandparent') return publicGrandparent
+      return null
+    })
 
     await renderPage()
 
@@ -255,30 +360,9 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     expect(
       screen.queryByTestId('status-private-parent')
     ).not.toBeInTheDocument()
-  })
-
-  it('does not render a direct-message ancestor the viewer is not addressed in', async () => {
-    const focused = buildNote({ id: 'public-reply', reply: 'dm-parent' })
-    const dmParent = buildNote({
-      id: 'dm-parent',
-      reply: '',
-      // direct message to someone other than the viewer
-      to: ['https://activities.local/users/bob'],
-      cc: []
-    })
-
-    mockResolveStatusFromPath.mockResolvedValue({
-      status: focused,
-      statusId: 'public-reply',
-      fullStatusId: focused.url,
-      isStatusHash: true
-    })
-    mockGetStatus.mockResolvedValue(dmParent)
-
-    await renderPage()
-
-    expect(screen.getByTestId('status-public-reply')).toBeInTheDocument()
-    expect(screen.queryByTestId('status-dm-parent')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('status-public-grandparent')
+    ).not.toBeInTheDocument()
   })
 
   it('renders a followers-only ancestor when the viewer follows the author', async () => {
@@ -327,5 +411,34 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     expect(mockGetStatusReplies).toHaveBeenCalledWith(
       expect.objectContaining({ visibleToActorId: VIEWER_ID })
     )
+  })
+
+  it('renders a non-public reply the query returns and does not apply the public-only backstop', async () => {
+    const focused = buildNote({ id: 'focused' })
+    // A direct-message reply addressed to the viewer: not publicly readable,
+    // but `getStatusReplies` returns it via the `visibleToActorId` filter. The
+    // logged-out-only `isStatusPubliclyReadable` backstop must NOT strip it for
+    // an authenticated viewer — dropping the `if (!currentActor)` guard would
+    // hide this reply and fail here.
+    const dmReplyToViewer = buildNote({
+      id: 'dm-to-viewer',
+      reply: 'focused',
+      actorId: 'https://activities.local/users/bob',
+      to: [VIEWER_ID],
+      cc: []
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatusReplies.mockResolvedValue([dmReplyToViewer])
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-dm-to-viewer')).toBeInTheDocument()
+    expect(screen.getByText('Replies (1)')).toBeInTheDocument()
   })
 })
