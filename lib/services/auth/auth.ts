@@ -12,6 +12,7 @@ import { UsableScopes } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
 
 import { knexAdapter } from './knexAdapter'
+import { buildTrustedOrigins } from './trustedOrigins'
 
 export const AUTH_COOKIE_PREFIX = 'better-auth'
 export const AUTH_SESSION_COOKIE_NAME = 'session_token'
@@ -30,6 +31,10 @@ export const getAuth = memoize(() => {
     appName: 'activities-next',
     secret: config.secretPhase,
     baseURL,
+    // Trust the configured host plus any ACTIVITIES_TRUSTED_HOSTS so a Mastodon
+    // client logging into a served alias/custom domain isn't rejected with
+    // `403 Invalid origin` on credential sign-in.
+    trustedOrigins: buildTrustedOrigins(baseURL, config.trustedHosts ?? []),
     basePath: '/api/auth',
     database: knexAdapter(db),
     disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;

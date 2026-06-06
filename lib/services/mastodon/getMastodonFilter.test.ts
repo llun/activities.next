@@ -50,7 +50,9 @@ describe('getMastodonFilter', () => {
     expect(result.title).toBe('Apple')
     expect(result.context.sort()).toEqual(['home', 'public'])
     expect(result.filter_action).toBe('warn')
-    expect(result.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
+    expect(result.expires_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+    )
     expect(result.keywords).toHaveLength(1)
     expect(result.keywords[0]).toMatchObject({
       keyword: 'apple',

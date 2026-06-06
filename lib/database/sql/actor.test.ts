@@ -27,7 +27,7 @@ import {
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type StatusPoll } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getISOTimeUTC, getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
 const withFreshDatabase = async (
@@ -323,7 +323,7 @@ describe('ActorDatabase', () => {
         expect(actor).toMatchObject({
           id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
-          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: '',
           note: '',
@@ -466,7 +466,7 @@ describe('ActorDatabase', () => {
         expect(actor).toMatchObject({
           id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
-          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: '',
           note: '',
@@ -497,7 +497,7 @@ describe('ActorDatabase', () => {
         expect(actor).toMatchObject({
           id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
-          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: '',
           note: '',
@@ -579,17 +579,121 @@ describe('ActorDatabase', () => {
           })
 
           expect(serviceActor).toMatchObject({
+            acct: `service@remote-${suffix}.example`,
             bot: true,
             group: false,
             discoverable: true,
             noindex: false
           })
           expect(groupActor).toMatchObject({
+            acct: `group@remote-${suffix}.example`,
             bot: false,
             group: true,
             discoverable: true,
             noindex: false
           })
+        })
+      })
+
+      it('qualifies the acct of a hosted actor on a non-configured domain', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const username = `multi-${suffix}`
+          await database.createAccount({
+            email: `${username}@${TEST_DOMAIN}`,
+            username,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey-${suffix}`,
+            publicKey: `publicKey-${suffix}`
+          })
+          const account = await database.getAccountFromEmail({
+            email: `${username}@${TEST_DOMAIN}`
+          })
+          const aliasActorId = await database.createActorForAccount({
+            accountId: account!.id,
+            username,
+            domain: TEST_DOMAIN_2,
+            privateKey: `aliasPriv-${suffix}`,
+            publicKey: `aliasPub-${suffix}`
+          })
+
+          const homeActor = await database.getMastodonActorFromUsername({
+            username,
+            domain: TEST_DOMAIN
+          })
+          const aliasActor = await database.getMastodonActorFromId({
+            id: aliasActorId
+          })
+
+          // The actor on the configured host keeps a bare acct...
+          expect(homeActor?.acct).toBe(username)
+          // ...but the same account's actor on a different domain must be
+          // qualified, so a Mastodon client treats them as distinct accounts
+          // instead of collapsing them into one (blank) switcher row.
+          expect(aliasActor?.acct).toBe(`${username}@${TEST_DOMAIN_2}`)
+        })
+      })
+
+      it('treats a configured-host actor as local case-insensitively', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const username = `case-${suffix}`
+          await database.createAccount({
+            email: `${username}@${TEST_DOMAIN}`,
+            username,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey-${suffix}`,
+            publicKey: `publicKey-${suffix}`
+          })
+          const account = await database.getAccountFromEmail({
+            email: `${username}@${TEST_DOMAIN}`
+          })
+          // Same domain as the configured host but in a different letter case.
+          const upperActorId = await database.createActorForAccount({
+            accountId: account!.id,
+            username,
+            domain: TEST_DOMAIN.toUpperCase(),
+            privateKey: `upperPriv-${suffix}`,
+            publicKey: `upperPub-${suffix}`
+          })
+
+          const actor = await database.getMastodonActorFromId({
+            id: upperActorId
+          })
+          // Domains are case-insensitive, so this is still a local actor → bare.
+          expect(actor?.acct).toBe(username)
+        })
+      })
+
+      it('lowercases the domain in a qualified acct', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const username = `mixed-${suffix}`
+          const mixedDomain = `Alias-${suffix}.Example`
+          await database.createAccount({
+            email: `${username}@${TEST_DOMAIN}`,
+            username,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey-${suffix}`,
+            publicKey: `publicKey-${suffix}`
+          })
+          const account = await database.getAccountFromEmail({
+            email: `${username}@${TEST_DOMAIN}`
+          })
+          const actorId = await database.createActorForAccount({
+            accountId: account!.id,
+            username,
+            domain: mixedDomain,
+            privateKey: `mixedPriv-${suffix}`,
+            publicKey: `mixedPub-${suffix}`
+          })
+
+          const actor = await database.getMastodonActorFromId({ id: actorId })
+          // Non-configured domain → qualified, with the domain canonicalized.
+          expect(actor?.acct).toBe(`${username}@${mixedDomain.toLowerCase()}`)
         })
       })
     })
@@ -651,7 +755,7 @@ describe('ActorDatabase', () => {
             sensitive: false
           },
 
-          created_at: getISOTimeUTC(currentTime),
+          created_at: getMastodonTimeUTC(currentTime),
           last_status_at: null,
 
           statuses_count: 0,
@@ -719,7 +823,7 @@ describe('ActorDatabase', () => {
         expect(actor).toMatchObject({
           id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
-          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: 'name',
           note: 'summary',

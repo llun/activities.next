@@ -7,7 +7,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
 import { getMastodonStatus } from './getMastodonStatus'
@@ -66,7 +66,7 @@ export const getMastodonStatusEdits = async (
     // forced true when this revision carries a content warning.
     sensitive:
       (status.sensitive ?? false) || Boolean(summary && summary.length > 0),
-    created_at: getISOTimeUTC(createdAtMs),
+    created_at: getMastodonTimeUTC(createdAtMs),
     account: current.account,
     ...(pollOptions ? { poll: pollOptions } : {}),
     media_attachments: current.media_attachments,
