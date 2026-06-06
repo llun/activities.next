@@ -284,6 +284,79 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('fields_attributes[0][name]', 'Website')
+    form.set('fields_attributes[0][value]', 'https://example.com')
+    form.set('fields_attributes[1][name]', 'Pronouns')
+    form.set('fields_attributes[1][value]', 'they/them')
+    form.set('bot', 'true')
+    form.set('discoverable', 'false')
+    form.set('source[privacy]', 'private')
+    form.set('source[sensitive]', 'true')
+    form.set('source[language]', 'th')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        fields: [
+          { name: 'Website', value: 'https://example.com' },
+          { name: 'Pronouns', value: 'they/them' }
+        ],
+        bot: true,
+        discoverable: false,
+        defaultPrivacy: 'private',
+        defaultSensitive: true,
+        defaultLanguage: 'th'
+      })
+    )
+
+    const data = await response.json()
+    // CredentialAccount carries a role and the reflected fields/source.
+    expect(data.role).toEqual(
+      expect.objectContaining({ id: expect.any(String) })
+    )
+    expect(data.fields).toEqual([
+      { name: 'Website', value: 'https://example.com', verified_at: null },
+      { name: 'Pronouns', value: 'they/them', verified_at: null }
+    ])
+    expect(data.source.privacy).toBe('private')
+    updateActor.mockRestore()
+  })
+
+  it('accepts fields_attributes via a JSON body', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          fields_attributes: [{ name: 'Site', value: 'https://a.test' }]
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: [{ name: 'Site', value: 'https://a.test' }]
+      })
+    )
+    updateActor.mockRestore()
+  })
+
   it('accepts an empty JSON body as a no-op (200)', async () => {
     const updateActor = jest.spyOn(database, 'updateActor')
     const req = new NextRequest(
