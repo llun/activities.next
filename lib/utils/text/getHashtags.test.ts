@@ -2,82 +2,90 @@ import { getHashtags } from './getHashtags'
 
 describe('#getHashtags', () => {
   const host = 'test.llun.dev'
-
-  it('extracts a single hashtag', () => {
-    expect(getHashtags('Hello #world', host)).toEqual([
-      { name: '#world', value: 'https://test.llun.dev/tags/world' }
-    ])
+  const tag = (name: string, slug: string) => ({
+    name,
+    value: `https://${host}/tags/${slug}`
   })
 
-  it('extracts multiple hashtags', () => {
-    expect(getHashtags('#hello world #test', host)).toEqual([
-      { name: '#hello', value: 'https://test.llun.dev/tags/hello' },
-      { name: '#test', value: 'https://test.llun.dev/tags/test' }
-    ])
-  })
-
-  it('deduplicates hashtags by lowercase', () => {
-    expect(getHashtags('#Hello #hello #HELLO', host)).toEqual([
-      { name: '#Hello', value: 'https://test.llun.dev/tags/hello' }
-    ])
-  })
-
-  it('returns empty array when no hashtags', () => {
-    expect(getHashtags('No hashtags here', host)).toEqual([])
-  })
-
-  it('handles hashtags with numbers and underscores', () => {
-    expect(getHashtags('#test_123', host)).toEqual([
-      { name: '#test_123', value: 'https://test.llun.dev/tags/test_123' }
-    ])
-  })
-
-  it('does not match bare hash symbol', () => {
-    expect(getHashtags('# not a tag', host)).toEqual([])
-  })
-
-  it('extracts hashtag at start of text', () => {
-    expect(getHashtags('#first post', host)).toEqual([
-      { name: '#first', value: 'https://test.llun.dev/tags/first' }
-    ])
-  })
-
-  it('extracts hashtag at end of text', () => {
-    expect(getHashtags('my post #last', host)).toEqual([
-      { name: '#last', value: 'https://test.llun.dev/tags/last' }
-    ])
-  })
-
-  it('does not match hash fragments in URLs', () => {
-    expect(
-      getHashtags('Check https://example.com/page#section here', host)
-    ).toEqual([])
-  })
-
-  it('does not match hex color codes', () => {
-    expect(getHashtags('color:#ff0000', host)).toEqual([])
-  })
-
-  it('extracts hashtag after newline', () => {
-    expect(getHashtags('line one\n#tag', host)).toEqual([
-      { name: '#tag', value: 'https://test.llun.dev/tags/tag' }
-    ])
-  })
-
-  it('does not match purely numeric hashtags', () => {
-    expect(getHashtags('#123', host)).toEqual([])
-    expect(getHashtags('#456789', host)).toEqual([])
-  })
-
-  it('matches hashtags with numbers and at least one letter', () => {
-    expect(getHashtags('#2024election', host)).toEqual([
-      {
-        name: '#2024election',
-        value: 'https://test.llun.dev/tags/2024election'
-      }
-    ])
-    expect(getHashtags('#covid19', host)).toEqual([
-      { name: '#covid19', value: 'https://test.llun.dev/tags/covid19' }
-    ])
+  it.each([
+    {
+      description: 'extracts a single hashtag',
+      text: 'Hello #world',
+      expected: [tag('#world', 'world')]
+    },
+    {
+      description: 'extracts multiple hashtags',
+      text: '#hello world #test',
+      expected: [tag('#hello', 'hello'), tag('#test', 'test')]
+    },
+    {
+      description:
+        'deduplicates hashtags by lowercase, keeping the first casing',
+      text: '#Hello #hello #HELLO',
+      expected: [tag('#Hello', 'hello')]
+    },
+    {
+      description: 'returns an empty array when there are no hashtags',
+      text: 'No hashtags here',
+      expected: []
+    },
+    {
+      description: 'keeps numbers and underscores in a hashtag',
+      text: '#test_123',
+      expected: [tag('#test_123', 'test_123')]
+    },
+    {
+      description: 'does not match a bare hash symbol',
+      text: '# not a tag',
+      expected: []
+    },
+    {
+      description: 'extracts a hashtag at the start of the text',
+      text: '#first post',
+      expected: [tag('#first', 'first')]
+    },
+    {
+      description: 'extracts a hashtag at the end of the text',
+      text: 'my post #last',
+      expected: [tag('#last', 'last')]
+    },
+    {
+      description: 'does not match hash fragments in URLs',
+      text: 'Check https://example.com/page#section here',
+      expected: []
+    },
+    {
+      description: 'does not match hex color codes',
+      text: 'color:#ff0000',
+      expected: []
+    },
+    {
+      description: 'extracts a hashtag after a newline',
+      text: 'line one\n#tag',
+      expected: [tag('#tag', 'tag')]
+    },
+    {
+      description: 'does not match a short purely numeric hashtag',
+      text: '#123',
+      expected: []
+    },
+    {
+      description: 'does not match a long purely numeric hashtag',
+      text: '#456789',
+      expected: []
+    },
+    {
+      description:
+        'matches a hashtag that starts with numbers but contains a letter',
+      text: '#2024election',
+      expected: [tag('#2024election', '2024election')]
+    },
+    {
+      description: 'matches a hashtag that ends with numbers',
+      text: '#covid19',
+      expected: [tag('#covid19', 'covid19')]
+    }
+  ])('$description', ({ text, expected }) => {
+    expect(getHashtags(text, host)).toEqual(expected)
   })
 })
