@@ -179,7 +179,7 @@ describe('Custom emoji status federation', () => {
       )
     ).toHaveLength(0)
 
-    await updateNoteFromUserInput({
+    const updated = await updateNoteFromUserInput({
       statusId: status.id,
       currentActor: actor1,
       text: 'now with :blobcat:',
@@ -191,5 +191,11 @@ describe('Custom emoji status federation', () => {
     const emojiTags = tags.filter((tag) => tag.type === 'emoji')
     expect(emojiTags).toHaveLength(1)
     expect(emojiTags[0].name).toBe(':blobcat:')
+
+    // The returned status (used for the optimistic client render + timeline
+    // cache) must already include the re-synced emoji tag.
+    expect(updated?.tags.filter((tag) => tag.type === 'emoji')).toEqual([
+      expect.objectContaining({ name: ':blobcat:' })
+    ])
   })
 })

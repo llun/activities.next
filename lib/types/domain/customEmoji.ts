@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { CustomEmoji as MastodonCustomEmoji } from '@/lib/types/mastodon/customEmoji'
 
-// Shortcode without the surrounding colons. Matches Mastodon's allowed
-// characters for custom emoji shortcodes.
-export const CUSTOM_EMOJI_SHORTCODE_REGEX = /^[a-zA-Z0-9_]+$/
+// Shortcode without the surrounding colons. Matches Mastodon's
+// `SHORTCODE_RE_FRAGMENT` (`[a-zA-Z0-9_]{2,}`) — at least two characters — so we
+// only accept shortcodes a remote Mastodon server would also scan and render.
+export const CUSTOM_EMOJI_SHORTCODE_REGEX = /^[a-zA-Z0-9_]{2,}$/
 
 // Instance-scoped custom emoji as stored in the `customEmojis` table. `name`
 // federation and picker rendering go through the Mastodon/ActivityPub mappers

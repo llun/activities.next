@@ -160,6 +160,18 @@ describe('/api/v1/admin/custom_emojis', () => {
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
 
+  it('rejects a 1-character shortcode with 422 (Mastodon requires >= 2)', async () => {
+    const form = new FormData()
+    form.set('shortcode', 'a')
+    form.set('image', makeImage())
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(422)
+    expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
+
   it('rejects a duplicate shortcode with 422', async () => {
     mockDatabase.getCustomEmojiByShortcode.mockResolvedValue({ id: 'existing' })
     const form = new FormData()

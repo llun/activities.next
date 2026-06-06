@@ -14,7 +14,7 @@ const Booleanish = z.union([z.boolean(), z.string()]).transform((value) => {
 const Shortcode = z
   .string()
   .trim()
-  .min(1)
+  .min(2)
   .max(64)
   .regex(CUSTOM_EMOJI_SHORTCODE_REGEX)
 
