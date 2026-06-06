@@ -1,0 +1,27 @@
+lib/types/domain/actor.test.ts
+  s_94ce91ff50c23c::t_166d2acf1f4130 58
+lib/actions/rejectFollowRequest.test.ts
+  s_94ce91ff50c23c::t_166d2acf1f4130 14,32
+lib/actions/acceptFollowRequest.test.ts
+  s_94ce91ff50c23c::t_166d2acf1f4130 45
+lib/types/domain/status.test.ts
+  s_94ce91ff50c23c::t_166d2acf1f4130 149
+lib/services/timelines/index.test.ts
+  s_94ce91ff50c23c::t_166d2acf1f4130 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "12bae8fe1b27879a687c6429ab00bf2d4141bcd1",
+  "prompts": {},
+  "sessions": {
+    "s_94ce91ff50c23c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2d5e5b5-3299-45b2-9a92-9c8821ee3dba",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
