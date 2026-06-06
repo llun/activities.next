@@ -1,0 +1,32 @@
+lib/utils/text/getEmojiTags.test.ts
+  s_f1f719bc7af0b8::t_a84b4bffe76e73 6-9
+  s_f1f719bc7af0b8::t_933d4e9aad71ee 49-53
+app/api/v1/admin/custom_emojis/route.test.ts
+  s_f1f719bc7af0b8::t_7786aa5251efa8 163-171
+lib/types/domain/customEmoji.ts
+  s_f1f719bc7af0b8::t_a85ba74a106476 5-8
+lib/actions/createNoteEmoji.test.ts
+  s_f1f719bc7af0b8::t_dbfd907f3337e5 182,194-199
+lib/utils/text/getEmojiTags.ts
+  s_f1f719bc7af0b8::t_33edeea5d76945 3-7,9
+app/api/v1/admin/custom_emojis/schema.ts
+  s_f1f719bc7af0b8::t_5499b94fd9178f 17
+lib/actions/updateNote.ts
+  s_f1f719bc7af0b8::t_61c120346ab845 49,63-65,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "0b93b6c802f931e23f403d9074f8d5f3958057ea",
+  "prompts": {},
+  "sessions": {
+    "s_f1f719bc7af0b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c5dd695-69d9-404a-93b2-62c2cc8d6ef2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
