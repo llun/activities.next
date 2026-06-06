@@ -1,7 +1,7 @@
 'use client'
 
 import { Ban, Check, EyeOff, Trash2, Upload } from 'lucide-react'
-import { ChangeEvent, FC, FormEvent, useEffect, useRef, useState } from 'react'
+import { ChangeEvent, FC, FormEvent, useRef, useState } from 'react'
 
 import {
   adminCreateCustomEmoji,
@@ -29,37 +29,19 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
   const [shortcode, setShortcode] = useState('')
   const [category, setCategory] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Revoke the object URL on unmount so the selected-file preview does not leak.
-  useEffect(
-    () => () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-    },
-    [previewUrl]
-  )
-
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selected = event.target.files?.[0] ?? null
-    setFile(selected)
-    setPreviewUrl((current) => {
-      if (current) URL.revokeObjectURL(current)
-      return selected ? URL.createObjectURL(selected) : null
-    })
+    setFile(event.target.files?.[0] ?? null)
   }
 
   const resetForm = () => {
     setShortcode('')
     setCategory('')
     setFile(null)
-    setPreviewUrl((current) => {
-      if (current) URL.revokeObjectURL(current)
-      return null
-    })
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -154,18 +136,10 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
               aria-label="Choose emoji image"
               className="flex size-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Selected emoji preview"
-                  className="size-full object-contain"
-                />
-              ) : (
-                <Upload className="size-6" />
-              )}
+              <Upload className="size-6" />
             </button>
-            <span className="text-[11px] text-muted-foreground">
-              PNG or JPEG
+            <span className="max-w-24 truncate text-[11px] text-muted-foreground">
+              {file ? file.name : 'PNG or JPEG'}
             </span>
             <input
               ref={fileInputRef}
