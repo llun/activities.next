@@ -2,6 +2,7 @@ import { Database } from '@/lib/database/types'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Mastodon } from '@/lib/types/activitypub'
 import { NotificationRequest } from '@/lib/types/database/operations'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
 // Mastodon NotificationRequest entity. `notifications_count` is serialized as a
@@ -40,8 +41,8 @@ export const getMastodonNotificationRequest = async (
 
   return {
     id: urlToId(request.sourceActorId),
-    created_at: new Date(request.createdAt).toISOString(),
-    updated_at: new Date(request.updatedAt).toISOString(),
+    created_at: getISOTimeUTC(request.createdAt),
+    updated_at: getISOTimeUTC(request.updatedAt),
     notifications_count: request.notificationsCount.toString(),
     account,
     last_status: lastStatus

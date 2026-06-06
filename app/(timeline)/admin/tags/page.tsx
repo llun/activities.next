@@ -7,6 +7,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { HashtagSortOrder } from '@/lib/types/database/operations'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,7 +105,7 @@ const Page = async ({ searchParams }: Props) => {
                 </span>
                 {hashtag.latestPostAt != null && (
                   <span className="hidden sm:inline">
-                    {new Date(hashtag.latestPostAt).toISOString().split('T')[0]}
+                    {getISOTimeUTC(hashtag.latestPostAt, true)}
                   </span>
                 )}
               </div>

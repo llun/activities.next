@@ -6,6 +6,7 @@ import {
   DomainBlockSeverity,
   DomainFederationRuleType
 } from '@/lib/types/database/operations'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const FEDERATION_MODE_VALUES = ['open', 'allowlist'] as const
 export type FederationMode = (typeof FEDERATION_MODE_VALUES)[number]
@@ -86,7 +87,7 @@ export const toAdminDomainBlock = (block: DomainBlock) => ({
   id: block.id,
   domain: block.domain,
   digest: domainDigest(block.domain),
-  created_at: new Date(block.createdAt).toISOString(),
+  created_at: getISOTimeUTC(block.createdAt),
   severity: block.severity,
   reject_media: block.rejectMedia,
   reject_reports: block.rejectReports,
@@ -99,5 +100,5 @@ export const toAdminDomainBlock = (block: DomainBlock) => ({
 export const toAdminDomainAllow = (allow: DomainAllow) => ({
   id: allow.id,
   domain: allow.domain,
-  created_at: new Date(allow.createdAt).toISOString()
+  created_at: getISOTimeUTC(allow.createdAt)
 })
