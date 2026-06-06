@@ -219,6 +219,15 @@ section-navigation patterns; pick by section type.
 - Jest is configured via `jest.config.mjs` with SWC transforms.
 - Prefer unit tests near `lib/` and route tests near `app/`.
 - All tests run in parallel using isolated SQLite in-memory databases.
+- **`describe` / `it` names use plain descriptive text — do not prefix them.**
+  Name the function or method under test directly (`describe('getVisibility', …)`,
+  not `describe('#getVisibility', …)`), and do not use a leading `#` or `.`
+  sigil. `it` names should read as a behavior statement
+  (`it('returns null when actor is missing', …)`).
+- For tests whose cases differ only by input and expected output, prefer a
+  table-driven `it.each([...])('$description', …)` with a `description` column
+  instead of repeating near-identical `it` blocks. Reserve standalone `it`
+  blocks for cases with distinct setup or assertion shapes.
 - Client components that fan out to children which render relative timestamps
   (e.g. `Posts`/`Post`) must receive `currentTime: number` from a Server
   Component and forward it. Add a regression test that renders the component

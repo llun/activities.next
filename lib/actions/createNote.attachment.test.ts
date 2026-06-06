@@ -57,7 +57,7 @@ describe('Create note action with attachments', () => {
     jest.clearAllMocks()
   })
 
-  describe('#createNoteFromUserInput with attachments', () => {
+  describe('createNoteFromUserInput with attachments', () => {
     it('creates note with attachments', async () => {
       const attachments: PostBoxAttachment[] = [
         {

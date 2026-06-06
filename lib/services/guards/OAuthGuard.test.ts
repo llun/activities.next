@@ -77,7 +77,7 @@ jest.mock('better-auth/oauth2', () => ({
   verifyAccessToken: (...args: unknown[]) => mockVerifyAccessToken(...args)
 }))
 
-describe('#getTokenFromHeader', () => {
+describe('getTokenFromHeader', () => {
   test('it returns token from header', () => {
     expect(getTokenFromHeader('Bearer token')).toEqual('token')
     expect(
@@ -105,7 +105,7 @@ describe('#getTokenFromHeader', () => {
   })
 })
 
-describe('#OAuthGuard', () => {
+describe('OAuthGuard', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -915,7 +915,7 @@ describe('#OAuthGuard', () => {
     })
   })
 
-  describe('#OAuthAppGuard', () => {
+  describe('OAuthAppGuard', () => {
     // Client resolution goes through the real mockDatabase (getClientFromId),
     // which has no client rows seeded here — so these unit tests assert auth
     // outcomes + currentActor, and leave client-detail assertions to the

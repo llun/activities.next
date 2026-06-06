@@ -49,7 +49,7 @@ describe('Update note action', () => {
     jest.clearAllMocks()
   })
 
-  describe('#updateNoteFromUserInput', () => {
+  describe('updateNoteFromUserInput', () => {
     it('update status to new text', async () => {
       if (!actor1) fail('Actor1 is required')
       const statusId = `${actor1.id}/statuses/post-1`

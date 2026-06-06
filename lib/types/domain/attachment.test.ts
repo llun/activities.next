@@ -20,7 +20,7 @@ describe('attachment', () => {
     updatedAt: Date.now()
   }
 
-  describe('#getDocumentFromAttachment', () => {
+  describe('getDocumentFromAttachment', () => {
     it('converts attachment to Document schema', () => {
       const result = getDocumentFromAttachment(baseAttachment)
 
@@ -52,7 +52,7 @@ describe('attachment', () => {
     })
   })
 
-  describe('#getMastodonAttachment', () => {
+  describe('getMastodonAttachment', () => {
     it('returns image type for jpeg', () => {
       const result = getMastodonAttachment(baseAttachment)
 
@@ -159,7 +159,7 @@ describe('attachment', () => {
     })
   })
 
-  describe('#isFitnessAttachment', () => {
+  describe('isFitnessAttachment', () => {
     it('returns true for fitness api references', () => {
       const result = isFitnessAttachment({
         mediaType: 'application/octet-stream',

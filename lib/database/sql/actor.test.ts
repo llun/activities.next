@@ -98,7 +98,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#getActor', () => {
+    describe('getActor', () => {
       it('falls back to Person for unknown persisted actor types', () => {
         const actor = (database as SQLActorDatabase).getActor(
           {
@@ -188,7 +188,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#getFederationSigningActor', () => {
+    describe('getFederationSigningActor', () => {
       it('creates a dedicated headless instance actor with a private key', async () => {
         const actor = await database.getFederationSigningActor()
 
@@ -700,7 +700,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#updateActor', () => {
+    describe('updateActor', () => {
       it('updates actor information and returns it in mastodon actor', async () => {
         await database.updateActor({
           actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -805,7 +805,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#getActorSettings', () => {
+    describe('getActorSettings', () => {
       it('returns actor settings', async () => {
         const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         const settings = await database.getActorSettings({ actorId })
@@ -854,7 +854,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#deleteActor', () => {
+    describe('deleteActor', () => {
       it('deletes actor by id', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-${suffix}`
@@ -875,7 +875,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#isInternalActor', () => {
+    describe('isInternalActor', () => {
       it('returns true when actor is internal', async () => {
         const result = await database.isInternalActor({
           actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
@@ -930,7 +930,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#scheduleActorDeletion', () => {
+    describe('scheduleActorDeletion', () => {
       it('schedules immediate deletion', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `schedule-del-${suffix}`
@@ -973,7 +973,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#cancelActorDeletion', () => {
+    describe('cancelActorDeletion', () => {
       it('cancels scheduled deletion', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `cancel-del-${suffix}`
@@ -996,7 +996,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#startActorDeletion', () => {
+    describe('startActorDeletion', () => {
       it('starts deletion process', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `start-del-${suffix}`
@@ -1018,7 +1018,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#getActorsScheduledForDeletion', () => {
+    describe('getActorsScheduledForDeletion', () => {
       it('returns actors scheduled for deletion before given date', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `get-del-${suffix}`
@@ -1067,7 +1067,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#getNodeInfoStats', () => {
+    describe('getNodeInfoStats', () => {
       it('increments totalUsers and localPosts counters on create', async () => {
         const statsBefore = await database.getNodeInfoStats()
 
@@ -1152,7 +1152,7 @@ describe('ActorDatabase', () => {
       })
     })
 
-    describe('#deleteActorData', () => {
+    describe('deleteActorData', () => {
       it('removes account notes referencing the deleted actor on either side', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-note-${suffix}`

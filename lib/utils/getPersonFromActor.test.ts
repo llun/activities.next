@@ -1,7 +1,7 @@
 import { MockActor } from '@/lib/stub/actor'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
-describe('#getPersonFromActor', () => {
+describe('getPersonFromActor', () => {
   it('returns person', () => {
     const actor = MockActor({})
     expect(getPersonFromActor(actor)).toEqual({

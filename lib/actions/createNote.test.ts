@@ -73,7 +73,7 @@ describe('Create note action', () => {
     jest.clearAllMocks()
   })
 
-  describe('#createNoteFromUserInput', () => {
+  describe('createNoteFromUserInput', () => {
     it('adds status to database and returns note', async () => {
       const status = (await createNoteFromUserInput({
         text: 'Hello',

@@ -10,7 +10,7 @@ import {
 } from '@/lib/types/domain/actor'
 
 describe('Actor', () => {
-  describe('#getActorProfile', () => {
+  describe('getActorProfile', () => {
     it('returns actor without keys and account', () => {
       const actor = MockActor({})
       expect(getActorProfile(actor)).toEqual(
@@ -19,7 +19,7 @@ describe('Actor', () => {
     })
   })
 
-  describe('#getMention', () => {
+  describe('getMention', () => {
     it('returns mention', () => {
       const actor = MockActor({})
       expect(getMention(actor)).toEqual(`@${actor.username}`)
@@ -33,7 +33,7 @@ describe('Actor', () => {
     })
   })
 
-  describe('#getActorURL', () => {
+  describe('getActorURL', () => {
     it('returns actor url', () => {
       const actor = MockActor({})
       expect(getActorURL(actor)).toEqual('https://chat.llun.dev/@me')
@@ -47,7 +47,7 @@ describe('Actor', () => {
     })
   })
 
-  describe('#getMentionDomainFromActorID', () => {
+  describe('getMentionDomainFromActorID', () => {
     it('returns mention domain from actor id', () => {
       expect(getMentionDomainFromActorID('https://chat.llun.dev/me')).toEqual(
         '@chat.llun.dev'
@@ -55,7 +55,7 @@ describe('Actor', () => {
     })
   })
 
-  describe('#getMentionFromActorURL', () => {
+  describe('getMentionFromActorURL', () => {
     it('returns mention from actor url', () => {
       expect(getMentionFromActorID('https://chat.llun.me/me')).toEqual('@me')
     })

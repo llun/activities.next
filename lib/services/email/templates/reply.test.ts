@@ -40,14 +40,14 @@ describe('reply email template', () => {
     createdAt: Date.now()
   }
 
-  describe('#getSubject', () => {
+  describe('getSubject', () => {
     it('returns subject with actor username and host', () => {
       const result = getSubject(mockActor)
       expect(result).toMatch(/@replier replied to your post in/)
     })
   })
 
-  describe('#getTextContent', () => {
+  describe('getTextContent', () => {
     it('returns text content with message and local URL', () => {
       const result = getTextContent(mockStatus)
       expect(result).toContain(
@@ -58,7 +58,7 @@ describe('reply email template', () => {
     })
   })
 
-  describe('#getHTMLContent', () => {
+  describe('getHTMLContent', () => {
     it('returns HTML content with message and local URL', () => {
       const result = getHTMLContent(mockStatus)
       expect(result).toContain(

@@ -32,7 +32,7 @@ jest.mock('./StatusBox', () => ({
   StatusBox: () => null
 }))
 
-describe('#generateMetadata', () => {
+describe('generateMetadata', () => {
   it('does not throw when the actor route has malformed URI escapes', async () => {
     await expect(
       generateMetadata({

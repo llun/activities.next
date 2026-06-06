@@ -7,7 +7,7 @@ import { MockUndoFollowRequest } from '@/lib/stub/undoRequest'
 
 jest.mock('@/lib/activities')
 
-describe('#undoFollowRequest', () => {
+describe('undoFollowRequest', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {

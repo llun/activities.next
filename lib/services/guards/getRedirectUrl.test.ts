@@ -6,7 +6,7 @@ import { getRedirectUrl } from './getRedirectUrl'
 
 const mockGetConfig = getConfig as jest.Mock
 
-describe('#getRedirectUrl', () => {
+describe('getRedirectUrl', () => {
   beforeEach(() => {
     mockGetConfig.mockReturnValue({
       host: 'example.com',

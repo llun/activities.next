@@ -57,7 +57,7 @@ describe('response utilities', () => {
     })
   })
 
-  describe('#statusText', () => {
+  describe('statusText', () => {
     it('returns status text for known codes', () => {
       expect(statusText(200)).toEqual('OK')
       expect(statusText(404)).toEqual('Not Found')
@@ -65,7 +65,7 @@ describe('response utilities', () => {
     })
   })
 
-  describe('#defaultStatusOption', () => {
+  describe('defaultStatusOption', () => {
     it('returns object with status and statusText', () => {
       expect(defaultStatusOption(200)).toEqual({
         status: 200,
@@ -78,7 +78,7 @@ describe('response utilities', () => {
     })
   })
 
-  describe('#apiResponse', () => {
+  describe('apiResponse', () => {
     it('preserves explicit content type headers', async () => {
       const response = apiResponse({
         req: new Request('https://example.com') as never,

@@ -40,7 +40,7 @@ describe('reblog email template', () => {
     createdAt: Date.now()
   }
 
-  describe('#getSubject', () => {
+  describe('getSubject', () => {
     it('returns subject with actor username and host', () => {
       const result = getSubject(mockActor)
       // Uses config host from test config
@@ -48,7 +48,7 @@ describe('reblog email template', () => {
     })
   })
 
-  describe('#getTextContent', () => {
+  describe('getTextContent', () => {
     it('returns text content with local URL and message', () => {
       const result = getTextContent(mockActor, mockStatus)
       // Should include the actor who reblogged
@@ -62,7 +62,7 @@ describe('reblog email template', () => {
     })
   })
 
-  describe('#getHTMLContent', () => {
+  describe('getHTMLContent', () => {
     it('returns HTML content with message and local URL', () => {
       const result = getHTMLContent(mockActor, mockStatus)
       expect(result).toContain(

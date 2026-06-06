@@ -55,7 +55,7 @@ const createAnnounce = async (
  *   Actor3 follows Actor4
  *   Actor3 does NOT follow Actor1 or Actor5
  */
-describe('#noannounceTimelineRule', () => {
+describe('noannounceTimelineRule', () => {
   const database = getTestSQLDatabase()
   let currentActor: Actor
 

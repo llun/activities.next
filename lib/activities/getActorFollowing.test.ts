@@ -19,7 +19,7 @@ beforeEach(() => {
   mockRequests(fetchMock)
 })
 
-describe('#getActorFollowing', () => {
+describe('getActorFollowing', () => {
   it('returns following actors with total following', async () => {
     const person = (await getActorPerson({
       actorId: ACTOR1_ID

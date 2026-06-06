@@ -22,7 +22,7 @@ const makeActor = (overrides: Partial<Actor> = {}): Actor => ({
   ...overrides
 })
 
-describe('#getUserInfo', () => {
+describe('getUserInfo', () => {
   it('returns all claims when no scopes specified (legacy/session)', () => {
     const userInfo = getUserInfo({ actor: makeActor() })
 

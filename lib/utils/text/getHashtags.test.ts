@@ -1,6 +1,6 @@
 import { getHashtags } from './getHashtags'
 
-describe('#getHashtags', () => {
+describe('getHashtags', () => {
   const host = 'test.llun.dev'
   const tag = (name: string, slug: string) => ({
     name,

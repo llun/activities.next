@@ -4,7 +4,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 
 import { getRelationship } from './relationship'
 
-describe('#getRelationship', () => {
+describe('getRelationship', () => {
   const mockDatabase = {
     getActorFromId: jest.fn(),
     isCurrentActorFollowing: jest.fn(),

@@ -10,7 +10,7 @@ jest.mock('@/lib/config', () => ({
   })
 }))
 
-describe('#parse', () => {
+describe('parse', () => {
   test('split signature into parts', async () => {
     const signature =
       'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="signature"'
@@ -28,7 +28,7 @@ describe('#parse', () => {
   })
 })
 
-describe('#verify', () => {
+describe('verify', () => {
   it('returns true when signature and public key is matched', async () => {
     expect(
       await verify(
@@ -176,7 +176,7 @@ describe('#verify', () => {
   })
 })
 
-describe('#signedHeaders', () => {
+describe('signedHeaders', () => {
   let keyPair: Awaited<ReturnType<typeof generateKeyPair>>
 
   beforeAll(async () => {

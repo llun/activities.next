@@ -15,7 +15,7 @@ const base: GroupedNotification = {
   updatedAt: 1000
 }
 
-describe('#getNotificationGroup', () => {
+describe('getNotificationGroup', () => {
   it('maps a grouped notification to a Mastodon NotificationGroup', () => {
     const { group } = getNotificationGroup({
       ...base,

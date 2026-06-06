@@ -46,7 +46,7 @@ describe('activities', () => {
     mockRequests(fetchMock)
   })
 
-  describe('#getNote', () => {
+  describe('getNote', () => {
     it('returns note when fetch succeeds', async () => {
       const statusId = 'https://llun.test/users/test/statuses/123'
       const result = await getNote({ statusId })
@@ -63,7 +63,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#sendNote', () => {
+  describe('sendNote', () => {
     it('fetch to shared inbox', async () => {
       const actor = MockActor({})
       const note = MockMastodonActivityPubNote({
@@ -90,7 +90,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#sendAnnounce', () => {
+  describe('sendAnnounce', () => {
     it('returns null for non-Announce status type', async () => {
       const actor = MockActor({})
       const status = {
@@ -149,7 +149,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#deleteStatus', () => {
+  describe('deleteStatus', () => {
     it('sends delete request to inbox', async () => {
       const actor = MockActor({})
       const statusId = 'https://llun.test/statuses/to-delete'
@@ -172,7 +172,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#follow', () => {
+  describe('follow', () => {
     it('sends follow request to user inbox', async () => {
       if (!actor1) fail('Actor1 is required')
 
@@ -210,7 +210,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#unfollow', () => {
+  describe('unfollow', () => {
     it('sends undo follow request', async () => {
       if (!actor1) fail('Actor1 is required')
 
@@ -241,7 +241,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#acceptFollow', () => {
+  describe('acceptFollow', () => {
     it('sends accept response', async () => {
       if (!actor1) fail('Actor1 is required')
 
@@ -269,7 +269,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#rejectFollow', () => {
+  describe('rejectFollow', () => {
     it('sends reject response', async () => {
       if (!actor1) fail('Actor1 is required')
 
@@ -297,7 +297,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#sendLike', () => {
+  describe('sendLike', () => {
     it('sends like to status author inbox', async () => {
       const currentActor = MockActor({})
       const statusActor = {
@@ -336,7 +336,7 @@ describe('activities', () => {
     })
   })
 
-  describe('#sendUndoLike', () => {
+  describe('sendUndoLike', () => {
     it('sends undo like to status author inbox', async () => {
       const currentActor = MockActor({})
       const statusActor = {

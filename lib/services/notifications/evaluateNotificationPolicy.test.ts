@@ -36,7 +36,7 @@ const createDatabase = (
   return { database: mock as unknown as Database, mock }
 }
 
-describe('#evaluateNotificationPolicy', () => {
+describe('evaluateNotificationPolicy', () => {
   it('accepts notifications from yourself without consulting the policy', async () => {
     const { database, mock } = createDatabase({ for_not_following: 'drop' })
     const verdict = await evaluateNotificationPolicy(database, {

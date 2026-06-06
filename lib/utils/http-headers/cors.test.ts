@@ -1,6 +1,6 @@
 import { HttpMethod, getCORSHeaders } from './cors'
 
-describe('#getCORSHeaders', () => {
+describe('getCORSHeaders', () => {
   it('returns CORS headers with origin from request', () => {
     const headers = new Headers([
       ['Host', 'example.com'],

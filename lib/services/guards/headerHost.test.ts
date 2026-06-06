@@ -6,7 +6,7 @@ import { headerHost } from './headerHost'
 
 const mockGetConfig = getConfig as jest.Mock
 
-describe('#headerHost', () => {
+describe('headerHost', () => {
   beforeEach(() => {
     mockGetConfig.mockReturnValue({
       host: 'test.llun.dev',

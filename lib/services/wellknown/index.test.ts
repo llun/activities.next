@@ -15,7 +15,7 @@ jest.mock('@/lib/config', () => ({
 }))
 
 describe('wellknown services', () => {
-  describe('#getOAuthAuthorizationServerMetadata', () => {
+  describe('getOAuthAuthorizationServerMetadata', () => {
     it('returns correct OAuth authorization server metadata', () => {
       const metadata = getOAuthAuthorizationServerMetadata()
 
@@ -60,7 +60,7 @@ describe('wellknown services', () => {
     })
   })
 
-  describe('#getOpenIDConfiguration', () => {
+  describe('getOpenIDConfiguration', () => {
     it('returns correct OpenID Connect discovery metadata', () => {
       const config = getOpenIDConfiguration()
 
@@ -101,7 +101,7 @@ describe('wellknown services', () => {
     })
   })
 
-  describe('#getHostMetaXML', () => {
+  describe('getHostMetaXML', () => {
     it('returns valid XRD XML with webfinger template', () => {
       const xml = getHostMetaXML()
 
@@ -117,7 +117,7 @@ describe('wellknown services', () => {
     })
   })
 
-  describe('#getNodeInfoLinks', () => {
+  describe('getNodeInfoLinks', () => {
     it('returns nodeinfo links array', () => {
       const nodeInfoLinks = getNodeInfoLinks()
 
@@ -136,7 +136,7 @@ describe('wellknown services', () => {
     })
   })
 
-  describe('#getNodeInfo20', () => {
+  describe('getNodeInfo20', () => {
     const stats = {
       totalUsers: 5,
       activeMonth: 3,
@@ -178,7 +178,7 @@ describe('wellknown services', () => {
   })
 })
 
-describe('#getWebFingerResponse', () => {
+describe('getWebFingerResponse', () => {
   // Mock database for webfinger tests
   const mockDatabase = {
     getActorFromUsername: jest.fn()

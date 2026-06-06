@@ -1,6 +1,6 @@
 import { cleanJson } from './cleanJson'
 
-describe('#cleanJson', () => {
+describe('cleanJson', () => {
   it('clones simple objects', () => {
     const input = { name: 'test', value: 123 }
     const result = cleanJson(input)

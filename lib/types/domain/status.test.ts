@@ -36,7 +36,7 @@ describe('Status', () => {
     mockRequests(fetchMock)
   })
 
-  describe('#fromNote', () => {
+  describe('fromNote', () => {
     it('returns status from json', () => {
       const note = MockMastodonActivityPubNote({
         content: 'Hello',
@@ -146,7 +146,7 @@ describe('Status', () => {
     })
   })
 
-  describe('#toObject', () => {
+  describe('toObject', () => {
     let actor1: Actor | undefined
     let actor2: Actor | undefined
 

@@ -29,7 +29,7 @@ describe('Accept follow action', () => {
     mockRequests(fetchMock)
   })
 
-  describe('#rejectFollow', () => {
+  describe('rejectFollow', () => {
     it('update follow status to Rejected and return follow', async () => {
       const targetActorId = 'https://somewhere.test/actors/request-following'
       const followRequest = await database.getAcceptedOrRequestedFollow({

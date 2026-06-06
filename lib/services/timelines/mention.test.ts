@@ -61,7 +61,7 @@ const createMentionTag = async (
   })
 }
 
-describe('#mentionTimelineRule', () => {
+describe('mentionTimelineRule', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
