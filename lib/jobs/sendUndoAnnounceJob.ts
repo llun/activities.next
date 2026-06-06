@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { undoAnnounce } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
@@ -18,17 +19,10 @@ export const sendUndoAnnounceJob: JobHandle = createJobHandle(
   async (database, message) => {
     await getTracer().startActiveSpan('sendUndoAnnounceJob', async (span) => {
       const { actorId, statusId } = JobData.parse(message.data)
-      span.setAttribute('actorId', actorId)
-      span.setAttribute('statusId', statusId)
-      const [status, actor] = await Promise.all([
-        database.getStatus({
-          statusId,
-          withReplies: false
-        }),
-        database.getActorFromId({
-          id: actorId
-        })
-      ])
+      const { status, actor } = await loadStatusAndActor(database, span, {
+        actorId,
+        statusId
+      })
       if (!status || !actor || status.type !== StatusType.enum.Announce) {
         span.recordException(
           new Error('Status or actor not found or status is not an announce')

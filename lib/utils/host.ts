@@ -1,4 +1,5 @@
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
+import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 
 type NormalizeHostOptions = {
   allowWildcard?: boolean
@@ -198,37 +199,6 @@ export const isHostTrustedByRules = (
   return normalizeHostRules(rules).some((rule) =>
     hostMatchesRule(normalizedHost, rule)
   )
-}
-
-const getFirstHeaderValue = (value: string | string[] | undefined | null) => {
-  if (Array.isArray(value)) return value[0]
-  return value
-}
-
-const getHeaderValue = (headers: HostHeaders, name: string) => {
-  if (!headers) return undefined
-
-  if (typeof (headers as Headers).get === 'function') {
-    return (headers as Headers).get(name)
-  }
-
-  const normalizedName = name.toLowerCase()
-  const recordHeaders = headers as Record<
-    string,
-    string | string[] | undefined | null
-  >
-  const directValue = getFirstHeaderValue(recordHeaders[name])
-  if (directValue !== undefined) return directValue
-
-  const lowercaseValue = getFirstHeaderValue(recordHeaders[normalizedName])
-  if (lowercaseValue !== undefined) return lowercaseValue
-
-  const matchingKey = Object.keys(recordHeaders).find(
-    (key) => key.toLowerCase() === normalizedName
-  )
-  return matchingKey
-    ? getFirstHeaderValue(recordHeaders[matchingKey])
-    : undefined
 }
 
 export const selectHeaderHost = (

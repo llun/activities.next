@@ -44,6 +44,20 @@ export const normalizeActivityPubRecipients = (
   return extractActivityPubId(value)
 }
 
+/**
+ * Coerces an ActivityPub `to`/`cc` value into a string array: a single
+ * recipient is wrapped, and empty or non-string entries are dropped. Mirrors the
+ * inline normalization used when persisting inbound notes/polls/announces.
+ */
+export const toRecipientArray = (
+  value: string | string[] | undefined | null
+): string[] =>
+  Array.isArray(value)
+    ? value
+    : [value].filter(
+        (item): item is string => typeof item === 'string' && item !== ''
+      )
+
 export const normalizeActivityPubAnnounce = (data: unknown) => {
   if (!isRecord(data)) return data
   return {
