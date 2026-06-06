@@ -52,7 +52,7 @@ describe('Announce action', () => {
     jest.clearAllMocks()
   })
 
-  describe('#userAnnounce', () => {
+  describe('userAnnounce', () => {
     it('creates announce status and publishes to queue', async () => {
       const status = await userAnnounce({
         currentActor: actor1,

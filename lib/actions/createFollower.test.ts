@@ -11,7 +11,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 jest.mock('@/lib/activities')
 jest.mock('@/lib/activities/getActorPerson')
 
-describe('#createFollower', () => {
+describe('createFollower', () => {
   const database = getTestSQLDatabase()
   let actor: Actor
   let getActorSettingsSpy: jest.SpyInstance

@@ -6,7 +6,7 @@ import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { getMentions } from '@/lib/utils/text/getMentions'
 
-describe('#getMentions', () => {
+describe('getMentions', () => {
   const database = getTestSQLDatabase()
   let actor1: Actor | undefined
   let actor2: Actor | undefined

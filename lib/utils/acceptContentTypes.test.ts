@@ -3,7 +3,7 @@ import {
   parseAcceptContentTypes
 } from './acceptContentTypes'
 
-describe('#acceptContentTypes', () => {
+describe('acceptContentTypes', () => {
   it('returns list of content types that client send in', () => {
     const value = 'application/json'
     expect(acceptContentTypes(value)).toEqual(['application/json'])

@@ -14,14 +14,14 @@ describe('followRequest email template', () => {
     followingCount: 0
   }
 
-  describe('#getSubject', () => {
+  describe('getSubject', () => {
     it('returns subject with actor username and host', () => {
       const result = getSubject(mockActor)
       expect(result).toMatch(/@requester wants to follow you in/)
     })
   })
 
-  describe('#getTextContent', () => {
+  describe('getTextContent', () => {
     it('returns text content with username and id', () => {
       const result = getTextContent(mockActor)
       expect(result).toEqual(
@@ -30,7 +30,7 @@ describe('followRequest email template', () => {
     })
   })
 
-  describe('#getHTMLContent', () => {
+  describe('getHTMLContent', () => {
     it('returns HTML content with linked actor', () => {
       const result = getHTMLContent(mockActor)
       expect(result).toEqual(

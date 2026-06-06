@@ -8,7 +8,7 @@ describe('NoQueue', () => {
     queue = new NoQueue()
   })
 
-  describe('#publish', () => {
+  describe('publish', () => {
     it('calls handle with the message', async () => {
       const message: JobMessage = {
         id: 'job-123',
@@ -21,7 +21,7 @@ describe('NoQueue', () => {
     })
   })
 
-  describe('#handle', () => {
+  describe('handle', () => {
     it('returns a promise', async () => {
       const message: JobMessage = {
         id: 'job-456',

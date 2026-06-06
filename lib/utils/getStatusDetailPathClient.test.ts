@@ -2,7 +2,7 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromStringClient } from '@/lib/utils/getHashFromStringClient'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
-describe('#getStatusDetailPathClient', () => {
+describe('getStatusDetailPathClient', () => {
   it('returns a hash-based path for note status', async () => {
     const url = 'https://example.com/users/alice/statuses/123'
     const status = {

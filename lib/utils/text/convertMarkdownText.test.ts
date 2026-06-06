@@ -2,7 +2,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 
 import { convertMarkdownText } from './convertMarkdownText'
 
-describe('#convertMarkdownText', () => {
+describe('convertMarkdownText', () => {
   it('detect links in the text and cut the text short', async () => {
     expect(
       convertMarkdownText(TEST_DOMAIN)(

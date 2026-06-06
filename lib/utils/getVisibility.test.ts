@@ -5,7 +5,7 @@ import {
 
 import { getVisibility } from './getVisibility'
 
-describe('#getVisibility', () => {
+describe('getVisibility', () => {
   it('returns public when to contains ACTIVITY_STREAM_PUBLIC', () => {
     expect(getVisibility([ACTIVITY_STREAM_PUBLIC], [])).toEqual('public')
     expect(

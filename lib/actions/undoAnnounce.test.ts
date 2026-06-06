@@ -42,7 +42,7 @@ describe('Undo Announce action', () => {
     jest.clearAllMocks()
   })
 
-  describe('#userUndoAnnounce', () => {
+  describe('userUndoAnnounce', () => {
     it('deletes announce status and publishes to queue', async () => {
       const status = await userUndoAnnounce({
         currentActor: actor2,

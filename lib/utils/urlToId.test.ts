@@ -1,6 +1,6 @@
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
-describe('#urlToId', () => {
+describe('urlToId', () => {
   it('converts all / to :', () => {
     expect(urlToId('https://llun.test/users/test1')).toEqual(
       'llun.test:users:test1'
@@ -111,7 +111,7 @@ describe('#urlToId', () => {
   })
 })
 
-describe('#idToUrl', () => {
+describe('idToUrl', () => {
   it('converts all : to /', () => {
     expect(idToUrl('llun.test:users:test1')).toEqual(
       'https://llun.test/users/test1'

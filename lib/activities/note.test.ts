@@ -9,7 +9,7 @@ import {
 } from './note'
 
 describe('note entity utilities', () => {
-  describe('#getUrl', () => {
+  describe('getUrl', () => {
     it('returns string url directly', () => {
       expect(getUrl('https://example.com/note/1')).toEqual(
         'https://example.com/note/1'
@@ -46,7 +46,7 @@ describe('note entity utilities', () => {
     })
   })
 
-  describe('#getReply', () => {
+  describe('getReply', () => {
     it('returns string reply directly', () => {
       expect(getReply('https://example.com/note/parent')).toEqual(
         'https://example.com/note/parent'
@@ -64,7 +64,7 @@ describe('note entity utilities', () => {
     })
   })
 
-  describe('#getAttachments', () => {
+  describe('getAttachments', () => {
     it('returns attachments array', () => {
       const note: BaseNote = {
         type: 'Note',
@@ -171,7 +171,7 @@ describe('note entity utilities', () => {
     })
   })
 
-  describe('#getTags', () => {
+  describe('getTags', () => {
     it('returns tags array', () => {
       const note = {
         type: 'Note',
@@ -208,7 +208,7 @@ describe('note entity utilities', () => {
     })
   })
 
-  describe('#getContent', () => {
+  describe('getContent', () => {
     it('returns content string directly', () => {
       const note = {
         type: 'Note',
@@ -263,7 +263,7 @@ describe('note entity utilities', () => {
     })
   })
 
-  describe('#getSummary', () => {
+  describe('getSummary', () => {
     it('returns summary string directly', () => {
       const note = {
         type: 'Note',

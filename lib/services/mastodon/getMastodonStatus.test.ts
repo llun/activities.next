@@ -20,7 +20,7 @@ jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({ host: 'test.llun.dev' })
 }))
 
-describe('#getMastodonStatus', () => {
+describe('getMastodonStatus', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -37,7 +37,7 @@ describe('#getMastodonStatus', () => {
     await database.destroy()
   })
 
-  describe('#getMastodonStatuses', () => {
+  describe('getMastodonStatuses', () => {
     it('hydrates multiple statuses while reusing actor lookups', async () => {
       const firstStatus = (await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`

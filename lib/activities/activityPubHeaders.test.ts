@@ -16,7 +16,7 @@ jest.mock('@/lib/config', () => ({
   }
 }))
 
-describe('#activityPubRequestHeaders', () => {
+describe('activityPubRequestHeaders', () => {
   let signingActor: Actor
 
   beforeAll(async () => {

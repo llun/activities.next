@@ -40,7 +40,7 @@ describe('like email template', () => {
     createdAt: Date.now()
   }
 
-  describe('#getSubject', () => {
+  describe('getSubject', () => {
     it('returns subject with actor username and host', () => {
       const result = getSubject(mockActor)
       // Uses config host from test config
@@ -48,7 +48,7 @@ describe('like email template', () => {
     })
   })
 
-  describe('#getTextContent', () => {
+  describe('getTextContent', () => {
     it('returns text content with local URL and message', () => {
       const result = getTextContent(mockActor, mockStatus)
       // Should include the actor who liked
@@ -60,7 +60,7 @@ describe('like email template', () => {
     })
   })
 
-  describe('#getHTMLContent', () => {
+  describe('getHTMLContent', () => {
     it('returns HTML content with message and local URL', () => {
       const result = getHTMLContent(mockActor, mockStatus)
       expect(result).toContain('@liker@remote.example.com liked your post')

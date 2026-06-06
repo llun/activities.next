@@ -3,7 +3,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { resolveStatusFromPath } from './resolveStatusFromPath'
 
-describe('#resolveStatusFromPath', () => {
+describe('resolveStatusFromPath', () => {
   const originalActorId = 'https://remote.example/users/original'
   const boosterActorId = 'https://boost.example/users/booster'
   const secondBoosterActorId = 'https://other.example/users/booster'

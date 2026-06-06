@@ -2,7 +2,7 @@ import { getQueue } from './index'
 import { NoQueue } from './noqueue'
 
 describe('queue index', () => {
-  describe('#getQueue', () => {
+  describe('getQueue', () => {
     it('returns NoQueue by default', () => {
       const queue = getQueue()
 

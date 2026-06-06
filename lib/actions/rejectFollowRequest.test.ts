@@ -11,7 +11,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 
 enableFetchMocks()
 
-describe('Accept follow action', () => {
+describe('Reject follow action', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -29,7 +29,7 @@ describe('Accept follow action', () => {
     mockRequests(fetchMock)
   })
 
-  describe('#rejectFollow', () => {
+  describe('rejectFollowRequest', () => {
     it('update follow status to Rejected and return follow', async () => {
       const targetActorId = 'https://somewhere.test/actors/request-following'
       const followRequest = await database.getAcceptedOrRequestedFollow({

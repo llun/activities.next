@@ -8,7 +8,7 @@ const PUBLIC_STREAM = 'https://www.w3.org/ns/activitystreams#Public'
 const ACTOR_ID = 'https://remote.example/users/alice'
 const STATUS_ID = 'https://remote.example/users/alice/statuses/1'
 
-describe('#getRemoteStatus', () => {
+describe('getRemoteStatus', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
   })

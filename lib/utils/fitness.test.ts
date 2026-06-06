@@ -7,8 +7,8 @@ import {
   normalizeFitnessSourceUrl
 } from '@/lib/utils/fitness'
 
-describe('#fitness utils', () => {
-  describe('#getFitnessSourceLabel', () => {
+describe('fitness utils', () => {
+  describe('getFitnessSourceLabel', () => {
     it('labels Strava-hosted URLs as "View on Strava"', () => {
       expect(
         getFitnessSourceLabel('https://www.strava.com/activities/123')
@@ -28,7 +28,7 @@ describe('#fitness utils', () => {
     })
   })
 
-  describe('#normalizeFitnessSourceUrl', () => {
+  describe('normalizeFitnessSourceUrl', () => {
     it('returns http(s) URLs unchanged', () => {
       expect(
         normalizeFitnessSourceUrl('https://www.strava.com/activities/123')
@@ -48,7 +48,7 @@ describe('#fitness utils', () => {
     })
   })
 
-  describe('#formatFitnessDistance', () => {
+  describe('formatFitnessDistance', () => {
     it('formats short and long distances', () => {
       expect(formatFitnessDistance(5_234)).toBe('5.23 km')
       expect(formatFitnessDistance(12_450)).toBe('12.4 km')
@@ -62,7 +62,7 @@ describe('#fitness utils', () => {
     })
   })
 
-  describe('#formatFitnessDuration', () => {
+  describe('formatFitnessDuration', () => {
     it('formats minute and hour durations', () => {
       expect(formatFitnessDuration(95)).toBe('1:35')
       expect(formatFitnessDuration(3_661)).toBe('1:01:01')
@@ -76,7 +76,7 @@ describe('#fitness utils', () => {
     })
   })
 
-  describe('#formatFitnessElevation', () => {
+  describe('formatFitnessElevation', () => {
     it('formats elevation gain', () => {
       expect(formatFitnessElevation(132.4)).toBe('132 m')
     })
@@ -87,7 +87,7 @@ describe('#fitness utils', () => {
     })
   })
 
-  describe('#getFitnessPaceOrSpeed', () => {
+  describe('getFitnessPaceOrSpeed', () => {
     it('returns pace for running activities', () => {
       expect(
         getFitnessPaceOrSpeed({

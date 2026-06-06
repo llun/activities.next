@@ -51,7 +51,7 @@ const createAnnounce = async (
   return status
 }
 
-describe('#mainTimelineRule', () => {
+describe('mainTimelineRule', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {

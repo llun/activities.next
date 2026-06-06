@@ -2,7 +2,7 @@ import { NotificationType } from '@/lib/types/database/operations'
 
 import { GroupedNotification, groupNotifications } from './groupNotifications'
 
-describe('#groupNotifications', () => {
+describe('groupNotifications', () => {
   const baseNotification = {
     actorId: 'https://example.com/users/user1',
     type: NotificationType.enum.like,

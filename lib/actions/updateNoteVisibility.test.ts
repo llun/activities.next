@@ -49,7 +49,7 @@ describe('Update note visibility action', () => {
     jest.clearAllMocks()
   })
 
-  describe('#updateNoteVisibilityFromUserInput', () => {
+  describe('updateNoteVisibilityFromUserInput', () => {
     it('returns null when status does not exist', async () => {
       if (!actor1) fail('Actor1 is required')
 
