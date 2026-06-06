@@ -39,6 +39,9 @@ export const useLoadMoreOnVisible = ({
       !loadMoreElement ||
       typeof IntersectionObserver === 'undefined'
     ) {
+      // No active observer ⇒ the sentinel is not visible; reset so callers
+      // (e.g. the scroll-to-top button) don't read a stale `true`.
+      setIsLoadMoreVisible(false)
       return
     }
 
@@ -62,6 +65,7 @@ export const useLoadMoreOnVisible = ({
 
     return () => {
       observer.disconnect()
+      setIsLoadMoreVisible(false)
     }
   }, [enabled, loadMoreElement])
 
