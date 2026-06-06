@@ -10,7 +10,7 @@ import {
   hasStatusBeenEdited
 } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
@@ -301,10 +301,10 @@ export const getMastodonStatus = async (
 
   const baseData = {
     id: urlToId(status.id),
-    created_at: getISOTimeUTC(status.createdAt),
+    created_at: getMastodonTimeUTC(status.createdAt),
     edited_at:
       status.type !== StatusType.enum.Announce && hasStatusBeenEdited(status)
-        ? getISOTimeUTC(status.updatedAt)
+        ? getMastodonTimeUTC(status.updatedAt)
         : null,
 
     sensitive: false,
@@ -422,7 +422,7 @@ export const getMastodonStatus = async (
 
     pollData = Mastodon.Poll.parse({
       id: urlToId(status.id),
-      expires_at: getISOTimeUTC(status.endAt),
+      expires_at: getMastodonTimeUTC(status.endAt),
       expired: Date.now() > status.endAt,
       multiple: status.pollType === 'anyOf',
       votes_count: status.choices.reduce(

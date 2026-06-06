@@ -3,7 +3,7 @@ import {
   MastodonNotificationType,
   internalTypeToMastodon
 } from '@/lib/services/notifications/notificationTypeMapping'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
 // Up to how many recent actors to surface per group (Mastodon returns a sample,
@@ -67,7 +67,7 @@ export const getNotificationGroup = (
         ? notification.groupedIds[notification.groupedIds.length - 1]
         : notification.id,
       // groupNotifications keeps the group's createdAt as its most-recent member's.
-      latest_page_notification_at: getISOTimeUTC(notification.createdAt),
+      latest_page_notification_at: getMastodonTimeUTC(notification.createdAt),
       sample_account_ids: sampleActorIds.map((id) => urlToId(id)),
       ...(notification.statusId
         ? { status_id: urlToId(notification.statusId) }
