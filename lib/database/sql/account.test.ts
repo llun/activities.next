@@ -89,7 +89,7 @@ describe('AccountDatabase', () => {
       expect(actor).toMatchObject({
         id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`),
         username: TEST_USERNAME2,
-        acct: `${TEST_USERNAME2}@${TEST_DOMAIN}`,
+        acct: TEST_USERNAME2,
         url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`,
         display_name: '',
         note: '',

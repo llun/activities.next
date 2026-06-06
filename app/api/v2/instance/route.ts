@@ -1,5 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   MAX_PINNED_STATUSES,
   MAX_STATUS_MEDIA_ATTACHMENTS
@@ -26,7 +27,7 @@ export const GET = traceApiRoute(
       req,
       allowedMethods: CORS_HEADERS,
       data: {
-        domain: config.host,
+        domain: headerHost(req.headers),
         title: config.serviceName ?? 'Activities.next',
         version: VERSION,
         source_url: 'https://github.com/llun/activities.next',

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   MAX_PINNED_STATUSES,
   MAX_STATUS_MEDIA_ATTACHMENTS
@@ -21,7 +22,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
   const config = getConfig()
   const data = {
-    uri: config.host,
+    uri: headerHost(req.headers),
     title: config.serviceName ?? 'Activities.next',
     short_description:
       config.serviceDescription ?? 'Personal activity pub server with Next.js',

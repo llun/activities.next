@@ -1,6 +1,6 @@
 import { Block } from '@/lib/types/domain/block'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
 const UUID_LIKE_PATTERN =
@@ -61,7 +61,7 @@ export const getFallbackBlockedAccount = (block: Block): MastodonAccount => {
     group: false,
     discoverable: false,
     noindex: true,
-    created_at: getISOTimeUTC(0),
+    created_at: getMastodonTimeUTC(0),
     last_status_at: null,
     statuses_count: 0,
     followers_count: 0,

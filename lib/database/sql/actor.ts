@@ -66,7 +66,7 @@ import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getISOTimeUTC, getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -255,6 +255,19 @@ const getMastodonAccountFromSQLActor = ({
     getConfiguredActorDomain()
   )
 
+  // Mastodon `acct` is bare only for actors whose domain is the instance's own
+  // (configured) host; every other actor — remote, OR one we host on a
+  // *different* domain — must use the `username@domain` form. Comparing against
+  // the configured host (not merely "do we host this actor") keeps a Mastodon
+  // client from collapsing two same-username actors on different local domains
+  // into one account (which renders as a blank account-switcher row). Domains
+  // are case-insensitive, so compare case-insensitively.
+  const isLocalActor =
+    sqlActor.domain.toLowerCase() === getConfiguredActorDomain().toLowerCase()
+  // Canonicalize the domain part to lowercase: Mastodon normalizes domains, and
+  // some clients/servers string-match `acct` strictly.
+  const qualifiedAcct = `${sqlActor.username}@${sqlActor.domain.toLowerCase()}`
+
   // Profile metadata fields are stored as plain name/value pairs; URLs are not
   // server-verified, so verified_at is always null.
   const profileFields = (settings.fields ?? []).map((field) => ({
@@ -267,7 +280,7 @@ const getMastodonAccountFromSQLActor = ({
   return Mastodon.Account.parse({
     id: urlToId(sqlActor.id),
     username: sqlActor.username,
-    acct: `${sqlActor.username}@${sqlActor.domain}`,
+    acct: isLocalActor ? sqlActor.username : qualifiedAcct,
     url: sqlActor.id,
     display_name: sqlActor.name ?? '',
     note,
@@ -300,7 +313,7 @@ const getMastodonAccountFromSQLActor = ({
       follow_requests_count: 0
     },
 
-    created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
+    created_at: getMastodonTimeUTC(getCompatibleTime(sqlActor.createdAt)),
     last_status_at: lastStatusCreatedAt
       ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
       : null,

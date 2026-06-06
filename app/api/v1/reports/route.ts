@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { ReportCategory, Scope } from '@/lib/types/database/operations'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
@@ -86,7 +86,7 @@ export const POST = traceApiRoute(
           category: report.category,
           comment: report.comment,
           forwarded: report.forward,
-          created_at: getISOTimeUTC(report.createdAt),
+          created_at: getMastodonTimeUTC(report.createdAt),
           // Echo ids back in the Mastodon short form clients sent, not the
           // internal URL form we persist.
           status_ids: report.statusIds.map((id) => urlToId(id)),
