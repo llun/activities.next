@@ -9,7 +9,7 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
-  ERROR_404,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -33,14 +33,7 @@ export const GET = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
-    if (!encodedAccountId) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
+    if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
     const url = new URL(req.url)
     const parsed = StatusQueryParams.safeParse(
@@ -60,14 +53,7 @@ export const GET = traceApiRoute(
       actorId,
       signingActor: currentActor
     })
-    if (!person) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-    }
+    if (!person) return apiCorsError(req, CORS_HEADERS, 404)
 
     if (
       parsed.data.page_url &&

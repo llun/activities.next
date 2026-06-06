@@ -4,8 +4,8 @@ import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
-  ERROR_404,
   ERROR_500,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -27,13 +27,7 @@ export const POST = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const statusId = idToUrl(encodedStatusId)
       const status = await getReadableStatus({
@@ -51,13 +45,7 @@ export const POST = traceApiRoute(
           actorId: currentActor.id,
           statusId
         })
-        if (!isBookmarked)
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: ERROR_404,
-            responseStatusCode: 404
-          })
+        if (!isBookmarked) return apiCorsError(req, CORS_HEADERS, 404)
 
         await database.deleteBookmark({ actorId: currentActor.id, statusId })
 
@@ -69,13 +57,7 @@ export const POST = traceApiRoute(
           withReplies: false,
           currentActorId: currentActor.id
         })
-        if (!unreadableStatus)
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: ERROR_404,
-            responseStatusCode: 404
-          })
+        if (!unreadableStatus) return apiCorsError(req, CORS_HEADERS, 404)
 
         const unreadableMastodonStatus = await getMastodonStatus(
           database,

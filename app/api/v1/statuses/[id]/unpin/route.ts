@@ -5,8 +5,8 @@ import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_403,
-  ERROR_404,
   ERROR_500,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -28,13 +28,7 @@ export const POST = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const statusId = idToUrl(encodedStatusId)
       const status = await getReadableStatus({
@@ -43,13 +37,7 @@ export const POST = traceApiRoute(
         currentActor,
         withReplies: false
       })
-      if (!status)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
       // Check ownership - only owner can unpin
       if (status.actorId !== currentActor.id) {

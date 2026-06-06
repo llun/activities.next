@@ -9,6 +9,7 @@ import {
   ERROR_404,
   ERROR_422,
   ERROR_500,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -28,13 +29,7 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
+    if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
     const statusId = idToUrl(encodedStatusId)
     let undoStatusId = statusId

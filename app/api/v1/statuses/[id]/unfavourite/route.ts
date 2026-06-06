@@ -5,8 +5,8 @@ import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
-  ERROR_404,
   ERROR_500,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -26,13 +26,7 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
+    if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
     const statusId = idToUrl(encodedStatusId)
     let status = await getReadableStatus({
@@ -46,26 +40,14 @@ export const POST = traceApiRoute(
         actorId: currentActor.id,
         statusId
       })
-      if (!isActorLikedStatus)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!isActorLikedStatus) return apiCorsError(req, CORS_HEADERS, 404)
 
       status = await database.getStatus({
         statusId,
         withReplies: false,
         currentActorId: currentActor.id
       })
-      if (!status)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
     }
 
     await database.deleteLike({ actorId: currentActor.id, statusId })

@@ -7,7 +7,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
-  ERROR_404,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -35,13 +35,7 @@ export const GET = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const queryParams = Object.fromEntries(new URL(req.url).searchParams)
       const parsedParams = RebloggedByQueryParams.safeParse(queryParams)
@@ -62,13 +56,7 @@ export const GET = traceApiRoute(
         currentActor,
         withReplies: false
       })
-      if (!status)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
       const reblogsPage = await database.getRebloggedBy({
         statusId,

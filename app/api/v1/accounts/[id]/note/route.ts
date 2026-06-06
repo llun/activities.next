@@ -6,9 +6,8 @@ import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
-  ERROR_400,
-  ERROR_404,
   ERROR_422,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -35,13 +34,7 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
-    if (!encodedAccountId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
+    if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
     // getRequestBody calls req.json() for a JSON content type, which rejects on
     // an empty or malformed body; treat a bad body as a 422 rather than a 500.
@@ -72,13 +65,7 @@ export const POST = traceApiRoute(
       // actually exists locally, rather than accumulating notes for arbitrary
       // decodable IDs.
       const targetActor = await database.getActorFromId({ id: targetActorId })
-      if (!targetActor)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
 
       await database.upsertAccountNote({
         actorId: currentActor.id,

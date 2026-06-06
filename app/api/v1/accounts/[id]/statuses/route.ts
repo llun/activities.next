@@ -13,7 +13,7 @@ import { type Status, StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
-  ERROR_404,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -60,25 +60,11 @@ export const GET = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedAccountId = (await params).id
-      if (!encodedAccountId) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
-        })
-      }
+      if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
       const id = idToUrl(encodedAccountId)
 
       const actor = await database.getActorFromId({ id })
-      if (!actor) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-      }
+      if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
 
       const url = new URL(req.url)
       const queryParams = Object.fromEntries(url.searchParams.entries())
