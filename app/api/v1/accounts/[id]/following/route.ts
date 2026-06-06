@@ -94,16 +94,20 @@ export const GET = traceApiRoute(
       // normalize to newest-first so the Link cursors are consistent.
       const orderedFollows = forwardCursor ? [...follows].reverse() : follows
 
-      const accounts = (
-        await Promise.all(
-          orderedFollows.map(async (follow) => ({
-            followId: follow.id,
-            account: await database.getMastodonActorFromId({
-              id: follow.targetActorId
-            })
-          }))
+      // Batch-hydrate the followed accounts in a single query, then re-order to
+      // match orderedFollows (getMastodonActorsFromIds does not guarantee order).
+      const accountsById = new Map(
+        (
+          await database.getMastodonActorsFromIds({
+            ids: orderedFollows.map((follow) => follow.targetActorId)
+          })
+        ).map((account) => [account.url, account])
+      )
+      const accounts = orderedFollows
+        .map((follow) => accountsById.get(follow.targetActorId))
+        .filter((account): account is NonNullable<typeof account> =>
+          Boolean(account)
         )
-      ).filter((item) => item.account !== null)
 
       const host = headerHost(req.headers)
       const links: string[] = []
@@ -124,7 +128,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: accounts.map((item) => item.account),
+        data: accounts,
         additionalHeaders: links.length > 0 ? [['Link', links.join(', ')]] : []
       })
     },

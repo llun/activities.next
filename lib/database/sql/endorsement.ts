@@ -68,23 +68,30 @@ export const EndorsementSQLDatabaseMixin = (
     actorId,
     limit,
     maxId,
-    minId
+    minId,
+    sinceId
   }: GetEndorsementsParams) {
     const query = database<SQLEndorsement>('endorsements')
       .where({ actorId })
-      .orderBy('id', 'desc')
       .limit(limit)
 
-    // Numeric id cursors; guard NaN so a malformed cursor is ignored rather
-    // than producing an invalid comparison.
-    const max = maxId != null ? Number(maxId) : NaN
-    const min = minId != null ? Number(minId) : NaN
+    // Numeric id cursors; a truthiness check guards both null/undefined and the
+    // empty-string case (`?max_id=`), which would otherwise compare against 0.
+    const max = maxId ? Number(maxId) : NaN
+    const min = minId ? Number(minId) : NaN
+    const since = sinceId ? Number(sinceId) : NaN
     if (!Number.isNaN(max)) query.where('id', '<', max)
     if (!Number.isNaN(min)) query.where('id', '>', min)
+    if (!Number.isNaN(since)) query.where('id', '>', since)
 
-    const rows = await query
-    // When walking backwards with min_id, reverse to keep newest-first order.
-    const ordered = !Number.isNaN(min) ? [...rows].reverse() : rows
-    return ordered.map(toEndorsement)
+    // min_id returns the OLDEST band immediately after the cursor: fetch
+    // ascending (closest to the cursor), then present newest-first. Every other
+    // cursor (max_id, since_id, none) returns the newest band, descending.
+    if (!Number.isNaN(min)) {
+      const rows = await query.orderBy('id', 'asc')
+      return rows.reverse().map(toEndorsement)
+    }
+    const rows = await query.orderBy('id', 'desc')
+    return rows.map(toEndorsement)
   }
 })

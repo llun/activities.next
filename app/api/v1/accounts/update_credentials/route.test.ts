@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { saveMedia } from '@/lib/services/medias'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { PATCH } from './route'
+
+jest.mock('@/lib/services/medias', () => ({ saveMedia: jest.fn() }))
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -115,7 +118,10 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(response.status).toBe(200)
   })
 
-  it('accepts avatar file part and ignores it, updating only text fields', async () => {
+  it('keeps the existing image when media storage returns nothing', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    // Unconfigured storage: saveMedia yields nothing, so no icon/header URL.
+    saveMediaMock.mockResolvedValue(null)
     const updateActor = jest.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('display_name', 'With Avatar')
@@ -281,6 +287,57 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
         manuallyApprovesFollowers: false
       })
     )
+    updateActor.mockRestore()
+  })
+
+  it('uploads avatar/header via the media-save path and stores the URLs', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    saveMediaMock
+      .mockResolvedValueOnce({ url: 'https://llun.test/media/avatar.png' })
+      .mockResolvedValueOnce({ url: 'https://llun.test/media/header.png' })
+    const updateActor = jest.spyOn(database, 'updateActor')
+
+    const form = new FormData()
+    form.set(
+      'avatar',
+      new Blob(['avatar-bytes'], { type: 'image/png' }),
+      'avatar.png'
+    )
+    form.set(
+      'header',
+      new Blob(['header-bytes'], { type: 'image/png' }),
+      'header.png'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(saveMediaMock).toHaveBeenCalledTimes(2)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        iconUrl: 'https://llun.test/media/avatar.png',
+        headerImageUrl: 'https://llun.test/media/header.png'
+      })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('rejects more than four profile fields with 422', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    for (let i = 0; i < 5; i += 1) {
+      form.set(`fields_attributes[${i}][name]`, `n${i}`)
+      form.set(`fields_attributes[${i}][value]`, `v${i}`)
+    }
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(updateActor).not.toHaveBeenCalled()
     updateActor.mockRestore()
   })
 

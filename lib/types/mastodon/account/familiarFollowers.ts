@@ -2,7 +2,7 @@
 // https://docs.joinmastodon.org/entities/FamiliarFollowers/
 import { z } from 'zod'
 
-import { Account } from '../account'
+import { Account } from '@/lib/types/mastodon/account'
 
 export const FamiliarFollowers = z.object({
   id: z.string().describe('The ID of the Account in the database'),

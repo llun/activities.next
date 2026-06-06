@@ -6,7 +6,8 @@
 // and the account's `role`.
 import { z } from 'zod'
 
-import { Account } from '../account'
+import { Account } from '@/lib/types/mastodon/account'
+
 import { Role } from './role'
 
 export const CredentialAccount = Account.extend({

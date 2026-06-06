@@ -49,16 +49,16 @@ export const GET = traceApiRoute(
         min_id: minId,
         since_id: sinceId
       } = parsed.data
-      const forwardCursor = minId ?? sinceId
 
-      const endorsements = await database.getEndorsements({
+      // getEndorsements applies the correct ordering per cursor (max_id,
+      // min_id, since_id) and always returns newest-first.
+      const ordered = await database.getEndorsements({
         actorId: currentActor.id,
         limit,
         maxId,
-        minId: forwardCursor
+        minId,
+        sinceId
       })
-      // Normalize forward-cursor pages back to newest-first.
-      const ordered = forwardCursor ? [...endorsements].reverse() : endorsements
 
       const accountsById = new Map(
         (

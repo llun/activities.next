@@ -15,6 +15,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 // popular targets.
 const FAMILIAR_FOLLOWER_SCAN_LIMIT = 500
 
+// Upper bound on how many target accounts a single request may ask about.
+const MAX_FAMILIAR_FOLLOWER_TARGETS = 40
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // GET /api/v1/accounts/familiar_followers — accounts you follow that also
@@ -29,10 +32,16 @@ export const GET = traceApiRoute(
       const { database, currentActor } = context
 
       const url = new URL(req.url)
-      const encodedIds = [
-        ...url.searchParams.getAll('id[]'),
-        ...url.searchParams.getAll('id')
-      ].filter(Boolean)
+      // Deduplicate and bound the requested ids to avoid pathological fan-out
+      // (each id triggers a follower scan + intersection).
+      const encodedIds = Array.from(
+        new Set(
+          [
+            ...url.searchParams.getAll('id[]'),
+            ...url.searchParams.getAll('id')
+          ].filter(Boolean)
+        )
+      ).slice(0, MAX_FAMILIAR_FOLLOWER_TARGETS)
 
       if (encodedIds.length === 0) {
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })

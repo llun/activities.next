@@ -3,6 +3,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 
 describe('EndorsementSQLDatabaseMixin', () => {
   const database = getTestSQLDatabase()
@@ -75,6 +76,48 @@ describe('EndorsementSQLDatabaseMixin', () => {
     })
     expect(nextPage).toHaveLength(1)
     expect(Number(nextPage[0].id)).toBeLessThan(Number(firstPage[0].id))
+  })
+
+  it('orders min_id vs since_id differently but always returns newest-first', async () => {
+    // Three endorsements by Actor2, created oldest -> newest (ids ascending).
+    const e1 = await database.createEndorsement({
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR1_ID
+    })
+    const e2 = await database.createEndorsement({
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR3_ID
+    })
+    const e3 = await database.createEndorsement({
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR4_ID
+    })
+
+    // Forward pagination above the oldest cursor: newest-first, no overlap.
+    const forward = await database.getEndorsements({
+      actorId: ACTOR2_ID,
+      limit: 40,
+      minId: e1.id
+    })
+    expect(forward.map((e) => e.id)).toEqual([e3.id, e2.id])
+    expect(forward.map((e) => e.id)).not.toContain(e1.id)
+
+    // With a tight limit, min_id and since_id select different bands above the
+    // cursor: min_id -> oldest band (e2), since_id -> newest band (e3). Both are
+    // returned newest-first.
+    const byMinId = await database.getEndorsements({
+      actorId: ACTOR2_ID,
+      limit: 1,
+      minId: e1.id
+    })
+    expect(byMinId.map((e) => e.id)).toEqual([e2.id])
+
+    const bySinceId = await database.getEndorsements({
+      actorId: ACTOR2_ID,
+      limit: 1,
+      sinceId: e1.id
+    })
+    expect(bySinceId.map((e) => e.id)).toEqual([e3.id])
   })
 
   it('deletes an endorsement', async () => {
