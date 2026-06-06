@@ -32,6 +32,17 @@ describe('getEmojiTags', () => {
       description: 'deduplicates repeated shortcodes',
       text: ':tada: :tada: :tada:',
       expected: [{ name: ':tada:', value: 'https://example.com/tada.png' }]
+    },
+    {
+      description:
+        'ignores shortcodes embedded inside a word (Mastodon boundary)',
+      text: 'foo:tada:bar',
+      expected: []
+    },
+    {
+      description: 'matches a shortcode adjacent to punctuation',
+      text: '(:tada:)',
+      expected: [{ name: ':tada:', value: 'https://example.com/tada.png' }]
     }
   ])('resolves $description', ({ text, expected }) => {
     expect(getEmojiTags(text, emojis)).toEqual(expected)

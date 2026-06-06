@@ -1,8 +1,13 @@
 import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 
 // Matches `:shortcode:` tokens in status text. Shortcodes are limited to the
-// same character set the custom-emoji table validates (`[a-zA-Z0-9_]+`).
-export const EMOJI_SHORTCODE_REGEX = /:([a-zA-Z0-9_]+):/g
+// same character set the custom-emoji table validates (`[a-zA-Z0-9_]+`). The
+// lookbehind/lookahead require a non-alphanumeric, non-colon boundary on each
+// side, mirroring Mastodon's `CustomEmoji::SCAN_RE` so a shortcode embedded in a
+// word (e.g. `foo:bar:baz`) is not treated as an emoji and we federate exactly
+// the tokens Mastodon would render.
+export const EMOJI_SHORTCODE_REGEX =
+  /(?<![A-Za-z0-9:]):([a-zA-Z0-9_]+):(?![A-Za-z0-9:])/g
 
 export interface ResolvedEmojiTag {
   name: string

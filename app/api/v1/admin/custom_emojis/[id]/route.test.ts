@@ -99,6 +99,19 @@ describe('/api/v1/admin/custom_emojis/[id]', () => {
     expect(data).toMatchObject({ disabled: true, visible_in_picker: false })
   })
 
+  it('returns 422 for an invalid update body', async () => {
+    const response = await PATCH(
+      new NextRequest('https://llun.test/api/v1/admin/custom_emojis/emoji-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visible_in_picker: 12 })
+      }),
+      { params: Promise.resolve({ id: 'emoji-1' }) }
+    )
+    expect(response.status).toBe(422)
+    expect(mockDatabase.updateCustomEmoji).not.toHaveBeenCalled()
+  })
+
   it('returns 404 when updating a missing emoji', async () => {
     mockDatabase.updateCustomEmoji.mockResolvedValue(null)
     const response = await PATCH(

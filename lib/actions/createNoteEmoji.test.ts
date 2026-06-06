@@ -165,4 +165,31 @@ describe('Custom emoji status federation', () => {
     const tags = await database.getTags({ statusId: status.id })
     expect(tags.filter((tag) => tag.type === 'emoji')).toHaveLength(0)
   })
+
+  it('adds emoji tags when an edit introduces a new shortcode', async () => {
+    const status = await createNoteFromUserInput({
+      currentActor: actor1,
+      text: 'plain text',
+      database
+    })
+    if (!status) throw new Error('Expected a status')
+    expect(
+      (await database.getTags({ statusId: status.id })).filter(
+        (tag) => tag.type === 'emoji'
+      )
+    ).toHaveLength(0)
+
+    await updateNoteFromUserInput({
+      statusId: status.id,
+      currentActor: actor1,
+      text: 'now with :blobcat:',
+      database,
+      publish: false
+    })
+
+    const tags = await database.getTags({ statusId: status.id })
+    const emojiTags = tags.filter((tag) => tag.type === 'emoji')
+    expect(emojiTags).toHaveLength(1)
+    expect(emojiTags[0].name).toBe(':blobcat:')
+  })
 })

@@ -1,14 +1,16 @@
 import { NextRequest } from 'next/server'
 
 import { CreateCustomEmojiRequest } from '@/app/api/v1/admin/custom_emojis/schema'
+import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
-import { saveMedia } from '@/lib/services/medias'
+import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 import { FileSchema } from '@/lib/services/medias/types'
 import { toAdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_403,
   ERROR_422,
@@ -122,13 +124,32 @@ export const POST = traceApiRoute(
     }
 
     // We do not transcode animated emoji; the static copy equals the upload.
-    const emoji = await database.createCustomEmoji({
-      shortcode: parsed.data.shortcode,
-      url: saved.url,
-      staticUrl: saved.url,
-      category: parsed.data.category,
-      visibleInPicker: parsed.data.visible_in_picker ?? true
-    })
+    let emoji
+    try {
+      emoji = await database.createCustomEmoji({
+        shortcode: parsed.data.shortcode,
+        url: saved.url,
+        staticUrl: saved.url,
+        category: parsed.data.category,
+        visibleInPicker: parsed.data.visible_in_picker ?? true
+      })
+    } catch (error) {
+      // The shortcode unique constraint can still fire if a concurrent request
+      // inserted the same shortcode after the pre-check above. Map it to 422 and
+      // best-effort remove the just-saved (now orphaned) media file.
+      await deleteSavedMedia(database, saved.url)
+      logger.warn({
+        message: 'Failed to create custom emoji after media upload',
+        shortcode: parsed.data.shortcode,
+        error
+      })
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Shortcode already exists' },
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+    }
 
     return apiResponse({
       req,
@@ -137,3 +158,19 @@ export const POST = traceApiRoute(
     })
   })
 )
+
+// Best-effort cleanup of a media file given its public URL
+// (`.../api/v1/files/<path>`). Storage-specific URL shapes other than the local
+// file backend are ignored; failures are swallowed since this is cleanup only.
+const deleteSavedMedia = async (database: Database, url: string) => {
+  try {
+    const { pathname } = new URL(url)
+    const marker = '/api/v1/files/'
+    const index = pathname.indexOf(marker)
+    if (index === -1) return
+    const path = pathname.slice(index + marker.length)
+    if (path) await deleteMediaFile(database, decodeURIComponent(path))
+  } catch {
+    // ignore cleanup failures
+  }
+}

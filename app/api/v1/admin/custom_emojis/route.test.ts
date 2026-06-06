@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+
 import { GET, POST } from './route'
 
 const mockDatabase = {
@@ -181,6 +183,20 @@ describe('/api/v1/admin/custom_emojis', () => {
       params: Promise.resolve({})
     })
     expect(response.status).toBe(422)
+    expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when the admin has no session actor to own the upload', async () => {
+    mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+    ;(getActorFromSession as jest.Mock).mockResolvedValueOnce(null)
+    const form = new FormData()
+    form.set('shortcode', 'blobcat')
+    form.set('image', makeImage())
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(403)
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
 
