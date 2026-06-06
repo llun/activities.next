@@ -1,10 +1,11 @@
 'use client'
 
 import { Hash } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 
 import { getHashtagTimeline } from '@/lib/client'
 import { Posts } from '@/lib/components/posts/posts'
+import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
@@ -38,8 +39,6 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
-  const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
-  const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
   const lastStatusIdRef = useRef<string | null>(
     nextMaxStatusId ||
@@ -90,30 +89,9 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
     }
   }, [tag])
 
-  useEffect(() => {
-    const loadMoreElement = loadMoreRef.current
-    if (!loadMoreElement) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries
-        setIsLoadMoreVisible(entry.isIntersecting)
-        if (entry.isIntersecting) {
-          loadMoreStatuses()
-        }
-      },
-      {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.1
-      }
-    )
-
-    observer.observe(loadMoreElement)
-    return () => {
-      observer.disconnect()
-    }
-  }, [loadMoreStatuses])
+  const { loadMoreRef, isLoadMoreVisible } = useLoadMoreOnVisible({
+    onLoadMore: loadMoreStatuses
+  })
 
   return (
     <div className="space-y-6">

@@ -1,10 +1,11 @@
 'use client'
 
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 
 import { getBookmarks } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
+import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
@@ -42,8 +43,6 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
-  const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
-  const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
   const lastBookmarkIdRef = useRef<string | null>(initialNextMaxBookmarkId)
 
@@ -115,34 +114,10 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
     }
   }, [])
 
-  useEffect(() => {
-    if (!hasMoreStatuses) return
-
-    const loadMoreElement = loadMoreRef.current
-    if (!loadMoreElement || typeof IntersectionObserver === 'undefined') return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries
-        setIsLoadMoreVisible(entry.isIntersecting)
-
-        if (entry.isIntersecting) {
-          loadMoreStatuses()
-        }
-      },
-      {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.1
-      }
-    )
-
-    observer.observe(loadMoreElement)
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [hasMoreStatuses, loadMoreStatuses])
+  const { loadMoreRef, isLoadMoreVisible } = useLoadMoreOnVisible({
+    enabled: hasMoreStatuses,
+    onLoadMore: loadMoreStatuses
+  })
 
   return (
     <div className="space-y-6">
