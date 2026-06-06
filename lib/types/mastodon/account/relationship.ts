@@ -36,6 +36,10 @@ export const Relationship = z.object({
   // Are you muting notifications from this user?
   muting_notifications: z.boolean(),
 
+  // When a temporary mute will expire, if applicable (ISO 8601 Datetime).
+  // null when the mute is permanent or there is no mute.
+  muting_expires_at: z.string().nullable(),
+
   // Do you have a pending follow request for this user?
   requested: z.boolean(),
 

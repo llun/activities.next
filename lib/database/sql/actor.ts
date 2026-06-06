@@ -255,34 +255,48 @@ const getMastodonAccountFromSQLActor = ({
     getConfiguredActorDomain()
   )
 
+  // Profile metadata fields are stored as plain name/value pairs; URLs are not
+  // server-verified, so verified_at is always null.
+  const profileFields = (settings.fields ?? []).map((field) => ({
+    name: field.name,
+    value: field.value,
+    verified_at: null
+  }))
+  const note = sqlActor.summary ?? ''
+
   return Mastodon.Account.parse({
     id: urlToId(sqlActor.id),
     username: sqlActor.username,
     acct: `${sqlActor.username}@${sqlActor.domain}`,
     url: sqlActor.id,
     display_name: sqlActor.name ?? '',
-    note: sqlActor.summary ?? '',
+    note,
 
     avatar: settings.iconUrl ?? '',
     avatar_static: settings.iconUrl ?? '',
     header: settings.headerImageUrl ?? '',
     header_static: settings.headerImageUrl ?? '',
 
-    fields: [],
+    fields: profileFields,
     emojis: [],
 
     locked: settings.manuallyApprovesFollowers ?? true,
-    bot: isMastodonBotActorType(sqlActor.type),
+    bot: isMastodonBotActorType(sqlActor.type) || settings.bot === true,
     group: sqlActor.type === 'Group',
-    discoverable: !isLocalHeadlessSigner,
+    discoverable: settings.discoverable ?? !isLocalHeadlessSigner,
     noindex: isLocalHeadlessSigner,
 
+    // `source.note` is the plain-text bio and `source.fields` mirror the public
+    // fields. The default privacy/sensitive/language come from the account's
+    // saved posting preferences. follow_requests_count is left at 0 here so the
+    // public Account never leaks it; the credential endpoints overlay the real
+    // count (see lib/services/accounts/credentialAccount).
     source: {
-      note: '',
-      fields: [],
-      privacy: 'public',
-      sensitive: false,
-      language: 'en',
+      note,
+      fields: profileFields,
+      privacy: settings.defaultPrivacy ?? 'public',
+      sensitive: settings.defaultSensitive ?? false,
+      language: settings.defaultLanguage ?? 'en',
       follow_requests_count: 0
     },
 
@@ -780,6 +794,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     iconUrl,
     headerImageUrl,
     manuallyApprovesFollowers,
+    fields,
+    bot,
+    discoverable,
+    defaultPrivacy,
+    defaultSensitive,
+    defaultLanguage,
     postLineLimit,
     emailNotifications,
     pushNotifications,
@@ -807,6 +827,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(manuallyApprovesFollowers !== undefined
         ? { manuallyApprovesFollowers }
         : null),
+      ...(fields !== undefined ? { fields } : null),
+      ...(bot !== undefined ? { bot } : null),
+      ...(discoverable !== undefined ? { discoverable } : null),
+      ...(defaultPrivacy !== undefined ? { defaultPrivacy } : null),
+      ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
+      ...(defaultLanguage !== undefined ? { defaultLanguage } : null),
       ...(postLineLimit !== undefined ? { postLineLimit } : null),
       ...(emailNotifications !== undefined ? { emailNotifications } : null),
       ...(pushNotifications !== undefined ? { pushNotifications } : null),

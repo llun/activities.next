@@ -7,6 +7,7 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
+import { Endorsement } from '@/lib/types/domain/endorsement'
 import {
   Filter,
   FilterAction,
@@ -79,6 +80,14 @@ export type UpdateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
   manuallyApprovesFollowers?: boolean
+  // Mastodon profile metadata fields (name/value pairs).
+  fields?: { name: string; value: string }[]
+  // Mastodon `bot`/`discoverable` flags and `source.*` posting defaults.
+  bot?: boolean
+  discoverable?: boolean
+  defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
+  defaultSensitive?: boolean
+  defaultLanguage?: string
   postLineLimit?: PostLineLimit
   emailNotifications?: {
     follow_request?: boolean
@@ -1321,6 +1330,41 @@ export interface AccountNoteDatabase {
   // clears the note. Returns the stored comment (empty string when cleared).
   upsertAccountNote(params: UpsertAccountNoteParams): Promise<string>
   getAccountNote(params: GetAccountNoteParams): Promise<string>
+}
+
+// ============================================================================
+// Endorsement Database
+// ============================================================================
+
+export type CreateEndorsementParams = {
+  actorId: string
+  targetActorId: string
+}
+export type DeleteEndorsementParams = {
+  actorId: string
+  targetActorId: string
+}
+export type GetEndorsementParams = {
+  actorId: string
+  targetActorId: string
+}
+export type GetEndorsementsParams = {
+  actorId: string
+  limit: number
+  maxId?: string | null
+  minId?: string | null
+}
+
+export interface EndorsementDatabase {
+  // Idempotently endorse (feature) targetActorId from actorId. Returns the
+  // stored endorsement.
+  createEndorsement(params: CreateEndorsementParams): Promise<Endorsement>
+  // Removes the endorsement if present (no-op otherwise).
+  deleteEndorsement(params: DeleteEndorsementParams): Promise<void>
+  // Returns the endorsement for (actorId -> targetActorId), or null.
+  getEndorsement(params: GetEndorsementParams): Promise<Endorsement | null>
+  // Endorsements made BY actorId, newest first, paginated by numeric id cursor.
+  getEndorsements(params: GetEndorsementsParams): Promise<Endorsement[]>
 }
 
 // ============================================================================

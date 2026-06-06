@@ -11,6 +11,7 @@ import {
   BlockDatabase,
   BookmarkDatabase,
   DirectConversationDatabase,
+  EndorsementDatabase,
   FilterDatabase,
   FollowDatabase,
   FollowedTagDatabase,
@@ -42,6 +43,7 @@ export type Database = AccountDatabase &
   StravaArchiveImportDatabase &
   BlockDatabase &
   MuteDatabase &
+  EndorsementDatabase &
   ListDatabase &
   FollowedTagDatabase &
   FilterDatabase &

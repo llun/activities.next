@@ -22,7 +22,8 @@ export const getRelationship = async ({
     isBlocking,
     isBlockedBy,
     muteRecord,
-    note
+    note,
+    endorsement
   ] = await Promise.all([
     database.isCurrentActorFollowing({
       currentActorId: currentActor.id,
@@ -51,6 +52,10 @@ export const getRelationship = async ({
     database.getAccountNote({
       actorId: currentActor.id,
       targetActorId
+    }),
+    database.getEndorsement({
+      actorId: currentActor.id,
+      targetActorId
     })
   ])
 
@@ -70,10 +75,12 @@ export const getRelationship = async ({
     blocked_by: isBlockedBy,
     muting: muteRecord !== null,
     muting_notifications: muteRecord?.notifications ?? false,
+    // Mutes are permanent here; no expiry is tracked.
+    muting_expires_at: null,
     requested: isRequested,
     requested_by: false,
     domain_blocking: false,
-    endorsed: false,
+    endorsed: endorsement !== null,
     // Report the stored language filter honestly: the saved list when set,
     // or null (no filter) when absent/cleared — never a misleading default.
     languages:
