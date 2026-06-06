@@ -7,6 +7,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
 import {
   ERROR_400,
   ERROR_404,
@@ -108,27 +109,22 @@ export const GET = traceApiRoute(
           Boolean(account)
         )
 
-      const host = headerHost(req.headers)
-      const links: string[] = []
-      if (host && orderedFollows.length > 0) {
-        const pathBase = `/api/v1/accounts/${encodedAccountId}/following`
-        const buildLink = (cursorName: 'max_id' | 'min_id', value: string) => {
-          const linkParams = new URLSearchParams()
-          linkParams.set('limit', `${limit}`)
-          linkParams.set(cursorName, value)
-          return `<https://${host}${pathBase}?${linkParams.toString()}>; rel="${cursorName === 'max_id' ? 'next' : 'prev'}"`
-        }
-        links.push(
-          buildLink('max_id', orderedFollows[orderedFollows.length - 1].id)
-        )
-        links.push(buildLink('min_id', orderedFollows[0].id))
-      }
+      const additionalHeaders = buildPaginationLinkHeader({
+        host: headerHost(req.headers),
+        path: `/api/v1/accounts/${encodedAccountId}/following`,
+        limit,
+        nextMaxId:
+          orderedFollows.length > 0
+            ? orderedFollows[orderedFollows.length - 1].id
+            : null,
+        prevMinId: orderedFollows.length > 0 ? orderedFollows[0].id : null
+      })
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: accounts,
-        additionalHeaders: links.length > 0 ? [['Link', links.join(', ')]] : []
+        additionalHeaders
       })
     },
     { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }
