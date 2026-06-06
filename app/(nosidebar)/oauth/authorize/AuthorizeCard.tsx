@@ -85,7 +85,10 @@ export const AuthorizeCard: FC<Props> = ({
   const availabledScopes = intersection(UsableScopes, requestedScopes)
   const [selectedActorId, setSelectedActorId] = useState(currentActorId)
   const [isSwitching, setIsSwitching] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittingAction, setSubmittingAction] = useState<
+    'approve' | 'deny' | null
+  >(null)
+  const isSubmitting = submittingAction !== null
 
   const selectedActor =
     actors.find((a) => a.id === selectedActorId) || actors[0]
@@ -146,7 +149,8 @@ export const AuthorizeCard: FC<Props> = ({
 
   const handleApprove = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setIsSubmitting(true)
+    if (submittingAction) return
+    setSubmittingAction('approve')
 
     try {
       const formData = new FormData(e.currentTarget)
@@ -179,12 +183,13 @@ export const AuthorizeCard: FC<Props> = ({
     } catch {
       redirectWithError('server_error')
     } finally {
-      setIsSubmitting(false)
+      setSubmittingAction(null)
     }
   }
 
   const handleDeny = async () => {
-    setIsSubmitting(true)
+    if (submittingAction) return
+    setSubmittingAction('deny')
     try {
       const response = await fetch('/api/auth/oauth2/consent', {
         method: 'POST',
@@ -210,7 +215,7 @@ export const AuthorizeCard: FC<Props> = ({
     } catch {
       redirectWithError('server_error')
     } finally {
-      setIsSubmitting(false)
+      setSubmittingAction(null)
     }
   }
 
@@ -325,14 +330,14 @@ export const AuthorizeCard: FC<Props> = ({
               onClick={handleDeny}
               disabled={isSubmitting || isSwitching}
             >
-              Deny
+              {submittingAction === 'deny' ? 'Denying...' : 'Deny'}
             </Button>
             <Button
               className="flex-1"
               type="submit"
               disabled={isSubmitting || isSwitching}
             >
-              {isSubmitting ? 'Approving...' : 'Approve'}
+              {submittingAction === 'approve' ? 'Approving...' : 'Approve'}
             </Button>
           </div>
         </form>

@@ -276,6 +276,46 @@ describe('AuthorizeCard', () => {
     })
   })
 
+  it('shows a denying label on the deny button only while denial is in flight', async () => {
+    let resolveFetch: (value: unknown) => void = () => {}
+    ;(global.fetch as jest.Mock).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFetch = resolve
+      })
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Denying...' })
+      ).toBeInTheDocument()
+    })
+    // The approve button keeps its label and never shows the denial state.
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+
+    resolveFetch({
+      ok: true,
+      json: async () => ({
+        url: 'https://phanpy.local/?error=access_denied&state=return-state'
+      })
+    })
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+  })
+
   it('falls back to access_denied redirect when denial has no redirect URL', async () => {
     render(
       <AuthorizeCard
