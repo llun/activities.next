@@ -82,14 +82,16 @@ const postActivityToInbox = async ({
     })
     return statusCode
   } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-    if (silenceTimeout && nodeError.code === 'ETIMEDOUT') {
+    const nodeError = error as NodeJS.ErrnoException | null | undefined
+    if (silenceTimeout && nodeError?.code === 'ETIMEDOUT') {
       span.setAttribute('timeout', true)
       return undefined
     }
 
-    span.recordException(nodeError)
-    logger.error(`[${logPrefix}] ${nodeError.message}`)
+    // Normalize non-Error throws so recording/logging can't itself throw.
+    const exception = error instanceof Error ? error : new Error(String(error))
+    span.recordException(exception)
+    logger.error(`[${logPrefix}] ${exception.message}`)
     return undefined
   }
 }
