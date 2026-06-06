@@ -11,7 +11,8 @@ describe('#getRelationship', () => {
     getAcceptedOrRequestedFollow: jest.fn(),
     isBlocking: jest.fn(),
     getMute: jest.fn(),
-    getAccountNote: jest.fn()
+    getAccountNote: jest.fn(),
+    getEndorsement: jest.fn()
   }
 
   const mockCurrentActor = {
@@ -29,6 +30,7 @@ describe('#getRelationship', () => {
     mockDatabase.isBlocking.mockResolvedValue(false)
     mockDatabase.getMute.mockResolvedValue(null)
     mockDatabase.getAccountNote.mockResolvedValue('')
+    mockDatabase.getEndorsement.mockResolvedValue(null)
   })
 
   it('returns relationship with following=true when following', async () => {
@@ -112,10 +114,32 @@ describe('#getRelationship', () => {
       requested_by: false,
       domain_blocking: false,
       endorsed: false,
+      muting_expires_at: null,
       // No stored language filter on this follow -> null (no filter), not a
       // misleading default.
       languages: null
     })
+  })
+
+  it('returns endorsed=true when the target is endorsed', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getEndorsement.mockResolvedValue({
+      id: '1',
+      actorId: mockCurrentActor.id,
+      actorHost: 'example.com',
+      targetActorId: 'https://example.com/users/target',
+      targetActorHost: 'example.com',
+      createdAt: 0
+    })
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+
+    expect(relationship.endorsed).toBe(true)
   })
 
   it('reports the stored language filter, and null once it is cleared', async () => {

@@ -24,23 +24,20 @@ interface Params {
   id: string
 }
 
-const FollowingQueryParams = z.object({
+const EndorsementsQueryParams = z.object({
   max_id: z.string().optional(),
   since_id: z.string().optional(),
   min_id: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(80).default(40)
 })
 
-// GET /api/v1/accounts/:id/following — accounts the given account follows.
-// https://docs.joinmastodon.org/methods/accounts/#following
-//
-// Public with optional auth. Paginated with Mastodon id cursors + Link headers,
-// mirroring the accounts/:id/statuses route. The cursor is the underlying
-// follow-row id (the column getFollowing paginates on), not the account id.
+// GET /api/v1/accounts/:id/endorsements — accounts the given account features.
+// https://docs.joinmastodon.org/methods/accounts/#endorsements
+// Public with optional auth; returns Account[].
 export const GET = traceApiRoute(
-  'getAccountFollowing',
+  'getAccountEndorsements',
   OptionalOAuthGuard<Params>(
-    [Scope.enum.read, Scope.enum['read:follows']],
+    [Scope.enum.read, Scope.enum['read:accounts']],
     async (req, context) => {
       const { database, params } = context
       const encodedAccountId = (await params).id
@@ -64,9 +61,8 @@ export const GET = traceApiRoute(
         })
       }
 
-      const url = new URL(req.url)
-      const parsed = FollowingQueryParams.safeParse(
-        Object.fromEntries(url.searchParams.entries())
+      const parsed = EndorsementsQueryParams.safeParse(
+        Object.fromEntries(new URL(req.url).searchParams.entries())
       )
       if (!parsed.success) {
         return apiResponse({
@@ -76,6 +72,7 @@ export const GET = traceApiRoute(
           responseStatusCode: 400
         })
       }
+
       const {
         limit,
         max_id: maxId,
@@ -83,45 +80,38 @@ export const GET = traceApiRoute(
         since_id: sinceId
       } = parsed.data
 
-      // getFollowing applies the correct ordering per cursor and always returns
-      // newest-first; the cursor is the follow-row id.
-      const orderedFollows = await database.getFollowing({
+      const ordered = await database.getEndorsements({
         actorId: id,
         limit,
         maxId,
         minId,
         sinceId
       })
-
-      // Batch-hydrate the followed accounts in a single query, then re-order to
-      // match orderedFollows (getMastodonActorsFromIds does not guarantee order).
       const accountsById = new Map(
         (
           await database.getMastodonActorsFromIds({
-            ids: orderedFollows.map((follow) => follow.targetActorId)
+            ids: ordered.map((e) => e.targetActorId)
           })
         ).map((account) => [account.url, account])
       )
-      const accounts = orderedFollows
-        .map((follow) => accountsById.get(follow.targetActorId))
+      const accounts = ordered
+        .map((e) => accountsById.get(e.targetActorId))
         .filter((account): account is NonNullable<typeof account> =>
           Boolean(account)
         )
 
       const host = headerHost(req.headers)
       const links: string[] = []
-      if (host && orderedFollows.length > 0) {
-        const pathBase = `/api/v1/accounts/${encodedAccountId}/following`
+      if (host && ordered.length > 0) {
+        const pathBase = `/api/v1/accounts/${encodedAccountId}/endorsements`
         const buildLink = (cursorName: 'max_id' | 'min_id', value: string) => {
           const linkParams = new URLSearchParams()
           linkParams.set('limit', `${limit}`)
           linkParams.set(cursorName, value)
           return `<https://${host}${pathBase}?${linkParams.toString()}>; rel="${cursorName === 'max_id' ? 'next' : 'prev'}"`
         }
-        links.push(
-          buildLink('max_id', orderedFollows[orderedFollows.length - 1].id)
-        )
-        links.push(buildLink('min_id', orderedFollows[0].id))
+        links.push(buildLink('max_id', ordered[ordered.length - 1].id))
+        links.push(buildLink('min_id', ordered[0].id))
       }
 
       return apiResponse({
