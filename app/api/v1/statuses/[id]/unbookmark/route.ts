@@ -1,14 +1,12 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import {
+  mastodonStatusResponse,
+  refetchedStatusResponse
+} from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import {
-  ERROR_404,
-  ERROR_500,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiCorsError, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -27,13 +25,7 @@ export const POST = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const statusId = idToUrl(encodedStatusId)
       const status = await getReadableStatus({
@@ -51,13 +43,7 @@ export const POST = traceApiRoute(
           actorId: currentActor.id,
           statusId
         })
-        if (!isBookmarked)
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: ERROR_404,
-            responseStatusCode: 404
-          })
+        if (!isBookmarked) return apiCorsError(req, CORS_HEADERS, 404)
 
         await database.deleteBookmark({ actorId: currentActor.id, statusId })
 
@@ -69,66 +55,25 @@ export const POST = traceApiRoute(
           withReplies: false,
           currentActorId: currentActor.id
         })
-        if (!unreadableStatus)
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: ERROR_404,
-            responseStatusCode: 404
-          })
+        if (!unreadableStatus) return apiCorsError(req, CORS_HEADERS, 404)
 
-        const unreadableMastodonStatus = await getMastodonStatus(
-          database,
-          unreadableStatus,
-          currentActor.id
-        )
-        if (!unreadableMastodonStatus)
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: ERROR_500,
-            responseStatusCode: 500
-          })
-
-        return apiResponse({
+        return mastodonStatusResponse({
           req,
-          allowedMethods: CORS_HEADERS,
-          data: unreadableMastodonStatus
+          database,
+          currentActor,
+          status: unreadableStatus,
+          allowedMethods: CORS_HEADERS
         })
       }
 
       await database.deleteBookmark({ actorId: currentActor.id, statusId })
 
-      const updatedStatus = await database.getStatus({
-        statusId,
-        withReplies: false,
-        currentActorId: currentActor.id
-      })
-      if (!updatedStatus)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_500,
-          responseStatusCode: 500
-        })
-
-      const mastodonStatus = await getMastodonStatus(
-        database,
-        updatedStatus,
-        currentActor.id
-      )
-      if (!mastodonStatus)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_500,
-          responseStatusCode: 500
-        })
-
-      return apiResponse({
+      return refetchedStatusResponse({
         req,
-        allowedMethods: CORS_HEADERS,
-        data: mastodonStatus
+        database,
+        currentActor,
+        statusId,
+        allowedMethods: CORS_HEADERS
       })
     }
   ),

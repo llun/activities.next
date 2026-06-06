@@ -11,10 +11,9 @@ import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
-  ERROR_400,
-  ERROR_404,
   ERROR_422,
   HTTP_STATUS,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -54,13 +53,7 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
-    if (!encodedAccountId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
+    if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
     // A malformed JSON body rejects in parseFollowRequestBody; treat it as an
     // unprocessable request rather than letting it surface as a 500 or be
@@ -126,13 +119,7 @@ export const POST = traceApiRoute(
         actorId: targetActorId,
         signingActor
       })
-      if (!person)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!person) return apiCorsError(req, CORS_HEADERS, 404)
 
       const followItem = await database.createFollow({
         actorId: currentActor.id,

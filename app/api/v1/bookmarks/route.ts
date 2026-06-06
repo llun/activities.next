@@ -6,6 +6,7 @@ import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -60,31 +61,19 @@ export const GET = traceApiRoute(
         currentActor.id
       )
 
-      const host = headerHost(req.headers)
-      const buildPaginationUrl = (cursorParam: string, cursorValue: string) => {
-        const params = new URLSearchParams()
-        params.set('limit', limit.toString())
-        params.set(cursorParam, cursorValue)
-
-        return `<https://${host}/api/v1/bookmarks?${params.toString()}>; rel="${
-          cursorParam === 'max_id' ? 'next' : 'prev'
-        }"`
-      }
-      const nextLink = nextMaxBookmarkId
-        ? buildPaginationUrl('max_id', nextMaxBookmarkId)
-        : null
-      const prevLink = prevMinBookmarkId
-        ? buildPaginationUrl('min_id', prevMinBookmarkId)
-        : null
-      const links = [nextLink, prevLink].filter(Boolean).join(', ')
+      const additionalHeaders = buildPaginationLinkHeader({
+        host: headerHost(req.headers),
+        path: '/api/v1/bookmarks',
+        limit,
+        nextMaxId: nextMaxBookmarkId,
+        prevMinId: prevMinBookmarkId
+      })
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: mastodonStatuses,
-        additionalHeaders: [
-          ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
-        ]
+        additionalHeaders
       })
     }
   )

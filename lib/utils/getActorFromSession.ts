@@ -17,12 +17,18 @@ const getActorIdFromCookie = async (): Promise<string | undefined> => {
   }
 }
 
-export const getActorFromSession = async (
+/**
+ * Resolves the account behind a session, enforcing the email allowlist gate.
+ * Returns `null` when there is no signed-in email, the email is not allowed, or
+ * no matching account exists. Shared by actor and admin resolution.
+ */
+export const getAccountFromSession = async (
   database: Database,
   session: AuthSession | null
 ) => {
-  const config = getConfig()
   if (!session?.user?.email) return null
+
+  const config = getConfig()
   if (
     config.allowEmails.length &&
     !config.allowEmails.includes(session.user.email)
@@ -30,10 +36,15 @@ export const getActorFromSession = async (
     return null
   }
 
+  return database.getAccountFromEmail({ email: session.user.email })
+}
+
+export const getActorFromSession = async (
+  database: Database,
+  session: AuthSession | null
+) => {
   // Fetch account and its actors once — reused across all resolution steps below
-  const account = await database.getAccountFromEmail({
-    email: session.user.email
-  })
+  const account = await getAccountFromSession(database, session)
   if (!account) return null
 
   const actors = await database.getActorsForAccount({ accountId: account.id })

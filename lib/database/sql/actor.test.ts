@@ -27,7 +27,7 @@ import {
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type StatusPoll } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-import { getISOTimeUTC, getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
 const withFreshDatabase = async (
@@ -755,7 +755,7 @@ describe('ActorDatabase', () => {
             sensitive: false
           },
 
-          created_at: getMastodonTimeUTC(currentTime),
+          created_at: getISOTimeUTC(currentTime),
           last_status_at: null,
 
           statuses_count: 0,

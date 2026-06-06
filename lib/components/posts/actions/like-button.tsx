@@ -2,6 +2,11 @@ import { Heart } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { likeStatus, undoLikeStatus } from '@/lib/client'
+import {
+  ACTION_BUTTON_CLASS,
+  ActionButtonError,
+  useDismissingError
+} from '@/lib/components/posts/actions/actionButtonShared'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
@@ -11,15 +16,13 @@ interface LikeButtonProps {
   status: StatusNote | StatusPoll
 }
 
-const LIKE_ERROR_DISMISS_MS = 4000
-
 export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
   const [{ isActorLiked, totalLikes }, setLikeState] = useState({
     isActorLiked: status.isActorLiked,
     totalLikes: status.totalLikes
   })
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useDismissingError()
 
   useEffect(() => {
     setLikeState({
@@ -27,17 +30,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
       totalLikes: status.totalLikes
     })
     setError(null)
-  }, [status.id, status.isActorLiked, status.totalLikes])
-
-  useEffect(() => {
-    if (!error) return
-
-    const timeoutId = setTimeout(() => {
-      setError(null)
-    }, LIKE_ERROR_DISMISS_MS)
-
-    return () => clearTimeout(timeoutId)
-  }, [error])
+  }, [status.id, status.isActorLiked, status.totalLikes, setError])
 
   const isOwnPost = status.actorId === currentActor?.id
   const likeLabel =
@@ -59,7 +52,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
         aria-label={likeLabel}
         disabled={isOwnPost || isLoading}
         className={cn(
-          'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
+          ACTION_BUTTON_CLASS,
           isActorLiked ? 'text-red-500' : 'hover:text-red-500'
         )}
         onClick={async (e) => {
@@ -99,15 +92,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
         <Heart className={cn('h-4 w-4', { 'fill-current': isActorLiked })} />
         {totalLikes > 0 && <span>{totalLikes}</span>}
       </button>
-      {error ? (
-        <span
-          className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"
-          data-testid="like-error"
-          role="alert"
-        >
-          {error}
-        </span>
-      ) : null}
+      {error ? <ActionButtonError message={error} testId="like-error" /> : null}
     </span>
   )
 }

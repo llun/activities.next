@@ -10,7 +10,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
-import { getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
@@ -456,7 +456,7 @@ describe('getMastodonStatus', () => {
     const mastodonStatus = await getMastodonStatus(database, editedStatus)
 
     expect(mastodonStatus?.edited_at).toBe(
-      getMastodonTimeUTC(editedStatus.updatedAt)
+      getISOTimeUTC(editedStatus.updatedAt)
     )
   })
 

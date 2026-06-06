@@ -3,6 +3,8 @@ import { lookup } from 'node:dns/promises'
 import net from 'node:net'
 import { PassThrough, type Readable } from 'node:stream'
 
+import { getHeaderValue } from '@/lib/utils/getHeaderValue'
+
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 export const DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS = 3
 
@@ -565,19 +567,6 @@ const getRequestHeaders = ({
     previousUrl,
     url
   })
-}
-
-const getHeaderValue = (
-  headers: Record<string, string | string[] | undefined>,
-  key: string
-) => {
-  const normalizedKey = key.toLowerCase()
-  const matchingKey = Object.keys(headers).find(
-    (headerKey) => headerKey.toLowerCase() === normalizedKey
-  )
-  const value = matchingKey ? headers[matchingKey] : undefined
-  if (Array.isArray(value)) return value[0]
-  return value
 }
 
 const readResponseBody = async (

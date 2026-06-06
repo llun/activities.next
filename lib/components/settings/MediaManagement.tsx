@@ -2,9 +2,14 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import {
+  FileListPagination,
+  ItemsPerPageDropdown,
+  getFileStatusLink
+} from '@/lib/components/settings/fileManagementShared'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -21,14 +26,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/lib/components/ui/dropdown-menu'
 import { Progress } from '@/lib/components/ui/progress'
-import { getMentionFromActorID } from '@/lib/types/domain/actor'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 interface MediaItem {
@@ -72,16 +70,6 @@ export function MediaManagement({
     setCurrentUsed(used)
   }, [initialMedias, used])
 
-  const getPostLink = useCallback((actorId: string, statusId: string) => {
-    try {
-      const actorMention = getMentionFromActorID(actorId, true)
-      const encodedStatusId = encodeURIComponent(statusId)
-      return `/${actorMention}/${encodedStatusId}`
-    } catch {
-      return null
-    }
-  }, [])
-
   const handleDeleteClick = (media: MediaItem) => {
     setMediaToDelete(media)
     setDeleteDialogOpen(true)
@@ -123,13 +111,6 @@ export function MediaManagement({
     router.push(`/settings/media?limit=${itemsPerPage}&page=${page}`)
   }
 
-  // Calculate pagination based on total items
-  const totalPages = Math.ceil(totalItems / itemsPerPage)
-  const hasNextPage = currentPage < totalPages
-  const hasPreviousPage = currentPage > 1
-  const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0
-  const endItem = Math.min(currentPage * itemsPerPage, totalItems)
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -169,24 +150,10 @@ export function MediaManagement({
                 All media files you have uploaded
               </CardDescription>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  {itemsPerPage} per page
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleItemsPerPageChange(25)}>
-                  25 per page
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleItemsPerPageChange(50)}>
-                  50 per page
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleItemsPerPageChange(100)}>
-                  100 per page
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ItemsPerPageDropdown
+              itemsPerPage={itemsPerPage}
+              onChange={handleItemsPerPageChange}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -201,7 +168,7 @@ export function MediaManagement({
                   const isVideo = media.mimeType.startsWith('video')
                   const isAudio = media.mimeType.startsWith('audio')
                   const postLink = media.statusId
-                    ? getPostLink(media.actorId, media.statusId)
+                    ? getFileStatusLink(media.actorId, media.statusId)
                     : null
 
                   return (
@@ -284,33 +251,12 @@ export function MediaManagement({
                 })}
               </div>
 
-              {/* Pagination Controls */}
-              {totalItems > 0 && (
-                <div className="mt-4 flex items-center justify-between border-t pt-4">
-                  <div className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages} • Showing {startItem}-
-                    {endItem} of {totalItems} items
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => goToPage(currentPage - 1)}
-                      disabled={!hasPreviousPage}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => goToPage(currentPage + 1)}
-                      disabled={!hasNextPage}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <FileListPagination
+                currentPage={currentPage}
+                itemsPerPage={itemsPerPage}
+                totalItems={totalItems}
+                onPageChange={goToPage}
+              />
             </>
           )}
         </CardContent>

@@ -9,7 +9,12 @@ import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_404,
+  apiCorsError,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -130,13 +135,7 @@ export const GET = traceApiRoute(
     async (req, context) => {
       const { params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const { database, currentActor } = context
       const statusId = idToUrl(encodedStatusId)

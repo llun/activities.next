@@ -14,9 +14,8 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
-  ERROR_400,
   ERROR_403,
-  ERROR_404,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -36,13 +35,7 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
-    if (!encodedAccountId)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
+    if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
     const targetActorId = idToUrl(encodedAccountId)
 
@@ -64,13 +57,7 @@ export const POST = traceApiRoute(
         }
         throw error
       }
-      if (!targetActor)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
 
       const blockId = randomUUID()
       const uri = `${currentActor.id}#blocks/${blockId}`
