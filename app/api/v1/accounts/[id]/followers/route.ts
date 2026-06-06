@@ -1,13 +1,15 @@
-import { NextRequest } from 'next/server'
+import { z } from 'zod'
 
-import { getDatabase } from '@/lib/database'
-import { AppRouterParams } from '@/lib/services/guards/types'
-import { Follow } from '@/lib/types/domain/follow'
+import {
+  OptionalOAuthGuard,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
+import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_404,
-  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -15,8 +17,6 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
-const DEFAULT_LIMIT = 40
-const MAX_LIMIT = 80
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -24,69 +24,112 @@ interface Params {
   id: string
 }
 
+const FollowersQueryParams = z.object({
+  max_id: z.string().optional(),
+  since_id: z.string().optional(),
+  min_id: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(80).default(40)
+})
+
+// GET /api/v1/accounts/:id/followers — accounts which follow the given account.
+// https://docs.joinmastodon.org/methods/accounts/#followers
+//
+// Public with optional auth. Paginated with Mastodon id cursors + Link headers,
+// mirroring the accounts/:id/statuses route. The cursor is the underlying
+// follow-row id (the column getFollowers paginates on), not the account id.
 export const GET = traceApiRoute(
   'getAccountFollowers',
-  async (req: NextRequest, params: AppRouterParams<Params>) => {
-    const database = getDatabase()
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
+  OptionalOAuthGuard<Params>(
+    [Scope.enum.read, Scope.enum['read:follows']],
+    async (req, context) => {
+      const { database, params } = context
+      const encodedAccountId = (await params).id
+      if (!encodedAccountId) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
 
-    const { id: encodedAccountId } = await params.params
-    if (!encodedAccountId) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
+      const id = idToUrl(encodedAccountId)
+      const actor = await database.getActorFromId({ id })
+      if (!actor) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
 
-    const id = idToUrl(encodedAccountId)
-    const actor = await database.getActorFromId({ id })
-
-    if (!actor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-    }
-
-    const url = new URL(req.url)
-    const limit = Math.min(
-      parseInt(url.searchParams.get('limit') || `${DEFAULT_LIMIT}`, 10),
-      MAX_LIMIT
-    )
-    const maxId = url.searchParams.get('max_id')
-    const minId =
-      url.searchParams.get('min_id') || url.searchParams.get('since_id')
-
-    const follows = await database.getFollowers({
-      targetActorId: id,
-      limit,
-      maxId,
-      minId
-    })
-
-    const followers = await Promise.all(
-      follows.map((follow: Follow) =>
-        database.getMastodonActorFromId({ id: follow.actorId })
+      const url = new URL(req.url)
+      const parsed = FollowersQueryParams.safeParse(
+        Object.fromEntries(url.searchParams.entries())
       )
-    )
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const {
+        limit,
+        max_id: maxId,
+        min_id: minId,
+        since_id: sinceId
+      } = parsed.data
+      const forwardCursor = minId ?? sinceId
 
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: followers.filter(Boolean)
-    })
-  },
+      const follows = await database.getFollowers({
+        targetActorId: id,
+        limit,
+        maxId,
+        minId: forwardCursor
+      })
+      // getFollowers returns ascending order when a forward cursor is used;
+      // normalize to newest-first so the Link cursors are consistent.
+      const orderedFollows = forwardCursor ? [...follows].reverse() : follows
+
+      const accounts = (
+        await Promise.all(
+          orderedFollows.map(async (follow) => ({
+            followId: follow.id,
+            account: await database.getMastodonActorFromId({
+              id: follow.actorId
+            })
+          }))
+        )
+      ).filter((item) => item.account !== null)
+
+      const host = headerHost(req.headers)
+      const links: string[] = []
+      if (host && orderedFollows.length > 0) {
+        const pathBase = `/api/v1/accounts/${encodedAccountId}/followers`
+        const buildLink = (cursorName: 'max_id' | 'min_id', value: string) => {
+          const linkParams = new URLSearchParams()
+          linkParams.set('limit', `${limit}`)
+          linkParams.set(cursorName, value)
+          return `<https://${host}${pathBase}?${linkParams.toString()}>; rel="${cursorName === 'max_id' ? 'next' : 'prev'}"`
+        }
+        links.push(
+          buildLink('max_id', orderedFollows[orderedFollows.length - 1].id)
+        )
+        links.push(buildLink('min_id', orderedFollows[0].id))
+      }
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: accounts.map((item) => item.account),
+        additionalHeaders: links.length > 0 ? [['Link', links.join(', ')]] : []
+      })
+    },
+    { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params
