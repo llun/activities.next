@@ -1,34 +1,38 @@
 import { htmlToPlainText } from './htmlToPlainText'
 
 describe('htmlToPlainText', () => {
-  it('decodes entities after stripping HTML tags', () => {
-    expect(htmlToPlainText('<p>Tom &amp; Jerry &lt;run&gt; fast</p>')).toBe(
-      'Tom & Jerry <run> fast'
-    )
-  })
-
-  it('separates adjacent block tags with spaces', () => {
-    expect(htmlToPlainText('<p>Line one</p><p>Line two</p>')).toBe(
-      'Line one Line two'
-    )
-  })
-
-  it('separates line breaks with spaces', () => {
-    expect(htmlToPlainText('<p>Line one<br>Line two</p>')).toBe(
-      'Line one Line two'
-    )
-  })
-
-  it('treats empty input as empty text', () => {
-    expect(htmlToPlainText(null)).toBe('')
-    expect(htmlToPlainText(undefined)).toBe('')
-  })
-
-  it('drops script and style contents', () => {
-    expect(
-      htmlToPlainText(
-        '<p>Hello</p><script>alert("x")</script><style>.hidden{display:none}</style>'
-      )
-    ).toBe('Hello')
+  it.each([
+    {
+      description: 'decodes entities after stripping HTML tags',
+      html: '<p>Tom &amp; Jerry &lt;run&gt; fast</p>',
+      expected: 'Tom & Jerry <run> fast'
+    },
+    {
+      description: 'separates adjacent block tags with spaces',
+      html: '<p>Line one</p><p>Line two</p>',
+      expected: 'Line one Line two'
+    },
+    {
+      description: 'separates line breaks with spaces',
+      html: '<p>Line one<br>Line two</p>',
+      expected: 'Line one Line two'
+    },
+    {
+      description: 'treats null input as empty text',
+      html: null,
+      expected: ''
+    },
+    {
+      description: 'treats undefined input as empty text',
+      html: undefined,
+      expected: ''
+    },
+    {
+      description: 'drops script and style contents',
+      html: '<p>Hello</p><script>alert("x")</script><style>.hidden{display:none}</style>',
+      expected: 'Hello'
+    }
+  ])('$description', ({ html, expected }) => {
+    expect(htmlToPlainText(html)).toBe(expected)
   })
 })
