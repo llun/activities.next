@@ -8,6 +8,10 @@ import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getQueue } from '@/lib/services/queue'
+import {
+  canActorReadStatus,
+  isStatusPubliclyReadable
+} from '@/lib/services/statusAccess'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import {
@@ -109,11 +113,31 @@ const Page: FC<Props> = async ({ params }) => {
     // If replies are embedded (e.g. temporary status), use them
     replies = status.replies as Status[]
   } else {
-    // Otherwise fetch from database
+    // Otherwise fetch from database. The query filters to statuses the current
+    // viewer may read: logged-out visitors only ever see public/unlisted
+    // replies, while logged-in viewers get replies scoped to their own
+    // visibility (own posts, direct messages addressed to them, and
+    // followers-only posts from authors they have an accepted follow with).
     replies = await database.getStatusReplies({
       statusId,
-      url: statusUrl
+      url: statusUrl,
+      ...(currentActor
+        ? { visibleToActorId: currentActor.id }
+        : { publicOnly: true })
     })
+  }
+
+  // Object-level visibility backstop for logged-out visitors. Covers the
+  // embedded-replies path above (which never hits the query filter) and any
+  // stale/malformed recipient rows the query might miss, so a private reply to
+  // a public status never reaches an anonymous viewer (and isn't counted in the
+  // reply heading). Logged-in viewers rely on the query's `visibleToActorId`
+  // filter instead: it is the authoritative visibility check (it also matches
+  // recipientless replies to the viewer's own posts), so re-filtering with the
+  // simpler `isStatusPubliclyReadable` here would wrongly hide replies they may
+  // read.
+  if (!currentActor) {
+    replies = replies.filter(isStatusPubliclyReadable)
   }
 
   // Check if the status is publicly visible (public or unlisted)
@@ -168,6 +192,20 @@ const Page: FC<Props> = async ({ params }) => {
       withReplies: false
     })
     while (previouses.length < 3 && replyStatus) {
+      // `getStatus` does no visibility filtering, so without this guard a public
+      // reply to a followers-only (or direct) parent would leak that private
+      // ancestor to a viewer who cannot read it. Stop the chain at the first
+      // ancestor the viewer may not read. `canActorReadStatus` collapses to the
+      // public/unlisted check when `currentActor` is null, covering both
+      // logged-out and logged-in viewers.
+      const canReadAncestor = await canActorReadStatus({
+        database,
+        status: replyStatus,
+        currentActor
+      })
+      if (!canReadAncestor) {
+        break
+      }
       previouses.push(replyStatus)
       // This should be impossible
       if (replyStatus.type === StatusType.enum.Announce) {
