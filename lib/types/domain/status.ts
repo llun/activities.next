@@ -296,10 +296,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       cc: status.cc,
       inReplyTo: status.reply || null,
       content: status.text,
-      tag: [
-        ...status.tags.map((tag) => getMentionFromTag(tag)),
-        ...status.tags.map((tag) => getEmojiFromTag(tag))
-      ].filter((tag) => tag !== null),
+      tag: status.tags
+        .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
+        .filter((tag) => tag !== null),
 
       ...(status.pollType === 'anyOf'
         ? { anyOf: pollOptions }
@@ -356,10 +355,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     attachment: originalStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
       .map((attachment) => getDocumentFromAttachment(attachment)),
-    tag: [
-      ...originalStatus.tags.map((tag) => getMentionFromTag(tag)),
-      ...originalStatus.tags.map((tag) => getEmojiFromTag(tag))
-    ].filter((tag) => tag !== null),
+    tag: originalStatus.tags
+      .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
+      .filter((tag) => tag !== null),
     replies: {
       id: `${originalStatus.id}/replies`,
       type: 'Collection',

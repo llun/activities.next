@@ -40,10 +40,9 @@ export const getNoteFromStatus = (
     attachment: actualStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
       .map((attachment) => getDocumentFromAttachment(attachment)),
-    tag: [
-      ...actualStatus.tags.map((tag) => getMentionFromTag(tag)),
-      ...actualStatus.tags.map((tag) => getEmojiFromTag(tag))
-    ].filter((tag) => tag !== null),
+    tag: actualStatus.tags
+      .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
+      .filter((tag) => tag !== null),
     replies: {
       id: `${actualStatus.id}/replies`,
       type: 'Collection',

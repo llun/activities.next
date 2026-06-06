@@ -197,7 +197,7 @@ export const EmojiPickerButton: FC<Props> = ({
                       aria-label={entry.name}
                       aria-pressed={active}
                       className={cn(
-                        'inline-flex size-8 shrink-0 items-center justify-center rounded-md transition-colors',
+                        'inline-flex size-8 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         active
                           ? 'bg-primary/10 text-primary'
                           : 'text-muted-foreground hover:bg-muted'
@@ -240,7 +240,7 @@ export const EmojiPickerButton: FC<Props> = ({
                           ? `Insert ${item.label}`
                           : `Insert ${item.name}`
                       }
-                      className="inline-flex aspect-square w-full items-center justify-center rounded-md transition-colors hover:bg-muted"
+                      className="inline-flex aspect-square w-full items-center justify-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <ItemGlyph item={item} />
                     </button>

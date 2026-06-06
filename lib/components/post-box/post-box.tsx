@@ -345,16 +345,19 @@ export const PostBox: FC<Props> = ({
   // so the live preview renders custom emoji through the exact same
   // convertEmojisToImages pipeline the rendered Post uses. The synthetic ids are
   // preview-only and never persisted.
-  const buildSyntheticEmojiTags = (value: string): Tag[] =>
-    getEmojiTags(value, customEmojis).map((emojiTag, index) => ({
-      id: `preview-${index}`,
-      statusId: 'preview',
-      type: 'emoji' as const,
-      name: emojiTag.name,
-      value: emojiTag.value,
-      createdAt: 0,
-      updatedAt: 0
-    }))
+  const buildSyntheticEmojiTags = useCallback(
+    (value: string): Tag[] =>
+      getEmojiTags(value, customEmojis).map((emojiTag, index) => ({
+        id: `preview-${index}`,
+        statusId: 'preview',
+        type: 'emoji' as const,
+        name: emojiTag.name,
+        value: emojiTag.value,
+        createdAt: 0,
+        updatedAt: 0
+      })),
+    [customEmojis]
+  )
 
   // Inserts text at the caret of the message textarea (used by the emoji/sticker
   // picker). Falls back to appending when the textarea ref is unavailable.

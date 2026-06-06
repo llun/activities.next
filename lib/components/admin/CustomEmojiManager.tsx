@@ -1,7 +1,7 @@
 'use client'
 
 import { Ban, Check, EyeOff, Trash2, Upload } from 'lucide-react'
-import { ChangeEvent, FC, FormEvent, useRef, useState } from 'react'
+import { ChangeEvent, FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import {
   adminCreateCustomEmoji,
@@ -34,6 +34,14 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Revoke the object URL on unmount so the selected-file preview does not leak.
+  useEffect(
+    () => () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    },
+    [previewUrl]
+  )
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0] ?? null
@@ -144,7 +152,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               aria-label="Choose emoji image"
-              className="flex size-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+              className="flex size-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {previewUrl ? (
                 <img
