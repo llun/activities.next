@@ -111,3 +111,43 @@ export const getFitnessPaceOrSpeed = ({
     speedKmh
   }
 }
+
+// Defense-in-depth: only treat an http(s) URL as a renderable fitness source
+// link. Today `sourceUrl` is always server-derived (getStravaActivityUrl yields
+// a hardcoded https Strava URL or null), but the column is generic and rendered
+// as an href, so we never surface a non-http scheme (e.g. javascript:) even if
+// a future writer forwards a less-trusted value.
+export const normalizeFitnessSourceUrl = (
+  sourceUrl?: string | null
+): string | null => {
+  if (!sourceUrl) return null
+  try {
+    const { protocol } = new URL(sourceUrl)
+    if (protocol === 'http:' || protocol === 'https:') {
+      return sourceUrl
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Derive a human-friendly label for an external fitness "source" link from its
+// host. Strava-hosted URLs read as "View on Strava"; anything else falls back to
+// a generic label so the column can hold links from future providers too.
+export const getFitnessSourceLabel = (sourceUrl?: string | null): string => {
+  if (!sourceUrl) return 'View source'
+  try {
+    const { hostname } = new URL(sourceUrl)
+    const normalizedHost = hostname.toLowerCase().replace(/^www\./, '')
+    if (
+      normalizedHost === 'strava.com' ||
+      normalizedHost.endsWith('.strava.com')
+    ) {
+      return 'View on Strava'
+    }
+    return 'View source'
+  } catch {
+    return 'View source'
+  }
+}

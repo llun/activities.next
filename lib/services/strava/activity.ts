@@ -242,11 +242,26 @@ export const buildStravaActivitySummary = (activity: StravaActivity) => {
 
   const firstLine = title ? `${emoji} ${title}` : `${emoji} ${label}`
   const secondLine = metricParts.length > 0 ? metricParts.join(' • ') : label
-  const stravaUrl = `https://www.strava.com/activities/${activity.id}`
 
-  return [firstLine, secondLine, description, stravaUrl]
+  // The link back to the original Strava activity is intentionally NOT embedded
+  // in the status text. It is stored as the fitness file's `sourceUrl` instead
+  // (see getStravaActivityUrl) and surfaced on the fitness activity display.
+  return [firstLine, secondLine, description]
     .filter((line): line is string => Boolean(line && line.trim()))
     .join('\n')
+}
+
+// Build the public Strava activity URL from an activity id. Returns null when
+// the id is not a positive integer (e.g. a Strava archive falls back to the
+// fitness filename when no numeric Activity ID is present in the CSV), so we
+// never construct a link that points nowhere.
+export const getStravaActivityUrl = (
+  activityId: string | number | null | undefined
+): string | null => {
+  if (activityId === null || activityId === undefined) return null
+  const normalized = String(activityId).trim()
+  if (!/^\d+$/.test(normalized)) return null
+  return `https://www.strava.com/activities/${normalized}`
 }
 
 export const getStravaActivityPhotos = async ({

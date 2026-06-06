@@ -2,7 +2,7 @@
 
 import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
-import { Bike, Footprints, Play, Plus, Waves } from 'lucide-react'
+import { Bike, ExternalLink, Footprints, Play, Plus, Waves } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
@@ -15,7 +15,9 @@ import { cn } from '@/lib/utils'
 import {
   formatFitnessDistance,
   formatFitnessDuration,
-  getFitnessPaceOrSpeed
+  getFitnessPaceOrSpeed,
+  getFitnessSourceLabel,
+  normalizeFitnessSourceUrl
 } from '@/lib/utils/fitness'
 import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
@@ -114,6 +116,7 @@ interface StatusFitnessFileItem {
   description: string | null
   deviceManufacturer: string | null
   deviceName: string | null
+  sourceUrl: string | null
 }
 
 interface FitnessFilesByStatusResponse {
@@ -1002,7 +1005,8 @@ export const FitnessStatusDetail: FC<Props> = ({
         hasMapData: status.fitness.hasMapData ?? false,
         description: status.fitness.description ?? null,
         deviceManufacturer: status.fitness.deviceManufacturer ?? null,
-        deviceName: status.fitness.deviceName ?? null
+        deviceName: status.fitness.deviceName ?? null,
+        sourceUrl: status.fitness.sourceUrl ?? null
       }
     ]
   }, [
@@ -1020,7 +1024,8 @@ export const FitnessStatusDetail: FC<Props> = ({
     status.fitness?.hasMapData,
     status.fitness?.description,
     status.fitness?.deviceManufacturer,
-    status.fitness?.deviceName
+    status.fitness?.deviceName,
+    status.fitness?.sourceUrl
   ])
   const [fitnessFiles, setFitnessFiles] =
     useState<StatusFitnessFileItem[]>(defaultFitnessFiles)
@@ -1132,6 +1137,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     durationSeconds: fitness?.totalDurationSeconds ?? undefined,
     activityType: fitness?.activityType ?? undefined
   })
+  const fitnessSourceUrl = normalizeFitnessSourceUrl(fitness?.sourceUrl)
 
   const mapAttachmentIndex = useMemo(() => {
     const routeMapIndex = status.attachments.findIndex((attachment) =>
@@ -1469,6 +1475,19 @@ export const FitnessStatusDetail: FC<Props> = ({
                       deviceName={fitness?.deviceName}
                       deviceManufacturer={fitness?.deviceManufacturer}
                     />
+                  </p>
+                ) : null}
+                {fitnessSourceUrl ? (
+                  <p className="mt-1 text-xs sm:text-sm">
+                    <a
+                      href={fitnessSourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+                    >
+                      <ExternalLink className="size-3.5 shrink-0" />
+                      {getFitnessSourceLabel(fitnessSourceUrl)}
+                    </a>
                   </p>
                 ) : null}
                 <h2

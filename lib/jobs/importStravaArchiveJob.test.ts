@@ -262,6 +262,12 @@ describe('importStravaArchiveJob', () => {
     })
 
     expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
+    // activity-1 is a non-numeric (filename-style) id, so no Strava URL is built.
+    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
+      database,
+      expect.anything(),
+      expect.objectContaining({ sourceUrl: undefined })
+    )
     expect(mockQueuePublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: IMPORT_FITNESS_FILES_JOB_NAME,
@@ -282,6 +288,45 @@ describe('importStravaArchiveJob', () => {
       'archive-file-1',
       expect.objectContaining({
         id: 'archive-file-1'
+      })
+    )
+  })
+
+  it('saves the Strava activity URL as sourceUrl for a numeric activity id', async () => {
+    mockArchiveReaderOpen.mockResolvedValueOnce({
+      close: jest.fn(),
+      hasEntry: jest.fn().mockReturnValue(true),
+      getActivities: jest.fn().mockResolvedValue([
+        {
+          activityId: '987654321',
+          activityName: 'Morning Ride',
+          fitnessFilePath: 'activities/987654321.fit',
+          mediaPaths: []
+        }
+      ]),
+      readEntryBuffer: jest
+        .fn()
+        .mockResolvedValueOnce(Buffer.from('fitness-file'))
+    } as never)
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-numeric',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
+      database,
+      expect.anything(),
+      expect.objectContaining({
+        sourceUrl: 'https://www.strava.com/activities/987654321'
       })
     )
   })

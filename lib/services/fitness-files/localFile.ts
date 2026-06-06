@@ -116,7 +116,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
   }
 
   async saveFile(actor: Actor, fitnessFile: FitnessFileUploadSchema) {
-    const { file, description, importBatchId } = fitnessFile
+    const { file, description, importBatchId, sourceUrl } = fitnessFile
 
     // Check quota before saving
     const quotaCheck = await checkQuotaAvailable(
@@ -157,7 +157,8 @@ export class LocalFileFitnessStorage implements FitnessStorage {
       mimeType: file.type,
       bytes: file.size,
       description,
-      importBatchId
+      importBatchId,
+      sourceUrl
     })
 
     if (!storedFile) {

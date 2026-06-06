@@ -38,6 +38,7 @@ export interface SQLFitnessFile {
   activityStartTime?: number | Date | string | null
   deviceManufacturer?: string | null
   deviceName?: string | null
+  sourceUrl?: string | null
 
   // Timestamps
   createdAt: number | Date
@@ -72,6 +73,7 @@ export interface FitnessFile {
   activityStartTime?: number
   deviceManufacturer?: string
   deviceName?: string
+  sourceUrl?: string
 
   createdAt: number
   updatedAt: number
