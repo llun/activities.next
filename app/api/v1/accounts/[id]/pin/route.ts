@@ -5,12 +5,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import {
-  ERROR_400,
-  ERROR_404,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -34,24 +29,11 @@ export const POST = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedAccountId = (await params).id
-      if (!encodedAccountId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
-        })
+      if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
       const targetActorId = idToUrl(encodedAccountId)
       const target = await database.getActorFromId({ id: targetActorId })
-      if (!target) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-      }
+      if (!target) return apiCorsError(req, CORS_HEADERS, 404)
 
       const isFollowing = await database.isCurrentActorFollowing({
         currentActorId: currentActor.id,

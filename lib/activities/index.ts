@@ -1,3 +1,4 @@
+import { Span } from '@opentelemetry/api'
 import crypto from 'crypto'
 
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
@@ -41,6 +42,59 @@ import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
+
+interface PostActivityToInboxParams {
+  span: Span
+  inbox: string
+  currentActor: Actor
+  activity: object
+  logPrefix: string
+  silenceTimeout?: boolean
+}
+
+/**
+ * Signs and POSTs an ActivityPub activity to a target inbox with the shared
+ * error handling used by every send helper. For fire-and-forget deliveries,
+ * `silenceTimeout` records an ETIMEDOUT only as a span attribute; all other
+ * failures are recorded on the span and logged under the caller's `[logPrefix]`.
+ * Returns the HTTP status code, or `undefined` when the request threw.
+ */
+const postActivityToInbox = async ({
+  span,
+  inbox,
+  currentActor,
+  activity,
+  logPrefix,
+  silenceTimeout = false
+}: PostActivityToInboxParams): Promise<number | undefined> => {
+  const method = 'POST'
+  try {
+    const { statusCode } = await request({
+      url: inbox,
+      method,
+      headers: activityPubRequestHeaders({
+        url: inbox,
+        method,
+        signingActor: currentActor,
+        content: activity
+      }),
+      body: JSON.stringify(activity)
+    })
+    return statusCode
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException | null | undefined
+    if (silenceTimeout && nodeError?.code === 'ETIMEDOUT') {
+      span.setAttribute('timeout', true)
+      return undefined
+    }
+
+    // Normalize non-Error throws so recording/logging can't itself throw.
+    const exception = error instanceof Error ? error : new Error(String(error))
+    span.recordException(exception)
+    logger.error(`[${logPrefix}] ${exception.message}`)
+    return undefined
+  }
+}
 
 interface GetNoteParams {
   statusId: string
@@ -105,31 +159,15 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
         cc: note.cc,
         object: note
       }
-      const method = 'POST'
-      try {
-        await request({
-          url: inbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: inbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[sendNote] ${nodeError.message}`)
-      } finally {
-        span.end()
-      }
+      await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendNote',
+        silenceTimeout: true
+      })
+      span.end()
     }
   )
 
@@ -168,31 +206,15 @@ export const sendUpdateNote = async ({
         cc: note.cc,
         object: note
       }
-      const method = 'POST'
-      try {
-        await request({
-          url: inbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: inbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[sendUpdateNote] ${nodeError.message}`)
-      } finally {
-        span.end()
-      }
+      await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendUpdateNote',
+        silenceTimeout: true
+      })
+      span.end()
     }
   )
 
@@ -230,31 +252,15 @@ export const sendAnnounce = async ({
         cc: status.cc,
         object: status.originalStatus.id
       }
-      const method = 'POST'
-      try {
-        await request({
-          url: inbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: inbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[sendAnnounce] ${nodeError.message}`)
-      } finally {
-        span.end()
-      }
+      await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendAnnounce',
+        silenceTimeout: true
+      })
+      span.end()
     }
   )
 
@@ -293,31 +299,15 @@ export const deleteStatus = async ({
           type: 'Tombstone'
         }
       }
-      const method = 'POST'
-      try {
-        await request({
-          url: inbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: inbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[deleteStatus] ${nodeError.message}`)
-      } finally {
-        span.end()
-      }
+      await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'deleteStatus',
+        silenceTimeout: true
+      })
+      span.end()
     }
   )
 
@@ -356,31 +346,15 @@ export const undoAnnounce = async ({
           object: announce.originalStatus.id
         }
       }
-      const method = 'POST'
-      try {
-        await request({
-          url: inbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: inbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[undoAnnounce] ${nodeError.message}`)
-      } finally {
-        span.end()
-      }
+      await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'undoAnnounce',
+        silenceTimeout: true
+      })
+      span.end()
     }
   )
 
@@ -417,28 +391,15 @@ export const follow = async (
         return false
       }
 
-      const method = 'POST'
-      try {
-        const { statusCode } = await request({
-          url: targetInbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: targetInbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-        return statusCode === 202
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[follow] ${nodeError.message}`)
-        return false
-      } finally {
-        span.end()
-      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: targetInbox,
+        currentActor,
+        activity,
+        logPrefix: 'follow'
+      })
+      span.end()
+      return statusCode === 202
     }
   )
 
@@ -475,28 +436,15 @@ export const unfollow = async (
       })
       const targetInbox = person?.inbox ?? `${follow.targetActorId}/inbox`
 
-      const method = 'POST'
-      try {
-        const { statusCode } = await request({
-          url: targetInbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: targetInbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-        return statusCode === 202
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[unfollow] ${nodeError.message}`)
-        return false
-      } finally {
-        span.end()
-      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: targetInbox,
+        currentActor,
+        activity,
+        logPrefix: 'unfollow'
+      })
+      span.end()
+      return statusCode === 202
     }
   )
 
@@ -537,28 +485,15 @@ export const block = async ({
       })
       const targetInbox = person?.inbox ?? `${targetActorId}/inbox`
 
-      const method = 'POST'
-      try {
-        const { statusCode } = await request({
-          url: targetInbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: targetInbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-        return { ok: statusCode === 202, uri }
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[block] ${nodeError.message}`)
-        return { ok: false, uri }
-      } finally {
-        span.end()
-      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: targetInbox,
+        currentActor,
+        activity,
+        logPrefix: 'block'
+      })
+      span.end()
+      return { ok: statusCode === 202, uri }
     }
   )
 
@@ -595,28 +530,15 @@ export const unblock = async (
       })
       const targetInbox = person?.inbox ?? `${block.targetActorId}/inbox`
 
-      const method = 'POST'
-      try {
-        const { statusCode } = await request({
-          url: targetInbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: targetInbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-        return statusCode === 202
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[unblock] ${nodeError.message}`)
-        return false
-      } finally {
-        span.end()
-      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: targetInbox,
+        currentActor,
+        activity,
+        logPrefix: 'unblock'
+      })
+      span.end()
+      return statusCode === 202
     }
   )
 
@@ -646,28 +568,15 @@ export const acceptFollow = async (
           object: followRequest.object
         }
       }
-      const method = 'POST'
-      try {
-        const { statusCode } = await request({
-          url: followingInbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: followingInbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-        return statusCode === 202
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[acceptFollow] ${nodeError.message}`)
-        return false
-      } finally {
-        span.end()
-      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: followingInbox,
+        currentActor,
+        activity,
+        logPrefix: 'acceptFollow'
+      })
+      span.end()
+      return statusCode === 202
     }
   )
 
@@ -697,28 +606,15 @@ export const rejectFollow = async (
           object: followRequest.object
         }
       }
-      const method = 'POST'
-      try {
-        const { statusCode } = await request({
-          url: followingInbox,
-          method,
-          headers: activityPubRequestHeaders({
-            url: followingInbox,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-        return statusCode === 202
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[rejectFollow] ${nodeError.message}`)
-        return false
-      } finally {
-        span.end()
-      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: followingInbox,
+        currentActor,
+        activity,
+        logPrefix: 'rejectFollow'
+      })
+      span.end()
+      return statusCode === 202
     }
   )
 
@@ -743,26 +639,14 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
         actor: currentActor.id,
         object: status.id
       }
-      const method = 'POST'
-      try {
-        await request({
-          method,
-          url: status.actor.inboxUrl,
-          headers: activityPubRequestHeaders({
-            url: status.actor.inboxUrl,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[sendLike] ${nodeError.message}`)
-      } finally {
-        span.end()
-      }
+      await postActivityToInbox({
+        span,
+        inbox: status.actor.inboxUrl,
+        currentActor,
+        activity,
+        logPrefix: 'sendLike'
+      })
+      span.end()
     }
   )
 
@@ -789,26 +673,14 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
           object: status.id
         }
       }
-      const method = 'POST'
-      try {
-        await request({
-          method,
-          url: status.actor.inboxUrl,
-          headers: activityPubRequestHeaders({
-            url: status.actor.inboxUrl,
-            method,
-            signingActor: currentActor,
-            content: activity
-          }),
-          body: JSON.stringify(activity)
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[sendUndoLike] ${nodeError.message}`)
-      } finally {
-        span.end()
-      }
+      await postActivityToInbox({
+        span,
+        inbox: status.actor.inboxUrl,
+        currentActor,
+        activity,
+        logPrefix: 'sendUndoLike'
+      })
+      span.end()
     }
   )
 
@@ -864,24 +736,13 @@ export const sendPollVotes = async ({
           object: voteNote
         }
 
-        const method = 'POST'
-        try {
-          await request({
-            url: status.actor.inboxUrl,
-            method,
-            headers: activityPubRequestHeaders({
-              url: status.actor.inboxUrl,
-              method,
-              signingActor: currentActor,
-              content: activity
-            }),
-            body: JSON.stringify(activity)
-          })
-        } catch (error) {
-          const nodeError = error as NodeJS.ErrnoException
-          span.recordException(nodeError)
-          logger.error(`[sendPollVotes] ${nodeError.message}`)
-        }
+        await postActivityToInbox({
+          span,
+          inbox: status.actor.inboxUrl,
+          currentActor,
+          activity,
+          logPrefix: 'sendPollVotes'
+        })
       }
 
       span.end()

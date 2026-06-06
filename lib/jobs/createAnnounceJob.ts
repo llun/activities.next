@@ -13,7 +13,10 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { JobHandle } from '@/lib/services/queue/type'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Announce } from '@/lib/types/activitypub'
-import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubAnnounce,
+  toRecipientArray
+} from '@/lib/utils/activitypub'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
@@ -62,16 +65,8 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       database.createAnnounce({
         id: status.id,
         actorId: status.actor,
-        to: Array.isArray(status.to)
-          ? status.to
-          : [status.to].filter(
-              (item): item is string => typeof item === 'string' && item !== ''
-            ),
-        cc: Array.isArray(status.cc)
-          ? status.cc
-          : [status.cc].filter(
-              (item): item is string => typeof item === 'string' && item !== ''
-            ),
+        to: toRecipientArray(status.to),
+        cc: toRecipientArray(status.cc),
         originalStatusId: object
       })
     ])

@@ -10,7 +10,10 @@ import {
 } from '@/lib/activities/note'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
-import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubContent,
+  toRecipientArray
+} from '@/lib/utils/activitypub'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_JOB_NAME } from './names'
@@ -74,16 +77,8 @@ export const createPollJob = createJobHandle(
         text,
         summary,
 
-        to: Array.isArray(question.to)
-          ? question.to
-          : [question.to].filter(
-              (item): item is string => typeof item === 'string' && item !== ''
-            ),
-        cc: Array.isArray(question.cc)
-          ? question.cc
-          : [question.cc].filter(
-              (item): item is string => typeof item === 'string' && item !== ''
-            ),
+        to: toRecipientArray(question.to),
+        cc: toRecipientArray(question.cc),
 
         reply: getReply(question.inReplyTo) || '',
         choices,

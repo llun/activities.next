@@ -9,7 +9,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
-import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -34,13 +34,7 @@ export const POST = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedAccountId = (await params).id
-      if (!encodedAccountId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
-        })
+      if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
       const targetActorId = idToUrl(encodedAccountId)
 

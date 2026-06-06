@@ -4,12 +4,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import {
-  ERROR_400,
-  ERROR_404,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -34,24 +29,10 @@ export const GET = traceApiRoute(
     async (req, context) => {
       const { database, params } = context
       const encodedAccountId = (await params).id
-      if (!encodedAccountId) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
-        })
-      }
+      if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
       const id = idToUrl(encodedAccountId)
       const actor = await database.getMastodonActorFromId({ id })
-      if (!actor) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-      }
+      if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: actor })
     },
     { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }

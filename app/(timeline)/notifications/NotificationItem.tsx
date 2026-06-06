@@ -2,7 +2,7 @@
 
 import { formatDistance } from 'date-fns'
 import Link from 'next/link'
-import { type ComponentType, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { getNotificationStatusPath } from '@/app/(timeline)/notifications/getNotificationStatusPath'
 import {
@@ -18,10 +18,7 @@ import { cn } from '@/lib/utils'
 import { ActivityImportNotification } from './components/ActivityImportNotification'
 import { FollowNotification } from './components/FollowNotification'
 import { FollowRequestNotification } from './components/FollowRequestNotification'
-import { LikeNotification } from './components/LikeNotification'
-import { MentionNotification } from './components/MentionNotification'
-import { ReblogNotification } from './components/ReblogNotification'
-import { ReplyNotification } from './components/ReplyNotification'
+import { StatusNotification } from './components/StatusNotification'
 
 interface Props {
   notification: GroupedNotification & {
@@ -34,11 +31,6 @@ interface Props {
   currentTime: number
   observeElement: (element: HTMLElement | null) => void
 }
-
-type StatusNotificationComponent = ComponentType<{
-  host: string
-  notification: NotificationWithStatus
-}>
 
 const renderUnavailableNotification = (message: string) => (
   <div className="text-sm text-muted-foreground">{message}</div>
@@ -89,15 +81,17 @@ export const NotificationItem = ({
       ? notificationWithAccount
       : null
 
-    const renderStatusNotification = (
-      StatusNotification: StatusNotificationComponent
-    ) => {
+    const renderStatusNotification = (action: string) => {
       if (!notificationWithStatus) {
         return renderUnavailableStatusNotification(notificationWithAccount.type)
       }
 
       return (
-        <StatusNotification host={host} notification={notificationWithStatus} />
+        <StatusNotification
+          host={host}
+          notification={notificationWithStatus}
+          action={action}
+        />
       )
     }
 
@@ -112,15 +106,25 @@ export const NotificationItem = ({
       case 'follow':
         return <FollowNotification notification={notificationWithAccount} />
       case 'like':
-        return renderStatusNotification(LikeNotification)
+        return renderStatusNotification('liked your')
       case 'reply':
-        return renderStatusNotification(ReplyNotification)
+        return renderStatusNotification('replied to your')
       case 'mention':
-        return renderStatusNotification(MentionNotification)
+        return renderStatusNotification('mentioned you in a')
       case 'reblog':
-        return renderStatusNotification(ReblogNotification)
+        return renderStatusNotification('reblogged your')
       case 'activity_import':
-        return renderStatusNotification(ActivityImportNotification)
+        if (!notificationWithStatus) {
+          return renderUnavailableStatusNotification(
+            notificationWithAccount.type
+          )
+        }
+        return (
+          <ActivityImportNotification
+            host={host}
+            notification={notificationWithStatus}
+          />
+        )
       default:
         assertNever(notificationWithAccount.type)
         return renderUnavailableNotification(

@@ -130,6 +130,24 @@ export const defaultOptions =
     })
   }
 
+/**
+ * CORS-aware error shorthand: emits the standard error body for `code` (from
+ * `codeMap`) through `apiResponse`, so CORS headers are included. Use on
+ * CORS-enabled routes instead of repeating
+ * `apiResponse({ req, allowedMethods, data: ERROR_4xx, responseStatusCode })`.
+ */
+export const apiCorsError = (
+  req: NextRequest,
+  allowedMethods: HttpMethod[],
+  code: StatusCode
+) =>
+  apiResponse({
+    req,
+    allowedMethods,
+    data: codeMap[code] ?? ERROR_500,
+    responseStatusCode: code
+  })
+
 type APIResponseParams = {
   req: NextRequest
   allowedMethods: HttpMethod[]

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { sendUpdateNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
@@ -30,18 +31,10 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
   async (database, message) => {
     await getTracer().startActiveSpan('sendUpdateNoteJob', async (span) => {
       const { actorId, statusId } = JobData.parse(message.data)
-      span.setAttribute('actorId', actorId)
-      span.setAttribute('statusId', statusId)
-
-      const [status, actor] = await Promise.all([
-        database.getStatus({
-          statusId,
-          withReplies: false
-        }),
-        database.getActorFromId({
-          id: actorId
-        })
-      ])
+      const { status, actor } = await loadStatusAndActor(database, span, {
+        actorId,
+        statusId
+      })
 
       if (!status || !actor) {
         span.recordException(new Error('Status or actor not found'))

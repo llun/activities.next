@@ -8,6 +8,7 @@ import {
   Notification,
   NotificationType
 } from '@/lib/types/database/operations'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 // Mastodon notification type mapping
 type MastodonNotificationType =
@@ -128,7 +129,7 @@ export const getMastodonNotification = async (
   const mastodonNotification: MastodonNotification = {
     id: notification.id,
     type: mapNotificationType(notification.type),
-    created_at: new Date(notification.createdAt).toISOString(),
+    created_at: getISOTimeUTC(notification.createdAt),
     account,
     status
   }

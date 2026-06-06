@@ -66,7 +66,7 @@ import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getISOTimeUTC, getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -313,7 +313,7 @@ const getMastodonAccountFromSQLActor = ({
       follow_requests_count: 0
     },
 
-    created_at: getMastodonTimeUTC(getCompatibleTime(sqlActor.createdAt)),
+    created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
     last_status_at: lastStatusCreatedAt
       ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
       : null,

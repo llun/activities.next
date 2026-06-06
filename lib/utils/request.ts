@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config'
+import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 import {
   DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES,
   SafeRemoteFetchHeaderBuilderRequest,
@@ -117,16 +118,6 @@ const wait = (milliseconds: number) =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, milliseconds)
   })
-
-const getHeaderValue = (headers: RequestResult['headers'], key: string) => {
-  const normalizedKey = key.toLowerCase()
-  const matchingKey = Object.keys(headers).find(
-    (headerKey) => headerKey.toLowerCase() === normalizedKey
-  )
-  const value = matchingKey ? headers[matchingKey] : undefined
-  if (Array.isArray(value)) return value[0]
-  return value
-}
 
 const getRetryDelay = (attempt: number, retryNoise: number | null) => {
   const noise = retryNoise ? Math.random() * Math.abs(retryNoise) : 0

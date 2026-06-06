@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -26,7 +27,7 @@ export const GET = traceApiRoute(
       req,
       allowedMethods: CORS_HEADERS,
       data: {
-        updated_at: new Date(0).toISOString(),
+        updated_at: getISOTimeUTC(0),
         // The description is wrapped in HTML; escape it so special characters
         // can't produce malformed markup.
         content: `<p>${escapeHtml(content)}</p>`

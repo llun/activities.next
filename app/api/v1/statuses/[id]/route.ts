@@ -19,9 +19,9 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_403,
-  ERROR_404,
   ERROR_422,
   ERROR_500,
+  apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -49,52 +49,28 @@ export const GET = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
       const statusId = idToUrl(encodedStatusId)
 
       const status = await database.getStatus({
         statusId,
         currentActorId: currentActor?.id
       })
-      if (!status)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
       const hasAccess = await canActorReadStatus({
         database,
         status,
         currentActor
       })
-      if (!hasAccess)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!hasAccess) return apiCorsError(req, CORS_HEADERS, 404)
 
       const mastodonStatus = await getMastodonStatus(
         database,
         status,
         currentActor?.id
       )
-      if (!mastodonStatus)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!mastodonStatus) return apiCorsError(req, CORS_HEADERS, 404)
 
       return apiResponse({
         req,
@@ -133,13 +109,7 @@ export const PUT = traceApiRoute(
     async (req, context) => {
       const { params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const { database, currentActor } = context
       const statusId = idToUrl(encodedStatusId)
@@ -345,23 +315,11 @@ export const DELETE = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
-      if (!encodedStatusId)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const statusId = idToUrl(encodedStatusId)
       const status = await database.getStatus({ statusId, withReplies: false })
-      if (!status)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
+      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
       // Only owner can delete
       if (status.actorId !== currentActor.id) {

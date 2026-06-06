@@ -2,6 +2,7 @@ import { Repeat2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
+import { ACTION_BUTTON_CLASS } from '@/lib/components/posts/actions/actionButtonShared'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -41,7 +42,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
       title={repostLabel}
       aria-label={repostLabel}
       className={cn(
-        'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
+        ACTION_BUTTON_CLASS,
         repostedStatusId !== null ? 'text-green-500' : 'hover:text-green-500'
       )}
       onClick={async (e) => {

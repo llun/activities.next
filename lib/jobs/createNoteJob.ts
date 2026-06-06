@@ -23,7 +23,8 @@ import {
 import { StatusType } from '@/lib/types/domain/status'
 import {
   normalizeActivityPubContent,
-  normalizeActorId
+  normalizeActorId,
+  toRecipientArray
 } from '@/lib/utils/activitypub'
 
 import { createJobHandle } from './createJobHandle'
@@ -89,16 +90,8 @@ export const createNoteJob = createJobHandle(
         text,
         summary,
 
-        to: Array.isArray(note.to)
-          ? note.to
-          : [note.to].filter(
-              (item): item is string => typeof item === 'string' && item !== ''
-            ),
-        cc: Array.isArray(note.cc)
-          ? note.cc
-          : [note.cc].filter(
-              (item): item is string => typeof item === 'string' && item !== ''
-            ),
+        to: toRecipientArray(note.to),
+        cc: toRecipientArray(note.cc),
 
         reply: getReply(note.inReplyTo) || '',
         createdAt: publishedAt
