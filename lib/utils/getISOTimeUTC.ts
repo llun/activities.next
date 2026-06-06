@@ -8,9 +8,15 @@ import { format } from 'date-fns'
 // required `Date` field (e.g. account/status `created_at`) fail to decode and
 // blanks the entire entity. ActivityPub `published` also accepts fractional
 // seconds, so a single format works everywhere.
-export const getISOTimeUTC = (timestamp: number, onlyDate: boolean = false) => {
+//
+// Accepts whatever `UTCDate` accepts (ms timestamp, ISO string, or Date) —
+// current call sites all pass `number` timestamps.
+export const getISOTimeUTC = (
+  value: number | string | Date,
+  onlyDate: boolean = false
+) => {
   if (onlyDate) {
-    return format(new UTCDate(timestamp), 'yyyy-MM-dd')
+    return format(new UTCDate(value), 'yyyy-MM-dd')
   }
-  return format(new UTCDate(timestamp), `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`)
+  return format(new UTCDate(value), `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`)
 }

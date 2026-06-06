@@ -9,29 +9,38 @@ interface UseLoadMoreOnVisibleParams {
 /**
  * Infinite-scroll helper shared by the paginated timelines: observes a sentinel
  * element and invokes `onLoadMore` whenever it scrolls into view, while exposing
- * its visibility (used to toggle the scroll-to-top button). Returns the ref to
- * attach to the sentinel.
+ * its visibility (used to toggle the scroll-to-top button).
+ *
+ * Returns a callback ref to attach to the sentinel. A callback ref (rather than a
+ * plain `useRef`) is required because the sentinel is conditionally rendered:
+ * storing the node in state re-runs the observer effect when the element mounts
+ * or unmounts, which a ref mutation would not do.
  */
 export const useLoadMoreOnVisible = ({
   enabled = true,
   onLoadMore
 }: UseLoadMoreOnVisibleParams) => {
-  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const [loadMoreElement, setLoadMoreElement] = useState<HTMLDivElement | null>(
+    null
+  )
   const [isLoadMoreVisible, setIsLoadMoreVisible] = useState(false)
 
-  // Keep the latest callback in a ref so the observer is created only when
-  // `enabled` changes — not on every render when a caller passes an
-  // unmemoized onLoadMore.
+  // Keep the latest callback in a ref so the observer is recreated only when
+  // `enabled` or the sentinel element changes — not on every render when a
+  // caller passes an unmemoized onLoadMore.
   const onLoadMoreRef = useRef(onLoadMore)
   useEffect(() => {
     onLoadMoreRef.current = onLoadMore
   }, [onLoadMore])
 
   useEffect(() => {
-    if (!enabled) return
-
-    const loadMoreElement = loadMoreRef.current
-    if (!loadMoreElement || typeof IntersectionObserver === 'undefined') return
+    if (
+      !enabled ||
+      !loadMoreElement ||
+      typeof IntersectionObserver === 'undefined'
+    ) {
+      return
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -54,7 +63,7 @@ export const useLoadMoreOnVisible = ({
     return () => {
       observer.disconnect()
     }
-  }, [enabled])
+  }, [enabled, loadMoreElement])
 
-  return { loadMoreRef, isLoadMoreVisible }
+  return { loadMoreRef: setLoadMoreElement, isLoadMoreVisible }
 }
