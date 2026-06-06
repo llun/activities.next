@@ -643,7 +643,7 @@ describe('MediaDatabase', () => {
         expect(retrieved?.original.path).toBe('/test/random-abc123.jpg')
       })
 
-      it('works without fileName for backward compatibility', async () => {
+      it('creates media without a fileName for backward compatibility', async () => {
         const actor = await database.getActorFromId({
           id: actors.primary.id
         })

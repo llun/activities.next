@@ -18,7 +18,7 @@ jest.mock('@/lib/services/email', () => ({
   sendMail: jest.fn()
 }))
 
-describe('Accept follow action', () => {
+describe('Like action', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
