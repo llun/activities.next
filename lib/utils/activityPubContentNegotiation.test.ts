@@ -6,7 +6,7 @@ import {
   negotiateActivityPubContentType
 } from './activityPubContentNegotiation'
 
-describe('#negotiateActivityPubContentType', () => {
+describe('negotiateActivityPubContentType', () => {
   it('returns the most preferred ActivityPub content type from weighted headers', () => {
     expect(
       negotiateActivityPubContentType(
@@ -71,7 +71,7 @@ describe('#negotiateActivityPubContentType', () => {
   })
 })
 
-describe('#activityPubResponse', () => {
+describe('activityPubResponse', () => {
   it('marks negotiated responses as varying by Accept', () => {
     const response = activityPubResponse({
       req: new Request('https://example.com', {

@@ -5,7 +5,7 @@ import {
   normalizeActivityPubRecipients
 } from './activitypub'
 
-describe('#extractActivityPubId', () => {
+describe('extractActivityPubId', () => {
   it('returns string value directly', () => {
     expect(extractActivityPubId('https://example.com/actor/1')).toEqual(
       'https://example.com/actor/1'
@@ -70,7 +70,7 @@ describe('#extractActivityPubId', () => {
   })
 })
 
-describe('#normalizeActivityPubRecipients', () => {
+describe('normalizeActivityPubRecipients', () => {
   it('returns string for single string value', () => {
     expect(
       normalizeActivityPubRecipients('https://example.com/user/1')
@@ -117,7 +117,7 @@ describe('#normalizeActivityPubRecipients', () => {
   })
 })
 
-describe('#normalizeActivityPubAnnounce', () => {
+describe('normalizeActivityPubAnnounce', () => {
   it('normalizes actor and object to ids', () => {
     const result = normalizeActivityPubAnnounce({
       type: 'Announce',
@@ -155,7 +155,7 @@ describe('#normalizeActivityPubAnnounce', () => {
   })
 })
 
-describe('#normalizeActivityPubContent', () => {
+describe('normalizeActivityPubContent', () => {
   it('normalizes attributedTo to id', () => {
     const result = normalizeActivityPubContent({
       type: 'Note',

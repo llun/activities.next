@@ -4,7 +4,7 @@ import {
 } from './orderedCollection'
 
 describe('orderedCollection', () => {
-  describe('#getOrderCollectionFirstPage', () => {
+  describe('getOrderCollectionFirstPage', () => {
     it('returns null for null input', () => {
       expect(getOrderCollectionFirstPage(null)).toBeNull()
     })

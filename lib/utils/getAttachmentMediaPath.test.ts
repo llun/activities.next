@@ -1,6 +1,6 @@
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 
-describe('#getAttachmentMediaPath', () => {
+describe('getAttachmentMediaPath', () => {
   it.each([
     {
       description: 'extracts the media path from local API URLs',

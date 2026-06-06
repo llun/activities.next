@@ -25,7 +25,7 @@ const grouped = (
   ...overrides
 })
 
-describe('#getNotificationGroupsEnvelope', () => {
+describe('getNotificationGroupsEnvelope', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })

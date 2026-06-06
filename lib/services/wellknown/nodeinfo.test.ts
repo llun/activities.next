@@ -52,7 +52,7 @@ describe('NODE_INFO_20_CONTENT_TYPE', () => {
   })
 })
 
-describe('#getNodeInfo20', () => {
+describe('getNodeInfo20', () => {
   it('falls back to host when serviceName is a blank string', () => {
     mockedGetConfig.mockReturnValue({
       ...DEFAULT_CONFIG,
@@ -67,7 +67,7 @@ describe('#getNodeInfo20', () => {
   })
 })
 
-describe('#buildNodeInfo20', () => {
+describe('buildNodeInfo20', () => {
   it('returns null and logs when the database is unavailable', async () => {
     mockedGetDatabase.mockReturnValue(null)
 

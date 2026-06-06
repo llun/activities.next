@@ -14,7 +14,7 @@ const notif = (overrides: Partial<Notification>): Notification => ({
   ...overrides
 })
 
-describe('#collectNotificationGroups', () => {
+describe('collectNotificationGroups', () => {
   it('keeps fetching past a bursty group until it has `limit` groups', async () => {
     // First batch is entirely one big "like" group; later batches add new groups.
     const batch1 = Array.from({ length: 5 }, (_, i) =>

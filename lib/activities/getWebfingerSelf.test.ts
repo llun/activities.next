@@ -6,7 +6,7 @@ import { getWebfingerSelf } from './getWebfingerSelf'
 
 enableFetchMocks()
 
-describe('#getWebfingerSelf', () => {
+describe('getWebfingerSelf', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)

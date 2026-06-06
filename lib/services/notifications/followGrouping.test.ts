@@ -2,7 +2,7 @@ import { followGroupKey } from '@/lib/services/notifications/followGrouping'
 
 const DAY = 24 * 60 * 60 * 1000
 
-describe('#followGroupKey', () => {
+describe('followGroupKey', () => {
   it('buckets timestamps on the same UTC day into one key', () => {
     const dayStart = 20000 * DAY
     expect(followGroupKey(dayStart)).toBe('follow:20000')

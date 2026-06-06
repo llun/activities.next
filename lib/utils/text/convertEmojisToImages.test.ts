@@ -2,7 +2,7 @@ import { Tag } from '@/lib/types/domain/tag'
 
 import { convertEmojisToImages } from './convertEmojisToImages'
 
-describe('#convertEmojisToImages', () => {
+describe('convertEmojisToImages', () => {
   it('converts all emojis inside text to image tags', () => {
     const time = Date.now()
     const tags: Tag[] = [

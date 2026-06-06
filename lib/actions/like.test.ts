@@ -36,7 +36,7 @@ describe('Like action', () => {
     mockRequests(fetchMock)
   })
 
-  describe('#likeRequest', () => {
+  describe('likeRequest', () => {
     it('create new like with actor id and status in the database', async () => {
       await likeRequest({
         activity: {

@@ -1,6 +1,6 @@
 import { waitFor } from './waitFor'
 
-describe('#waitFor', () => {
+describe('waitFor', () => {
   it('resolves after the specified time', async () => {
     const startTime = Date.now()
     await waitFor(50)

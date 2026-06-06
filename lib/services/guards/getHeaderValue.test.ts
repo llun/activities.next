@@ -2,7 +2,7 @@ import { IncomingHttpHeaders } from 'http'
 
 import { getHeadersValue } from './getHeaderValue'
 
-describe('#getHeadersValue', () => {
+describe('getHeadersValue', () => {
   describe('with standard Headers', () => {
     it('returns value for existing header', () => {
       const headers = new Headers([

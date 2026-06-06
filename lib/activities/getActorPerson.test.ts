@@ -9,7 +9,7 @@ import { getActorPerson } from './getActorPerson'
 
 enableFetchMocks()
 
-describe('#getActorPerson', () => {
+describe('getActorPerson', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)

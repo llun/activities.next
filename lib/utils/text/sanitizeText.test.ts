@@ -33,7 +33,7 @@ describe('sanitizeText', () => {
     })
   })
 
-  describe('#sanitizeText', () => {
+  describe('sanitizeText', () => {
     it('allows basic paragraph tags', () => {
       const input = '<p>Hello world</p>'
       expect(sanitizeText(input)).toEqual('<p>Hello world</p>')
@@ -184,7 +184,7 @@ describe('sanitizeText', () => {
     })
   })
 
-  describe('#sanitizeTrustedStatusText', () => {
+  describe('sanitizeTrustedStatusText', () => {
     it('preserves generated emoji img tags with padded class attributes', () => {
       const input =
         '<img class=" emoji " src="https://example.com/image.jpg" alt=":emoji:">'

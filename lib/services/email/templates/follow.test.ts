@@ -14,7 +14,7 @@ describe('follow email template', () => {
     followingCount: 0
   }
 
-  describe('#getSubject', () => {
+  describe('getSubject', () => {
     it('returns subject with actor username and host', () => {
       const result = getSubject(mockActor)
       // Uses config host from test config
@@ -22,7 +22,7 @@ describe('follow email template', () => {
     })
   })
 
-  describe('#getTextContent', () => {
+  describe('getTextContent', () => {
     it('returns text content with username and id', () => {
       const result = getTextContent(mockActor)
       expect(result).toEqual(
@@ -31,7 +31,7 @@ describe('follow email template', () => {
     })
   })
 
-  describe('#getHTMLContent', () => {
+  describe('getHTMLContent', () => {
     it('returns HTML content with linked actor', () => {
       const result = getHTMLContent(mockActor)
       expect(result).toEqual(

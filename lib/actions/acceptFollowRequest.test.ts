@@ -42,7 +42,7 @@ describe('Accept follow action', () => {
     jest.clearAllMocks()
   })
 
-  describe('#acceptFollow', () => {
+  describe('acceptFollowRequest', () => {
     it('update follow status to Accepted and return follow', async () => {
       const targetActorId = 'https://somewhere.test/actors/request-following'
       const followRequest = await database.getAcceptedOrRequestedFollow({

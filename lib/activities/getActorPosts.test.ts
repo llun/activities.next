@@ -16,7 +16,7 @@ import { getActorPosts } from './getActorPosts'
 
 enableFetchMocks()
 
-describe('#getActorPosts', () => {
+describe('getActorPosts', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {

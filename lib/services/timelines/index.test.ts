@@ -16,7 +16,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { addStatusToTimelines } from '.'
 import { Timeline } from './types'
 
-describe('#addStatusToTimeline', () => {
+describe('addStatusToTimelines', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {

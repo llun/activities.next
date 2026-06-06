@@ -45,7 +45,7 @@ describe('Create poll action', () => {
     jest.clearAllMocks()
   })
 
-  describe('#createPollFromUserInput', () => {
+  describe('createPollFromUserInput', () => {
     it('creates a poll with correct recipients', async () => {
       const createdPoll = await createPollFromUserInput({
         text: 'What is your favorite color?',
