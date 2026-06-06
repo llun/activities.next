@@ -19,7 +19,9 @@ export const getHeaderValue = (headers: HeaderSource, name: string) => {
   if (!headers) return undefined
 
   if (typeof (headers as Headers).get === 'function') {
-    return (headers as Headers).get(name)
+    // Headers.get returns null for a missing header; normalize to undefined so
+    // the return type is consistent with the record branch below.
+    return (headers as Headers).get(name) ?? undefined
   }
 
   const normalizedName = name.toLowerCase()
