@@ -1,0 +1,25 @@
+lib/utils/getAttachmentMediaPath.test.ts
+  s_94ce91ff50c23c::t_2f292fdc070121 21-22
+  s_94ce91ff50c23c::t_d4eff0fdc4ef96 4-20,23-27
+lib/utils/text/htmlToPlainText.test.ts
+  s_94ce91ff50c23c::t_6e04ca802acfd9 4-36
+lib/utils/text/getHashtags.test.ts
+  s_94ce91ff50c23c::t_b268dc3ea7ef0c 5-7,10-21,24-77,80-89
+  s_94ce91ff50c23c::t_2f292fdc070121 22-23,78-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8498f840c49f67bfd852b4dfae05cd3ba6b0ea7b",
+  "prompts": {},
+  "sessions": {
+    "s_94ce91ff50c23c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2d5e5b5-3299-45b2-9a92-9c8821ee3dba",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
