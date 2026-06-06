@@ -149,7 +149,7 @@ export const AuthorizeCard: FC<Props> = ({
 
   const handleApprove = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (submittingAction) return
+    if (submittingAction || isSwitching) return
     setSubmittingAction('approve')
 
     try {
@@ -188,7 +188,7 @@ export const AuthorizeCard: FC<Props> = ({
   }
 
   const handleDeny = async () => {
-    if (submittingAction) return
+    if (submittingAction || isSwitching) return
     setSubmittingAction('deny')
     try {
       const response = await fetch('/api/auth/oauth2/consent', {
