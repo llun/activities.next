@@ -6,7 +6,7 @@ import {
   FilterStatus as DomainFilterStatus
 } from '@/lib/types/domain/filter'
 import * as Mastodon from '@/lib/types/mastodon'
-import { getMastodonTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getMastodonFilterKeyword = (
   keyword: DomainFilterKeyword
@@ -29,7 +29,7 @@ const buildMastodonFilter = (record: ActiveFilterRecord): Mastodon.Filter => ({
   context: record.filter.context,
   expires_at:
     record.filter.expiresAt !== null
-      ? getMastodonTimeUTC(record.filter.expiresAt)
+      ? getISOTimeUTC(record.filter.expiresAt)
       : null,
   filter_action: record.filter.filterAction,
   keywords: record.keywords.map(getMastodonFilterKeyword),
