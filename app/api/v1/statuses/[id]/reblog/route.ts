@@ -2,14 +2,13 @@ import { z } from 'zod'
 
 import { userAnnounce } from '@/lib/actions/announce'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { mastodonStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
-  ERROR_500,
   apiCorsError,
   apiResponse,
   defaultOptions
@@ -87,23 +86,12 @@ export const POST = traceApiRoute(
       })
     }
 
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      announceStatus,
-      currentActor.id
-    )
-    if (!mastodonStatus)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-
-    return apiResponse({
+    return mastodonStatusResponse({
       req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
+      database,
+      currentActor,
+      status: announceStatus,
+      allowedMethods: CORS_HEADERS
     })
   }),
   {

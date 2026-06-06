@@ -1,15 +1,10 @@
 import { sendLike } from '@/lib/activities'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import {
-  ERROR_500,
-  apiCorsError,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiCorsError, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -50,36 +45,12 @@ export const POST = traceApiRoute(
     }
 
     // Refetch status to get updated counts
-    const updatedStatus = await database.getStatus({
-      statusId,
-      withReplies: false,
-      currentActorId: currentActor.id
-    })
-    if (!updatedStatus)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      updatedStatus,
-      currentActor.id
-    )
-    if (!mastodonStatus)
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-
-    return apiResponse({
+    return refetchedStatusResponse({
       req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
+      database,
+      currentActor,
+      statusId,
+      allowedMethods: CORS_HEADERS
     })
   }),
   {
