@@ -1,0 +1,141 @@
+lib/components/post-box/emoji-data.ts
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 27-41,43-62,66-85,88-92,97-106,108-117,132-136,146-150,210-214,216-220,223-227,230-234,251-260,302-306,309-313
+  s_f1f719bc7af0b8::t_0443ec10e281ed 96
+  s_f1f719bc7af0b8::t_94b2df1fc345ed 1-26,42,63-65,86-87,93-95,107,118-131,137-145,151-209,215,221-222,228-229,235-250,261-301,307-308,314-335
+lib/utils/text/getEmojiTags.test.ts
+  s_f1f719bc7af0b8::t_8e1654ad6d2946 1-13,17-43
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 14-16
+app/api/v1/custom_emojis/route.ts
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 18-29,33-35
+  s_f1f719bc7af0b8::t_7624548aa45990 1-4,6,13-15,30-32,36-37
+lib/actions/createNote.ts
+  s_f1f719bc7af0b8::t_275f24c810bf69 154-185
+  s_f1f719bc7af0b8::t_7d3307b555646b 460-461
+  s_f1f719bc7af0b8::t_bfeb95f9de4a4f 38
+lib/types/domain/status.ts
+  s_f1f719bc7af0b8::t_54f441fd08e97a 359-362
+  s_f1f719bc7af0b8::t_e6dfede4ae0e8d 20
+  s_f1f719bc7af0b8::t_24212d90a41c9f 299-302
+lib/jobs/createNoteJob.test.ts
+  s_f1f719bc7af0b8::t_ea369061040f30 528-560
+app/(timeline)/admin/emojis/page.tsx
+  s_f1f719bc7af0b8::t_3a950209535b37 1-33
+lib/components/post-box/emoji-picker-button.tsx
+  s_f1f719bc7af0b8::t_248eed47990646 141
+  s_f1f719bc7af0b8::t_33dae2e3e3053f 1-2,5-10,12-88,97-140,142-274
+  s_f1f719bc7af0b8::t_08f45174e379b2 3-4
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 11,89-96
+app/api/v1/admin/custom_emojis/route.ts
+  s_f1f719bc7af0b8::t_d75f858a860d71 1-4,6,8-62,70-139
+  s_f1f719bc7af0b8::t_c955e43d4f4ed5 63-69
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 5
+  s_f1f719bc7af0b8::t_ca94e4f4567388 7
+lib/database/types.ts
+  s_f1f719bc7af0b8::t_3e092d9c1b9509 13
+  s_f1f719bc7af0b8::t_c16fe6b212d0a0 52
+lib/database/sql/customEmoji.ts
+  s_f1f719bc7af0b8::t_96776e966660e2 1-108
+lib/utils/text/processStatusText.ts
+  s_f1f719bc7af0b8::t_90f36a81daf056 4
+  s_f1f719bc7af0b8::t_b993851ed13b05 29-43,45,49-58
+lib/database/sql/customEmoji.test.ts
+  s_f1f719bc7af0b8::t_dca9d2c5892a39 1-113
+migrations/20260606185856_add_custom_emojis.js
+  s_f1f719bc7af0b8::t_f71076d4ef7d95 1,13-15,29-33
+  s_f1f719bc7af0b8::t_37cb446a657d0d 2-12,16-28,34
+lib/database/sql/index.ts
+  s_f1f719bc7af0b8::t_17fed6bd755d23 47
+  s_f1f719bc7af0b8::t_31ff80233c910e 103
+  s_f1f719bc7af0b8::t_01f11f19810884 10
+lib/components/admin/CustomEmojiManager.tsx
+  s_f1f719bc7af0b8::t_5fb87c64135a56 292,295
+  s_f1f719bc7af0b8::t_4f417ba90c2bc0 1-291,293-294,296-309
+lib/utils/getNoteFromStatus.ts
+  s_f1f719bc7af0b8::t_96dc0befd67dbe 43-46
+  s_f1f719bc7af0b8::t_9d2ab0d1ed5d36 13
+app/api/v1/admin/custom_emojis/[id]/route.test.ts
+  s_f1f719bc7af0b8::t_1831333cc86136 1-137
+lib/types/domain/tag.test.ts
+  s_f1f719bc7af0b8::t_0d5e095954b8c3 1-86
+lib/actions/updateNote.ts
+  s_f1f719bc7af0b8::t_9d61cfcc222133 62-65,67-68
+  s_f1f719bc7af0b8::t_12392a2e4f39ff 66
+  s_f1f719bc7af0b8::t_2df5a8e50eb136 1
+lib/utils/text/getEmojiTags.ts
+  s_f1f719bc7af0b8::t_9fa84de862f331 1-36
+app/api/v1/admin/custom_emojis/schema.ts
+  s_f1f719bc7af0b8::t_cc0dab6b2f1832 1-46
+lib/actions/createNoteEmoji.test.ts
+  s_f1f719bc7af0b8::t_09d0d993851bc7 1-3,5-10,12-121,148-168
+  s_f1f719bc7af0b8::t_92d8d2e4de5209 124-128,130-147
+  s_f1f719bc7af0b8::t_052263237b45e8 129
+  s_f1f719bc7af0b8::t_74a815e46309ca 4,11
+lib/types/domain/customEmoji.ts
+  s_f1f719bc7af0b8::t_5df63a8ae6ec7a 1-36
+  s_f1f719bc7af0b8::t_4801e851a30cf9 37-51
+app/api/v2/instance/route.ts
+  s_f1f719bc7af0b8::t_e44737e6d03368 1-2
+  s_f1f719bc7af0b8::t_1679a9399389ac 22
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 23-59,61-62,64-69,71,73
+lib/database/sql/status.ts
+  s_f1f719bc7af0b8::t_ec73bb0c222428 44
+  s_f1f719bc7af0b8::t_492dccdb0610a5 2186-2192
+  s_f1f719bc7af0b8::t_09723bde80da3e 2914
+lib/actions/createPoll.ts
+  s_f1f719bc7af0b8::t_4e943f0c4989c4 7
+  s_f1f719bc7af0b8::t_34469ddbbd3ed7 131-132
+lib/client.ts
+  s_f1f719bc7af0b8::t_3423005afd0b21 2320-2410
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 15
+  s_f1f719bc7af0b8::t_0af3f8716aff20 11
+lib/types/database/operations.ts
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 2382
+  s_f1f719bc7af0b8::t_a466346cb3c6a4 10
+  s_f1f719bc7af0b8::t_fafe62c73cd884 590-593
+  s_f1f719bc7af0b8::t_25b7bc2ebc8a1b 700
+  s_f1f719bc7af0b8::t_9b9e91fb32071c 2351-2381,2383-2387
+app/api/v1/custom_emojis/route.test.ts
+  s_f1f719bc7af0b8::t_a072b43ee73cd9 1-71
+app/(timeline)/admin/layout.tsx
+  s_f1f719bc7af0b8::t_56b71674b69030 24
+  s_f1f719bc7af0b8::t_22e349c01d9062 3
+lib/components/post-box/post-box.test.tsx
+  s_f1f719bc7af0b8::t_eb31943314c7fe 965-975,988,991-994
+  s_f1f719bc7af0b8::t_bee8ed8fd99fbe 7-12
+  s_f1f719bc7af0b8::t_d443a5ad773e26 23
+app/api/v1/admin/custom_emojis/[id]/route.ts
+  s_f1f719bc7af0b8::t_7b1ae5a51924ea 1-126
+app/api/v1/admin/custom_emojis/route.test.ts
+  s_f1f719bc7af0b8::t_b82485518fe0a2 1-47,68-131,135-153,157-166,170-177,179,183-185,202
+  s_f1f719bc7af0b8::t_75ddd1ceb14bed 48-51,60,62-67
+  s_f1f719bc7af0b8::t_7b7142b45d8882 186-201
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 52-59,61,132-134,154-156,167-169,178,180-182
+lib/types/domain/tag.ts
+  s_f1f719bc7af0b8::t_52bc1b1841fbf9 5,9,27-30,32,48-64
+lib/components/post-box/emoji-picker-button.test.tsx
+  s_f1f719bc7af0b8::t_4669e055519e7e 1-56
+lib/components/post-box/post-box.tsx
+  s_f1f719bc7af0b8::t_df5d461d59a288 47,52-54,56
+  s_f1f719bc7af0b8::t_fd3a224736bbb4 48
+  s_f1f719bc7af0b8::t_2d64e23f5df6ea 333-343,359-378
+  s_f1f719bc7af0b8::t_5a091933c8dcfc 344-358
+  s_f1f719bc7af0b8::t_c5c88f03ba167e 963-970
+  s_f1f719bc7af0b8::t_0443a4ed349aea 1056-1060
+  s_f1f719bc7af0b8::t_38a6810e2a5c63 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "15be57c82b7f05449c832c0a519edbac6383674e",
+  "prompts": {},
+  "sessions": {
+    "s_f1f719bc7af0b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c5dd695-69d9-404a-93b2-62c2cc8d6ef2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
