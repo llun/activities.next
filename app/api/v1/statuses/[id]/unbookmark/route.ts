@@ -43,6 +43,10 @@ export const POST = traceApiRoute(
         withReplies: false
       })
       if (!status) {
+        // The status is not readable for the current actor (e.g. its visibility
+        // changed after they bookmarked it). Mastodon still lets the owner of
+        // the bookmark remove it and returns the Status with `bookmarked: false`,
+        // rather than a 404, as long as the underlying status still exists.
         const isBookmarked = await database.isActorBookmarkedStatus({
           actorId: currentActor.id,
           statusId
@@ -57,11 +61,39 @@ export const POST = traceApiRoute(
 
         await database.deleteBookmark({ actorId: currentActor.id, statusId })
 
+        // Build the entity directly from storage, bypassing the visibility
+        // filter, so the response carries the real Status shape with the
+        // now-cleared bookmark flag.
+        const unreadableStatus = await database.getStatus({
+          statusId,
+          withReplies: false,
+          currentActorId: currentActor.id
+        })
+        if (!unreadableStatus)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: 404
+          })
+
+        const unreadableMastodonStatus = await getMastodonStatus(
+          database,
+          unreadableStatus,
+          currentActor.id
+        )
+        if (!unreadableMastodonStatus)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_500,
+            responseStatusCode: 500
+          })
+
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
+          data: unreadableMastodonStatus
         })
       }
 

@@ -73,6 +73,14 @@ export const StatusNote = StatusBase.extend({
   url: z.string(),
   text: z.string(),
   summary: z.string().nullable().optional(),
+  // Explicit "mark media as sensitive" flag. Independent of `summary`: a status
+  // can be sensitive without a content warning, and Mastodon also forces
+  // sensitive=true whenever a spoiler/summary is present (applied in the
+  // Mastodon serializer, not here). Optional so existing status literals and
+  // remote notes that predate the field remain valid; treated as false/null.
+  sensitive: z.boolean().optional(),
+  // ISO 639 Part 1 two-letter language code, or null when unknown.
+  language: z.string().nullable().optional(),
   reply: z.string(),
   replies: z.looseObject(StatusBase.shape).array(),
 

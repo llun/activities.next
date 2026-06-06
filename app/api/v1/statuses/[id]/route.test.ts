@@ -2,6 +2,7 @@ import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
@@ -1223,7 +1224,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       ).resolves.toBe(false)
     })
 
-    it('deletes bookmarks and returns 404 when the original status is no longer readable', async () => {
+    it('deletes the bookmark and returns the Status with bookmarked=false when the original status is no longer readable', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor3.email }
       })
@@ -1255,8 +1256,13 @@ describe('GET /api/v1/statuses/[id]', () => {
         { params: Promise.resolve({ id: urlToId(statusId) }) }
       )
 
-      expect(response.status).toBe(404)
-      await expect(response.json()).resolves.toEqual({ status: 'Not Found' })
+      // Mastodon returns the Status (not a 404) so the client can reconcile its
+      // local bookmark state, even though the post is no longer visible.
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        id: urlToId(statusId),
+        bookmarked: false
+      })
       await expect(
         database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
       ).resolves.toBe(false)
@@ -3004,6 +3010,455 @@ describe('GET /api/v1/statuses/[id]', () => {
       const decoded = idToUrl(encoded)
 
       expect(decoded).toBe(originalUrl)
+    })
+  })
+
+  describe('conversation mute/unmute', () => {
+    it('mutes and unmutes a conversation, reflecting the muted flag', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-mute-conversation`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Conversation root to mute',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const muteResponse = await muteStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/mute`,
+          { method: 'POST', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(muteResponse.status).toBe(200)
+      await expect(muteResponse.json()).resolves.toMatchObject({
+        id: urlToId(statusId),
+        muted: true
+      })
+
+      const unmuteResponse = await unmuteStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unmute`,
+          { method: 'POST', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(unmuteResponse.status).toBe(200)
+      await expect(unmuteResponse.json()).resolves.toMatchObject({
+        id: urlToId(statusId),
+        muted: false
+      })
+    })
+
+    it('marks a reply muted when its thread root is muted', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const rootId = `${ACTOR1_ID}/statuses/api-mute-thread-root`
+      const replyId = `${ACTOR1_ID}/statuses/api-mute-thread-reply`
+      await database.createNote({
+        id: rootId,
+        url: rootId,
+        actorId: ACTOR1_ID,
+        text: 'Thread root',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: replyId,
+        url: replyId,
+        actorId: ACTOR1_ID,
+        text: 'A reply in the thread',
+        reply: rootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      // Mute via the reply; Mastodon mutes the whole conversation.
+      await muteStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(replyId)}/mute`,
+          { method: 'POST', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(replyId) }) }
+      )
+
+      const rootResponse = await GET(
+        new NextRequest(`https://llun.test/api/v1/statuses/${urlToId(rootId)}`),
+        { params: Promise.resolve({ id: urlToId(rootId) }) }
+      )
+      await expect(rootResponse.json()).resolves.toMatchObject({ muted: true })
+    })
+  })
+
+  describe('full context tree', () => {
+    it('returns the full ancestor chain root-first and recursive descendants', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/api-context-root`
+      const childId = `${ACTOR1_ID}/statuses/api-context-child`
+      const grandchildId = `${ACTOR1_ID}/statuses/api-context-grandchild`
+      await database.createNote({
+        id: rootId,
+        url: rootId,
+        actorId: ACTOR1_ID,
+        text: 'Root',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: childId,
+        url: childId,
+        actorId: ACTOR1_ID,
+        text: 'Child',
+        reply: rootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: grandchildId,
+        url: grandchildId,
+        actorId: ACTOR1_ID,
+        text: 'Grandchild',
+        reply: childId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      // Context of the middle node: one ancestor (root), one descendant (grandchild).
+      const response = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(childId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(childId) }) }
+      )
+      expect(response.status).toBe(200)
+      const context = await response.json()
+      expect(context.ancestors.map((s: { id: string }) => s.id)).toEqual([
+        urlToId(rootId)
+      ])
+      expect(context.descendants.map((s: { id: string }) => s.id)).toEqual([
+        urlToId(grandchildId)
+      ])
+    })
+  })
+
+  describe('status edit history', () => {
+    it('returns the full StatusEdit timeline oldest-first including the original', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-history-edits`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Version one',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.updateNote({ statusId, text: 'Version two' })
+      await database.updateNote({ statusId, text: 'Version three' })
+
+      const response = await getStatusHistory(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/history`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+      const history = await response.json()
+      expect(history).toHaveLength(3)
+      expect(history[0].content).toContain('Version one')
+      expect(history[2].content).toContain('Version three')
+      // created_at is non-decreasing oldest→newest (a bug giving every revision
+      // the same timestamp from the wrong column would break ordering).
+      const timestamps = history.map((edit: { created_at: string }) =>
+        Date.parse(edit.created_at)
+      )
+      for (let i = 1; i < timestamps.length; i++) {
+        expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i - 1])
+      }
+      for (const edit of history) {
+        expect(edit).toMatchObject({
+          spoiler_text: expect.any(String),
+          sensitive: expect.any(Boolean),
+          created_at: expect.any(String),
+          account: expect.objectContaining({ id: urlToId(ACTOR1_ID) }),
+          media_attachments: expect.any(Array),
+          emojis: expect.any(Array)
+        })
+      }
+    })
+
+    it('returns a single edit for a never-edited status', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-history-unedited`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Only version',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await getStatusHistory(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/history`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+      const history = await response.json()
+      expect(history).toHaveLength(1)
+      expect(history[0].content).toContain('Only version')
+    })
+  })
+
+  describe('favourited_by id-cursor pagination', () => {
+    it('paginates with limit and emits a Link header with max_id/since_id', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-favourited-by-pagination`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Favourited by several actors',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createLike({ actorId: ACTOR1_ID, statusId })
+      await database.createLike({ actorId: ACTOR2_ID, statusId })
+      await database.createLike({ actorId: ACTOR3_ID, statusId })
+
+      const firstPage = await getStatusFavouritedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/favourited_by?limit=2`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(firstPage.status).toBe(200)
+      const firstAccounts = await firstPage.json()
+      expect(firstAccounts).toHaveLength(2)
+
+      const linkHeader = firstPage.headers.get('Link')
+      expect(linkHeader).toContain('rel="next"')
+      expect(linkHeader).toContain('max_id=')
+      expect(linkHeader).toContain('rel="prev"')
+
+      // No legacy offset/X-* headers remain.
+      expect(firstPage.headers.get('X-Total-Count')).toBeNull()
+    })
+
+    it('returns the cursor-adjacent favourite (no gap) when paging forward with min_id', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-favourited-by-min-id`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Favourited for min_id paging',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createLike({ actorId: ACTOR1_ID, statusId })
+      await database.createLike({ actorId: ACTOR2_ID, statusId })
+      await database.createLike({ actorId: ACTOR3_ID, statusId })
+
+      // Learn the descending (newest-first) order directly from storage.
+      const ordered = await database.getFavouritedBy({ statusId, limit: 10 })
+      expect(ordered).toHaveLength(3)
+      const oldest = ordered[ordered.length - 1]
+      const secondOldest = ordered[ordered.length - 2]
+
+      // Page forward from the oldest favourite, one at a time. The item
+      // immediately newer than the cursor must be returned (the off-by-one bug
+      // would skip it and return the newest instead).
+      const minIdCursor = encodeFavouritedByCursor({
+        createdAt: oldest.createdAt,
+        actorId: oldest.actorId
+      })
+      const page = await getStatusFavouritedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/favourited_by?limit=1&min_id=${encodeURIComponent(minIdCursor)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(page.status).toBe(200)
+      const accounts = await page.json()
+      expect(accounts).toHaveLength(1)
+      expect(accounts[0].id).toBe(urlToId(secondOldest.actorId))
+    })
+
+    it('emits rel=next (older) but omits rel=prev at the newest edge of a min_id page', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-favourited-by-min-id-edge`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Favourited for min_id edge paging',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createLike({ actorId: ACTOR1_ID, statusId })
+      await database.createLike({ actorId: ACTOR2_ID, statusId })
+      await database.createLike({ actorId: ACTOR3_ID, statusId })
+
+      const ordered = await database.getFavouritedBy({ statusId, limit: 10 })
+      expect(ordered).toHaveLength(3)
+      const secondOldest = ordered[ordered.length - 2]
+
+      // Page forward from the second-oldest: only one newer favourite (the
+      // newest) remains, so the page is full but reaches the newest edge.
+      const minIdCursor = encodeFavouritedByCursor({
+        createdAt: secondOldest.createdAt,
+        actorId: secondOldest.actorId
+      })
+      const page = await getStatusFavouritedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/favourited_by?limit=1&min_id=${encodeURIComponent(minIdCursor)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(page.status).toBe(200)
+      const accounts = await page.json()
+      expect(accounts).toHaveLength(1)
+      expect(accounts[0].id).toBe(urlToId(ordered[0].actorId))
+
+      const linkHeader = page.headers.get('Link') ?? ''
+      // Older favourites still exist (the cursor and below), so next must be
+      // offered; there are no newer ones, so prev must be omitted.
+      expect(linkHeader).toContain('rel="next"')
+      expect(linkHeader).toContain('max_id=')
+      expect(linkHeader).not.toContain('rel="prev"')
+    })
+  })
+
+  describe('edit sensitive/language', () => {
+    it('wires sensitive and language through a PUT edit', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-sensitive-language`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Edit me to mark sensitive',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ sensitive: true, language: 'th' }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.sensitive).toBe(true)
+      expect(data.language).toBe('th')
+
+      // Persisted through a fresh read.
+      const reread = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      await expect(reread.json()).resolves.toMatchObject({
+        sensitive: true,
+        language: 'th'
+      })
+    })
+  })
+
+  describe('context visibility filtering', () => {
+    it('excludes unreadable ancestors/descendants for a non-follower but keeps readable ones', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+
+      const publicRootId = `${ACTOR1_ID}/statuses/api-context-vis-root`
+      const privateMidId = `${ACTOR1_ID}/statuses/api-context-vis-private-mid`
+      const publicTargetId = `${ACTOR1_ID}/statuses/api-context-vis-target`
+      const privateDescId = `${ACTOR1_ID}/statuses/api-context-vis-private-desc`
+      const publicDescId = `${ACTOR1_ID}/statuses/api-context-vis-public-desc`
+
+      await database.createNote({
+        id: publicRootId,
+        url: publicRootId,
+        actorId: ACTOR1_ID,
+        text: 'Public root ancestor',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // A private node in the middle of the chain: must be traversed through but
+      // excluded from the response.
+      await database.createNote({
+        id: privateMidId,
+        url: privateMidId,
+        actorId: ACTOR1_ID,
+        text: 'Private mid ancestor',
+        reply: publicRootId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      await database.createNote({
+        id: publicTargetId,
+        url: publicTargetId,
+        actorId: ACTOR1_ID,
+        text: 'Public target',
+        reply: privateMidId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: privateDescId,
+        url: privateDescId,
+        actorId: ACTOR1_ID,
+        text: 'Private descendant',
+        reply: publicTargetId,
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      await database.createNote({
+        id: publicDescId,
+        url: publicDescId,
+        actorId: ACTOR1_ID,
+        text: 'Public descendant',
+        reply: publicTargetId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(publicTargetId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(publicTargetId) }) }
+      )
+      expect(response.status).toBe(200)
+      const context = await response.json()
+
+      const ancestorIds = context.ancestors.map((s: { id: string }) => s.id)
+      const descendantIds = context.descendants.map((s: { id: string }) => s.id)
+
+      // The private mid ancestor is excluded, but the public root above it
+      // remains (the chain is not cut short).
+      expect(ancestorIds).toContain(urlToId(publicRootId))
+      expect(ancestorIds).not.toContain(urlToId(privateMidId))
+
+      // The private descendant is excluded; the public sibling remains.
+      expect(descendantIds).toContain(urlToId(publicDescId))
+      expect(descendantIds).not.toContain(urlToId(privateDescId))
     })
   })
 })

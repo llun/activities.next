@@ -14,6 +14,8 @@ interface UpdateNoteFromUserInput {
   text?: string
   summary?: string | null
   attachments?: PostBoxAttachment[]
+  sensitive?: boolean
+  language?: string | null
   publish?: boolean
   status?: StatusNote
   database: Database
@@ -25,6 +27,8 @@ export const updateNoteFromUserInput = async ({
   text,
   summary,
   attachments,
+  sensitive,
+  language,
   publish = true,
   status: preloadedStatus,
   database
@@ -45,7 +49,9 @@ export const updateNoteFromUserInput = async ({
     statusId,
     summary: summary === undefined ? status.summary : summary?.trim() || null,
     text: text ?? status.text,
-    ...(attachments !== undefined ? { attachments } : {})
+    ...(attachments !== undefined ? { attachments } : {}),
+    ...(sensitive !== undefined ? { sensitive } : {}),
+    ...(language !== undefined ? { language } : {})
   })
   if (!updatedStatus) {
     span.end()

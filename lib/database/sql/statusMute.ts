@@ -1,0 +1,48 @@
+import { Knex } from 'knex'
+
+import {
+  CreateStatusMuteParams,
+  DeleteStatusMuteParams,
+  GetActorMutedConversationRootIdsParams,
+  IsConversationMutedParams,
+  StatusMuteDatabase
+} from '@/lib/types/database/operations'
+
+export const StatusMuteSQLDatabaseMixin = (
+  database: Knex
+): StatusMuteDatabase => ({
+  async createStatusMute({ actorId, statusId }: CreateStatusMuteParams) {
+    // Atomic insert-or-ignore: muting an already-muted conversation is a no-op
+    // and safe under concurrent calls, without a separate existence query.
+    const currentTime = new Date()
+    await database('status_mutes')
+      .insert({
+        actorId,
+        statusId,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      .onConflict(['actorId', 'statusId'])
+      .ignore()
+  },
+
+  async deleteStatusMute({ actorId, statusId }: DeleteStatusMuteParams) {
+    await database('status_mutes').where({ actorId, statusId }).delete()
+  },
+
+  async isConversationMuted({ actorId, statusId }: IsConversationMutedParams) {
+    const row = await database('status_mutes')
+      .where({ actorId, statusId })
+      .first()
+    return Boolean(row)
+  },
+
+  async getActorMutedConversationRootIds({
+    actorId
+  }: GetActorMutedConversationRootIdsParams) {
+    const rows = await database('status_mutes')
+      .where({ actorId })
+      .select('statusId')
+    return rows.map((row) => row.statusId)
+  }
+})

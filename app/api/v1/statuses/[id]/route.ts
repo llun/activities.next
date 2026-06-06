@@ -27,6 +27,7 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
+import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 interface Params {
   id: string
@@ -109,7 +110,9 @@ const EditNoteSchema = z.object({
   status: z.string().optional(),
   spoiler_text: z.string().nullish(),
   media_ids: z.array(z.coerce.string()).optional(),
-  visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
+  visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional(),
+  language: z.string().trim().min(1).optional(),
+  sensitive: Booleanish.optional()
 })
 
 const isFitnessStatusAttachment = (attachment: {
@@ -174,7 +177,9 @@ export const PUT = traceApiRoute(
         const shouldUpdateContent =
           changes.status !== undefined ||
           changes.spoiler_text !== undefined ||
-          mediaIds !== undefined
+          mediaIds !== undefined ||
+          changes.sensitive !== undefined ||
+          changes.language !== undefined
         const visibility = changes.visibility
 
         if (!shouldUpdateContent && visibility === undefined) {
@@ -269,6 +274,8 @@ export const PUT = traceApiRoute(
             text: changes.status,
             summary: changes.spoiler_text,
             attachments,
+            sensitive: changes.sensitive,
+            language: changes.language,
             publish: true,
             status:
               updatedNote?.type === StatusType.enum.Note

@@ -13,6 +13,7 @@ import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessR
 import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { FollowedTagSQLDatabaseMixin } from '@/lib/database/sql/followedTag'
+import { IdempotencySQLDatabaseMixin } from '@/lib/database/sql/idempotency'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
@@ -25,6 +26,7 @@ import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscri
 import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
+import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
@@ -42,6 +44,8 @@ export const getSQLDatabase = (database: Knex): Database => {
   const blockDatabase = BlockSQLDatabaseMixin(database)
   const markerDatabase = MarkerSQLDatabaseMixin(database)
   const muteDatabase = MuteSQLDatabaseMixin(database)
+  const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
+  const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
   const filterDatabase = FilterSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
   const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
@@ -94,6 +98,8 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...blockDatabase,
     ...markerDatabase,
     ...muteDatabase,
+    ...statusMuteDatabase,
+    ...idempotencyDatabase,
     ...listDatabase,
     ...filterDatabase,
     ...followerDatabase,

@@ -26,6 +26,8 @@ interface CreatePollFromUserInputParams {
   endAt: number
   pollType?: 'oneOf' | 'anyOf'
   visibility?: MastodonVisibility
+  sensitive?: boolean
+  language?: string | null
 }
 export const createPollFromUserInput = async ({
   text,
@@ -36,7 +38,9 @@ export const createPollFromUserInput = async ({
   database,
   endAt,
   pollType,
-  visibility
+  visibility,
+  sensitive = false,
+  language = null
 }: CreatePollFromUserInputParams) => {
   const config = getConfig()
   const span = getSpan('actions', 'createPollFromUser', {
@@ -106,7 +110,9 @@ export const createPollFromUserInput = async ({
     reply: replyStatus?.id || '',
     choices,
     endAt,
-    pollType
+    pollType,
+    sensitive,
+    language
   })
 
   await Promise.all([
