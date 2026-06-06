@@ -4,6 +4,7 @@ import {
   OptionalOAuthGuard,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -24,6 +25,9 @@ interface Params {
 }
 
 const EndorsementsQueryParams = z.object({
+  max_id: z.string().optional(),
+  since_id: z.string().optional(),
+  min_id: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(80).default(40)
 })
 
@@ -69,27 +73,52 @@ export const GET = traceApiRoute(
         })
       }
 
-      const endorsements = await database.getEndorsements({
+      const {
+        limit,
+        max_id: maxId,
+        min_id: minId,
+        since_id: sinceId
+      } = parsed.data
+
+      const ordered = await database.getEndorsements({
         actorId: id,
-        limit: parsed.data.limit
+        limit,
+        maxId,
+        minId,
+        sinceId
       })
       const accountsById = new Map(
         (
           await database.getMastodonActorsFromIds({
-            ids: endorsements.map((e) => e.targetActorId)
+            ids: ordered.map((e) => e.targetActorId)
           })
         ).map((account) => [account.url, account])
       )
-      const accounts = endorsements
+      const accounts = ordered
         .map((e) => accountsById.get(e.targetActorId))
         .filter((account): account is NonNullable<typeof account> =>
           Boolean(account)
         )
 
+      const host = headerHost(req.headers)
+      const links: string[] = []
+      if (host && ordered.length > 0) {
+        const pathBase = `/api/v1/accounts/${encodedAccountId}/endorsements`
+        const buildLink = (cursorName: 'max_id' | 'min_id', value: string) => {
+          const linkParams = new URLSearchParams()
+          linkParams.set('limit', `${limit}`)
+          linkParams.set(cursorName, value)
+          return `<https://${host}${pathBase}?${linkParams.toString()}>; rel="${cursorName === 'max_id' ? 'next' : 'prev'}"`
+        }
+        links.push(buildLink('max_id', ordered[ordered.length - 1].id))
+        links.push(buildLink('min_id', ordered[0].id))
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: accounts
+        data: accounts,
+        additionalHeaders: links.length > 0 ? [['Link', links.join(', ')]] : []
       })
     },
     { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }

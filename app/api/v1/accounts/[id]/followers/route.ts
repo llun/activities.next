@@ -82,7 +82,8 @@ export const GET = traceApiRoute(
         min_id: minId,
         since_id: sinceId
       } = parsed.data
-      const forwardCursor = minId ?? sinceId
+      // Use truthiness (not ??) so an empty `?min_id=` falls through to sinceId.
+      const forwardCursor = minId || sinceId
 
       const follows = await database.getFollowers({
         targetActorId: id,

@@ -88,6 +88,31 @@ describe('GET /api/v1/accounts/:id/followers', () => {
     expect(link).toContain('min_id=')
   })
 
+  it('paginates forward with min_id and returns newest-first', async () => {
+    // Follow rows are ordered by id desc; the oldest is the last one.
+    const allFollows = await database.getFollowers({
+      targetActorId: ACTOR2_ID,
+      limit: 80
+    })
+    expect(allFollows.length).toBeGreaterThanOrEqual(2)
+    const oldestFollowId = allFollows[allFollows.length - 1].id
+    const newestActorId = allFollows[0].actorId
+
+    const response = await GET(
+      createRequest(ACTOR2_ID, `?min_id=${oldestFollowId}`),
+      { params: Promise.resolve({ id: urlToId(ACTOR2_ID) }) }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // Only the rows newer than the oldest cursor, presented newest-first.
+    expect(data.length).toBe(allFollows.length - 1)
+    expect(data[0].id).toBe(urlToId(newestActorId))
+    const link = response.headers.get('Link')
+    expect(link).toContain('rel="next"')
+    expect(link).toContain('rel="prev"')
+  })
+
   it('returns 404 for an unknown account', async () => {
     const unknown = 'https://llun.test/users/nope'
     const response = await GET(createRequest(unknown), {

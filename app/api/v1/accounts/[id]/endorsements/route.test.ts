@@ -36,10 +36,10 @@ jest.mock('@/lib/config', () => ({
   })
 }))
 
-const createRequest = (targetId: string) =>
+const createRequest = (targetId: string, query = '') =>
   new NextRequest(
-    `https://llun.test/api/v1/accounts/${urlToId(targetId)}/endorsements`,
-    { method: 'GET' }
+    `https://llun.test/api/v1/accounts/${urlToId(targetId)}/endorsements${query}`,
+    { method: 'GET', headers: { host: 'llun.test' } }
   )
 
 describe('GET /api/v1/accounts/:id/endorsements', () => {
@@ -74,6 +74,9 @@ describe('GET /api/v1/accounts/:id/endorsements', () => {
     const data = await response.json()
     expect(data).toHaveLength(1)
     expect(data[0].id).toBe(urlToId(ACTOR4_ID))
+    const link = response.headers.get('Link')
+    expect(link).toContain('rel="next"')
+    expect(link).toContain('max_id=')
   })
 
   it('returns 404 for an unknown account', async () => {
