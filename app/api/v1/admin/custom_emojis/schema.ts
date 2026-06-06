@@ -35,10 +35,13 @@ export const CreateCustomEmojiRequest = z.object({
 
 // `PATCH`/`PUT /api/v1/admin/custom_emojis/:id` — update moderation fields.
 export const UpdateCustomEmojiRequest = z.object({
+  // Accepts a string, `null` (clear the category), or omitted (preserve). The
+  // admin UI sends `null` when the category field is cleared.
   category: z
     .string()
     .trim()
     .max(255)
+    .nullable()
     .transform((value) => value || null)
     .optional(),
   visible_in_picker: Booleanish.optional(),
