@@ -1,0 +1,22 @@
+lib/utils/getISOTimeUTC.ts
+  s_44807e29e64536::t_7968d1c3639f76 11-17,19,21
+lib/components/posts/useLoadMoreOnVisible.ts
+  s_44807e29e64536::t_145499f19c999c 12-17,28-30,37-43,66,68
+  s_44807e29e64536::t_cc5d720ca228dd 23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "48df68608ec42a707b9e606f1a83db6abc71793a",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
