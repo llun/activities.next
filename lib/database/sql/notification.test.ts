@@ -245,7 +245,7 @@ describe('Notification Database', () => {
         expect(notifications[0].type).toBe('mention')
       })
 
-      it('should work with cursor pagination and excludeTypes together', async () => {
+      it('combines cursor pagination with excludeTypes filtering', async () => {
         const allNotifications = await database.getNotifications({
           actorId: actor1Id,
           limit: 10

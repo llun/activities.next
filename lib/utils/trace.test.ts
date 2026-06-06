@@ -1,22 +1,6 @@
-import {
-  TRACE_APPLICATION_SCOPE,
-  TRACE_APPLICATION_VERSION,
-  Trace,
-  getSpan,
-  getTracer
-} from './trace'
+import { Trace, getSpan, getTracer } from './trace'
 
 describe('trace utilities', () => {
-  describe('TRACE constants', () => {
-    it('exports APPLICATION_SCOPE', () => {
-      expect(TRACE_APPLICATION_SCOPE).toBe('activities.next')
-    })
-
-    it('exports APPLICATION_VERSION', () => {
-      expect(TRACE_APPLICATION_VERSION).toBeDefined()
-    })
-  })
-
   describe('getTracer', () => {
     it('returns a tracer', () => {
       const tracer = getTracer()

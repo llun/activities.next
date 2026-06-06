@@ -46,7 +46,7 @@ describe('createApplication', () => {
     await knexDatabase.destroy()
   })
 
-  test('it generates secret and create application in database and returns application response', async () => {
+  test('generates a secret, persists the application, and returns the application response', async () => {
     const response = (await createApplication(
       {
         redirect_uris: 'https://test.llun.dev/apps/redirect',
