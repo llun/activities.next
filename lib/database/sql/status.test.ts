@@ -2,6 +2,7 @@ import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
@@ -336,6 +337,8 @@ describe('StatusDatabase', () => {
           url: statuses.primary.post,
           text: 'This is Actor1 post',
           summary: '',
+          sensitive: false,
+          language: null,
           reply: '',
           replies: [],
           actorAnnounceStatusId: null,
@@ -1772,22 +1775,25 @@ describe('StatusDatabase', () => {
     })
 
     describe('getFavouritedBy', () => {
-      it('returns actors who favourited the status', async () => {
-        const actors = await database.getFavouritedBy({
-          statusId: statuses.primary.post
+      it('returns an empty page when no one favourited the status', async () => {
+        const favourites = await database.getFavouritedBy({
+          statusId: statuses.primary.post,
+          limit: 40
         })
-        expect(actors).toHaveLength(0)
+        expect(favourites).toHaveLength(0)
       })
 
-      it('returns actors who favourited the status', async () => {
-        const actors = await database.getFavouritedBy({
-          statusId: statuses.poll.status
+      it('returns the actors who favourited the status', async () => {
+        const favourites = await database.getFavouritedBy({
+          statusId: statuses.poll.status,
+          limit: 40
         })
-        expect(actors).toHaveLength(1)
-        expect(actors[0].id).toBe(replyAuthorId)
+        expect(favourites).toHaveLength(1)
+        expect(favourites[0].actorId).toBe(replyAuthorId)
+        expect(typeof favourites[0].createdAt).toBe('number')
       })
 
-      it('supports limit and offset pagination', async () => {
+      it('supports id-cursor pagination via max_id', async () => {
         const statusId = statuses.primary.post
         await database.createLike({ actorId: primaryActorId, statusId })
         await database.createLike({ actorId: replyAuthorId, statusId })
@@ -1797,20 +1803,61 @@ describe('StatusDatabase', () => {
           statusId,
           limit: 2
         })
+        expect(firstPage).toHaveLength(2)
+
+        const cursor = encodeFavouritedByCursor({
+          createdAt: firstPage[firstPage.length - 1].createdAt,
+          actorId: firstPage[firstPage.length - 1].actorId
+        })
         const secondPage = await database.getFavouritedBy({
           statusId,
           limit: 2,
-          offset: 2
+          maxId: cursor
         })
-
-        expect(firstPage).toHaveLength(2)
         expect(secondPage).toHaveLength(1)
 
-        const actorIds = [...firstPage, ...secondPage].map((item) => item.id)
+        const actorIds = [...firstPage, ...secondPage].map(
+          (item) => item.actorId
+        )
         expect(new Set(actorIds).size).toBe(3)
         expect(actorIds).toEqual(
           expect.arrayContaining([primaryActorId, replyAuthorId, pollAuthorId])
         )
+      })
+
+      it('returns an empty page for a malformed cursor', async () => {
+        const favourites = await database.getFavouritedBy({
+          statusId: statuses.poll.status,
+          limit: 40,
+          maxId: 'not-a-valid-cursor!!'
+        })
+        expect(favourites).toHaveLength(0)
+      })
+
+      it('pages newer favourites with min_id, distinct from max_id direction', async () => {
+        const statusId = statuses.primary.post
+        await database.createLike({ actorId: primaryActorId, statusId })
+        await database.createLike({ actorId: replyAuthorId, statusId })
+        await database.createLike({ actorId: pollAuthorId, statusId })
+
+        const ordered = await database.getFavouritedBy({ statusId, limit: 40 })
+        expect(ordered.length).toBeGreaterThanOrEqual(3)
+        const oldest = ordered[ordered.length - 1]
+
+        // min_id returns favourites strictly newer than the cursor (everything
+        // except the oldest), and never the cursor row itself.
+        const cursor = encodeFavouritedByCursor({
+          createdAt: oldest.createdAt,
+          actorId: oldest.actorId
+        })
+        const newer = await database.getFavouritedBy({
+          statusId,
+          limit: 40,
+          minId: cursor
+        })
+        const newerIds = newer.map((item) => item.actorId)
+        expect(newerIds).not.toContain(oldest.actorId)
+        expect(newerIds).toHaveLength(ordered.length - 1)
       })
     })
 

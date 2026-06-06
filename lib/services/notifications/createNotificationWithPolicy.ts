@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { resolveConversationRootId } from '@/lib/services/mastodon/conversationMute'
 import { evaluateNotificationPolicy } from '@/lib/services/notifications/evaluateNotificationPolicy'
 import {
   CreateNotificationParams,
@@ -18,6 +19,30 @@ export const createNotificationWithPolicy = async (
   database: Database,
   params: CreateNotificationParams
 ): Promise<Notification | null> => {
+  // Suppress notifications for conversations the recipient has muted. Only
+  // status-bound notifications (mention, reply, favourite, reblog, poll, …)
+  // belong to a conversation; account-level ones (e.g. follow) carry no
+  // statusId and are never suppressed here. Check the recipient's (usually
+  // empty) mute list first so the common case skips the thread-root walk.
+  if (params.statusId) {
+    const mutedRootIds = await database.getActorMutedConversationRootIds({
+      actorId: params.actorId
+    })
+    if (mutedRootIds.length > 0) {
+      const status = await database.getStatus({
+        statusId: params.statusId,
+        withReplies: false
+      })
+      if (status) {
+        const conversationRootId = await resolveConversationRootId(
+          database,
+          status
+        )
+        if (mutedRootIds.includes(conversationRootId)) return null
+      }
+    }
+  }
+
   const verdict = await evaluateNotificationPolicy(database, {
     actorId: params.actorId,
     type: params.type,

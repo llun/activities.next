@@ -14,6 +14,7 @@ import {
   FilterDatabase,
   FollowDatabase,
   FollowedTagDatabase,
+  IdempotencyDatabase,
   InstanceActivityDatabase,
   LikeDatabase,
   ListDatabase,
@@ -26,6 +27,7 @@ import {
   ReportDatabase,
   SearchDatabase,
   StatusDatabase,
+  StatusMuteDatabase,
   TimelineDatabase
 } from '@/lib/types/database/operations'
 
@@ -55,5 +57,7 @@ export type Database = AccountDatabase &
   ReportDatabase &
   SearchDatabase &
   StatusDatabase &
+  StatusMuteDatabase &
+  IdempotencyDatabase &
   TimelineDatabase &
   BaseDatabase

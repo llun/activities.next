@@ -7,10 +7,12 @@ const STATUS_STRING_FIELDS = [
   'status',
   'in_reply_to_id',
   'spoiler_text',
-  'visibility'
+  'visibility',
+  'language'
 ] as const
 
 const MEDIA_ID_FIELDS = ['media_ids', 'media_ids[]'] as const
+const POLL_OPTION_FIELDS = ['poll[options][]', 'poll[options]'] as const
 
 const collectStatusFields = (
   get: (name: string) => unknown,
@@ -23,6 +25,10 @@ const collectStatusFields = (
     if (typeof value === 'string') body[field] = value
   }
 
+  // `sensitive` is a boolean in JSON but arrives as a string in form bodies.
+  const sensitive = get('sensitive')
+  if (typeof sensitive === 'string') body.sensitive = sensitive
+
   const rawMediaIds = MEDIA_ID_FIELDS.flatMap((field) => getAll(field)).filter(
     (value): value is string => typeof value === 'string'
   )
@@ -34,6 +40,22 @@ const collectStatusFields = (
     body.media_ids = rawMediaIds
       .map((value) => value.trim())
       .filter((value) => value.length > 0)
+  }
+
+  // Reconstruct the nested `poll` object Mastodon form clients flatten into
+  // `poll[options][]`, `poll[expires_in]`, `poll[multiple]`, `poll[hide_totals]`.
+  const pollOptions = POLL_OPTION_FIELDS.flatMap((field) =>
+    getAll(field)
+  ).filter((value): value is string => typeof value === 'string')
+  if (pollOptions.length > 0) {
+    const poll: Record<string, unknown> = { options: pollOptions }
+    const expiresIn = get('poll[expires_in]')
+    if (typeof expiresIn === 'string') poll.expires_in = expiresIn
+    const multiple = get('poll[multiple]')
+    if (typeof multiple === 'string') poll.multiple = multiple
+    const hideTotals = get('poll[hide_totals]')
+    if (typeof hideTotals === 'string') poll.hide_totals = hideTotals
+    body.poll = poll
   }
 
   return body

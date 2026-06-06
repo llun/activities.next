@@ -1,5 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
 import { Mastodon } from '@/lib/types/activitypub'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
 import {
@@ -52,6 +53,12 @@ interface GetMastodonStatusOptions {
   statusMetricsCache?: StatusMetricsCache
   pollVoteCache?: PollVoteCache
   pinnedStatusIds?: Set<string>
+  // The set of thread-root status ids whose conversations the current actor has
+  // muted. An empty set means "no mutes", letting per-status checks short-circuit.
+  mutedConversationRootIds?: Set<string>
+  // Memoizes thread-root resolution (statusId → rootId) across a batch render so
+  // a thread's shared ancestors are walked once rather than once per status.
+  conversationRootCache?: Map<string, string>
 }
 
 const getMastodonAccount = (
@@ -284,6 +291,13 @@ export const getMastodonStatus = async (
       ? await getStatusReblogsCount(database, status.id, options)
       : 0
   const pinned = await isStatusPinned(database, status, currentActorId, options)
+  const muted = await isConversationMutedForActor(
+    database,
+    status,
+    currentActorId,
+    options?.mutedConversationRootIds,
+    options?.conversationRootCache
+  )
 
   const baseData = {
     id: urlToId(status.id),
@@ -307,7 +321,7 @@ export const getMastodonStatus = async (
 
     favourited: false,
     reblogged: false,
-    muted: false,
+    muted,
     bookmarked: isStatusBookmarked(status),
     ...(pinned === undefined ? {} : { pinned }),
 
@@ -361,11 +375,16 @@ export const getMastodonStatus = async (
   const emojis = getEmojisFromTags(status.tags)
   const hashtags = getHashtagsFromTags(status.tags, host)
 
-  const sensitive = Boolean(status.summary && status.summary.length > 0)
+  // Mastodon marks a status sensitive when it was explicitly flagged sensitive
+  // OR carries a content warning (spoiler/summary).
+  const sensitive =
+    (status.sensitive ?? false) ||
+    Boolean(status.summary && status.summary.length > 0)
   const mastodonStatus = {
     ...baseData,
     spoiler_text: status.summary ?? '',
     sensitive,
+    language: status.language ?? null,
     url: status.url,
 
     in_reply_to_id: replyStatus ? urlToId(replyStatus.id) : null,
@@ -461,7 +480,8 @@ export const getMastodonStatuses = async (
     replyCounts,
     replyStatuses,
     pollVotes,
-    pinnedStatusIds
+    pinnedStatusIds,
+    mutedConversationRootIds
   ] = await Promise.all([
     database.getMastodonActorsFromIds({
       ids: requestedActorIds
@@ -489,6 +509,9 @@ export const getMastodonStatuses = async (
           actorId: currentActorId,
           statusIds: requestedPinnedLookupStatusIds
         })
+      : Promise.resolve<string[]>([]),
+    currentActorId
+      ? database.getActorMutedConversationRootIds({ actorId: currentActorId })
       : Promise.resolve<string[]>([])
   ])
   const requestedActorIdSet = new Set(requestedActorIds)
@@ -516,6 +539,11 @@ export const getMastodonStatuses = async (
     ...inputOptions,
     pinnedStatusIds:
       inputOptions.pinnedStatusIds ?? new Set<string>(pinnedStatusIds),
+    mutedConversationRootIds:
+      inputOptions.mutedConversationRootIds ??
+      new Set<string>(mutedConversationRootIds),
+    conversationRootCache:
+      inputOptions.conversationRootCache ?? new Map<string, string>(),
     accountCache,
     statusMetricsCache: {
       reblogs: new Map(
