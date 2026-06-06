@@ -138,6 +138,9 @@ const renderPage = async () => {
 describe('Page visibility for logged-out visitors', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // clearAllMocks does not reset implementations; getStatus is only set by
+    // individual ancestor tests, so reset it to avoid leaking across tests.
+    mockGetStatus.mockReset()
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorFromSession.mockResolvedValue(null)
     mockGetStatusReplies.mockResolvedValue([])
@@ -279,6 +282,9 @@ describe('Page visibility for logged-out visitors', () => {
 describe('Page visibility for logged-in non-recipient viewers', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // clearAllMocks does not reset implementations; getStatus is only set by
+    // individual ancestor tests, so reset it to avoid leaking across tests.
+    mockGetStatus.mockReset()
     mockGetServerAuthSession.mockResolvedValue({} as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
     mockGetStatusReplies.mockResolvedValue([])
