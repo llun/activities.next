@@ -7,6 +7,7 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
+import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 import { Endorsement } from '@/lib/types/domain/endorsement'
 import {
   Filter,
@@ -586,6 +587,10 @@ export type CreateTagParams = {
 export type GetTagsParams = {
   statusId: string
 }
+export type DeleteStatusTagsByTypeParams = {
+  statusId: string
+  type: TagType
+}
 export type GetStatusesByHashtagParams = {
   hashtag: string
   limit?: number
@@ -692,6 +697,7 @@ export interface StatusDatabase {
   getRebloggedBy(params: GetRebloggedByParams): Promise<RebloggedByAccount[]>
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
+  deleteStatusTagsByType(params: DeleteStatusTagsByTypeParams): Promise<void>
   getStatusesByHashtag(params: GetStatusesByHashtagParams): Promise<Status[]>
   getHashtagStatusesPage(
     params: GetHashtagStatusesPageParams
@@ -2341,4 +2347,41 @@ export interface InstanceActivityDatabase {
 
 export type GetInstancePeersParams = {
   localDomain: string
+}
+
+// ============================================================================
+// Custom Emoji Database
+// ============================================================================
+
+export type CreateCustomEmojiParams = {
+  shortcode: string
+  url: string
+  staticUrl: string
+  category?: string | null
+  visibleInPicker?: boolean
+  disabled?: boolean
+}
+
+export type GetCustomEmojisParams = {
+  // When false (default) only enabled emoji are returned. The admin surface
+  // passes `true` to also list disabled emoji.
+  includeDisabled?: boolean
+}
+
+export type UpdateCustomEmojiParams = {
+  id: string
+  category?: string | null
+  visibleInPicker?: boolean
+  disabled?: boolean
+}
+
+export interface CustomEmojiDatabase {
+  createCustomEmoji(params: CreateCustomEmojiParams): Promise<CustomEmojiData>
+  getCustomEmojis(params?: GetCustomEmojisParams): Promise<CustomEmojiData[]>
+  getCustomEmojiById(id: string): Promise<CustomEmojiData | null>
+  getCustomEmojiByShortcode(shortcode: string): Promise<CustomEmojiData | null>
+  updateCustomEmoji(
+    params: UpdateCustomEmojiParams
+  ): Promise<CustomEmojiData | null>
+  deleteCustomEmoji(id: string): Promise<CustomEmojiData | null>
 }

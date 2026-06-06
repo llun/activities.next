@@ -10,7 +10,7 @@ import {
   getOriginalStatus,
   hasStatusBeenEdited
 } from '@/lib/types/domain/status'
-import { getMentionFromTag } from '@/lib/types/domain/tag'
+import { getEmojiFromTag, getMentionFromTag } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
@@ -40,10 +40,10 @@ export const getNoteFromStatus = (
     attachment: actualStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
       .map((attachment) => getDocumentFromAttachment(attachment)),
-    tag: actualStatus.tags
-      .filter((tag) => tag.type !== 'emoji')
-      .map((tag) => getMentionFromTag(tag))
-      .filter((tag) => tag !== null),
+    tag: [
+      ...actualStatus.tags.map((tag) => getMentionFromTag(tag)),
+      ...actualStatus.tags.map((tag) => getEmojiFromTag(tag))
+    ].filter((tag) => tag !== null),
     replies: {
       id: `${actualStatus.id}/replies`,
       type: 'Collection',

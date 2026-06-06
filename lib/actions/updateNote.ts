@@ -1,3 +1,4 @@
+import { persistEmojiTagsForStatus } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
@@ -56,6 +57,13 @@ export const updateNoteFromUserInput = async ({
   if (!updatedStatus) {
     span.end()
     return null
+  }
+
+  // Re-sync emoji tags when the text changes so newly added `:shortcode:`
+  // tokens federate and removed ones stop federating.
+  if (text !== undefined) {
+    await database.deleteStatusTagsByType({ statusId, type: 'emoji' })
+    await persistEmojiTagsForStatus({ database, statusId, text })
   }
 
   await addStatusToTimelines(database, updatedStatus)

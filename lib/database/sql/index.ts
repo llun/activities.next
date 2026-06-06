@@ -7,6 +7,7 @@ import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
 import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
 import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
+import { CustomEmojiSQLDatabaseMixin } from '@/lib/database/sql/customEmoji'
 import { EndorsementSQLDatabaseMixin } from '@/lib/database/sql/endorsement'
 import { FilterSQLDatabaseMixin } from '@/lib/database/sql/filter'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
@@ -43,6 +44,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const fitnessSettingsDatabase = FitnessSettingsSQLDatabaseMixin(database)
   const bookmarkDatabase = BookmarkSQLDatabaseMixin(database)
   const blockDatabase = BlockSQLDatabaseMixin(database)
+  const customEmojiDatabase = CustomEmojiSQLDatabaseMixin(database)
   const markerDatabase = MarkerSQLDatabaseMixin(database)
   const muteDatabase = MuteSQLDatabaseMixin(database)
   const endorsementDatabase = EndorsementSQLDatabaseMixin(database)
@@ -98,6 +100,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...instanceActivityDatabase,
     ...bookmarkDatabase,
     ...blockDatabase,
+    ...customEmojiDatabase,
     ...markerDatabase,
     ...muteDatabase,
     ...endorsementDatabase,

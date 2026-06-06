@@ -4,6 +4,7 @@ import {
   getExplicitMentions,
   getMentionTagsForStatus,
   getVisibilityFromReplyStatus,
+  persistEmojiTagsForStatus,
   statusRecipientsCC,
   statusRecipientsTo
 } from '@/lib/actions/createNote'
@@ -126,6 +127,8 @@ export const createPollFromUserInput = async ({
       })
     )
   ])
+
+  await persistEmojiTagsForStatus({ database, statusId, text })
 
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) {
