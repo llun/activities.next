@@ -134,20 +134,28 @@ export const POST = traceApiRoute(
         visibleInPicker: parsed.data.visible_in_picker ?? true
       })
     } catch (error) {
-      // The shortcode unique constraint can still fire if a concurrent request
-      // inserted the same shortcode after the pre-check above. Map it to 422 and
-      // best-effort remove the just-saved (now orphaned) media file.
+      // Insert can still fail if a concurrent request inserted the same
+      // shortcode after the pre-check above (unique constraint), or for an
+      // unrelated DB error. In both cases the just-saved media is now orphaned,
+      // so remove it best-effort. Re-query to tell a genuine duplicate (→ 422)
+      // apart from a transient error (→ 500) instead of always blaming the
+      // shortcode.
       await deleteSavedMedia(database, saved.url)
       logger.warn({
         message: 'Failed to create custom emoji after media upload',
         shortcode: parsed.data.shortcode,
         error
       })
+      const duplicate = await database
+        .getCustomEmojiByShortcode(parsed.data.shortcode)
+        .catch(() => null)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Shortcode already exists' },
-        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        data: duplicate ? { error: 'Shortcode already exists' } : ERROR_500,
+        responseStatusCode: duplicate
+          ? HTTP_STATUS.UNPROCESSABLE_ENTITY
+          : HTTP_STATUS.INTERNAL_SERVER_ERROR
       })
     }
 
