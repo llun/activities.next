@@ -1,0 +1,21 @@
+lib/components/admin/CustomEmojiManager.tsx
+  s_f1f719bc7af0b8::t_b0f3dd8194f3cb 4
+  s_f1f719bc7af0b8::t_73252aa740d20b 139,141-142
+  s_f1f719bc7af0b8::t_6fa1950ccdd6f5 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "d3c0f110afe41c7adfedb2d597ad7b929244d8ce",
+  "prompts": {},
+  "sessions": {
+    "s_f1f719bc7af0b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c5dd695-69d9-404a-93b2-62c2cc8d6ef2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
