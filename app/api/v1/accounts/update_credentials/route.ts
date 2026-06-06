@@ -175,23 +175,27 @@ export const PATCH = traceApiRoute(
         parsed.data
 
       // Persist avatar/header through the shared media-save pipeline and store
-      // the resulting URLs as actor settings. If storage is unconfigured
-      // saveMedia returns null and the existing image is kept.
+      // the resulting URLs as actor settings. An invalid file (wrong type/too
+      // large) is a 422; a valid file with no storage configured leaves the
+      // existing image unchanged (saveMedia returns null).
       let iconUrl: string | undefined
       let headerImageUrl: string | undefined
-      if (avatarFile) {
-        const media = MediaSchema.safeParse({ file: avatarFile })
-        if (media.success) {
-          const saved = await saveMedia(database, currentActor, media.data)
-          if (saved) iconUrl = saved.url
+      for (const [file, assign] of [
+        [avatarFile, (url: string) => (iconUrl = url)],
+        [headerFile, (url: string) => (headerImageUrl = url)]
+      ] as const) {
+        if (!file) continue
+        const media = MediaSchema.safeParse({ file })
+        if (!media.success) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: 'Invalid image file' },
+            responseStatusCode: 422
+          })
         }
-      }
-      if (headerFile) {
-        const media = MediaSchema.safeParse({ file: headerFile })
-        if (media.success) {
-          const saved = await saveMedia(database, currentActor, media.data)
-          if (saved) headerImageUrl = saved.url
-        }
+        const saved = await saveMedia(database, currentActor, media.data)
+        if (saved) assign(saved.url)
       }
 
       const manuallyApprovesFollowers = parseBoolean(locked)

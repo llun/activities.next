@@ -963,13 +963,17 @@ export type GetFollowingParams = {
   actorId: string
   limit: number
   maxId?: string | null
+  // min_id and since_id are ordered differently: min_id returns the oldest band
+  // immediately after the cursor, since_id the newest band above it.
   minId?: string | null
+  sinceId?: string | null
 }
 export type GetFollowersParams = {
   targetActorId: string
   limit: number
   maxId?: string | null
   minId?: string | null
+  sinceId?: string | null
 }
 export type GetFollowRequestsParams = {
   targetActorId: string

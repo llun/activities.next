@@ -378,55 +378,56 @@ export const FollowerSQLDatabaseMixin = (
   },
 
   // New method to get the follows with pagination
-  async getFollowing({ actorId, limit, maxId, minId }: GetFollowingParams) {
+  async getFollowing({
+    actorId,
+    limit,
+    maxId,
+    minId,
+    sinceId
+  }: GetFollowingParams) {
     const query = database('follows')
       .where('actorId', actorId)
       .andWhere('status', FollowStatus.enum.Accepted)
-      .orderBy('id', 'desc')
       .limit(limit)
 
-    if (maxId) {
-      query.where('id', '<', maxId)
-    }
+    if (maxId) query.where('id', '<', maxId)
+    if (minId) query.where('id', '>', minId)
+    if (sinceId) query.where('id', '>', sinceId)
 
+    // min_id returns the OLDEST band immediately after the cursor (ascending),
+    // presented newest-first; max_id/since_id/none return the newest band.
     if (minId) {
-      query.where('id', '>', minId)
+      const follows = await query.orderBy('id', 'asc')
+      return follows.reverse().map(fixFollowDataDate)
     }
-
-    const follows = await query
-
-    // If using minId, we need to reverse the results to maintain chronological order
-    const orderedFollows = minId ? [...follows].reverse() : follows
-
-    return orderedFollows.map(fixFollowDataDate)
+    const follows = await query.orderBy('id', 'desc')
+    return follows.map(fixFollowDataDate)
   },
 
   async getFollowers({
     targetActorId,
     limit,
     maxId,
-    minId
+    minId,
+    sinceId
   }: GetFollowersParams) {
     const query = database('follows')
       .where('targetActorId', targetActorId)
       .andWhere('status', FollowStatus.enum.Accepted)
-      .orderBy('id', 'desc')
       .limit(limit)
 
-    if (maxId) {
-      query.where('id', '<', maxId)
-    }
+    if (maxId) query.where('id', '<', maxId)
+    if (minId) query.where('id', '>', minId)
+    if (sinceId) query.where('id', '>', sinceId)
 
+    // min_id returns the OLDEST band immediately after the cursor (ascending),
+    // presented newest-first; max_id/since_id/none return the newest band.
     if (minId) {
-      query.where('id', '>', minId)
+      const follows = await query.orderBy('id', 'asc')
+      return follows.reverse().map(fixFollowDataDate)
     }
-
-    const follows = await query
-
-    // If using minId, we need to reverse the results to maintain chronological order
-    const orderedFollows = minId ? [...follows].reverse() : follows
-
-    return orderedFollows.map(fixFollowDataDate)
+    const follows = await query.orderBy('id', 'desc')
+    return follows.map(fixFollowDataDate)
   },
 
   async getFollowRequests({

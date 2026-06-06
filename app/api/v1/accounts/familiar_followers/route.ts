@@ -47,13 +47,14 @@ export const GET = traceApiRoute(
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
-      const results = await Promise.all(
+      // First resolve each target's familiar-follower ids (the accounts the
+      // current user follows that also follow the target). Per-target scans run
+      // in parallel and are bounded by the dedupe+cap above.
+      const perTarget = await Promise.all(
         encodedIds.map(async (encodedId) => {
           const targetActorId = idToUrl(encodedId)
           const target = await database.getActorFromId({ id: targetActorId })
-          if (!target) {
-            return { id: encodedId, accounts: [] }
-          }
+          if (!target) return { id: encodedId, familiarIds: [] as string[] }
 
           // The target's followers (accounts whose `actorId` follows target)...
           const followers = await database.getFollowers({
@@ -73,14 +74,26 @@ export const GET = traceApiRoute(
                 })
               : []
 
-          const accounts =
-            familiarIds.length > 0
-              ? await database.getMastodonActorsFromIds({ ids: familiarIds })
-              : []
-
-          return { id: urlToId(target.id), accounts }
+          return { id: urlToId(target.id), familiarIds }
         })
       )
+
+      // Hydrate every familiar account across all targets in a single batch.
+      const uniqueIds = [...new Set(perTarget.flatMap((t) => t.familiarIds))]
+      const accountsById = new Map(
+        (await database.getMastodonActorsFromIds({ ids: uniqueIds })).map(
+          (account) => [account.url, account]
+        )
+      )
+
+      const results = perTarget.map((target) => ({
+        id: target.id,
+        accounts: target.familiarIds
+          .map((id) => accountsById.get(id))
+          .filter((account): account is NonNullable<typeof account> =>
+            Boolean(account)
+          )
+      }))
 
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: results })
     },

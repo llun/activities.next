@@ -120,6 +120,32 @@ describe('EndorsementSQLDatabaseMixin', () => {
     expect(bySinceId.map((e) => e.id)).toEqual([e3.id])
   })
 
+  it('removes endorsements (both directions) when an actor is deleted', async () => {
+    await database.createEndorsement({
+      actorId: ACTOR3_ID,
+      targetActorId: ACTOR4_ID
+    })
+    await database.createEndorsement({
+      actorId: ACTOR4_ID,
+      targetActorId: ACTOR1_ID
+    })
+
+    await database.deleteActorData({ actorId: ACTOR4_ID })
+
+    expect(
+      await database.getEndorsement({
+        actorId: ACTOR3_ID,
+        targetActorId: ACTOR4_ID
+      })
+    ).toBeNull()
+    expect(
+      await database.getEndorsement({
+        actorId: ACTOR4_ID,
+        targetActorId: ACTOR1_ID
+      })
+    ).toBeNull()
+  })
+
   it('deletes an endorsement', async () => {
     await database.createEndorsement({
       actorId: ACTOR2_ID,

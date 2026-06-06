@@ -1471,6 +1471,10 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await trx('follows').where('actorId', actorId).delete()
       await trx('follows').where('targetActorId', actorId).delete()
 
+      // Delete endorsements (both as endorser and endorsed)
+      await trx('endorsements').where('actorId', actorId).delete()
+      await trx('endorsements').where('targetActorId', actorId).delete()
+
       const blocks = await trx('blocks')
         .where('actorId', actorId)
         .orWhere('targetActorId', actorId)

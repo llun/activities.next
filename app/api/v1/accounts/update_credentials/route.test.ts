@@ -324,6 +324,27 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('rejects an avatar file that fails media validation with 422', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    // text/plain is not an accepted media type, so MediaSchema rejects it.
+    form.set(
+      'avatar',
+      new Blob(['not-an-image'], { type: 'text/plain' }),
+      'a.txt'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(saveMediaMock).not.toHaveBeenCalled()
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
   it('rejects more than four profile fields with 422', async () => {
     const updateActor = jest.spyOn(database, 'updateActor')
     const form = new FormData()

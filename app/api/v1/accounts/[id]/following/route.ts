@@ -82,18 +82,16 @@ export const GET = traceApiRoute(
         min_id: minId,
         since_id: sinceId
       } = parsed.data
-      // Use truthiness (not ??) so an empty `?min_id=` falls through to sinceId.
-      const forwardCursor = minId || sinceId
 
-      const follows = await database.getFollowing({
+      // getFollowing applies the correct ordering per cursor and always returns
+      // newest-first; the cursor is the follow-row id.
+      const orderedFollows = await database.getFollowing({
         actorId: id,
         limit,
         maxId,
-        minId: forwardCursor
+        minId,
+        sinceId
       })
-      // getFollowing returns ascending order when a forward cursor is used;
-      // normalize to newest-first so the Link cursors are consistent.
-      const orderedFollows = forwardCursor ? [...follows].reverse() : follows
 
       // Batch-hydrate the followed accounts in a single query, then re-order to
       // match orderedFollows (getMastodonActorsFromIds does not guarantee order).
