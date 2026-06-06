@@ -301,13 +301,63 @@ describe('AuthorizeCard', () => {
         screen.getByRole('button', { name: 'Denying...' })
       ).toBeInTheDocument()
     })
-    // The approve button keeps its label and never shows the denial state.
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+    // The approve button keeps its label, never shows the denial state, and is
+    // disabled while the denial is in flight.
+    const approveButton = screen.getByRole('button', { name: 'Approve' })
+    expect(approveButton).toBeInTheDocument()
+    expect(approveButton).toBeDisabled()
 
     resolveFetch({
       ok: true,
       json: async () => ({
         url: 'https://phanpy.local/?error=access_denied&state=return-state'
+      })
+    })
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+  })
+
+  it('shows an approving label on the approve button only while approval is in flight', async () => {
+    let resolveFetch: (value: unknown) => void = () => {}
+    ;(global.fetch as jest.Mock)
+      // persistSelectedActor() posts to /api/v1/actors/switch first.
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+      // The consent request stays pending so the loading label is observable.
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFetch = resolve
+        })
+      )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Approving...' })
+      ).toBeInTheDocument()
+    })
+    // The deny button keeps its label and is disabled while approval is in
+    // flight.
+    const denyButton = screen.getByRole('button', { name: 'Deny' })
+    expect(denyButton).toBeInTheDocument()
+    expect(denyButton).toBeDisabled()
+
+    resolveFetch({
+      ok: true,
+      json: async () => ({
+        url: 'https://phanpy.local/?code=auth-code&state=return-state'
       })
     })
 
