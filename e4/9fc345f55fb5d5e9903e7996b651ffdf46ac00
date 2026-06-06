@@ -1,0 +1,19 @@
+app/api/v1/admin/custom_emojis/route.ts
+  s_f1f719bc7af0b8::t_49e71a6f9888b5 137-142,149-151,155-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e49fc345f55fb5d5e9903e7996b651ffdf46ac00",
+  "prompts": {},
+  "sessions": {
+    "s_f1f719bc7af0b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c5dd695-69d9-404a-93b2-62c2cc8d6ef2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
