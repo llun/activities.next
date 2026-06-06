@@ -2471,6 +2471,9 @@ export const StatusSQLDatabaseMixin = (
                 : null),
               ...(fitnessFile.deviceName
                 ? { deviceName: fitnessFile.deviceName }
+                : null),
+              ...(fitnessFile.sourceUrl
+                ? { sourceUrl: fitnessFile.sourceUrl }
                 : null)
             }
           }

@@ -21,6 +21,7 @@ import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
+import { getStravaActivityUrl } from '@/lib/services/strava/activity'
 import {
   StravaArchiveActivity,
   StravaArchiveLimitError,
@@ -773,7 +774,9 @@ export const importStravaArchiveJob = createJobHandle(
             importBatchId: batchId,
             description:
               archiveActivity.activityDescription ||
-              archiveActivity.activityName
+              archiveActivity.activityName,
+            sourceUrl:
+              getStravaActivityUrl(archiveActivity.activityId) ?? undefined
           })
           if (!savedFitnessFile) {
             throw new Error('Failed to save imported fitness file from archive')
