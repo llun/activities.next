@@ -86,6 +86,7 @@ export const POST = traceApiRoute(
         blocked_by: false,
         muting: false,
         muting_notifications: false,
+        muting_expires_at: null,
         requested: false,
         requested_by: false,
         domain_blocking: false,

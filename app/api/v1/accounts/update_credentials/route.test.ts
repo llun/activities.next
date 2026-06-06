@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { saveMedia } from '@/lib/services/medias'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { PATCH } from './route'
+
+jest.mock('@/lib/services/medias', () => ({ saveMedia: jest.fn() }))
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -115,7 +118,10 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(response.status).toBe(200)
   })
 
-  it('accepts avatar file part and ignores it, updating only text fields', async () => {
+  it('keeps the existing image when media storage returns nothing', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    // Unconfigured storage: saveMedia yields nothing, so no icon/header URL.
+    saveMediaMock.mockResolvedValue(null)
     const updateActor = jest.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('display_name', 'With Avatar')
@@ -279,6 +285,151 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       expect.objectContaining({
         actorId: ACTOR1_ID,
         manuallyApprovesFollowers: false
+      })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('uploads avatar/header via the media-save path and stores the URLs', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    saveMediaMock
+      .mockResolvedValueOnce({ url: 'https://llun.test/media/avatar.png' })
+      .mockResolvedValueOnce({ url: 'https://llun.test/media/header.png' })
+    const updateActor = jest.spyOn(database, 'updateActor')
+
+    const form = new FormData()
+    form.set(
+      'avatar',
+      new Blob(['avatar-bytes'], { type: 'image/png' }),
+      'avatar.png'
+    )
+    form.set(
+      'header',
+      new Blob(['header-bytes'], { type: 'image/png' }),
+      'header.png'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(saveMediaMock).toHaveBeenCalledTimes(2)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        iconUrl: 'https://llun.test/media/avatar.png',
+        headerImageUrl: 'https://llun.test/media/header.png'
+      })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('rejects an avatar file that fails media validation with 422', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    // text/plain is not an accepted media type, so MediaSchema rejects it.
+    form.set(
+      'avatar',
+      new Blob(['not-an-image'], { type: 'text/plain' }),
+      'a.txt'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(saveMediaMock).not.toHaveBeenCalled()
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
+  it('rejects more than four profile fields with 422', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    for (let i = 0; i < 5; i += 1) {
+      form.set(`fields_attributes[${i}][name]`, `n${i}`)
+      form.set(`fields_attributes[${i}][value]`, `v${i}`)
+    }
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
+  it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('fields_attributes[0][name]', 'Website')
+    form.set('fields_attributes[0][value]', 'https://example.com')
+    form.set('fields_attributes[1][name]', 'Pronouns')
+    form.set('fields_attributes[1][value]', 'they/them')
+    form.set('bot', 'true')
+    form.set('discoverable', 'false')
+    form.set('source[privacy]', 'private')
+    form.set('source[sensitive]', 'true')
+    form.set('source[language]', 'th')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        fields: [
+          { name: 'Website', value: 'https://example.com' },
+          { name: 'Pronouns', value: 'they/them' }
+        ],
+        bot: true,
+        discoverable: false,
+        defaultPrivacy: 'private',
+        defaultSensitive: true,
+        defaultLanguage: 'th'
+      })
+    )
+
+    const data = await response.json()
+    // CredentialAccount carries a role and the reflected fields/source.
+    expect(data.role).toEqual(
+      expect.objectContaining({ id: expect.any(String) })
+    )
+    expect(data.fields).toEqual([
+      { name: 'Website', value: 'https://example.com', verified_at: null },
+      { name: 'Pronouns', value: 'they/them', verified_at: null }
+    ])
+    expect(data.source.privacy).toBe('private')
+    updateActor.mockRestore()
+  })
+
+  it('accepts fields_attributes via a JSON body', async () => {
+    const updateActor = jest.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          fields_attributes: [{ name: 'Site', value: 'https://a.test' }]
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: [{ name: 'Site', value: 'https://a.test' }]
       })
     )
     updateActor.mockRestore()
