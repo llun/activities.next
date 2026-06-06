@@ -146,7 +146,7 @@ describe('Status', () => {
     })
   })
 
-  describe('toObject', () => {
+  describe('toActivityPubObject', () => {
     let actor1: Actor | undefined
     let actor2: Actor | undefined
 

@@ -55,7 +55,7 @@ describe('Actor', () => {
     })
   })
 
-  describe('getMentionFromActorURL', () => {
+  describe('getMentionFromActorID', () => {
     it('returns mention from actor url', () => {
       expect(getMentionFromActorID('https://chat.llun.me/me')).toEqual('@me')
     })
