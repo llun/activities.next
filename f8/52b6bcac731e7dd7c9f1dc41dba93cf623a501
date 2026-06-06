@@ -1,0 +1,31 @@
+lib/types/domain/status.ts
+  s_f1f719bc7af0b8::t_b0c07b4336f838 299-301
+  s_f1f719bc7af0b8::t_43c912bf5a3613 358-360
+lib/components/admin/CustomEmojiManager.tsx
+  s_f1f719bc7af0b8::t_d4be4b0cb71bf8 155
+  s_f1f719bc7af0b8::t_c6157c8123af4e 4
+  s_f1f719bc7af0b8::t_3aaed67861cbaa 38-45
+lib/components/post-box/post-box.tsx
+  s_f1f719bc7af0b8::t_f12f14e783f0f3 348-360
+lib/utils/getNoteFromStatus.ts
+  s_f1f719bc7af0b8::t_b0628b89a6ff58 43-45
+lib/components/post-box/emoji-picker-button.tsx
+  s_f1f719bc7af0b8::t_99e7cce5018676 200
+  s_f1f719bc7af0b8::t_5eda04109505ad 243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f852b6bcac731e7dd7c9f1dc41dba93cf623a501",
+  "prompts": {},
+  "sessions": {
+    "s_f1f719bc7af0b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c5dd695-69d9-404a-93b2-62c2cc8d6ef2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
