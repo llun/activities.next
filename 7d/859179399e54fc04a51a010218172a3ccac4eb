@@ -1,0 +1,37 @@
+lib/database/sql/endorsement.test.ts
+  s_0a6bffb392e5bb::t_82958e03d11880 123-148
+app/api/v1/accounts/[id]/followers/route.ts
+  s_0a6bffb392e5bb::t_e51a0f6ddc0fbb 86-88,92-93
+lib/types/database/operations.ts
+  s_0a6bffb392e5bb::t_3de7639abd1d35 966-967,969,976
+app/api/v1/accounts/[id]/following/route.ts
+  s_0a6bffb392e5bb::t_682b835da2a11b 86-88,92-93
+lib/database/sql/actor.ts
+  s_0a6bffb392e5bb::t_4679e1cfe11bd7 1474-1477
+app/api/v1/accounts/familiar_followers/route.ts
+  s_0a6bffb392e5bb::t_82b48094355acd 84-86
+  s_0a6bffb392e5bb::t_f41df5cac82b25 50-53,57,77,81-83,87-96
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_0a6bffb392e5bb::t_82b48094355acd 332-336
+  s_0a6bffb392e5bb::t_3d328c565c8cd7 327-331,337-347
+app/api/v1/accounts/update_credentials/route.ts
+  s_0a6bffb392e5bb::t_e77dbe386db4b2 178-180,183-195,197-198
+lib/database/sql/follow.ts
+  s_0a6bffb392e5bb::t_b2b86c48d10097 381-387,393-395,397-398,400-401,403-404,411-412,419-421,423-424,426-427,429-430
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "7d859179399e54fc04a51a010218172a3ccac4eb",
+  "prompts": {},
+  "sessions": {
+    "s_0a6bffb392e5bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f33db19d-86be-4aa2-83f5-fbcf68e3d44c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
