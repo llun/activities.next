@@ -19,6 +19,14 @@ export const useLoadMoreOnVisible = ({
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const [isLoadMoreVisible, setIsLoadMoreVisible] = useState(false)
 
+  // Keep the latest callback in a ref so the observer is created only when
+  // `enabled` changes — not on every render when a caller passes an
+  // unmemoized onLoadMore.
+  const onLoadMoreRef = useRef(onLoadMore)
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore
+  }, [onLoadMore])
+
   useEffect(() => {
     if (!enabled) return
 
@@ -31,7 +39,7 @@ export const useLoadMoreOnVisible = ({
         setIsLoadMoreVisible(entry.isIntersecting)
 
         if (entry.isIntersecting) {
-          onLoadMore()
+          onLoadMoreRef.current()
         }
       },
       {
@@ -46,7 +54,7 @@ export const useLoadMoreOnVisible = ({
     return () => {
       observer.disconnect()
     }
-  }, [enabled, onLoadMore])
+  }, [enabled])
 
   return { loadMoreRef, isLoadMoreVisible }
 }
