@@ -1,0 +1,23 @@
+lib/services/translation/httpClient.test.ts
+  s_bccef2ddac8769::t_eed5b6b12b2b91 62-79
+lib/services/translation/httpClient.ts
+  s_bccef2ddac8769::t_b863ff79add865 24-26
+lib/services/translation/translateStatus.ts
+  s_bccef2ddac8769::t_cddd57a26bdd21 153-155,166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "54a122d57087e3fc058621363dec651a3045a9de",
+  "prompts": {},
+  "sessions": {
+    "s_bccef2ddac8769": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9075253d-6c2a-4513-a48e-8142382dc03a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
