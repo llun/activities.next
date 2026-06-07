@@ -180,4 +180,19 @@ describe('POST /api/v2/media', () => {
     expect(response.status).toBe(422)
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
+
+  it('returns 500 when saving throws an unexpected internal error', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'write:media'
+    })
+    mockSaveMedia.mockRejectedValue(new Error('storage unavailable'))
+
+    const response = await POST(postRequest('write-media-token'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(500)
+  })
 })

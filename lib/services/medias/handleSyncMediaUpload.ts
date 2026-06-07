@@ -6,7 +6,7 @@ import { MediaSchema } from '@/lib/services/medias/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
-import { ERROR_422, apiResponse } from '@/lib/utils/response'
+import { ERROR_422, ERROR_500, apiResponse } from '@/lib/utils/response'
 
 // Shared handler for the two synchronous upload endpoints (POST /api/v1/media
 // and POST /api/v2/media). Both accept the same params (file, thumbnail,
@@ -48,13 +48,17 @@ export const handleSyncMediaUpload = async (
       data: response
     })
   } catch (e) {
+    // Input validation already returned 422 above (safeParse) and an
+    // unsupported/empty result returns 422 too. Anything that *throws* here is
+    // an unexpected internal/processing failure, so report 500 (matching the
+    // presigned route and Mastodon's 500 "processing failure").
     const nodeErr = e as NodeJS.ErrnoException
     logger.error(nodeErr)
     return apiResponse({
       req,
       allowedMethods: corsHeaders,
-      data: ERROR_422,
-      responseStatusCode: 422
+      data: ERROR_500,
+      responseStatusCode: 500
     })
   }
 }
