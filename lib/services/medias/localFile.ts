@@ -152,13 +152,15 @@ export class LocalFileStorage implements MediaStorage {
       },
       ...(thumbnail
         ? {
+            // Use the resized WebP's actual size/dimensions (outputInfo), not
+            // the input image's metadata.
             thumbnail: {
               path: thumbnail.path,
-              bytes: thumbnail.metaData.size ?? 0,
-              mimeType: `image/${thumbnail.metaData.format ?? 'jpg'}`,
+              bytes: thumbnail.outputInfo.size,
+              mimeType: 'image/webp',
               metaData: {
-                width: thumbnail.metaData.width ?? 0,
-                height: thumbnail.metaData.height ?? 0
+                width: thumbnail.outputInfo.width,
+                height: thumbnail.outputInfo.height
               }
             }
           }

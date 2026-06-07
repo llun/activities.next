@@ -276,8 +276,28 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   }
 
   // Remove the previous thumbnail file once the replacement is persisted.
+  // Best-effort: a storage hiccup here must not fail an update that already
+  // committed to the database.
   if (thumbnail && oldThumbnailPath && oldThumbnailPath !== thumbnail.path) {
-    await deleteMediaFile(database, oldThumbnailPath)
+    try {
+      const removed = await deleteMediaFile(database, oldThumbnailPath)
+      if (!removed) {
+        logger.warn({
+          message: 'Failed to delete replaced thumbnail file',
+          filePath: oldThumbnailPath,
+          mediaId: id,
+          accountId: account.id
+        })
+      }
+    } catch (error) {
+      logger.warn({
+        message: 'Error deleting replaced thumbnail file',
+        filePath: oldThumbnailPath,
+        mediaId: id,
+        accountId: account.id,
+        error: (error as Error).message
+      })
+    }
   }
 
   logger.info({

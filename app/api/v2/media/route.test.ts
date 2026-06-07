@@ -181,6 +181,29 @@ describe('POST /api/v2/media', () => {
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
 
+  it('returns 422 for a malformed multipart body', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'write:media'
+    })
+
+    const req = new NextRequest('https://llun.test/api/v2/media', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer write-media-token' }
+    })
+    // A malformed multipart body makes formData() throw — a client error (422),
+    // not an internal failure (500).
+    Object.defineProperty(req, 'formData', {
+      value: jest.fn().mockRejectedValue(new Error('Could not parse content'))
+    })
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(422)
+    expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
+
   it('returns 500 when saving throws an unexpected internal error', async () => {
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),

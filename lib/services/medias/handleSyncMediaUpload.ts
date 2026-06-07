@@ -20,19 +20,33 @@ export const handleSyncMediaUpload = async (
   context: { database: Database; currentActor: Actor },
   corsHeaders: HttpMethod[]
 ) => {
-  try {
-    const { database, currentActor } = context
-    const form = await req.formData()
-    const media = MediaSchema.safeParse(Object.fromEntries(form.entries()))
-    if (!media.success) {
-      return apiResponse({
-        req,
-        allowedMethods: corsHeaders,
-        data: ERROR_422,
-        responseStatusCode: 422
-      })
-    }
+  const { database, currentActor } = context
 
+  // A malformed multipart body is a client error (422), so parse it separately
+  // from the upload work below — only genuine processing failures map to 500.
+  let form: FormData
+  try {
+    form = await req.formData()
+  } catch {
+    return apiResponse({
+      req,
+      allowedMethods: corsHeaders,
+      data: ERROR_422,
+      responseStatusCode: 422
+    })
+  }
+
+  const media = MediaSchema.safeParse(Object.fromEntries(form.entries()))
+  if (!media.success) {
+    return apiResponse({
+      req,
+      allowedMethods: corsHeaders,
+      data: ERROR_422,
+      responseStatusCode: 422
+    })
+  }
+
+  try {
     const response = await saveMedia(database, currentActor, media.data)
     if (!response) {
       return apiResponse({
@@ -48,10 +62,9 @@ export const handleSyncMediaUpload = async (
       data: response
     })
   } catch (e) {
-    // Input validation already returned 422 above (safeParse) and an
-    // unsupported/empty result returns 422 too. Anything that *throws* here is
-    // an unexpected internal/processing failure, so report 500 (matching the
-    // presigned route and Mastodon's 500 "processing failure").
+    // The request was well-formed and valid; a throw here is an unexpected
+    // internal/processing failure → 500 (matching the presigned route and
+    // Mastodon's 500 "processing failure").
     const nodeErr = e as NodeJS.ErrnoException
     logger.error(nodeErr)
     return apiResponse({

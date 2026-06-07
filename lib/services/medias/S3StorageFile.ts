@@ -398,11 +398,11 @@ export class S3FileStorage implements MediaStorage {
         currentTime,
         file
       )
-      const thumbnail = await this._uploadImageBufferToS3(
-        currentTime,
-        previewImage,
-        true
-      )
+      // Video preview extraction can fail (no decodable frame); only build a
+      // thumbnail when we actually have a preview image to avoid sharp(null).
+      const thumbnail = previewImage
+        ? await this._uploadImageBufferToS3(currentTime, previewImage, true)
+        : null
       const storedMedia = await this._database.createMedia({
         actorId: actor.id,
         original: {
@@ -415,15 +415,20 @@ export class S3FileStorage implements MediaStorage {
           },
           fileName: file.name
         },
-        thumbnail: {
-          path: thumbnail.path,
-          bytes: thumbnail.metaData.size ?? 0,
-          mimeType: `image/${thumbnail.metaData.format ?? 'jpg'}`,
-          metaData: {
-            width: thumbnail.metaData.width ?? 0,
-            height: thumbnail.metaData.height ?? 0
-          }
-        },
+        ...(thumbnail
+          ? {
+              // Use the resized WebP's actual size/dimensions (outputInfo).
+              thumbnail: {
+                path: thumbnail.path,
+                bytes: thumbnail.outputInfo.size,
+                mimeType: 'image/webp',
+                metaData: {
+                  width: thumbnail.outputInfo.width,
+                  height: thumbnail.outputInfo.height
+                }
+              }
+            }
+          : null),
         ...(media.description ? { description: media.description } : null),
         ...(media.focus ? { focus: media.focus } : null)
       })
@@ -518,17 +523,22 @@ export class S3FileStorage implements MediaStorage {
     const s3client = this._client
 
     const fd = await fs.open(tempFilePath, 'r')
-    const stream = fd.createReadStream()
-    const command = new PutObjectCommand({
-      Bucket: bucket,
-      Key: path,
-      ContentType: contentType,
-      Body: stream
-    })
-    await s3client.send(command)
-    stream.close()
-    fd.close()
-    await fs.unlink(tempFilePath)
+    try {
+      const stream = fd.createReadStream()
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: path,
+        ContentType: contentType,
+        Body: stream
+      })
+      await s3client.send(command)
+      stream.close()
+    } finally {
+      // Always release the descriptor and remove the temp file, even if the S3
+      // upload throws, to avoid fd/disk leaks.
+      await fd.close()
+      await fs.unlink(tempFilePath).catch(() => undefined)
+    }
     return { image: resizedImage, metaData, outputInfo, path, contentType }
   }
 
