@@ -1,0 +1,33 @@
+app/api/v2/media/route.test.ts
+  s_b2ba64b393874e::t_ddaa74dac04340 4
+  s_b2ba64b393874e::t_d7d1807771bf26 208-224
+lib/services/medias/handleSyncMediaUpload.ts
+  s_b2ba64b393874e::t_20060fad87005b 5
+  s_b2ba64b393874e::t_8a825f4237f84d 66-76
+lib/services/medias/S3StorageFile.ts
+  s_b2ba64b393874e::t_7eea45fc605d4c 392
+  s_b2ba64b393874e::t_447a8762ba0ee1 24
+  s_b2ba64b393874e::t_fae59d7d23fd95 566
+lib/services/medias/localFile.ts
+  s_b2ba64b393874e::t_05267fe8efaf78 249
+  s_b2ba64b393874e::t_41fd35a9e71e31 14
+  s_b2ba64b393874e::t_e4f62061465d6b 129
+lib/services/medias/errors.ts
+  s_b2ba64b393874e::t_77b9907c952277 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8e3eb79cb887cac06c6cd09f0f941f95fbe6bc80",
+  "prompts": {},
+  "sessions": {
+    "s_b2ba64b393874e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d80f81f-e6d6-4139-b9cb-5588f9be4b60",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
