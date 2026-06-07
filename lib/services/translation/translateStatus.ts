@@ -150,8 +150,9 @@ export const translateStatus = async ({
     // smuggle dangerous markup (e.g. javascript: URLs) past the original
     // sanitizer. The remaining fields are plain text that clients render as
     // text, so they are returned as-is (sanitizing would wrongly HTML-encode).
-    content: sanitizeText(translatedOf(status.content) ?? status.content),
-    spoiler_text: translatedOf(status.spoiler_text) ?? status.spoiler_text,
+    content: sanitizeText(translatedOf(status.content) ?? status.content ?? ''),
+    spoiler_text:
+      translatedOf(status.spoiler_text) ?? status.spoiler_text ?? '',
     language: normalizedTarget,
     media_attachments: status.media_attachments.map((attachment) => ({
       id: attachment.id,
@@ -162,7 +163,7 @@ export const translateStatus = async ({
       ? {
           id: status.poll.id,
           options: status.poll.options.map((option) => ({
-            title: translatedOf(option.title) ?? option.title
+            title: translatedOf(option.title) ?? option.title ?? ''
           }))
         }
       : null,

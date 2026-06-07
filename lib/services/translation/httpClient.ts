@@ -21,7 +21,9 @@ const readCappedBody = async (response: Response): Promise<string> => {
   // The cap is still enforced, just after buffering.
   if (typeof response.body?.getReader !== 'function') {
     const text = await response.text()
-    if (text.length > MAX_RESPONSE_BYTES) {
+    // Compare actual UTF-8 byte length, not UTF-16 code-unit count, so the cap
+    // matches the streaming path (which counts bytes) for multi-byte responses.
+    if (Buffer.byteLength(text, 'utf8') > MAX_RESPONSE_BYTES) {
       throw new TranslationProviderError(TOO_LARGE_MESSAGE)
     }
     return text

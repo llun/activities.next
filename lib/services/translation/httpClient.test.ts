@@ -59,6 +59,24 @@ describe('fetchTranslationHttpClient', () => {
     ).rejects.toThrow(/too large/)
   })
 
+  it('caps on UTF-8 byte length, not UTF-16 code units, in the buffered path', async () => {
+    // 600k '€' chars: 600k code units (under the 1 MB cap) but 1.8 MB of UTF-8
+    // bytes (over it). A code-unit check would wrongly accept this.
+    const multibyte = '€'.repeat(600 * 1024)
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(multibyte, { status: 200 }))
+
+    await expect(
+      fetchTranslationHttpClient({
+        url: 'https://api.example/translate',
+        method: 'GET',
+        headers: {},
+        timeoutMs: 1000
+      })
+    ).rejects.toThrow(/too large/)
+  })
+
   it('wraps transport errors as TranslationProviderError', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'))
 
