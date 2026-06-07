@@ -19,6 +19,9 @@ const CORS_HEADERS = [
 
 const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
+// Mastodon caps featured tags per account at FeaturedTag::LIMIT = 10.
+const FEATURED_TAGS_LIMIT = 10
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // Mastodon hashtag names are word characters only. Strip a single leading `#`
@@ -92,6 +95,20 @@ export const POST = traceApiRoute(
           req,
           allowedMethods: CORS_HEADERS,
           data: { error: 'Tag is already featured' },
+          responseStatusCode: 422
+        })
+      }
+
+      const featuredCount = await database.countFeaturedTags({
+        actorId: currentActor.id
+      })
+      if (featuredCount >= FEATURED_TAGS_LIMIT) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            error: `You can only feature up to ${FEATURED_TAGS_LIMIT} hashtags`
+          },
           responseStatusCode: 422
         })
       }

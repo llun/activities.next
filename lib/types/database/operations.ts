@@ -1322,8 +1322,12 @@ export type GetFeaturedTagSuggestionsParams = {
   actorId: string
   limit?: number
 }
+export type CountFeaturedTagsParams = { actorId: string }
 
 export interface FeaturedTagDatabase {
+  // The number of tags an actor features — used to enforce Mastodon's
+  // per-account FeaturedTag::LIMIT before creating a new one.
+  countFeaturedTags(params: CountFeaturedTagsParams): Promise<number>
   // Featured tags for an actor, ordered by statuses_count desc (Mastodon's
   // ordering), then createdAt desc as a stable tie-breaker.
   getFeaturedTags(

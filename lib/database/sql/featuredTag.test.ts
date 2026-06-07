@@ -251,6 +251,20 @@ describe('FeaturedTagDatabase', () => {
     })
   })
 
+  it('counts an actor featured tags', async () => {
+    await withFreshDatabase(async (database) => {
+      await createActor(database, ACTOR_ID, 'owner')
+      expect(await database.countFeaturedTags({ actorId: ACTOR_ID })).toBe(0)
+      await database.createFeaturedTag({ actorId: ACTOR_ID, name: 'one' })
+      await database.createFeaturedTag({ actorId: ACTOR_ID, name: 'two' })
+      expect(await database.countFeaturedTags({ actorId: ACTOR_ID })).toBe(2)
+      // Scoped per actor.
+      expect(
+        await database.countFeaturedTags({ actorId: OTHER_ACTOR_ID })
+      ).toBe(0)
+    })
+  })
+
   it('caps suggestions at the requested limit', async () => {
     await withFreshDatabase(async (database) => {
       await createActor(database, ACTOR_ID, 'owner')

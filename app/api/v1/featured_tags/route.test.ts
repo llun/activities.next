@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
 
 import { GET, POST } from './route'
 
@@ -105,6 +106,24 @@ describe('featured_tags collection endpoints', () => {
     })
     // A second feature of the same normalized name (different case) is rejected.
     const response = await POST(postRequest({ name: '#Duplicate' }), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(422)
+  })
+
+  it('returns 422 once the per-account featured-tags limit is reached', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    // Feature the Mastodon cap of 10 tags for a fresh actor (Actor2).
+    for (let index = 0; index < 10; index += 1) {
+      const response = await POST(postRequest({ name: `limit${index}` }), {
+        params: Promise.resolve({})
+      })
+      expect(response.status).toBe(200)
+    }
+    // The 11th is rejected.
+    const response = await POST(postRequest({ name: 'overflow' }), {
       params: Promise.resolve({})
     })
     expect(response.status).toBe(422)

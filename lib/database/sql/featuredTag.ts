@@ -6,6 +6,7 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { KnexConnection, isSQLiteClient } from '@/lib/database/sql/utils/knex'
 import {
+  CountFeaturedTagsParams,
   CreateFeaturedTagParams,
   DeleteFeaturedTagParams,
   FeaturedTag,
@@ -187,6 +188,14 @@ export const FeaturedTagSQLDatabaseMixin = (
     return rows
       .map((row) => withStats(row, stats))
       .sort((a, b) => b.statusesCount - a.statusesCount)
+  },
+
+  async countFeaturedTags({ actorId }: CountFeaturedTagsParams) {
+    const row = await database('featured_tags')
+      .where('actorId', actorId)
+      .count<{ count: number | string }>({ count: '*' })
+      .first()
+    return Number(row?.count ?? 0)
   },
 
   async getFeaturedTag({ actorId, id }: GetFeaturedTagParams) {
