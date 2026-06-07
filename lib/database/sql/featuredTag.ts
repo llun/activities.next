@@ -16,13 +16,12 @@ import {
   GetFeaturedTagSuggestionsParams,
   GetFeaturedTagsParams
 } from '@/lib/types/database/operations'
+import { normalizeHashtagSearchName } from '@/lib/database/sql/search/hashtag'
 import { StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
-
-import { normalizeHashtagSearchName } from './search/hashtag'
 
 const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC,
