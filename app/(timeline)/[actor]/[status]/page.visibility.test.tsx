@@ -277,6 +277,69 @@ describe('Page visibility for logged-out visitors', () => {
     // The reply-count heading reflects only the visible (public) reply.
     expect(screen.getByText('Replies (1)')).toBeInTheDocument()
   })
+
+  it('returns notFound for a public boost wrapping a private original', async () => {
+    const privateOriginal = buildNote({
+      id: 'private-original',
+      to: ['https://activities.local/users/anna/followers'],
+      cc: []
+    })
+    const announce = {
+      id: 'public-announce',
+      type: 'Announce',
+      actorId: 'https://activities.local/users/anna',
+      actor: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: 1,
+      updatedAt: 1,
+      originalStatus: privateOriginal
+    } as unknown as Status
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: announce,
+      statusId: 'public-announce',
+      fullStatusId:
+        'https://activities.local/users/anna/statuses/private-original',
+      isStatusHash: true
+    })
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('renders the logged-out fitness dashboard with an sr-only heading and stat strip', async () => {
+    const focused = buildNote({
+      id: 'fitness-status',
+      fitness: {
+        id: 'fit-1',
+        fileName: 'run.fit',
+        fileType: 'fit',
+        mimeType: 'application/octet-stream',
+        bytes: 1024,
+        url: 'https://activities.local/fit/run.fit',
+        processingStatus: 'completed'
+      }
+    } as unknown as Partial<Status>)
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'fitness-status',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+
+    await renderPage()
+
+    // The back-button Header is gated to signed-in users; logged-out keeps only
+    // a visually-hidden top-level heading for the document outline.
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Activity' })
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('status-fitness-status')).toBeInTheDocument()
+    expect(screen.getByText('Boosts')).toBeInTheDocument()
+  })
 })
 
 describe('Page visibility for logged-in non-recipient viewers', () => {
