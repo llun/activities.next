@@ -30,6 +30,12 @@ interface Props {
   framed?: boolean
   currentActor?: ActorProfile
   showActions?: boolean
+  /**
+   * Render non-interactive engagement counts (reply/boost/like) under each post
+   * instead of action buttons. For read-only previews like the logged-out
+   * landing feed. Ignored when `showActions` is on.
+   */
+  showReadOnlyStats?: boolean
   currentTime: number
   statuses: Status[]
   isMediaUploadEnabled?: boolean
@@ -50,6 +56,7 @@ export const Posts: FC<Props> = ({
   framed = true,
   currentActor,
   showActions = false,
+  showReadOnlyStats = false,
   currentTime,
   statuses,
   isMediaUploadEnabled,
@@ -125,6 +132,7 @@ export const Posts: FC<Props> = ({
               currentActor={currentActor}
               status={status}
               showActions={showActions}
+              showReadOnlyStats={showReadOnlyStats}
               editable={currentActor?.id === status.actorId}
               collapsible
               postLineLimit={postLineLimit}
