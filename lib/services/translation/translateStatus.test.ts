@@ -20,22 +20,35 @@ interface CacheRow {
 
 const createFakeDatabase = (seed: Record<string, CacheRow> = {}) => {
   const store = new Map<string, CacheRow>(Object.entries(seed))
-  const key = (provider: string, lang: string, hash: string) =>
-    `${provider}:${lang}:${hash}`
+  const key = (
+    provider: string,
+    source: string,
+    target: string,
+    hash: string
+  ) => `${provider}:${source}:${target}:${hash}`
   const saved: string[] = []
   const database = {
-    async getTranslationCache({ provider, targetLanguage, sourceHash }) {
-      return store.get(key(provider, targetLanguage, sourceHash)) ?? null
+    async getTranslationCache({
+      provider,
+      sourceLanguage,
+      targetLanguage,
+      sourceHash
+    }) {
+      return (
+        store.get(key(provider, sourceLanguage, targetLanguage, sourceHash)) ??
+        null
+      )
     },
     async saveTranslationCache({
       provider,
+      sourceLanguage,
       targetLanguage,
       sourceHash,
       content,
       detectedSourceLanguage
     }) {
       saved.push(content)
-      store.set(key(provider, targetLanguage, sourceHash), {
+      store.set(key(provider, sourceLanguage, targetLanguage, sourceHash), {
         content,
         detectedSourceLanguage
       })
@@ -101,8 +114,10 @@ describe('translateStatus', () => {
       targetLanguage: 'fr'
     })
 
-    expect(translation.content).toBe('<P>HELLO</P>')
+    // Content is sanitized on the way out, which normalizes tag case.
+    expect(translation.content).toBe('<p>HELLO</p>')
     expect(translation.spoiler_text).toBe('CW')
+    expect(translation.language).toBe('fr')
     expect(translation.media_attachments).toEqual([
       { id: '1', description: 'A CAT' }
     ])
@@ -120,7 +135,7 @@ describe('translateStatus', () => {
 
   it('serves cached strings without calling the backend', async () => {
     const { database } = createFakeDatabase({
-      [`fake:fr:${sha256('<p>Hello</p>')}`]: {
+      [`fake:en:fr:${sha256('<p>Hello</p>')}`]: {
         content: '<p>Bonjour</p>',
         detectedSourceLanguage: 'en'
       }
@@ -140,7 +155,7 @@ describe('translateStatus', () => {
 
   it('only sends cache misses to the backend', async () => {
     const { database } = createFakeDatabase({
-      [`fake:fr:${sha256('<p>Hello</p>')}`]: {
+      [`fake:en:fr:${sha256('<p>Hello</p>')}`]: {
         content: '<p>Bonjour</p>',
         detectedSourceLanguage: 'en'
       }
@@ -175,6 +190,50 @@ describe('translateStatus', () => {
     })
 
     expect(calls).toEqual([['repeat']])
+  })
+
+  it('sanitizes unsafe markup in the translated content', async () => {
+    const { database } = createFakeDatabase()
+    const { provider } = createFakeProvider({
+      async translate() {
+        return {
+          texts: ['<a href="javascript:alert(1)">x</a><script>bad()</script>'],
+          detectedSourceLanguage: 'en',
+          provider: 'Fake'
+        }
+      }
+    })
+
+    const translation = await translateStatus({
+      database,
+      provider,
+      status: buildStatus({ content: '<p>Hello</p>' }),
+      targetLanguage: 'fr'
+    })
+
+    expect(translation.content).not.toContain('javascript:')
+    expect(translation.content).not.toContain('<script')
+  })
+
+  it('keys the cache by source language so identical text in different languages does not collide', async () => {
+    const { database } = createFakeDatabase({
+      [`fake:en:fr:${sha256('gift')}`]: {
+        content: 'cadeau',
+        detectedSourceLanguage: 'en'
+      }
+    })
+    const { provider, calls } = createFakeProvider()
+
+    // A German status with the same text must NOT reuse the English cache entry.
+    const translation = await translateStatus({
+      database,
+      provider,
+      status: buildStatus({ content: 'gift', language: 'de' }),
+      targetLanguage: 'fr'
+    })
+
+    expect(calls).toEqual([['gift']])
+    expect(translation.content).toBe('GIFT')
   })
 
   it('rejects an unsupported target language with UnsupportedTargetLanguageError', async () => {

@@ -350,6 +350,35 @@ export const translateStatus = async ({
   return (await response.json()) as Translation
 }
 
+export interface TranslationCapability {
+  // Whether a translation backend is configured on this server.
+  enabled: boolean
+  // The server's primary language (ISO 639-1); the default translation target.
+  defaultLanguage: string | null
+}
+
+let translationCapabilityPromise: Promise<TranslationCapability> | null = null
+
+/**
+ * Reads the server's translation capability from `/api/v2/instance`, memoized
+ * for the session so every post does not refetch it. Used by the Translate
+ * control to avoid showing a dead button when no backend is configured.
+ */
+export const getTranslationCapability = (): Promise<TranslationCapability> => {
+  if (!translationCapabilityPromise) {
+    translationCapabilityPromise = fetch('/api/v2/instance')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => ({
+        enabled: Boolean(data?.configuration?.translation?.enabled),
+        defaultLanguage: Array.isArray(data?.languages)
+          ? (data.languages[0] ?? null)
+          : null
+      }))
+      .catch(() => ({ enabled: false, defaultLanguage: null }))
+  }
+  return translationCapabilityPromise
+}
+
 /**
  * Favourites/likes a status using Mastodon-compatible API
  * @see https://docs.joinmastodon.org/methods/statuses/#favourite

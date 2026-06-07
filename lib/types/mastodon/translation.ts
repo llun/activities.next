@@ -27,6 +27,9 @@ export const Translation = z.object({
   spoiler_text: z
     .string()
     .describe('The translated spoiler warning of the status'),
+  language: z
+    .string()
+    .describe('The language of the translation output, as ISO 639-1'),
   media_attachments: TranslationMediaAttachment.array(),
   poll: TranslationPoll.nullable(),
   detected_source_language: z

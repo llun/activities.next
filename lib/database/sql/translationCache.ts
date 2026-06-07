@@ -11,11 +11,12 @@ export const TranslationCacheSQLDatabaseMixin = (
 ): TranslationCacheDatabase => ({
   async getTranslationCache({
     provider,
+    sourceLanguage,
     targetLanguage,
     sourceHash
   }: GetTranslationCacheParams) {
     const row = await database('translation_cache')
-      .where({ provider, targetLanguage, sourceHash })
+      .where({ provider, sourceLanguage, targetLanguage, sourceHash })
       .first('content', 'detectedSourceLanguage')
     if (!row) return null
     return {
@@ -26,6 +27,7 @@ export const TranslationCacheSQLDatabaseMixin = (
 
   async saveTranslationCache({
     provider,
+    sourceLanguage,
     targetLanguage,
     sourceHash,
     content,
@@ -36,13 +38,19 @@ export const TranslationCacheSQLDatabaseMixin = (
     await database('translation_cache')
       .insert({
         provider,
+        sourceLanguage,
         targetLanguage,
         sourceHash,
         content,
         detectedSourceLanguage,
         createdAt: new Date()
       })
-      .onConflict(['provider', 'targetLanguage', 'sourceHash'])
+      .onConflict([
+        'provider',
+        'sourceLanguage',
+        'targetLanguage',
+        'sourceHash'
+      ])
       .ignore()
   }
 })

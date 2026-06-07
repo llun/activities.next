@@ -9,6 +9,7 @@ import {
 import { Status } from '@/lib/types/mastodon/status'
 import { Translation } from '@/lib/types/mastodon/translation'
 import { logger } from '@/lib/utils/logger'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 interface TranslateStatusParams {
   database: Database
@@ -61,6 +62,12 @@ export const translateStatus = async ({
   targetLanguage
 }: TranslateStatusParams): Promise<Translation> => {
   const normalizedTarget = normalizeLanguageCode(targetLanguage)
+  // The status's declared source language is part of the cache key so identical
+  // text in different languages (e.g. "gift" in English vs German) never shares
+  // a cached translation. Unknown source languages share the "" bucket.
+  const sourceLanguage = status.language
+    ? normalizeLanguageCode(status.language)
+    : ''
 
   const { target } = await provider.languages()
   if (!target.includes(normalizedTarget)) {
@@ -75,6 +82,7 @@ export const translateStatus = async ({
     sources.map(async (source) => {
       const cached = await database.getTranslationCache({
         provider: provider.cacheKey,
+        sourceLanguage,
         targetLanguage: normalizedTarget,
         sourceHash: sha256(source)
       })
@@ -100,6 +108,7 @@ export const translateStatus = async ({
         try {
           await database.saveTranslationCache({
             provider: provider.cacheKey,
+            sourceLanguage,
             targetLanguage: normalizedTarget,
             sourceHash: sha256(source),
             content,
@@ -127,8 +136,15 @@ export const translateStatus = async ({
     ''
 
   return Translation.parse({
-    content: translatedOf(status.content) ?? status.content,
+    // `content` is HTML and is rendered as markup by clients, so the untrusted
+    // backend output (the LLM backend can be influenced by status text) is run
+    // through the same allowlist sanitizer used for status HTML — it cannot
+    // smuggle dangerous markup (e.g. javascript: URLs) past the original
+    // sanitizer. The remaining fields are plain text that clients render as
+    // text, so they are returned as-is (sanitizing would wrongly HTML-encode).
+    content: sanitizeText(translatedOf(status.content) ?? status.content),
     spoiler_text: translatedOf(status.spoiler_text) ?? status.spoiler_text,
+    language: normalizedTarget,
     media_attachments: status.media_attachments.map((attachment) => ({
       id: attachment.id,
       description:

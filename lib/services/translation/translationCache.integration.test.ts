@@ -70,6 +70,7 @@ describe('translation cache (SQLite)', () => {
 
     const cached = await database.getTranslationCache({
       provider: 'fake',
+      sourceLanguage: 'en',
       targetLanguage: 'fr',
       sourceHash: createHash('sha256').update('<p>Hello</p>').digest('hex')
     })

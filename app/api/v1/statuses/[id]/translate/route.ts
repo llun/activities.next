@@ -8,7 +8,12 @@ import { UnsupportedTargetLanguageError } from '@/lib/services/translation/types
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_422,
+  apiCorsError,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -40,13 +45,19 @@ export const POST = traceApiRoute(
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
-      // `lang` is optional; a paramless POST resolves to {} rather than throwing.
-      let body: Record<string, unknown> = {}
+      // `lang` is optional; a paramless POST resolves to {}. A present-but-
+      // malformed body is a client error (422), matching the other status
+      // action routes, rather than being silently translated to the default.
+      let body: Record<string, unknown>
       try {
         body = await getRequestBody(req)
       } catch {
-        // A malformed body is ignored: the only param is the optional target
-        // language, so fall back to the server default instead of failing.
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
       }
       const requestedLanguage =
         typeof body.lang === 'string' && body.lang.length > 0

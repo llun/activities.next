@@ -1197,6 +1197,7 @@ export interface IdempotencyDatabase {
 
 export type GetTranslationCacheParams = {
   provider: string
+  sourceLanguage: string
   targetLanguage: string
   sourceHash: string
 }

@@ -2,25 +2,36 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { translateStatus } from '@/lib/client'
+import { getTranslationCapability, translateStatus } from '@/lib/client'
 import { Translation } from '@/lib/types/mastodon/translation'
 
 import { TranslateContent } from './translate-content'
 
 jest.mock('@/lib/client', () => ({
-  translateStatus: jest.fn()
+  translateStatus: jest.fn(),
+  getTranslationCapability: jest.fn()
 }))
 
 const translation: Translation = {
   content: '<p>Bonjour le monde</p>',
   spoiler_text: '',
+  language: 'fr',
   media_attachments: [],
   poll: null,
   detected_source_language: 'en',
   provider: 'DeepL.com'
 }
+
+const mockCapability = (
+  enabled: boolean,
+  defaultLanguage: string | null = 'fr'
+) =>
+  (getTranslationCapability as jest.Mock).mockResolvedValue({
+    enabled,
+    defaultLanguage
+  })
 
 const renderContent = (language: string | null = 'en') =>
   render(
@@ -32,23 +43,47 @@ const renderContent = (language: string | null = 'en') =>
     </TranslateContent>
   )
 
+const findTranslateButton = () =>
+  screen.findByRole('button', { name: 'Translate' })
+
 describe('TranslateContent', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('does not offer translation when the status has no language', () => {
+  it('does not offer translation when the status has no language', async () => {
+    mockCapability(true)
     renderContent(null)
+    await Promise.resolve()
+    expect(
+      screen.queryByRole('button', { name: 'Translate' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not offer translation when no backend is configured', async () => {
+    mockCapability(false)
+    renderContent('en')
+    await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
+    expect(
+      screen.queryByRole('button', { name: 'Translate' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not offer translation when the status is already in the default language', async () => {
+    mockCapability(true, 'en')
+    renderContent('en')
+    await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
     expect(
       screen.queryByRole('button', { name: 'Translate' })
     ).not.toBeInTheDocument()
   })
 
   it('shows the translation and a toggle back to the original', async () => {
+    mockCapability(true, 'fr')
     ;(translateStatus as jest.Mock).mockResolvedValue(translation)
     renderContent('en')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Translate' }))
+    fireEvent.click(await findTranslateButton())
 
     expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
     expect(screen.queryByText('Hello world')).not.toBeInTheDocument()
@@ -66,15 +101,29 @@ describe('TranslateContent', () => {
     expect(translateStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('reports when the server cannot translate the status', async () => {
+  it('reports when the server returns no translation', async () => {
+    mockCapability(true, 'fr')
     ;(translateStatus as jest.Mock).mockResolvedValue(null)
     renderContent('en')
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Translate' }))
-    })
+    fireEvent.click(await findTranslateButton())
 
-    expect(screen.getByText('Translation unavailable')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Translation unavailable')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Hello world')).toBeInTheDocument()
+  })
+
+  it('reports when the translation request throws', async () => {
+    mockCapability(true, 'fr')
+    ;(translateStatus as jest.Mock).mockRejectedValue(new Error('network'))
+    renderContent('en')
+
+    fireEvent.click(await findTranslateButton())
+
+    expect(
+      await screen.findByText('Translation unavailable')
+    ).toBeInTheDocument()
     expect(screen.getByText('Hello world')).toBeInTheDocument()
   })
 })
