@@ -11,6 +11,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { MediaValidationError } from './errors'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
 import { getMediaAttachment } from './getMediaAttachment'
@@ -125,7 +126,7 @@ export class LocalFileStorage implements MediaStorage {
       file.size
     )
     if (!quotaCheck.available) {
-      throw new Error(
+      throw new MediaValidationError(
         `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
       )
     }
@@ -245,7 +246,7 @@ export class LocalFileStorage implements MediaStorage {
       !videoStream ||
       !(formats?.includes('mp4') || formats?.includes('webm'))
     ) {
-      throw new Error('Invalid video format')
+      throw new MediaValidationError('Invalid video format')
     }
 
     const metaData = videoStream

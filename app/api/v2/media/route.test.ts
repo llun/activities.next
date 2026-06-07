@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
@@ -202,6 +203,23 @@ describe('POST /api/v2/media', () => {
 
     expect(response.status).toBe(422)
     expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
+
+  it('returns 422 for client-actionable upload failures (quota / invalid media)', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'write:media'
+    })
+    mockSaveMedia.mockRejectedValue(
+      new MediaValidationError('Storage quota exceeded')
+    )
+
+    const response = await POST(postRequest('write-media-token'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
   })
 
   it('returns 500 when saving throws an unexpected internal error', async () => {

@@ -21,6 +21,7 @@ import {
   MAX_HEIGHT,
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
@@ -388,7 +389,7 @@ export class S3FileStorage implements MediaStorage {
       file.size
     )
     if (!quotaCheck.available) {
-      throw new Error(
+      throw new MediaValidationError(
         `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
       )
     }
@@ -562,7 +563,7 @@ export class S3FileStorage implements MediaStorage {
       !videoStream ||
       !(formats?.includes('mp4') || formats?.includes('webm'))
     ) {
-      throw new Error('Invalid video format')
+      throw new MediaValidationError('Invalid video format')
     }
 
     const metaData = videoStream

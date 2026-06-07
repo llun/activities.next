@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 import { saveMedia } from '@/lib/services/medias'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { MediaSchema } from '@/lib/services/medias/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -62,9 +63,17 @@ export const handleSyncMediaUpload = async (
       data: response
     })
   } catch (e) {
-    // The request was well-formed and valid; a throw here is an unexpected
-    // internal/processing failure → 500 (matching the presigned route and
-    // Mastodon's 500 "processing failure").
+    // Client-actionable failures (quota exceeded, unsupported/invalid media)
+    // are 422 (Mastodon's "Validation failed"); only genuine internal/processing
+    // faults are 500.
+    if (e instanceof MediaValidationError) {
+      return apiResponse({
+        req,
+        allowedMethods: corsHeaders,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
+    }
     const nodeErr = e as NodeJS.ErrnoException
     logger.error(nodeErr)
     return apiResponse({
