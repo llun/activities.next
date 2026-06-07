@@ -13,6 +13,7 @@ import {
   AddListAccountsParams,
   CreateListParams,
   DeleteListParams,
+  GetListAccountCountsParams,
   GetListAccountsParams,
   GetListParams,
   GetListTimelineParams,
@@ -171,6 +172,29 @@ export const ListSQLDatabaseMixin = (
       nextMaxId: rows.length > 0 ? (rows[rows.length - 1].id as string) : null,
       prevMinId: rows.length > 0 ? (rows[0].id as string) : null
     }
+  },
+
+  async getListAccountCounts({ actorId, listIds }: GetListAccountCountsParams) {
+    // Seed every requested list with 0 so callers can index the result without
+    // a missing-key check; lists with no members produce no grouped row below.
+    const counts: Record<string, number> = {}
+    for (const listId of listIds) counts[listId] = 0
+    if (listIds.length === 0) return counts
+
+    // Scope to the owner so this never counts another actor's memberships, and
+    // chunk the `whereIn` to stay under SQLite's bound-parameter limit.
+    for (const chunk of chunkArray(listIds, getWhereInBatchSize(database, 1))) {
+      const rows = await database('list_accounts')
+        .where({ actorId })
+        .whereIn('listId', chunk)
+        .groupBy('listId')
+        .select('listId')
+        .count<{ listId: string; count: string | number }[]>('* as count')
+      for (const row of rows) {
+        counts[row.listId as string] = Number(row.count)
+      }
+    }
+    return counts
   },
 
   async addListAccounts({

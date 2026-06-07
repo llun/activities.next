@@ -263,4 +263,63 @@ describe('ListDatabase', () => {
       expect(statuses.map((status) => status.id)).toContain(statusId)
     })
   })
+
+  it('counts members per list and scopes counts to the owner', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'other')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const other = await database.getActorFromUsername({
+        username: 'other',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !other) throw new Error('actors not created')
+
+      await database.createActor({
+        actorId: EXTERNAL_ACTORS[0].id,
+        username: EXTERNAL_ACTORS[0].username,
+        domain: EXTERNAL_ACTORS[0].domain,
+        followersUrl: EXTERNAL_ACTORS[0].followers_url,
+        inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        publicKey: 'remote-public-key',
+        createdAt: Date.now()
+      })
+
+      const populated = await database.createList({
+        actorId: owner.id,
+        title: 'Populated'
+      })
+      const empty = await database.createList({
+        actorId: owner.id,
+        title: 'Empty'
+      })
+      await database.addListAccounts({
+        listId: populated.id,
+        actorId: owner.id,
+        targetActorIds: [EXTERNAL_ACTORS[0].id]
+      })
+
+      const counts = await database.getListAccountCounts({
+        actorId: owner.id,
+        listIds: [populated.id, empty.id]
+      })
+      expect(counts).toEqual({ [populated.id]: 1, [empty.id]: 0 })
+
+      // Another owner sees no memberships for the same list ids.
+      const otherCounts = await database.getListAccountCounts({
+        actorId: other.id,
+        listIds: [populated.id, empty.id]
+      })
+      expect(otherCounts).toEqual({ [populated.id]: 0, [empty.id]: 0 })
+
+      // Empty input returns an empty map without a query.
+      expect(
+        await database.getListAccountCounts({ actorId: owner.id, listIds: [] })
+      ).toEqual({})
+    })
+  })
 })

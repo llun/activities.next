@@ -8,11 +8,13 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   parseTimelineQuery,
   timelineErrorBoundary
 } from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -56,6 +58,7 @@ export const GET = traceApiRoute(
         }
 
         const url = new URL(req.url)
+        const format = url.searchParams.get('format')
         const parsedQuery = parseTimelineQuery(url.searchParams)
         if (!parsedQuery.ok) {
           return apiResponse({
@@ -81,6 +84,30 @@ export const GET = traceApiRoute(
           maxStatusId,
           minStatusId
         })
+
+        // The list timeline query returns domain statuses newest-first, so the
+        // last row is the next (older) page cursor and the first row is the
+        // previous (newer) page cursor — mirroring the Mastodon Link headers
+        // emitted below.
+        const nextMaxStatusId =
+          statuses.length > 0 ? statuses[statuses.length - 1].id : null
+        const prevMinStatusId = statuses.length > 0 ? statuses[0].id : null
+
+        // The Activities.next web UI consumes the internal domain Status shape
+        // (the same payload as the home timeline's activities_next format) so
+        // it can render with the shared <Posts> component. Default (no format)
+        // stays Mastodon-compatible: entities + Link headers, untouched below.
+        if (format === TimelineFormat.enum.activities_next) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: {
+              statuses: statuses.map((item) => cleanJson(item)),
+              nextMaxStatusId,
+              prevMinStatusId
+            }
+          })
+        }
 
         const mastodonStatuses = await getMastodonStatuses(
           database,

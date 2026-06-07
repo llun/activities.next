@@ -14,6 +14,7 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
+import type { ListEntity } from '@/lib/types/mastodon/list'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import type { Translation } from '@/lib/types/mastodon/translation'
@@ -2550,4 +2551,156 @@ export const adminDeleteCustomEmoji = async (id: string): Promise<void> => {
     method: 'DELETE'
   })
   if (!response.ok) throw new Error('Failed to delete custom emoji')
+}
+
+// Lists (https://docs.joinmastodon.org/methods/lists/).
+// The user's curated timelines and their members. Every list call goes through
+// here so components never call fetch() directly. List ids are opaque strings
+// (UUIDs), so unlike status/account ids they are not url/id encoded.
+
+export interface ListParams {
+  title: string
+  repliesPolicy?: ListEntity['replies_policy']
+  exclusive?: boolean
+}
+
+const listRequestBody = ({ title, repliesPolicy, exclusive }: ListParams) => ({
+  title,
+  ...(repliesPolicy !== undefined ? { replies_policy: repliesPolicy } : {}),
+  ...(exclusive !== undefined ? { exclusive } : {})
+})
+
+export const createList = async (
+  params: ListParams
+): Promise<ListEntity | null> => {
+  const response = await fetch('/api/v1/lists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(listRequestBody(params))
+  })
+  if (!response.ok) return null
+  return (await response.json()) as ListEntity
+}
+
+export interface UpdateListParams extends ListParams {
+  listId: string
+}
+
+export const updateList = async ({
+  listId,
+  ...params
+}: UpdateListParams): Promise<ListEntity | null> => {
+  const response = await fetch(`/api/v1/lists/${encodeURIComponent(listId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(listRequestBody(params))
+  })
+  if (!response.ok) return null
+  return (await response.json()) as ListEntity
+}
+
+export const deleteList = async (listId: string): Promise<boolean> => {
+  const response = await fetch(`/api/v1/lists/${encodeURIComponent(listId)}`, {
+    method: 'DELETE'
+  })
+  return response.ok
+}
+
+export interface ListAccountsMutationParams {
+  listId: string
+  accountIds: string[]
+}
+
+const mutateListAccounts = async (
+  method: 'POST' | 'DELETE',
+  { listId, accountIds }: ListAccountsMutationParams
+): Promise<boolean> => {
+  if (accountIds.length === 0) return true
+  const response = await fetch(
+    `/api/v1/lists/${encodeURIComponent(listId)}/accounts`,
+    {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account_ids: accountIds.map((id) => urlToId(id)) })
+    }
+  )
+  return response.ok
+}
+
+export const addListAccounts = (
+  params: ListAccountsMutationParams
+): Promise<boolean> => mutateListAccounts('POST', params)
+
+export const removeListAccounts = (
+  params: ListAccountsMutationParams
+): Promise<boolean> => mutateListAccounts('DELETE', params)
+
+export interface GetListTimelineParams {
+  listId: string
+  minStatusId?: string
+  maxStatusId?: string
+  limit?: number
+}
+
+const getListTimelinePage = async ({
+  listId,
+  minStatusId,
+  maxStatusId,
+  limit
+}: GetListTimelineParams): Promise<GetTimelineResult> => {
+  const url = new URL(
+    `${window.origin}/api/v1/timelines/list/${encodeURIComponent(
+      listId
+    )}?format=${TimelineFormat.enum.activities_next}`
+  )
+  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
+  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
+  if (limit) url.searchParams.set('limit', `${limit}`)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
+  }
+  const data = await response.json()
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null,
+    prevMinStatusId: data.prevMinStatusId ?? null
+  }
+}
+
+export const getListTimeline = async ({
+  listId,
+  minStatusId,
+  maxStatusId,
+  limit
+}: GetListTimelineParams): Promise<GetTimelineResult> => {
+  let result = await getListTimelinePage({
+    listId,
+    minStatusId,
+    maxStatusId,
+    limit
+  })
+  let currentMaxStatusId = result.nextMaxStatusId
+  let continuations = 0
+
+  while (
+    result.statuses.length === 0 &&
+    currentMaxStatusId &&
+    continuations < MAX_EMPTY_TIMELINE_CONTINUATIONS
+  ) {
+    continuations++
+    result = await getListTimelinePage({
+      listId,
+      minStatusId,
+      maxStatusId: currentMaxStatusId,
+      limit
+    })
+    currentMaxStatusId = result.nextMaxStatusId
+  }
+
+  return result
 }

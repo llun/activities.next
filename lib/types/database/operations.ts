@@ -1265,6 +1265,10 @@ export type GetListsWithAccountParams = {
   actorId: string
   targetActorId: string
 }
+export type GetListAccountCountsParams = {
+  actorId: string
+  listIds: string[]
+}
 export type GetListTimelineParams = {
   listId: string
   actorId: string
@@ -1280,6 +1284,11 @@ export interface ListDatabase {
   getLists(params: GetListsParams): Promise<List[]>
   deleteList(params: DeleteListParams): Promise<boolean>
   getListAccounts(params: GetListAccountsParams): Promise<ListAccountsPage>
+  // Member counts keyed by list id for the supplied lists. Lists with no
+  // members are present in the result with a count of 0.
+  getListAccountCounts(
+    params: GetListAccountCountsParams
+  ): Promise<Record<string, number>>
   addListAccounts(params: AddListAccountsParams): Promise<void>
   removeListAccounts(params: RemoveListAccountsParams): Promise<void>
   getListsWithAccount(params: GetListsWithAccountParams): Promise<List[]>
