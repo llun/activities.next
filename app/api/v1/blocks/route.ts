@@ -35,13 +35,20 @@ export const GET = traceApiRoute(
         sinceId: url.searchParams.get('since_id')
       })
 
-      const accounts = await Promise.all(
-        blocks.map(async (block) => {
-          const account = await database.getMastodonActorFromId({
-            id: block.targetActorId
-          })
-          return account ?? getFallbackBlockedAccount(block)
-        })
+      // Batch-hydrate the blocked actors in a single query (matching the mutes
+      // route) instead of one getMastodonActorFromId call per row.
+      const targetActorIds = blocks.map((block) => block.targetActorId)
+      const hydratedAccounts =
+        targetActorIds.length > 0
+          ? await database.getMastodonActorsFromIds({ ids: targetActorIds })
+          : []
+      const accountsByUrl = new Map(
+        hydratedAccounts.map((account) => [account.url, account])
+      )
+      const accounts = blocks.map(
+        (block) =>
+          accountsByUrl.get(block.targetActorId) ??
+          getFallbackBlockedAccount(block)
       )
       const additionalHeaders = buildPaginationLinkHeader({
         host: headerHost(req.headers),
