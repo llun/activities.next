@@ -264,6 +264,59 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('excludes member statuses the owner cannot see from the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const publicId = `${member.id}/statuses/public`
+      await database.createNote({
+        id: publicId,
+        url: publicId,
+        actorId: member.id,
+        text: 'public post',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // A direct post addressed to someone other than the owner must not leak
+      // into the owner's list timeline.
+      const directId = `${member.id}/statuses/direct`
+      await database.createNote({
+        id: directId,
+        url: directId,
+        actorId: member.id,
+        text: 'secret to a stranger',
+        to: ['https://stranger.example/users/x'],
+        cc: []
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Visibility list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const ids = (
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).map((status) => status.id)
+      expect(ids).toContain(publicId)
+      expect(ids).not.toContain(directId)
+    })
+  })
+
   it('hydrates the owner action state in the list timeline', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')

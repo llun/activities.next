@@ -68,7 +68,10 @@ const Page = async ({ params }: PageProps) => {
       maxId: memberCursor
     })
     memberAccounts.push(...accounts)
-    if (accounts.length < MEMBER_PAGE_LIMIT || !nextMaxId) break
+    // Break on the membership-row cursor, not accounts.length: a full page can
+    // hydrate to fewer accounts when a member's actor row is missing, which
+    // would otherwise stop pagination early and drop later members.
+    if (!nextMaxId) break
     memberCursor = nextMaxId
   }
 

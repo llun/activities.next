@@ -185,6 +185,14 @@ export const ListEditor: FC<ListEditorProps> = ({
       }
       router.push(`/lists/${list.id}`)
       router.refresh()
+    } catch {
+      // createList/updateList throw on a network/abort error rather than
+      // returning null; surface the same inline error so the user can retry.
+      setError(
+        mode === 'create'
+          ? 'Could not create the list. Please try again.'
+          : 'Could not save your changes. Please try again.'
+      )
     } finally {
       setSaving(false)
     }

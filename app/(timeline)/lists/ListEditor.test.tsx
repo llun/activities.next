@@ -76,6 +76,26 @@ describe('ListEditor', () => {
     expect(mockPush).toHaveBeenCalledWith('/lists/new-list/edit')
   })
 
+  it('shows an inline error and re-enables save when create rejects', async () => {
+    ;(createList as jest.Mock).mockRejectedValue(new Error('offline'))
+    render(<ListEditor mode="create" />)
+
+    fireEvent.change(screen.getByLabelText('List name'), {
+      target: { value: 'New crew' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not create the list. Please try again.'
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Create list' })
+      ).not.toBeDisabled()
+    )
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
   it('blocks creation when the name is empty', async () => {
     render(<ListEditor mode="create" />)
 

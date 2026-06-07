@@ -77,8 +77,16 @@ export const getSQLDatabase = (database: Knex): Database => {
   const listDatabase = ListSQLDatabaseMixin(
     database,
     (actorIds) => actorDatabase.getMastodonActors(actorIds),
+    // The list owner is the viewer, so constrain to statuses readable by them
+    // (visibleToActorId) and hydrate their action state (currentActorId). The
+    // visibility filter keeps a member's direct/non-public posts addressed to
+    // others out of the list timeline.
     (statusIds, currentActorId) =>
-      statusDatabase.getStatusesByIds({ statusIds, currentActorId })
+      statusDatabase.getStatusesByIds({
+        statusIds,
+        currentActorId,
+        visibleToActorId: currentActorId
+      })
   )
   const directConversationDatabase = DirectConversationSQLDatabaseMixin(
     database,

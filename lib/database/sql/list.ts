@@ -316,9 +316,10 @@ export const ListSQLDatabaseMixin = (
     if (statusIds.length === 0) return []
     // getStatusesByIds preserves the input order (it re-maps results over the
     // requested ids), so the createdAt-desc ordering established above is kept.
-    // The list owner is the viewer, so hydrate per-actor action state
-    // (isActorLiked/isActorBookmarked/actorAnnounceStatusId) for them — without
-    // it the timeline would render every post as un-liked/un-bookmarked.
+    // The list owner is the viewer: passing their id applies the visibility
+    // filter (so a member's non-public posts addressed to others stay out) and
+    // hydrates their action state (isActorLiked/isActorBookmarked/announce) —
+    // without it the timeline would leak posts and render every one un-acted.
     return getStatusesByIds(statusIds, actorId)
   }
 })
