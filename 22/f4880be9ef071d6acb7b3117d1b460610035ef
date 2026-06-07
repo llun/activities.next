@@ -1,0 +1,46 @@
+lib/services/translation/openai.ts
+  s_bccef2ddac8769::t_7b992c70f27c06 9-10
+  s_bccef2ddac8769::t_b28c965c825635 117
+migrations/schema.sql
+  s_bccef2ddac8769::t_ee8c268ad3cb47 841-850,1151-1153,1339
+app/api/v1/statuses/[id]/translate/route.test.ts
+  s_bccef2ddac8769::t_83f5b813c609aa 1-143
+lib/services/translation/types.ts
+  ai_agent 83-97
+migrations/20260607010000_add_translation_cache_table.js
+  s_bccef2ddac8769::t_e0f4374dce264e 16-22,24
+app/api/v1/instance/translation_languages/route.ts
+  s_bccef2ddac8769::t_313da346e18595 3
+  s_bccef2ddac8769::t_99ad5aa33a4e64 33,35-38
+app/api/v1/statuses/[id]/translate/route.ts
+  s_bccef2ddac8769::t_a751353f3ad941 7-10,14
+  s_bccef2ddac8769::t_aad8e826f7d65a 107-117
+lib/services/translation/libretranslate.ts
+  s_bccef2ddac8769::t_b28c965c825635 99
+  s_bccef2ddac8769::t_7b992c70f27c06 8-9,67-69
+migrations/schema.sqlite.sql
+  s_bccef2ddac8769::t_87172e67d54cf3 197-198
+lib/services/translation/deepl.ts
+  s_bccef2ddac8769::t_7b992c70f27c06 8-9
+  s_bccef2ddac8769::t_b28c965c825635 52,93
+lib/services/translation/deepl.test.ts
+  s_bccef2ddac8769::t_88988f52561087 101-112
+lib/services/translation/translateStatus.ts
+  s_bccef2ddac8769::t_625045a3dc4edc 83-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "22f4880be9ef071d6acb7b3117d1b460610035ef",
+  "prompts": {},
+  "sessions": {
+    "s_bccef2ddac8769": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9075253d-6c2a-4513-a48e-8142382dc03a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
