@@ -695,7 +695,7 @@ describe('MediaDatabase', () => {
           description: 'updated alt text'
         })
 
-        expect(updated?.description).toBe('updated alt text')
+        expect(updated?.media.description).toBe('updated alt text')
         const retrieved = await database.getMediaByIdForAccount({
           mediaId: media!.id,
           accountId
@@ -723,7 +723,7 @@ describe('MediaDatabase', () => {
           description: null
         })
 
-        expect(updated?.description).toBeUndefined()
+        expect(updated?.media.description).toBeUndefined()
       })
 
       it('returns null when the media is not owned by the account', async () => {
@@ -778,7 +778,7 @@ describe('MediaDatabase', () => {
           focus: { x: 0.5, y: -0.25 }
         })
 
-        expect(updated?.focus).toEqual({ x: 0.5, y: -0.25 })
+        expect(updated?.media.focus).toEqual({ x: 0.5, y: -0.25 })
         const retrieved = await database.getMediaByIdForAccount({
           mediaId: media!.id,
           accountId
@@ -807,8 +807,8 @@ describe('MediaDatabase', () => {
           description: 'changed'
         })
 
-        expect(updated?.description).toBe('changed')
-        expect(updated?.focus).toEqual({ x: 0.1, y: 0.2 })
+        expect(updated?.media.description).toBe('changed')
+        expect(updated?.media.focus).toEqual({ x: 0.1, y: 0.2 })
       })
 
       it('keeps the description untouched when only focus is updated', async () => {
@@ -831,8 +831,8 @@ describe('MediaDatabase', () => {
           focus: { x: -1, y: 1 }
         })
 
-        expect(updated?.focus).toEqual({ x: -1, y: 1 })
-        expect(updated?.description).toBe('keep me')
+        expect(updated?.media.focus).toEqual({ x: -1, y: 1 })
+        expect(updated?.media.description).toBe('keep me')
       })
 
       it('replaces the thumbnail and adjusts the usage counter by the byte delta', async () => {
@@ -869,8 +869,10 @@ describe('MediaDatabase', () => {
           }
         })
 
-        expect(updated?.thumbnail?.path).toBe('/test/update-thumb-new.webp')
-        expect(updated?.thumbnail?.bytes).toBe(350)
+        expect(updated?.media.thumbnail?.path).toBe(
+          '/test/update-thumb-new.webp'
+        )
+        expect(updated?.media.thumbnail?.bytes).toBe(350)
 
         const usageAfter = await database.getStorageUsageForAccount({
           accountId

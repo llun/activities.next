@@ -1725,6 +1725,13 @@ export type UpdateMediaParams = {
   focus?: { x: number; y: number }
   thumbnail?: MediaThumbnailInput
 }
+export type UpdateMediaResult = {
+  media: Media
+  // Path of the thumbnail this update replaced, captured inside the update
+  // transaction so the caller can delete it race-free. null when no existing
+  // thumbnail was replaced.
+  replacedThumbnailPath: string | null
+}
 export type MarkMediaUploadVerifiedParams = {
   mediaId: string
   accountId: string
@@ -1749,7 +1756,7 @@ export interface MediaDatabase {
     params: GetMediasForAccountParams
   ): Promise<PaginatedMediaWithStatus>
   getMediaByIdForAccount(params: GetMediaByIdParams): Promise<Media | null>
-  updateMedia(params: UpdateMediaParams): Promise<Media | null>
+  updateMedia(params: UpdateMediaParams): Promise<UpdateMediaResult | null>
   getStorageUsageForAccount(
     params: GetStorageUsageForAccountParams
   ): Promise<number>

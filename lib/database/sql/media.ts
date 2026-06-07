@@ -27,7 +27,8 @@ import {
   Media,
   MediaDatabase,
   PaginatedMediaWithStatus,
-  UpdateMediaParams
+  UpdateMediaParams,
+  UpdateMediaResult
 } from '@/lib/types/database/operations'
 import { Attachment } from '@/lib/types/domain/attachment'
 
@@ -521,15 +522,16 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     description,
     focus,
     thumbnail
-  }: UpdateMediaParams): Promise<Media | null> {
+  }: UpdateMediaParams): Promise<UpdateMediaResult | null> {
     return database.transaction(async (trx) => {
       const owned = await trx('medias')
         .join('actors', 'medias.actorId', 'actors.id')
         .where('medias.id', mediaId)
         .where('actors.accountId', accountId)
-        .select('medias.id', 'medias.thumbnailBytes')
+        .select('medias.id', 'medias.thumbnail', 'medias.thumbnailBytes')
         .first<{
           id: string | number
+          thumbnail: string | null
           thumbnailBytes: number | string | null
         }>()
       if (!owned) return null
@@ -557,7 +559,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
 
       let thumbnailUsageDelta = 0
+      let replacedThumbnailPath: string | null = null
       if (thumbnail !== undefined) {
+        // The path being overwritten, read inside the transaction — the caller
+        // deletes exactly this file, immune to a concurrent thumbnail update.
+        if (owned.thumbnail && owned.thumbnail !== thumbnail.path) {
+          replacedThumbnailPath = owned.thumbnail
+        }
         updates.thumbnail = thumbnail.path
         updates.thumbnailBytes = thumbnail.bytes
         updates.thumbnailMimeType = thumbnail.mimeType
@@ -591,7 +599,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
       if (!data) return null
 
-      return parseMediaRow(data)
+      return { media: parseMediaRow(data), replacedThumbnailPath }
     })
   },
 

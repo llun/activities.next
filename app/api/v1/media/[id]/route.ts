@@ -216,9 +216,10 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     })
   }
 
-  // Replacing the thumbnail needs the old path (to delete it after a successful
-  // update) and produces a new stored thumbnail before touching the DB.
-  let oldThumbnailPath: string | undefined
+  // Produce the new stored thumbnail (if any) before touching the DB. The
+  // owner check happens in updateMedia (returns null when not owned); the early
+  // getMediaByIdForAccount avoids processing a thumbnail for media that isn't
+  // the caller's.
   let thumbnail
   if (thumbnailProvided) {
     const existing = await database.getMediaByIdForAccount({
@@ -233,7 +234,6 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
         responseStatusCode: 404
       })
     }
-    oldThumbnailPath = existing.thumbnail?.path
     try {
       thumbnail = await saveMediaThumbnail(
         database,
@@ -263,9 +263,9 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     }
   }
 
-  let media
+  let result
   try {
-    media = await database.updateMedia({
+    result = await database.updateMedia({
       mediaId: id,
       accountId: account.id,
       ...(descriptionProvided ? { description: parsed.data.description } : {}),
@@ -280,7 +280,7 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     throw error
   }
 
-  if (!media) {
+  if (!result) {
     // Owner check failed inside updateMedia; clean up the orphaned thumbnail we
     // just stored so it doesn't leak.
     if (thumbnail) {
@@ -294,16 +294,20 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     })
   }
 
-  // Remove the previous thumbnail file once the replacement is persisted.
-  // Best-effort: a storage hiccup here must not fail an update that already
-  // committed to the database.
-  if (thumbnail && oldThumbnailPath && oldThumbnailPath !== thumbnail.path) {
+  // Remove the thumbnail this update replaced. The path is captured inside
+  // updateMedia's transaction (not a prefetch), so a concurrent update can't
+  // cause stale-path cleanup. Best-effort: a storage hiccup must not fail an
+  // update that already committed to the database.
+  if (result.replacedThumbnailPath) {
     try {
-      const removed = await deleteMediaFile(database, oldThumbnailPath)
+      const removed = await deleteMediaFile(
+        database,
+        result.replacedThumbnailPath
+      )
       if (!removed) {
         logger.warn({
           message: 'Failed to delete replaced thumbnail file',
-          filePath: oldThumbnailPath,
+          filePath: result.replacedThumbnailPath,
           mediaId: id,
           accountId: account.id
         })
@@ -311,7 +315,7 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     } catch (error) {
       logger.warn({
         message: 'Error deleting replaced thumbnail file',
-        filePath: oldThumbnailPath,
+        filePath: result.replacedThumbnailPath,
         mediaId: id,
         accountId: account.id,
         error: (error as Error).message
@@ -328,7 +332,7 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: getMediaAttachment(media, headerHost(req.headers))
+    data: getMediaAttachment(result.media, headerHost(req.headers))
   })
 }
 
