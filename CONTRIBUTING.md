@@ -404,6 +404,93 @@ yarn migrate
 
 > **Important:** All migrations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible. Use Knex query builder and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic.
 
+#### Updating `migrations/schema.sql`
+
+Any pull request that adds, edits, or removes a migration **must also update
+`migrations/schema.sql` in the same PR**. That file is the committed PostgreSQL
+reference dump of the full schema. Nothing imports it at runtime (the app and
+tests run Knex against SQLite), so it will not break the build if it drifts — it
+just silently goes stale, which is how it fell behind in the past.
+
+Regenerate it canonically rather than hand-editing it. Run every migration
+against a fresh PostgreSQL and dump the result:
+
+1. Start a **local** PostgreSQL 17 — for example a throwaway Docker container.
+   Never point at a remote/shared/production database.
+
+   ```bash
+   docker run -d --name anext-schema-pg \
+     -e POSTGRES_USER=activities \
+     -e POSTGRES_PASSWORD=activities \
+     -e POSTGRES_DB=activities \
+     -p 55432:5432 postgres:17
+   ```
+
+2. Point a throwaway `.env.local` at it and run the migrations:
+
+   ```bash
+   cat > .env.local <<'EOF'
+   ACTIVITIES_DATABASE_CLIENT=pg
+   ACTIVITIES_DATABASE_PG_HOST=127.0.0.1
+   ACTIVITIES_DATABASE_PG_PORT=55432
+   ACTIVITIES_DATABASE_PG_USER=activities
+   ACTIVITIES_DATABASE_PG_PASSWORD=activities
+   ACTIVITIES_DATABASE_PG_DATABASE=activities
+   EOF
+
+   yarn migrate
+   ```
+
+   Sanity check that every migration ran: the row count in `knex_migrations`
+   should equal the number of `migrations/*.js` files.
+
+   ```bash
+   docker exec anext-schema-pg \
+     psql -U activities -d activities -tAc 'SELECT count(*) FROM knex_migrations;'
+   ls migrations/*.js | wc -l
+   ```
+
+3. Dump schema only, without ownership/grants, from the PG 17 server:
+
+   ```bash
+   docker exec anext-schema-pg \
+     pg_dump -U activities -d activities --schema-only --no-owner --no-privileges \
+     > /tmp/schema_raw.sql
+   ```
+
+4. Strip `pg_dump`'s noise so the file stays pure DDL matching the committed
+   style — drop the `\restrict`/`\unrestrict` session token (it is
+   non-deterministic and must never be committed), the `-- …` comment headers,
+   and the `SET default_tablespace` / `SET default_table_access_method` lines.
+   Keep the leading `SET` / `SELECT pg_catalog.set_config(...)` block and all
+   `CREATE` / `ALTER` statements.
+
+   ```bash
+   awk '
+     /^SET statement_timeout/ { started = 1 }
+     !started { next }
+     /^--/ { next }
+     /^\\(un)?restrict/ { next }
+     /^SET default_tablespace/ { next }
+     /^SET default_table_access_method/ { next }
+     { print }
+   ' /tmp/schema_raw.sql | cat -s > migrations/schema.sql
+   ```
+
+5. Clean up the throwaway container and `.env.local`; only `migrations/schema.sql`
+   should be left changed.
+
+   ```bash
+   docker rm -f anext-schema-pg
+   rm -f .env.local
+   ```
+
+This is a full regeneration, so the diff can be large even for tables that did
+not change structurally (formatting differs from older dumps). That is expected
+— do not try to reproduce the previous line-by-line formatting by hand. When the
+schema regeneration is the only change in a commit, use the `none:` prefix since
+the file ships nothing.
+
 ## Resources
 
 - [Next.js Documentation](https://nextjs.org/docs)
