@@ -80,6 +80,9 @@ const mockGetActorFromSession = jest.mocked(getActorFromSession)
 
 const VIEWER_ID = 'https://activities.local/users/viewer'
 const AUTHOR_ID = 'https://activities.local/users/anna'
+// A remote author whose stored followers collection does NOT end in
+// `/followers` — used to exercise the exact-match followers audience check.
+const REMOTE_AUTHOR_ID = 'https://remote.example/users/anna'
 
 const buildNote = (overrides: Partial<Status> = {}): Status =>
   ({
@@ -509,5 +512,167 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
 
     expect(screen.getByTestId('status-dm-to-viewer')).toBeInTheDocument()
     expect(screen.getByText('Replies (1)')).toBeInTheDocument()
+  })
+
+  // Focused-status visibility gate. These exercise the consolidated
+  // `canActorReadStatus` gate on the focused status itself (not an ancestor),
+  // which previously had a bespoke inline reimplementation.
+  it('renders a focused followers-only status whose followersUrl does not end in /followers when the viewer follows the author', async () => {
+    // Regression: a remote author whose stored followersUrl uses a
+    // non-`/followers` path. The old inline gate detected followers-only
+    // audience with `endsWith('/followers')`, so it misread this as a direct
+    // message and returned notFound for a legitimate follower.
+    // `hasFollowersAudience` exact-matches the actor's stored `followersUrl`.
+    const customFollowersUrl = `${REMOTE_AUTHOR_ID}/followers-collection`
+    const focused = buildNote({
+      id: 'remote-followers-only',
+      actorId: REMOTE_AUTHOR_ID,
+      actor: {
+        followersUrl: customFollowersUrl
+      } as unknown as Status['actor'],
+      isLocalActor: false,
+      // Viewer is NOT addressed in to/cc — only the followers collection is, so
+      // the old DM branch would have rejected this follower.
+      to: [customFollowersUrl],
+      cc: []
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'remote-followers-only',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetAcceptedOrRequestedFollow.mockResolvedValue({
+      status: FollowStatus.enum.Accepted
+    })
+
+    await renderPage()
+
+    expect(
+      screen.getByTestId('status-remote-followers-only')
+    ).toBeInTheDocument()
+  })
+
+  it('returns notFound for a focused followers-only status when the viewer does not follow the author', async () => {
+    const focused = buildNote({
+      id: 'focused-followers-only',
+      to: [`${AUTHOR_ID}/followers`],
+      cc: []
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused-followers-only',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    // Default follow mock returns null (the viewer is not a follower).
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('renders a focused direct message addressed to the viewer', async () => {
+    const focused = buildNote({
+      id: 'focused-dm-to-viewer',
+      actorId: 'https://activities.local/users/bob',
+      to: [VIEWER_ID],
+      cc: []
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused-dm-to-viewer',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+
+    await renderPage()
+
+    expect(
+      screen.getByTestId('status-focused-dm-to-viewer')
+    ).toBeInTheDocument()
+  })
+
+  it('returns notFound for a focused direct message the viewer is not addressed in', async () => {
+    const focused = buildNote({
+      id: 'focused-dm-to-bob',
+      to: ['https://activities.local/users/bob'],
+      cc: []
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused-dm-to-bob',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('returns notFound for a focused public boost of a followers-only original when the viewer does not follow the boosted author', async () => {
+    const privateOriginal = buildNote({
+      id: 'private-original',
+      to: [`${AUTHOR_ID}/followers`],
+      cc: []
+    })
+    const announce = {
+      id: 'public-announce',
+      type: 'Announce',
+      actorId: 'https://activities.local/users/booster',
+      actor: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: 1,
+      updatedAt: 1,
+      originalStatus: privateOriginal
+    } as unknown as Status
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: announce,
+      statusId: 'public-announce',
+      fullStatusId: privateOriginal.url,
+      isStatusHash: true
+    })
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('renders a focused public boost of a followers-only original when the viewer follows the boosted author', async () => {
+    const privateOriginal = buildNote({
+      id: 'private-original',
+      to: [`${AUTHOR_ID}/followers`],
+      cc: []
+    })
+    const announce = {
+      id: 'public-announce',
+      type: 'Announce',
+      actorId: 'https://activities.local/users/booster',
+      actor: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: 1,
+      updatedAt: 1,
+      originalStatus: privateOriginal
+    } as unknown as Status
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: announce,
+      statusId: 'public-announce',
+      fullStatusId: privateOriginal.url,
+      isStatusHash: true
+    })
+    mockGetAcceptedOrRequestedFollow.mockResolvedValue({
+      status: FollowStatus.enum.Accepted
+    })
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-public-announce')).toBeInTheDocument()
   })
 })
