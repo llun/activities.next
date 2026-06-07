@@ -1,0 +1,22 @@
+lib/services/timelines/request.ts
+  s_1212410fcb74ef::t_b986d2c07e2ff2 101-102
+  s_1212410fcb74ef::t_2a54be383784c2 103-106
+lib/services/mastodon/getMastodonStatus.ts
+  s_1212410fcb74ef::t_2a54be383784c2 482-485,621-624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3386b58c45c8ac1aeb8b8aee99c55fcdb2e4970a",
+  "prompts": {},
+  "sessions": {
+    "s_1212410fcb74ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca12683c-8a1b-429b-ba34-2c6f37309932",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
