@@ -1,14 +1,13 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
+import { ListEditor, ListMember } from '@/app/(timeline)/lists/ListEditor'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonList } from '@/lib/services/mastodon/getMastodonList'
 import { Mastodon } from '@/lib/types/activitypub'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { ListEditor, ListMember } from '../../ListEditor'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -17,13 +16,19 @@ export const metadata: Metadata = {
 
 // Seed of followed accounts offered as add suggestions. The editor searches
 // within this loaded set, so keep it generous without unbounding the query.
+// (Full server-backed search across all follows is a follow-up.)
 const FOLLOWING_SUGGESTIONS_LIMIT = 200
+// Page size + safety cap for loading the full member list. We load every member
+// (not just the first page) so even large lists can be fully viewed and edited.
+const MEMBER_PAGE_LIMIT = 80
+const MAX_MEMBER_PAGES = 25
 
 interface PageProps {
   params: Promise<{ id: string }>
 }
 
 const toListMember = (account: Mastodon.Account, host: string): ListMember => ({
+  // Mastodon Account `id` (the `urlToId`-encoded actor id, not the raw URI).
   id: account.id,
   name: account.display_name || account.username,
   // `acct` is bare username for local accounts; qualify it with the instance
@@ -51,11 +56,22 @@ const Page = async ({ params }: PageProps) => {
     return notFound()
   }
 
-  const { accounts: memberAccounts } = await database.getListAccounts({
-    listId: id,
-    actorId: actor.id,
-    limit: 80
-  })
+  // Load every member, not just the first page, so a large list can still be
+  // fully viewed and edited. Paginate on the membership cursor with a safety cap.
+  const memberAccounts: Mastodon.Account[] = []
+  let memberCursor: string | null = null
+  for (let page = 0; page < MAX_MEMBER_PAGES; page++) {
+    const { accounts, nextMaxId } = await database.getListAccounts({
+      listId: id,
+      actorId: actor.id,
+      limit: MEMBER_PAGE_LIMIT,
+      maxId: memberCursor
+    })
+    memberAccounts.push(...accounts)
+    if (accounts.length < MEMBER_PAGE_LIMIT || !nextMaxId) break
+    memberCursor = nextMaxId
+  }
+
   const follows = await database.getFollowing({
     actorId: actor.id,
     limit: FOLLOWING_SUGGESTIONS_LIMIT

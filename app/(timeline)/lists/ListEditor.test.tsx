@@ -116,6 +116,30 @@ describe('ListEditor', () => {
     )
   })
 
+  it('re-enables the Add button and shows an error when the request rejects', async () => {
+    ;(addListAccounts as jest.Mock).mockRejectedValue(new Error('network down'))
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+
+    const addButton = screen.getByRole('button', { name: 'Add' })
+    fireEvent.click(addButton)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not add that account. Please try again.'
+    )
+    // The pending state must clear even though the request threw, so the row's
+    // Add button is usable again rather than stuck disabled.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Add' })).not.toBeDisabled()
+    )
+  })
+
   it('removes a member from the list right away', async () => {
     render(
       <ListEditor

@@ -2621,7 +2621,9 @@ const mutateListAccounts = async (
     {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account_ids: accountIds.map((id) => urlToId(id)) })
+      // accountIds are already Mastodon Account ids (the `urlToId`-encoded
+      // form); the route decodes them with `idToUrl`, so pass them through.
+      body: JSON.stringify({ account_ids: accountIds })
     }
   )
   return response.ok
@@ -2642,7 +2644,11 @@ export interface GetListTimelineParams {
   limit?: number
 }
 
-const getListTimelinePage = async ({
+// The list timeline does no server-side content filtering, so an empty page
+// always carries a null cursor (end of list). That's unlike the home timeline,
+// where filtered-out pages can still report a next cursor and need the
+// empty-continuation loop in getTimeline — here a single page fetch suffices.
+export const getListTimeline = async ({
   listId,
   minStatusId,
   maxStatusId,
@@ -2670,37 +2676,4 @@ const getListTimelinePage = async ({
     nextMaxStatusId: data.nextMaxStatusId ?? null,
     prevMinStatusId: data.prevMinStatusId ?? null
   }
-}
-
-export const getListTimeline = async ({
-  listId,
-  minStatusId,
-  maxStatusId,
-  limit
-}: GetListTimelineParams): Promise<GetTimelineResult> => {
-  let result = await getListTimelinePage({
-    listId,
-    minStatusId,
-    maxStatusId,
-    limit
-  })
-  let currentMaxStatusId = result.nextMaxStatusId
-  let continuations = 0
-
-  while (
-    result.statuses.length === 0 &&
-    currentMaxStatusId &&
-    continuations < MAX_EMPTY_TIMELINE_CONTINUATIONS
-  ) {
-    continuations++
-    result = await getListTimelinePage({
-      listId,
-      minStatusId,
-      maxStatusId: currentMaxStatusId,
-      limit
-    })
-    currentMaxStatusId = result.nextMaxStatusId
-  }
-
-  return result
 }

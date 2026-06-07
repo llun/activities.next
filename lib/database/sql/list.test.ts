@@ -264,6 +264,53 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('hydrates the owner action state in the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/liked`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'like me',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // The owner has acted on the member's post; the list timeline must reflect
+      // it (the timeline is hydrated for the owner, who is the viewer).
+      await database.createLike({ actorId: owner.id, statusId })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Action state list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      const liked = statuses.find((status) => status.id === statusId)
+      expect(liked).toBeDefined()
+      expect((liked as { isActorLiked?: boolean }).isActorLiked).toBe(true)
+    })
+  })
+
   it('counts members per list and scopes counts to the owner', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')

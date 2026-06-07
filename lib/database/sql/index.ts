@@ -77,7 +77,8 @@ export const getSQLDatabase = (database: Knex): Database => {
   const listDatabase = ListSQLDatabaseMixin(
     database,
     (actorIds) => actorDatabase.getMastodonActors(actorIds),
-    (statusIds) => statusDatabase.getStatusesByIds({ statusIds })
+    (statusIds, currentActorId) =>
+      statusDatabase.getStatusesByIds({ statusIds, currentActorId })
   )
   const directConversationDatabase = DirectConversationSQLDatabaseMixin(
     database,

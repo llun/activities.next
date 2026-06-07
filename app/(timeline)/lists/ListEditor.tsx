@@ -21,7 +21,8 @@ import { Switch } from '@/lib/components/ui/switch'
 import { ListEntity } from '@/lib/types/mastodon/list'
 
 export interface ListMember {
-  // The actor URI (Mastodon Account `id`).
+  // The Mastodon Account `id` (the `urlToId`-encoded actor id, not the raw
+  // URI — that lives in `account.url`). Sent as-is to the list accounts API.
   id: string
   name: string
   handle: string
@@ -104,34 +105,46 @@ export const ListEditor: FC<ListEditorProps> = ({
     if (!list) return
     setError(null)
     setMemberPending(account.id, true)
-    const ok = await addListAccounts({
-      listId: list.id,
-      accountIds: [account.id]
-    })
-    setMemberPending(account.id, false)
-    if (!ok) {
+    try {
+      const ok = await addListAccounts({
+        listId: list.id,
+        accountIds: [account.id]
+      })
+      if (!ok) {
+        setError('Could not add that account. Please try again.')
+        return
+      }
+      setMembers((previous) => [...previous, account])
+    } catch {
       setError('Could not add that account. Please try again.')
-      return
+    } finally {
+      // Always clear pending, even when the request throws, so the row's
+      // Add/Remove control never stays permanently disabled.
+      setMemberPending(account.id, false)
     }
-    setMembers((previous) => [...previous, account])
   }
 
   const removeMember = async (account: ListMember) => {
     if (!list) return
     setError(null)
     setMemberPending(account.id, true)
-    const ok = await removeListAccounts({
-      listId: list.id,
-      accountIds: [account.id]
-    })
-    setMemberPending(account.id, false)
-    if (!ok) {
+    try {
+      const ok = await removeListAccounts({
+        listId: list.id,
+        accountIds: [account.id]
+      })
+      if (!ok) {
+        setError('Could not remove that account. Please try again.')
+        return
+      }
+      setMembers((previous) =>
+        previous.filter((member) => member.id !== account.id)
+      )
+    } catch {
       setError('Could not remove that account. Please try again.')
-      return
+    } finally {
+      setMemberPending(account.id, false)
     }
-    setMembers((previous) =>
-      previous.filter((member) => member.id !== account.id)
-    )
   }
 
   const handleSave = async () => {
@@ -188,14 +201,21 @@ export const ListEditor: FC<ListEditorProps> = ({
     }
     setError(null)
     setDeleting(true)
-    const ok = await deleteList(list.id)
-    if (!ok) {
-      setDeleting(false)
+    try {
+      const ok = await deleteList(list.id)
+      if (!ok) {
+        setError('Could not delete the list. Please try again.')
+        return
+      }
+      router.push('/lists')
+      router.refresh()
+    } catch {
       setError('Could not delete the list. Please try again.')
-      return
+    } finally {
+      // On a thrown request the success path returns early; clear the flag here
+      // so the Delete/Save buttons don't stay disabled.
+      setDeleting(false)
     }
-    router.push('/lists')
-    router.refresh()
   }
 
   const cancelHref = mode === 'edit' && list ? `/lists/${list.id}` : '/lists'
@@ -275,6 +295,7 @@ export const ListEditor: FC<ListEditorProps> = ({
             <Input
               className="pl-9"
               value={search}
+              aria-label="Search accounts you follow"
               placeholder="Search accounts you follow"
               onChange={(event) => setSearch(event.target.value)}
             />

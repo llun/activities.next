@@ -1,11 +1,10 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { ListEditor } from '@/app/(timeline)/lists/ListEditor'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { ListEditor } from '../ListEditor'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {

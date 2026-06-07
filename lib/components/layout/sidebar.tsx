@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   ActorInfo,
@@ -59,6 +59,13 @@ export function Sidebar({
   // Default the Lists group open whenever the user is inside it so the active
   // list is visible without an extra click; otherwise start collapsed.
   const [isListsOpen, setListsOpen] = useState(isListsSectionActive)
+
+  // Client-side navigation keeps the sidebar mounted, so the initial state
+  // above doesn't re-run. Re-open the group whenever the route enters the Lists
+  // section (the user can still collapse it manually afterwards).
+  useEffect(() => {
+    if (isListsSectionActive) setListsOpen(true)
+  }, [isListsSectionActive])
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
