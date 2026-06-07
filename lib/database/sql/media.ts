@@ -626,13 +626,21 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .join('actors', 'medias.actorId', 'actors.id')
         .where('medias.id', mediaId)
         .where('actors.accountId', accountId)
-        .select('medias.id', 'medias.originalBytes', 'medias.thumbnailBytes')
+        .select(
+          'medias.id',
+          'medias.original',
+          'medias.thumbnail',
+          'medias.originalBytes',
+          'medias.thumbnailBytes'
+        )
         .first<{
           id: string | number
+          original: string
+          thumbnail: string | null
           originalBytes: number | string | bigint | null
           thumbnailBytes: number | string | bigint | null
         }>()
-      if (!media) return 'not-found'
+      if (!media) return { status: 'not-found' }
 
       // Mastodon's destroy returns 422 (in_usage_error) when the attachment is
       // already tied to a posted status, rather than deleting it. Match via a
@@ -644,10 +652,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .join('medias', 'medias.id', 'attachments.mediaId')
         .where('medias.id', media.id)
         .first('attachments.id')
-      if (attached) return 'in-use'
+      if (attached) return { status: 'in-use' }
 
       const deleted = await trx('medias').where('id', media.id).del()
-      if (!deleted) return 'not-found'
+      if (!deleted) return { status: 'not-found' }
 
       const usageDelta =
         parseCounterValue(media.originalBytes) +
@@ -660,7 +668,14 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         )
       }
       await decreaseCounterValue(trx, CounterKey.totalMedia(accountId), 1)
-      return 'deleted'
+
+      // Return the paths captured inside the transaction so the caller deletes
+      // exactly the files that belonged to this row (no racy prefetch).
+      const files = [
+        media.original,
+        ...(media.thumbnail ? [media.thumbnail] : [])
+      ]
+      return { status: 'deleted', files }
     })
   },
 

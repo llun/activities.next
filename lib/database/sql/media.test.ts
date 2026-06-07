@@ -944,7 +944,7 @@ describe('MediaDatabase', () => {
           accountId
         })
 
-        expect(result).toBe('deleted')
+        expect(result.status).toBe('deleted')
         const usageAfter = await database.getStorageUsageForAccount({
           accountId
         })
@@ -962,7 +962,7 @@ describe('MediaDatabase', () => {
           mediaId: '99999999',
           accountId: actor!.account!.id
         })
-        expect(result).toBe('not-found')
+        expect(result.status).toBe('not-found')
       })
 
       it('returns not-found when the media belongs to another account', async () => {
@@ -984,7 +984,7 @@ describe('MediaDatabase', () => {
           accountId: otherActor!.account!.id
         })
 
-        expect(result).toBe('not-found')
+        expect(result.status).toBe('not-found')
         // The media must still exist for its real owner.
         const owner = await database.getActorFromId({ id: actors.primary.id })
         const stillThere = await database.getMediaByIdForAccount({
@@ -1023,7 +1023,7 @@ describe('MediaDatabase', () => {
           accountId
         })
 
-        expect(result).toBe('in-use')
+        expect(result.status).toBe('in-use')
         const stillThere = await database.getMediaByIdForAccount({
           mediaId: media!.id,
           accountId

@@ -376,14 +376,6 @@ export const DELETE = traceApiRoute(
         })
       }
 
-      // Capture the storage paths before deleting the row so the underlying
-      // files can be removed once we know the delete actually happened (and
-      // wasn't rejected as in-use).
-      const media = await database.getMediaByIdForAccount({
-        mediaId: id,
-        accountId: account.id
-      })
-
       const result = await database.deleteMediaForAccount({
         mediaId: id,
         accountId: account.id
@@ -391,7 +383,7 @@ export const DELETE = traceApiRoute(
 
       // Media already attached to a posted status can't be deleted (Mastodon
       // returns 422 in_usage_error).
-      if (result === 'in-use') {
+      if (result.status === 'in-use') {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -400,7 +392,7 @@ export const DELETE = traceApiRoute(
         })
       }
 
-      if (result === 'not-found') {
+      if (result.status === 'not-found') {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -410,27 +402,22 @@ export const DELETE = traceApiRoute(
       }
 
       // Best-effort removal of the original + thumbnail files now that the row
-      // is gone. Storage failures are logged but don't fail the request — the
+      // is gone. The paths come from inside the delete transaction (no racy
+      // prefetch). Storage failures are logged but don't fail the request — the
       // record is already deleted and the usage counter decremented.
-      if (media) {
-        const filesToDelete = [
-          media.original.path,
-          ...(media.thumbnail ? [media.thumbnail.path] : [])
-        ]
-        const deletions = await Promise.allSettled(
-          filesToDelete.map((filePath) => deleteMediaFile(database, filePath))
-        )
-        deletions.forEach((deletion, index) => {
-          if (deletion.status === 'rejected' || !deletion.value) {
-            logger.warn({
-              message: 'Failed to delete storage file for deleted media',
-              filePath: filesToDelete[index],
-              mediaId: id,
-              accountId: account.id
-            })
-          }
-        })
-      }
+      const deletions = await Promise.allSettled(
+        result.files.map((filePath) => deleteMediaFile(database, filePath))
+      )
+      deletions.forEach((deletion, index) => {
+        if (deletion.status === 'rejected' || !deletion.value) {
+          logger.warn({
+            message: 'Failed to delete storage file for deleted media',
+            filePath: result.files[index],
+            mediaId: id,
+            accountId: account.id
+          })
+        }
+      })
 
       logger.info({
         message: 'Media deleted',

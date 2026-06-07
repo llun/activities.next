@@ -1700,8 +1700,13 @@ export type DeleteMediaForAccountParams = {
 }
 // Mirrors Mastodon's destroy semantics: `not-found` (missing or owned by another
 // account) → 404, `in-use` (still attached to a posted status) → 422, `deleted`
-// → 200.
-export type DeleteMediaForAccountResult = 'deleted' | 'not-found' | 'in-use'
+// → 200. On `deleted`, `files` carries the storage paths captured inside the
+// delete transaction so the caller can remove them without a separate (racy)
+// prefetch.
+export type DeleteMediaForAccountResult =
+  | { status: 'deleted'; files: string[] }
+  | { status: 'not-found' }
+  | { status: 'in-use' }
 export type DeleteMediaByPathParams = {
   actorId: string
   path: string

@@ -539,23 +539,25 @@ export class S3FileStorage implements MediaStorage {
     const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
     const s3client = this._client
 
-    const fd = await fs.open(tempFilePath, 'r')
+    // Outer finally guarantees the temp file is removed even if fs.open throws;
+    // inner finally releases the fd. `createReadStream` may auto-close the fd on
+    // success, so ignore EBADF from a double close.
     try {
-      const stream = fd.createReadStream()
-      const command = new PutObjectCommand({
-        Bucket: bucket,
-        Key: path,
-        ContentType: contentType,
-        Body: stream
-      })
-      await s3client.send(command)
-      stream.close()
+      const fd = await fs.open(tempFilePath, 'r')
+      try {
+        const stream = fd.createReadStream()
+        const command = new PutObjectCommand({
+          Bucket: bucket,
+          Key: path,
+          ContentType: contentType,
+          Body: stream
+        })
+        await s3client.send(command)
+        stream.close()
+      } finally {
+        await fd.close().catch(() => undefined)
+      }
     } finally {
-      // Always release the descriptor and remove the temp file, even if the S3
-      // upload throws, to avoid fd/disk leaks. `createReadStream` may already
-      // have auto-closed the fd on the success path, so ignore EBADF from a
-      // double close.
-      await fd.close().catch(() => undefined)
       await fs.unlink(tempFilePath).catch(() => undefined)
     }
     return { image: resizedImage, metaData, outputInfo, path, contentType }
