@@ -1,0 +1,67 @@
+lib/services/mastodon/getMastodonStatus.ts
+  s_1212410fcb74ef::t_1bb09c8e85732e 15
+  s_1212410fcb74ef::t_97ca983a5568ae 463-486
+  s_1212410fcb74ef::t_cff9ab261d0b1c 602-622
+app/api/v1/timelines/public/route.test.ts
+  s_1212410fcb74ef::t_ff2bcb53ad6d51 5
+  s_1212410fcb74ef::t_51486af3ce8138 88
+  s_1212410fcb74ef::t_76a720b2d9ef5c 107-109,112-115,119,128
+  s_1212410fcb74ef::t_fe1279206c5f3c 1-4,6-7,9-87,89-106,110-111,116-118,120-127,129-143
+  s_1212410fcb74ef::t_4ec21bc3e5b11e 8
+lib/services/timelines/request.test.ts
+  s_1212410fcb74ef::t_5ad4165a0b79bc 10,31-35
+  s_1212410fcb74ef::t_cb14224bdf9b92 1-9,11-30,36-124
+lib/utils/urlToId.ts
+  s_1212410fcb74ef::t_52057e8d4ba811 112-148
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_1212410fcb74ef::t_ca8e2d3779610f 72-86,88-89
+  s_1212410fcb74ef::t_39d94b8868ca93 87
+app/api/v1/timelines/list/[list_id]/route.test.ts
+  s_1212410fcb74ef::t_bcd85c249bf4ba 98
+  s_1212410fcb74ef::t_2478d672d1a6cb 1-7,9-97,99-126,130-131,136-138,140-147,149-163
+  s_1212410fcb74ef::t_dd865de60b527c 127-129,132-135,139,148
+  s_1212410fcb74ef::t_f58bc21293aa84 8
+app/api/v1/timelines/tag/[hashtag]/route.ts
+  s_1212410fcb74ef::t_d2856525373623 9,11-13,18-20
+  s_1212410fcb74ef::t_5a08e19b14a132 39,53-62,64-76,83-86,101
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_1212410fcb74ef::t_c38437b856ad17 41-97
+  s_1212410fcb74ef::t_3b720b68cf73c3 14
+app/api/v1/timelines/public/route.ts
+  s_1212410fcb74ef::t_ff62fdcde72b12 32,35-44,46,50,74-77,83,86
+  s_1212410fcb74ef::t_feda3b2b04262f 8,10-12,16,18
+app/api/v1/timelines/[timeline]/route.ts
+  s_1212410fcb74ef::t_4966ae4e3dd49f 148
+  s_1212410fcb74ef::t_41c5bfa9510685 9,11-13,25-27
+  s_1212410fcb74ef::t_4e4717e0f0b169 45,77-86,90-97
+lib/services/timelines/request.ts
+  s_1212410fcb74ef::t_c865dcabfeeac9 1-65,67-108
+  s_1212410fcb74ef::t_b54d8d4f006ce2 66
+lib/utils/urlToId.test.ts
+  s_1212410fcb74ef::t_b782b01384d9c3 162-198
+  s_1212410fcb74ef::t_38aa33f77c96e1 1
+app/api/v1/timelines/list/[list_id]/route.ts
+  s_1212410fcb74ef::t_b54d8d4f006ce2 38-44,46-53,55-72,74-80,82-97,99-108,113-116,119
+  s_1212410fcb74ef::t_b4cf70e30fa2ec 8-11,14-19,21-23
+  s_1212410fcb74ef::t_9817bac065bef5 110-112,117-118
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_1212410fcb74ef::t_107032a5694fe5 550-576,580-581,586-588,590-604
+  s_1212410fcb74ef::t_e2d2453f0ccd32 9
+  s_1212410fcb74ef::t_3699e28ef8b65e 577-579,582-585,589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "03efe01024e50c0c000cd3786565f032bcac4199",
+  "prompts": {},
+  "sessions": {
+    "s_1212410fcb74ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca12683c-8a1b-429b-ba34-2c6f37309932",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
