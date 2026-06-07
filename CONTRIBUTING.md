@@ -404,6 +404,163 @@ yarn migrate
 
 > **Important:** All migrations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible. Use Knex query builder and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic.
 
+#### Updating the reference schema dumps
+
+There are **two** committed reference schema dumps, one per supported backend:
+
+- **`migrations/schema.sql`** — the **PostgreSQL** schema (`pg_dump`).
+- **`migrations/schema.sqlite.sql`** — the **SQLite** schema (`sqlite3 .schema`).
+  SQLite is what local dev and the Jest test suite use.
+
+Read the file that matches the backend you care about — the two SQL dialects
+differ (e.g. `character varying` / `jsonb` / `timestamp with time zone` vs
+`varchar` / `json` / `datetime`), so a Postgres dump cannot be loaded into SQLite
+or vice versa. Both files are gitignored by the blanket `*.sql` rule and
+re-included by explicit `!` negations in `.gitignore`.
+
+Any pull request that adds, edits, or removes a migration **must regenerate BOTH
+files in the same PR**, keeping them in lockstep. Nothing imports them at runtime
+(the app and tests run Knex migrations, not these files), so they will not break
+the build if they drift — they just silently go stale, which is how the Postgres
+dump fell behind in the past.
+
+Regenerate them canonically rather than hand-editing. In both cases, run every
+migration against a fresh database first and confirm the `knex_migrations` row
+count equals the number of `migrations/*.js` files.
+
+> **Heads up on environment isolation.** The commands below pass the database
+> settings **inline** on the `yarn migrate` line rather than writing a
+> `.env.local` — this avoids clobbering an existing `.env.local` (the file the
+> setup docs have you create) and, because `knexfile.js` uses `dotenv-flow`
+> (which never overrides variables already in the environment), guarantees these
+> inline values win over anything in `.env.local`. For that same reason, run them
+> in a shell where you have **not** exported any other `ACTIVITIES_DATABASE*`
+> variables — a stray exported `ACTIVITIES_DATABASE` (JSON) or
+> `ACTIVITIES_DATABASE_PG_*` would otherwise be merged in and could point
+> `yarn migrate` at the wrong (possibly remote/shared) database. Check with
+> `env | grep ACTIVITIES_DATABASE` first; unset anything that shows up.
+
+##### PostgreSQL — `migrations/schema.sql`
+
+1. Start a **local** PostgreSQL 17 — for example a throwaway Docker container —
+   and **wait until it is accepting connections** (`docker run -d` returns before
+   `initdb` finishes, so migrating immediately often fails with a connection
+   error). Never point at a remote/shared/production database.
+
+   ```bash
+   docker run -d --name anext-schema-pg \
+     -e POSTGRES_USER=activities \
+     -e POSTGRES_PASSWORD=activities \
+     -e POSTGRES_DB=activities \
+     -p 55432:5432 postgres:17
+
+   # Wait for readiness before continuing.
+   until docker exec anext-schema-pg pg_isready -U activities -q; do sleep 1; done
+   ```
+
+2. Run the migrations against it, passing the database settings **inline** (see
+   the environment-isolation note above — this avoids touching your `.env.local`
+   and overrides any `.env.local` values):
+
+   ```bash
+   ACTIVITIES_DATABASE_CLIENT=pg \
+   ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
+   ACTIVITIES_DATABASE_PG_PORT=55432 \
+   ACTIVITIES_DATABASE_PG_USER=activities \
+   ACTIVITIES_DATABASE_PG_PASSWORD=activities \
+   ACTIVITIES_DATABASE_PG_DATABASE=activities \
+     yarn migrate
+   ```
+
+   Sanity check that every migration ran: the row count in `knex_migrations`
+   should equal the number of `migrations/*.js` files.
+
+   ```bash
+   docker exec anext-schema-pg \
+     psql -U activities -d activities -tAc 'SELECT count(*) FROM knex_migrations;'
+   ls migrations/*.js | wc -l
+   ```
+
+3. Dump schema only, without ownership/grants, from the PG 17 server:
+
+   ```bash
+   docker exec anext-schema-pg \
+     pg_dump -U activities -d activities --schema-only --no-owner --no-privileges \
+     > /tmp/schema_raw.sql
+   ```
+
+4. Strip `pg_dump`'s noise so the file stays pure DDL matching the committed
+   style — drop the `\restrict`/`\unrestrict` session token (it is
+   non-deterministic and must never be committed), the `-- …` comment headers,
+   and the `SET default_tablespace` / `SET default_table_access_method` lines.
+   Keep the leading `SET` / `SELECT pg_catalog.set_config(...)` block and all
+   `CREATE` / `ALTER` statements.
+
+   ```bash
+   awk '
+     /^SET statement_timeout/ { started = 1 }
+     !started { next }
+     /^--/ { next }
+     /^\\(un)?restrict/ { next }
+     /^SET default_tablespace/ { next }
+     /^SET default_table_access_method/ { next }
+     { print }
+   ' /tmp/schema_raw.sql | cat -s > migrations/schema.sql
+   ```
+
+5. Clean up the throwaway container.
+
+   ```bash
+   docker rm -f anext-schema-pg
+   ```
+
+A Postgres regeneration is a full re-dump, so its diff can be large even for
+tables that did not change structurally (formatting differs from older dumps).
+That is expected — do not try to reproduce the previous line-by-line formatting
+by hand.
+
+##### SQLite — `migrations/schema.sqlite.sql`
+
+1. Run the migrations against a throwaway local SQLite file, passing the settings
+   **inline** (same reasoning as above — no `.env.local` is written or touched):
+
+   ```bash
+   ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+   ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 \
+     yarn migrate
+   sqlite3 schema-dump.sqlite3 'SELECT count(*) FROM knex_migrations;'  # == number of migrations
+   ```
+
+2. Dump the schema and strip SQLite's auto-managed internal tables — it recreates
+   these itself, so they must NOT be committed: the `sqlite_sequence` table and
+   the FTS5 shadow tables (`<name>_fts_data` / `_fts_idx` / `_fts_docsize` /
+   `_fts_config` / `_fts_content`). Keep the `CREATE VIRTUAL TABLE … USING fts5(…)`
+   statement and its triggers — those are real.
+
+   ```bash
+   sqlite3 schema-dump.sqlite3 '.schema' \
+     | grep -vE "^CREATE TABLE sqlite_sequence" \
+     | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
+     > migrations/schema.sqlite.sql
+   ```
+
+3. Sanity-check that the result loads cleanly into a fresh database:
+
+   ```bash
+   rm -f /tmp/roundtrip.sqlite3
+   sqlite3 /tmp/roundtrip.sqlite3 < migrations/schema.sqlite.sql && echo OK
+   ```
+
+4. Clean up the throwaway files:
+
+   ```bash
+   rm -f schema-dump.sqlite3 /tmp/roundtrip.sqlite3
+   ```
+
+After both dumps, only `migrations/schema.sql` and `migrations/schema.sqlite.sql`
+should be left changed. When a schema regeneration is the only change in a
+commit, use the `none:` prefix since these files ship nothing.
+
 ## Resources
 
 - [Next.js Documentation](https://nextjs.org/docs)
