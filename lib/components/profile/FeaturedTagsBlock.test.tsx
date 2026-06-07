@@ -44,11 +44,10 @@ describe('FeaturedTagsBlock', () => {
 
     expect(screen.getByText('Featured hashtags')).toBeInTheDocument()
 
+    // Chips link to the in-app hashtag timeline (/tags/<name>), not the
+    // account-scoped Mastodon entity URL (which this app does not serve).
     const runningChip = screen.getByRole('link', { name: /#running/ })
-    expect(runningChip).toHaveAttribute(
-      'href',
-      'https://example.test/@anna/tagged/running'
-    )
+    expect(runningChip).toHaveAttribute('href', '/tags/running')
     expect(runningChip).toHaveTextContent('128')
 
     const cyclingChip = screen.getByRole('link', { name: /#cycling/ })

@@ -24,7 +24,12 @@ export const FeaturedTagsBlock: FC<Props> = ({ tags }) => {
         {tags.map((tag) => (
           <Link
             key={tag.id}
-            href={tag.url}
+            // The Mastodon entity `tag.url` is the account-scoped
+            // `/@acct/tagged/<name>` URL, which this app does not serve. Link to
+            // the in-app hashtag timeline (`/tags/<name>`) instead — the same
+            // path every in-post hashtag uses — so the chip navigates client-side
+            // instead of 404ing.
+            href={`/tags/${encodeURIComponent(tag.name)}`}
             prefetch={false}
             className="group inline-flex h-8 items-center gap-2 rounded-full border bg-background px-3 text-sm transition-colors hover:bg-primary/[0.08] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >

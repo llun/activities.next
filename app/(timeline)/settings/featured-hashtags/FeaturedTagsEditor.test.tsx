@@ -62,6 +62,20 @@ describe('FeaturedTagsEditor', () => {
     ).toBeInTheDocument()
   })
 
+  it('clears the loading state and shows an error when the initial load fails', async () => {
+    mockGetFeaturedTags.mockRejectedValue(new Error('network'))
+    render(<FeaturedTagsEditor />)
+
+    // The skeleton must not get stuck: the error message renders and the
+    // editor settles out of the loading state.
+    expect(
+      await screen.findByText(
+        'Couldn’t load your featured hashtags. Please refresh to try again.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No featured hashtags yet')).toBeInTheDocument()
+  })
+
   it('renders "no posts yet" when last_status_at is null', async () => {
     mockGetFeaturedTags.mockResolvedValue([
       buildTag({ name: 'trailrun', statuses_count: '0', last_status_at: null })

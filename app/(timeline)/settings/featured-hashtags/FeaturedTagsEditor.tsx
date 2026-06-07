@@ -98,19 +98,27 @@ const LoadingSkeleton: FC = () => (
 const InlineMessageLine: FC<{ message: InlineMessage | null }> = ({
   message
 }) => {
-  if (!message) return null
-  const isSuccess = message.tone === 'success'
+  const isSuccess = message?.tone === 'success'
   const Icon = isSuccess ? Check : AlertTriangle
+  // Keep the live region mounted at all times and only swap its contents, so a
+  // screen reader reliably announces each new message. Errors use `alert`
+  // (assertive); successes use `status` (polite).
   return (
     <div
-      role="status"
-      className={cn(
-        'flex items-start gap-2 text-sm',
-        isSuccess ? 'text-green-600' : 'text-destructive'
-      )}
+      aria-live={isSuccess ? 'polite' : 'assertive'}
+      role={isSuccess ? 'status' : 'alert'}
     >
-      <Icon className="mt-0.5 size-4 shrink-0" />
-      <span>{message.text}</span>
+      {message && (
+        <div
+          className={cn(
+            'flex items-start gap-2 text-sm',
+            isSuccess ? 'text-green-600' : 'text-destructive'
+          )}
+        >
+          <Icon className="mt-0.5 size-4 shrink-0" />
+          <span>{message.text}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -157,14 +165,25 @@ export const FeaturedTagsEditor: FC = () => {
 
   useEffect(() => {
     let active = true
-    Promise.all([getFeaturedTags(), getFeaturedTagSuggestions()]).then(
-      ([loadedTags, loadedSuggestions]) => {
+    Promise.all([getFeaturedTags(), getFeaturedTagSuggestions()])
+      .then(([loadedTags, loadedSuggestions]) => {
         if (!active) return
         setTags(loadedTags)
         setSuggestions(loadedSuggestions)
-        setLoading(false)
-      }
-    )
+      })
+      .catch(() => {
+        if (!active) return
+        setMessage({
+          tone: 'error',
+          text: 'Couldn’t load your featured hashtags. Please refresh to try again.'
+        })
+      })
+      .finally(() => {
+        // Always clear the skeleton — otherwise a rejected request (network
+        // error, or a thrown response parse) would leave the editor stuck
+        // loading forever.
+        if (active) setLoading(false)
+      })
     return () => {
       active = false
     }
@@ -190,6 +209,9 @@ export const FeaturedTagsEditor: FC = () => {
     .slice(0, 6)
 
   const commit = async (raw: string) => {
+    // Guard against concurrent submits (e.g. clicking a suggestion while a POST
+    // is already in flight), which could append a duplicate row / duplicate key.
+    if (submitting) return
     const name = raw.trim().replace(/^#+/, '')
     if (!name) return
     if (!FEATURED_TAG_NAME_REGEX.test(name)) {
