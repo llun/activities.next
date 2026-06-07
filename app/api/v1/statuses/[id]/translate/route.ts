@@ -4,10 +4,14 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { getTranslationProvider } from '@/lib/services/translation'
 import { translateStatus } from '@/lib/services/translation/translateStatus'
-import { UnsupportedTargetLanguageError } from '@/lib/services/translation/types'
+import {
+  TranslationProviderError,
+  UnsupportedTargetLanguageError
+} from '@/lib/services/translation/types'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_422,
   apiCorsError,
@@ -100,9 +104,17 @@ export const POST = traceApiRoute(
         if (error instanceof UnsupportedTargetLanguageError) {
           return apiCorsError(req, CORS_HEADERS, 403)
         }
-        // Backend failure / unexpected response: Mastodon returns 503 so clients
-        // can retry or hide the Translate action.
-        return apiCorsError(req, CORS_HEADERS, 503)
+        if (error instanceof TranslationProviderError) {
+          // Backend failure / unexpected response: log the cause (the catch
+          // returns a Response, so the trace span would otherwise show a bare
+          // 503) and return 503 so clients can retry or hide the action.
+          logger.error({ error }, 'Status translation backend failed')
+          return apiCorsError(req, CORS_HEADERS, 503)
+        }
+        // Anything else is an unexpected bug, not a backend problem; re-throw so
+        // traceApiRoute records the exception and surfaces a traced 500 instead
+        // of masking it as "backend unavailable".
+        throw error
       }
     }
   ),

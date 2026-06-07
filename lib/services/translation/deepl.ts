@@ -5,7 +5,8 @@ import {
   TranslationProvider,
   TranslationProviderError,
   TranslationResult,
-  normalizeLanguageCode
+  normalizeLanguageCode,
+  parseTranslationJson
 } from '@/lib/services/translation/types'
 
 const REQUEST_TIMEOUT_MS = 10000
@@ -48,7 +49,7 @@ export const createDeepLProvider = (
         `DeepL languages request failed with status ${response.statusCode}`
       )
     }
-    const languages = JSON.parse(response.body) as DeepLLanguage[]
+    const languages = parseTranslationJson<DeepLLanguage[]>(response.body)
     return languages
       .map((language) => language.language)
       .filter((code): code is string => Boolean(code))
@@ -89,7 +90,7 @@ export const createDeepLProvider = (
         )
       }
 
-      const data = JSON.parse(response.body) as DeepLTranslateResponse
+      const data = parseTranslationJson<DeepLTranslateResponse>(response.body)
       const translations = data.translations ?? []
       if (translations.length !== texts.length) {
         throw new TranslationProviderError(

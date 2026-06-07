@@ -80,12 +80,20 @@ export const translateStatus = async ({
 
   await Promise.all(
     sources.map(async (source) => {
-      const cached = await database.getTranslationCache({
-        provider: provider.cacheKey,
-        sourceLanguage,
-        targetLanguage: normalizedTarget,
-        sourceHash: sha256(source)
-      })
+      // The cache is best effort on both sides: a read failure is treated as a
+      // miss (and logged) so a transient DB error degrades to a backend call
+      // rather than failing the whole translation, matching the write path.
+      let cached = null
+      try {
+        cached = await database.getTranslationCache({
+          provider: provider.cacheKey,
+          sourceLanguage,
+          targetLanguage: normalizedTarget,
+          sourceHash: sha256(source)
+        })
+      } catch (error) {
+        logger.warn({ error }, 'Failed to read translation cache entry')
+      }
       if (cached) {
         translations.set(source, cached)
       } else {

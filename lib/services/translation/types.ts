@@ -80,3 +80,18 @@ export class UnsupportedTargetLanguageError extends Error {
 // lower-case code used throughout the status `language` field.
 export const normalizeLanguageCode = (code: string): string =>
   code.trim().slice(0, 2).toLowerCase()
+
+/**
+ * Parses a backend response body, turning a malformed payload into a
+ * `TranslationProviderError` (caller maps to 503) rather than letting a raw
+ * `SyntaxError` escape as an untraced 500.
+ */
+export const parseTranslationJson = <T>(body: string): T => {
+  try {
+    return JSON.parse(body) as T
+  } catch {
+    throw new TranslationProviderError(
+      'Translation backend returned invalid JSON'
+    )
+  }
+}

@@ -98,6 +98,18 @@ describe('createDeepLProvider', () => {
     )
   })
 
+  it('throws a TranslationProviderError when the backend returns invalid JSON', async () => {
+    const { client } = createRecordingClient(() => ({
+      statusCode: 200,
+      body: 'not json'
+    }))
+    const provider = createDeepLProvider(deepLConfig, client)
+
+    await expect(provider.translate(['hello'], 'fr')).rejects.toThrow(
+      /invalid JSON/
+    )
+  })
+
   it('throws when the translation count does not match the input', async () => {
     const { client } = createRecordingClient(() => ({
       statusCode: 200,

@@ -6,7 +6,8 @@ import {
   TranslationProvider,
   TranslationProviderError,
   TranslationResult,
-  normalizeLanguageCode
+  normalizeLanguageCode,
+  parseTranslationJson
 } from '@/lib/services/translation/types'
 
 const REQUEST_TIMEOUT_MS = 30000
@@ -113,7 +114,7 @@ export const createOpenAIProvider = (
         )
       }
 
-      const data = JSON.parse(response.body) as OpenAIChatResponse
+      const data = parseTranslationJson<OpenAIChatResponse>(response.body)
       const content = data.choices?.[0]?.message?.content
       if (!content) {
         throw new TranslationProviderError('LLM translation response was empty')

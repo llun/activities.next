@@ -5,7 +5,8 @@ import {
   TranslationProvider,
   TranslationProviderError,
   TranslationResult,
-  normalizeLanguageCode
+  normalizeLanguageCode,
+  parseTranslationJson
 } from '@/lib/services/translation/types'
 
 const REQUEST_TIMEOUT_MS = 20000
@@ -63,7 +64,9 @@ export const createLibreTranslateProvider = (
         )
       }
 
-      const languages = JSON.parse(response.body) as LibreTranslateLanguage[]
+      const languages = parseTranslationJson<LibreTranslateLanguage[]>(
+        response.body
+      )
       const codes = languages
         .map((language) => language.code)
         .filter((code): code is string => Boolean(code))
@@ -93,7 +96,7 @@ export const createLibreTranslateProvider = (
         )
       }
 
-      const data = JSON.parse(response.body) as LibreTranslateResponse
+      const data = parseTranslationJson<LibreTranslateResponse>(response.body)
       // Normalize both the modern array response and the older single-string
       // response into an array so the length check is meaningful.
       const translatedText = toArray(data.translatedText)

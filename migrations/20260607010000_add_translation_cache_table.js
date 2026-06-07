@@ -13,12 +13,15 @@
  */
 exports.up = (knex) =>
   knex.schema.createTable('translation_cache', (table) => {
-    table.string('provider').notNullable()
-    table.string('sourceLanguage').notNullable()
-    table.string('targetLanguage').notNullable()
-    table.string('sourceHash').notNullable()
+    // Columns are sized so the 4-column composite primary key stays within
+    // MySQL's 3072-byte index limit (191 + 16 + 16 + 64 chars). `sourceHash` is
+    // a fixed 64-char sha256 hex digest; the language codes are ISO 639-1.
+    table.string('provider', 191).notNullable()
+    table.string('sourceLanguage', 16).notNullable()
+    table.string('targetLanguage', 16).notNullable()
+    table.string('sourceHash', 64).notNullable()
     table.text('content').notNullable()
-    table.string('detectedSourceLanguage')
+    table.string('detectedSourceLanguage', 16)
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
 
     table.primary([

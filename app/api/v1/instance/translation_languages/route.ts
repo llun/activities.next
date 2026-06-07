@@ -1,5 +1,6 @@
 import { getTranslationProvider } from '@/lib/services/translation'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -29,9 +30,12 @@ export const GET = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: languagePairs
       })
-    } catch {
+    } catch (error) {
       // A backend that cannot report its languages should not break the public
-      // instance metadata; fall back to advertising no pairs.
+      // instance metadata; log the cause (otherwise this silently advertises no
+      // pairs while /api/v2/instance still reports translation enabled) and fall
+      // back to advertising no pairs.
+      logger.error({ error }, 'Failed to load translation languages')
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   }
