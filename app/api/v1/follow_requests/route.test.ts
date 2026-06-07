@@ -266,6 +266,84 @@ describe('GET /api/v1/follow_requests', () => {
     ])
   })
 
+  it('returns newer requests after a min_id cursor', async () => {
+    const created: { id: string }[] = []
+    jest.useFakeTimers({
+      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+    })
+    try {
+      created.push(
+        await createFollowRequest(ACTOR1_ID, new Date('2024-01-01T00:00:00Z'))
+      )
+      created.push(
+        await createFollowRequest(ACTOR2_ID, new Date('2024-01-01T00:01:00Z'))
+      )
+      created.push(
+        await createFollowRequest(ACTOR5_ID, new Date('2024-01-01T00:02:00Z'))
+      )
+    } finally {
+      jest.useRealTimers()
+    }
+
+    const middleId = created[1].id
+    const response = await GET(createRequest(`?min_id=${middleId}`), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // min_id returns the oldest band after the cursor, presented newest-first.
+    expect(data.map((account: { url: string }) => account.url)).toEqual([
+      ACTOR5_ID
+    ])
+  })
+
+  it('drops unhydratable requesters but keeps the page-full Link cursor', async () => {
+    // A remote requester with no local account cannot be hydrated; the route
+    // must drop it from the body yet still derive the Link cursor from the
+    // follow rows so a full page still advertises rel="next".
+    const ghostRequester = 'https://remote.test/users/ghost-follow-request'
+    jest.useFakeTimers({
+      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+    })
+    try {
+      await createFollowRequest(ACTOR1_ID, new Date('2024-01-01T00:00:00Z'))
+      await createFollowRequest(
+        ghostRequester,
+        new Date('2024-01-01T00:01:00Z')
+      )
+    } finally {
+      jest.useRealTimers()
+    }
+
+    const response = await GET(createRequest('?limit=2'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // The ghost requester is dropped, leaving only the hydratable account...
+    expect(data.map((account: { url: string }) => account.url)).toEqual([
+      ACTOR1_ID
+    ])
+    // ...but the page was full (2 rows == limit), so rel="next" is still emitted.
+    const linkHeader = response.headers.get('Link')
+    expect(linkHeader).toContain('rel="next"')
+    expect(linkHeader).toContain('max_id=')
+  })
+
+  it('falls back to the default page for a non-numeric limit', async () => {
+    await createFollowRequest(ACTOR1_ID)
+    await createFollowRequest(ACTOR2_ID)
+
+    const response = await GET(createRequest('?limit=not-a-number'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toHaveLength(2)
+  })
+
   it('returns an empty array for an unknown pagination cursor', async () => {
     await createFollowRequest(ACTOR1_ID)
 

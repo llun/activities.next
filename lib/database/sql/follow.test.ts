@@ -369,7 +369,9 @@ describe('FollowDatabase', () => {
       })
 
       it('paginates pending requests newest-first with id cursors', async () => {
-        // emptyActor has no seeded requests, so it is a clean pagination target.
+        // Use a freshly created target so this test owns all of its pending
+        // requests and cannot be polluted by other cases in this suite.
+        const target = await createLocalActor()
         const [oldest, middle, newest] = await Promise.all([
           createLocalActor(),
           createLocalActor(),
@@ -379,7 +381,7 @@ describe('FollowDatabase', () => {
           jest.setSystemTime(new Date(createdAt))
           return database.createFollow({
             actorId,
-            targetActorId: emptyActorId,
+            targetActorId: target,
             inbox: `${actorId}/inbox`,
             sharedInbox: TEST_SHARED_INBOX,
             status: FollowStatus.enum.Requested
@@ -400,7 +402,7 @@ describe('FollowDatabase', () => {
         const middleRow = created[1]
 
         const firstPage = await database.getFollowRequests({
-          targetActorId: emptyActorId,
+          targetActorId: target,
           limit: 2
         })
         expect(firstPage.map((follow) => follow.actorId)).toEqual([
@@ -409,14 +411,14 @@ describe('FollowDatabase', () => {
         ])
 
         const olderPage = await database.getFollowRequests({
-          targetActorId: emptyActorId,
+          targetActorId: target,
           limit: 2,
           maxId: firstPage[firstPage.length - 1].id
         })
         expect(olderPage.map((follow) => follow.actorId)).toEqual([oldest])
 
         const newerPage = await database.getFollowRequests({
-          targetActorId: emptyActorId,
+          targetActorId: target,
           limit: 2,
           sinceId: middleRow.id
         })
@@ -424,18 +426,71 @@ describe('FollowDatabase', () => {
 
         // min_id returns the oldest band after the cursor, presented newest-first.
         const minIdPage = await database.getFollowRequests({
-          targetActorId: emptyActorId,
+          targetActorId: target,
           limit: 2,
           minId: middleRow.id
         })
         expect(minIdPage.map((follow) => follow.actorId)).toEqual([newest])
 
         const missingCursorPage = await database.getFollowRequests({
-          targetActorId: emptyActorId,
+          targetActorId: target,
           limit: 2,
           maxId: 'does-not-exist'
         })
         expect(missingCursorPage).toEqual([])
+      })
+
+      it('breaks createdAt ties by id without skipping or duplicating rows', async () => {
+        // applyFollowCursor exists to break createdAt ties via id (follow ids are
+        // random UUIDs). Give three requests the SAME createdAt and paginate
+        // across the tie boundary: the id tiebreaker must yield a stable total
+        // order with no dropped or repeated rows.
+        const target = await createLocalActor()
+        const requesters = await Promise.all([
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor()
+        ])
+        const sharedTime = new Date('2024-04-01T00:00:00Z')
+
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          jest.setSystemTime(sharedTime)
+          for (const actorId of requesters) {
+            await database.createFollow({
+              actorId,
+              targetActorId: target,
+              inbox: `${actorId}/inbox`,
+              sharedInbox: TEST_SHARED_INBOX,
+              status: FollowStatus.enum.Requested
+            })
+          }
+        } finally {
+          jest.useRealTimers()
+        }
+
+        const firstPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2
+        })
+        expect(firstPage).toHaveLength(2)
+
+        const secondPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2,
+          maxId: firstPage[firstPage.length - 1].id
+        })
+        expect(secondPage).toHaveLength(1)
+
+        const seen = [...firstPage, ...secondPage]
+        // No duplicates across pages.
+        expect(new Set(seen.map((follow) => follow.id)).size).toBe(3)
+        // No skipped rows: every requester appears exactly once.
+        expect(seen.map((follow) => follow.actorId).sort()).toEqual(
+          [...requesters].sort()
+        )
       })
     })
 
