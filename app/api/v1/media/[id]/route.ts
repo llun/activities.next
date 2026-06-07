@@ -292,9 +292,10 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
 
   if (!result) {
     // Owner check failed inside updateMedia; clean up the orphaned thumbnail we
-    // just stored so it doesn't leak.
+    // just stored so it doesn't leak. Best-effort — a cleanup failure must not
+    // turn the 404 into a 500.
     if (thumbnail) {
-      await deleteMediaFile(database, thumbnail.path)
+      await deleteMediaFile(database, thumbnail.path).catch(() => false)
     }
     return apiResponse({
       req,

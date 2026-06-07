@@ -9,7 +9,10 @@ const FILE_TYPE_ERROR_MESSAGE = `Only ${ACCEPTED_FILE_TYPES.join(',')} are accep
 const FILE_SIZE_ERROR_MESSAGE = 'File is larger than the limit.'
 
 export const FileSchema = z
-  .custom<File>()
+  // Enforce a real File first — z.custom with no guard accepts anything, so a
+  // crafted JSON object like { size, type } would otherwise satisfy the refines
+  // below and crash later when File methods (arrayBuffer) are called.
+  .custom<File>((value) => value instanceof File, 'Expected a file upload')
   .refine((file) => {
     const config = getConfig()
     return file.size <= (config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE)

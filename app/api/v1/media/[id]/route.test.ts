@@ -413,6 +413,20 @@ describe('/api/v1/media/[id]', () => {
     expect(mockSaveMediaThumbnail).not.toHaveBeenCalled()
   })
 
+  it('PUT returns 422 for a crafted non-File thumbnail object (no 500)', async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-thumb-craft')
+
+    // A JSON object mimicking { size, type } must not pass File validation and
+    // crash later — it should be rejected as 422.
+    const response = await PUT(
+      putRequest(id, { thumbnail: { size: 10, type: 'image/png' } }),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockSaveMediaThumbnail).not.toHaveBeenCalled()
+  })
+
   it('DELETE removes owner media not attached to a status and deletes its files', async () => {
     const media = await database.createMedia({
       actorId: ACTOR1_ID,
