@@ -101,7 +101,7 @@ export const StatusBox: FC<Props> = ({
             setModalMedias({ medias: allMedias, initialSelection: index })
           }}
         />
-        {variant === 'detail' && (
+        {variant === 'detail' && currentActor && (
           <StatusLikes
             statusId={actualStatus.id}
             totalLikes={actualStatus.totalLikes}

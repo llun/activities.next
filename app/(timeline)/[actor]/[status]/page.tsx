@@ -31,6 +31,7 @@ import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
+import { StatusStatStrip } from './StatusStatStrip'
 import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
 
 interface Props {
@@ -95,6 +96,15 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   if (!status) {
+    return notFound()
+  }
+
+  // Logged-out visitors may only view statuses that are publicly readable all
+  // the way down. The per-field `isPublicOrUnlisted` check below inspects only
+  // the top-level recipients — for an Announce those are the boost's, not the
+  // boosted note's — so a public boost of a followers-only post would otherwise
+  // slip through. `isStatusPubliclyReadable` recurses into the original status.
+  if (!currentActor && !isStatusPubliclyReadable(status)) {
     return notFound()
   }
 
@@ -232,7 +242,13 @@ const Page: FC<Props> = async ({ params }) => {
   if (isFitnessDashboard) {
     return (
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <Header isFitnessDashboard />
+        {currentActorProfile ? (
+          <Header isFitnessDashboard />
+        ) : (
+          // Logged-out view has no back-button chrome (matching the web-public
+          // design), but keep a top-level heading for the document outline.
+          <h1 className="sr-only">Activity</h1>
+        )}
 
         <div className="border-b bg-background">
           <StatusBox
@@ -243,6 +259,15 @@ const Page: FC<Props> = async ({ params }) => {
             status={cleanJson(status)}
             variant="detail"
           />
+          {!currentActorProfile ? (
+            <div className="px-4 pb-4">
+              <StatusStatStrip
+                boosts={statusForLayout.totalShares}
+                likes={statusForLayout.totalLikes}
+                replies={replies.length}
+              />
+            </div>
+          ) : null}
         </div>
 
         {!currentActorProfile ? <SignInCallout /> : null}
@@ -252,7 +277,13 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-      <Header isFitnessDashboard={false} />
+      {currentActorProfile ? (
+        <Header isFitnessDashboard={false} />
+      ) : (
+        // Logged-out view has no back-button chrome (matching the web-public
+        // design), but keep a top-level heading for the document outline.
+        <h1 className="sr-only">Post</h1>
+      )}
 
       {previouses.reverse().map((item) => (
         <div
@@ -279,6 +310,15 @@ const Page: FC<Props> = async ({ params }) => {
           variant="detail"
           isMediaUploadEnabled={Boolean(mediaStorage)}
         />
+        {!currentActorProfile ? (
+          <div className="px-4 pb-4">
+            <StatusStatStrip
+              boosts={statusForLayout.totalShares}
+              likes={statusForLayout.totalLikes}
+              replies={replies.length}
+            />
+          </div>
+        ) : null}
       </div>
 
       {!currentActorProfile ? <SignInCallout /> : null}
