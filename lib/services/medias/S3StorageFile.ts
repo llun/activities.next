@@ -458,18 +458,20 @@ export class S3FileStorage implements MediaStorage {
   async saveThumbnail(file: File): Promise<ThumbnailStorageOutput | null> {
     if (!file.type.startsWith('image')) return null
 
-    const { metaData, path } = await this._uploadImageToS3(
+    // Use the stored WebP's actual size/dimensions (outputInfo), not the input
+    // image's metadata.
+    const { outputInfo, path } = await this._uploadImageToS3(
       Date.now(),
       file,
       true
     )
     return {
       path,
-      bytes: metaData.size ?? 0,
+      bytes: outputInfo.size,
       mimeType: 'image/webp',
       metaData: {
-        width: metaData.width ?? 0,
-        height: metaData.height ?? 0
+        width: outputInfo.width,
+        height: outputInfo.height
       }
     }
   }
@@ -503,7 +505,9 @@ export class S3FileStorage implements MediaStorage {
       tmpdir(),
       `${crypto.randomBytes(8).toString('hex')}.webp`
     )
-    const [metaData] = await Promise.all([
+    // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
+    // info (post-resize/WebP dimensions and byte size).
+    const [metaData, outputInfo] = await Promise.all([
       resizedImage.metadata(),
       resizedImage.keepExif().toFile(tempFilePath)
     ])
@@ -525,7 +529,7 @@ export class S3FileStorage implements MediaStorage {
     stream.close()
     fd.close()
     await fs.unlink(tempFilePath)
-    return { image: resizedImage, metaData, path, contentType }
+    return { image: resizedImage, metaData, outputInfo, path, contentType }
   }
 
   private async _uploadVideoToS3(currentTime: number, file: File) {

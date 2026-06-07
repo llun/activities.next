@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import { deleteMediaFile, saveMediaThumbnail } from '@/lib/services/medias'
@@ -28,6 +31,10 @@ const CORS_HEADERS = [
 ]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+// Attach the route's CORS allow-list to the guard's auth-failure responses so
+// cross-origin clients can read 401/403/500 instead of an opaque CORS error.
+const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
 interface Params {
   id: string
@@ -115,7 +122,8 @@ export const GET = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: getMediaAttachment(media, headerHost(req.headers))
       })
-    }
+    },
+    guardOptions
   )
 )
 
@@ -289,7 +297,8 @@ export const PUT = traceApiRoute(
   'updateMedia',
   OAuthGuardAnyScope<Params>(
     [Scope.enum.write, Scope.enum['write:media']],
-    updateMediaHandler
+    updateMediaHandler,
+    guardOptions
   )
 )
 
@@ -297,7 +306,8 @@ export const PATCH = traceApiRoute(
   'updateMedia',
   OAuthGuardAnyScope<Params>(
     [Scope.enum.write, Scope.enum['write:media']],
-    updateMediaHandler
+    updateMediaHandler,
+    guardOptions
   )
 )
 
@@ -395,6 +405,7 @@ export const DELETE = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: {}
       })
-    }
+    },
+    guardOptions
   )
 )

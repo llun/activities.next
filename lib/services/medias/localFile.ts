@@ -177,14 +177,16 @@ export class LocalFileStorage implements MediaStorage {
   async saveThumbnail(file: File): Promise<ThumbnailStorageOutput | null> {
     if (!file.type.startsWith('image')) return null
 
-    const { metaData, path } = await this._saveImageFile(file, true)
+    // Use the stored WebP's actual size/dimensions (outputInfo), not the input
+    // image's metadata.
+    const { outputInfo, path } = await this._saveImageFile(file, true)
     return {
       path,
-      bytes: metaData.size ?? 0,
-      mimeType: `image/${metaData.format ?? 'webp'}`,
+      bytes: outputInfo.size,
+      mimeType: 'image/webp',
       metaData: {
-        width: metaData.width ?? 0,
-        height: metaData.height ?? 0
+        width: outputInfo.width,
+        height: outputInfo.height
       }
     }
   }
@@ -211,7 +213,10 @@ export class LocalFileStorage implements MediaStorage {
       .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
       .rotate()
       .webp({ quality: 95, smartSubsample: true, nearLossless: true })
-    const [metaData] = await Promise.all([
+    // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
+    // info (post-resize/WebP dimensions and byte size). Callers that need the
+    // stored file's real size/dimensions (e.g. thumbnails) use `outputInfo`.
+    const [metaData, outputInfo] = await Promise.all([
       resizedImage.metadata(),
       resizedImage.keepExif().toFile(filePath)
     ])
@@ -219,6 +224,7 @@ export class LocalFileStorage implements MediaStorage {
     return {
       image: resizedImage,
       metaData,
+      outputInfo,
       path: filename,
       contentType: 'image/webp',
       previewImage: null
