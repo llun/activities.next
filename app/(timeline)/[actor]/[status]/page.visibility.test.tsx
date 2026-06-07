@@ -110,6 +110,25 @@ const buildNote = (overrides: Partial<Status> = {}): Status =>
     ...overrides
   }) as unknown as Status
 
+const buildAnnounce = (
+  originalStatus: Status,
+  overrides: Partial<Status> = {}
+): Status =>
+  ({
+    id: 'public-announce',
+    type: 'Announce',
+    actorId: 'https://activities.local/users/booster',
+    actor: null,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [],
+    edits: [],
+    isLocalActor: true,
+    createdAt: 1,
+    updatedAt: 1,
+    originalStatus,
+    ...overrides
+  }) as unknown as Status
+
 const buildViewer = (): Actor =>
   ({
     id: VIEWER_ID,
@@ -287,19 +306,9 @@ describe('Page visibility for logged-out visitors', () => {
       to: ['https://activities.local/users/anna/followers'],
       cc: []
     })
-    const announce = {
-      id: 'public-announce',
-      type: 'Announce',
-      actorId: 'https://activities.local/users/anna',
-      actor: null,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [],
-      edits: [],
-      isLocalActor: true,
-      createdAt: 1,
-      updatedAt: 1,
-      originalStatus: privateOriginal
-    } as unknown as Status
+    const announce = buildAnnounce(privateOriginal, {
+      actorId: 'https://activities.local/users/anna'
+    })
 
     mockResolveStatusFromPath.mockResolvedValue({
       status: announce,
@@ -617,19 +626,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
       to: [`${AUTHOR_ID}/followers`],
       cc: []
     })
-    const announce = {
-      id: 'public-announce',
-      type: 'Announce',
-      actorId: 'https://activities.local/users/booster',
-      actor: null,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [],
-      edits: [],
-      isLocalActor: true,
-      createdAt: 1,
-      updatedAt: 1,
-      originalStatus: privateOriginal
-    } as unknown as Status
+    const announce = buildAnnounce(privateOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
       status: announce,
@@ -647,19 +644,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
       to: [`${AUTHOR_ID}/followers`],
       cc: []
     })
-    const announce = {
-      id: 'public-announce',
-      type: 'Announce',
-      actorId: 'https://activities.local/users/booster',
-      actor: null,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [],
-      edits: [],
-      isLocalActor: true,
-      createdAt: 1,
-      updatedAt: 1,
-      originalStatus: privateOriginal
-    } as unknown as Status
+    const announce = buildAnnounce(privateOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
       status: announce,
@@ -685,19 +670,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
       to: [VIEWER_ID],
       cc: []
     })
-    const announce = {
-      id: 'public-announce',
-      type: 'Announce',
-      actorId: 'https://activities.local/users/booster',
-      actor: null,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [],
-      edits: [],
-      isLocalActor: true,
-      createdAt: 1,
-      updatedAt: 1,
-      originalStatus: dmOriginal
-    } as unknown as Status
+    const announce = buildAnnounce(dmOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
       status: announce,
@@ -720,19 +693,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
       to: ['https://activities.local/users/bob'],
       cc: []
     })
-    const announce = {
-      id: 'public-announce',
-      type: 'Announce',
-      actorId: 'https://activities.local/users/booster',
-      actor: null,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [],
-      edits: [],
-      isLocalActor: true,
-      createdAt: 1,
-      updatedAt: 1,
-      originalStatus: dmOriginal
-    } as unknown as Status
+    const announce = buildAnnounce(dmOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
       status: announce,
