@@ -26,6 +26,7 @@
   - `yarn migrate` auto-loads `.env.local`; the `swc-node` mock scripts do not — run `set -a; . ./.env.local; set +a` before them.
   - Sign in at `/auth/signin` with `test@example.com` / `testpassword123`.
 - Activity logs: `fediverse_local-activitynext-dev-1` container; DB: `postgres` container.
+- **Any PR that adds/edits/removes a migration in `migrations/` MUST also update `migrations/schema.sql` in the same PR.** `schema.sql` is the committed PostgreSQL reference dump; nothing imports it (build/tests use Knex on SQLite), so it drifts silently if not kept in sync. Regenerate it by running all migrations against a **local** PostgreSQL 17 and dumping with `pg_dump --schema-only --no-owner --no-privileges`, then strip pg_dump chatter (the `\restrict`/`\unrestrict` token, `-- …` comments, `SET default_tablespace`/`default_table_access_method`). Don't hand-edit or chase the old formatting; commit as `none:` if it's the only change. Full steps in the **"Keeping `migrations/schema.sql` in sync"** subsection of `AGENTS.md`.
 - For major changes: commit → push → open PR to `main`.
 - Every commit message must start with a conventional commit prefix: `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc.
 - Use `none:` to mark a commit as no-release, `major:` for breaking changes, and `minor:` for new backwards-compatible features. `.github/`-only commits are also treated as no-bump unless they explicitly use `major:` or `minor:`. See `AGENTS.md` for the full version bump guide.

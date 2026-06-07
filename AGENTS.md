@@ -363,6 +363,17 @@ chore: update dependencies                            ← patch
 
 - Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`). MySQL-compatible Knex configuration paths also exist and should not be broken casually.
 - Local SQLite is the simplest for development; run `yarn migrate` after updating schema or migrations.
+
+### Keeping `migrations/schema.sql` in sync
+
+- **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST also update `migrations/schema.sql` in the same PR.** `schema.sql` is the committed PostgreSQL reference dump of the full schema; it is not imported by runtime code (build/tests run Knex against SQLite), so nothing will fail if it drifts — it just goes silently stale. Regenerate it whenever the migration set changes.
+- Regenerate it canonically rather than hand-editing — run every migration against a fresh PostgreSQL and dump the result:
+  1. Start a **local** PostgreSQL 17 (e.g. a throwaway `postgres:17` Docker container, or the docker-compose stack). Never point at a remote/shared/production DB.
+  2. Point a worktree-local `.env.local` at it (`ACTIVITIES_DATABASE_CLIENT=pg` + `ACTIVITIES_DATABASE_PG_HOST/PORT/USER/PASSWORD/DATABASE`) and run `yarn migrate`. Verify `SELECT count(*) FROM knex_migrations` equals the number of `migrations/*.js` files.
+  3. Dump schema only, without ownership/grants: `pg_dump --schema-only --no-owner --no-privileges` (run it against the PG 17 server so the dump matches that version).
+  4. Strip pg_dump's noise to match the existing pure-DDL file: the `\restrict`/`\unrestrict` session token (non-deterministic — never commit it), the `-- …` comment headers, and the `SET default_tablespace` / `SET default_table_access_method` lines. Keep the leading `SET`/`SELECT pg_catalog.set_config(...)` block and all `CREATE`/`ALTER` DDL.
+  5. Remove the throwaway container and worktree-local `.env.local` when done; only `migrations/schema.sql` should change.
+- This is a full regeneration, so the diff can be large even for unchanged tables (formatting differs from older dumps). That is expected — do not try to reproduce the old line-by-line formatting by hand. Commit the schema regeneration as `none:` when it is the only change (it is a reference artifact and ships nothing).
 - **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.
 - Tests use isolated SQLite in-memory databases for fast, parallel execution.
 - Docker users should mount a persistent volume to `/opt/activities.next` (see `docs/setup.md`).
