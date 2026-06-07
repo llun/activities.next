@@ -1257,6 +1257,27 @@ describe('ActorDatabase', () => {
     })
 
     describe('deleteActorData', () => {
+      it('removes the deleted actor featured tags', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-featured-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        await database.createFeaturedTag({ actorId, name: 'cleanup' })
+        expect(await database.countFeaturedTags({ actorId })).toBe(1)
+
+        await database.deleteActorData({ actorId })
+
+        expect(await database.countFeaturedTags({ actorId })).toBe(0)
+      })
+
       it('removes account notes referencing the deleted actor on either side', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-note-${suffix}`
