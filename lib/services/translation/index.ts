@@ -15,7 +15,7 @@ import {
  * pay an extra round trip. A rejected lookup is not cached, so a transient
  * failure can be retried.
  */
-const withLanguageCache = (
+export const withLanguageCache = (
   provider: TranslationProvider
 ): TranslationProvider => {
   let cached: Promise<TranslationLanguages> | null = null

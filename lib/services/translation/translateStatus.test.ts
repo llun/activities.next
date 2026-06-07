@@ -250,6 +250,47 @@ describe('translateStatus', () => {
     ).rejects.toBeInstanceOf(UnsupportedTargetLanguageError)
   })
 
+  it('treats a cache read failure as a miss and still translates', async () => {
+    const database = {
+      async getTranslationCache() {
+        throw new Error('db read down')
+      },
+      async saveTranslationCache() {}
+    } as unknown as Database
+    const { provider, calls } = createFakeProvider()
+
+    const translation = await translateStatus({
+      database,
+      provider,
+      status: buildStatus({ content: 'hello' }),
+      targetLanguage: 'fr'
+    })
+
+    expect(calls).toEqual([['hello']])
+    expect(translation.content).toBe('HELLO')
+  })
+
+  it('still resolves when the cache write fails', async () => {
+    const database = {
+      async getTranslationCache() {
+        return null
+      },
+      async saveTranslationCache() {
+        throw new Error('db write down')
+      }
+    } as unknown as Database
+    const { provider } = createFakeProvider()
+
+    await expect(
+      translateStatus({
+        database,
+        provider,
+        status: buildStatus({ content: 'hello' }),
+        targetLanguage: 'fr'
+      })
+    ).resolves.toMatchObject({ content: 'HELLO' })
+  })
+
   it('propagates backend failures', async () => {
     const { database } = createFakeDatabase()
     const { provider } = createFakeProvider({

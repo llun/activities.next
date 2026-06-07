@@ -66,7 +66,9 @@ export const POST = traceApiRoute(
       const requestedLanguage =
         typeof body.lang === 'string' && body.lang.length > 0
           ? body.lang
-          : getConfig().languages[0]
+          : // Fall back to 'en' if the server default language list is empty
+            // (e.g. ACTIVITIES_LANGUAGES='[]'), so the target is never undefined.
+            (getConfig().languages[0] ?? 'en')
 
       const statusId = idToUrl(encodedStatusId)
       const status = await getReadableStatus({

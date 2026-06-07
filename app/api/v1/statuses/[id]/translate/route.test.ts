@@ -140,4 +140,11 @@ describe('POST /api/v1/statuses/:id/translate', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(translation)
   })
+
+  it('falls back to the server default language when lang is omitted', async () => {
+    await post('{}')
+    expect(mockTranslateStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ targetLanguage: 'en' })
+    )
+  })
 })
