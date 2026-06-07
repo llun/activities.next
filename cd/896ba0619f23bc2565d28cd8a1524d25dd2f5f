@@ -1,0 +1,38 @@
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_1212410fcb74ef::t_bda7150afaa201 90-103
+app/api/v1/timelines/[timeline]/route.ts
+  s_1212410fcb74ef::t_e97397062af6b2 5-8
+  s_1212410fcb74ef::t_85b947c85ecff6 151-152
+app/api/v1/timelines/tag/[hashtag]/route.ts
+  s_1212410fcb74ef::t_3b4b4b68ddb42e 64
+  s_1212410fcb74ef::t_1aa774b4fe1d83 79-81,85
+  s_1212410fcb74ef::t_b9c530dec88eac 65-75
+app/api/v1/timelines/list/[list_id]/route.test.ts
+  s_1212410fcb74ef::t_21074db57fe4bf 126-128,130-140
+  s_1212410fcb74ef::t_b9c530dec88eac 129
+app/api/v1/timelines/public/route.ts
+  s_1212410fcb74ef::t_b02e5c552af290 71-73,77
+  s_1212410fcb74ef::t_6e55065e09b14f 46
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_1212410fcb74ef::t_3941fa83020a40 586
+  s_1212410fcb74ef::t_43b05d44c728f1 566-585,587
+app/api/v1/timelines/list/[list_id]/route.ts
+  s_1212410fcb74ef::t_1b6e4bb252c7c7 5-8
+  s_1212410fcb74ef::t_30eb2915d4b9bb 122-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "cd896ba0619f23bc2565d28cd8a1524d25dd2f5f",
+  "prompts": {},
+  "sessions": {
+    "s_1212410fcb74ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca12683c-8a1b-429b-ba34-2c6f37309932",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
