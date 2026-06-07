@@ -15,8 +15,18 @@ interface ReadOnlyStatsProps {
  * count is omitted because `replies` isn't hydrated on timeline statuses, so
  * the reply affordance shows as an icon only.
  */
+// Pluralize the engagement noun. The count is rendered separately (a visible,
+// screen-reader-read number), so the sr-only span carries only the noun — the
+// reader announces e.g. "4 boosts" without repeating the count.
+const pluralNoun = (count: number, noun: string) =>
+  count === 1 ? noun : `${noun}s`
+
 export const ReadOnlyStats: FC<ReadOnlyStatsProps> = ({ status }) => {
   const actualStatus = getActualStatus(status)
+  const totalShares = actualStatus.totalShares ?? 0
+  const totalLikes = actualStatus.totalLikes ?? 0
+  const boostsNoun = pluralNoun(totalShares, 'boost')
+  const likesNoun = pluralNoun(totalLikes, 'like')
   return (
     <div
       className="mt-3 flex items-center gap-6 text-xs text-muted-foreground"
@@ -28,19 +38,19 @@ export const ReadOnlyStats: FC<ReadOnlyStatsProps> = ({ status }) => {
       </span>
       <span
         className="inline-flex items-center gap-1.5"
-        title={`${actualStatus.totalShares ?? 0} boosts`}
+        title={`${totalShares} ${boostsNoun}`}
       >
         <Repeat2 className="size-4" aria-hidden="true" />
-        <span className="tabular-nums">{actualStatus.totalShares ?? 0}</span>
-        <span className="sr-only">boosts</span>
+        <span className="tabular-nums">{totalShares}</span>
+        <span className="sr-only">{boostsNoun}</span>
       </span>
       <span
         className="inline-flex items-center gap-1.5"
-        title={`${actualStatus.totalLikes ?? 0} likes`}
+        title={`${totalLikes} ${likesNoun}`}
       >
         <Heart className="size-4" aria-hidden="true" />
-        <span className="tabular-nums">{actualStatus.totalLikes ?? 0}</span>
-        <span className="sr-only">likes</span>
+        <span className="tabular-nums">{totalLikes}</span>
+        <span className="sr-only">{likesNoun}</span>
       </span>
     </div>
   )
