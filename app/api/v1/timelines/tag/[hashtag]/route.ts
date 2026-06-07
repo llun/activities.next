@@ -61,29 +61,28 @@ export const GET = traceApiRoute(
       }
       const effectiveLimit = parsedQuery.query.limit
 
-      const { statuses, nextMaxStatusId, prevMinStatusId } =
-        await getFilteredStatusPage({
-          database,
-          actorId: currentActor?.id,
-          maxStatusId: parsedQuery.query.maxStatusId,
-          limit: effectiveLimit,
-          fetchBatch: ({ maxStatusId, limit }) =>
-            database.getStatusesByHashtag({
-              hashtag,
-              limit,
-              maxStatusId: maxStatusId ?? undefined
-            })
-        })
+      const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
+        database,
+        actorId: currentActor?.id,
+        maxStatusId: parsedQuery.query.maxStatusId,
+        limit: effectiveLimit,
+        fetchBatch: ({ maxStatusId, limit }) =>
+          database.getStatusesByHashtag({
+            hashtag,
+            limit,
+            maxStatusId: maxStatusId ?? undefined
+          })
+      })
 
       const host = headerHost(req.headers)
       const encodedTag = encodeURIComponent(hashtag)
+      // Only `next` (older) is emitted: the hashtag query pages forward by
+      // `max_id` only and has no lower-bound cursor, so a `prev`/`min_id` link
+      // would not actually page to newer statuses.
       const nextLink = nextMaxStatusId
         ? `<https://${host}/api/v1/timelines/tag/${encodedTag}?limit=${effectiveLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
         : null
-      const prevLink = prevMinStatusId
-        ? `<https://${host}/api/v1/timelines/tag/${encodedTag}?limit=${effectiveLimit}&min_id=${urlToId(prevMinStatusId)}>; rel="prev"`
-        : null
-      const links = [nextLink, prevLink].filter(Boolean).join(', ')
+      const links = [nextLink].filter(Boolean).join(', ')
       const mastodonStatuses = await getMastodonStatuses(
         database,
         statuses,

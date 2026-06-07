@@ -2,7 +2,10 @@ import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
@@ -116,6 +119,7 @@ export const GET = traceApiRoute(
           ]
         })
       }
-    )
+    ),
+    { errorResponse: corsErrorResponse(CORS_HEADERS) }
   )
 )

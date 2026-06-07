@@ -123,6 +123,21 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     }
   )
 
+  it('uses min_id over since_id for the lower-bound cursor', async () => {
+    const minUrl = 'https://llun.test/users/test1/statuses/min-cursor'
+    const sinceUrl = 'https://llun.test/users/test1/statuses/since-cursor'
+    const spy = jest.spyOn(database, 'getListTimeline').mockResolvedValue([])
+
+    await GET(
+      request({ min_id: urlToId(minUrl), since_id: urlToId(sinceUrl) }),
+      { params: Promise.resolve({ list_id: listId }) }
+    )
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ minStatusId: minUrl })
+    )
+  })
+
   it('returns 200 with the bad row skipped when one status is un-hydratable', async () => {
     // A status whose shape throws during Mastodon serialization (here a Note
     // missing its tags/attachments arrays) must be dropped, not 500 the page.

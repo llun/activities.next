@@ -2,7 +2,10 @@ import {
   annotateMastodonStatusesWithFilters,
   getFilterContextForTimeline
 } from '@/lib/services/filters/applyFilters'
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
@@ -145,7 +148,8 @@ export const GET = traceApiRoute(
           ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
         ]
       })
-    })
+    }),
+    { errorResponse: corsErrorResponse(CORS_HEADERS) }
   ),
   {
     addAttributes: async (_req, context) => {

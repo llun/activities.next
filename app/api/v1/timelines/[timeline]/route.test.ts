@@ -563,6 +563,28 @@ describe('GET /api/v1/timelines/[timeline]', () => {
         expect(response.status).toBe(400)
       }
     )
+
+    test('since_id takes precedence over min_id for the lower-bound cursor', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const sinceUrl = 'https://llun.test/users/test1/statuses/since-cursor'
+      const minUrl = 'https://llun.test/users/test1/statuses/min-cursor'
+      const spy = jest.spyOn(database, 'getTimeline').mockResolvedValue([])
+
+      await GET(
+        createRequest({
+          since_id: urlToId(sinceUrl),
+          min_id: urlToId(minUrl)
+        }),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ minStatusId: sinceUrl })
+      )
+      spy.mockRestore()
+    })
   })
 
   describe('hydration resilience', () => {

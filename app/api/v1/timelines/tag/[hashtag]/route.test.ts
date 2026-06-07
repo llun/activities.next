@@ -87,4 +87,18 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
     }
   )
+
+  it('returns an empty array and no Link header when there are no statuses', async () => {
+    mockDatabase.getStatusesByHashtag.mockResolvedValue([])
+    mockGetMastodonStatuses.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest('https://local.test/api/v1/timelines/tag/running'),
+      { params: Promise.resolve({ hashtag: 'running' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
+    expect(response.headers.get('Link')).toBeNull()
+  })
 })
