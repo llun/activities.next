@@ -79,6 +79,7 @@ describe('Settings Layout', () => {
     for (const label of [
       'General',
       'Account',
+      'Featured hashtags',
       'Media',
       'Notifications',
       'Blocked accounts',

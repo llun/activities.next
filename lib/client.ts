@@ -13,6 +13,7 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
+import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import { normalizeActorId } from '@/lib/utils/activitypub'
@@ -942,6 +943,69 @@ export const getActorStatuses = async ({
   }
 
   return (await response.json()) as GetActorStatusesResult
+}
+
+// Featured hashtags (https://docs.joinmastodon.org/methods/featured_tags/).
+// The hashtags an account pins to its profile. Backed by the featured_tags
+// endpoints; every call goes through here so components never call fetch().
+
+export const getFeaturedTags = async (): Promise<FeaturedTag[]> => {
+  const response = await fetch('/api/v1/featured_tags', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) return []
+  return (await response.json()) as FeaturedTag[]
+}
+
+export interface AddFeaturedTagResult {
+  tag?: FeaturedTag
+  error?: string
+}
+
+export const addFeaturedTag = async (
+  name: string
+): Promise<AddFeaturedTagResult> => {
+  const response = await fetch('/api/v1/featured_tags', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ name })
+  })
+  const data = (await response.json().catch(() => ({}))) as {
+    error?: string
+  } & Partial<FeaturedTag>
+  if (!response.ok) {
+    return { error: data.error || 'Failed to feature hashtag' }
+  }
+  return { tag: data as FeaturedTag }
+}
+
+export const removeFeaturedTag = async (id: string): Promise<boolean> => {
+  const response = await fetch(
+    `/api/v1/featured_tags/${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+  return response.ok
+}
+
+export const getFeaturedTagSuggestions = async (): Promise<Tag[]> => {
+  const response = await fetch('/api/v1/featured_tags/suggestions', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) return []
+  return (await response.json()) as Tag[]
 }
 
 interface DeleteSessionParams {
