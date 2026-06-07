@@ -32,6 +32,7 @@ import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
+import { TranslationCacheSQLDatabaseMixin } from '@/lib/database/sql/translationCache'
 import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
@@ -52,6 +53,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const featuredTagDatabase = FeaturedTagSQLDatabaseMixin(database)
   const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
   const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
+  const translationCacheDatabase = TranslationCacheSQLDatabaseMixin(database)
   const filterDatabase = FilterSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
   const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
@@ -109,6 +111,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...featuredTagDatabase,
     ...statusMuteDatabase,
     ...idempotencyDatabase,
+    ...translationCacheDatabase,
     ...listDatabase,
     ...filterDatabase,
     ...followerDatabase,

@@ -36,6 +36,7 @@ import { ContentWarning } from './content-warning'
 import { Poll } from './poll'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
+import { TranslateContent } from './translate-content'
 
 export interface PostProps {
   host: string
@@ -133,19 +134,27 @@ export const Post: FC<PostProps> = (props) => {
   const summary = actualStatus.summary?.trim()
   const statusBody = (
     <>
-      {collapsible && postLineLimit !== 0 && !summary ? (
-        <CollapsibleContent
-          className="mt-1 text-sm leading-relaxed break-words"
-          contentClassName="markdown-content"
-          maxLines={postLineLimit}
-        >
-          {processedAndCleanedText}
-        </CollapsibleContent>
-      ) : (
-        <div className="mt-1 text-sm leading-relaxed break-words markdown-content">
-          {processedAndCleanedText}
-        </div>
-      )}
+      <TranslateContent
+        statusId={actualStatus.id}
+        // Only offer translation to signed-in viewers (the API needs a token);
+        // this keeps the public landing feed free of dead Translate buttons.
+        language={props.currentActor ? actualStatus.language : null}
+        contentClassName="mt-1 text-sm leading-relaxed break-words markdown-content"
+      >
+        {collapsible && postLineLimit !== 0 && !summary ? (
+          <CollapsibleContent
+            className="mt-1 text-sm leading-relaxed break-words"
+            contentClassName="markdown-content"
+            maxLines={postLineLimit}
+          >
+            {processedAndCleanedText}
+          </CollapsibleContent>
+        ) : (
+          <div className="mt-1 text-sm leading-relaxed break-words markdown-content">
+            {processedAndCleanedText}
+          </div>
+        )}
+      </TranslateContent>
       {fitnessFile ? (
         <div className="mt-2 max-w-full rounded-md border bg-muted/30 px-3 py-2 text-xs">
           <div className="flex max-w-full items-center gap-2">
