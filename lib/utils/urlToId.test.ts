@@ -1,4 +1,4 @@
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, safeIdToUrl, urlToId } from '@/lib/utils/urlToId'
 
 describe('urlToId', () => {
   it('converts all / to :', () => {
@@ -157,5 +157,42 @@ describe('idToUrl', () => {
 
   it('returns an empty string for invalid opaque ActivityPub IDs', () => {
     expect(idToUrl('apurl_not-a-url')).toEqual('')
+  })
+})
+
+describe('safeIdToUrl', () => {
+  it('round-trips a colon-form cursor produced by urlToId', () => {
+    const url = 'https://llun.test/users/test1/statuses/2'
+    expect(safeIdToUrl(urlToId(url))).toEqual(url)
+  })
+
+  it('round-trips an opaque (apurl_) cursor produced by urlToId', () => {
+    // URLs whose host/path carry a colon (e.g. a port) are encoded opaquely.
+    const opaque = urlToId('https://llun.test:8443/users/test1')
+    expect(opaque.startsWith('apurl_')).toBe(true)
+    expect(safeIdToUrl(opaque)).toEqual('https://llun.test:8443/users/test1')
+  })
+
+  // A numeric Mastodon id (or other well-formed-but-unknown value) decodes to a
+  // valid URL: it is accepted and the DB simply finds no matching row (empty
+  // page), matching Mastodon — it must NOT 400.
+  it.each([
+    { description: 'numeric Mastodon id', value: '12345' },
+    { description: 'colon-form host only', value: 'llun.test:users:1' }
+  ])('accepts a well-formed-but-unknown cursor ($description)', ({ value }) => {
+    expect(safeIdToUrl(value)).not.toBeNull()
+  })
+
+  // Genuinely undecodable cursors must yield null so the route returns 400, not
+  // 500 and not silent wrong results.
+  it.each([
+    { description: 'empty string', value: '' },
+    { description: 'whitespace only', value: '   ' },
+    { description: 'undecodable opaque id', value: 'apurl_not-a-url' },
+    { description: 'opaque id with junk base64', value: 'apurl_@@@@' },
+    { description: 'bare percent signs', value: '%%%' },
+    { description: 'spaces in value', value: 'a b c' }
+  ])('returns null for malformed cursor ($description)', ({ value }) => {
+    expect(safeIdToUrl(value)).toBeNull()
   })
 })

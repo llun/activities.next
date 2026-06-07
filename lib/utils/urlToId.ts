@@ -109,3 +109,40 @@ export const idToUrl = (id: string) => {
 
   return `https://${host}/${path}${extras}`
 }
+
+/**
+ * Decode a client-supplied pagination cursor (an opaque id produced by
+ * `urlToId`) back into a status URL, returning `null` when the value is not a
+ * decodable id rather than silently yielding an empty/garbage string.
+ *
+ * `idToUrl` is intentionally permissive: an undecodable `apurl_…` cursor decodes
+ * to `''`, and a structurally-broken value is mangled into a string that may not
+ * be a valid URL. Timeline routes must turn such input into a deliberate 400
+ * instead of passing `''`/garbage to the database (which silently returns wrong
+ * or empty results). This validates that the decoded value parses as an http(s)
+ * URL.
+ *
+ * A well-formed-but-unknown id (e.g. a numeric Mastodon id like `12345`) still
+ * decodes to a valid URL and is returned as-is; the database simply finds no
+ * matching row and the endpoint returns an empty page, matching Mastodon.
+ */
+export const safeIdToUrl = (value: string): string | null => {
+  if (!value) return null
+
+  let decoded: string
+  try {
+    decoded = idToUrl(value)
+  } catch {
+    return null
+  }
+  if (!decoded) return null
+
+  try {
+    const { protocol } = new URL(decoded)
+    if (protocol !== 'http:' && protocol !== 'https:') return null
+  } catch {
+    return null
+  }
+
+  return decoded
+}

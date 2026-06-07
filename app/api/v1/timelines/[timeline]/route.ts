@@ -1,4 +1,3 @@
-import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import {
   annotateMastodonStatusesWithFilters,
   getFilterContextForTimeline
@@ -7,10 +6,11 @@ import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
+import { getFilteredTimelinePage } from '@/lib/services/timelines/getFilteredTimelinePage'
 import {
-  getFilteredTimelinePage,
-  normalizeTimelineLimit
-} from '@/lib/services/timelines/getFilteredTimelinePage'
+  parseTimelineQuery,
+  timelineErrorBoundary
+} from '@/lib/services/timelines/request'
 import { Timeline } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
@@ -22,7 +22,9 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { urlToId } from '@/lib/utils/urlToId'
+
+export const dynamic = 'force-dynamic'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
@@ -40,12 +42,8 @@ export const GET = traceApiRoute(
   'getTimeline',
   OAuthGuardAnyScope<Params>(
     [Scope.enum.read, Scope.enum['read:statuses']],
-    async (req, context) => {
+    timelineErrorBoundary(CORS_HEADERS, async (req, context) => {
       const url = new URL(req.url)
-      const minStatusIdParam =
-        url.searchParams.get('since_id') || url.searchParams.get('min_id')
-      const maxStatusIdParam = url.searchParams.get('max_id')
-      const limit = url.searchParams.get('limit')
       const format = url.searchParams.get('format')
 
       const { database, currentActor, params } = context
@@ -76,13 +74,27 @@ export const GET = traceApiRoute(
         })
       }
 
+      const parsedQuery = parseTimelineQuery(url.searchParams)
+      if (!parsedQuery.ok) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
       // Keep /api/v1/timelines/direct for Mastodon client compatibility.
       // The messages UI uses /api/v1/conversations for threaded direct messages.
 
-      const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
-      const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
-      const parsedLimit = limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
-      const pageLimit = normalizeTimelineLimit(parsedLimit)
+      // `since_id` and `min_id` both express a lower-bound cursor here; the DB
+      // timeline query takes a single min cursor, so collapse them preserving
+      // this route's existing `since_id`-wins precedence. (min/since ordering
+      // semantics are unchanged by this PR — see PR notes.)
+      const pageLimit = parsedQuery.query.limit
+      const maxStatusId = parsedQuery.query.maxStatusId
+      const minStatusId =
+        parsedQuery.query.sinceStatusId ?? parsedQuery.query.minStatusId
 
       const { statuses, nextMaxStatusId, prevMinStatusId, filterRecords } =
         await getFilteredTimelinePage({
@@ -133,7 +145,7 @@ export const GET = traceApiRoute(
           ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
         ]
       })
-    }
+    })
   ),
   {
     addAttributes: async (_req, context) => {

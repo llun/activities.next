@@ -12,6 +12,7 @@ import {
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
+import { logger } from '@/lib/utils/logger'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -455,17 +456,34 @@ export const getMastodonStatuses = async (
   if (statuses.length === 0) return []
 
   const actorIds = new Set<string>()
-  statuses.forEach((status) => addStatusActorIds(status, actorIds))
   const metricStatusIds = new Set<string>()
-  statuses.forEach((status) => addStatusMetricIds(status, metricStatusIds))
   const replyStatusIds = new Set<string>()
-  statuses.forEach((status) => addStatusReplyIds(status, replyStatusIds))
   const pollStatusIds = new Set<string>()
-  statuses.forEach((status) => addStatusPollIds(status, pollStatusIds))
   const pinnedLookupStatusIds = new Set<string>()
-  statuses.forEach((status) =>
-    addStatusPinnedLookupIds(status, pinnedLookupStatusIds, currentActorId)
-  )
+
+  // Collect lookup ids per status, dropping any whose shape throws here (for
+  // example a reblog whose original was deleted, leaving a null originalStatus).
+  // A single un-hydratable row must be skipped, never fatal, so one bad page
+  // entry can't 500 the whole timeline request.
+  const safeStatuses: Status[] = []
+  for (const status of statuses) {
+    try {
+      addStatusActorIds(status, actorIds)
+      addStatusMetricIds(status, metricStatusIds)
+      addStatusReplyIds(status, replyStatusIds)
+      addStatusPollIds(status, pollStatusIds)
+      addStatusPinnedLookupIds(status, pinnedLookupStatusIds, currentActorId)
+      safeStatuses.push(status)
+    } catch (error) {
+      logger.warn({
+        message:
+          'Skipping un-hydratable status while collecting timeline lookup ids',
+        statusId: (status as { id?: string } | null)?.id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+  if (safeStatuses.length === 0) return []
   const requestedActorIds = [...actorIds]
   const requestedMetricStatusIds = [...metricStatusIds]
   const requestedReplyStatusIds = [...replyStatusIds]
@@ -581,9 +599,27 @@ export const getMastodonStatuses = async (
 
   return (
     await Promise.all(
-      statuses.map((status) =>
-        getMastodonStatus(database, status, currentActorId, options)
-      )
+      safeStatuses.map(async (status) => {
+        try {
+          return await getMastodonStatus(
+            database,
+            status,
+            currentActorId,
+            options
+          )
+        } catch (error) {
+          // Hydration of a single status can still throw on malformed data (a
+          // poll/attachment with bad shape, etc.). Skip and log it rather than
+          // failing the entire page.
+          logger.warn({
+            message:
+              'Skipping un-hydratable status during Mastodon serialization',
+            statusId: (status as { id?: string } | null)?.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return null
+        }
+      })
     )
   ).filter((status): status is Mastodon.Status => status !== null)
 }
