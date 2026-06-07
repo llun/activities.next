@@ -13,6 +13,7 @@ import {
   CustomEmojiDatabase,
   DirectConversationDatabase,
   EndorsementDatabase,
+  FeaturedTagDatabase,
   FilterDatabase,
   FollowDatabase,
   FollowedTagDatabase,
@@ -45,6 +46,7 @@ export type Database = AccountDatabase &
   BlockDatabase &
   MuteDatabase &
   EndorsementDatabase &
+  FeaturedTagDatabase &
   ListDatabase &
   FollowedTagDatabase &
   FilterDatabase &

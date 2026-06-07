@@ -1290,6 +1290,64 @@ export interface FollowedTagDatabase {
 }
 
 // ============================================================================
+// Featured Tag Database
+// ============================================================================
+
+// A stored featured-tag row. `name` keeps the original display casing.
+export type FeaturedTag = {
+  id: string
+  actorId: string
+  name: string
+  createdAt: number
+}
+// A featured tag with statuses_count / last_status_at derived at read time
+// from the actor's own public statuses carrying the hashtag.
+export type FeaturedTagWithStats = FeaturedTag & {
+  statusesCount: number
+  // Epoch milliseconds of the most recent matching status, or null.
+  lastStatusAt: number | null
+}
+// The most-used hashtag among an actor's statuses, for suggestions.
+export type FeaturedTagSuggestion = {
+  name: string
+  statusesCount: number
+  lastStatusAt: number | null
+}
+export type GetFeaturedTagsParams = { actorId: string }
+export type GetFeaturedTagParams = { actorId: string; id: string }
+export type GetFeaturedTagByNameParams = { actorId: string; name: string }
+export type CreateFeaturedTagParams = { actorId: string; name: string }
+export type DeleteFeaturedTagParams = { actorId: string; id: string }
+export type GetFeaturedTagSuggestionsParams = {
+  actorId: string
+  limit?: number
+}
+
+export interface FeaturedTagDatabase {
+  // Featured tags for an actor, ordered by statuses_count desc (Mastodon's
+  // ordering), then createdAt desc as a stable tie-breaker.
+  getFeaturedTags(
+    params: GetFeaturedTagsParams
+  ): Promise<FeaturedTagWithStats[]>
+  getFeaturedTag(
+    params: GetFeaturedTagParams
+  ): Promise<FeaturedTagWithStats | null>
+  getFeaturedTagByName(
+    params: GetFeaturedTagByNameParams
+  ): Promise<FeaturedTagWithStats | null>
+  createFeaturedTag(
+    params: CreateFeaturedTagParams
+  ): Promise<FeaturedTagWithStats>
+  // Owner-scoped delete; returns the removed row or null when not found/owned.
+  deleteFeaturedTag(
+    params: DeleteFeaturedTagParams
+  ): Promise<FeaturedTag | null>
+  getFeaturedTagSuggestions(
+    params: GetFeaturedTagSuggestionsParams
+  ): Promise<FeaturedTagSuggestion[]>
+}
+
+// ============================================================================
 // Report Database
 // ============================================================================
 
