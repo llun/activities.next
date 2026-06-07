@@ -21,6 +21,7 @@ import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 import { PushConfig, getPushConfig } from './push'
 import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
+import { TranslationConfig, getTranslationConfig } from './translation'
 import { getEnvironmentList } from './utils'
 
 const FederationMode = z.enum(['open', 'allowlist'])
@@ -49,7 +50,8 @@ const Config = z.object({
   mediaStorage: MediaStorageConfig.optional(),
   fitnessStorage: FitnessStorageConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
-  request: RequestConfig.optional()
+  request: RequestConfig.optional(),
+  translation: TranslationConfig.optional()
 })
 export type Config = z.infer<typeof Config>
 
@@ -127,7 +129,8 @@ const getConfigFromEnvironment = () => {
       ...getOtelConfig(),
       ...getRequestConfig(),
       ...getQueueConfig(),
-      ...getPushConfig()
+      ...getPushConfig(),
+      ...getTranslationConfig()
     })
   } catch (error) {
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {

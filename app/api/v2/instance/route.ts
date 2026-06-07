@@ -10,6 +10,7 @@ import {
   ACCEPTED_FILE_TYPES,
   MAX_FILE_SIZE
 } from '@/lib/services/medias/constants'
+import { isTranslationEnabled } from '@/lib/services/translation'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -59,7 +60,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
           max_expiration: 2629746
         },
         translation: {
-          enabled: false
+          enabled: isTranslationEnabled()
         }
       },
       registrations: {
