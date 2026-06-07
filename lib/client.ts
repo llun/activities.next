@@ -16,6 +16,7 @@ import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import type { Tag } from '@/lib/types/mastodon/tag'
+import type { Translation } from '@/lib/types/mastodon/translation'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -317,6 +318,65 @@ export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
   if (response.status !== 200) return null
   const mastodonStatus = await response.json()
   return { statusId: mastodonStatus.id }
+}
+
+export interface TranslateStatusParams extends DefaultStatusParams {
+  // Target language as an ISO 639-1 code. Omitted lets the server default to
+  // its primary language.
+  language?: string
+}
+
+/**
+ * Translates a status using the Mastodon-compatible translate API. Returns the
+ * Translation entity, or null when the server cannot translate it (no backend,
+ * unsupported language, non-public status, or a backend failure).
+ * @see https://docs.joinmastodon.org/methods/statuses/#translate
+ */
+export const translateStatus = async ({
+  statusId,
+  language
+}: TranslateStatusParams): Promise<Translation | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/translate`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(language ? { lang: language } : {})
+    }
+  )
+  if (response.status !== 200) return null
+  return (await response.json()) as Translation
+}
+
+export interface TranslationCapability {
+  // Whether a translation backend is configured on this server.
+  enabled: boolean
+  // The server's primary language (ISO 639-1); the default translation target.
+  defaultLanguage: string | null
+}
+
+let translationCapabilityPromise: Promise<TranslationCapability> | null = null
+
+/**
+ * Reads the server's translation capability from `/api/v2/instance`, memoized
+ * for the session so every post does not refetch it. Used by the Translate
+ * control to avoid showing a dead button when no backend is configured.
+ */
+export const getTranslationCapability = (): Promise<TranslationCapability> => {
+  if (!translationCapabilityPromise) {
+    translationCapabilityPromise = fetch('/api/v2/instance')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => ({
+        enabled: Boolean(data?.configuration?.translation?.enabled),
+        defaultLanguage: Array.isArray(data?.languages)
+          ? (data.languages[0] ?? null)
+          : null
+      }))
+      .catch(() => ({ enabled: false, defaultLanguage: null }))
+  }
+  return translationCapabilityPromise
 }
 
 /**

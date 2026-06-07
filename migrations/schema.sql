@@ -838,6 +838,16 @@ CREATE TABLE public.tokens (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.translation_cache (
+    provider character varying(191) NOT NULL,
+    "sourceLanguage" character varying(16) NOT NULL,
+    "targetLanguage" character varying(16) NOT NULL,
+    "sourceHash" character varying(64) NOT NULL,
+    content text NOT NULL,
+    "detectedSourceLanguage" character varying(16),
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public."twoFactor" (
     id character varying(255) NOT NULL,
     secret text NOT NULL,
@@ -1138,6 +1148,9 @@ ALTER TABLE ONLY public.timelines
 ALTER TABLE ONLY public.tokens
     ADD CONSTRAINT tokens_pkey PRIMARY KEY ("accessToken");
 
+ALTER TABLE ONLY public.translation_cache
+    ADD CONSTRAINT translation_cache_pkey PRIMARY KEY (provider, "sourceLanguage", "targetLanguage", "sourceHash");
+
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT "twoFactor_pkey" PRIMARY KEY (id);
 
@@ -1322,6 +1335,8 @@ CREATE INDEX "tags_statusId_type_idx" ON public.tags USING btree ("statusId", ty
 CREATE INDEX "timelinesActorIdTimelineCreatedAtIndex" ON public.timelines USING btree ("actorId", timeline, "createdAt");
 
 CREATE INDEX "timelinesStatusIdIndex" ON public.timelines USING btree ("statusId");
+
+CREATE INDEX translation_cache_created ON public.translation_cache USING btree ("createdAt");
 
 CREATE INDEX "verificationCodeIndex" ON public.accounts USING btree ("verificationCode");
 

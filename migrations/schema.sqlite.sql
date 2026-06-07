@@ -194,3 +194,5 @@ CREATE UNIQUE INDEX `customemojis_shortcode_unique` on `customEmojis` (`shortcod
 CREATE TABLE `featured_tags` (`id` varchar(255), `actorId` varchar(255) not null, `name` varchar(255) not null, `nameNormalized` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
 CREATE UNIQUE INDEX `featured_tags_actor_name_unique` on `featured_tags` (`actorId`, `nameNormalized`);
 CREATE INDEX `featured_tags_name` on `featured_tags` (`nameNormalized`);
+CREATE TABLE `translation_cache` (`provider` varchar(191) not null, `sourceLanguage` varchar(16) not null, `targetLanguage` varchar(16) not null, `sourceHash` varchar(64) not null, `content` text not null, `detectedSourceLanguage` varchar(16), `createdAt` datetime default CURRENT_TIMESTAMP, primary key (`provider`, `sourceLanguage`, `targetLanguage`, `sourceHash`));
+CREATE INDEX `translation_cache_created` on `translation_cache` (`createdAt`);
