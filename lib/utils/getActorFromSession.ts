@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
@@ -39,33 +40,37 @@ export const getAccountFromSession = async (
   return database.getAccountFromEmail({ email: session.user.email })
 }
 
-export const getActorFromSession = async (
-  database: Database,
-  session: AuthSession | null
-) => {
-  // Fetch account and its actors once — reused across all resolution steps below
-  const account = await getAccountFromSession(database, session)
-  if (!account) return null
+// Wrapped in React `cache()` so resolving the viewer is deduplicated within a
+// request: the `(timeline)` layout, the public sub-layouts (`[actor]`, `tags`)
+// and the page itself all resolve the actor per render. Keyed on (database,
+// session); both are stable per request (the singleton database and the cached
+// `getServerAuthSession` result), so the account/actor queries run once.
+export const getActorFromSession = cache(
+  async (database: Database, session: AuthSession | null) => {
+    // Fetch account and its actors once — reused across all resolution steps
+    const account = await getAccountFromSession(database, session)
+    if (!account) return null
 
-  const actors = await database.getActorsForAccount({ accountId: account.id })
+    const actors = await database.getActorsForAccount({ accountId: account.id })
 
-  // 1. Check actor selection cookie
-  const actorIdFromCookie = await getActorIdFromCookie()
-  if (actorIdFromCookie) {
-    const cookieActor = actors.find(
-      (a) => a.id === actorIdFromCookie && !a.deletionStatus
-    )
-    if (cookieActor) return cookieActor
+    // 1. Check actor selection cookie
+    const actorIdFromCookie = await getActorIdFromCookie()
+    if (actorIdFromCookie) {
+      const cookieActor = actors.find(
+        (a) => a.id === actorIdFromCookie && !a.deletionStatus
+      )
+      if (cookieActor) return cookieActor
+    }
+
+    // 2. Check default actor
+    if (account.defaultActorId) {
+      const defaultActor = actors.find(
+        (a) => a.id === account.defaultActorId && !a.deletionStatus
+      )
+      if (defaultActor) return defaultActor
+    }
+
+    // 3. Fall back to first actor without pending deletion
+    return actors.find((a) => !a.deletionStatus) ?? null
   }
-
-  // 2. Check default actor
-  if (account.defaultActorId) {
-    const defaultActor = actors.find(
-      (a) => a.id === account.defaultActorId && !a.deletionStatus
-    )
-    if (defaultActor) return defaultActor
-  }
-
-  // 3. Fall back to first actor without pending deletion
-  return actors.find((a) => !a.deletionStatus) ?? null
-}
+)

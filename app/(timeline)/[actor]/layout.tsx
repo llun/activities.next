@@ -1,10 +1,9 @@
 import { FC, ReactNode } from 'react'
 
+import { PublicShell } from '@/app/(timeline)/PublicShell'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { PublicShell } from '../PublicShell'
 
 interface LayoutProps {
   children: ReactNode

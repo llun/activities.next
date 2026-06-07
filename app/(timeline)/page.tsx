@@ -9,8 +9,10 @@ import {
 } from '@/lib/services/timelines/getFilteredTimelinePage'
 import { Timeline } from '@/lib/services/timelines/types'
 import { getActorProfile } from '@/lib/types/domain/actor'
+import { Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { logger } from '@/lib/utils/logger'
 
 import { MainPageTimeline } from './MainPageTimeline'
 import { Landing } from './landing/Landing'
@@ -35,22 +37,33 @@ const Page = async () => {
   if (!actor) {
     // Logged-out visitors get the landing. When the server has public posts the
     // landing previews its recent public timeline; otherwise it shows the brand
-    // hero. Both variants share the create/sign-in card.
-    const { statuses } = await getFilteredStatusPage({
-      database,
-      limit: LANDING_FEED_LIMIT,
-      fetchBatch: ({ maxStatusId, limit }) =>
-        database.getTimeline({
-          timeline: Timeline.LOCAL_PUBLIC,
-          maxStatusId,
-          limit
-        })
-    })
+    // hero. Both variants share the create/sign-in card. A failure to load the
+    // public preview degrades to the hero rather than 500-ing the public front
+    // door — but it's logged so an outage isn't silently hidden as "no posts".
+    let publicStatuses: Status[] = []
+    try {
+      const { statuses } = await getFilteredStatusPage({
+        database,
+        limit: LANDING_FEED_LIMIT,
+        fetchBatch: ({ maxStatusId, limit }) =>
+          database.getTimeline({
+            timeline: Timeline.LOCAL_PUBLIC,
+            maxStatusId,
+            limit
+          })
+      })
+      publicStatuses = statuses
+    } catch (error) {
+      logger.error({
+        err: error,
+        message: 'Failed to load public posts for the landing page'
+      })
+    }
     return (
       <Landing
         host={host}
         currentTime={Date.now()}
-        statuses={statuses.map((item) => cleanJson(item))}
+        statuses={publicStatuses.map((item) => cleanJson(item))}
         serviceName={serviceName ?? 'Activities'}
       />
     )

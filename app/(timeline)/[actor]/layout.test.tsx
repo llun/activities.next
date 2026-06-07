@@ -21,7 +21,7 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: jest.fn()
 }))
 
-jest.mock('../PublicShell', () => ({
+jest.mock('@/app/(timeline)/PublicShell', () => ({
   PublicShell: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="public-shell">{children}</div>
   )

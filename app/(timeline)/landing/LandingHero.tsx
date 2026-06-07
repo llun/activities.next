@@ -15,7 +15,7 @@ export const LandingHero: FC<LandingHeroProps> = ({ serviceName }) => (
   <div
     className="relative flex h-full min-h-[60vh] flex-col justify-between overflow-hidden px-7 py-10 text-white sm:px-14 sm:py-14"
     style={{
-      backgroundColor: 'hsl(24 95% 46%)',
+      backgroundColor: 'var(--primary)',
       backgroundImage:
         'radial-gradient(700px 420px at 18% 8%, hsl(24 95% 56%), transparent 60%),' +
         'radial-gradient(680px 520px at 100% 100%, hsl(24 95% 38%), transparent 55%)'
@@ -51,12 +51,12 @@ export const LandingHero: FC<LandingHeroProps> = ({ serviceName }) => (
         <br />
         happening next.
       </h1>
-      <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-white/85 sm:text-[17px]">
+      <p className="mt-4 max-w-sm text-[15px] leading-[1.5] text-white/90 sm:text-[17px]">
         Posts and fitness activity, on a server you own.
       </p>
     </div>
 
-    <div className="relative mt-10 flex items-center gap-5 text-[13px] text-white/80">
+    <div className="relative mt-10 flex items-center gap-5 text-[13px] text-white/90">
       <span className="inline-flex items-center gap-1.5">
         <Globe className="size-[15px]" /> Fediverse
       </span>
