@@ -80,7 +80,10 @@ export function Sidebar({
           <Logo size="md" />
         </div>
 
-        <nav className="flex-1 px-3 pt-1">
+        {/* min-h-0 + overflow lets the nav scroll when a long Lists group (or
+            many nav items) would otherwise push the account switcher footer
+            below the fixed, full-height sidebar. */}
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 pt-1">
           <ul className="space-y-1">
             {allNavItems.map((item) => {
               const isActive =
@@ -214,7 +217,7 @@ export function Sidebar({
           <Logo showText={false} size="md" />
         </div>
 
-        <nav className="flex-1 pb-4">
+        <nav className="min-h-0 flex-1 overflow-y-auto pb-4">
           <ul className="space-y-2">
             {allNavItems.map((item) => {
               const isActive =
