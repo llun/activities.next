@@ -949,6 +949,10 @@ export const getActorStatuses = async ({
 // The hashtags an account pins to its profile. Backed by the featured_tags
 // endpoints; every call goes through here so components never call fetch().
 
+// Throws on a non-OK response (rather than returning []) so the editor's load
+// handler can tell "you have no featured tags" apart from "the request failed"
+// and show its load-error UI. Featured tags are the critical data for the page;
+// suggestions below stay best-effort.
 export const getFeaturedTags = async (): Promise<FeaturedTag[]> => {
   const response = await fetch('/api/v1/featured_tags', {
     method: 'GET',
@@ -956,7 +960,9 @@ export const getFeaturedTags = async (): Promise<FeaturedTag[]> => {
       Accept: 'application/json'
     }
   })
-  if (!response.ok) return []
+  if (!response.ok) {
+    throw new Error(`Failed to load featured tags: ${response.status}`)
+  }
   return (await response.json()) as FeaturedTag[]
 }
 

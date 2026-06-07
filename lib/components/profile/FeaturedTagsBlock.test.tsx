@@ -53,4 +53,18 @@ describe('FeaturedTagsBlock', () => {
     const cyclingChip = screen.getByRole('link', { name: /#cycling/ })
     expect(cyclingChip).toHaveTextContent('74')
   })
+
+  it('renders a non-renderable tag name as a non-link chip', () => {
+    // A name the /tags/<name> route can't render (all-numeric here) would 404,
+    // so it shows as a plain chip instead of a broken link.
+    render(
+      <FeaturedTagsBlock
+        tags={[buildTag({ id: 't1', name: '2024', statuses_count: '9' })]}
+      />
+    )
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.getByText('#2024')).toBeInTheDocument()
+    expect(screen.getByText('9')).toBeInTheDocument()
+  })
 })

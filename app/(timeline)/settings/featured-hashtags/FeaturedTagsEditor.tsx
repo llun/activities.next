@@ -15,17 +15,10 @@ import { Input } from '@/lib/components/ui/input'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import { cn } from '@/lib/utils'
+import { isRenderableHashtagName } from '@/lib/utils/text/isRenderableHashtagName'
 
 // Mastodon caps featured tags per account at FeaturedTag::LIMIT = 10.
 const FEATURED_TAGS_LIMIT = 10
-// Restrict to hashtag names this app can actually render: the same pattern the
-// in-app hashtag timeline (app/(timeline)/tags/[tag]) and the post hashtag
-// tokenizer use — ASCII word characters with at least one letter or underscore.
-// This is intentionally stricter than the server's Mastodon regex
-// (`^[\p{L}\p{N}_]+$`, which also allows Unicode and all-numeric names like
-// `2024`); featuring a name the app can't render would produce a chip that 404s
-// on /tags/<name>.
-const FEATURED_TAG_NAME_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
 const MONTHS = [
   'Jan',
   'Feb',
@@ -220,7 +213,7 @@ export const FeaturedTagsEditor: FC = () => {
     if (submitting) return
     const name = raw.trim().replace(/^#+/, '')
     if (!name) return
-    if (!FEATURED_TAG_NAME_REGEX.test(name)) {
+    if (!isRenderableHashtagName(name)) {
       setMessage({
         tone: 'error',
         text: 'Use letters, numbers, and underscores, and include at least one letter.'
