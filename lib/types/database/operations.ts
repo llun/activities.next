@@ -984,7 +984,9 @@ export type GetFollowersParams = {
 export type GetFollowRequestsParams = {
   targetActorId: string
   limit: number
-  offset?: number
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
 }
 export type GetFollowRequestsCountParams = {
   targetActorId: string

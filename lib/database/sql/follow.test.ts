@@ -367,6 +367,76 @@ describe('FollowDatabase', () => {
         })
         expect(count).toBe(1)
       })
+
+      it('paginates pending requests newest-first with id cursors', async () => {
+        // emptyActor has no seeded requests, so it is a clean pagination target.
+        const [oldest, middle, newest] = await Promise.all([
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor()
+        ])
+        const createRequestAt = async (actorId: string, createdAt: string) => {
+          jest.setSystemTime(new Date(createdAt))
+          return database.createFollow({
+            actorId,
+            targetActorId: emptyActorId,
+            inbox: `${actorId}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+        }
+
+        const created: Follow[] = []
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          created.push(await createRequestAt(oldest, '2024-03-01T00:00:00Z'))
+          created.push(await createRequestAt(middle, '2024-03-01T00:01:00Z'))
+          created.push(await createRequestAt(newest, '2024-03-01T00:02:00Z'))
+        } finally {
+          jest.useRealTimers()
+        }
+        const middleRow = created[1]
+
+        const firstPage = await database.getFollowRequests({
+          targetActorId: emptyActorId,
+          limit: 2
+        })
+        expect(firstPage.map((follow) => follow.actorId)).toEqual([
+          newest,
+          middle
+        ])
+
+        const olderPage = await database.getFollowRequests({
+          targetActorId: emptyActorId,
+          limit: 2,
+          maxId: firstPage[firstPage.length - 1].id
+        })
+        expect(olderPage.map((follow) => follow.actorId)).toEqual([oldest])
+
+        const newerPage = await database.getFollowRequests({
+          targetActorId: emptyActorId,
+          limit: 2,
+          sinceId: middleRow.id
+        })
+        expect(newerPage.map((follow) => follow.actorId)).toEqual([newest])
+
+        // min_id returns the oldest band after the cursor, presented newest-first.
+        const minIdPage = await database.getFollowRequests({
+          targetActorId: emptyActorId,
+          limit: 2,
+          minId: middleRow.id
+        })
+        expect(minIdPage.map((follow) => follow.actorId)).toEqual([newest])
+
+        const missingCursorPage = await database.getFollowRequests({
+          targetActorId: emptyActorId,
+          limit: 2,
+          maxId: 'does-not-exist'
+        })
+        expect(missingCursorPage).toEqual([])
+      })
     })
 
     describe('createFollow', () => {
