@@ -66,14 +66,16 @@ describe('FeaturedTagsEditor', () => {
     mockGetFeaturedTags.mockRejectedValue(new Error('network'))
     render(<FeaturedTagsEditor />)
 
-    // The skeleton must not get stuck: the error message renders and the
-    // editor settles out of the loading state.
+    // The skeleton must not get stuck: a load error renders instead of the
+    // misleading "no featured hashtags yet" empty state.
     expect(
       await screen.findByText(
         'Couldn’t load your featured hashtags. Please refresh to try again.'
       )
     ).toBeInTheDocument()
-    expect(screen.queryByText('No featured hashtags yet')).toBeInTheDocument()
+    expect(
+      screen.queryByText('No featured hashtags yet')
+    ).not.toBeInTheDocument()
   })
 
   it('renders "no posts yet" when last_status_at is null', async () => {
@@ -105,18 +107,23 @@ describe('FeaturedTagsEditor', () => {
     ).toBeInTheDocument()
   })
 
-  it('rejects an invalid hashtag name without calling the API', async () => {
+  it.each([
+    { description: 'a name with spaces or symbols', value: 'no spaces' },
+    // All-numeric / Unicode names pass the server regex but can't be rendered
+    // by the app's ASCII-only /tags/<name> route, so the editor rejects them.
+    { description: 'an all-numeric name', value: '2024' }
+  ])('rejects $description without calling the API', async ({ value }) => {
     render(<FeaturedTagsEditor />)
     await screen.findByText('No featured hashtags yet')
 
     fireEvent.change(screen.getByLabelText('Add a hashtag'), {
-      target: { value: 'no spaces' }
+      target: { value }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
     expect(
       screen.getByText(
-        'Use letters, numbers, and underscores only — no spaces or symbols.'
+        'Use letters, numbers, and underscores, and include at least one letter.'
       )
     ).toBeInTheDocument()
     expect(mockAddFeaturedTag).not.toHaveBeenCalled()
@@ -184,6 +191,23 @@ describe('FeaturedTagsEditor', () => {
     expect(
       screen.getByText('#running is no longer featured.')
     ).toBeInTheDocument()
+  })
+
+  it('keeps the row and re-enables remove when the remove call fails', async () => {
+    mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
+    mockRemoveFeaturedTag.mockResolvedValue(false)
+    render(<FeaturedTagsEditor />)
+    await screen.findByText('#running')
+
+    const removeButton = screen.getByRole('button', { name: 'Remove #running' })
+    fireEvent.click(removeButton)
+
+    expect(
+      await screen.findByText('Couldn’t remove #running. Please try again.')
+    ).toBeInTheDocument()
+    // The row stays and its remove control is usable again (busy state cleared).
+    expect(screen.getByText('#running')).toBeInTheDocument()
+    expect(removeButton).not.toBeDisabled()
   })
 
   it('offers suggestions from the suggestions endpoint and features one on click', async () => {

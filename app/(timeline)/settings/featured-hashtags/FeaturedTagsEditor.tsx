@@ -18,8 +18,14 @@ import { cn } from '@/lib/utils'
 
 // Mastodon caps featured tags per account at FeaturedTag::LIMIT = 10.
 const FEATURED_TAGS_LIMIT = 10
-// Word characters only after stripping a leading `#` (matches the server).
-const FEATURED_TAG_NAME_REGEX = /^[\p{L}\p{N}_]+$/u
+// Restrict to hashtag names this app can actually render: the same pattern the
+// in-app hashtag timeline (app/(timeline)/tags/[tag]) and the post hashtag
+// tokenizer use — ASCII word characters with at least one letter or underscore.
+// This is intentionally stricter than the server's Mastodon regex
+// (`^[\p{L}\p{N}_]+$`, which also allows Unicode and all-numeric names like
+// `2024`); featuring a name the app can't render would produce a chip that 404s
+// on /tags/<name>.
+const FEATURED_TAG_NAME_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
 const MONTHS = [
   'Jan',
   'Feb',
@@ -161,6 +167,7 @@ export const FeaturedTagsEditor: FC = () => {
   const [message, setMessage] = useState<InlineMessage | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -172,11 +179,10 @@ export const FeaturedTagsEditor: FC = () => {
         setSuggestions(loadedSuggestions)
       })
       .catch(() => {
-        if (!active) return
-        setMessage({
-          tone: 'error',
-          text: 'Couldn’t load your featured hashtags. Please refresh to try again.'
-        })
+        // Flag the failure so the list shows a load error instead of the
+        // "no featured hashtags yet" empty state, which would otherwise be
+        // misleading.
+        if (active) setLoadFailed(true)
       })
       .finally(() => {
         // Always clear the skeleton — otherwise a rejected request (network
@@ -217,7 +223,7 @@ export const FeaturedTagsEditor: FC = () => {
     if (!FEATURED_TAG_NAME_REGEX.test(name)) {
       setMessage({
         tone: 'error',
-        text: 'Use letters, numbers, and underscores only — no spaces or symbols.'
+        text: 'Use letters, numbers, and underscores, and include at least one letter.'
       })
       return
     }
@@ -267,7 +273,7 @@ export const FeaturedTagsEditor: FC = () => {
     if (!removed) {
       setMessage({
         tone: 'error',
-        text: `Couldn't remove #${tag.name}. Please try again.`
+        text: `Couldn’t remove #${tag.name}. Please try again.`
       })
       return
     }
@@ -376,6 +382,10 @@ export const FeaturedTagsEditor: FC = () => {
       >
         {loading ? (
           <LoadingSkeleton />
+        ) : loadFailed ? (
+          <p role="alert" className="py-8 text-center text-sm text-destructive">
+            Couldn’t load your featured hashtags. Please refresh to try again.
+          </p>
         ) : tags.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
