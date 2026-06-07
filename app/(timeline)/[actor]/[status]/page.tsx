@@ -13,16 +13,11 @@ import {
   isStatusPubliclyReadable
 } from '@/lib/services/statusAccess'
 import { getActorProfile } from '@/lib/types/domain/actor'
-import { FollowStatus } from '@/lib/types/domain/follow'
 import {
   Status,
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
@@ -99,12 +94,16 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  // Logged-out visitors may only view statuses that are publicly readable all
-  // the way down. The per-field `isPublicOrUnlisted` check below inspects only
-  // the top-level recipients — for an Announce those are the boost's, not the
-  // boosted note's — so a public boost of a followers-only post would otherwise
-  // slip through. `isStatusPubliclyReadable` recurses into the original status.
-  if (!currentActor && !isStatusPubliclyReadable(status)) {
+  // Focused-status visibility gate — the single source of truth shared with the
+  // ancestor chain below. `canActorReadStatus` collapses to the public/unlisted
+  // check for logged-out visitors and, for an Announce, recurses into the
+  // boosted status, so a public boost of a followers-only post is rejected
+  // unless the viewer follows the boosted author. It also exact-matches the
+  // author's stored `followersUrl` (rather than a loose `/followers` suffix), so
+  // a remote follower of a followers-only post is no longer misread as a
+  // direct-message non-recipient. Gating here, before the reply fetch, rejects
+  // unreadable statuses for every viewer up front.
+  if (!(await canActorReadStatus({ database, status, currentActor }))) {
     return notFound()
   }
 
@@ -148,51 +147,6 @@ const Page: FC<Props> = async ({ params }) => {
   // read.
   if (!currentActor) {
     replies = replies.filter(isStatusPubliclyReadable)
-  }
-
-  // Check if the status is publicly visible (public or unlisted)
-  const isPublicOrUnlisted =
-    status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-    status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
-    status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
-    status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
-
-  // If not public/unlisted, check visibility based on privacy level
-  if (!isPublicOrUnlisted) {
-    // Private posts require authentication
-    if (!currentActor) {
-      return notFound()
-    }
-
-    // Authors can always see their own non-public statuses
-    if (currentActor.id !== status.actorId) {
-      // Check if this is a followers-only post (private) or direct message
-      const hasFollowersUrl = [...status.to, ...status.cc].some((item) =>
-        item.endsWith('/followers')
-      )
-
-      if (hasFollowersUrl) {
-        // Private (followers-only) post: Check if user follows the author
-        const follow = await database.getAcceptedOrRequestedFollow({
-          actorId: currentActor.id,
-          targetActorId: status.actorId
-        })
-
-        // Only accepted follows grant access to private posts
-        if (!follow || follow.status !== FollowStatus.enum.Accepted) {
-          return notFound()
-        }
-      } else {
-        // Direct message: Only allow if current user is explicitly mentioned in to/cc
-        const isRecipient =
-          status.to.includes(currentActor.id) ||
-          status.cc.includes(currentActor.id)
-
-        if (!isRecipient) {
-          return notFound()
-        }
-      }
-    }
   }
 
   const previouses = []
