@@ -60,8 +60,9 @@ export const GET = traceApiRoute(
 
 // POST /api/v1/featured_tags — feature a hashtag on the current profile.
 // https://docs.joinmastodon.org/methods/featured_tags/#feature
-// Scope write:accounts. Returns 422 when the tag is already featured (matching
-// Mastodon's uniqueness validation on the normalized name).
+// Scope write:accounts. Idempotent on an already-featured tag (returns it with
+// 200, like Mastodon); 422 on an invalid name or once the per-account cap of 10
+// is reached.
 export const POST = traceApiRoute(
   'createFeaturedTag',
   OAuthGuardAnyScope(
@@ -86,6 +87,11 @@ export const POST = traceApiRoute(
       }
 
       const { name } = parsed.data
+      const host = headerHost(req.headers)
+
+      // Idempotent, matching Mastodon's CreateFeaturedTagService
+      // (find_or_initialize_by): re-featuring an already-featured tag returns
+      // the existing entry with 200 rather than erroring.
       const existing = await database.getFeaturedTagByName({
         actorId: currentActor.id,
         name
@@ -94,11 +100,16 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Tag is already featured' },
-          responseStatusCode: 422
+          data: getMastodonFeaturedTag({
+            host,
+            actor: currentActor,
+            tag: existing
+          })
         })
       }
 
+      // The per-account cap only applies when adding a NEW tag (re-featuring an
+      // existing one above is always allowed).
       const featuredCount = await database.countFeaturedTags({
         actorId: currentActor.id
       })
@@ -117,7 +128,6 @@ export const POST = traceApiRoute(
         actorId: currentActor.id,
         name
       })
-      const host = headerHost(req.headers)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

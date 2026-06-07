@@ -235,8 +235,9 @@ export const FeaturedTagSQLDatabaseMixin = (
       await database('featured_tags').insert(row)
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
-      // Re-read the existing row so concurrent inserts resolve to the same one;
-      // the route layer enforces Mastodon's 422-on-duplicate before calling.
+      // Idempotent by contract: a concurrent insert that loses the unique-index
+      // race resolves to the same existing row (the route also short-circuits on
+      // an existing tag before reaching here), so featuring is safe to retry.
       const existing = await database<SQLFeaturedTag>('featured_tags')
         .where({ actorId, nameNormalized })
         .first()

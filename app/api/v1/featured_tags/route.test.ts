@@ -100,15 +100,22 @@ describe('featured_tags collection endpoints', () => {
     expect(stored).not.toBeNull()
   })
 
-  it('returns 422 when featuring a tag that is already featured', async () => {
-    await POST(postRequest({ name: 'duplicate' }), {
+  it('is idempotent when featuring an already-featured tag', async () => {
+    const first = await POST(postRequest({ name: 'duplicate' }), {
       params: Promise.resolve({})
     })
-    // A second feature of the same normalized name (different case) is rejected.
-    const response = await POST(postRequest({ name: '#Duplicate' }), {
+    expect(first.status).toBe(200)
+    const firstTag = await first.json()
+
+    // Re-featuring the same normalized name (different case) returns the
+    // existing entry with 200, matching Mastodon's idempotent create.
+    const second = await POST(postRequest({ name: '#Duplicate' }), {
       params: Promise.resolve({})
     })
-    expect(response.status).toBe(422)
+    expect(second.status).toBe(200)
+    const secondTag = await second.json()
+    expect(secondTag.id).toBe(firstTag.id)
+    expect(secondTag.name).toBe('duplicate')
   })
 
   it('returns 422 once the per-account featured-tags limit is reached', async () => {
