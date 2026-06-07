@@ -1,0 +1,87 @@
+lib/components/layout/sidebar.tsx
+  s_1f64050f9c2ed5::t_b95d3579092925 109-111
+  s_1f64050f9c2ed5::t_0979711dafb88f 3,6
+  s_1f64050f9c2ed5::t_c1d16815e53ad7 31-35,43,52-53,57-61
+  s_1f64050f9c2ed5::t_68e3825f26fc2f 82-108,112-148
+lib/database/sql/list.test.ts
+  s_1f64050f9c2ed5::t_b1dd4d5e0027c1 266-324
+app/(timeline)/lists/ListsIndex.test.tsx
+  s_1f64050f9c2ed5::t_db4bd2c313dbb1 1-5,7,9-15,19-68,70-72
+  s_1f64050f9c2ed5::t_351332235ea19f 8,69
+  s_1f64050f9c2ed5::t_d024e48cf4e839 6,16-18
+app/(timeline)/lists/ListEditor.test.tsx
+  s_1f64050f9c2ed5::t_5f87dcfa7e6091 1-142,144-158
+  s_1f64050f9c2ed5::t_351332235ea19f 143
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  s_1f64050f9c2ed5::t_b95d3579092925 16,74
+  s_1f64050f9c2ed5::t_99e86f1c715c7c 1-15,17-73,75-155
+app/(timeline)/lists/page.tsx
+  s_1f64050f9c2ed5::t_b95d3579092925 9
+  s_1f64050f9c2ed5::t_04d2aa46440c6e 1-8,10-63
+app/(timeline)/lists/[id]/page.tsx
+  s_1f64050f9c2ed5::t_b95d3579092925 25
+  s_1f64050f9c2ed5::t_c30ee12929cd2f 1-24,26-78
+lib/client.ts
+  s_1f64050f9c2ed5::t_fbcba85fc07cfe 17
+  s_1f64050f9c2ed5::t_8c63dc7d59c682 2495-2646
+app/(timeline)/lists/[id]/edit/page.tsx
+  s_1f64050f9c2ed5::t_70c9d194abf52c 1-81
+lib/components/layout/nav-items.test.ts
+  s_1f64050f9c2ed5::t_b75d15fb2bb03b 13,25,38,53
+app/(timeline)/layout.tsx
+  s_1f64050f9c2ed5::t_7f3f1adab1ef99 84-86
+  s_1f64050f9c2ed5::t_32f815af999586 104
+lib/components/layout/mobile-nav.test.tsx
+  s_1f64050f9c2ed5::t_97f46b5c357c49 105,123,141
+app/(timeline)/lists/ListEditor.tsx
+  s_1f64050f9c2ed5::t_b95d3579092925 290,325
+  s_1f64050f9c2ed5::t_2f6fd69715a547 1-289,291-324,326-403
+app/(timeline)/layout.test.tsx
+  s_1f64050f9c2ed5::t_5ac3c9acd11667 14,19-20
+  s_1f64050f9c2ed5::t_3be1f13159df8d 61
+lib/components/layout/nav-items.ts
+  s_1f64050f9c2ed5::t_ac52bb605bad16 28
+  s_1f64050f9c2ed5::t_b6f5c3f5bc7070 6
+app/(timeline)/lists/ListsIndex.tsx
+  s_1f64050f9c2ed5::t_fddb08794bb35b 1-78,80-103
+  s_1f64050f9c2ed5::t_b95d3579092925 79
+lib/database/sql/list.ts
+  s_1f64050f9c2ed5::t_590a20af96ff37 186
+  s_1f64050f9c2ed5::t_b95d3579092925 177
+  s_1f64050f9c2ed5::t_8b3af5279cae4a 16
+  s_1f64050f9c2ed5::t_d9b4a92f8db030 178-185,187-199
+app/(timeline)/lists/new/page.tsx
+  s_1f64050f9c2ed5::t_6ce2481ab12dfa 1-30
+app/(timeline)/lists/[id]/ListTimeline.test.tsx
+  s_1f64050f9c2ed5::t_351332235ea19f 11
+  s_1f64050f9c2ed5::t_f4daa9b7da66c6 1-10,12-201
+app/api/v1/timelines/list/[list_id]/route.test.ts
+  s_1f64050f9c2ed5::t_2413c57cc08f2b 105-125
+lib/components/layout/sidebar.test.tsx
+  s_1f64050f9c2ed5::t_602a507d63a12c 31,43,59
+  s_1f64050f9c2ed5::t_351332235ea19f 32-34
+  s_1f64050f9c2ed5::t_0e6541e974218f 1-30,35-42,44-58,60-68
+app/api/v1/timelines/list/[list_id]/route.ts
+  s_1f64050f9c2ed5::t_d27e742b9edd77 61
+  s_1f64050f9c2ed5::t_12086f6134fe09 88-111
+  s_1f64050f9c2ed5::t_11b5512679645f 11,17
+lib/types/database/operations.ts
+  s_1f64050f9c2ed5::t_2f591772d9ea76 1242-1245
+  s_1f64050f9c2ed5::t_d9e1386a20a67b 1261-1265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "ba4a3882e47f6660d068a69a987dcdeaa795b28c",
+  "prompts": {},
+  "sessions": {
+    "s_1f64050f9c2ed5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee370361-ff69-4617-b569-2675182aad54",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
