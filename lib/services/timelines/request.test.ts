@@ -45,6 +45,21 @@ describe('parseTimelineQuery', () => {
     })
   })
 
+  it('treats an empty-string cursor as absent (not a 400)', () => {
+    const result = parseTimelineQuery(
+      params({ max_id: '', min_id: '', since_id: '' })
+    )
+    expect(result).toEqual({
+      ok: true,
+      query: {
+        limit: PER_PAGE_LIMIT,
+        maxStatusId: null,
+        minStatusId: null,
+        sinceStatusId: null
+      }
+    })
+  })
+
   // limit is clamped, never rejected (Mastodon clamps out-of-range values).
   it.each([
     { description: 'valid in-range limit', value: '5', expected: 5 },

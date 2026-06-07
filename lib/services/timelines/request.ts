@@ -46,11 +46,13 @@ const decodeCursor = (raw: string | undefined): string | null | undefined =>
 export const parseTimelineQuery = (
   searchParams: URLSearchParams
 ): ParseTimelineQueryResult => {
+  // Treat an empty-string param (e.g. `?max_id=`) as absent rather than a value,
+  // so a blank cursor means "no cursor" (2xx) instead of failing validation.
   const parsed = TimelineQuerySchema.safeParse({
-    limit: searchParams.get('limit') ?? undefined,
-    max_id: searchParams.get('max_id') ?? undefined,
-    min_id: searchParams.get('min_id') ?? undefined,
-    since_id: searchParams.get('since_id') ?? undefined
+    limit: searchParams.get('limit') || undefined,
+    max_id: searchParams.get('max_id') || undefined,
+    min_id: searchParams.get('min_id') || undefined,
+    since_id: searchParams.get('since_id') || undefined
   })
   if (!parsed.success) return { ok: false }
 
