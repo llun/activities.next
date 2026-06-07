@@ -1,0 +1,21 @@
+lib/database/sql/follow.test.ts
+  s_673c6973c1bd86::t_e1b8095a529ac3 546-597
+lib/database/sql/follow.ts
+  s_673c6973c1bd86::t_095c744452f8cd 473-478
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "620b97f065d81131fa9e33e3f1d3c1ab631f1ea8",
+  "prompts": {},
+  "sessions": {
+    "s_673c6973c1bd86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d0026ed-fda6-4f1c-bf56-37782f351c35",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
