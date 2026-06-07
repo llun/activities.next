@@ -380,6 +380,39 @@ describe('/api/v1/media/[id]', () => {
     expect(response.status).toBe(422)
   })
 
+  it('PUT returns 422 for a non-image thumbnail instead of ignoring it', async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-thumb-badtype')
+
+    const form = new FormData()
+    form.set(
+      'thumbnail',
+      new File([new Uint8Array([1, 2, 3])], 'note.txt', { type: 'text/plain' })
+    )
+    const request = new NextRequest(`https://llun.test/api/v1/media/${id}`, {
+      method: 'PUT',
+      headers: { origin: 'https://llun.test' }
+    })
+    Object.defineProperty(request, 'formData', {
+      value: jest.fn().mockResolvedValue(form)
+    })
+
+    const response = await PUT(request, { params: Promise.resolve({ id }) })
+
+    expect(response.status).toBe(422)
+    expect(mockSaveMediaThumbnail).not.toHaveBeenCalled()
+  })
+
+  it('PUT returns 422 for a non-file thumbnail value instead of ignoring it', async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-thumb-string')
+
+    const response = await PUT(putRequest(id, { thumbnail: 'not-a-file' }), {
+      params: Promise.resolve({ id })
+    })
+
+    expect(response.status).toBe(422)
+    expect(mockSaveMediaThumbnail).not.toHaveBeenCalled()
+  })
+
   it('DELETE removes owner media not attached to a status and deletes its files', async () => {
     const media = await database.createMedia({
       actorId: ACTOR1_ID,

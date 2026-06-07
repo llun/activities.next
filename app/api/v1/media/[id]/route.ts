@@ -179,11 +179,18 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   // Zod fills omitted optionals) so a partial update only mutates those fields.
   const descriptionProvided = 'description' in payload
   const focusProvided = 'focus' in payload
-  const rawThumbnail = payload.thumbnail
-  const thumbnailProvided =
-    rawThumbnail instanceof File && rawThumbnail.size > 0
 
-  if (thumbnailProvided) {
+  // A `thumbnail` field carries content when it is a non-empty File or a
+  // non-blank value. An absent field, empty string, or 0-byte file is treated
+  // as "not provided"; any other present value is validated as an image File so
+  // an invalid thumbnail returns 422 instead of being silently ignored.
+  const rawThumbnail = payload.thumbnail
+  const thumbnailFieldHasContent =
+    rawThumbnail != null &&
+    !(typeof rawThumbnail === 'string' && rawThumbnail.trim() === '') &&
+    !(rawThumbnail instanceof File && rawThumbnail.size === 0)
+
+  if (thumbnailFieldHasContent) {
     const thumbnailCheck = FileSchema.safeParse(rawThumbnail)
     if (!thumbnailCheck.success) {
       return apiResponse({
@@ -194,6 +201,9 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
       })
     }
   }
+
+  // After the check above, a present-with-content thumbnail is a valid File.
+  const thumbnailProvided = thumbnailFieldHasContent
 
   // Nothing to change — return the current attachment (404 if not owned).
   if (!descriptionProvided && !focusProvided && !thumbnailProvided) {

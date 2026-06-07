@@ -528,9 +528,11 @@ export class S3FileStorage implements MediaStorage {
       `${crypto.randomBytes(8).toString('hex')}.webp`
     )
     // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
-    // info (post-resize/WebP dimensions and byte size).
+    // info (post-resize/WebP dimensions and byte size). Read metadata from a
+    // separate sharp instance so the two operations don't run concurrently on
+    // the same pipeline.
     const [metaData, outputInfo] = await Promise.all([
-      resizedImage.metadata(),
+      sharp(buffer).metadata(),
       resizedImage.keepExif().toFile(tempFilePath)
     ])
 

@@ -235,8 +235,10 @@ export class LocalFileStorage implements MediaStorage {
     // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
     // info (post-resize/WebP dimensions and byte size). Callers that need the
     // stored file's real size/dimensions (e.g. thumbnails) use `outputInfo`.
+    // Read metadata from a separate sharp instance so the two operations don't
+    // run concurrently on the same pipeline.
     const [metaData, outputInfo] = await Promise.all([
-      resizedImage.metadata(),
+      sharp(imageBuffer).metadata(),
       resizedImage.keepExif().toFile(filePath)
     ])
 
