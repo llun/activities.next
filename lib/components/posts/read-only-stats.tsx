@@ -18,27 +18,29 @@ interface ReadOnlyStatsProps {
 export const ReadOnlyStats: FC<ReadOnlyStatsProps> = ({ status }) => {
   const actualStatus = getActualStatus(status)
   return (
-    <div className="mt-3 flex items-center gap-6 text-xs text-muted-foreground">
-      <span className="inline-flex items-center gap-1.5" aria-label="Replies">
+    <div
+      className="mt-3 flex items-center gap-6 text-xs text-muted-foreground"
+      aria-label="Engagement"
+    >
+      <span className="inline-flex items-center gap-1.5" title="Replies">
         <Reply className="size-4" aria-hidden="true" />
+        <span className="sr-only">Replies</span>
       </span>
       <span
         className="inline-flex items-center gap-1.5"
-        aria-label={`${actualStatus.totalShares} boosts`}
+        title={`${actualStatus.totalShares} boosts`}
       >
         <Repeat2 className="size-4" aria-hidden="true" />
-        <span className="tabular-nums" aria-hidden="true">
-          {actualStatus.totalShares}
-        </span>
+        <span className="tabular-nums">{actualStatus.totalShares}</span>
+        <span className="sr-only">boosts</span>
       </span>
       <span
         className="inline-flex items-center gap-1.5"
-        aria-label={`${actualStatus.totalLikes} likes`}
+        title={`${actualStatus.totalLikes} likes`}
       >
         <Heart className="size-4" aria-hidden="true" />
-        <span className="tabular-nums" aria-hidden="true">
-          {actualStatus.totalLikes}
-        </span>
+        <span className="tabular-nums">{actualStatus.totalLikes}</span>
+        <span className="sr-only">likes</span>
       </span>
     </div>
   )

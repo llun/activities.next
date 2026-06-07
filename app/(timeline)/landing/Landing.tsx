@@ -30,7 +30,7 @@ export const Landing: FC<LandingProps> = ({
   const hasPublicPosts = statuses.length > 0
   return (
     <main className="grid min-h-dvh grid-cols-1 md:h-dvh md:grid-cols-[1.1fr_1fr]">
-      <div className="min-h-0 md:overflow-y-auto">
+      <div className="flex min-h-0 flex-col md:overflow-y-auto">
         {hasPublicPosts ? (
           <LandingPublicFeed
             host={host}
@@ -41,7 +41,7 @@ export const Landing: FC<LandingProps> = ({
           <LandingHero serviceName={serviceName} />
         )}
       </div>
-      <div className="min-h-0 bg-background/80 md:overflow-y-auto">
+      <div className="flex min-h-0 flex-col bg-background/80 md:overflow-y-auto">
         <LandingAuthPanel serviceName={serviceName} />
       </div>
     </main>
