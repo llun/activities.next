@@ -21,8 +21,10 @@ import {
   MAX_HEIGHT,
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import {
   MediaSchema,
@@ -32,7 +34,8 @@ import {
   MediaStorageSaveFileOutput,
   MediaType,
   PresigedMediaInput,
-  PresignedUrlOutput
+  PresignedUrlOutput,
+  ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { Media } from '@/lib/types/database/operations'
@@ -257,6 +260,7 @@ export class S3FileStorage implements MediaStorage {
         preview_url: null,
         text_url: null,
         remote_url: null,
+        preview_remote_url: null,
         meta: {
           original: {
             width: presignedMedia.width ?? 0,
@@ -265,7 +269,8 @@ export class S3FileStorage implements MediaStorage {
             aspect: presignedMedia.width / presignedMedia.height
           }
         },
-        description: ''
+        description: '',
+        blurhash: null
       },
       headers: {
         'x-amz-checksum-sha1': checksumSha1Base64,
@@ -384,19 +389,21 @@ export class S3FileStorage implements MediaStorage {
       file.size
     )
     if (!quotaCheck.available) {
-      throw new Error(
+      throw new MediaValidationError(
         `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
       )
     }
 
     if (file.type.startsWith('video')) {
-      const { path, metaData, contentType, previewImage } =
-        await this._uploadVideoToS3(currentTime, file)
-      const thumbnail = await this._uploadImageBufferToS3(
+      const { path, metaData, previewImage } = await this._uploadVideoToS3(
         currentTime,
-        previewImage,
-        true
+        file
       )
+      // Video preview extraction can fail (no decodable frame); only build a
+      // thumbnail when we actually have a preview image to avoid sharp(null).
+      const thumbnail = previewImage
+        ? await this._uploadImageBufferToS3(currentTime, previewImage, true)
+        : null
       const storedMedia = await this._database.createMedia({
         actorId: actor.id,
         original: {
@@ -409,21 +416,27 @@ export class S3FileStorage implements MediaStorage {
           },
           fileName: file.name
         },
-        thumbnail: {
-          path: thumbnail.path,
-          bytes: thumbnail.metaData.size ?? 0,
-          mimeType: `image/${thumbnail.metaData.format ?? 'jpg'}`,
-          metaData: {
-            width: thumbnail.metaData.width ?? 0,
-            height: thumbnail.metaData.height ?? 0
-          }
-        },
-        ...(media.description ? { description: media.description } : null)
+        ...(thumbnail
+          ? {
+              // Use the resized WebP's actual size/dimensions (outputInfo).
+              thumbnail: {
+                path: thumbnail.path,
+                bytes: thumbnail.outputInfo.size,
+                mimeType: 'image/webp',
+                metaData: {
+                  width: thumbnail.outputInfo.width,
+                  height: thumbnail.outputInfo.height
+                }
+              }
+            }
+          : null),
+        ...(media.description ? { description: media.description } : null),
+        ...(media.focus ? { focus: media.focus } : null)
       })
       if (!storedMedia) {
         throw new Error('Fail to store media')
       }
-      return this._getSaveFileOutput(storedMedia, contentType)
+      return this._getSaveFileOutput(storedMedia)
     }
 
     const { metaData, path } = await this._uploadImageToS3(currentTime, file)
@@ -439,12 +452,50 @@ export class S3FileStorage implements MediaStorage {
         },
         fileName: file.name
       },
-      ...(media.description ? { description: media.description } : null)
+      ...(media.description ? { description: media.description } : null),
+      ...(media.focus ? { focus: media.focus } : null)
     })
     if (!storedMedia) {
       throw new Error('Fail to store media')
     }
     return this._getSaveFileOutput(storedMedia)
+  }
+
+  async saveThumbnail(
+    actor: Actor,
+    file: File
+  ): Promise<ThumbnailStorageOutput | null> {
+    if (!file.type.startsWith('image')) return null
+
+    // Enforce the account quota like saveFile, so a thumbnail replacement can't
+    // push usage past the limit.
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new MediaValidationError(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
+
+    // Use the stored WebP's actual size/dimensions (outputInfo), not the input
+    // image's metadata.
+    const { outputInfo, path } = await this._uploadImageToS3(
+      Date.now(),
+      file,
+      true
+    )
+    return {
+      path,
+      bytes: outputInfo.size,
+      mimeType: 'image/webp',
+      metaData: {
+        width: outputInfo.width,
+        height: outputInfo.height
+      }
+    }
   }
 
   private async _uploadImageToS3(
@@ -476,8 +527,12 @@ export class S3FileStorage implements MediaStorage {
       tmpdir(),
       `${crypto.randomBytes(8).toString('hex')}.webp`
     )
-    const [metaData] = await Promise.all([
-      resizedImage.metadata(),
+    // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
+    // info (post-resize/WebP dimensions and byte size). Read metadata from a
+    // separate sharp instance so the two operations don't run concurrently on
+    // the same pipeline.
+    const [metaData, outputInfo] = await Promise.all([
+      sharp(buffer).metadata(),
       resizedImage.keepExif().toFile(tempFilePath)
     ])
 
@@ -486,19 +541,28 @@ export class S3FileStorage implements MediaStorage {
     const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
     const s3client = this._client
 
-    const fd = await fs.open(tempFilePath, 'r')
-    const stream = fd.createReadStream()
-    const command = new PutObjectCommand({
-      Bucket: bucket,
-      Key: path,
-      ContentType: contentType,
-      Body: stream
-    })
-    await s3client.send(command)
-    stream.close()
-    fd.close()
-    await fs.unlink(tempFilePath)
-    return { image: resizedImage, metaData, path, contentType }
+    // Outer finally guarantees the temp file is removed even if fs.open throws;
+    // inner finally releases the fd. `createReadStream` may auto-close the fd on
+    // success, so ignore EBADF from a double close.
+    try {
+      const fd = await fs.open(tempFilePath, 'r')
+      try {
+        const stream = fd.createReadStream()
+        const command = new PutObjectCommand({
+          Bucket: bucket,
+          Key: path,
+          ContentType: contentType,
+          Body: stream
+        })
+        await s3client.send(command)
+        stream.close()
+      } finally {
+        await fd.close().catch(() => undefined)
+      }
+    } finally {
+      await fs.unlink(tempFilePath).catch(() => undefined)
+    }
+    return { image: resizedImage, metaData, outputInfo, path, contentType }
   }
 
   private async _uploadVideoToS3(currentTime: number, file: File) {
@@ -521,7 +585,7 @@ export class S3FileStorage implements MediaStorage {
       !videoStream ||
       !(formats?.includes('mp4') || formats?.includes('webm'))
     ) {
-      throw new Error('Invalid video format')
+      throw new MediaValidationError('Invalid video format')
     }
 
     const metaData = videoStream
@@ -544,48 +608,7 @@ export class S3FileStorage implements MediaStorage {
     return { path, metaData, contentType: file.type, previewImage }
   }
 
-  private _getSaveFileOutput(
-    media: Media,
-    contentType?: string
-  ): MediaStorageSaveFileOutput {
-    const mimeType = contentType ?? media.original.mimeType
-    const type = mimeType.startsWith('video')
-      ? MediaType.enum.video
-      : MediaType.enum.image
-    const url = `https://${this._host}/api/v1/files/${media.original.path}`
-    const previewUrl = media.thumbnail
-      ? `https://${this._host}/api/v1/files/${media.thumbnail?.path}`
-      : url
-    return MediaStorageSaveFileOutput.parse({
-      id: `${media.id}`,
-      type,
-      mime_type: mimeType,
-      // TODO: Add config for base image domain?
-      url,
-      preview_url: previewUrl,
-      text_url: null,
-      remote_url: null,
-      meta: {
-        original: {
-          width: media.original.metaData.width,
-          height: media.original.metaData.height,
-          size: `${media.original.metaData.width}x${media.original.metaData.height}`,
-          aspect: media.original.metaData.width / media.original.metaData.height
-        },
-        ...(media.thumbnail
-          ? {
-              small: {
-                width: media.thumbnail.metaData.width,
-                height: media.thumbnail.metaData.height,
-                size: `${media.thumbnail.metaData.width}x${media.thumbnail.metaData.height}`,
-                aspect:
-                  media.thumbnail.metaData.width /
-                  media.thumbnail.metaData.height
-              }
-            }
-          : null)
-      },
-      description: media?.description ?? ''
-    })
+  private _getSaveFileOutput(media: Media): MediaStorageSaveFileOutput {
+    return getMediaAttachment(media, this._host)
   }
 }
