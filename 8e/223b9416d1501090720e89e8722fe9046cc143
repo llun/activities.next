@@ -1,0 +1,39 @@
+lib/services/medias/localFile.ts
+  s_b2ba64b393874e::t_96e1b27d44dc07 216-219,227
+  s_b2ba64b393874e::t_dffb1ac4f52d13 180-182,185-186,188-189
+app/api/v2/media/route.ts
+  s_b2ba64b393874e::t_04d03799cdaa88 1-4,8
+  s_b2ba64b393874e::t_07f11c68acfc52 5,25-26
+lib/services/medias/handleSyncMediaUpload.ts
+  s_b2ba64b393874e::t_80eb7aa9327eb2 1-60
+app/api/v1/media/route.ts
+  s_b2ba64b393874e::t_d6990c82b1d439 1-4,8
+  s_b2ba64b393874e::t_23ba9ccc31691e 5,18-19,24-25
+app/api/v1/media/[id]/route.ts
+  s_b2ba64b393874e::t_5ea9087d7087d9 408-409
+  s_b2ba64b393874e::t_82b5af73c2bc0a 300-301
+  s_b2ba64b393874e::t_b66466f8aff2ea 125-126
+  s_b2ba64b393874e::t_ca500ec52b840c 4-7
+  s_b2ba64b393874e::t_4e6d3391950221 309-310
+  s_b2ba64b393874e::t_a1ac2e4ab873ef 35-38
+lib/services/medias/S3StorageFile.ts
+  s_b2ba64b393874e::t_384ea52359780a 461-463,470,473-474
+  s_b2ba64b393874e::t_9b43f69ebd004b 508-510
+  s_b2ba64b393874e::t_2a37a4d48b35c0 532
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8e223b9416d1501090720e89e8722fe9046cc143",
+  "prompts": {},
+  "sessions": {
+    "s_b2ba64b393874e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d80f81f-e6d6-4139-b9cb-5588f9be4b60",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
