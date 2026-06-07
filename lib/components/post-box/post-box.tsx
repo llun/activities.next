@@ -16,15 +16,12 @@ import {
   useRef,
   useState
 } from 'react'
-import ReactMarkdown from 'react-markdown'
-import rehypeSanitize from 'rehype-sanitize'
-import remarkBreaks from 'remark-breaks'
-import remarkGfm from 'remark-gfm'
 
 import {
   createNote,
   createPoll,
   deleteFitnessFile,
+  getCustomEmojis,
   updateNote,
   uploadAttachment,
   uploadFitnessFile
@@ -47,11 +44,16 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/types/domain/status'
+import { Tag } from '@/lib/types/domain/tag'
+import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getVisibility } from '@/lib/utils/getVisibility'
-import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
+import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
+import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
+import { EmojiPickerButton } from './emoji-picker-button'
 import { Duration, PollChoices } from './poll-choices'
 import {
   DEFAULT_STATE,
@@ -327,6 +329,55 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     textRef.current = text
   }, [text])
+
+  const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([])
+  useEffect(() => {
+    let active = true
+    getCustomEmojis().then((emojis) => {
+      if (active) setCustomEmojis(emojis)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Synthesizes emoji domain tags from the shortcodes present in the draft text
+  // so the live preview renders custom emoji through the exact same
+  // convertEmojisToImages pipeline the rendered Post uses. The synthetic ids are
+  // preview-only and never persisted.
+  const buildSyntheticEmojiTags = useCallback(
+    (value: string): Tag[] =>
+      getEmojiTags(value, customEmojis).map((emojiTag, index) => ({
+        id: `preview-${index}`,
+        statusId: 'preview',
+        type: 'emoji' as const,
+        name: emojiTag.name,
+        value: emojiTag.value,
+        createdAt: 0,
+        updatedAt: 0
+      })),
+    [customEmojis]
+  )
+
+  // Inserts text at the caret of the message textarea (used by the emoji/sticker
+  // picker). Falls back to appending when the textarea ref is unavailable.
+  const insertAtCaret = (snippet: string) => {
+    const textarea = postBoxRef.current
+    const current = textRef.current
+    if (!textarea) {
+      onTextChange(`${current}${snippet}`)
+      return
+    }
+    const start = textarea.selectionStart ?? current.length
+    const end = textarea.selectionEnd ?? current.length
+    const next = current.slice(0, start) + snippet + current.slice(end)
+    onTextChange(next)
+    const caret = start + snippet.length
+    requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.setSelectionRange(caret, caret)
+    })
+  }
 
   const isEditDirty = (
     value = textRef.current,
@@ -912,20 +963,14 @@ export const PostBox: FC<Props> = ({
                 </div>
                 {text ? (
                   <div className="markdown-content max-w-none text-sm">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
-                      rehypePlugins={[
-                        [
-                          rehypeSanitize,
-                          {
-                            tagNames: SANITIZED_OPTION.allowedTags,
-                            attributes: SANITIZED_OPTION.allowedAttributes
-                          }
-                        ]
-                      ]}
-                    >
-                      {text}
-                    </ReactMarkdown>
+                    {cleanClassName(
+                      processStatusTextContent(
+                        host,
+                        text,
+                        buildSyntheticEmojiTags(text),
+                        true
+                      )
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -1011,6 +1056,11 @@ export const PostBox: FC<Props> = ({
                 onError={(message) => setWarningMsg(message)}
               />
             ) : null}
+            <EmojiPickerButton
+              customEmojis={customEmojis}
+              onSelect={insertAtCaret}
+              disabled={isPosting}
+            />
             <Button
               type="button"
               variant="ghost"

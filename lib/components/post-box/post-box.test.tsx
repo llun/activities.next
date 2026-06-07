@@ -4,7 +4,12 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { createNote, updateNote, uploadAttachment } from '@/lib/client'
+import {
+  createNote,
+  getCustomEmojis,
+  updateNote,
+  uploadAttachment
+} from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
@@ -15,6 +20,7 @@ jest.mock('@/lib/client', () => ({
   createNote: jest.fn(),
   createPoll: jest.fn(),
   deleteFitnessFile: jest.fn(),
+  getCustomEmojis: jest.fn().mockResolvedValue([]),
   updateNote: jest.fn(),
   uploadAttachment: jest.fn(),
   uploadFitnessFile: jest.fn()
@@ -956,7 +962,17 @@ describe('PostBox markdown preview', () => {
     jest.clearAllMocks()
   })
 
-  it('passes remarkGfm and remarkBreaks plugins to the preview renderer', async () => {
+  it('renders custom emoji shortcodes as inline images in the preview', async () => {
+    ;(getCustomEmojis as jest.Mock).mockResolvedValueOnce([
+      {
+        shortcode: 'blobcat',
+        url: 'https://activities.local/emojis/blobcat.png',
+        static_url: 'https://activities.local/emojis/blobcat.png',
+        visible_in_picker: true,
+        category: null
+      }
+    ])
+
     render(
       <PostBox
         host="activities.local"
@@ -969,24 +985,13 @@ describe('PostBox markdown preview', () => {
     )
 
     const textarea = screen.getByPlaceholderText('What is on your mind?')
-    fireEvent.change(textarea, { target: { value: '~~strikethrough~~' } })
-
+    fireEvent.change(textarea, { target: { value: 'hi :blobcat:' } })
     fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
 
-    const mockRemarkGfm = jest.requireMock('remark-gfm').default
-    const mockRemarkBreaks = jest.requireMock('remark-breaks').default
-
-    await waitFor(() => {
-      expect(mockReactMarkdown).toHaveBeenCalled()
-    })
-
-    const plugins =
-      mockReactMarkdown.mock.calls[mockReactMarkdown.mock.calls.length - 1][0]
-        .remarkPlugins ?? []
-    expect(plugins).toContain(mockRemarkGfm)
-    expect(plugins).toContain(mockRemarkBreaks)
-    expect(plugins.indexOf(mockRemarkGfm)).toBeLessThan(
-      plugins.indexOf(mockRemarkBreaks)
+    const image = await screen.findByAltText(':blobcat:')
+    expect(image).toHaveAttribute(
+      'src',
+      'https://activities.local/emojis/blobcat.png'
     )
   })
 
@@ -1005,6 +1010,5 @@ describe('PostBox markdown preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
 
     expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
-    expect(mockReactMarkdown).not.toHaveBeenCalled()
   })
 })

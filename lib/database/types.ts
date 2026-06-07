@@ -10,6 +10,7 @@ import {
   BaseDatabase,
   BlockDatabase,
   BookmarkDatabase,
+  CustomEmojiDatabase,
   DirectConversationDatabase,
   EndorsementDatabase,
   FilterDatabase,
@@ -48,6 +49,7 @@ export type Database = AccountDatabase &
   FollowedTagDatabase &
   FilterDatabase &
   BookmarkDatabase &
+  CustomEmojiDatabase &
   DirectConversationDatabase &
   FollowDatabase &
   LikeDatabase &
