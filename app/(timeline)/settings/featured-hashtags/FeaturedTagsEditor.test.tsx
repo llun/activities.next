@@ -78,6 +78,20 @@ describe('FeaturedTagsEditor', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('still shows loaded tags when only the suggestions request fails', async () => {
+    mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
+    mockGetSuggestions.mockRejectedValue(new Error('network'))
+    render(<FeaturedTagsEditor />)
+
+    // Suggestions are best-effort: their failure must not blank the editor.
+    expect(await screen.findByText('#running')).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Couldn’t load your featured hashtags. Please refresh to try again.'
+      )
+    ).not.toBeInTheDocument()
+  })
+
   it('renders "no posts yet" when last_status_at is null', async () => {
     mockGetFeaturedTags.mockResolvedValue([
       buildTag({ name: 'trailrun', statuses_count: '0', last_status_at: null })

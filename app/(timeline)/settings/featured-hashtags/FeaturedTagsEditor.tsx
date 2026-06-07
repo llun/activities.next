@@ -165,7 +165,13 @@ export const FeaturedTagsEditor: FC = () => {
 
   useEffect(() => {
     let active = true
-    Promise.all([getFeaturedTags(), getFeaturedTagSuggestions()])
+    // Featured tags are the critical data — a failure rejects and shows the
+    // load error. Suggestions are an optional enhancement, so swallow their
+    // failure (network/parse/HTTP) here; it must never discard loaded tags.
+    Promise.all([
+      getFeaturedTags(),
+      getFeaturedTagSuggestions().catch(() => [] as Tag[])
+    ])
       .then(([loadedTags, loadedSuggestions]) => {
         if (!active) return
         setTags(loadedTags)
