@@ -675,4 +675,121 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
 
     expect(screen.getByTestId('status-public-announce')).toBeInTheDocument()
   })
+
+  // The Announce recursion landing on the direct-recipient branch of the
+  // boosted original (rather than the followers-only branch above).
+  it('renders a focused public boost whose original is a direct message addressed to the viewer', async () => {
+    const dmOriginal = buildNote({
+      id: 'dm-original',
+      actorId: 'https://activities.local/users/anna',
+      to: [VIEWER_ID],
+      cc: []
+    })
+    const announce = {
+      id: 'public-announce',
+      type: 'Announce',
+      actorId: 'https://activities.local/users/booster',
+      actor: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: 1,
+      updatedAt: 1,
+      originalStatus: dmOriginal
+    } as unknown as Status
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: announce,
+      statusId: 'public-announce',
+      fullStatusId: dmOriginal.url,
+      isStatusHash: true
+    })
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-public-announce')).toBeInTheDocument()
+    // Granted by direct-recipient match on the original, not by a follow lookup.
+    expect(mockGetAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
+
+  it('returns notFound for a focused public boost whose original is a direct message the viewer is not addressed in', async () => {
+    const dmOriginal = buildNote({
+      id: 'dm-original',
+      actorId: 'https://activities.local/users/anna',
+      to: ['https://activities.local/users/bob'],
+      cc: []
+    })
+    const announce = {
+      id: 'public-announce',
+      type: 'Announce',
+      actorId: 'https://activities.local/users/booster',
+      actor: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: 1,
+      updatedAt: 1,
+      originalStatus: dmOriginal
+    } as unknown as Status
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: announce,
+      statusId: 'public-announce',
+      fullStatusId: dmOriginal.url,
+      isStatusHash: true
+    })
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+})
+
+describe('Page visibility for the focused-status author', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetServerAuthSession.mockResolvedValue({} as never)
+    // The signed-in viewer IS the author of the focused status.
+    mockGetActorFromSession.mockResolvedValue({
+      ...buildViewer(),
+      id: AUTHOR_ID
+    } as unknown as Actor)
+    mockGetStatusReplies.mockResolvedValue([])
+    // If the author branch regressed, a non-public status would fall through to
+    // a follow lookup; this null mock would then deny access (notFound).
+    mockGetAcceptedOrRequestedFollow.mockResolvedValue(null)
+  })
+
+  // The old inline gate had an explicit "authors can always see their own
+  // non-public statuses" rule. `canActorReadStatus` preserves it via the
+  // `currentActor.id === status.actorId` short-circuit; these lock it down so
+  // authors never get a 404 on their own followers-only post or direct message.
+  it.each([
+    {
+      description: 'renders the author own focused followers-only status',
+      id: 'own-followers-only',
+      to: [`${AUTHOR_ID}/followers`]
+    },
+    {
+      description: 'renders the author own focused direct message',
+      id: 'own-dm',
+      to: ['https://activities.local/users/bob']
+    }
+  ])('$description', async ({ id, to }) => {
+    const focused = buildNote({ id, to, cc: [] })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: id,
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+
+    await renderPage()
+
+    expect(screen.getByTestId(`status-${id}`)).toBeInTheDocument()
+    // Access is granted by identity, not by a follow lookup.
+    expect(mockGetAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
 })
