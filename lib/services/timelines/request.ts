@@ -57,9 +57,15 @@ export const parseTimelineQuery = (
   if (!parsed.success) return { ok: false }
 
   const { limit, max_id, min_id, since_id } = parsed.data
+  // Floor a decimal limit (e.g. `1.5` → `1`) like Mastodon's integer coercion;
+  // `normalizeTimelineLimit` then clamps it to the allowed range. (It already
+  // rejects non-integers, so this only changes a float into its floored int
+  // rather than the default.)
   const numericLimit = limit !== undefined ? Number(limit) : null
   const pageLimit = normalizeTimelineLimit(
-    numericLimit !== null && Number.isFinite(numericLimit) ? numericLimit : null
+    numericLimit !== null && Number.isFinite(numericLimit)
+      ? Math.floor(numericLimit)
+      : null
   )
 
   const maxStatusId = decodeCursor(max_id)

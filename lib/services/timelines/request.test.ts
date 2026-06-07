@@ -82,6 +82,11 @@ describe('parseTimelineQuery', () => {
       description: 'zero limit falls back to default',
       value: '0',
       expected: PER_PAGE_LIMIT
+    },
+    {
+      description: 'decimal limit is floored to an integer',
+      value: '5.9',
+      expected: 5
     }
   ])('clamps limit ($description)', ({ value, expected }) => {
     const result = parseTimelineQuery(params({ limit: value }))
