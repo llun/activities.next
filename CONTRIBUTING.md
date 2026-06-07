@@ -428,10 +428,24 @@ Regenerate them canonically rather than hand-editing. In both cases, run every
 migration against a fresh database first and confirm the `knex_migrations` row
 count equals the number of `migrations/*.js` files.
 
+> **Heads up on environment isolation.** The commands below pass the database
+> settings **inline** on the `yarn migrate` line rather than writing a
+> `.env.local` — this avoids clobbering an existing `.env.local` (the file the
+> setup docs have you create) and, because `knexfile.js` uses `dotenv-flow`
+> (which never overrides variables already in the environment), guarantees these
+> inline values win over anything in `.env.local`. For that same reason, run them
+> in a shell where you have **not** exported any other `ACTIVITIES_DATABASE*`
+> variables — a stray exported `ACTIVITIES_DATABASE` (JSON) or
+> `ACTIVITIES_DATABASE_PG_*` would otherwise be merged in and could point
+> `yarn migrate` at the wrong (possibly remote/shared) database. Check with
+> `env | grep ACTIVITIES_DATABASE` first; unset anything that shows up.
+
 ##### PostgreSQL — `migrations/schema.sql`
 
-1. Start a **local** PostgreSQL 17 — for example a throwaway Docker container.
-   Never point at a remote/shared/production database.
+1. Start a **local** PostgreSQL 17 — for example a throwaway Docker container —
+   and **wait until it is accepting connections** (`docker run -d` returns before
+   `initdb` finishes, so migrating immediately often fails with a connection
+   error). Never point at a remote/shared/production database.
 
    ```bash
    docker run -d --name anext-schema-pg \
@@ -439,21 +453,23 @@ count equals the number of `migrations/*.js` files.
      -e POSTGRES_PASSWORD=activities \
      -e POSTGRES_DB=activities \
      -p 55432:5432 postgres:17
+
+   # Wait for readiness before continuing.
+   until docker exec anext-schema-pg pg_isready -U activities -q; do sleep 1; done
    ```
 
-2. Point a throwaway `.env.local` at it and run the migrations:
+2. Run the migrations against it, passing the database settings **inline** (see
+   the environment-isolation note above — this avoids touching your `.env.local`
+   and overrides any `.env.local` values):
 
    ```bash
-   cat > .env.local <<'EOF'
-   ACTIVITIES_DATABASE_CLIENT=pg
-   ACTIVITIES_DATABASE_PG_HOST=127.0.0.1
-   ACTIVITIES_DATABASE_PG_PORT=55432
-   ACTIVITIES_DATABASE_PG_USER=activities
-   ACTIVITIES_DATABASE_PG_PASSWORD=activities
-   ACTIVITIES_DATABASE_PG_DATABASE=activities
-   EOF
-
-   yarn migrate
+   ACTIVITIES_DATABASE_CLIENT=pg \
+   ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
+   ACTIVITIES_DATABASE_PG_PORT=55432 \
+   ACTIVITIES_DATABASE_PG_USER=activities \
+   ACTIVITIES_DATABASE_PG_PASSWORD=activities \
+   ACTIVITIES_DATABASE_PG_DATABASE=activities \
+     yarn migrate
    ```
 
    Sanity check that every migration ran: the row count in `knex_migrations`
@@ -492,8 +508,7 @@ count equals the number of `migrations/*.js` files.
    ' /tmp/schema_raw.sql | cat -s > migrations/schema.sql
    ```
 
-5. Clean up the throwaway container and `.env.local` once the SQLite dump below
-   is also done.
+5. Clean up the throwaway container.
 
    ```bash
    docker rm -f anext-schema-pg
@@ -506,15 +521,13 @@ by hand.
 
 ##### SQLite — `migrations/schema.sqlite.sql`
 
-1. Point a throwaway `.env.local` at a local SQLite file and run the migrations:
+1. Run the migrations against a throwaway local SQLite file, passing the settings
+   **inline** (same reasoning as above — no `.env.local` is written or touched):
 
    ```bash
-   cat > .env.local <<'EOF'
-   ACTIVITIES_DATABASE_CLIENT=better-sqlite3
-   ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3
-   EOF
-
-   yarn migrate
+   ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+   ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 \
+     yarn migrate
    sqlite3 schema-dump.sqlite3 'SELECT count(*) FROM knex_migrations;'  # == number of migrations
    ```
 
@@ -541,7 +554,7 @@ by hand.
 4. Clean up the throwaway files:
 
    ```bash
-   rm -f schema-dump.sqlite3 /tmp/roundtrip.sqlite3 .env.local
+   rm -f schema-dump.sqlite3 /tmp/roundtrip.sqlite3
    ```
 
 After both dumps, only `migrations/schema.sql` and `migrations/schema.sqlite.sql`
