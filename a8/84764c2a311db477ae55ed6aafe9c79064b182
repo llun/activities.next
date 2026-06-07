@@ -1,0 +1,87 @@
+lib/services/medias/localFile.ts
+  s_b2ba64b393874e::t_8de66db9a96ba3 166-167,174-189
+  s_b2ba64b393874e::t_792d533fc55fc0 16,22
+app/api/v2/media/route.ts
+  s_b2ba64b393874e::t_9088319cf38fc6 1,4,14-19,22-46,50,52-54,63
+lib/services/medias/types.ts
+  s_b2ba64b393874e::t_646ded1543388f 23-41,45-46
+  s_b2ba64b393874e::t_f677081dae4d59 58-62
+  s_b2ba64b393874e::t_4600da7f7dfdea 75-76,78-81
+  s_b2ba64b393874e::t_1cddaa2fdaa07d 132-140,147-150
+lib/services/medias/getMediaAttachment.test.ts
+  s_b2ba64b393874e::t_1aeec7be935b65 82-83,99-139
+  s_b2ba64b393874e::t_d1417c16ee5502 84-98
+app/api/v1/media/route.ts
+  s_b2ba64b393874e::t_9e0fb00bc9e989 1-63
+lib/services/medias/S3StorageFile.ts
+  s_b2ba64b393874e::t_42d7fc7b96914c 573-574
+  s_b2ba64b393874e::t_10f6787f1bc3d5 26,36-37
+  s_b2ba64b393874e::t_550c1db5be8b3d 396-399
+  s_b2ba64b393874e::t_0876a36c2315e5 426-427,432,448-449,457-473
+  s_b2ba64b393874e::t_2fb730cd3ae9d7 270-271
+lib/services/medias/getMediaAttachment.ts
+  s_b2ba64b393874e::t_ca6bac3f85d953 24-34,38-40,53,61-64,66-67
+app/api/v2/media/route.test.ts
+  s_b2ba64b393874e::t_2f57e51a4a8cc5 1-72,75,77,85-183
+  s_b2ba64b393874e::t_842f4f5c8a8cdc 73-74,76,78-84
+app/api/v1/media/[id]/route.ts
+  s_b2ba64b393874e::t_8c72029ea4e5ca 71-73,77
+  s_b2ba64b393874e::t_7e9f444ee2e628 1,4,6-7,9,25-27,39-42,49-50,76,78-112,119-173,176-179,183-184,187,189-195,203-205,207-208,210-215,219,227-245,247-252,256-257,259-269,271-274,276-277,283-299,322-324,347,352,356
+  s_b2ba64b393874e::t_a661d0f8214f6b 174-175
+  s_b2ba64b393874e::t_44c9375e4eed35 321,326-328,337
+  s_b2ba64b393874e::t_8c5c9e83d5364b 116,206,275
+lib/services/medias/index.ts
+  s_b2ba64b393874e::t_a661d0f8214f6b 38
+  s_b2ba64b393874e::t_90e475c561a0d6 39-60
+migrations/20260607000000_add_medias_focus.js
+  s_b2ba64b393874e::t_30b12eca849891 1-26
+lib/database/sql/media.ts
+  s_b2ba64b393874e::t_d79e4915729656 448-449
+  s_b2ba64b393874e::t_1410544be330a6 490-495
+  s_b2ba64b393874e::t_b62d64e6a99b12 246-248
+  s_b2ba64b393874e::t_d3bb2fc2dacb2d 638-642,644-646
+  s_b2ba64b393874e::t_ebaa359df11bc8 621,629,635,637,647,650,663
+  s_b2ba64b393874e::t_3ec7aca9ff4ca2 130-136,139-155
+  s_b2ba64b393874e::t_5f6e5c6b9747ad 188-189
+  s_b2ba64b393874e::t_fd11690edc84b3 510,521-523,525-530,535-557,559-567,569,571-585,587-590,592-595
+  s_b2ba64b393874e::t_29fcb53ed25beb 99-100
+  s_b2ba64b393874e::t_3de7f340eeac8d 220-221
+  s_b2ba64b393874e::t_6dc7d10d1d34e4 618-620,622-628,630-634,636,643,648-649,651-662,664-666
+  s_b2ba64b393874e::t_f9a718a5b78533 17
+  s_b2ba64b393874e::t_a661d0f8214f6b 531-534
+  s_b2ba64b393874e::t_9103a1612a1d42 18
+  s_b2ba64b393874e::t_8955d66c28842a 162-163
+lib/database/sql/media.test.ts
+  s_b2ba64b393874e::t_838a6c8fd37835 761-991
+app/api/v1/media/route.test.ts
+  s_b2ba64b393874e::t_ab0bdb00090381 1-70,73,75,83-136
+  s_b2ba64b393874e::t_e80097307eef53 71-72,74,76-82
+app/api/v1/media/[id]/route.test.ts
+  s_b2ba64b393874e::t_b1436a4c0a256c 8,15-19
+  s_b2ba64b393874e::t_c9a16368eb6d72 285-290
+  s_b2ba64b393874e::t_3bd8b893c0f3b5 205-284,291-366
+  s_b2ba64b393874e::t_d0cbebb65eb6b8 94-109
+lib/types/database/operations.ts
+  s_b2ba64b393874e::t_c7ecd815fa86df 1699-1702
+  s_b2ba64b393874e::t_31c968056cc8cc 1751
+  s_b2ba64b393874e::t_07c1bf1f5e62d8 1629-1640
+  s_b2ba64b393874e::t_9a82c2f0657b17 1752-1756
+  s_b2ba64b393874e::t_6ea508ff76f1d7 1718-1719
+  s_b2ba64b393874e::t_5f5399ec0a4760 1695-1698
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a884764c2a311db477ae55ed6aafe9c79064b182",
+  "prompts": {},
+  "sessions": {
+    "s_b2ba64b393874e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d80f81f-e6d6-4139-b9cb-5588f9be4b60",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
