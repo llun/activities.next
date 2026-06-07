@@ -492,6 +492,57 @@ describe('FollowDatabase', () => {
           [...requesters].sort()
         )
       })
+
+      it('distinguishes since_id (newest band) from min_id (oldest band) after a cursor', async () => {
+        // With more than one row newer than the cursor and a limit of 1, the two
+        // params must diverge: since_id returns the newest of the newer rows,
+        // min_id returns the oldest of the newer rows (presented newest-first).
+        const target = await createLocalActor()
+        const [a, b, c, d] = await Promise.all([
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor()
+        ])
+        const createRequestAt = async (actorId: string, createdAt: string) => {
+          jest.setSystemTime(new Date(createdAt))
+          return database.createFollow({
+            actorId,
+            targetActorId: target,
+            inbox: `${actorId}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+        }
+
+        let cursor: Follow
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          await createRequestAt(a, '2024-05-01T00:00:00Z')
+          cursor = await createRequestAt(b, '2024-05-01T00:01:00Z')
+          await createRequestAt(c, '2024-05-01T00:02:00Z')
+          await createRequestAt(d, '2024-05-01T00:03:00Z')
+        } finally {
+          jest.useRealTimers()
+        }
+
+        // Two rows are newer than the cursor: c (00:02) and d (00:03).
+        const sinceIdPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 1,
+          sinceId: cursor.id
+        })
+        expect(sinceIdPage.map((follow) => follow.actorId)).toEqual([d])
+
+        const minIdPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 1,
+          minId: cursor.id
+        })
+        expect(minIdPage.map((follow) => follow.actorId)).toEqual([c])
+      })
     })
 
     describe('createFollow', () => {
