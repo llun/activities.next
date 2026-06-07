@@ -4,12 +4,14 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { Bio } from '@/lib/components/bio/Bio'
+import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorTimelines } from './ActorTimelines'
@@ -92,6 +94,21 @@ const Page: FC<Props> = async ({ params }) => {
       : null
 
   const initials = getInitials(person.name || '', person.preferredUsername)
+
+  // Surface the account's featured hashtags inside the profile card. Only local
+  // actors have stored featured tags; remote profiles resolve to an empty list,
+  // so the block hides itself.
+  const bareHost = host.includes('://') ? new URL(host).host : host
+  const featuredTagRows = await database.getFeaturedTags({
+    actorId: person.id
+  })
+  const featuredTags = featuredTagRows.map((tag) =>
+    getMastodonFeaturedTag({
+      host: bareHost,
+      actor: { username: person.preferredUsername, domain: actorDomain },
+      tag
+    })
+  )
 
   const getHeaderImage = () => {
     if (!person.image) return null
@@ -177,6 +194,8 @@ const Page: FC<Props> = async ({ params }) => {
               <span className="text-muted-foreground">Followers</span>
             </Link>
           </div>
+
+          <FeaturedTagsBlock tags={featuredTags} />
         </div>
       </section>
 
