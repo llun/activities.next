@@ -9,9 +9,6 @@ import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { PublicFooter } from './PublicFooter'
-import { PublicTopBar } from './PublicTopBar'
-
 interface LayoutProps {
   children: ReactNode
 }
@@ -25,28 +22,14 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
 
-  // Logged-out visitors get the public chrome — a slim top bar with sign-in
-  // CTAs and a footer in place of the nav sidebar — matching the web-public
-  // design. The reading column is narrower than the signed-in app width.
+  // Logged-out visitors render without the nav sidebar. The home route renders
+  // a full-bleed landing (see app/(timeline)/page.tsx), so this branch stays
+  // chrome-less; the federated reading surfaces that still need the public top
+  // bar + footer (single status, profiles, hashtags) wrap themselves in
+  // `PublicShell` via their own sub-layouts (`[actor]/layout.tsx`,
+  // `tags/layout.tsx`).
   if (!actor) {
-    return (
-      // min-h-dvh (dynamic viewport height) rather than min-h-screen/100vh so
-      // the footer stays at the bottom without a mobile address-bar gap — same
-      // rationale as the public error pages (lib/components/error-page.tsx).
-      <div className="flex min-h-dvh flex-col">
-        <PublicTopBar />
-        <main className="flex flex-1 flex-col overflow-x-clip">
-          <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 py-6">
-            {children}
-          </div>
-        </main>
-        {/* Footer is a sibling of <main> (not nested in it) so its <footer>
-            maps to the contentinfo landmark; main keeps flex-1 to pin it to the
-            bottom on short pages. */}
-        <PublicFooter />
-        <Modal />
-      </div>
-    )
+    return <>{children}</>
   }
 
   // Check if iconUrl is a real user-uploaded avatar (not auto-generated)
