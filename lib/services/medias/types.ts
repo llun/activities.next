@@ -20,10 +20,30 @@ export const FileSchema = z
   )
 export type FileSchema = z.infer<typeof FileSchema>
 
+// Mastodon's `focus` parameter: two comma-delimited floats "x,y", each in
+// [-1.0, 1.0]. Parses the wire string into the stored { x, y } shape and rejects
+// malformed input (wrong arity, non-numeric, or out of range) so routes can
+// return 422. See https://docs.joinmastodon.org/methods/media/#focal-points
+export const FocusSchema = z
+  .string()
+  .transform((value) => value.split(','))
+  .refine(
+    (parts) =>
+      parts.length === 2 &&
+      parts.every((part) => {
+        const value = Number(part)
+        return Number.isFinite(value) && value >= -1 && value <= 1
+      }),
+    'Focus must be two comma-separated floats in the range -1.0 to 1.0'
+  )
+  .transform((parts) => ({ x: Number(parts[0]), y: Number(parts[1]) }))
+export type FocusSchema = z.infer<typeof FocusSchema>
+
 export const MediaSchema = z.object({
   file: FileSchema,
   thumbnail: FileSchema.optional(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  focus: FocusSchema.optional()
 })
 export type MediaSchema = z.infer<typeof MediaSchema>
 
@@ -35,7 +55,11 @@ const MediaMeta = z.object({
 })
 type MediaMeta = z.infer<typeof MediaMeta>
 
-export const MediaType = z.enum(['image', 'video'])
+// Mastodon MediaAttachment `type` values. We currently produce image/video/
+// audio from stored mime types and fall back to `unknown`; `gifv` is part of the
+// Mastodon vocabulary but is not generated here (we don't transcode GIFs).
+// https://docs.joinmastodon.org/entities/MediaAttachment/#type
+export const MediaType = z.enum(['image', 'gifv', 'video', 'audio', 'unknown'])
 export type MediaType = z.infer<typeof MediaType>
 
 export const MediaStorageSaveFileOutput = z.object({
@@ -46,11 +70,16 @@ export const MediaStorageSaveFileOutput = z.object({
   preview_url: z.string().url().nullish(),
   text_url: z.string().url().nullish(),
   remote_url: z.string().url().nullish(),
+  preview_remote_url: z.string().url().nullish(),
   meta: z.object({
     original: MediaMeta,
-    small: MediaMeta.optional()
+    small: MediaMeta.optional(),
+    focus: z.object({ x: z.number(), y: z.number() }).optional()
   }),
-  description: z.string()
+  description: z.string(),
+  // BlurHash for blurred placeholders. We do not compute it yet, so it is always
+  // null, but the field is always present to match Mastodon's serializer.
+  blurhash: z.string().nullable()
 })
 export type MediaStorageSaveFileOutput = z.infer<
   typeof MediaStorageSaveFileOutput
@@ -101,12 +130,25 @@ export const PresignedUrlOutput = z.object({
 })
 export type PresignedUrlOutput = z.infer<typeof PresignedUrlOutput>
 
+// A processed thumbnail ready to persist on an existing media row. Mirrors the
+// `thumbnail` shape `createMedia`/`updateMedia` accept.
+export interface ThumbnailStorageOutput {
+  path: string
+  bytes: number
+  mimeType: string
+  metaData: { width: number; height: number }
+}
+
 export interface MediaStorage {
   isPresigedSupported(): boolean
   saveFile(
     actor: Actor,
     media: MediaSchema
   ): Promise<MediaStorageSaveFileOutput | null>
+  // Processes and stores a standalone thumbnail image (used by PUT/PATCH
+  // /api/v1/media/:id to replace a custom thumbnail). Returns null for
+  // non-image input.
+  saveThumbnail(file: File): Promise<ThumbnailStorageOutput | null>
   getPresigedForSaveFileUrl(
     actor: Actor,
     media: PresigedMediaInput

@@ -79,4 +79,68 @@ describe('getMediaAttachment', () => {
     const attachment = getMediaAttachment(withoutDescription, 'llun.test')
     expect(attachment.description).toBe('')
   })
+
+  it.each([
+    {
+      description: 'image/png maps to image',
+      mimeType: 'image/png',
+      type: 'image'
+    },
+    {
+      description: 'video/mp4 maps to video',
+      mimeType: 'video/mp4',
+      type: 'video'
+    },
+    {
+      description: 'audio/mp4 maps to audio',
+      mimeType: 'audio/mp4',
+      type: 'audio'
+    },
+    {
+      description: 'unrecognised mime maps to unknown',
+      mimeType: 'application/zip',
+      type: 'unknown'
+    }
+  ])('$description', ({ mimeType, type }) => {
+    const attachment = getMediaAttachment(
+      { ...baseMedia, original: { ...baseMedia.original, mimeType } },
+      'llun.test'
+    )
+    expect(attachment.type).toBe(type)
+  })
+
+  it('always emits a null blurhash (not yet computed)', () => {
+    const attachment = getMediaAttachment(baseMedia, 'llun.test')
+    expect(attachment.blurhash).toBeNull()
+  })
+
+  it('emits remote_url and preview_remote_url as null for local media', () => {
+    const attachment = getMediaAttachment(baseMedia, 'llun.test')
+    expect(attachment.remote_url).toBeNull()
+    expect(attachment.preview_remote_url).toBeNull()
+  })
+
+  it('emits meta.focus when the media has a focal point', () => {
+    const attachment = getMediaAttachment(
+      { ...baseMedia, focus: { x: 0.5, y: -0.25 } },
+      'llun.test'
+    )
+    expect(attachment.meta.focus).toEqual({ x: 0.5, y: -0.25 })
+  })
+
+  it('omits meta.focus when there is no focal point', () => {
+    const attachment = getMediaAttachment(baseMedia, 'llun.test')
+    expect(attachment.meta.focus).toBeUndefined()
+  })
+
+  it('avoids division by zero when height is missing', () => {
+    const attachment = getMediaAttachment(
+      {
+        ...baseMedia,
+        original: { ...baseMedia.original, metaData: { width: 100, height: 0 } }
+      },
+      'llun.test'
+    )
+    expect(attachment.meta.original.aspect).toBe(100)
+  })
 })

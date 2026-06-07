@@ -23,6 +23,7 @@ import {
 } from '@/lib/services/medias/constants'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import {
   MediaSchema,
@@ -32,7 +33,8 @@ import {
   MediaStorageSaveFileOutput,
   MediaType,
   PresigedMediaInput,
-  PresignedUrlOutput
+  PresignedUrlOutput,
+  ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { Media } from '@/lib/types/database/operations'
@@ -257,6 +259,7 @@ export class S3FileStorage implements MediaStorage {
         preview_url: null,
         text_url: null,
         remote_url: null,
+        preview_remote_url: null,
         meta: {
           original: {
             width: presignedMedia.width ?? 0,
@@ -265,7 +268,8 @@ export class S3FileStorage implements MediaStorage {
             aspect: presignedMedia.width / presignedMedia.height
           }
         },
-        description: ''
+        description: '',
+        blurhash: null
       },
       headers: {
         'x-amz-checksum-sha1': checksumSha1Base64,
@@ -390,8 +394,10 @@ export class S3FileStorage implements MediaStorage {
     }
 
     if (file.type.startsWith('video')) {
-      const { path, metaData, contentType, previewImage } =
-        await this._uploadVideoToS3(currentTime, file)
+      const { path, metaData, previewImage } = await this._uploadVideoToS3(
+        currentTime,
+        file
+      )
       const thumbnail = await this._uploadImageBufferToS3(
         currentTime,
         previewImage,
@@ -418,12 +424,13 @@ export class S3FileStorage implements MediaStorage {
             height: thumbnail.metaData.height ?? 0
           }
         },
-        ...(media.description ? { description: media.description } : null)
+        ...(media.description ? { description: media.description } : null),
+        ...(media.focus ? { focus: media.focus } : null)
       })
       if (!storedMedia) {
         throw new Error('Fail to store media')
       }
-      return this._getSaveFileOutput(storedMedia, contentType)
+      return this._getSaveFileOutput(storedMedia)
     }
 
     const { metaData, path } = await this._uploadImageToS3(currentTime, file)
@@ -439,12 +446,32 @@ export class S3FileStorage implements MediaStorage {
         },
         fileName: file.name
       },
-      ...(media.description ? { description: media.description } : null)
+      ...(media.description ? { description: media.description } : null),
+      ...(media.focus ? { focus: media.focus } : null)
     })
     if (!storedMedia) {
       throw new Error('Fail to store media')
     }
     return this._getSaveFileOutput(storedMedia)
+  }
+
+  async saveThumbnail(file: File): Promise<ThumbnailStorageOutput | null> {
+    if (!file.type.startsWith('image')) return null
+
+    const { metaData, path } = await this._uploadImageToS3(
+      Date.now(),
+      file,
+      true
+    )
+    return {
+      path,
+      bytes: metaData.size ?? 0,
+      mimeType: 'image/webp',
+      metaData: {
+        width: metaData.width ?? 0,
+        height: metaData.height ?? 0
+      }
+    }
   }
 
   private async _uploadImageToS3(
@@ -544,48 +571,7 @@ export class S3FileStorage implements MediaStorage {
     return { path, metaData, contentType: file.type, previewImage }
   }
 
-  private _getSaveFileOutput(
-    media: Media,
-    contentType?: string
-  ): MediaStorageSaveFileOutput {
-    const mimeType = contentType ?? media.original.mimeType
-    const type = mimeType.startsWith('video')
-      ? MediaType.enum.video
-      : MediaType.enum.image
-    const url = `https://${this._host}/api/v1/files/${media.original.path}`
-    const previewUrl = media.thumbnail
-      ? `https://${this._host}/api/v1/files/${media.thumbnail?.path}`
-      : url
-    return MediaStorageSaveFileOutput.parse({
-      id: `${media.id}`,
-      type,
-      mime_type: mimeType,
-      // TODO: Add config for base image domain?
-      url,
-      preview_url: previewUrl,
-      text_url: null,
-      remote_url: null,
-      meta: {
-        original: {
-          width: media.original.metaData.width,
-          height: media.original.metaData.height,
-          size: `${media.original.metaData.width}x${media.original.metaData.height}`,
-          aspect: media.original.metaData.width / media.original.metaData.height
-        },
-        ...(media.thumbnail
-          ? {
-              small: {
-                width: media.thumbnail.metaData.width,
-                height: media.thumbnail.metaData.height,
-                size: `${media.thumbnail.metaData.width}x${media.thumbnail.metaData.height}`,
-                aspect:
-                  media.thumbnail.metaData.width /
-                  media.thumbnail.metaData.height
-              }
-            }
-          : null)
-      },
-      description: media?.description ?? ''
-    })
+  private _getSaveFileOutput(media: Media): MediaStorageSaveFileOutput {
+    return getMediaAttachment(media, this._host)
   }
 }

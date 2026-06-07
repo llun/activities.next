@@ -13,13 +13,13 @@ import { logger } from '@/lib/utils/logger'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
+import { getMediaAttachment } from './getMediaAttachment'
 import { checkQuotaAvailable } from './quota'
 import {
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
-  MediaStorageSaveFileOutput,
-  MediaType
+  ThumbnailStorageOutput
 } from './types'
 
 export class LocalFileStorage implements MediaStorage {
@@ -163,60 +163,30 @@ export class LocalFileStorage implements MediaStorage {
             }
           }
         : null),
-      ...(media.description ? { description: media.description } : null)
+      ...(media.description ? { description: media.description } : null),
+      ...(media.focus ? { focus: media.focus } : null)
     })
 
     if (!storedMedia) {
       throw new Error('Fail to store media')
     }
 
-    const protocol =
-      this._host.startsWith('localhost') ||
-      this._host.startsWith('127.0.0.1') ||
-      this._host.startsWith('::1') ||
-      this._host.startsWith('[::1]')
-        ? 'http'
-        : 'https'
-    const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path}`
+    return getMediaAttachment(storedMedia, this._host)
+  }
 
-    const previewUrl = thumbnail
-      ? `${protocol}://${this._host}/api/v1/files/${thumbnail?.path}`
-      : url
-    return MediaStorageSaveFileOutput.parse({
-      id: `${storedMedia.id}`,
-      type: media.file.type.startsWith('image')
-        ? MediaType.enum.image
-        : MediaType.enum.video,
-      mime_type: media.file.type,
-      // TODO: Add config for base image domain?
-      url,
-      preview_url: previewUrl,
-      text_url: null,
-      remote_url: null,
-      meta: {
-        original: {
-          width: storedMedia.original.metaData.width,
-          height: storedMedia.original.metaData.height,
-          size: `${storedMedia.original.metaData.width}x${storedMedia.original.metaData.height}`,
-          aspect:
-            storedMedia.original.metaData.width /
-            storedMedia.original.metaData.height
-        },
-        ...(storedMedia.thumbnail
-          ? {
-              small: {
-                width: storedMedia.thumbnail.metaData.width,
-                height: storedMedia.thumbnail.metaData.height,
-                size: `${storedMedia.thumbnail.metaData.width}x${storedMedia.thumbnail.metaData.height}`,
-                aspect:
-                  storedMedia.thumbnail.metaData.width /
-                  storedMedia.thumbnail.metaData.height
-              }
-            }
-          : null)
-      },
-      description: media?.description ?? ''
-    })
+  async saveThumbnail(file: File): Promise<ThumbnailStorageOutput | null> {
+    if (!file.type.startsWith('image')) return null
+
+    const { metaData, path } = await this._saveImageFile(file, true)
+    return {
+      path,
+      bytes: metaData.size ?? 0,
+      mimeType: `image/${metaData.format ?? 'webp'}`,
+      metaData: {
+        width: metaData.width ?? 0,
+        height: metaData.height ?? 0
+      }
+    }
   }
 
   private async _saveImageFile(imageFile: File, isThumbnail = false) {

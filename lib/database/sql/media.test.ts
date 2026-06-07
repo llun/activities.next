@@ -758,6 +758,237 @@ describe('MediaDatabase', () => {
         })
         expect(updated).toBeNull()
       })
+
+      it('persists a focal point and round-trips it exactly', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/update-media-focus.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          focus: { x: 0.5, y: -0.25 }
+        })
+
+        expect(updated?.focus).toEqual({ x: 0.5, y: -0.25 })
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(retrieved?.focus).toEqual({ x: 0.5, y: -0.25 })
+      })
+
+      it('keeps focus untouched when only the description is updated', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          description: 'original',
+          focus: { x: 0.1, y: 0.2 },
+          original: {
+            path: '/test/update-media-focus-keep.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          description: 'changed'
+        })
+
+        expect(updated?.description).toBe('changed')
+        expect(updated?.focus).toEqual({ x: 0.1, y: 0.2 })
+      })
+
+      it('keeps the description untouched when only focus is updated', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          description: 'keep me',
+          original: {
+            path: '/test/update-media-desc-keep.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          focus: { x: -1, y: 1 }
+        })
+
+        expect(updated?.focus).toEqual({ x: -1, y: 1 })
+        expect(updated?.description).toBe('keep me')
+      })
+
+      it('replaces the thumbnail and adjusts the usage counter by the byte delta', async () => {
+        const actor = await database.getActorFromId({ id: actors.empty.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/update-thumb-original.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          },
+          thumbnail: {
+            path: '/test/update-thumb-old.jpg',
+            bytes: 200,
+            mimeType: 'image/jpeg',
+            metaData: { width: 40, height: 40 }
+          }
+        })
+
+        const usageBefore = await database.getStorageUsageForAccount({
+          accountId
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          thumbnail: {
+            path: '/test/update-thumb-new.webp',
+            bytes: 350,
+            mimeType: 'image/webp',
+            metaData: { width: 60, height: 60 }
+          }
+        })
+
+        expect(updated?.thumbnail?.path).toBe('/test/update-thumb-new.webp')
+        expect(updated?.thumbnail?.bytes).toBe(350)
+
+        const usageAfter = await database.getStorageUsageForAccount({
+          accountId
+        })
+        // 350 - 200 = +150
+        expect(usageAfter).toBe(usageBefore + 150)
+      })
+    })
+
+    describe('deleteMediaForAccount', () => {
+      it('deletes owner media not attached to a status and decreases usage', async () => {
+        const actor = await database.getActorFromId({ id: actors.empty.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/del-for-account.jpg',
+            bytes: 1500,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const usageBefore = await database.getStorageUsageForAccount({
+          accountId
+        })
+
+        const result = await database.deleteMediaForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+
+        expect(result).toBe('deleted')
+        const usageAfter = await database.getStorageUsageForAccount({
+          accountId
+        })
+        expect(usageAfter).toBe(usageBefore - 1500)
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(retrieved).toBeNull()
+      })
+
+      it('returns not-found for a nonexistent media id', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const result = await database.deleteMediaForAccount({
+          mediaId: '99999999',
+          accountId: actor!.account!.id
+        })
+        expect(result).toBe('not-found')
+      })
+
+      it('returns not-found when the media belongs to another account', async () => {
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/del-for-account-foreign.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        const otherActor = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+
+        const result = await database.deleteMediaForAccount({
+          mediaId: media!.id,
+          accountId: otherActor!.account!.id
+        })
+
+        expect(result).toBe('not-found')
+        // The media must still exist for its real owner.
+        const owner = await database.getActorFromId({ id: actors.primary.id })
+        const stillThere = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId: owner!.account!.id
+        })
+        expect(stillThere).toBeDefined()
+      })
+
+      it('returns in-use when the media is attached to a posted status', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/del-for-account-attached.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/jpeg',
+          url: media!.original.path,
+          mediaId: media!.id
+        })
+
+        const result = await database.deleteMediaForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+
+        expect(result).toBe('in-use')
+        const stillThere = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(stillThere).toBeDefined()
+      })
     })
   })
 })

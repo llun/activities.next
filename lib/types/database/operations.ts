@@ -1628,6 +1628,18 @@ interface BaseMedia {
     metaData: MetaData
   }
   description?: string
+  // Focal point for cropping previews, each axis in [-1.0, 1.0]. Mastodon's
+  // MediaAttachment `meta.focus`.
+  focus?: { x: number; y: number }
+}
+
+// A processed thumbnail ready to persist on an existing media row. Mirrors the
+// shape `createMedia` already accepts for `thumbnail`.
+export type MediaThumbnailInput = {
+  path: string
+  bytes: number
+  mimeType: string
+  metaData: { width: number; height: number }
 }
 
 export interface Media extends BaseMedia {
@@ -1682,6 +1694,14 @@ export type GetStorageUsageForAccountParams = {
 export type DeleteMediaParams = {
   mediaId: string
 }
+export type DeleteMediaForAccountParams = {
+  mediaId: string
+  accountId: string
+}
+// Mirrors Mastodon's destroy semantics: `not-found` (missing or owned by another
+// account) → 404, `in-use` (still attached to a posted status) → 422, `deleted`
+// → 200.
+export type DeleteMediaForAccountResult = 'deleted' | 'not-found' | 'in-use'
 export type DeleteMediaByPathParams = {
   actorId: string
   path: string
@@ -1697,6 +1717,8 @@ export type UpdateMediaParams = {
   mediaId: string
   accountId: string
   description?: string | null
+  focus?: { x: number; y: number }
+  thumbnail?: MediaThumbnailInput
 }
 export type MarkMediaUploadVerifiedParams = {
   mediaId: string
@@ -1728,6 +1750,12 @@ export interface MediaDatabase {
   ): Promise<number>
   deleteAttachmentsByIds(params: DeleteAttachmentsByIdsParams): Promise<number>
   deleteMedia(params: DeleteMediaParams): Promise<boolean>
+  // Owner-scoped delete that only removes media not yet attached to a status.
+  // Returns `not-found` when missing/owned by another account, `in-use` when
+  // already attached to a posted status, and `deleted` on success.
+  deleteMediaForAccount(
+    params: DeleteMediaForAccountParams
+  ): Promise<DeleteMediaForAccountResult>
   deleteMediaByPath(params: DeleteMediaByPathParams): Promise<boolean>
 }
 

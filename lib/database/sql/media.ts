@@ -14,6 +14,8 @@ import {
   CreateMediaParams,
   DeleteAttachmentsByIdsParams,
   DeleteMediaByPathParams,
+  DeleteMediaForAccountParams,
+  DeleteMediaForAccountResult,
   DeleteMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
@@ -94,6 +96,8 @@ type MediaRow = {
   thumbnailMimeType?: string | null
   thumbnailMetaData?: string | null
   description?: string | null
+  focusX?: number | string | null
+  focusY?: number | string | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -123,15 +127,40 @@ const parseMediaRow = (data: MediaRow): Media => ({
         }
       }
     : {}),
-  ...(data.description ? { description: data.description } : {})
+  ...(data.description ? { description: data.description } : {}),
+  ...(data.focusX !== null &&
+  data.focusX !== undefined &&
+  data.focusY !== null &&
+  data.focusY !== undefined
+    ? { focus: { x: Number(data.focusX), y: Number(data.focusY) } }
+    : {})
 })
+
+// `medias` columns needed to rebuild a full Media row (used by every read).
+const MEDIA_COLUMNS = [
+  'id',
+  'actorId',
+  'original',
+  'originalBytes',
+  'originalMimeType',
+  'originalMetaData',
+  'originalFileName',
+  'thumbnail',
+  'thumbnailBytes',
+  'thumbnailMimeType',
+  'thumbnailMetaData',
+  'description',
+  'focusX',
+  'focusY'
+] as const
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
     actorId,
     original,
     thumbnail,
-    description
+    description,
+    focus
   }: CreateMediaParams) {
     if (!actorId) return null
 
@@ -156,7 +185,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               thumbnailMetaData: JSON.stringify(thumbnail.metaData)
             }
           : null),
-        ...(description ? { description } : null)
+        ...(description ? { description } : null),
+        ...(focus ? { focusX: focus.x, focusY: focus.y } : null)
       }
 
       const ids = await trx('medias').insert(content, ['id'])
@@ -187,7 +217,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         actorId,
         original,
         ...(thumbnail ? { thumbnail } : null),
-        ...(description ? { description } : null)
+        ...(description ? { description } : null),
+        ...(focus ? { focus } : null)
       } as Media
     })
   },
@@ -212,7 +243,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'medias.thumbnailBytes',
         'medias.thumbnailMimeType',
         'medias.thumbnailMetaData',
-        'medias.description'
+        'medias.description',
+        'medias.focusX',
+        'medias.focusY'
       )
       .first<MediaRow>()
 
@@ -412,6 +445,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'medias.thumbnailMimeType',
         'medias.thumbnailMetaData',
         'medias.description',
+        'medias.focusX',
+        'medias.focusY',
         'medias.createdAt',
         'attachments.statusId'
       )
@@ -452,6 +487,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           }
         : {}),
       ...(item.description ? { description: item.description } : {}),
+      ...(item.focusX !== null &&
+      item.focusX !== undefined &&
+      item.focusY !== null &&
+      item.focusY !== undefined
+        ? { focus: { x: Number(item.focusX), y: Number(item.focusY) } }
+        : {}),
       ...(item.statusId ? { statusId: item.statusId } : {})
     }))
 
@@ -466,20 +507,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .join('actors', 'medias.actorId', 'actors.id')
       .where('medias.id', mediaId)
       .where('actors.accountId', accountId)
-      .select(
-        'medias.id',
-        'medias.actorId',
-        'medias.original',
-        'medias.originalBytes',
-        'medias.originalMimeType',
-        'medias.originalMetaData',
-        'medias.originalFileName',
-        'medias.thumbnail',
-        'medias.thumbnailBytes',
-        'medias.thumbnailMimeType',
-        'medias.thumbnailMetaData',
-        'medias.description'
-      )
+      .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
       .first()
 
     if (!data) return null
@@ -490,47 +518,81 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async updateMedia({
     mediaId,
     accountId,
-    description
+    description,
+    focus,
+    thumbnail
   }: UpdateMediaParams): Promise<Media | null> {
-    const owned = await database('medias')
-      .join('actors', 'medias.actorId', 'actors.id')
-      .where('medias.id', mediaId)
-      .where('actors.accountId', accountId)
-      .first('medias.id')
-    if (!owned) return null
+    return database.transaction(async (trx) => {
+      const owned = await trx('medias')
+        .join('actors', 'medias.actorId', 'actors.id')
+        .where('medias.id', mediaId)
+        .where('actors.accountId', accountId)
+        .select('medias.id', 'medias.thumbnailBytes')
+        .first<{
+          id: string | number
+          thumbnailBytes: number | string | null
+        }>()
+      if (!owned) return null
 
-    // Only touch `description` when the caller actually provided it, so a
-    // partial update can't blank out existing alt text by omitting the field.
-    const updates: { updatedAt: Date; description?: string | null } = {
-      updatedAt: new Date()
-    }
-    if (description !== undefined) {
-      updates.description = description
-    }
+      // Only touch fields the caller actually provided so a partial update can't
+      // blank out existing metadata (e.g. a description-only update must not
+      // clear focus, and a focus-only update must not clear the description).
+      const updates: {
+        updatedAt: Date
+        description?: string | null
+        focusX?: number
+        focusY?: number
+        thumbnail?: string
+        thumbnailBytes?: number
+        thumbnailMimeType?: string
+        thumbnailMetaData?: string
+      } = { updatedAt: new Date() }
 
-    await database('medias').where('id', mediaId).update(updates)
+      if (description !== undefined) {
+        updates.description = description
+      }
+      if (focus !== undefined) {
+        updates.focusX = focus.x
+        updates.focusY = focus.y
+      }
 
-    const data = await database('medias')
-      .where('id', mediaId)
-      .select(
-        'id',
-        'actorId',
-        'original',
-        'originalBytes',
-        'originalMimeType',
-        'originalMetaData',
-        'originalFileName',
-        'thumbnail',
-        'thumbnailBytes',
-        'thumbnailMimeType',
-        'thumbnailMetaData',
-        'description'
-      )
-      .first()
+      let thumbnailUsageDelta = 0
+      if (thumbnail !== undefined) {
+        updates.thumbnail = thumbnail.path
+        updates.thumbnailBytes = thumbnail.bytes
+        updates.thumbnailMimeType = thumbnail.mimeType
+        updates.thumbnailMetaData = JSON.stringify(thumbnail.metaData)
+        thumbnailUsageDelta =
+          thumbnail.bytes - parseCounterValue(owned.thumbnailBytes)
+      }
 
-    if (!data) return null
+      await trx('medias').where('id', mediaId).update(updates)
 
-    return parseMediaRow(data)
+      // Replacing a thumbnail changes stored bytes; keep the per-account usage
+      // counter (read by getStorageUsageForAccount / quota checks) in sync.
+      if (thumbnailUsageDelta > 0) {
+        await increaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          thumbnailUsageDelta
+        )
+      } else if (thumbnailUsageDelta < 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          -thumbnailUsageDelta
+        )
+      }
+
+      const data = await trx('medias')
+        .where('id', mediaId)
+        .select([...MEDIA_COLUMNS])
+        .first()
+
+      if (!data) return null
+
+      return parseMediaRow(data)
+    })
   },
 
   async getStorageUsageForAccount({
@@ -551,6 +613,55 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
   async deleteMedia({ mediaId }: DeleteMediaParams): Promise<boolean> {
     return deleteMediaById(database, mediaId)
+  },
+
+  async deleteMediaForAccount({
+    mediaId,
+    accountId
+  }: DeleteMediaForAccountParams): Promise<DeleteMediaForAccountResult> {
+    return database.transaction(async (trx) => {
+      // Owner scope: only the account that owns the media (via its actors) can
+      // delete it. Mastodon scopes destroy to `current_account.media_attachments`.
+      const media = await trx('medias')
+        .join('actors', 'medias.actorId', 'actors.id')
+        .where('medias.id', mediaId)
+        .where('actors.accountId', accountId)
+        .select('medias.id', 'medias.originalBytes', 'medias.thumbnailBytes')
+        .first<{
+          id: string | number
+          originalBytes: number | string | bigint | null
+          thumbnailBytes: number | string | bigint | null
+        }>()
+      if (!media) return 'not-found'
+
+      // Mastodon's destroy returns 422 (in_usage_error) when the attachment is
+      // already tied to a posted status, rather than deleting it. Match via a
+      // medias↔attachments join (column-to-column) so the comparison is
+      // affinity-safe on SQLite (where attachments.mediaId is TEXT but medias.id
+      // is INTEGER) and works on PostgreSQL too — the same join
+      // getMediasWithStatusForAccount uses.
+      const attached = await trx('attachments')
+        .join('medias', 'medias.id', 'attachments.mediaId')
+        .where('medias.id', media.id)
+        .first('attachments.id')
+      if (attached) return 'in-use'
+
+      const deleted = await trx('medias').where('id', media.id).del()
+      if (!deleted) return 'not-found'
+
+      const usageDelta =
+        parseCounterValue(media.originalBytes) +
+        parseCounterValue(media.thumbnailBytes)
+      if (usageDelta > 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          usageDelta
+        )
+      }
+      await decreaseCounterValue(trx, CounterKey.totalMedia(accountId), 1)
+      return 'deleted'
+    })
   },
 
   async deleteMediaByPath({

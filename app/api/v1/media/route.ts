@@ -11,14 +11,13 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-// POST /api/v2/media — Mastodon requires the `write:media` scope (we also accept
-// the coarser `write`). Uploads are processed synchronously by `saveMedia`
-// (LocalFile/S3 store the file and return a fully-populated MediaAttachment), so
-// we always return 200. Mastodon's 202 path applies only when processing is
-// deferred; the deferred flow here is the separate presigned-upload service,
-// which is out of scope for this route.
+// POST /api/v1/media — Mastodon's deprecated synchronous upload. Same parameters
+// and `write:media` scope as v2, but it always finishes processing before
+// responding, so it only ever returns 200 with a fully-processed
+// MediaAttachment (no 202 path). `saveMedia` is synchronous here, matching that
+// contract.
 export const POST = traceApiRoute(
-  'uploadMediaV2',
+  'uploadMediaV1',
   OAuthGuardAnyScope(
     [Scope.enum.write, Scope.enum['write:media']],
     async (req, context) => {
