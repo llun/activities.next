@@ -1,0 +1,19 @@
+lib/database/sql/featuredTag.ts
+  s_c2882729afadc3::t_6364d9a6b7fc1c 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f38908be7616c8e4da6ad4215fc980ab5ff256a4",
+  "prompts": {},
+  "sessions": {
+    "s_c2882729afadc3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "402f72be-36b7-4fdb-9526-b51c3fd6b67b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
