@@ -525,6 +525,39 @@ describe('createNoteJob', () => {
     expect(hashtagTags[0].value).toEqual('https://somewhere.test/tags/testing')
   })
 
+  it('stores inbound emoji tags so remote custom emoji render locally', async () => {
+    const noteId = `https://${actor1!.domain}/notes/emoji-test-${Date.now()}`
+    const note = MockMastodonActivityPubNote({
+      id: noteId,
+      content: '<p>Hello :blobcat:</p>',
+      tags: [
+        {
+          type: 'Emoji',
+          name: ':blobcat:',
+          updated: new Date().toISOString(),
+          icon: {
+            type: 'Image',
+            mediaType: 'image/png',
+            url: 'https://somewhere.test/emojis/blobcat.png'
+          }
+        }
+      ]
+    })
+    await createNoteJob(database, {
+      id: 'id-emoji',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const tags = await database.getTags({ statusId: noteId })
+    const emojiTags = tags.filter((t) => t.type === 'emoji')
+    expect(emojiTags).toHaveLength(1)
+    expect(emojiTags[0].name).toEqual(':blobcat:')
+    expect(emojiTags[0].value).toEqual(
+      'https://somewhere.test/emojis/blobcat.png'
+    )
+  })
+
   it('batches hashtag search reindexing after hashtag tags are created', async () => {
     const noteId = `https://${actor1!.domain}/notes/batched-hashtag-test-${Date.now()}`
     const indexHashtagSearchDocuments = jest.spyOn(

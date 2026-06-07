@@ -17,7 +17,7 @@ import {
   isFitnessAttachment
 } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
-import { Tag, getMentionFromTag } from '@/lib/types/domain/tag'
+import { Tag, getEmojiFromTag, getMentionFromTag } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
@@ -297,7 +297,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       inReplyTo: status.reply || null,
       content: status.text,
       tag: status.tags
-        .map((tag) => getMentionFromTag(tag))
+        .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
         .filter((tag) => tag !== null),
 
       ...(status.pollType === 'anyOf'
@@ -356,7 +356,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       .filter((attachment) => !isFitnessAttachment(attachment))
       .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: originalStatus.tags
-      .map((tag) => getMentionFromTag(tag))
+      .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
       .filter((tag) => tag !== null),
     replies: {
       id: `${originalStatus.id}/replies`,

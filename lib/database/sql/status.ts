@@ -41,6 +41,7 @@ import {
   CreatePollParams,
   CreateTagParams,
   DeleteStatusParams,
+  DeleteStatusTagsByTypeParams,
   FavouritedByAccount,
   GetActorPollVotesForStatusesParams,
   GetActorPollVotesParams,
@@ -2182,6 +2183,13 @@ export const StatusSQLDatabaseMixin = (
     )
   }
 
+  async function deleteStatusTagsByType({
+    statusId,
+    type
+  }: DeleteStatusTagsByTypeParams) {
+    await database('tags').where({ statusId, type }).delete()
+  }
+
   function getHashtagLookupNames(hashtag: string): string[] {
     const bare = normalizeHashtagSearchName(hashtag)
     return bare ? [bare, `#${bare}`] : []
@@ -2903,6 +2911,7 @@ export const StatusSQLDatabaseMixin = (
     getRebloggedBy,
     createTag,
     getTags,
+    deleteStatusTagsByType,
     getStatusesByHashtag,
     getHashtagStatusesPage,
     getHashtagCounter,

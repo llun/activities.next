@@ -35,6 +35,7 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
+import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -147,6 +148,39 @@ export const getMentionTagsForStatus = ({
   }
 
   return [...mentionsByHref.values()]
+}
+
+/**
+ * Scans status text for `:shortcode:` tokens, resolves them against the
+ * instance's enabled custom-emoji set, and persists matching `emoji` domain
+ * Tags for the status. These tags drive local rendering
+ * (`convertEmojisToImages`) and federate as ActivityPub `Emoji` tags
+ * (`getEmojiFromTag`). Disabled emoji are ignored; `visible_in_picker` is not
+ * considered so a hand-typed non-picker emoji still federates (matching
+ * Mastodon). Returns the number of emoji tags persisted.
+ */
+export const persistEmojiTagsForStatus = async ({
+  database,
+  statusId,
+  text
+}: {
+  database: Database
+  statusId: string
+  text: string
+}): Promise<number> => {
+  const customEmojis = await database.getCustomEmojis()
+  const emojiTags = getEmojiTags(text, customEmojis)
+  await Promise.all(
+    emojiTags.map((emojiTag) =>
+      database.createTag({
+        statusId,
+        name: emojiTag.name,
+        value: emojiTag.value,
+        type: 'emoji'
+      })
+    )
+  )
+  return emojiTags.length
 }
 
 /**
@@ -422,6 +456,8 @@ export const createNoteFromUserInput = async ({
       hashtags: hashtags.map((hashtag) => hashtag.name)
     })
   }
+
+  await persistEmojiTagsForStatus({ database, statusId, text })
 
   await Promise.all([
     addStatusToTimelines(database, createdStatus),
