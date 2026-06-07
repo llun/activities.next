@@ -98,7 +98,12 @@ export const timelineErrorBoundary =
     } catch (error) {
       logger.error({
         message: 'Unhandled error in timeline handler',
-        error: error instanceof Error ? error.message : String(error)
+        // Log the stack (falling back to the message) so production 500s carry
+        // the throw site, not just the message.
+        error:
+          error instanceof Error
+            ? (error.stack ?? error.message)
+            : String(error)
       })
       return apiResponse({
         req,

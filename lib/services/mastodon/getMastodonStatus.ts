@@ -479,7 +479,10 @@ export const getMastodonStatuses = async (
         message:
           'Skipping un-hydratable status while collecting timeline lookup ids',
         statusId: (status as { id?: string } | null)?.id,
-        error: error instanceof Error ? error.message : String(error)
+        error:
+          error instanceof Error
+            ? (error.stack ?? error.message)
+            : String(error)
       })
     }
   }
@@ -615,7 +618,10 @@ export const getMastodonStatuses = async (
             message:
               'Skipping un-hydratable status during Mastodon serialization',
             statusId: (status as { id?: string } | null)?.id,
-            error: error instanceof Error ? error.message : String(error)
+            error:
+              error instanceof Error
+                ? (error.stack ?? error.message)
+                : String(error)
           })
           return null
         }
