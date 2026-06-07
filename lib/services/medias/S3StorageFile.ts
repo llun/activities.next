@@ -461,8 +461,24 @@ export class S3FileStorage implements MediaStorage {
     return this._getSaveFileOutput(storedMedia)
   }
 
-  async saveThumbnail(file: File): Promise<ThumbnailStorageOutput | null> {
+  async saveThumbnail(
+    actor: Actor,
+    file: File
+  ): Promise<ThumbnailStorageOutput | null> {
     if (!file.type.startsWith('image')) return null
+
+    // Enforce the account quota like saveFile, so a thumbnail replacement can't
+    // push usage past the limit.
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new MediaValidationError(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
 
     // Use the stored WebP's actual size/dimensions (outputInfo), not the input
     // image's metadata.
@@ -536,8 +552,10 @@ export class S3FileStorage implements MediaStorage {
       stream.close()
     } finally {
       // Always release the descriptor and remove the temp file, even if the S3
-      // upload throws, to avoid fd/disk leaks.
-      await fd.close()
+      // upload throws, to avoid fd/disk leaks. `createReadStream` may already
+      // have auto-closed the fd on the success path, so ignore EBADF from a
+      // double close.
+      await fd.close().catch(() => undefined)
       await fs.unlink(tempFilePath).catch(() => undefined)
     }
     return { image: resizedImage, metaData, outputInfo, path, contentType }

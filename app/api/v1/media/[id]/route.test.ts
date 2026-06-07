@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -353,6 +354,30 @@ describe('/api/v1/media/[id]', () => {
       expect.anything(),
       'medias/route-thumb-old.jpg'
     )
+  })
+
+  it('PUT returns 422 when the thumbnail upload exceeds quota', async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-thumb-quota')
+    mockSaveMediaThumbnail.mockRejectedValue(
+      new MediaValidationError('Storage quota exceeded')
+    )
+
+    const form = new FormData()
+    form.set(
+      'thumbnail',
+      new File([new Uint8Array([1, 2, 3])], 'thumb.png', { type: 'image/png' })
+    )
+    const request = new NextRequest(`https://llun.test/api/v1/media/${id}`, {
+      method: 'PUT',
+      headers: { origin: 'https://llun.test' }
+    })
+    Object.defineProperty(request, 'formData', {
+      value: jest.fn().mockResolvedValue(form)
+    })
+
+    const response = await PUT(request, { params: Promise.resolve({ id }) })
+
+    expect(response.status).toBe(422)
   })
 
   it('DELETE removes owner media not attached to a status and deletes its files', async () => {

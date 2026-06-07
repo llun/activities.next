@@ -8,6 +8,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import { deleteMediaFile, saveMediaThumbnail } from '@/lib/services/medias'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import { FileSchema, FocusSchema } from '@/lib/services/medias/types'
 import { Scope } from '@/lib/types/database/operations'
@@ -233,7 +234,25 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
       })
     }
     oldThumbnailPath = existing.thumbnail?.path
-    thumbnail = await saveMediaThumbnail(database, rawThumbnail as File)
+    try {
+      thumbnail = await saveMediaThumbnail(
+        database,
+        currentActor,
+        rawThumbnail as File
+      )
+    } catch (error) {
+      // Quota exceeded / invalid media are client errors (422); anything else is
+      // an unexpected storage failure (500).
+      if (error instanceof MediaValidationError) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+      throw error
+    }
     if (!thumbnail) {
       return apiResponse({
         req,

@@ -149,9 +149,13 @@ export interface MediaStorage {
     media: MediaSchema
   ): Promise<MediaStorageSaveFileOutput | null>
   // Processes and stores a standalone thumbnail image (used by PUT/PATCH
-  // /api/v1/media/:id to replace a custom thumbnail). Returns null for
-  // non-image input.
-  saveThumbnail(file: File): Promise<ThumbnailStorageOutput | null>
+  // /api/v1/media/:id to replace a custom thumbnail). Enforces the account
+  // storage quota (throws MediaValidationError when exceeded) and returns null
+  // for non-image input.
+  saveThumbnail(
+    actor: Actor,
+    file: File
+  ): Promise<ThumbnailStorageOutput | null>
   getPresigedForSaveFileUrl(
     actor: Actor,
     media: PresigedMediaInput

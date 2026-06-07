@@ -35,7 +35,11 @@ export const saveMedia = async (
   }
 }
 
-export const saveMediaThumbnail = async (database: Database, file: File) => {
+export const saveMediaThumbnail = async (
+  database: Database,
+  actor: Actor,
+  file: File
+) => {
   const { mediaStorage, host } = getConfig()
   switch (mediaStorage?.type) {
     case MediaStorageType.LocalFile: {
@@ -43,7 +47,7 @@ export const saveMediaThumbnail = async (database: Database, file: File) => {
         mediaStorage,
         host,
         database
-      ).saveThumbnail(file)
+      ).saveThumbnail(actor, file)
     }
     case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
@@ -51,7 +55,7 @@ export const saveMediaThumbnail = async (database: Database, file: File) => {
         mediaStorage,
         host,
         database
-      ).saveThumbnail(file)
+      ).saveThumbnail(actor, file)
     }
     default:
       return null
