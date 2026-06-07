@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
+import { normalizeHashtagSearchName } from '@/lib/database/sql/search/hashtag'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { KnexConnection, isSQLiteClient } from '@/lib/database/sql/utils/knex'
@@ -16,7 +17,6 @@ import {
   GetFeaturedTagSuggestionsParams,
   GetFeaturedTagsParams
 } from '@/lib/types/database/operations'
-import { normalizeHashtagSearchName } from '@/lib/database/sql/search/hashtag'
 import { StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -79,7 +79,15 @@ const toFeaturedTag = (row: SQLFeaturedTag): FeaturedTag => ({
 const getActorHashtagStats = async (
   database: KnexConnection,
   actorId: string,
-  { lookupNames }: { lookupNames?: string[] } = {}
+  {
+    lookupNames,
+    excludeLookupNames,
+    limit
+  }: {
+    lookupNames?: string[]
+    excludeLookupNames?: string[]
+    limit?: number
+  } = {}
 ): Promise<Map<string, FeaturedTagSuggestion>> => {
   const normalizedNameSQL = getNormalizedHashtagNameSQL(database)
   const distinctStatusHashtags = database('tags')
@@ -95,8 +103,9 @@ const getActorHashtagStats = async (
     .where('tags.type', 'hashtag')
     .where('statuses.actorId', actorId)
     .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-    .whereExists(function () {
-      this.select(database.raw('1'))
+    .whereExists((builder) => {
+      builder
+        .select(database.raw('1'))
         .from('recipients')
         .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
         .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
@@ -106,13 +115,28 @@ const getActorHashtagStats = async (
     if (lookupNames.length === 0) return new Map()
     distinctStatusHashtags.whereIn('tags.nameNormalized', lookupNames)
   }
+  if (excludeLookupNames && excludeLookupNames.length > 0) {
+    distinctStatusHashtags.whereNotIn('tags.nameNormalized', excludeLookupNames)
+  }
 
-  const rows = (await database
+  const query = database
     .from(distinctStatusHashtags.as('hashtag_statuses'))
     .select({ name: 'hashtag_statuses.name' })
     .count({ statusesCount: 'hashtag_statuses.statusId' })
     .max({ lastStatusAt: 'hashtag_statuses.statusCreatedAt' })
-    .groupBy('hashtag_statuses.name')) as StatsAggregateRow[]
+    .groupBy('hashtag_statuses.name')
+
+  // For the suggestions path, push ordering + limiting to the database so we
+  // never load the actor's entire tag history into memory. The list/get paths
+  // pass no limit and keep their own (tiny, featured-only) in-memory handling.
+  if (limit !== undefined) {
+    query
+      .orderBy('statusesCount', 'desc')
+      .orderBy('lastStatusAt', 'desc')
+      .limit(limit)
+  }
+
+  const rows = (await query) as StatsAggregateRow[]
 
   const statsByName = new Map<string, FeaturedTagSuggestion>()
   for (const row of rows) {
@@ -235,19 +259,18 @@ export const FeaturedTagSQLDatabaseMixin = (
     const featuredRows = await database<SQLFeaturedTag>('featured_tags')
       .where('actorId', actorId)
       .select('nameNormalized')
-    const alreadyFeatured = new Set(
-      featuredRows.map((row) => normalizeHashtagSearchName(row.nameNormalized))
+    // featured_tags.nameNormalized is stored bare; the tags table can carry a
+    // leading `#`, so exclude both stored forms.
+    const excludeLookupNames = featuredRows.flatMap((row) =>
+      getHashtagLookupNames(row.nameNormalized)
     )
 
-    const stats = await getActorHashtagStats(database, actorId)
+    // The aggregate query already orders by statuses_count desc (then
+    // last_status_at desc) and limits, so the rows arrive ranked and capped.
+    const stats = await getActorHashtagStats(database, actorId, {
+      excludeLookupNames,
+      limit
+    })
     return [...stats.values()]
-      .filter((stat) => !alreadyFeatured.has(stat.name))
-      .sort((a, b) => {
-        if (b.statusesCount !== a.statusesCount) {
-          return b.statusesCount - a.statusesCount
-        }
-        return (b.lastStatusAt ?? 0) - (a.lastStatusAt ?? 0)
-      })
-      .slice(0, limit)
   }
 })
