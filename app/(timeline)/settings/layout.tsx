@@ -3,6 +3,7 @@
 import {
   Ban,
   Bell,
+  Hash,
   Image as ImageIcon,
   Monitor,
   Settings as SettingsIcon,
@@ -27,6 +28,11 @@ interface Props {
 const tabs: SectionNavTab[] = [
   { name: 'General', url: '/settings', icon: SettingsIcon },
   { name: 'Account', url: '/settings/account', icon: User },
+  {
+    name: 'Featured hashtags',
+    url: '/settings/featured-hashtags',
+    icon: Hash
+  },
   { name: 'Media', url: '/settings/media', icon: ImageIcon },
   { name: 'Notifications', url: '/settings/notifications', icon: Bell },
   { name: 'Blocked accounts', url: '/settings/blocks', icon: Ban },
