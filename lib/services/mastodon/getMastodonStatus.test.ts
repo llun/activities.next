@@ -11,6 +11,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { logger } from '@/lib/utils/logger'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
@@ -35,6 +36,63 @@ describe('getMastodonStatus', () => {
   afterAll(async () => {
     if (!database) return
     await database.destroy()
+  })
+
+  describe('getMastodonStatuses resilience', () => {
+    beforeEach(() => {
+      jest.spyOn(logger, 'warn').mockImplementation(() => undefined as never)
+    })
+
+    it('skips a status whose lookup-id collection throws and keeps the good one', async () => {
+      const goodStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+
+      // A reblog whose original was deleted leaves a null originalStatus, which
+      // throws while the collector recurses into the original. It must be
+      // skipped, not crash the whole page.
+      const brokenReblog = {
+        id: `${ACTOR1_ID}/statuses/broken-reblog`,
+        actorId: ACTOR1_ID,
+        type: StatusType.enum.Announce,
+        originalStatus: null
+      } as unknown as Status
+
+      const result = await getMastodonStatuses(database, [
+        brokenReblog,
+        goodStatus
+      ])
+
+      expect(result).toHaveLength(1)
+      expect(result[0].id).toEqual(urlToId(goodStatus.id))
+      expect(logger.warn).toHaveBeenCalled()
+    })
+
+    it('skips a status whose serialization throws and keeps the good one', async () => {
+      const goodStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+
+      // A Note missing its tags/attachments arrays passes id collection but
+      // throws inside getMastodonStatus when those arrays are read.
+      const brokenNote = {
+        id: `${ACTOR1_ID}/statuses/broken-note`,
+        actorId: ACTOR1_ID,
+        type: StatusType.enum.Note,
+        reply: '',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      } as unknown as Status
+
+      const result = await getMastodonStatuses(database, [
+        goodStatus,
+        brokenNote
+      ])
+
+      expect(result).toHaveLength(1)
+      expect(result[0].id).toEqual(urlToId(goodStatus.id))
+      expect(logger.warn).toHaveBeenCalled()
+    })
   })
 
   describe('getMastodonStatuses', () => {

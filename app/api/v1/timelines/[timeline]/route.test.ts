@@ -6,6 +6,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
+import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -544,6 +545,83 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       })
 
       expect(response.status).toBe(401)
+    })
+  })
+
+  describe('query param validation', () => {
+    test.each([['max_id'], ['min_id'], ['since_id']])(
+      'returns 400 (not 500) for a malformed %s cursor',
+      async (field) => {
+        mockGetServerSession.mockResolvedValue({
+          user: { email: seedActor1.email }
+        })
+
+        const response = await GET(createRequest({ [field]: 'apurl_@@@@' }), {
+          params: Promise.resolve({ timeline: 'main' })
+        })
+
+        expect(response.status).toBe(400)
+      }
+    )
+
+    test('since_id takes precedence over min_id for the lower-bound cursor', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const sinceUrl = 'https://llun.test/users/test1/statuses/since-cursor'
+      const minUrl = 'https://llun.test/users/test1/statuses/min-cursor'
+      const spy = jest.spyOn(database, 'getTimeline').mockResolvedValue([])
+
+      await GET(
+        createRequest({
+          since_id: urlToId(sinceUrl),
+          min_id: urlToId(minUrl)
+        }),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ minStatusId: sinceUrl })
+      )
+      spy.mockRestore()
+    })
+  })
+
+  describe('hydration resilience', () => {
+    test('returns 200 with the un-hydratable row skipped, not 500', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const goodStatus = (await database.getStatus({
+        statusId: actor1TimelinePost1Id
+      })) as Status
+      // A status whose shape throws during Mastodon serialization (a Note
+      // missing its tags/attachments arrays) must be dropped, not 500 the page.
+      const brokenStatus = {
+        id: `${ACTOR1_ID}/statuses/timeline-broken`,
+        actorId: ACTOR1_ID,
+        type: 'Note',
+        reply: '',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      } as unknown as Status
+      const spy = jest
+        .spyOn(database, 'getTimeline')
+        .mockResolvedValue([goodStatus, brokenStatus])
+
+      // No `format=activities_next` → the Mastodon hydration path runs.
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/timelines/main'),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+      spy.mockRestore()
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.map((status: { id: string }) => status.id)).toEqual([
+        urlToId(goodStatus.id)
+      ])
     })
   })
 })

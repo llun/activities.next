@@ -69,4 +69,36 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       mockCurrentActor.id
     )
   })
+
+  it.each([
+    { description: 'max_id', field: 'max_id' },
+    { description: 'min_id', field: 'min_id' },
+    { description: 'since_id', field: 'since_id' }
+  ])(
+    'returns 400 (not 500) for a malformed $description cursor',
+    async ({ field }) => {
+      const url = new URL('https://local.test/api/v1/timelines/tag/running')
+      url.searchParams.set(field, 'apurl_@@@@')
+      const response = await GET(new NextRequest(url.toString()), {
+        params: Promise.resolve({ hashtag: 'running' })
+      })
+
+      expect(response.status).toBe(400)
+      expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
+    }
+  )
+
+  it('returns an empty array and no Link header when there are no statuses', async () => {
+    mockDatabase.getStatusesByHashtag.mockResolvedValue([])
+    mockGetMastodonStatuses.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest('https://local.test/api/v1/timelines/tag/running'),
+      { params: Promise.resolve({ hashtag: 'running' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
+    expect(response.headers.get('Link')).toBeNull()
+  })
 })
