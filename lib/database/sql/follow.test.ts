@@ -543,6 +543,58 @@ describe('FollowDatabase', () => {
         })
         expect(minIdPage.map((follow) => follow.actorId)).toEqual([c])
       })
+
+      it('keeps paginating after the cursor request is authorized mid-page', async () => {
+        // A client that approves requests while paging uses the just-authorized
+        // request's id as the next max_id. The cursor lookup must resolve it by
+        // (owner, id) regardless of its now-Accepted status, or the remaining
+        // pending requests become unreachable.
+        const target = await createLocalActor()
+        const [older, boundary] = await Promise.all([
+          createLocalActor(),
+          createLocalActor()
+        ])
+
+        let boundaryRow: Follow
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          jest.setSystemTime(new Date('2024-06-01T00:00:00Z'))
+          await database.createFollow({
+            actorId: older,
+            targetActorId: target,
+            inbox: `${older}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+          jest.setSystemTime(new Date('2024-06-01T00:01:00Z'))
+          boundaryRow = await database.createFollow({
+            actorId: boundary,
+            targetActorId: target,
+            inbox: `${boundary}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+        } finally {
+          jest.useRealTimers()
+        }
+
+        // Authorize the boundary request, changing its status away from Requested.
+        await database.updateFollowStatus({
+          followId: boundaryRow.id,
+          status: FollowStatus.enum.Accepted
+        })
+
+        // Paging older than the (now Accepted) boundary still returns the
+        // remaining pending request.
+        const nextPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 1,
+          maxId: boundaryRow.id
+        })
+        expect(nextPage.map((follow) => follow.actorId)).toEqual([older])
+      })
     })
 
     describe('createFollow', () => {

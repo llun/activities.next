@@ -470,10 +470,15 @@ export const FollowerSQLDatabaseMixin = (
     const cursorId = maxId || minId || sinceId
 
     if (cursorId) {
+      // Look up the cursor row by owner + id only (mirroring getBlocks'
+      // `{ actorId, id }`). The status is deliberately NOT filtered here: the
+      // cursor only supplies a (createdAt, id) keyset boundary, so pagination
+      // must stay correct even if the boundary request was authorized/rejected
+      // between page fetches. The main query above still returns Requested rows
+      // only, so no non-pending rows leak into the results.
       const cursor = await database('follows')
         .where({
           targetActorId,
-          status: FollowStatus.enum.Requested,
           id: cursorId
         })
         .first()
