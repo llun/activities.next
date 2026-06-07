@@ -317,6 +317,63 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('applies visibility before the limit so a hidden run cannot strand visible posts', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // One visible post, then two newer non-visible posts. If visibility were
+      // applied only after LIMIT, fetching the newest two would yield only the
+      // hidden pair and return an empty page, stranding the visible post.
+      const visibleId = `${member.id}/statuses/0-visible`
+      await database.createNote({
+        id: visibleId,
+        url: visibleId,
+        actorId: member.id,
+        text: 'visible',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      for (const suffix of ['1-direct', '2-direct']) {
+        const directId = `${member.id}/statuses/${suffix}`
+        await database.createNote({
+          id: directId,
+          url: directId,
+          actorId: member.id,
+          text: 'hidden',
+          to: ['https://stranger.example/users/x'],
+          cc: []
+        })
+      }
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Limit list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2
+      })
+      expect(statuses.map((status) => status.id)).toEqual([visibleId])
+    })
+  })
+
   it('hydrates the owner action state in the list timeline', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')

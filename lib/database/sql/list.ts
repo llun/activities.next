@@ -8,6 +8,7 @@ import {
   getInsertBatchSize,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AddListAccountsParams,
@@ -276,6 +277,18 @@ export const ListSQLDatabaseMixin = (
       // Scope to the owner defensively so a caller can never read another
       // actor's list timeline even if they know the listId.
       .andWhere('list_accounts.actorId', actorId)
+    // Apply the owner's visibility before LIMIT so the page counts only
+    // statuses they may read — a member's direct/non-public posts addressed to
+    // others never appear, and the limit isn't spent on rows that would be
+    // filtered out afterwards (which could otherwise cut a page short or halt
+    // pagination early). The filter is pure WHERE/EXISTS, so it composes with
+    // the join without changing row cardinality.
+    applyPotentiallyReadableStatusFilter({
+      database,
+      query,
+      visibleToActorId: actorId
+    })
+    query
       .orderBy('statuses.createdAt', 'desc')
       .orderBy('statuses.id', 'desc')
       .limit(limit)
@@ -316,10 +329,9 @@ export const ListSQLDatabaseMixin = (
     if (statusIds.length === 0) return []
     // getStatusesByIds preserves the input order (it re-maps results over the
     // requested ids), so the createdAt-desc ordering established above is kept.
-    // The list owner is the viewer: passing their id applies the visibility
-    // filter (so a member's non-public posts addressed to others stay out) and
-    // hydrates their action state (isActorLiked/isActorBookmarked/announce) —
-    // without it the timeline would leak posts and render every one un-acted.
+    // Visibility is already enforced on the query above; pass the owner here so
+    // their action state (isActorLiked/isActorBookmarked/announce) is hydrated —
+    // otherwise the timeline would render every post as un-acted.
     return getStatusesByIds(statusIds, actorId)
   }
 })
