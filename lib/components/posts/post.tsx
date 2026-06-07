@@ -34,6 +34,7 @@ import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
 import { Poll } from './poll'
+import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
 
 export interface PostProps {
@@ -43,6 +44,12 @@ export interface PostProps {
   status: Status
   editable?: boolean
   showActions?: boolean
+  /**
+   * Render a non-interactive engagement row (reply/boost/like counts) in place
+   * of the action buttons. Used for read-only previews such as the logged-out
+   * landing feed. Ignored when `showActions` is on.
+   */
+  showReadOnlyStats?: boolean
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onPostDeleted?: (status: Status) => void
@@ -305,6 +312,9 @@ export const Post: FC<PostProps> = (props) => {
 
           <div>
             <Actions {...props} />
+            {props.showReadOnlyStats && !props.showActions && (
+              <ReadOnlyStats status={status} />
+            )}
           </div>
         </div>
       </div>

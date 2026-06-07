@@ -33,12 +33,6 @@ jest.mock('@/lib/types/domain/actor', () => ({
 }))
 
 jest.mock('@/app/Modal', () => ({ Modal: () => <div data-testid="modal" /> }))
-jest.mock('./PublicTopBar', () => ({
-  PublicTopBar: () => <div data-testid="public-topbar" />
-}))
-jest.mock('./PublicFooter', () => ({
-  PublicFooter: () => <div data-testid="public-footer" />
-}))
 jest.mock('@/lib/components/layout/sidebar', () => ({
   Sidebar: () => <div data-testid="sidebar" />
 }))
@@ -64,19 +58,20 @@ describe('(timeline) Layout', () => {
     mockGetNotificationsCount.mockResolvedValue(0)
   })
 
-  it('renders the public chrome and no nav for logged-out visitors', async () => {
+  it('renders children without nav chrome for logged-out visitors', async () => {
+    // Logged-out visitors render chrome-less here: the home route renders a
+    // full-bleed landing, and the federated reading surfaces add the public
+    // top bar + footer via their own sub-layouts (PublicShell).
     mockGetActorFromSession.mockResolvedValue(null)
 
     await renderLayout()
 
-    expect(screen.getByTestId('public-topbar')).toBeInTheDocument()
-    expect(screen.getByTestId('public-footer')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
     expect(screen.queryByTestId('mobile-nav')).not.toBeInTheDocument()
   })
 
-  it('renders the nav chrome and no public chrome for signed-in users', async () => {
+  it('renders the nav chrome for signed-in users', async () => {
     mockGetActorFromSession.mockResolvedValue({
       id: 'https://localhost/users/testuser',
       username: 'testuser',
@@ -91,7 +86,5 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-nav')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
-    expect(screen.queryByTestId('public-topbar')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('public-footer')).not.toBeInTheDocument()
   })
 })
