@@ -1,0 +1,37 @@
+app/(timeline)/PublicTopBar.tsx
+  s_6a5187ef5876a1::t_f826289fed1af8 1-24
+app/(timeline)/[actor]/[status]/StatusStatStrip.tsx
+  s_6a5187ef5876a1::t_4a76c91ffcfba5 1-33
+app/(timeline)/layout.tsx
+  s_6a5187ef5876a1::t_673e7ea7bdc885 28-45
+  s_6a5187ef5876a1::t_d6700377ab8f89 12-14
+app/(timeline)/PublicFooter.tsx
+  s_6a5187ef5876a1::t_d1183fb0522d58 1-38
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_6a5187ef5876a1::t_8eab91c2127f1b 104
+app/(timeline)/[actor]/[status]/StatusStatStrip.test.tsx
+  s_6a5187ef5876a1::t_c15fc242c0340e 1-30
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  s_6a5187ef5876a1::t_d85249415e9a3f 30
+  s_6a5187ef5876a1::t_d932a3e5432309 87-114
+app/(timeline)/[actor]/[status]/page.tsx
+  s_6a5187ef5876a1::t_9f2a362d30fab8 254-262
+  s_6a5187ef5876a1::t_25e8ae49fe9326 198,209-217,227
+  s_6a5187ef5876a1::t_0e38fcb1fb6756 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "9ba43e2bfb031a8d38948793eb055f1716b7ad83",
+  "prompts": {},
+  "sessions": {
+    "s_6a5187ef5876a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8694158-063d-43e9-9987-b1bad0608d19",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
