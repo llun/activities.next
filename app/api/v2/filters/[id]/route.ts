@@ -24,6 +24,7 @@ const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
   HttpMethod.enum.GET,
   HttpMethod.enum.PUT,
+  HttpMethod.enum.PATCH,
   HttpMethod.enum.DELETE
 ]
 
@@ -103,6 +104,10 @@ export const PUT = traceApiRoute(
     }
   )
 )
+
+// Rails `resources` maps update to both PATCH and PUT; Mastodon clients commonly
+// send PATCH. Bind PATCH to the same handler so it does not 405.
+export const PATCH = PUT
 
 export const DELETE = traceApiRoute(
   'deleteFilter',

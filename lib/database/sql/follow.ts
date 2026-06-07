@@ -45,6 +45,28 @@ const parseFollowLanguages = (value: unknown): string[] | null => {
   }
 }
 
+// Cursor comparison for follow_requests pagination. Mirrors the block/mute
+// `applyCursor` helpers: order on (createdAt, id) so a random-UUID id can still
+// be paginated newest-first, with id breaking createdAt ties. Per-module copies
+// of this helper are the established convention across the sql/ mixins.
+const applyFollowCursor = (
+  query: Knex.QueryBuilder,
+  cursor: Follow,
+  direction: 'newer' | 'older'
+) => {
+  const operator = direction === 'older' ? '<' : '>'
+
+  query.andWhere((builder) => {
+    builder
+      .where('createdAt', operator, cursor.createdAt)
+      .orWhere((tieBreaker) => {
+        tieBreaker
+          .where('createdAt', cursor.createdAt)
+          .andWhere('id', operator, cursor.id)
+      })
+  })
+}
+
 const fixFollowDataDate = (data: Follow): Follow => ({
   ...data,
   // SQLite stores booleans as 0/1; coerce back to real booleans. Rows created
@@ -433,16 +455,45 @@ export const FollowerSQLDatabaseMixin = (
   async getFollowRequests({
     targetActorId,
     limit,
-    offset = 0
+    maxId,
+    minId,
+    sinceId
   }: GetFollowRequestsParams) {
-    const follows = await database('follows')
+    // Cursor pagination on (createdAt, id): follow ids are random UUIDs, so the
+    // createdAt-first ordering (with id as a stable tiebreaker) is what makes the
+    // page genuinely newest-first. Mirrors getBlocks/getMutes.
+    const query = database('follows')
       .where('targetActorId', targetActorId)
       .andWhere('status', FollowStatus.enum.Requested)
-      .orderBy('createdAt', 'desc')
       .limit(limit)
-      .offset(offset)
 
-    return follows.map(fixFollowDataDate)
+    const cursorId = maxId || minId || sinceId
+
+    if (cursorId) {
+      // Look up the cursor row by owner + id only (mirroring getBlocks'
+      // `{ actorId, id }`). The status is deliberately NOT filtered here: the
+      // cursor only supplies a (createdAt, id) keyset boundary, so pagination
+      // must stay correct even if the boundary request was authorized/rejected
+      // between page fetches. The main query above still returns Requested rows
+      // only, so no non-pending rows leak into the results.
+      const cursor = await database('follows')
+        .where({
+          targetActorId,
+          id: cursorId
+        })
+        .first()
+      if (!cursor) return []
+      applyFollowCursor(query, cursor, maxId ? 'older' : 'newer')
+    }
+
+    if (minId) {
+      query.orderBy('createdAt', 'asc').orderBy('id', 'asc')
+    } else {
+      query.orderBy('createdAt', 'desc').orderBy('id', 'desc')
+    }
+
+    const follows = await query
+    return (minId ? follows.reverse() : follows).map(fixFollowDataDate)
   },
 
   async getFollowRequestsCount({
