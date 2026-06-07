@@ -31,6 +31,9 @@ export const FocusSchema = z
     (parts) =>
       parts.length === 2 &&
       parts.every((part) => {
+        // Reject empty/whitespace axes — Number('') is 0, which would otherwise
+        // sneak "0.5," through as { x: 0.5, y: 0 }.
+        if (part.trim() === '') return false
         const value = Number(part)
         return Number.isFinite(value) && value >= -1 && value <= 1
       }),

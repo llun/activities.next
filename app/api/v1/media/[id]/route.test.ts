@@ -285,10 +285,15 @@ describe('/api/v1/media/[id]', () => {
     expect(stored?.focus).toEqual({ x: 0.5, y: -0.25 })
   })
 
-  it('PUT returns 422 for an out-of-range focus', async () => {
-    const id = await createMediaFor(ACTOR1_ID, 'put-focus-bad')
+  it.each([
+    { description: 'out of range', focus: '2.0,0.0' },
+    { description: 'a missing axis', focus: '0.5,' },
+    { description: 'non-numeric', focus: 'a,b' },
+    { description: 'wrong arity', focus: '0.1,0.2,0.3' }
+  ])('PUT returns 422 for focus that is $description', async ({ focus }) => {
+    const id = await createMediaFor(ACTOR1_ID, `put-focus-bad-${focus}`)
 
-    const response = await PUT(putRequest(id, { focus: '2.0,0.0' }), {
+    const response = await PUT(putRequest(id, { focus }), {
       params: Promise.resolve({ id })
     })
 
@@ -350,8 +355,24 @@ describe('/api/v1/media/[id]', () => {
     )
   })
 
-  it('DELETE removes owner media not attached to a status', async () => {
-    const id = await createMediaFor(ACTOR1_ID, 'delete-ok')
+  it('DELETE removes owner media not attached to a status and deletes its files', async () => {
+    const media = await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/route-delete-original.jpg',
+        bytes: 1000,
+        mimeType: 'image/jpeg',
+        metaData: { width: 320, height: 240 }
+      },
+      thumbnail: {
+        path: 'medias/route-delete-thumb.jpg',
+        bytes: 200,
+        mimeType: 'image/jpeg',
+        metaData: { width: 40, height: 40 }
+      }
+    })
+    const id = String(media!.id)
+    mockDeleteMediaFile.mockResolvedValue(true)
 
     const response = await DELETE(deleteRequest(id), {
       params: Promise.resolve({ id })
@@ -363,6 +384,26 @@ describe('/api/v1/media/[id]', () => {
       accountId: (await database.getActorFromId({ id: ACTOR1_ID }))!.account!.id
     })
     expect(stored).toBeNull()
+    // The original and thumbnail files are removed from storage.
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      expect.anything(),
+      'medias/route-delete-original.jpg'
+    )
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      expect.anything(),
+      'medias/route-delete-thumb.jpg'
+    )
+  })
+
+  it('DELETE does not touch storage files on the 404 path', async () => {
+    const id = await createMediaFor(ACTOR2_ID, 'delete-foreign-nofiles')
+
+    const response = await DELETE(deleteRequest(id), {
+      params: Promise.resolve({ id })
+    })
+
+    expect(response.status).toBe(404)
+    expect(mockDeleteMediaFile).not.toHaveBeenCalled()
   })
 
   it('DELETE returns 404 for media owned by another account', async () => {

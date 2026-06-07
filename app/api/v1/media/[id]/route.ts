@@ -236,13 +236,22 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     }
   }
 
-  const media = await database.updateMedia({
-    mediaId: id,
-    accountId: account.id,
-    ...(descriptionProvided ? { description: parsed.data.description } : {}),
-    ...(focusProvided ? { focus: parsed.data.focus } : {}),
-    ...(thumbnail ? { thumbnail } : {})
-  })
+  let media
+  try {
+    media = await database.updateMedia({
+      mediaId: id,
+      accountId: account.id,
+      ...(descriptionProvided ? { description: parsed.data.description } : {}),
+      ...(focusProvided ? { focus: parsed.data.focus } : {}),
+      ...(thumbnail ? { thumbnail } : {})
+    })
+  } catch (error) {
+    // Don't leak the freshly-stored thumbnail if persisting the update failed.
+    if (thumbnail) {
+      await deleteMediaFile(database, thumbnail.path).catch(() => false)
+    }
+    throw error
+  }
 
   if (!media) {
     // Owner check failed inside updateMedia; clean up the orphaned thumbnail we
@@ -318,6 +327,14 @@ export const DELETE = traceApiRoute(
         })
       }
 
+      // Capture the storage paths before deleting the row so the underlying
+      // files can be removed once we know the delete actually happened (and
+      // wasn't rejected as in-use).
+      const media = await database.getMediaByIdForAccount({
+        mediaId: id,
+        accountId: account.id
+      })
+
       const result = await database.deleteMediaForAccount({
         mediaId: id,
         accountId: account.id
@@ -340,6 +357,29 @@ export const DELETE = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: ERROR_404,
           responseStatusCode: 404
+        })
+      }
+
+      // Best-effort removal of the original + thumbnail files now that the row
+      // is gone. Storage failures are logged but don't fail the request — the
+      // record is already deleted and the usage counter decremented.
+      if (media) {
+        const filesToDelete = [
+          media.original.path,
+          ...(media.thumbnail ? [media.thumbnail.path] : [])
+        ]
+        const deletions = await Promise.allSettled(
+          filesToDelete.map((filePath) => deleteMediaFile(database, filePath))
+        )
+        deletions.forEach((deletion, index) => {
+          if (deletion.status === 'rejected' || !deletion.value) {
+            logger.warn({
+              message: 'Failed to delete storage file for deleted media',
+              filePath: filesToDelete[index],
+              mediaId: id,
+              accountId: account.id
+            })
+          }
         })
       }
 

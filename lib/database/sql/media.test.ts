@@ -878,6 +878,47 @@ describe('MediaDatabase', () => {
         // 350 - 200 = +150
         expect(usageAfter).toBe(usageBefore + 150)
       })
+
+      it('decreases the usage counter when the replacement thumbnail is smaller', async () => {
+        const actor = await database.getActorFromId({ id: actors.empty.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/update-thumb-shrink-original.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          },
+          thumbnail: {
+            path: '/test/update-thumb-shrink-old.jpg',
+            bytes: 400,
+            mimeType: 'image/jpeg',
+            metaData: { width: 40, height: 40 }
+          }
+        })
+
+        const usageBefore = await database.getStorageUsageForAccount({
+          accountId
+        })
+
+        await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          thumbnail: {
+            path: '/test/update-thumb-shrink-new.webp',
+            bytes: 100,
+            mimeType: 'image/webp',
+            metaData: { width: 20, height: 20 }
+          }
+        })
+
+        const usageAfter = await database.getStorageUsageForAccount({
+          accountId
+        })
+        // 100 - 400 = -300
+        expect(usageAfter).toBe(usageBefore - 300)
+      })
     })
 
     describe('deleteMediaForAccount', () => {
