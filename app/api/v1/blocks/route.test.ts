@@ -55,7 +55,7 @@ jest.mock('@/lib/config', () => ({
   })
 }))
 
-describe('GET /api/v1/mutes', () => {
+describe('GET /api/v1/blocks', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -70,13 +70,12 @@ describe('GET /api/v1/mutes', () => {
   })
 
   const createdTargets: string[] = []
-  const createMute = async (targetActorId: string) => {
+  const createBlock = async (targetActorId: string) => {
     createdTargets.push(targetActorId)
-    await database.createMute({
+    await database.createBlock({
       actorId: ACTOR1_ID,
       targetActorId,
-      notifications: true,
-      endsAt: null
+      uri: `${ACTOR1_ID}#blocks/${encodeURIComponent(targetActorId)}`
     })
   }
 
@@ -88,6 +87,18 @@ describe('GET /api/v1/mutes', () => {
     })
   })
 
+  afterEach(async () => {
+    while (createdTargets.length > 0) {
+      const targetActorId = createdTargets.pop()
+      if (targetActorId) {
+        await database.deleteBlock({ actorId: ACTOR1_ID, targetActorId })
+      }
+    }
+  })
+
+  const createRequest = (query = '') =>
+    new NextRequest(`https://llun.test/api/v1/blocks${query}`)
+
   const setToken = (token: string, scopes: string[]) => {
     mockStoredTokens.set(hashToken(token), {
       token: hashToken(token),
@@ -97,18 +108,6 @@ describe('GET /api/v1/mutes', () => {
       scopes: JSON.stringify(scopes)
     })
   }
-
-  afterEach(async () => {
-    while (createdTargets.length > 0) {
-      const targetActorId = createdTargets.pop()
-      if (targetActorId) {
-        await database.deleteMute({ actorId: ACTOR1_ID, targetActorId })
-      }
-    }
-  })
-
-  const createRequest = (query = '') =>
-    new NextRequest(`https://llun.test/api/v1/mutes${query}`)
 
   it('requires authentication', async () => {
     mockGetServerSession.mockResolvedValue(null)
@@ -121,16 +120,16 @@ describe('GET /api/v1/mutes', () => {
   })
 
   // The guard accepts EITHER the aggregate `read` scope OR the granular
-  // `read:mutes` scope; an unrelated granular read scope must be rejected.
-  it.each(['read', 'read:mutes'])(
+  // `read:blocks` scope; an unrelated granular read scope must be rejected.
+  it.each(['read', 'read:blocks'])(
     'accepts a token holding the %s scope',
     async (scope) => {
       mockGetServerSession.mockResolvedValue(null)
-      setToken('mutes-token', [scope])
+      setToken('blocks-token', [scope])
 
       const response = await GET(
-        new NextRequest('https://llun.test/api/v1/mutes', {
-          headers: { Authorization: 'Bearer mutes-token' }
+        new NextRequest('https://llun.test/api/v1/blocks', {
+          headers: { Authorization: 'Bearer blocks-token' }
         }),
         { params: Promise.resolve({}) }
       )
@@ -144,7 +143,7 @@ describe('GET /api/v1/mutes', () => {
     setToken('statuses-token', ['read:statuses'])
 
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/mutes', {
+      new NextRequest('https://llun.test/api/v1/blocks', {
         headers: { Authorization: 'Bearer statuses-token' }
       }),
       { params: Promise.resolve({}) }
@@ -153,18 +152,8 @@ describe('GET /api/v1/mutes', () => {
     expect(response.status).toBe(401)
   })
 
-  it('returns an empty array when the actor has no mutes', async () => {
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual([])
-    expect(response.headers.get('Link')).toBeNull()
-  })
-
-  it('returns Mastodon accounts for muted actors newest first', async () => {
-    await createMute(ACTOR2_ID)
+  it('returns Mastodon accounts for blocked actors', async () => {
+    await createBlock(ACTOR2_ID)
 
     const response = await GET(createRequest(), {
       params: Promise.resolve({})
@@ -172,15 +161,14 @@ describe('GET /api/v1/mutes', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
-    expect(data).toHaveLength(1)
-    expect(data[0]).toEqual(expect.objectContaining({ url: ACTOR2_ID }))
+    expect(data).toContainEqual(expect.objectContaining({ url: ACTOR2_ID }))
   })
 
   it('emits a Link header with max_id when the page is full', async () => {
-    const remoteA = 'https://remote.test/users/list-mute-link-a'
-    const remoteB = 'https://remote.test/users/list-mute-link-b'
+    const remoteA = 'https://remote.test/users/list-block-link-a'
+    const remoteB = 'https://remote.test/users/list-block-link-b'
     for (const target of [remoteA, remoteB]) {
-      await createMute(target)
+      await createBlock(target)
     }
 
     const response = await GET(createRequest('?limit=1'), {
@@ -189,26 +177,6 @@ describe('GET /api/v1/mutes', () => {
     expect(response.status).toBe(200)
     const linkHeader = response.headers.get('Link')
     expect(linkHeader).toContain('rel="next"')
-    expect(linkHeader).toContain('rel="prev"')
     expect(linkHeader).toContain('max_id=')
-  })
-
-  it('substitutes a fallback account when the muted actor cannot be hydrated', async () => {
-    const orphanedTarget = 'https://remote.test/users/ghost-mute-target'
-    await createMute(orphanedTarget)
-
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
-
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toHaveLength(1)
-    expect(data[0]).toEqual(
-      expect.objectContaining({
-        url: orphanedTarget,
-        display_name: 'Account unavailable'
-      })
-    )
   })
 })

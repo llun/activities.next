@@ -367,6 +367,234 @@ describe('FollowDatabase', () => {
         })
         expect(count).toBe(1)
       })
+
+      it('paginates pending requests newest-first with id cursors', async () => {
+        // Use a freshly created target so this test owns all of its pending
+        // requests and cannot be polluted by other cases in this suite.
+        const target = await createLocalActor()
+        const [oldest, middle, newest] = await Promise.all([
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor()
+        ])
+        const createRequestAt = async (actorId: string, createdAt: string) => {
+          jest.setSystemTime(new Date(createdAt))
+          return database.createFollow({
+            actorId,
+            targetActorId: target,
+            inbox: `${actorId}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+        }
+
+        const created: Follow[] = []
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          created.push(await createRequestAt(oldest, '2024-03-01T00:00:00Z'))
+          created.push(await createRequestAt(middle, '2024-03-01T00:01:00Z'))
+          created.push(await createRequestAt(newest, '2024-03-01T00:02:00Z'))
+        } finally {
+          jest.useRealTimers()
+        }
+        const middleRow = created[1]
+
+        const firstPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2
+        })
+        expect(firstPage.map((follow) => follow.actorId)).toEqual([
+          newest,
+          middle
+        ])
+
+        const olderPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2,
+          maxId: firstPage[firstPage.length - 1].id
+        })
+        expect(olderPage.map((follow) => follow.actorId)).toEqual([oldest])
+
+        const newerPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2,
+          sinceId: middleRow.id
+        })
+        expect(newerPage.map((follow) => follow.actorId)).toEqual([newest])
+
+        // min_id returns the oldest band after the cursor, presented newest-first.
+        const minIdPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2,
+          minId: middleRow.id
+        })
+        expect(minIdPage.map((follow) => follow.actorId)).toEqual([newest])
+
+        const missingCursorPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2,
+          maxId: 'does-not-exist'
+        })
+        expect(missingCursorPage).toEqual([])
+      })
+
+      it('breaks createdAt ties by id without skipping or duplicating rows', async () => {
+        // applyFollowCursor exists to break createdAt ties via id (follow ids are
+        // random UUIDs). Give three requests the SAME createdAt and paginate
+        // across the tie boundary: the id tiebreaker must yield a stable total
+        // order with no dropped or repeated rows.
+        const target = await createLocalActor()
+        const requesters = await Promise.all([
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor()
+        ])
+        const sharedTime = new Date('2024-04-01T00:00:00Z')
+
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          jest.setSystemTime(sharedTime)
+          for (const actorId of requesters) {
+            await database.createFollow({
+              actorId,
+              targetActorId: target,
+              inbox: `${actorId}/inbox`,
+              sharedInbox: TEST_SHARED_INBOX,
+              status: FollowStatus.enum.Requested
+            })
+          }
+        } finally {
+          jest.useRealTimers()
+        }
+
+        const firstPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2
+        })
+        expect(firstPage).toHaveLength(2)
+
+        const secondPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 2,
+          maxId: firstPage[firstPage.length - 1].id
+        })
+        expect(secondPage).toHaveLength(1)
+
+        const seen = [...firstPage, ...secondPage]
+        // No duplicates across pages.
+        expect(new Set(seen.map((follow) => follow.id)).size).toBe(3)
+        // No skipped rows: every requester appears exactly once.
+        expect(seen.map((follow) => follow.actorId).sort()).toEqual(
+          [...requesters].sort()
+        )
+      })
+
+      it('distinguishes since_id (newest band) from min_id (oldest band) after a cursor', async () => {
+        // With more than one row newer than the cursor and a limit of 1, the two
+        // params must diverge: since_id returns the newest of the newer rows,
+        // min_id returns the oldest of the newer rows (presented newest-first).
+        const target = await createLocalActor()
+        const [a, b, c, d] = await Promise.all([
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor(),
+          createLocalActor()
+        ])
+        const createRequestAt = async (actorId: string, createdAt: string) => {
+          jest.setSystemTime(new Date(createdAt))
+          return database.createFollow({
+            actorId,
+            targetActorId: target,
+            inbox: `${actorId}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+        }
+
+        let cursor: Follow
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          await createRequestAt(a, '2024-05-01T00:00:00Z')
+          cursor = await createRequestAt(b, '2024-05-01T00:01:00Z')
+          await createRequestAt(c, '2024-05-01T00:02:00Z')
+          await createRequestAt(d, '2024-05-01T00:03:00Z')
+        } finally {
+          jest.useRealTimers()
+        }
+
+        // Two rows are newer than the cursor: c (00:02) and d (00:03).
+        const sinceIdPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 1,
+          sinceId: cursor.id
+        })
+        expect(sinceIdPage.map((follow) => follow.actorId)).toEqual([d])
+
+        const minIdPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 1,
+          minId: cursor.id
+        })
+        expect(minIdPage.map((follow) => follow.actorId)).toEqual([c])
+      })
+
+      it('keeps paginating after the cursor request is authorized mid-page', async () => {
+        // A client that approves requests while paging uses the just-authorized
+        // request's id as the next max_id. The cursor lookup must resolve it by
+        // (owner, id) regardless of its now-Accepted status, or the remaining
+        // pending requests become unreachable.
+        const target = await createLocalActor()
+        const [older, boundary] = await Promise.all([
+          createLocalActor(),
+          createLocalActor()
+        ])
+
+        let boundaryRow: Follow
+        jest.useFakeTimers({
+          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+        })
+        try {
+          jest.setSystemTime(new Date('2024-06-01T00:00:00Z'))
+          await database.createFollow({
+            actorId: older,
+            targetActorId: target,
+            inbox: `${older}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+          jest.setSystemTime(new Date('2024-06-01T00:01:00Z'))
+          boundaryRow = await database.createFollow({
+            actorId: boundary,
+            targetActorId: target,
+            inbox: `${boundary}/inbox`,
+            sharedInbox: TEST_SHARED_INBOX,
+            status: FollowStatus.enum.Requested
+          })
+        } finally {
+          jest.useRealTimers()
+        }
+
+        // Authorize the boundary request, changing its status away from Requested.
+        await database.updateFollowStatus({
+          followId: boundaryRow.id,
+          status: FollowStatus.enum.Accepted
+        })
+
+        // Paging older than the (now Accepted) boundary still returns the
+        // remaining pending request.
+        const nextPage = await database.getFollowRequests({
+          targetActorId: target,
+          limit: 1,
+          maxId: boundaryRow.id
+        })
+        expect(nextPage.map((follow) => follow.actorId)).toEqual([older])
+      })
     })
 
     describe('createFollow', () => {

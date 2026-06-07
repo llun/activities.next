@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { DELETE, PUT } from './route'
+import { DELETE, OPTIONS, PATCH, PUT } from './route'
 
 const mockDatabase = {
   deleteDomainBlock: jest.fn(),
@@ -99,6 +99,54 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
       rejectReports: undefined,
       privateComment: null,
       publicComment: null,
+      obfuscate: undefined
+    })
+  })
+
+  // Rails `resources` maps update to both PATCH and PUT; Mastodon clients
+  // commonly send PATCH. Binding PATCH to the same handler reference guarantees
+  // identical behavior and that PATCH no longer returns 405.
+  it('binds PATCH to the same handler as PUT', () => {
+    expect(typeof PATCH).toBe('function')
+    expect(PATCH).toBe(PUT)
+  })
+
+  it('advertises PATCH in the OPTIONS Access-Control-Allow-Methods header', async () => {
+    const response = await OPTIONS(
+      new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
+        method: 'OPTIONS',
+        headers: { origin: 'https://llun.test' }
+      })
+    )
+
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+      'PATCH'
+    )
+  })
+
+  it('updates domain block fields when sent via PATCH', async () => {
+    mockDatabase.updateDomainBlock.mockResolvedValue({
+      ...domainBlock,
+      publicComment: 'Patched comment'
+    })
+
+    const response = await PATCH(
+      new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ public_comment: 'Patched comment' })
+      }),
+      { params: Promise.resolve({ id: 'block-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.updateDomainBlock).toHaveBeenCalledWith({
+      id: 'block-1',
+      severity: undefined,
+      rejectMedia: undefined,
+      rejectReports: undefined,
+      privateComment: undefined,
+      publicComment: 'Patched comment',
       obfuscate: undefined
     })
   })
