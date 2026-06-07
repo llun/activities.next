@@ -27,7 +27,7 @@ jest.mock('./FitnessStatusDetail', () => ({
 }))
 
 jest.mock('./StatusLikes', () => ({
-  StatusLikes: () => null
+  StatusLikes: () => <div data-testid="status-likes" />
 }))
 
 jest.mock('next/navigation', () => ({
@@ -83,5 +83,33 @@ describe('StatusBox', () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/@llun/poll-1')
     })
+  })
+
+  it('renders the likes list on the detail view for a signed-in actor', () => {
+    render(
+      <StatusBox
+        host="activities.local"
+        currentActor={pollStatusFixture.actor}
+        currentTime={pollStatusCurrentTime}
+        status={pollStatusFixture}
+        variant="detail"
+      />
+    )
+
+    expect(screen.getByTestId('status-likes')).toBeInTheDocument()
+  })
+
+  it('hides the likes list on the detail view for logged-out visitors', () => {
+    render(
+      <StatusBox
+        host="activities.local"
+        currentActor={null}
+        currentTime={pollStatusCurrentTime}
+        status={pollStatusFixture}
+        variant="detail"
+      />
+    )
+
+    expect(screen.queryByTestId('status-likes')).not.toBeInTheDocument()
   })
 })
