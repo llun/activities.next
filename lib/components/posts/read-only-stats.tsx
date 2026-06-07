@@ -28,18 +28,18 @@ export const ReadOnlyStats: FC<ReadOnlyStatsProps> = ({ status }) => {
       </span>
       <span
         className="inline-flex items-center gap-1.5"
-        title={`${actualStatus.totalShares} boosts`}
+        title={`${actualStatus.totalShares ?? 0} boosts`}
       >
         <Repeat2 className="size-4" aria-hidden="true" />
-        <span className="tabular-nums">{actualStatus.totalShares}</span>
+        <span className="tabular-nums">{actualStatus.totalShares ?? 0}</span>
         <span className="sr-only">boosts</span>
       </span>
       <span
         className="inline-flex items-center gap-1.5"
-        title={`${actualStatus.totalLikes} likes`}
+        title={`${actualStatus.totalLikes ?? 0} likes`}
       >
         <Heart className="size-4" aria-hidden="true" />
-        <span className="tabular-nums">{actualStatus.totalLikes}</span>
+        <span className="tabular-nums">{actualStatus.totalLikes ?? 0}</span>
         <span className="sr-only">likes</span>
       </span>
     </div>
