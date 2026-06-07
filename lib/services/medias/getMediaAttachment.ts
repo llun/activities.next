@@ -21,10 +21,23 @@ const mediaMeta = (metaData: Media['original']['metaData']) => {
   }
 }
 
+// Maps a stored mime type to a Mastodon MediaAttachment `type`. We don't detect
+// animated GIFs, so we never emit `gifv`; anything that isn't image/video/audio
+// is reported as `unknown`.
+// https://docs.joinmastodon.org/entities/MediaAttachment/#type
+const mediaType = (mimeType: string): MediaType => {
+  if (mimeType.startsWith('video')) return MediaType.enum.video
+  if (mimeType.startsWith('audio')) return MediaType.enum.audio
+  if (mimeType.startsWith('image')) return MediaType.enum.image
+  return MediaType.enum.unknown
+}
+
 // Builds the Mastodon MediaAttachment entity for an already-stored media row.
 // Both the local-file and S3 storages serve files through `/api/v1/files/:path`,
 // so the public URL can be reconstructed without going back through the storage
-// driver. Used by GET/PUT /api/v1/media/:id, which operate on persisted media.
+// driver. This is the single source of truth for the entity shape — the upload
+// paths (LocalFile/S3 saveFile) and the GET/PUT/PATCH /api/v1/media/:id routes
+// all build their response body here so every field stays consistent.
 export const getMediaAttachment = (
   media: Media,
   host: string
@@ -34,22 +47,24 @@ export const getMediaAttachment = (
   const previewUrl = media.thumbnail
     ? `${protocol}://${host}/api/v1/files/${media.thumbnail.path}`
     : url
-  const type = media.original.mimeType.startsWith('video')
-    ? MediaType.enum.video
-    : MediaType.enum.image
 
   return MediaStorageSaveFileOutput.parse({
     id: `${media.id}`,
-    type,
+    type: mediaType(media.original.mimeType),
     mime_type: media.original.mimeType,
     url,
     preview_url: previewUrl,
     text_url: null,
     remote_url: null,
+    preview_remote_url: null,
     meta: {
       original: mediaMeta(media.original.metaData),
-      ...(media.thumbnail ? { small: mediaMeta(media.thumbnail.metaData) } : {})
+      ...(media.thumbnail
+        ? { small: mediaMeta(media.thumbnail.metaData) }
+        : {}),
+      ...(media.focus ? { focus: media.focus } : {})
     },
-    description: media.description ?? ''
+    description: media.description ?? '',
+    blurhash: null
   })
 }

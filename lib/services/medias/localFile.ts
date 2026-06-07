@@ -11,15 +11,16 @@ import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { MediaValidationError } from './errors'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
+import { getMediaAttachment } from './getMediaAttachment'
 import { checkQuotaAvailable } from './quota'
 import {
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
-  MediaStorageSaveFileOutput,
-  MediaType
+  ThumbnailStorageOutput
 } from './types'
 
 export class LocalFileStorage implements MediaStorage {
@@ -125,7 +126,7 @@ export class LocalFileStorage implements MediaStorage {
       file.size
     )
     if (!quotaCheck.available) {
-      throw new Error(
+      throw new MediaValidationError(
         `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
       )
     }
@@ -152,71 +153,61 @@ export class LocalFileStorage implements MediaStorage {
       },
       ...(thumbnail
         ? {
+            // Use the resized WebP's actual size/dimensions (outputInfo), not
+            // the input image's metadata.
             thumbnail: {
               path: thumbnail.path,
-              bytes: thumbnail.metaData.size ?? 0,
-              mimeType: `image/${thumbnail.metaData.format ?? 'jpg'}`,
+              bytes: thumbnail.outputInfo.size,
+              mimeType: 'image/webp',
               metaData: {
-                width: thumbnail.metaData.width ?? 0,
-                height: thumbnail.metaData.height ?? 0
+                width: thumbnail.outputInfo.width,
+                height: thumbnail.outputInfo.height
               }
             }
           }
         : null),
-      ...(media.description ? { description: media.description } : null)
+      ...(media.description ? { description: media.description } : null),
+      ...(media.focus ? { focus: media.focus } : null)
     })
 
     if (!storedMedia) {
       throw new Error('Fail to store media')
     }
 
-    const protocol =
-      this._host.startsWith('localhost') ||
-      this._host.startsWith('127.0.0.1') ||
-      this._host.startsWith('::1') ||
-      this._host.startsWith('[::1]')
-        ? 'http'
-        : 'https'
-    const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path}`
+    return getMediaAttachment(storedMedia, this._host)
+  }
 
-    const previewUrl = thumbnail
-      ? `${protocol}://${this._host}/api/v1/files/${thumbnail?.path}`
-      : url
-    return MediaStorageSaveFileOutput.parse({
-      id: `${storedMedia.id}`,
-      type: media.file.type.startsWith('image')
-        ? MediaType.enum.image
-        : MediaType.enum.video,
-      mime_type: media.file.type,
-      // TODO: Add config for base image domain?
-      url,
-      preview_url: previewUrl,
-      text_url: null,
-      remote_url: null,
-      meta: {
-        original: {
-          width: storedMedia.original.metaData.width,
-          height: storedMedia.original.metaData.height,
-          size: `${storedMedia.original.metaData.width}x${storedMedia.original.metaData.height}`,
-          aspect:
-            storedMedia.original.metaData.width /
-            storedMedia.original.metaData.height
-        },
-        ...(storedMedia.thumbnail
-          ? {
-              small: {
-                width: storedMedia.thumbnail.metaData.width,
-                height: storedMedia.thumbnail.metaData.height,
-                size: `${storedMedia.thumbnail.metaData.width}x${storedMedia.thumbnail.metaData.height}`,
-                aspect:
-                  storedMedia.thumbnail.metaData.width /
-                  storedMedia.thumbnail.metaData.height
-              }
-            }
-          : null)
-      },
-      description: media?.description ?? ''
-    })
+  async saveThumbnail(
+    actor: Actor,
+    file: File
+  ): Promise<ThumbnailStorageOutput | null> {
+    if (!file.type.startsWith('image')) return null
+
+    // Enforce the account quota like saveFile, so a thumbnail replacement can't
+    // push usage past the limit.
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new MediaValidationError(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
+
+    // Use the stored WebP's actual size/dimensions (outputInfo), not the input
+    // image's metadata.
+    const { outputInfo, path } = await this._saveImageFile(file, true)
+    return {
+      path,
+      bytes: outputInfo.size,
+      mimeType: 'image/webp',
+      metaData: {
+        width: outputInfo.width,
+        height: outputInfo.height
+      }
+    }
   }
 
   private async _saveImageFile(imageFile: File, isThumbnail = false) {
@@ -241,14 +232,20 @@ export class LocalFileStorage implements MediaStorage {
       .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
       .rotate()
       .webp({ quality: 95, smartSubsample: true, nearLossless: true })
-    const [metaData] = await Promise.all([
-      resizedImage.metadata(),
+    // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
+    // info (post-resize/WebP dimensions and byte size). Callers that need the
+    // stored file's real size/dimensions (e.g. thumbnails) use `outputInfo`.
+    // Read metadata from a separate sharp instance so the two operations don't
+    // run concurrently on the same pipeline.
+    const [metaData, outputInfo] = await Promise.all([
+      sharp(imageBuffer).metadata(),
       resizedImage.keepExif().toFile(filePath)
     ])
 
     return {
       image: resizedImage,
       metaData,
+      outputInfo,
       path: filename,
       contentType: 'image/webp',
       previewImage: null
@@ -267,7 +264,7 @@ export class LocalFileStorage implements MediaStorage {
       !videoStream ||
       !(formats?.includes('mp4') || formats?.includes('webm'))
     ) {
-      throw new Error('Invalid video format')
+      throw new MediaValidationError('Invalid video format')
     }
 
     const metaData = videoStream
