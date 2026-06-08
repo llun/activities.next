@@ -94,7 +94,9 @@ export const GET = traceApiRoute(
         // still advances pagination to older posts instead of stopping early;
         // the hidden statuses still exist, so the cursor resolves on the next
         // fetch. (A keyword-heavy page may therefore return fewer than `limit`
-        // visible statuses — a benign short page, like the home feed.)
+        // visible statuses — a benign short page. Unlike the home feed, this
+        // route does not run a backfill loop to refill the page; the client
+        // simply makes one more request via the next cursor.)
         const nextMaxStatusId =
           statuses.length > 0 ? statuses[statuses.length - 1].id : null
         const prevMinStatusId = statuses.length > 0 ? statuses[0].id : null
