@@ -1,0 +1,20 @@
+app/(timeline)/[actor]/[status]/page.tsx
+  s_4df2c3d09133c3::t_6c2a958eab93f4 198
+  s_4df2c3d09133c3::t_e8c63a83edb73f 233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "524decd828340c2f7e3d04306b0d9a21ebf4b3ad",
+  "prompts": {},
+  "sessions": {
+    "s_4df2c3d09133c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80b93ae7-5ba2-4577-adb0-1a44ae6395f8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
