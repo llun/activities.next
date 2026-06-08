@@ -11,11 +11,13 @@ import Layout from './layout'
 
 const mockGetActorsForAccount = jest.fn()
 const mockGetNotificationsCount = jest.fn()
+const mockGetLists = jest.fn()
 
 jest.mock('@/lib/database', () => ({
   getDatabase: jest.fn(() => ({
     getActorsForAccount: mockGetActorsForAccount,
-    getNotificationsCount: mockGetNotificationsCount
+    getNotificationsCount: mockGetNotificationsCount,
+    getLists: mockGetLists
   }))
 }))
 
@@ -56,6 +58,7 @@ describe('(timeline) Layout', () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorsForAccount.mockResolvedValue([])
     mockGetNotificationsCount.mockResolvedValue(0)
+    mockGetLists.mockResolvedValue([])
   })
 
   it('renders children without nav chrome for logged-out visitors', async () => {

@@ -8,11 +8,13 @@ import {
   getInsertBatchSize,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AddListAccountsParams,
   CreateListParams,
   DeleteListParams,
+  GetListAccountCountsParams,
   GetListAccountsParams,
   GetListParams,
   GetListTimelineParams,
@@ -48,7 +50,10 @@ const fixListRow = (row: SQLList): List => ({
 export const ListSQLDatabaseMixin = (
   database: Knex,
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>,
-  getStatusesByIds: (statusIds: string[]) => Promise<Status[]>
+  getStatusesByIds: (
+    statusIds: string[],
+    currentActorId?: string
+  ) => Promise<Status[]>
 ): ListDatabase => ({
   async createList({
     actorId,
@@ -173,6 +178,29 @@ export const ListSQLDatabaseMixin = (
     }
   },
 
+  async getListAccountCounts({ actorId, listIds }: GetListAccountCountsParams) {
+    // Seed every requested list with 0 so callers can index the result without
+    // a missing-key check; lists with no members produce no grouped row below.
+    const counts: Record<string, number> = {}
+    for (const listId of listIds) counts[listId] = 0
+    if (listIds.length === 0) return counts
+
+    // Scope to the owner so this never counts another actor's memberships, and
+    // chunk the `whereIn` to stay under SQLite's bound-parameter limit.
+    for (const chunk of chunkArray(listIds, getWhereInBatchSize(database, 1))) {
+      const rows = await database('list_accounts')
+        .where({ actorId })
+        .whereIn('listId', chunk)
+        .groupBy('listId')
+        .select('listId')
+        .count<{ listId: string; count: string | number }[]>('* as count')
+      for (const row of rows) {
+        counts[row.listId as string] = Number(row.count)
+      }
+    }
+    return counts
+  },
+
   async addListAccounts({
     listId,
     actorId,
@@ -249,6 +277,18 @@ export const ListSQLDatabaseMixin = (
       // Scope to the owner defensively so a caller can never read another
       // actor's list timeline even if they know the listId.
       .andWhere('list_accounts.actorId', actorId)
+    // Apply the owner's visibility before LIMIT so the page counts only
+    // statuses they may read — a member's direct/non-public posts addressed to
+    // others never appear, and the limit isn't spent on rows that would be
+    // filtered out afterwards (which could otherwise cut a page short or halt
+    // pagination early). The filter is pure WHERE/EXISTS, so it composes with
+    // the join without changing row cardinality.
+    applyPotentiallyReadableStatusFilter({
+      database,
+      query,
+      visibleToActorId: actorId
+    })
+    query
       .orderBy('statuses.createdAt', 'desc')
       .orderBy('statuses.id', 'desc')
       .limit(limit)
@@ -289,6 +329,9 @@ export const ListSQLDatabaseMixin = (
     if (statusIds.length === 0) return []
     // getStatusesByIds preserves the input order (it re-maps results over the
     // requested ids), so the createdAt-desc ordering established above is kept.
-    return getStatusesByIds(statusIds)
+    // Visibility is already enforced on the query above; pass the owner here so
+    // their action state (isActorLiked/isActorBookmarked/announce) is hydrated —
+    // otherwise the timeline would render every post as un-acted.
+    return getStatusesByIds(statusIds, actorId)
   }
 })

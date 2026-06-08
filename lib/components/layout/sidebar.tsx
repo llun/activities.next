@@ -1,7 +1,9 @@
 'use client'
 
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 import {
   ActorInfo,
@@ -26,6 +28,11 @@ interface User {
   avatarUrl?: string
 }
 
+export interface SidebarList {
+  id: string
+  title: string
+}
+
 interface SidebarProps {
   user?: User
   currentActor?: ActorInfo
@@ -33,6 +40,7 @@ interface SidebarProps {
   unreadCount?: number
   fitnessUrl?: string
   isAdmin?: boolean
+  lists?: SidebarList[]
 }
 
 export function Sidebar({
@@ -41,10 +49,23 @@ export function Sidebar({
   actors = [],
   unreadCount = 0,
   fitnessUrl,
-  isAdmin = false
+  isAdmin = false,
+  lists = []
 }: SidebarProps) {
   const pathname = usePathname()
   const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
+  const isListsSectionActive =
+    pathname === '/lists' || pathname.startsWith('/lists/')
+  // Default the Lists group open whenever the user is inside it so the active
+  // list is visible without an extra click; otherwise start collapsed.
+  const [isListsOpen, setListsOpen] = useState(isListsSectionActive)
+
+  // Client-side navigation keeps the sidebar mounted, so the initial state
+  // above doesn't re-run. Re-open the group whenever the route enters the Lists
+  // section (the user can still collapse it manually afterwards).
+  useEffect(() => {
+    if (isListsSectionActive) setListsOpen(true)
+  }, [isListsSectionActive])
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
@@ -59,12 +80,82 @@ export function Sidebar({
           <Logo size="md" />
         </div>
 
-        <nav className="flex-1 px-3 pt-1">
+        {/* min-h-0 + overflow lets the nav scroll when a long Lists group (or
+            many nav items) would otherwise push the account switcher footer
+            below the fixed, full-height sidebar. */}
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 pt-1">
           <ul className="space-y-1">
             {allNavItems.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + '/')
               const isNotifications = item.href === '/notifications'
+
+              // The Lists entry expands into the user's lists when they have
+              // any; otherwise it stays a plain link to the (empty) index.
+              if (item.href === '/lists' && lists.length > 0) {
+                return (
+                  <li key={item.href}>
+                    <div
+                      className={cn(
+                        'flex items-center rounded-lg text-sm font-medium transition-colors',
+                        isListsSectionActive
+                          ? 'text-primary'
+                          : 'text-muted-foreground'
+                      )}
+                    >
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'flex flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors',
+                          !isListsSectionActive &&
+                            'hover:bg-muted hover:text-foreground'
+                        )}
+                      >
+                        <item.icon className="h-5 w-5" />
+                        {item.label}
+                      </Link>
+                      <button
+                        type="button"
+                        aria-label={
+                          isListsOpen ? 'Collapse lists' : 'Expand lists'
+                        }
+                        aria-expanded={isListsOpen}
+                        onClick={() => setListsOpen((open) => !open)}
+                        className="mr-1 rounded-md p-1 hover:bg-muted hover:text-foreground"
+                      >
+                        {isListsOpen ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    {isListsOpen && (
+                      <ul className="mt-1 space-y-1 pl-7">
+                        {lists.map((list) => {
+                          const isListActive = pathname === `/lists/${list.id}`
+                          return (
+                            <li key={list.id}>
+                              <Link
+                                href={`/lists/${list.id}`}
+                                className={cn(
+                                  'block truncate rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                                  isListActive
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                )}
+                              >
+                                {list.title}
+                              </Link>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                )
+              }
+
               return (
                 <li key={item.href}>
                   <Link
@@ -126,7 +217,7 @@ export function Sidebar({
           <Logo showText={false} size="md" />
         </div>
 
-        <nav className="flex-1 pb-4">
+        <nav className="min-h-0 flex-1 overflow-y-auto pb-4">
           <ul className="space-y-2">
             {allNavItems.map((item) => {
               const isActive =
