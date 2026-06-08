@@ -443,6 +443,220 @@ describe('TimelineDatabase', () => {
           expect(statuses.map((status) => status.id)).toContain(tiedStatusId)
         }, 10000)
       })
+
+      describe('exclusive lists', () => {
+        const OWNER = `https://${TEST_DOMAIN}/users/excl-owner`
+        const OTHER_OWNER = `https://${TEST_DOMAIN}/users/excl-other-owner`
+        const EXCL_MEMBER = `https://${TEST_DOMAIN}/users/excl-member`
+        const NORMAL_MEMBER = `https://${TEST_DOMAIN}/users/excl-normal`
+        const PLAIN = `https://${TEST_DOMAIN}/users/excl-plain`
+
+        const account = (username: string) =>
+          database.createAccount({
+            email: `${username}@${TEST_DOMAIN}`,
+            username,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey-${username}`,
+            publicKey: `publicKey-${username}`
+          })
+
+        const seed = async (
+          authorId: string,
+          localId: string,
+          timeline: Timeline,
+          ownerId = OWNER
+        ) => {
+          const id = `${authorId}/statuses/${localId}`
+          const status = await database.createNote({
+            id,
+            url: id,
+            actorId: authorId,
+            text: `exclusive ${localId}`,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: []
+          })
+          await database.createTimelineStatus({
+            actorId: ownerId,
+            status,
+            timeline
+          })
+          return id
+        }
+
+        beforeAll(async () => {
+          await account('excl-owner')
+          await account('excl-other-owner')
+          await account('excl-member')
+          await account('excl-normal')
+          await account('excl-plain')
+
+          const exclusiveList = await database.createList({
+            actorId: OWNER,
+            title: 'Exclusive',
+            exclusive: true
+          })
+          await database.addListAccounts({
+            listId: exclusiveList.id,
+            actorId: OWNER,
+            targetActorIds: [EXCL_MEMBER]
+          })
+          const normalList = await database.createList({
+            actorId: OWNER,
+            title: 'Normal',
+            exclusive: false
+          })
+          await database.addListAccounts({
+            listId: normalList.id,
+            actorId: OWNER,
+            targetActorIds: [NORMAL_MEMBER]
+          })
+        })
+
+        it('hides exclusive-list members from the home timeline', async () => {
+          const exclId = await seed(EXCL_MEMBER, 'home-excl', Timeline.MAIN)
+          const normalId = await seed(
+            NORMAL_MEMBER,
+            'home-normal',
+            Timeline.MAIN
+          )
+          const plainId = await seed(PLAIN, 'home-plain', Timeline.MAIN)
+
+          const ids = (
+            await database.getTimeline({
+              timeline: Timeline.MAIN,
+              actorId: OWNER
+            })
+          ).map((status) => status.id)
+
+          expect(ids).not.toContain(exclId)
+          expect(ids).toContain(normalId)
+          expect(ids).toContain(plainId)
+        })
+
+        it('hides exclusive-list members from the no-announce timeline', async () => {
+          const exclId = await seed(
+            EXCL_MEMBER,
+            'noann-excl',
+            Timeline.NOANNOUNCE
+          )
+          const plainId = await seed(PLAIN, 'noann-plain', Timeline.NOANNOUNCE)
+
+          const ids = (
+            await database.getTimeline({
+              timeline: Timeline.NOANNOUNCE,
+              actorId: OWNER
+            })
+          ).map((status) => status.id)
+
+          expect(ids).not.toContain(exclId)
+          expect(ids).toContain(plainId)
+        })
+
+        it('still shows exclusive-list members in mention and direct timelines', async () => {
+          const mentionId = await seed(
+            EXCL_MEMBER,
+            'mention-excl',
+            Timeline.MENTION
+          )
+          const directId = await seed(
+            EXCL_MEMBER,
+            'direct-excl',
+            Timeline.DIRECT
+          )
+
+          const mentionIds = (
+            await database.getTimeline({
+              timeline: Timeline.MENTION,
+              actorId: OWNER
+            })
+          ).map((status) => status.id)
+          const directIds = (
+            await database.getTimeline({
+              timeline: Timeline.DIRECT,
+              actorId: OWNER
+            })
+          ).map((status) => status.id)
+
+          expect(mentionIds).toContain(mentionId)
+          expect(directIds).toContain(directId)
+        })
+
+        it("does not apply another owner's exclusive list to this viewer", async () => {
+          // OTHER_OWNER marks EXCL_MEMBER exclusive on their own list; OWNER, who
+          // has no such list for this author, must still see them at home.
+          const otherList = await database.createList({
+            actorId: OTHER_OWNER,
+            title: 'Other exclusive',
+            exclusive: true
+          })
+          await database.addListAccounts({
+            listId: otherList.id,
+            actorId: OTHER_OWNER,
+            targetActorIds: [PLAIN]
+          })
+
+          const plainId = await seed(PLAIN, 'home-cross-owner', Timeline.MAIN)
+
+          const ids = (
+            await database.getTimeline({
+              timeline: Timeline.MAIN,
+              actorId: OWNER
+            })
+          ).map((status) => status.id)
+
+          expect(ids).toContain(plainId)
+        })
+
+        it('reflects exclusive toggles on already-stored statuses at read time', async () => {
+          // Read-time filtering (vs fan-out) must retroactively hide/show posts
+          // that are already in the timelines table when `exclusive` is toggled.
+          const TOGGLE_MEMBER = `https://${TEST_DOMAIN}/users/excl-toggle`
+          await account('excl-toggle')
+          const list = await database.createList({
+            actorId: OWNER,
+            title: 'Toggle',
+            exclusive: false
+          })
+          await database.addListAccounts({
+            listId: list.id,
+            actorId: OWNER,
+            targetActorIds: [TOGGLE_MEMBER]
+          })
+
+          const toggleId = await seed(
+            TOGGLE_MEMBER,
+            'home-toggle',
+            Timeline.MAIN
+          )
+          const homeIds = async () =>
+            (
+              await database.getTimeline({
+                timeline: Timeline.MAIN,
+                actorId: OWNER
+              })
+            ).map((status) => status.id)
+
+          // Non-exclusive: visible.
+          expect(await homeIds()).toContain(toggleId)
+
+          // Flip exclusive on: the already-stored status disappears.
+          await database.updateList({
+            id: list.id,
+            actorId: OWNER,
+            exclusive: true
+          })
+          expect(await homeIds()).not.toContain(toggleId)
+
+          // Flip it back off: the same row reappears, no re-fan-out needed.
+          await database.updateList({
+            id: list.id,
+            actorId: OWNER,
+            exclusive: false
+          })
+          expect(await homeIds()).toContain(toggleId)
+        })
+      })
     })
   })
 })

@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { applyExclusiveListFilter } from '@/lib/database/sql/utils/exclusiveLists'
 import { Timeline } from '@/lib/services/timelines/types'
 import { StatusDatabase } from '@/lib/types/database/operations'
 import {
@@ -126,6 +127,17 @@ export const TimelineSQLDatabaseMixin = (
         let query = database('timelines')
           .where('actorId', actorId)
           .where('timeline', actualTimeline)
+
+        // Exclusive lists hide their members from the home feed only — the home
+        // tab (MAIN/HOME) and its "no announces" variant — never from the
+        // mention or direct feeds, where such posts must still surface.
+        if (
+          timeline === Timeline.MAIN ||
+          timeline === Timeline.HOME ||
+          timeline === Timeline.NOANNOUNCE
+        ) {
+          applyExclusiveListFilter({ database, query, viewerActorId: actorId })
+        }
 
         if (maxRow) {
           query = query.where((wb) => {
