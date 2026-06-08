@@ -48,7 +48,13 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
 
   const removeStatus = (status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter((item) => item.id !== status.id)
+      previousStatuses.filter((item) => {
+        const actualStatus =
+          item.type === StatusType.enum.Announce
+            ? getOriginalStatus(item)
+            : item
+        return actualStatus.id !== status.id
+      })
     )
   }
 
@@ -141,7 +147,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
         </div>
       )}
 
-      {hasMoreStatuses && lastFavouriteIdRef.current && (
+      {hasMoreStatuses && (
         <div ref={loadMoreRef} className="text-center">
           <Button
             variant="outline"
