@@ -18,6 +18,7 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
@@ -195,7 +196,17 @@ const Page: FC<Props> = async ({ params }) => {
 
   if (isFitnessDashboard) {
     return (
-      <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <div
+        className={cn(
+          // Signed-in viewers render inside the `(timeline)` layout, whose
+          // content wrapper has no top padding, so the card would otherwise sit
+          // flush against the top. Logged-out viewers go through `PublicShell`,
+          // which already supplies its own top padding, so only the signed-in
+          // surface needs this gap.
+          currentActorProfile && 'mt-4',
+          'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
+        )}
+      >
         {currentActorProfile ? (
           <Header isFitnessDashboard />
         ) : (
@@ -230,7 +241,15 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+    <div
+      className={cn(
+        // Only the signed-in `(timeline)` surface lacks top padding; the
+        // logged-out `PublicShell` already provides its own, so scope the gap
+        // to the signed-in card to keep the spacing consistent across both.
+        currentActorProfile && 'mt-4',
+        'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
+      )}
+    >
       {currentActorProfile ? (
         <Header isFitnessDashboard={false} />
       ) : (
