@@ -195,7 +195,7 @@ const Page: FC<Props> = async ({ params }) => {
 
   if (isFitnessDashboard) {
     return (
-      <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <div className="mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         {currentActorProfile ? (
           <Header isFitnessDashboard />
         ) : (
@@ -230,7 +230,7 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+    <div className="mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
       {currentActorProfile ? (
         <Header isFitnessDashboard={false} />
       ) : (
