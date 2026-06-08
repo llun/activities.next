@@ -327,15 +327,19 @@ export const ListSQLDatabaseMixin = (
     // column (statuses.createdAt) to also appear in the select list.
     // Status IDs are URIs (not chronologically ordered), so paginate on the
     // referenced status's createdAt with the id as a stable tie-breaker.
+    // Returns false when the cursor status no longer exists, so the caller can
+    // end pagination with an empty page instead of silently dropping the WHERE
+    // and re-returning the newest page (an infinite loop). Mirrors the home
+    // timeline's `if (maxStatusId && !maxRow) return []`.
     const applyCursor = async (
       cursorStatusId: string,
       direction: 'older' | 'newer'
-    ) => {
+    ): Promise<boolean> => {
       const cursor = await database('statuses')
         .where('id', cursorStatusId)
         .select('createdAt')
         .first<{ createdAt: number | Date }>()
-      if (!cursor) return
+      if (!cursor) return false
       const operator = direction === 'older' ? '<' : '>'
       query.andWhere((builder) => {
         builder
@@ -346,10 +350,11 @@ export const ListSQLDatabaseMixin = (
               .andWhere('statuses.id', operator, cursorStatusId)
           })
       })
+      return true
     }
 
-    if (maxStatusId) await applyCursor(maxStatusId, 'older')
-    if (minStatusId) await applyCursor(minStatusId, 'newer')
+    if (maxStatusId && !(await applyCursor(maxStatusId, 'older'))) return []
+    if (minStatusId && !(await applyCursor(minStatusId, 'newer'))) return []
 
     const rows = await query
     const statusIds = rows.map((row) => row.id as string)
