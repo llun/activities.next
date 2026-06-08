@@ -8,6 +8,7 @@ import {
   getInsertBatchSize,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import { applyListRepliesPolicyFilter } from '@/lib/database/sql/utils/listRepliesPolicy'
 import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
@@ -24,7 +25,7 @@ import {
   RemoveListAccountsParams,
   UpdateListParams
 } from '@/lib/types/database/operations'
-import { List } from '@/lib/types/domain/list'
+import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { Status } from '@/lib/types/domain/status'
 
 type SQLList = {
@@ -267,6 +268,15 @@ export const ListSQLDatabaseMixin = (
     maxStatusId,
     minStatusId
   }: GetListTimelineParams) {
+    // The list's replies_policy governs which replies appear. Default to 'list'
+    // (Mastodon's default) when the row is missing so behaviour is well-defined.
+    const listRow = await database('lists')
+      .where('id', listId)
+      .andWhere('actorId', actorId)
+      .first<{ repliesPolicy: string | null }>()
+    const repliesPolicy = (listRow?.repliesPolicy ??
+      'list') as ListRepliesPolicy
+
     const query = database('statuses')
       .innerJoin(
         'list_accounts',
@@ -287,6 +297,14 @@ export const ListSQLDatabaseMixin = (
       database,
       query,
       visibleToActorId: actorId
+    })
+    // Honour the list's replies_policy on the same pre-LIMIT pass.
+    applyListRepliesPolicyFilter({
+      database,
+      query,
+      repliesPolicy,
+      listId,
+      ownerId: actorId
     })
     query
       .orderBy('statuses.createdAt', 'desc')

@@ -5,6 +5,8 @@ import {
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { EXTERNAL_ACTORS, TEST_DOMAIN } from '@/lib/stub/const'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { ListRepliesPolicy } from '@/lib/types/domain/list'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const withFreshDatabase = async (
@@ -28,6 +30,124 @@ const createLocalAccount = (database: Database, username: string) =>
     privateKey: `privateKey-${username}`,
     publicKey: `publicKey-${username}`
   })
+
+// Replies-policy scenarios: a list member (memberFollowed) authors one reply of
+// each kind. The PARENT's author is what the policy filters on.
+type ReplyScenario =
+  | 'nonReply'
+  | 'selfReply'
+  | 'replyToOwner'
+  | 'replyToMember'
+  | 'replyToFollowed'
+  | 'replyToStranger'
+  | 'replyToAbsent'
+
+const ALL_REPLY_SCENARIOS: ReplyScenario[] = [
+  'nonReply',
+  'selfReply',
+  'replyToOwner',
+  'replyToMember',
+  'replyToFollowed',
+  'replyToStranger',
+  'replyToAbsent'
+]
+
+const setupRepliesPolicyFixture = async (
+  database: Database,
+  repliesPolicy: ListRepliesPolicy
+) => {
+  for (const username of [
+    'owner',
+    'memberFollowed',
+    'memberUnfollowed',
+    'followedNonMember',
+    'stranger'
+  ]) {
+    await createLocalAccount(database, username)
+  }
+  const actor = async (username: string) => {
+    const found = await database.getActorFromUsername({
+      username,
+      domain: TEST_DOMAIN
+    })
+    if (!found) throw new Error(`${username} not created`)
+    return found
+  }
+  const owner = await actor('owner')
+  const memberFollowed = await actor('memberFollowed')
+  const memberUnfollowed = await actor('memberUnfollowed')
+  const followedNonMember = await actor('followedNonMember')
+  const stranger = await actor('stranger')
+
+  // Owner follows memberFollowed and followedNonMember (Accepted).
+  for (const target of [memberFollowed, followedNonMember]) {
+    await database.createFollow({
+      actorId: owner.id,
+      targetActorId: target.id,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${target.id}/inbox`,
+      sharedInbox: `${target.id}/inbox`
+    })
+  }
+
+  const note = async (actorId: string, localId: string, reply = '') => {
+    const id = `${actorId}/statuses/${localId}`
+    await database.createNote({
+      id,
+      url: id,
+      actorId,
+      text: 'reply policy candidate',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      reply
+    })
+    return id
+  }
+
+  // Parent statuses authored by each kind of actor.
+  const parentSelf = await note(memberFollowed.id, 'parent-self')
+  const parentOwner = await note(owner.id, 'parent-owner')
+  const parentMember = await note(memberUnfollowed.id, 'parent-member')
+  const parentFollowed = await note(followedNonMember.id, 'parent-followed')
+  const parentStranger = await note(stranger.id, 'parent-stranger')
+  const absentParent = `https://nowhere.${TEST_DOMAIN}/statuses/missing`
+
+  // Reply candidates, all authored by a list member so they reach the join.
+  const ids: Record<ReplyScenario, string> = {
+    nonReply: await note(memberFollowed.id, 'non-reply'),
+    selfReply: await note(memberFollowed.id, 'self-reply', parentSelf),
+    replyToOwner: await note(memberFollowed.id, 'reply-owner', parentOwner),
+    replyToMember: await note(memberFollowed.id, 'reply-member', parentMember),
+    replyToFollowed: await note(
+      memberFollowed.id,
+      'reply-followed',
+      parentFollowed
+    ),
+    replyToStranger: await note(
+      memberFollowed.id,
+      'reply-stranger',
+      parentStranger
+    ),
+    replyToAbsent: await note(memberFollowed.id, 'reply-absent', absentParent)
+  }
+
+  const list = await database.createList({
+    actorId: owner.id,
+    title: 'Reply policy list',
+    repliesPolicy
+  })
+  await database.addListAccounts({
+    listId: list.id,
+    actorId: owner.id,
+    targetActorIds: [memberFollowed.id, memberUnfollowed.id]
+  })
+
+  const timeline = await database.getListTimeline({
+    listId: list.id,
+    actorId: owner.id
+  })
+  return { ids, timelineIds: new Set(timeline.map((status) => status.id)) }
+}
 
 describe('ListDatabase', () => {
   const table = getTestDatabaseTable()
@@ -479,4 +599,25 @@ describe('ListDatabase', () => {
       ).toEqual({})
     })
   })
+
+  it.each([
+    ['none', ['nonReply', 'selfReply', 'replyToOwner']],
+    ['list', ['nonReply', 'selfReply', 'replyToOwner', 'replyToMember']],
+    ['followed', ['nonReply', 'selfReply', 'replyToOwner', 'replyToFollowed']]
+  ] as [ListRepliesPolicy, ReplyScenario[]][])(
+    'honors repliesPolicy=%s in the list timeline',
+    async (repliesPolicy, visibleScenarios) => {
+      await withFreshDatabase(async (database) => {
+        const { ids, timelineIds } = await setupRepliesPolicyFixture(
+          database,
+          repliesPolicy
+        )
+        for (const scenario of ALL_REPLY_SCENARIOS) {
+          expect(timelineIds.has(ids[scenario])).toBe(
+            visibleScenarios.includes(scenario)
+          )
+        }
+      })
+    }
+  )
 })
