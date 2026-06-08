@@ -43,6 +43,7 @@ export const StatusStatStrip: FC<Props> = ({ boosts, likes, replies }) => {
   return (
     <div
       className="mt-3 flex items-center gap-5 border-t pt-3 text-sm text-muted-foreground sm:gap-6"
+      role="group"
       aria-label="Engagement"
     >
       {stats.map(({ key, icon: Icon, count, noun }) => (

@@ -19,11 +19,16 @@ describe('StatusStatStrip', () => {
     { boosts: 14, likes: 96, replies: 3, noun: 'replies', title: '3 replies' },
     { boosts: 14, likes: 96, replies: 3, noun: 'boosts', title: '14 boosts' },
     { boosts: 14, likes: 96, replies: 3, noun: 'likes', title: '96 likes' }
-  ])('labels the $noun stat for screen readers', ({ noun, ...props }) => {
-    render(<StatusStatStrip {...props} />)
+  ])(
+    'labels the $noun stat for screen readers',
+    ({ noun, title, ...props }) => {
+      render(<StatusStatStrip {...props} />)
 
-    expect(screen.getByText(noun)).toBeInTheDocument()
-  })
+      const label = screen.getByText(noun)
+      expect(label).toBeInTheDocument()
+      expect(label.parentElement).toHaveAttribute('title', title)
+    }
+  )
 
   it('uses singular nouns when a count is one', () => {
     render(<StatusStatStrip boosts={1} likes={1} replies={1} />)
