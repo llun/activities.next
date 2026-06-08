@@ -1,0 +1,28 @@
+lib/database/sql/list.ts
+  s_91960e42568bc0::t_3cac76f024881f 28
+  s_91960e42568bc0::t_f27bbca1afa5f2 271-279,301-307
+  s_91960e42568bc0::t_69c48751e0246b 11
+lib/database/sql/list.test.ts
+  s_91960e42568bc0::t_2af2837ed486f9 34-151
+  s_91960e42568bc0::t_1b0b5e25e4ed48 8-9
+  s_91960e42568bc0::t_9cb41473f3b0c9 602-622
+lib/database/sql/utils/listRepliesPolicy.ts
+  s_91960e42568bc0::t_6fe8aff96982dd 1-89,91-110
+  s_91960e42568bc0::t_c84c8c06dffb21 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "39d96c2e10b6ce2225e44cd13ccb0d5b408baa0b",
+  "prompts": {},
+  "sessions": {
+    "s_91960e42568bc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a0ccbab-c2a8-43e9-9090-8c4fc05c94d8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
