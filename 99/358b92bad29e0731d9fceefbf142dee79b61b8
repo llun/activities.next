@@ -1,0 +1,19 @@
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  s_08a21c68f4b09c::t_1e799f88fb5b28 62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "99358b92bad29e0731d9fceefbf142dee79b61b8",
+  "prompts": {},
+  "sessions": {
+    "s_08a21c68f4b09c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "215382dd-1b2e-435b-9e2f-23f3dbc453ca",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
