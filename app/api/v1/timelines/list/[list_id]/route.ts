@@ -1,5 +1,6 @@
 import {
   annotateMastodonStatusesWithFilters,
+  dropHideMatchesFromStatuses,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import {
@@ -88,10 +89,29 @@ export const GET = traceApiRoute(
         // The list timeline query returns domain statuses newest-first, so the
         // last row is the next (older) page cursor and the first row is the
         // previous (newer) page cursor — mirroring the Mastodon Link headers
-        // emitted below.
+        // emitted below. Cursors are derived from the RAW page (before keyword
+        // filtering) so that a page whose visible statuses are all keyword-hidden
+        // still advances pagination to older posts instead of stopping early;
+        // the hidden statuses still exist, so the cursor resolves on the next
+        // fetch. (A keyword-heavy page may therefore return fewer than `limit`
+        // visible statuses — a benign short page, like the home feed.)
         const nextMaxStatusId =
           statuses.length > 0 ? statuses[statuses.length - 1].id : null
         const prevMinStatusId = statuses.length > 0 ? statuses[0].id : null
+
+        // List timelines use the same filtering context as the home timeline.
+        const filterRecords = await getActiveFilters(
+          database,
+          currentActor.id,
+          'home'
+        )
+        // Drop statuses matched by a `hide`-action keyword filter (parity with
+        // the home feed). `warn` filters are not dropped — they are surfaced via
+        // annotation on the Mastodon path below.
+        const visibleStatuses = dropHideMatchesFromStatuses(
+          statuses,
+          filterRecords
+        )
 
         // The Activities.next web UI consumes the internal domain Status shape
         // (the same payload as the home timeline's activities_next format) so
@@ -102,7 +122,7 @@ export const GET = traceApiRoute(
             req,
             allowedMethods: CORS_HEADERS,
             data: {
-              statuses: statuses.map((item) => cleanJson(item)),
+              statuses: visibleStatuses.map((item) => cleanJson(item)),
               nextMaxStatusId,
               prevMinStatusId
             }
@@ -111,18 +131,12 @@ export const GET = traceApiRoute(
 
         const mastodonStatuses = await getMastodonStatuses(
           database,
-          statuses,
+          visibleStatuses,
           currentActor.id
-        )
-        // List timelines use the same filtering context as the home timeline.
-        const filterRecords = await getActiveFilters(
-          database,
-          currentActor.id,
-          'home'
         )
         const annotated = annotateMastodonStatusesWithFilters(
           mastodonStatuses,
-          statuses,
+          visibleStatuses,
           filterRecords
         )
 

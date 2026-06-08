@@ -824,4 +824,48 @@ describe('ListDatabase', () => {
       expect(ids).toContain(annClean)
     })
   })
+
+  it('returns an empty page when the pagination cursor status is gone', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'a list member post',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Cursor list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // A deleted/unknown cursor must terminate pagination with an empty page,
+      // not silently drop the cursor and re-return the newest page (a loop).
+      const page = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        maxStatusId: `${member.id}/statuses/deleted-cursor`
+      })
+      expect(page).toEqual([])
+    })
+  })
 })
