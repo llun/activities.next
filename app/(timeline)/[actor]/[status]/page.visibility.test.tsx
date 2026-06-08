@@ -350,7 +350,7 @@ describe('Page visibility for logged-out visitors', () => {
       screen.getByRole('heading', { level: 1, name: 'Activity' })
     ).toBeInTheDocument()
     expect(screen.getByTestId('status-fitness-status')).toBeInTheDocument()
-    expect(screen.getByText('Boosts')).toBeInTheDocument()
+    expect(screen.getByLabelText('Engagement')).toBeInTheDocument()
   })
 })
 
