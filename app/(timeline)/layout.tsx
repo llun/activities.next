@@ -81,6 +81,9 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const fitnessUrl = actor.account ? '/fitness' : undefined
   const isAdmin = actor.account?.role === 'admin'
 
+  // Drives the expandable Lists group in the sidebar.
+  const lists = await database.getLists({ actorId: actor.id })
+
   return (
     <div className="min-h-dvh">
       <Sidebar
@@ -98,6 +101,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
         unreadCount={unreadCount}
         fitnessUrl={fitnessUrl}
         isAdmin={isAdmin}
+        lists={lists.map((list) => ({ id: list.id, title: list.title }))}
       />
       <MobileNav
         unreadCount={unreadCount}

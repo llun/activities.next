@@ -263,4 +263,220 @@ describe('ListDatabase', () => {
       expect(statuses.map((status) => status.id)).toContain(statusId)
     })
   })
+
+  it('excludes member statuses the owner cannot see from the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const publicId = `${member.id}/statuses/public`
+      await database.createNote({
+        id: publicId,
+        url: publicId,
+        actorId: member.id,
+        text: 'public post',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // A direct post addressed to someone other than the owner must not leak
+      // into the owner's list timeline.
+      const directId = `${member.id}/statuses/direct`
+      await database.createNote({
+        id: directId,
+        url: directId,
+        actorId: member.id,
+        text: 'secret to a stranger',
+        to: ['https://stranger.example/users/x'],
+        cc: []
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Visibility list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const ids = (
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).map((status) => status.id)
+      expect(ids).toContain(publicId)
+      expect(ids).not.toContain(directId)
+    })
+  })
+
+  it('applies visibility before the limit so a hidden run cannot strand visible posts', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // One visible post, then two newer non-visible posts. If visibility were
+      // applied only after LIMIT, fetching the newest two would yield only the
+      // hidden pair and return an empty page, stranding the visible post.
+      const visibleId = `${member.id}/statuses/0-visible`
+      await database.createNote({
+        id: visibleId,
+        url: visibleId,
+        actorId: member.id,
+        text: 'visible',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      for (const suffix of ['1-direct', '2-direct']) {
+        const directId = `${member.id}/statuses/${suffix}`
+        await database.createNote({
+          id: directId,
+          url: directId,
+          actorId: member.id,
+          text: 'hidden',
+          to: ['https://stranger.example/users/x'],
+          cc: []
+        })
+      }
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Limit list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2
+      })
+      expect(statuses.map((status) => status.id)).toEqual([visibleId])
+    })
+  })
+
+  it('hydrates the owner action state in the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/liked`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'like me',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // The owner has acted on the member's post; the list timeline must reflect
+      // it (the timeline is hydrated for the owner, who is the viewer).
+      await database.createLike({ actorId: owner.id, statusId })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Action state list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      const liked = statuses.find((status) => status.id === statusId)
+      expect(liked).toBeDefined()
+      expect((liked as { isActorLiked?: boolean }).isActorLiked).toBe(true)
+    })
+  })
+
+  it('counts members per list and scopes counts to the owner', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'other')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const other = await database.getActorFromUsername({
+        username: 'other',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !other) throw new Error('actors not created')
+
+      await database.createActor({
+        actorId: EXTERNAL_ACTORS[0].id,
+        username: EXTERNAL_ACTORS[0].username,
+        domain: EXTERNAL_ACTORS[0].domain,
+        followersUrl: EXTERNAL_ACTORS[0].followers_url,
+        inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        publicKey: 'remote-public-key',
+        createdAt: Date.now()
+      })
+
+      const populated = await database.createList({
+        actorId: owner.id,
+        title: 'Populated'
+      })
+      const empty = await database.createList({
+        actorId: owner.id,
+        title: 'Empty'
+      })
+      await database.addListAccounts({
+        listId: populated.id,
+        actorId: owner.id,
+        targetActorIds: [EXTERNAL_ACTORS[0].id]
+      })
+
+      const counts = await database.getListAccountCounts({
+        actorId: owner.id,
+        listIds: [populated.id, empty.id]
+      })
+      expect(counts).toEqual({ [populated.id]: 1, [empty.id]: 0 })
+
+      // Another owner sees no memberships for the same list ids.
+      const otherCounts = await database.getListAccountCounts({
+        actorId: other.id,
+        listIds: [populated.id, empty.id]
+      })
+      expect(otherCounts).toEqual({ [populated.id]: 0, [empty.id]: 0 })
+
+      // Empty input returns an empty map without a query.
+      expect(
+        await database.getListAccountCounts({ actorId: owner.id, listIds: [] })
+      ).toEqual({})
+    })
+  })
 })

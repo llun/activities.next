@@ -102,6 +102,27 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(link).toContain('rel="prev"')
   })
 
+  it('returns the activities_next domain shape when format=activities_next', async () => {
+    jest.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
+
+    const response = await GET(request({ format: 'activities_next' }), {
+      params: Promise.resolve({ list_id: listId })
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // The web UI consumes { statuses, nextMaxStatusId, prevMinStatusId } with
+    // the internal Status shape (full URI ids), not Mastodon entities.
+    expect(data.statuses.map((status: { id: string }) => status.id)).toEqual([
+      listStatus.id
+    ])
+    expect(data.nextMaxStatusId).toBe(listStatus.id)
+    expect(data.prevMinStatusId).toBe(listStatus.id)
+    // The activities_next branch returns pagination in the body, not Link
+    // headers.
+    expect(response.headers.get('Link')).toBeNull()
+  })
+
   it('returns 404 for a non-existent list', async () => {
     const response = await GET(request(), {
       params: Promise.resolve({ list_id: 'does-not-exist' })

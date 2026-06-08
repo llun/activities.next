@@ -3,6 +3,7 @@ import {
   Bell,
   Bookmark,
   Home,
+  List,
   Mail,
   Search,
   Settings,
@@ -24,6 +25,7 @@ const baseNavItems: NavItem[] = [
   { href: '/search', label: 'Search', icon: Search },
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
+  { href: '/lists', label: 'Lists', icon: List },
   {
     href: '/notifications',
     label: 'Notifications',

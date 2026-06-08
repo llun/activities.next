@@ -102,6 +102,7 @@ describe('MobileNav', () => {
     // Settings.
     expect(names).toEqual([
       'Bookmarks',
+      'Lists',
       'Fitness',
       'Profile',
       'Admin',
@@ -119,6 +120,7 @@ describe('MobileNav', () => {
     const items = await screen.findAllByRole('menuitem')
     expect(items.map((item) => item.textContent?.trim())).toEqual([
       'Bookmarks',
+      'Lists',
       'Profile',
       'Admin',
       'Settings'
@@ -136,6 +138,7 @@ describe('MobileNav', () => {
     // No Admin entry, so Profile anchors directly before Settings.
     expect(items.map((item) => item.textContent?.trim())).toEqual([
       'Bookmarks',
+      'Lists',
       'Profile',
       'Settings'
     ])
