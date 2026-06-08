@@ -196,4 +196,122 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(await response.json()).toEqual([])
     expect(response.headers.get('Link')).toBeNull()
   })
+
+  describe('keyword (hide) filtering', () => {
+    let spoilerStatus: Status
+    let warnStatus: Status
+
+    beforeAll(async () => {
+      await database.createFilter({
+        actorId: ACTOR1_ID,
+        title: 'Spoilers',
+        context: ['home'],
+        filterAction: 'hide',
+        expiresAt: null,
+        keywords: [{ keyword: 'spoiler', wholeWord: false }]
+      })
+      await database.createFilter({
+        actorId: ACTOR1_ID,
+        title: 'Content warnings',
+        context: ['home'],
+        filterAction: 'warn',
+        expiresAt: null,
+        keywords: [{ keyword: 'cwword', wholeWord: false }]
+      })
+      spoilerStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/spoiler-1`,
+        url: `${ACTOR1_ID}/statuses/spoiler-1`,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'spoiler alert'
+      })
+      warnStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/warn-1`,
+        url: `${ACTOR1_ID}/statuses/warn-1`,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'cwword inside'
+      })
+    })
+
+    it('drops hide-filtered statuses from the Mastodon format', async () => {
+      jest
+        .spyOn(database, 'getListTimeline')
+        .mockResolvedValue([listStatus, spoilerStatus])
+
+      const response = await GET(request(), {
+        params: Promise.resolve({ list_id: listId })
+      })
+
+      expect(response.status).toBe(200)
+      const ids = (await response.json()).map((s: { id: string }) => s.id)
+      expect(ids).toContain(urlToId(listStatus.id))
+      expect(ids).not.toContain(urlToId(spoilerStatus.id))
+    })
+
+    it('drops hide-filtered statuses from the activities_next format', async () => {
+      jest
+        .spyOn(database, 'getListTimeline')
+        .mockResolvedValue([listStatus, spoilerStatus])
+
+      const response = await GET(request({ format: 'activities_next' }), {
+        params: Promise.resolve({ list_id: listId })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      const ids = data.statuses.map((s: { id: string }) => s.id)
+      expect(ids).toContain(listStatus.id)
+      expect(ids).not.toContain(spoilerStatus.id)
+    })
+
+    it('keeps the next cursor when the whole page is hidden (no premature stop)', async () => {
+      jest.spyOn(database, 'getListTimeline').mockResolvedValue([spoilerStatus])
+
+      // Mastodon: empty body but a next Link so pagination reaches older posts.
+      const mastodon = await GET(request(), {
+        params: Promise.resolve({ list_id: listId })
+      })
+      expect(await mastodon.json()).toEqual([])
+      expect(mastodon.headers.get('Link') || '').toContain('rel="next"')
+
+      // activities_next: empty statuses but a non-null next cursor.
+      const next = await GET(request({ format: 'activities_next' }), {
+        params: Promise.resolve({ list_id: listId })
+      })
+      const data = await next.json()
+      expect(data.statuses).toEqual([])
+      expect(data.nextMaxStatusId).toBe(spoilerStatus.id)
+    })
+
+    it('keeps warn-filtered statuses, annotating them on the Mastodon path only', async () => {
+      jest
+        .spyOn(database, 'getListTimeline')
+        .mockResolvedValue([listStatus, warnStatus])
+
+      // Mastodon: warn matches are kept and annotated via `filtered`.
+      const mastodon = await GET(request(), {
+        params: Promise.resolve({ list_id: listId })
+      })
+      const mastodonBody = await mastodon.json()
+      const warnEntity = mastodonBody.find(
+        (s: { id: string }) => s.id === urlToId(warnStatus.id)
+      )
+      expect(warnEntity).toBeDefined()
+      expect(warnEntity.filtered?.length ?? 0).toBeGreaterThan(0)
+
+      // activities_next: kept, with no Mastodon `filtered` annotation.
+      const next = await GET(request({ format: 'activities_next' }), {
+        params: Promise.resolve({ list_id: listId })
+      })
+      const data = await next.json()
+      const warnDomain = data.statuses.find(
+        (s: { id: string }) => s.id === warnStatus.id
+      )
+      expect(warnDomain).toBeDefined()
+      expect(warnDomain.filtered).toBeUndefined()
+    })
+  })
 })
