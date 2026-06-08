@@ -10,7 +10,7 @@ describe('StatusStatStrip', () => {
   it('renders the reply, boost, and like counts in icon order', () => {
     render(<StatusStatStrip boosts={14} likes={96} replies={3} />)
 
-    const region = screen.getByLabelText('Engagement')
+    const region = screen.getByRole('group', { name: 'Engagement' })
     const counts = within(region).getAllByText(/^\d+$/)
     expect(counts.map((node) => node.textContent)).toEqual(['3', '14', '96'])
   })
