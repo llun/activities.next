@@ -59,16 +59,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
   }
 
   const onLikeChanged = (status: StatusNote | StatusPoll, isLiked: boolean) => {
-    if (isLiked) return
-    setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter((item) => {
-        const actualStatus =
-          item.type === StatusType.enum.Announce
-            ? getOriginalStatus(item)
-            : item
-        return actualStatus.id !== status.id
-      })
-    )
+    if (!isLiked) removeStatus(status)
   }
 
   const loadMoreStatuses = useCallback(async () => {
