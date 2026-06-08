@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { applyBlockMuteFilter } from '@/lib/database/sql/utils/blockMuteFilter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
@@ -305,6 +306,14 @@ export const ListSQLDatabaseMixin = (
       repliesPolicy,
       listId,
       ownerId: actorId
+    })
+    // Drop statuses from blocked/muted accounts, like the home feed does — also
+    // pre-LIMIT so a filtered author never shortens the page.
+    applyBlockMuteFilter({
+      database,
+      query,
+      viewerActorId: actorId,
+      now: Date.now()
     })
     query
       .orderBy('statuses.createdAt', 'desc')
