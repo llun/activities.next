@@ -868,4 +868,66 @@ describe('ListDatabase', () => {
       expect(page).toEqual([])
     })
   })
+
+  it('paginates with a valid max_id cursor (older statuses only)', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // Three posts, oldest → newest by createdAt.
+      const ids: string[] = []
+      for (let i = 1; i <= 3; i++) {
+        const id = `${member.id}/statuses/${i}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: member.id,
+          text: `post ${i}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: 1000 * i
+        })
+        ids.push(id)
+      }
+      const [older, middle, newer] = ids
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Pagination list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // Newest-first with no cursor.
+      const firstPage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(firstPage.map((status) => status.id)).toEqual([
+        newer,
+        middle,
+        older
+      ])
+
+      // max_id at the middle returns only the strictly-older page.
+      const olderPage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        maxStatusId: middle
+      })
+      expect(olderPage.map((status) => status.id)).toEqual([older])
+    })
+  })
 })
