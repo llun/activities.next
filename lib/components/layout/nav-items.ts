@@ -7,7 +7,8 @@ import {
   Mail,
   Search,
   Settings,
-  Shield
+  Shield,
+  Star
 } from 'lucide-react'
 import { type LucideIcon } from 'lucide-react'
 
@@ -26,6 +27,7 @@ const baseNavItems: NavItem[] = [
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/lists', label: 'Lists', icon: List },
+  { href: '/favorites', label: 'Favorites', icon: Star },
   {
     href: '/notifications',
     label: 'Notifications',
