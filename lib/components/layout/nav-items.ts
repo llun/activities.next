@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   Bookmark,
+  Heart,
   Home,
   List,
   Mail,
@@ -26,6 +27,7 @@ const baseNavItems: NavItem[] = [
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/lists', label: 'Lists', icon: List },
+  { href: '/favorites', label: 'Favorites', icon: Heart },
   {
     href: '/notifications',
     label: 'Notifications',

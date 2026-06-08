@@ -11,6 +11,7 @@ describe('buildNavItems', () => {
       '/messages',
       '/bookmarks',
       '/lists',
+      '/favorites',
       '/notifications',
       '/settings'
     ])
@@ -23,6 +24,7 @@ describe('buildNavItems', () => {
       '/messages',
       '/bookmarks',
       '/lists',
+      '/favorites',
       '/@llun@llun.test/fitness',
       '/notifications',
       '/settings'
@@ -36,6 +38,7 @@ describe('buildNavItems', () => {
       '/messages',
       '/bookmarks',
       '/lists',
+      '/favorites',
       '/notifications',
       '/admin',
       '/settings'
@@ -51,6 +54,7 @@ describe('buildNavItems', () => {
       '/messages',
       '/bookmarks',
       '/lists',
+      '/favorites',
       '/@llun@llun.test/fitness',
       '/notifications',
       '/admin',

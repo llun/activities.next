@@ -29,7 +29,8 @@ export const Actions: FC<Props> = ({
   onEdit,
   onShowEdits,
   onPostDeleted,
-  onBookmarkChanged
+  onBookmarkChanged,
+  onLikeChanged
 }) => {
   if (!showActions) return null
   if (!currentActor) return null
@@ -55,6 +56,7 @@ export const Actions: FC<Props> = ({
       key={`${actualStatus.id}-like`}
       currentActor={currentActor}
       status={actualStatus}
+      onLikeChanged={onLikeChanged}
     />,
     <BookmarkButton
       key="bookmark"
