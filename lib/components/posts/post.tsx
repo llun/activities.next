@@ -58,6 +58,7 @@ export interface PostProps {
     status: StatusNote | StatusPoll,
     isBookmarked: boolean
   ) => void
+  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
   onOpenStatus?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean

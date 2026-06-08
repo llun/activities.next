@@ -98,11 +98,12 @@ describe('MobileNav', () => {
 
     const items = await screen.findAllByRole('menuitem')
     const names = items.map((item) => item.textContent?.trim())
-    // Design-system overflow order: Bookmarks, Fitness, Profile, Admin,
-    // Settings.
+    // Design-system overflow order: Bookmarks, Lists, Favorites, Fitness,
+    // Profile, Admin, Settings.
     expect(names).toEqual([
       'Bookmarks',
       'Lists',
+      'Favorites',
       'Fitness',
       'Profile',
       'Admin',
@@ -121,6 +122,7 @@ describe('MobileNav', () => {
     expect(items.map((item) => item.textContent?.trim())).toEqual([
       'Bookmarks',
       'Lists',
+      'Favorites',
       'Profile',
       'Admin',
       'Settings'
@@ -139,6 +141,7 @@ describe('MobileNav', () => {
     expect(items.map((item) => item.textContent?.trim())).toEqual([
       'Bookmarks',
       'Lists',
+      'Favorites',
       'Profile',
       'Settings'
     ])

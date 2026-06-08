@@ -48,6 +48,7 @@ interface Props {
     status: StatusNote | StatusPoll,
     isBookmarked: boolean
   ) => void
+  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
 }
 
 export const Posts: FC<Props> = ({
@@ -65,7 +66,8 @@ export const Posts: FC<Props> = ({
   onReplyCreated,
   onEdit,
   onPostDeleted,
-  onBookmarkChanged
+  onBookmarkChanged,
+  onLikeChanged
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
@@ -140,6 +142,7 @@ export const Posts: FC<Props> = ({
               onEdit={onEdit}
               onPostDeleted={onPostDeleted}
               onBookmarkChanged={onBookmarkChanged}
+              onLikeChanged={onLikeChanged}
               onOpenStatus={openStatus}
               onShowAttachment={(allMedias, index) => {
                 setModalMedias({ medias: allMedias, initialSelection: index })

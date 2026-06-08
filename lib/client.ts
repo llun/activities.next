@@ -830,6 +830,51 @@ export const getBookmarks = async ({
   }
 }
 
+export interface GetFavouritesParams {
+  limit?: number
+  maxFavouriteId?: string
+  minFavouriteId?: string
+}
+
+export interface GetFavouritesResult {
+  statuses: Status[]
+  nextMaxFavouriteId: string | null
+  prevMinFavouriteId: string | null
+}
+
+export const getFavourites = async ({
+  limit,
+  maxFavouriteId,
+  minFavouriteId
+}: GetFavouritesParams = {}): Promise<GetFavouritesResult> => {
+  const url = new URL(`${window.origin}/api/v1/favourites`)
+  url.searchParams.set('format', TimelineFormat.enum.activities_next)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxFavouriteId) url.searchParams.set('max_id', maxFavouriteId)
+  if (minFavouriteId) url.searchParams.set('min_id', minFavouriteId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return {
+      statuses: [],
+      nextMaxFavouriteId: null,
+      prevMinFavouriteId: null
+    }
+  }
+
+  const data = (await response.json()) as Partial<GetFavouritesResult>
+  return {
+    statuses: data.statuses ?? [],
+    nextMaxFavouriteId: data.nextMaxFavouriteId ?? null,
+    prevMinFavouriteId: data.prevMinFavouriteId ?? null
+  }
+}
+
 interface GetTimelineParams {
   timeline: Timeline
   minStatusId?: string

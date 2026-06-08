@@ -14,9 +14,14 @@ import { cn } from '@/lib/utils'
 interface LikeButtonProps {
   currentActor?: ActorProfile
   status: StatusNote | StatusPoll
+  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
 }
 
-export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
+export const LikeButton: FC<LikeButtonProps> = ({
+  currentActor,
+  status,
+  onLikeChanged
+}) => {
   const [{ isActorLiked, totalLikes }, setLikeState] = useState({
     isActorLiked: status.isActorLiked,
     totalLikes: status.totalLikes
@@ -82,6 +87,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
                   : Math.max(0, prev.totalLikes - 1)
               }
             })
+            onLikeChanged?.(status, nextIsActorLiked)
           } catch {
             setError(failureMessage)
           } finally {
