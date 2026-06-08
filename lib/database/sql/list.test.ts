@@ -733,4 +733,95 @@ describe('ListDatabase', () => {
       expect(ids).toContain(mutedById)
     })
   })
+
+  it('hides a member reblog of a blocked or muted original author', async () => {
+    await withFreshDatabase(async (database) => {
+      const usernames = [
+        'rb-owner',
+        'rb-member',
+        'rb-blocked',
+        'rb-muted',
+        'rb-clean'
+      ]
+      for (const username of usernames)
+        await createLocalAccount(database, username)
+      const actor = async (username: string) => {
+        const found = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!found) throw new Error(`${username} not created`)
+        return found
+      }
+      const owner = await actor('rb-owner')
+      const member = await actor('rb-member')
+      const blocked = await actor('rb-blocked')
+      const muted = await actor('rb-muted')
+      const clean = await actor('rb-clean')
+
+      // Original posts authored by the (to-be) blocked/muted/clean accounts.
+      const original = async (author: { id: string }, localId: string) => {
+        const id = `${author.id}/statuses/${localId}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: author.id,
+          text: `original ${localId}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        return id
+      }
+      const origBlocked = await original(blocked, 'orig-blocked')
+      const origMuted = await original(muted, 'orig-muted')
+      const origClean = await original(clean, 'orig-clean')
+
+      // The list member boosts each original post.
+      const announce = async (localId: string, originalStatusId: string) => {
+        const id = `${member.id}/statuses/${localId}`
+        await database.createAnnounce({
+          id,
+          actorId: member.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId
+        })
+        return id
+      }
+      const annBlocked = await announce('ann-blocked', origBlocked)
+      const annMuted = await announce('ann-muted', origMuted)
+      const annClean = await announce('ann-clean', origClean)
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Reblog moderation list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      await database.createBlock({
+        actorId: owner.id,
+        targetActorId: blocked.id,
+        uri: `${owner.id}/blocks/rb-blocked`
+      })
+      await database.createMute({
+        actorId: owner.id,
+        targetActorId: muted.id,
+        notifications: true,
+        endsAt: null
+      })
+
+      const ids = (
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).map((status) => status.id)
+
+      // A boost is hidden when its ORIGINAL author is blocked/muted, matching
+      // the home feed's getRelevantStatusActorIds behaviour.
+      expect(ids).not.toContain(annBlocked)
+      expect(ids).not.toContain(annMuted)
+      expect(ids).toContain(annClean)
+    })
+  })
 })
