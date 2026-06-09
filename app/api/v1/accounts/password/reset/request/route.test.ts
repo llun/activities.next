@@ -21,6 +21,7 @@ jest.mock('@/lib/utils/logger', () => ({
 jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
+    secretPhase: 'test-secret-phase',
     email: {
       serviceFromAddress: 'noreply@llun.test'
     }
