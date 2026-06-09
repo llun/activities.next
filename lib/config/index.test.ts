@@ -111,4 +111,40 @@ describe('Config', () => {
       fs.rmSync(tmpDir, { force: true, recursive: true })
     }
   })
+
+  describe('registrationOpen', () => {
+    const loadConfig = async () => {
+      process.env.ACTIVITIES_HOST = 'example.com'
+      process.env.ACTIVITIES_SECRET_PHASE = 'env-secret'
+      process.env.ACTIVITIES_ALLOW_EMAILS = '[]'
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+      const { getConfig } = await import('./index')
+      return getConfig()
+    }
+
+    it.each([
+      {
+        description: 'defaults to open when unset',
+        value: undefined,
+        open: true
+      },
+      { description: 'stays open for "true"', value: 'true', open: true },
+      {
+        description: 'closes only for the literal "false"',
+        value: 'false',
+        open: false
+      },
+      { description: 'stays open for any other value', value: 'no', open: true }
+    ])('$description', async ({ value, open }) => {
+      if (value === undefined) {
+        delete process.env.ACTIVITIES_REGISTRATION_OPEN
+      } else {
+        process.env.ACTIVITIES_REGISTRATION_OPEN = value
+      }
+
+      const config = await loadConfig()
+      expect(config.registrationOpen).toBe(open)
+    })
+  })
 })

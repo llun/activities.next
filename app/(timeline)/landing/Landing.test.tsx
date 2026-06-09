@@ -27,13 +27,14 @@ jest.mock('@/lib/components/posts/posts', () => ({
   )
 }))
 
-const renderLanding = (statuses: Status[]) =>
+const renderLanding = (statuses: Status[], signupOpen?: boolean) =>
   render(
     <Landing
       host="llun.social"
       currentTime={1_700_000_000_000}
       statuses={statuses}
       serviceName="Activities"
+      signupOpen={signupOpen}
     />
   )
 
@@ -72,5 +73,28 @@ describe('Landing', () => {
     const posts = screen.getByTestId('posts')
     expect(posts).toHaveAttribute('data-current-time-type', 'number')
     expect(posts).toHaveAttribute('data-current-time', '1700000000000')
+  })
+
+  it('shows the registration-closed auth card when sign-up is closed', () => {
+    renderLanding([], false)
+
+    expect(screen.getByText('Welcome back')).toBeInTheDocument()
+    expect(screen.getByText('Registration is closed')).toBeInTheDocument()
+    // Sign-in only — no "Create account" path.
+    expect(
+      screen.queryByRole('link', { name: 'Create account' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/auth/signin'
+    )
+  })
+
+  it('still previews the public feed when sign-up is closed', () => {
+    renderLanding([{ id: 'p1' }] as unknown as Status[], false)
+
+    // The left column (feed vs hero) is independent of the auth card variant.
+    expect(screen.getByTestId('posts')).toBeInTheDocument()
+    expect(screen.getByText('Registration is closed')).toBeInTheDocument()
   })
 })

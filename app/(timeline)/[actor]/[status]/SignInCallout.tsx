@@ -6,9 +6,14 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   className?: string
+  /** Whether new-account sign-up is open; hides "Create account" when false. */
+  registrationOpen?: boolean
 }
 
-export const SignInCallout: FC<Props> = ({ className }) => (
+export const SignInCallout: FC<Props> = ({
+  className,
+  registrationOpen = true
+}) => (
   <div className={cn('border-b bg-primary/5 px-5 py-5', className)}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
@@ -22,9 +27,11 @@ export const SignInCallout: FC<Props> = ({ className }) => (
         <Button asChild variant="outline" size="sm">
           <Link href="/auth/signin">Sign in</Link>
         </Button>
-        <Button asChild size="sm">
-          <Link href="/auth/signup">Create account</Link>
-        </Button>
+        {registrationOpen && (
+          <Button asChild size="sm">
+            <Link href="/auth/signup">Create account</Link>
+          </Button>
+        )}
       </div>
     </div>
   </div>

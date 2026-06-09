@@ -122,6 +122,18 @@ export const POST = traceApiRoute(
       })
     }
 
+    // A closed server accepts no new accounts at all. This is orthogonal to
+    // `allowEmails` below (which restricts *who* may register while open), so
+    // it is checked first and independently.
+    if (!config.registrationOpen) {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Registration is closed' },
+        responseStatusCode: 403
+      })
+    }
+
     const { host: domain, allowEmails } = config
     // The web sign-up form posts urlencoded/multipart form data.
     let body: Record<string, unknown>

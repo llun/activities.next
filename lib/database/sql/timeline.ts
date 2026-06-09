@@ -191,6 +191,24 @@ export const TimelineSQLDatabaseMixin = (
     }
   },
 
+  async getLocalPublicStatusesCount(): Promise<number> {
+    // Mirror the LOCAL_PUBLIC selection in getTimeline: top-level (non-reply)
+    // statuses addressed to the public collection and authored by a local actor
+    // (one with a private key). countDistinct guards against a status appearing
+    // under more than one matching recipient row.
+    const row = await database('recipients')
+      .where('recipients.type', 'to')
+      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+      .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
+      .innerJoin('actors', 'statuses.actorId', 'actors.id')
+      .whereNotNull('actors.privateKey')
+      .where('statuses.reply', '')
+      .countDistinct<{ count: string | number }>('statuses.id as count')
+      .first()
+    // count() returns a string on PostgreSQL and a number on SQLite.
+    return row ? Number(row.count) : 0
+  },
+
   async createTimelineStatus({
     actorId,
     status,

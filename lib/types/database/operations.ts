@@ -2266,6 +2266,13 @@ export interface TimelineDatabase {
     limit
   }: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
+  /**
+   * Total number of statuses visible on the local public timeline (the same
+   * set `getTimeline({ timeline: LOCAL_PUBLIC })` pages over). Used to decide
+   * whether the logged-out landing previews the public feed or shows the brand
+   * hero.
+   */
+  getLocalPublicStatusesCount(): Promise<number>
 }
 
 // ============================================================================

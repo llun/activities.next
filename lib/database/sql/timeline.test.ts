@@ -658,5 +658,79 @@ describe('TimelineDatabase', () => {
         })
       })
     })
+
+    describe('getLocalPublicStatusesCount', () => {
+      const COUNT_ACTOR = `https://${TEST_DOMAIN}/users/count-public`
+
+      beforeAll(async () => {
+        await database.createActor({
+          actorId: COUNT_ACTOR,
+          username: 'count-public',
+          domain: TEST_DOMAIN,
+          publicKey: 'publicKey-count-public',
+          privateKey: 'privateKey-count-public',
+          inboxUrl: `${COUNT_ACTOR}/inbox`,
+          sharedInboxUrl: `${COUNT_ACTOR}/inbox`,
+          followersUrl: `${COUNT_ACTOR}/followers`,
+          createdAt: Date.now()
+        })
+      })
+
+      afterAll(async () => {
+        await database.deleteActor({ actorId: COUNT_ACTOR })
+      })
+
+      it('counts only top-level public statuses, ignoring replies and non-public posts', async () => {
+        // Assert on the delta rather than an absolute count: the public
+        // timeline is server-wide and other suites seed public posts too.
+        const before = await database.getLocalPublicStatusesCount()
+
+        await database.createNote({
+          actorId: COUNT_ACTOR,
+          cc: [],
+          to: [ACTIVITY_STREAM_PUBLIC],
+          id: `${COUNT_ACTOR}/statuses/count-public-1`,
+          text: 'Counted public status',
+          url: `${COUNT_ACTOR}/statuses/count-public-1`,
+          reply: '',
+          createdAt: Date.now()
+        })
+        await database.createNote({
+          actorId: COUNT_ACTOR,
+          cc: [],
+          to: [ACTIVITY_STREAM_PUBLIC],
+          id: `${COUNT_ACTOR}/statuses/count-public-2`,
+          text: 'Second counted public status',
+          url: `${COUNT_ACTOR}/statuses/count-public-2`,
+          reply: '',
+          createdAt: Date.now()
+        })
+        // A reply: excluded (reply !== '').
+        await database.createNote({
+          actorId: COUNT_ACTOR,
+          cc: [],
+          to: [ACTIVITY_STREAM_PUBLIC],
+          id: `${COUNT_ACTOR}/statuses/count-reply`,
+          text: 'A public reply that should not count',
+          url: `${COUNT_ACTOR}/statuses/count-reply`,
+          reply: `${COUNT_ACTOR}/statuses/count-public-1`,
+          createdAt: Date.now()
+        })
+        // Followers-only: excluded (not addressed to the public collection).
+        await database.createNote({
+          actorId: COUNT_ACTOR,
+          cc: [`${COUNT_ACTOR}/followers`],
+          to: [],
+          id: `${COUNT_ACTOR}/statuses/count-followers`,
+          text: 'A followers-only status that should not count',
+          url: `${COUNT_ACTOR}/statuses/count-followers`,
+          reply: '',
+          createdAt: Date.now()
+        })
+
+        const after = await database.getLocalPublicStatusesCount()
+        expect(after - before).toBe(2)
+      }, 10000)
+    })
   })
 })

@@ -37,6 +37,7 @@ const Config = z.object({
   queue: QueueConfig.optional(),
   push: PushConfig.optional(),
   allowEmails: z.string().array(),
+  registrationOpen: z.boolean().default(true),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
   allowActorDomains: z.string().array().optional(),
@@ -113,6 +114,10 @@ const getConfigFromEnvironment = () => {
       languages: getLanguagesConfig(),
       secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
       allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
+      // Registration is open unless explicitly disabled. Orthogonal to
+      // `allowEmails` (which restricts *who* may register when open): setting
+      // this to `false` closes new-account sign-up entirely.
+      registrationOpen: process.env.ACTIVITIES_REGISTRATION_OPEN !== 'false',
       allowMediaDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
       ),
