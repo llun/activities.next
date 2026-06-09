@@ -4945,7 +4945,7 @@ __metadata:
     eslint-config-standard: "npm:^17.1.0"
     eslint-plugin-import: "npm:^2.32.0"
     eslint-plugin-jest: "npm:^29.15.2"
-    eslint-plugin-n: "npm:^18.0.1"
+    eslint-plugin-n: "npm:^18.1.0"
     eslint-plugin-promise: "npm:^7.3.0"
     eslint-plugin-unused-imports: "npm:^4.4.1"
     fast-xml-parser: "npm:^5.8.0"
@@ -6912,9 +6912,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint-plugin-n@npm:^18.0.1":
-  version: 18.0.1
-  resolution: "eslint-plugin-n@npm:18.0.1"
+"eslint-plugin-n@npm:^18.1.0":
+  version: 18.1.0
+  resolution: "eslint-plugin-n@npm:18.1.0"
   dependencies:
     "@eslint-community/eslint-utils": "npm:^4.5.0"
     enhanced-resolve: "npm:^5.17.1"
@@ -6933,7 +6933,7 @@ __metadata:
       optional: true
     typescript:
       optional: true
-  checksum: 10c0/5deb55ccd8d0781f68b47dcfb1784aebb3292d594889a3332c8a2aa2f8ba648544aba83f2542b85cc0f49cc5b654246f5ae8830a91a51520a5b076273e3b98b0
+  checksum: 10c0/19f555e79213a0b2a6ccf1ab6150ecc98ee00cf12e99bf277429793574c25ac47b05b4133eac9a9ee7989ba62793f71dacb8a2b0a001d5e70d96c3dde69c05d3
   languageName: node
   linkType: hard
 
