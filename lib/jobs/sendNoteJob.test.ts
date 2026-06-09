@@ -99,7 +99,11 @@ describe('sendNoteJob', () => {
       }
     })
 
-    // Job should complete without error
+    expect(
+      fetchMock.mock.calls.some(
+        (call) => call[0] === 'https://somewhere.test/inbox'
+      )
+    ).toBe(true)
   })
 
   it('does not send notes to suspended domains', async () => {

@@ -55,21 +55,21 @@ export const seedDatabase = async (database: Database) => {
   await database.createFollow({
     actorId: primaryActor.id,
     targetActorId: EXTERNAL_ACTOR1,
-    inbox: `${primaryActor.id}/indbox`,
+    inbox: `${primaryActor.id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
   await database.createFollow({
     actorId: primaryActor.id,
     targetActorId: 'https://llun.dev/users/test2',
-    inbox: `${primaryActor.id}/indbox`,
+    inbox: `${primaryActor.id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
   await database.createFollow({
     actorId: primaryActor.id,
     targetActorId: 'https://somewhere.test/actors/request-following',
-    inbox: `${primaryActor.id}/indbox`,
+    inbox: `${primaryActor.id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Requested
   })
@@ -96,7 +96,7 @@ export const seedDatabase = async (database: Database) => {
   await database.createFollow({
     actorId: replyAuthor.id,
     targetActorId: 'https://llun.dev/users/test2',
-    inbox: `${replyAuthor.id}/indbox`,
+    inbox: `${replyAuthor.id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })

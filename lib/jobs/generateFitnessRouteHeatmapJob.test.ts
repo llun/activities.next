@@ -16,7 +16,7 @@ import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob
 import { JOBS } from './index'
 
 jest.mock('@/lib/services/fitness-files', () => {
-  const actual = jest.requireActual('../services/fitness-files')
+  const actual = jest.requireActual('@/lib/services/fitness-files')
   return {
     ...actual,
     getFitnessFile: jest.fn()
