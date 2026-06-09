@@ -5,6 +5,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
+import { switchActor } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -105,12 +106,8 @@ export const AuthorizeCard: FC<Props> = ({
 
     setIsSwitching(true)
     try {
-      const response = await fetch('/api/v1/actors/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId })
-      })
-      if (response.ok) {
+      const ok = await switchActor({ actorId })
+      if (ok) {
         setSelectedActorId(actorId)
       }
     } catch {
@@ -120,14 +117,8 @@ export const AuthorizeCard: FC<Props> = ({
     }
   }
 
-  const persistSelectedActor = async () => {
-    const response = await fetch('/api/v1/actors/switch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actorId: selectedActorId })
-    })
-    return response.ok
-  }
+  const persistSelectedActor = async () =>
+    switchActor({ actorId: selectedActorId })
 
   const redirectWithError = (error: string) => {
     const redirectUri = searchParams.redirect_uri

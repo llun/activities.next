@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   actorId: string
+  currentTime: number
 }
 
 type PresetKey = '30d' | '90d' | 'year' | '10y' | 'custom'
@@ -44,17 +45,17 @@ const CALENDAR_METRICS: Array<[CalendarMetric, string]> = [
 
 const MIN_DATE_RANGE_MS = 7 * 24 * 60 * 60 * 1000
 
+// Format using UTC getters so the server render and the client hydration
+// produce the same string regardless of the local timezone.
 const formatDateInput = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
-const getPresetStartDate = (days: number) => {
-  const now = new Date()
-  return formatDateInput(new Date(now.getTime() - days * 24 * 60 * 60 * 1000))
-}
+const getPresetStartDate = (currentTime: number, days: number) =>
+  formatDateInput(new Date(currentTime - days * 24 * 60 * 60 * 1000))
 
 const formatDistance = (meters: number): string => {
   if (meters < 1000) return `${Math.round(meters)} m`
@@ -88,10 +89,14 @@ const getTotals = (summary: FitnessActivitySummary[]) =>
     }
   )
 
-export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
+export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
   const [preset, setPreset] = useState<PresetKey>('90d')
-  const [startDate, setStartDate] = useState(() => getPresetStartDate(90))
-  const [endDate, setEndDate] = useState(() => formatDateInput(new Date()))
+  const [startDate, setStartDate] = useState(() =>
+    getPresetStartDate(currentTime, 90)
+  )
+  const [endDate, setEndDate] = useState(() =>
+    formatDateInput(new Date(currentTime))
+  )
   const [summary, setSummary] = useState<FitnessActivitySummary[]>([])
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
   const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('count')
@@ -156,8 +161,8 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId }) => {
     const presetDef = PRESETS.find((item) => item.key === newPreset)
     if (!presetDef) return
     setPreset(newPreset)
-    setStartDate(getPresetStartDate(presetDef.days))
-    setEndDate(formatDateInput(new Date()))
+    setStartDate(getPresetStartDate(currentTime, presetDef.days))
+    setEndDate(formatDateInput(new Date(currentTime)))
   }
 
   return (

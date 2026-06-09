@@ -23,6 +23,7 @@ import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { waitFor } from '@/lib/utils/waitFor'
 
 export interface CreateNoteParams {
   message: string
@@ -649,6 +650,76 @@ export const unfollow = async ({ targetActorId }: FollowParams) => {
   })
   if (response.status !== 200) return false
   return true
+}
+
+interface FollowRequestParams {
+  id: string
+}
+
+/**
+ * Accepts a pending follow request using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/follow_requests/#accept
+ */
+export const acceptFollowRequest = async ({ id }: FollowRequestParams) => {
+  const response = await fetch(
+    `/api/v1/follow_requests/${encodeURIComponent(id)}/authorize`,
+    {
+      method: 'POST'
+    }
+  )
+  return response.ok
+}
+
+/**
+ * Rejects a pending follow request using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/follow_requests/#reject
+ */
+export const rejectFollowRequest = async ({ id }: FollowRequestParams) => {
+  const response = await fetch(
+    `/api/v1/follow_requests/${encodeURIComponent(id)}/reject`,
+    {
+      method: 'POST'
+    }
+  )
+  return response.ok
+}
+
+interface SwitchActorParams {
+  actorId: string
+}
+
+/**
+ * Switches the current session to another actor owned by the account
+ */
+export const switchActor = async ({ actorId }: SwitchActorParams) => {
+  const response = await fetch('/api/v1/actors/switch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actorId })
+  })
+  return response.ok
+}
+
+interface MarkNotificationsReadParams {
+  notificationIds: string[]
+}
+
+/**
+ * Marks the given notifications as read for the current actor
+ */
+export const markNotificationsRead = async ({
+  notificationIds
+}: MarkNotificationsReadParams) => {
+  const response = await fetch('/api/v1/notifications/read', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      notification_ids: notificationIds
+    })
+  })
+  return response.ok
 }
 
 export const getRelationship = async ({
@@ -1333,11 +1404,6 @@ type CompleteUploadPresignedUrlWithRetryResult =
 const MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS = 3
 const PRESIGNED_UPLOAD_COMPLETION_RETRY_DELAY_MS = 250
 
-const wait = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-
 const completeUploadPresignedUrlWithRetry = async ({
   mediaId
 }: {
@@ -1368,7 +1434,7 @@ const completeUploadPresignedUrlWithRetry = async ({
     }
 
     if (attempt < MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS) {
-      await wait(
+      await waitFor(
         PRESIGNED_UPLOAD_COMPLETION_RETRY_DELAY_MS * 2 ** (attempt - 1)
       )
     }

@@ -66,7 +66,7 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
     }
 
-    const body = await req.json()
+    const body = await req.json().catch(() => null)
     const parsed = CreateActorRequest.safeParse(body)
 
     if (!parsed.success) {

@@ -27,7 +27,7 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
     return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
   }
 
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   const parsed = SwitchActorRequest.safeParse(body)
 
   if (!parsed.success) {

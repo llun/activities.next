@@ -27,8 +27,8 @@ export const POST = traceApiRoute(
       })
     }
 
-    const body = await req.json()
-    const notificationIds = body.notification_ids || []
+    const body = await req.json().catch(() => null)
+    const notificationIds = body?.notification_ids || []
 
     if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
       return apiResponse({
