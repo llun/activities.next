@@ -2,8 +2,10 @@ import crypto from 'crypto'
 
 /**
  * Constant-time string comparison for secrets (webhook tokens, OAuth state).
- * Both inputs are hashed to fixed-length digests first so the comparison
- * neither leaks length information nor requires equal-length inputs.
+ * crypto.timingSafeEqual requires equal-length buffers, so unequal lengths
+ * return false after a self-comparison that keeps the work comparable. The
+ * compared values are fixed-length server-generated tokens, so revealing the
+ * length is not sensitive.
  */
 export const timingSafeStringEqual = (
   a: string | null | undefined,
@@ -11,7 +13,11 @@ export const timingSafeStringEqual = (
 ): boolean => {
   if (typeof a !== 'string' || typeof b !== 'string') return false
 
-  const digestA = crypto.createHash('sha256').update(a).digest()
-  const digestB = crypto.createHash('sha256').update(b).digest()
-  return crypto.timingSafeEqual(digestA, digestB)
+  const bufferA = Buffer.from(a)
+  const bufferB = Buffer.from(b)
+  if (bufferA.length !== bufferB.length) {
+    crypto.timingSafeEqual(bufferA, bufferA)
+    return false
+  }
+  return crypto.timingSafeEqual(bufferA, bufferB)
 }
