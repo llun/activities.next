@@ -83,8 +83,7 @@ export const POST = traceApiRoute(
         }
 
         const passwordResetCode = crypto.randomBytes(32).toString('base64url')
-        const passwordResetCodeHash =
-          await hashPasswordResetCode(passwordResetCode)
+        const passwordResetCodeHash = hashPasswordResetCode(passwordResetCode)
         const previousPasswordResetCode = account.passwordResetCode ?? null
         const previousPasswordResetCodeExpiresAt =
           account.passwordResetCodeExpiresAt ?? null

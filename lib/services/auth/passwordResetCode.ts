@@ -1,35 +1,23 @@
 import crypto from 'crypto'
-import { promisify } from 'util'
 
 import { getConfig } from '@/lib/config'
-
-const KEY_LENGTH = 32
-
-const scrypt = promisify(crypto.scrypt) as (
-  password: crypto.BinaryLike,
-  salt: crypto.BinaryLike,
-  keylen: number
-) => Promise<Buffer>
 
 /**
  * Hash a password reset code for storage and lookup.
  *
- * The reset code is a high-entropy random token (see the request route) that
- * must be hashed deterministically so the stored hash can be used as a database
- * lookup key. We use scrypt — a memory-hard key derivation function — keyed
- * with the server secret as a pepper, instead of a plain fast hash such as
- * SHA-256. This keeps the hash deterministic for lookups while ensuring the
- * stored value resists brute-force and precomputation attacks if the database
- * is ever leaked.
+ * The reset code is a high-entropy random token (crypto.randomBytes(32), 256
+ * bits) — not a user-chosen password — so it cannot be brute-forced even if the
+ * database leaks. A slow password KDF (bcrypt/scrypt/argon2) is therefore
+ * unnecessary here and, on this unauthenticated and unthrottled endpoint, would
+ * be a denial-of-service amplification vector.
  *
- * The asynchronous `crypto.scrypt` is used (rather than `scryptSync`) so the
- * memory-hard computation runs on libuv's thread pool instead of blocking the
- * Node.js event loop under concurrent requests.
+ * We hash the code with HMAC-SHA256 keyed with the server secret
+ * (`secretPhase`). This is deterministic, so the stored hash can be used as a
+ * database lookup key, and keying it with the server secret means a leaked
+ * database alone cannot be used to forge a valid reset code.
  */
-export const hashPasswordResetCode = async (
-  passwordResetCode: string
-): Promise<string> => {
-  const { secretPhase } = getConfig()
-  const derivedKey = await scrypt(passwordResetCode, secretPhase, KEY_LENGTH)
-  return derivedKey.toString('hex')
-}
+export const hashPasswordResetCode = (passwordResetCode: string): string =>
+  crypto
+    .createHmac('sha256', getConfig().secretPhase)
+    .update(passwordResetCode)
+    .digest('hex')

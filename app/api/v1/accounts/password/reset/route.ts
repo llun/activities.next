@@ -61,7 +61,7 @@ export const POST = traceApiRoute(
 
     try {
       const { code, newPassword } = parsed.data
-      const passwordResetCode = await hashPasswordResetCode(code)
+      const passwordResetCode = hashPasswordResetCode(code)
       const accountId = await database.validatePasswordResetCode({
         passwordResetCode
       })
