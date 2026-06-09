@@ -12,20 +12,28 @@ interface LandingProps {
   /** Recent public statuses to preview. Empty → the brand hero is shown. */
   statuses: Status[]
   serviceName: string
+  /**
+   * Whether the server is accepting new account sign-ups. When `false`, the
+   * auth card drops the "Create account" path for a sign-in-only "registration
+   * closed" notice. Defaults to open.
+   */
+  signupOpen?: boolean
 }
 
 /**
  * Logged-out landing: a full-bleed split with the auth card on the right and,
  * on the left, either a preview of the server's public timeline (when there are
  * public posts) or a brand hero. Mirrors the design system's web-landing kit
- * (`feed.html` / `index.html`). Sits on the body's signature dual-tint gradient;
- * the auth column is translucent so the backdrop reads through.
+ * (`feed.html` / `index.html`, plus the `*-registration-closed.html` variants).
+ * Sits on the body's signature dual-tint gradient; the auth column is
+ * translucent so the backdrop reads through.
  */
 export const Landing: FC<LandingProps> = ({
   host,
   currentTime,
   statuses,
-  serviceName
+  serviceName,
+  signupOpen = true
 }) => {
   const hasPublicPosts = statuses.length > 0
   return (
@@ -42,7 +50,7 @@ export const Landing: FC<LandingProps> = ({
         )}
       </div>
       <div className="flex min-h-0 flex-col bg-background/80 md:overflow-y-auto">
-        <LandingAuthPanel serviceName={serviceName} />
+        <LandingAuthPanel serviceName={serviceName} signupOpen={signupOpen} />
       </div>
     </main>
   )

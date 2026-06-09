@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 
 import { GET, POST } from './route'
@@ -7,7 +8,8 @@ import { GET, POST } from './route'
 jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
-    allowEmails: []
+    allowEmails: [],
+    registrationOpen: true
   })
 }))
 
@@ -115,6 +117,27 @@ describe('POST /api/v1/accounts', () => {
     })
     const res = await POST(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(501)
+    expect(createAccount).not.toHaveBeenCalled()
+  })
+
+  it('rejects web sign-up with 403 when registration is closed', async () => {
+    jest.mocked(getConfig).mockReturnValueOnce({
+      host: 'llun.test',
+      allowEmails: [],
+      registrationOpen: false
+    } as never)
+    const createAccount = jest.fn()
+    mockDatabase = { ...mockDatabase!, createAccount } as never
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'username=alice&email=alice@example.com&password=password123',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(403)
     expect(createAccount).not.toHaveBeenCalled()
   })
 })
