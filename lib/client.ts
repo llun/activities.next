@@ -380,6 +380,45 @@ export const getTranslationCapability = (): Promise<TranslationCapability> => {
   return translationCapabilityPromise
 }
 
+// A map of source language (ISO 639-1) → the target languages the configured
+// backend can translate it into.
+export type TranslationLanguages = Record<string, string[]>
+
+let translationLanguagesPromise: Promise<TranslationLanguages> | null = null
+
+/**
+ * Reads the supported source→target language pairs from
+ * `/api/v1/instance/translation_languages`, memoized for the session. Used to
+ * populate the Translate control's target-language picker.
+ * @see https://docs.joinmastodon.org/methods/instance/#translation_languages
+ */
+export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
+  if (!translationLanguagesPromise) {
+    translationLanguagesPromise = fetch(
+      '/api/v1/instance/translation_languages'
+    )
+      .then((response) => {
+        // Throw on a non-OK status so an HTTP 5xx falls through to the catch
+        // and clears the memo too — not just network rejections.
+        if (!response.ok) {
+          throw new Error('Failed to fetch translation languages')
+        }
+        return response.json()
+      })
+      .then(
+        (data): TranslationLanguages =>
+          data && typeof data === 'object' ? data : {}
+      )
+      .catch(() => {
+        // Don't pin a transient failure for the whole session — clear the memo
+        // so a later call can retry once the network/backend recovers.
+        translationLanguagesPromise = null
+        return {}
+      })
+  }
+  return translationLanguagesPromise
+}
+
 /**
  * Favourites/likes a status using Mastodon-compatible API
  * @see https://docs.joinmastodon.org/methods/statuses/#favourite
