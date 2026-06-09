@@ -33,7 +33,7 @@ const Page: FC = async () => {
     return redirect('/')
   }
 
-  const { auth, serviceName } = getConfig()
+  const { auth, serviceName, registrationOpen } = getConfig()
   const credentialEnabled = auth?.enableCredential !== false
 
   return (
@@ -61,14 +61,16 @@ const Page: FC = async () => {
 
         <PasskeySigninButton />
       </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link href="/auth/signup" className="text-primary hover:underline">
-            Sign up
-          </Link>
-        </p>
-      </CardFooter>
+      {registrationOpen && (
+        <CardFooter className="justify-center">
+          <p className="text-sm text-muted-foreground">
+            Don&apos;t have an account?{' '}
+            <Link href="/auth/signup" className="text-primary hover:underline">
+              Sign up
+            </Link>
+          </p>
+        </CardFooter>
+      )}
     </Card>
   )
 }

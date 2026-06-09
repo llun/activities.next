@@ -14,6 +14,7 @@ import {
 } from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
@@ -25,6 +26,12 @@ export const metadata: Metadata = {
 const Page: FC = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
+
+  // When the server has closed registration there is no sign-up to show; send
+  // visitors to the landing, whose auth card explains registration is closed.
+  if (!getConfig().registrationOpen) {
+    return redirect('/')
+  }
 
   const session = await getServerAuthSession()
   if (session && session.user) {

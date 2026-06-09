@@ -191,6 +191,34 @@ export const TimelineSQLDatabaseMixin = (
     }
   },
 
+  async getLocalPublicStatusesCount(limit?: number): Promise<number> {
+    // Mirror the LOCAL_PUBLIC selection in getTimeline: top-level (non-reply)
+    // statuses addressed to the public collection and authored by a local actor
+    // (one with a private key).
+    const query = database('recipients')
+      .where('recipients.type', 'to')
+      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+      .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
+      .innerJoin('actors', 'statuses.actorId', 'actors.id')
+      .whereNotNull('actors.privateKey')
+      .where('statuses.reply', '')
+
+    // The landing only needs to know whether the count reaches a threshold, not
+    // the exact total. When `limit` is given, fetch at most `limit` distinct ids
+    // and return how many came back, so the scan stops early instead of counting
+    // every public post on every unauthenticated request (a DoS risk at scale).
+    if (limit !== undefined) {
+      const rows = await query.distinct('statuses.id').limit(limit)
+      return rows.length
+    }
+
+    const row = await query
+      .countDistinct<{ count: string | number }>({ count: 'statuses.id' })
+      .first()
+    // count() returns a string on PostgreSQL and a number on SQLite.
+    return row ? Number(row.count) : 0
+  },
+
   async createTimelineStatus({
     actorId,
     status,

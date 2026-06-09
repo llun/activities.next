@@ -18,7 +18,11 @@ import { MainPageTimeline } from './MainPageTimeline'
 import { Landing } from './landing/Landing'
 
 // Number of recent public posts previewed in the logged-out landing feed.
-const LANDING_FEED_LIMIT = 5
+const LANDING_FEED_LIMIT = 20
+// The landing only previews the public timeline once the server has at least
+// this many public posts; below the threshold it shows the brand hero instead,
+// so a sparse new server doesn't lead with a near-empty feed.
+const LANDING_FEED_MIN_POSTS = 100
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -26,7 +30,7 @@ export const metadata: Metadata = {
 }
 
 const Page = async () => {
-  const { host, serviceName, mediaStorage } = getConfig()
+  const { host, serviceName, mediaStorage, registrationOpen } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Fail to load database')
@@ -35,24 +39,34 @@ const Page = async () => {
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor) {
-    // Logged-out visitors get the landing. When the server has public posts the
-    // landing previews its recent public timeline; otherwise it shows the brand
-    // hero. Both variants share the create/sign-in card. A failure to load the
-    // public preview degrades to the hero rather than 500-ing the public front
-    // door — but it's logged so an outage isn't silently hidden as "no posts".
+    // Logged-out visitors get the landing. The landing only previews the public
+    // timeline once the server has a healthy number of public posts
+    // (LANDING_FEED_MIN_POSTS); below that it shows the brand hero so a sparse
+    // server doesn't lead with a near-empty feed. The right-hand auth card
+    // reflects whether sign-up is open. A failure to load the preview degrades
+    // to the hero rather than 500-ing the public front door — but it's logged
+    // so an outage isn't silently hidden as "no posts".
     let publicStatuses: Status[] = []
     try {
-      const { statuses } = await getFilteredStatusPage({
-        database,
-        limit: LANDING_FEED_LIMIT,
-        fetchBatch: ({ maxStatusId, limit }) =>
-          database.getTimeline({
-            timeline: Timeline.LOCAL_PUBLIC,
-            maxStatusId,
-            limit
-          })
-      })
-      publicStatuses = statuses
+      // Bounded check: only need to know whether the threshold is reached, so
+      // the count stops at LANDING_FEED_MIN_POSTS rather than scanning every
+      // public post on each anonymous request.
+      const publicCount = await database.getLocalPublicStatusesCount(
+        LANDING_FEED_MIN_POSTS
+      )
+      if (publicCount >= LANDING_FEED_MIN_POSTS) {
+        const { statuses } = await getFilteredStatusPage({
+          database,
+          limit: LANDING_FEED_LIMIT,
+          fetchBatch: ({ maxStatusId, limit }) =>
+            database.getTimeline({
+              timeline: Timeline.LOCAL_PUBLIC,
+              maxStatusId,
+              limit
+            })
+        })
+        publicStatuses = statuses
+      }
     } catch (error) {
       logger.error({
         err: error,
@@ -65,6 +79,7 @@ const Page = async () => {
         currentTime={Date.now()}
         statuses={publicStatuses.map((item) => cleanJson(item))}
         serviceName={serviceName ?? 'Activities'}
+        signupOpen={registrationOpen}
       />
     )
   }

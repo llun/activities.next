@@ -44,7 +44,7 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host, fitnessStorage, mediaStorage } = getConfig()
+  const { host, fitnessStorage, mediaStorage, registrationOpen } = getConfig()
   const mapboxAccessToken = getPublicMapboxAccessToken(
     fitnessStorage?.mapboxAccessToken
   )
@@ -235,7 +235,9 @@ const Page: FC<Props> = async ({ params }) => {
           ) : null}
         </div>
 
-        {!currentActorProfile ? <SignInCallout /> : null}
+        {!currentActorProfile ? (
+          <SignInCallout registrationOpen={registrationOpen} />
+        ) : null}
       </div>
     )
   }
@@ -294,7 +296,9 @@ const Page: FC<Props> = async ({ params }) => {
         ) : null}
       </div>
 
-      {!currentActorProfile ? <SignInCallout /> : null}
+      {!currentActorProfile ? (
+        <SignInCallout registrationOpen={registrationOpen} />
+      ) : null}
 
       {replies.length > 0 ? (
         <div>
