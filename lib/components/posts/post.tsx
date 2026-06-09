@@ -139,6 +139,9 @@ export const Post: FC<PostProps> = (props) => {
   const translationLanguage = props.currentActor ? actualStatus.language : null
   const statusBody = (
     <TranslationProvider
+      // Reset translation state cleanly if a mounted Post is reused for a
+      // different status (e.g. in a virtualized feed).
+      key={actualStatus.id}
       statusId={actualStatus.id}
       language={translationLanguage}
     >

@@ -118,9 +118,14 @@ export const useStatusTranslation = (
   const isDefaultTarget = Boolean(
     defaultLanguage && source && source === defaultLanguage
   )
-  const canTranslate = Boolean(enabled && source && !isDefaultTarget)
 
   const effectiveTarget = target ?? defaultLanguage ?? options[0] ?? null
+
+  // Require a resolvable target too: with a backend enabled but no advertised
+  // target for this source, the control would otherwise be a dead button.
+  const canTranslate = Boolean(
+    enabled && source && !isDefaultTarget && effectiveTarget !== null
+  )
 
   // Tracks the latest state for `pickTarget` without recreating the callback
   // (and without nesting side effects inside a state updater).
@@ -129,11 +134,17 @@ export const useStatusTranslation = (
     stateRef.current = state
   }, [state])
 
+  // The most recently requested target. Rapid target switches fire concurrent
+  // requests that can resolve out of order; only the latest one is allowed to
+  // drive the visible state (every result is still cached for instant reuse).
+  const lastRequestedTargetRef = useRef<string | null>(null)
+
   const request = useCallback(
     (lang?: string) => {
       const to = lang ?? effectiveTarget
       if (!to) return
       setTarget(to)
+      lastRequestedTargetRef.current = to
       if (cache[to]) {
         setState('translated')
         return
@@ -141,14 +152,13 @@ export const useStatusTranslation = (
       setState('loading')
       translateStatus({ statusId, language: to })
         .then((result) => {
-          if (!result) {
-            setState('error')
-            return
-          }
-          setCache((next) => ({ ...next, [to]: result }))
-          setState('translated')
+          if (result) setCache((next) => ({ ...next, [to]: result }))
+          if (lastRequestedTargetRef.current !== to) return
+          setState(result ? 'translated' : 'error')
         })
-        .catch(() => setState('error'))
+        .catch(() => {
+          if (lastRequestedTargetRef.current === to) setState('error')
+        })
     },
     [statusId, effectiveTarget, cache]
   )

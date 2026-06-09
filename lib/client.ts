@@ -402,7 +402,12 @@ export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
         (data): TranslationLanguages =>
           data && typeof data === 'object' ? data : {}
       )
-      .catch(() => ({}))
+      .catch(() => {
+        // Don't pin a transient failure for the whole session — clear the memo
+        // so a later call can retry once the network/backend recovers.
+        translationLanguagesPromise = null
+        return {}
+      })
   }
   return translationLanguagesPromise
 }
