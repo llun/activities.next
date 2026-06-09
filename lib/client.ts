@@ -380,6 +380,33 @@ export const getTranslationCapability = (): Promise<TranslationCapability> => {
   return translationCapabilityPromise
 }
 
+// A map of source language (ISO 639-1) → the target languages the configured
+// backend can translate it into.
+export type TranslationLanguages = Record<string, string[]>
+
+let translationLanguagesPromise: Promise<TranslationLanguages> | null = null
+
+/**
+ * Reads the supported source→target language pairs from
+ * `/api/v1/instance/translation_languages`, memoized for the session. Used to
+ * populate the Translate control's target-language picker.
+ * @see https://docs.joinmastodon.org/methods/instance/#translation_languages
+ */
+export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
+  if (!translationLanguagesPromise) {
+    translationLanguagesPromise = fetch(
+      '/api/v1/instance/translation_languages'
+    )
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (data): TranslationLanguages =>
+          data && typeof data === 'object' ? data : {}
+      )
+      .catch(() => ({}))
+  }
+  return translationLanguagesPromise
+}
+
 /**
  * Favourites/likes a status using Mastodon-compatible API
  * @see https://docs.joinmastodon.org/methods/statuses/#favourite
