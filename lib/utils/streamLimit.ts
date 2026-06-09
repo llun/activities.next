@@ -27,24 +27,6 @@ export const assertByteLengthWithinLimit = ({
   }
 }
 
-export const assertResponseContentLengthWithinLimit = (
-  response: Pick<Response, 'headers'>,
-  maxBytes: number,
-  label = 'Response body'
-) => {
-  const contentLength = response.headers.get('content-length')
-  if (!contentLength) {
-    return
-  }
-
-  const parsedLength = Number(contentLength)
-  assertByteLengthWithinLimit({
-    byteLength: parsedLength,
-    maxBytes,
-    label
-  })
-}
-
 const getSafeResponseContentLength = (
   response: Pick<Response, 'headers'>,
   maxBytes: number,

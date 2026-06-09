@@ -9,7 +9,14 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { Note } from '@/lib/types/activitypub/objects'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubContent,
+  toRecipientArray
+} from '@/lib/utils/activitypub'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 import { request } from '@/lib/utils/request'
 
 import { createJobHandle } from './createJobHandle'
@@ -39,9 +46,9 @@ const fetchRemoteStatus = async (
 
   // 3. Check if public
   const publicStreams = [
-    'https://www.w3.org/ns/activitystreams#Public',
+    ACTIVITY_STREAM_PUBLIC,
     'Public',
-    'as:Public'
+    ACTIVITY_STREAM_PUBLIC_COMPACT
   ]
   const isPublic =
     (Array.isArray(note.to) &&
@@ -63,16 +70,8 @@ const fetchRemoteStatus = async (
   if (!actor) return null
 
   // 5. Create status in database
-  const to = Array.isArray(sanitizedNote.to)
-    ? sanitizedNote.to
-    : sanitizedNote.to
-      ? [sanitizedNote.to]
-      : []
-  const cc = Array.isArray(sanitizedNote.cc)
-    ? sanitizedNote.cc
-    : sanitizedNote.cc
-      ? [sanitizedNote.cc]
-      : []
+  const to = toRecipientArray(sanitizedNote.to)
+  const cc = toRecipientArray(sanitizedNote.cc)
 
   try {
     await database.createNote({
@@ -211,16 +210,8 @@ export const fetchRemoteStatusJob = createJobHandle(
           if (!actor) return
 
           // Create reply status
-          const replyTo = Array.isArray(sanitizedReply.to)
-            ? sanitizedReply.to
-            : sanitizedReply.to
-              ? [sanitizedReply.to]
-              : []
-          const replyCc = Array.isArray(sanitizedReply.cc)
-            ? sanitizedReply.cc
-            : sanitizedReply.cc
-              ? [sanitizedReply.cc]
-              : []
+          const replyTo = toRecipientArray(sanitizedReply.to)
+          const replyCc = toRecipientArray(sanitizedReply.cc)
 
           try {
             await database.createNote({

@@ -185,14 +185,6 @@ export const getFitnessPrivacyLocations = (
   return legacyLocation ? [legacyLocation] : []
 }
 
-export const getFitnessPrivacyLocation = (
-  settings: PrivacySettingsInput | null | undefined
-): FitnessPrivacyLocation | null => {
-  // Legacy compatibility helper for code paths still expecting a single value.
-  // New multi-location logic should use `getFitnessPrivacyLocations`.
-  return getFitnessPrivacyLocations(settings)[0] ?? null
-}
-
 export const getDistanceMeters = (
   first: Coordinate,
   second: Coordinate

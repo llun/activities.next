@@ -151,18 +151,3 @@ export const prepareGroupedNotifications = (
   groupedTypes?: Set<NotificationType>
 ): GroupedNotification[] =>
   groupNotifications(notifications, true, groupedTypes)
-
-// Convenience: group raw notifications then build the envelope.
-export const buildNotificationGroupsEnvelope = (
-  database: Database,
-  notifications: Notification[],
-  currentActorId?: string,
-  groupedTypes?: Set<NotificationType>,
-  filterRecords?: ActiveFilterRecord[]
-): Promise<NotificationGroupsEnvelope> =>
-  getNotificationGroupsEnvelope(
-    database,
-    prepareGroupedNotifications(notifications, groupedTypes),
-    currentActorId,
-    filterRecords
-  )

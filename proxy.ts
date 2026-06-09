@@ -48,7 +48,7 @@ export async function proxy(request: NextRequest) {
       }
 
       // Actor status route
-      if (/^\/@\w+\/[\w-]+$/.test(pathname) && acceptValue) {
+      if (/^\/@\w+\/[\w-]+$/.test(pathname)) {
         const matches = pathname.match(
           /^\/@(?<username>\w+)\/(?<statusId>[\w-]+)/
         )
@@ -61,9 +61,7 @@ export async function proxy(request: NextRequest) {
     // Redirect actor with no host
     if (request.nextUrl.pathname.startsWith('/@')) {
       const pathname = request.nextUrl.pathname
-      const totalAt = pathname
-        .split('')
-        .reduce((count, char) => (char === '@' ? count + 1 : count), 0)
+      const totalAt = pathname.split('@').length - 1
       if (totalAt === 2) {
         return withContentSecurityPolicy(NextResponse.next())
       }

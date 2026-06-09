@@ -7,6 +7,7 @@ import {
   SafeRemoteFetchMethod,
   safeRemoteFetch
 } from '@/lib/utils/safeRemoteFetch'
+import { waitFor } from '@/lib/utils/waitFor'
 import packageJson from '@/package.json'
 
 const USER_AGENT = `activities.next/${packageJson.version}`
@@ -113,11 +114,6 @@ const getRequestOptions = ({
     timeoutInMilliseconds: defaultResponseTimeout
   }
 }
-
-const wait = (milliseconds: number) =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, milliseconds)
-  })
 
 const getRetryDelay = (attempt: number, retryNoise: number | null) => {
   const noise = retryNoise ? Math.random() * Math.abs(retryNoise) : 0
@@ -234,7 +230,7 @@ export const request = async ({
       if (retryDelay === null) return response
 
       attempt += 1
-      await wait(retryDelay)
+      await waitFor(retryDelay)
     } catch (error) {
       if (
         attempt >= options.numberOfRetry ||
@@ -243,7 +239,7 @@ export const request = async ({
         throw error
       }
       attempt += 1
-      await wait(getRetryDelay(attempt - 1, options.retryNoise))
+      await waitFor(getRetryDelay(attempt - 1, options.retryNoise))
     }
   }
 }
