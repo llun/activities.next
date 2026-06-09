@@ -120,7 +120,10 @@ export const getLanguage = (object: BaseNote): string | null => {
   const localeKey =
     firstLocaleKey(object.contentMap) ?? firstLocaleKey(object.summaryMap)
   if (!localeKey) return null
-  return normalizeLanguageCode(localeKey) || null
+  // Reject malformed locale keys (e.g. "12", "!@", "a") so only a valid
+  // two-letter ISO 639-1 code is persisted.
+  const language = normalizeLanguageCode(localeKey)
+  return /^[a-z]{2}$/.test(language) ? language : null
 }
 
 export const getSummary = (object: BaseNote) => {

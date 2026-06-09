@@ -341,6 +341,16 @@ describe('note entity utilities', () => {
         description: 'returns null when neither map is present',
         note: { type: 'Note' },
         expected: null
+      },
+      {
+        description: 'returns null for a non-alphabetic locale key',
+        note: { type: 'Note', contentMap: { '12': '<p>Hello</p>' } },
+        expected: null
+      },
+      {
+        description: 'returns null for a single-character locale key',
+        note: { type: 'Note', contentMap: { a: '<p>Hello</p>' } },
+        expected: null
       }
     ])('$description', ({ note, expected }) => {
       expect(getLanguage(note as unknown as BaseNote)).toEqual(expected)
