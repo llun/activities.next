@@ -69,6 +69,37 @@ describe('useStatusTranslation', () => {
     expect(result.current.translation?.language).toBe('es')
   })
 
+  it('only offers backend-supported targets and leads with the default', async () => {
+    ;(getTranslationLanguages as jest.Mock).mockResolvedValue({
+      de: ['fr', 'en', 'es']
+    })
+    const { result } = renderHook(() => useStatusTranslation('id-3', 'de'))
+    await waitFor(() => expect(result.current.canTranslate).toBe(true))
+    // Default language ('en') leads; the unsupported direction is never added.
+    expect(result.current.options).toEqual(['en', 'fr', 'es'])
+    expect(result.current.target).toBe('en')
+  })
+
+  it('does not offer the default language when the backend cannot translate into it', async () => {
+    ;(getTranslationLanguages as jest.Mock).mockResolvedValue({
+      de: ['fr', 'es']
+    })
+    const { result } = renderHook(() => useStatusTranslation('id-4', 'de'))
+    await waitFor(() => expect(result.current.canTranslate).toBe(true))
+    // 'en' is the server default but not a supported target for 'de'.
+    expect(result.current.options).toEqual(['fr', 'es'])
+    expect(result.current.options).not.toContain('en')
+    expect(result.current.target).toBe('fr')
+  })
+
+  it('falls back to the default target when no pairs are advertised', async () => {
+    ;(getTranslationLanguages as jest.Mock).mockResolvedValue({})
+    const { result } = renderHook(() => useStatusTranslation('id-5', 'de'))
+    await waitFor(() => expect(result.current.canTranslate).toBe(true))
+    expect(result.current.options).toEqual(['en'])
+    expect(result.current.target).toBe('en')
+  })
+
   it('caches each target so re-requesting it does not re-hit the backend', async () => {
     ;(translateStatus as jest.Mock).mockImplementation(
       ({ language }: { language: string }) =>

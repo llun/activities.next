@@ -102,16 +102,34 @@ export const useStatusTranslation = (
     }
   }, [source])
 
+  // Whether the backend reported concrete source→target pairs. When it did, we
+  // only offer directions it actually supports; otherwise we fall back to a
+  // best-effort single target (the server's default language).
+  const hasPairs = Object.keys(pairs).length > 0
+
   const options = useMemo(() => {
-    const targets = (source && pairs[source]) || []
-    const normalized = [
-      ...(defaultLanguage ? [defaultLanguage] : []),
-      ...targets.map(normalizeLanguage)
-    ]
-    return normalized
-      .filter((code) => code !== source)
-      .filter((code, index, all) => all.indexOf(code) === index)
-  }, [pairs, source, defaultLanguage])
+    if (!source) return []
+    if (hasPairs) {
+      const supported = (pairs[source] || [])
+        .map(normalizeLanguage)
+        .filter((code) => code !== source)
+        .filter((code, index, all) => all.indexOf(code) === index)
+      // Lead with the viewer's default language when the backend supports
+      // translating into it — but never offer an unsupported direction.
+      if (defaultLanguage && supported.includes(defaultLanguage)) {
+        return [
+          defaultLanguage,
+          ...supported.filter((code) => code !== defaultLanguage)
+        ]
+      }
+      return supported
+    }
+    // No pairs data (the backend couldn't report them) — best-effort to the
+    // server's default language and let the server validate it.
+    return defaultLanguage && defaultLanguage !== source
+      ? [defaultLanguage]
+      : []
+  }, [pairs, hasPairs, source, defaultLanguage])
 
   // The control is hidden when the status is already in the server's primary
   // language — translating it would be an en→en no-op that burns backend quota.
@@ -119,7 +137,7 @@ export const useStatusTranslation = (
     defaultLanguage && source && source === defaultLanguage
   )
 
-  const effectiveTarget = target ?? defaultLanguage ?? options[0] ?? null
+  const effectiveTarget = target ?? options[0] ?? null
 
   // Require a resolvable target too: with a backend enabled but no advertised
   // target for this source, the control would otherwise be a dead button.
