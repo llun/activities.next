@@ -114,6 +114,18 @@ Email is used for account verification and notifications.
 | `ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME`      | Lambda function name.            |
 | `ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER` | Lambda function qualifier/alias. |
 
+## Translation
+
+Optional. Enables `POST /api/v1/statuses/:id/translate` and the Translate control on posts, and sets `translation.enabled` in `/api/v2/instance`. One backend is active at a time, selected by `ACTIVITIES_TRANSLATION_TYPE`; if the required variables for the chosen backend are missing, translation is disabled. Translations are sanitized and cached in the `translation_cache` table.
+
+| Variable                          | Description                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_TRANSLATION_TYPE`     | Translation backend: `deepl`, `libretranslate`, or `openai`.                                                                                                                    |
+| `ACTIVITIES_TRANSLATION_API_KEY`  | API key. Required for `deepl` and `openai`; optional for `libretranslate` (public/self-hosted instances may not need one).                                                      |
+| `ACTIVITIES_TRANSLATION_ENDPOINT` | Backend base URL. Required for `libretranslate` (e.g. `http://libretranslate:5000`) and `openai` (full chat-completions URL of any OpenAI-compatible API). Not used by `deepl`. |
+| `ACTIVITIES_TRANSLATION_MODEL`    | Model name. Required for `openai` only (e.g. `gpt-4o-mini`).                                                                                                                    |
+| `ACTIVITIES_TRANSLATION_PLAN`     | DeepL plan: `free` (default) or `pro`. Routes requests to `api-free.deepl.com` or `api.deepl.com`. Used by `deepl` only.                                                        |
+
 ## Media Storage
 
 Required for media uploads (images and video in posts). If no media storage is configured, media uploads are disabled.
