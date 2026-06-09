@@ -35,7 +35,7 @@ This document tracks the implemented and planned features for Activity.next.
 ### Timelines & Notifications
 
 - ✅ **Main timeline** — Home feed with posts from followed accounts
-- ✅ **Favorites page** — Browse posts you've favourited
+- ✅ **Favorites page** — Browse posts you've favorited
 - ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering
 - ✅ **Notifications** — Like, follow, mention, reblog, and follow request notifications
 - ✅ **Notification grouping** — Group similar notifications together
