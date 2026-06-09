@@ -11,6 +11,7 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
@@ -75,7 +76,10 @@ describe('POST /api/v1/accounts/email-notifications', () => {
       {
         method: 'POST',
         body: 'not-json',
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
     const res = await POST(req, { params: Promise.resolve({}) })
@@ -88,7 +92,10 @@ describe('POST /api/v1/accounts/email-notifications', () => {
       {
         method: 'POST',
         body: JSON.stringify({ like: 'yes' }), // should be boolean
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
     const res = await POST(req, { params: Promise.resolve({}) })
@@ -101,7 +108,10 @@ describe('POST /api/v1/accounts/email-notifications', () => {
       {
         method: 'POST',
         body: JSON.stringify({ like: true, follow: false }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
     const res = await POST(req, { params: Promise.resolve({}) })
@@ -126,7 +136,10 @@ describe('POST /api/v1/accounts/email-notifications', () => {
       {
         method: 'POST',
         body: JSON.stringify({ like: false }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
     await POST(req, { params: Promise.resolve({}) })
@@ -143,7 +156,10 @@ describe('POST /api/v1/accounts/email-notifications', () => {
       {
         method: 'POST',
         body: JSON.stringify({ activity_import: false }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
     const res = await POST(req, { params: Promise.resolve({}) })
@@ -164,7 +180,10 @@ describe('POST /api/v1/accounts/email-notifications', () => {
           actorId: 'https://other.test/users/someone',
           like: true
         }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
     const res = await POST(req, { params: Promise.resolve({}) })

@@ -308,7 +308,6 @@ describe('Strava Settings API', () => {
         'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
-          headers: { Origin: 'https://llun.test' },
           body: '{',
           headers: {
             'Content-Type': 'application/json',

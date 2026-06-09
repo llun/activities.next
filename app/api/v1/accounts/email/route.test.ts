@@ -16,6 +16,7 @@ jest.mock('@/lib/services/email', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
@@ -94,7 +95,10 @@ describe('POST /api/v1/accounts/email', () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
       body: 'not-json',
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
     })
 
     const response = await POST(request, { params: Promise.resolve({}) })
@@ -109,7 +113,10 @@ describe('POST /api/v1/accounts/email', () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
       body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
     })
 
     const response = await POST(request, { params: Promise.resolve({}) })
@@ -125,7 +132,10 @@ describe('POST /api/v1/accounts/email', () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
       body: JSON.stringify({ newEmail: 'not-an-email' }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
     })
 
     const response = await POST(request, { params: Promise.resolve({}) })
