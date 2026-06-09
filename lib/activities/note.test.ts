@@ -2,6 +2,7 @@ import { BaseNote } from './note'
 import {
   getAttachments,
   getContent,
+  getLanguage,
   getReply,
   getSummary,
   getTags,
@@ -297,6 +298,52 @@ describe('note entity utilities', () => {
       } as unknown as BaseNote
 
       expect(getSummary(note)).toEqual('')
+    })
+  })
+
+  describe('getLanguage', () => {
+    it.each([
+      {
+        description: 'uses the first contentMap key',
+        note: { type: 'Note', contentMap: { th: '<p>สวัสดี</p>' } },
+        expected: 'th'
+      },
+      {
+        description: 'normalizes a regional contentMap key to ISO 639-1',
+        note: { type: 'Note', contentMap: { 'en-US': '<p>Hello</p>' } },
+        expected: 'en'
+      },
+      {
+        description: 'returns null for the array/Wordpress contentMap shape',
+        note: { type: 'Note', contentMap: ['<p>Hello</p>'] },
+        expected: null
+      },
+      {
+        description: 'returns null when contentMap is empty',
+        note: { type: 'Note', contentMap: {} },
+        expected: null
+      },
+      {
+        description: 'falls back to the first summaryMap key',
+        note: { type: 'Note', summaryMap: { de: 'Zusammenfassung' } },
+        expected: 'de'
+      },
+      {
+        description: 'prefers contentMap over summaryMap when both are present',
+        note: {
+          type: 'Note',
+          contentMap: { ja: '<p>こんにちは</p>' },
+          summaryMap: { en: 'Summary' }
+        },
+        expected: 'ja'
+      },
+      {
+        description: 'returns null when neither map is present',
+        note: { type: 'Note' },
+        expected: null
+      }
+    ])('$description', ({ note, expected }) => {
+      expect(getLanguage(note as unknown as BaseNote)).toEqual(expected)
     })
   })
 })

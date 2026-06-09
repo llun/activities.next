@@ -1,6 +1,11 @@
 import { z } from 'zod'
 
-import { BaseNote, getContent, getSummary } from '@/lib/activities/note'
+import {
+  BaseNote,
+  getContent,
+  getLanguage,
+  getSummary
+} from '@/lib/activities/note'
 import {
   ArticleContent,
   ImageContent,
@@ -47,10 +52,15 @@ export const updateNoteJob = createJobHandle(
 
     const text = getContent(note)
     const summary = getSummary(note)
+    // Refresh the language from the edited note, but preserve the existing
+    // value when the update carries no locale (updateNote treats `undefined`
+    // as "keep").
+    const language = getLanguage(note) ?? undefined
     await database.updateNote({
       statusId: note.id,
       summary,
-      text
+      text,
+      language
     })
   }
 )

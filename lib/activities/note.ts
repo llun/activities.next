@@ -1,3 +1,4 @@
+import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import {
   ArticleContent,
   ImageContent,
@@ -91,6 +92,29 @@ export const getContent = (object: BaseNote) => {
     return object.contentMap[key]
   }
   return ''
+}
+
+const firstLocaleKey = (
+  map: Record<string, string> | string[] | null | undefined
+): string | undefined => {
+  // Only locale-keyed objects encode a language; the array/Wordpress shape
+  // carries no locale information.
+  if (!map || Array.isArray(map)) return undefined
+  return Object.keys(map)[0]
+}
+
+/**
+ * Resolves the ISO 639-1 language of an incoming AP object. ActivityPub encodes
+ * the language as the key of `contentMap` (e.g. `{ "th": "<p>…</p>" }`), so we
+ * read the first locale key, falling back to `summaryMap`. Returns `null` when
+ * nothing is resolvable or when `contentMap` is the array/Wordpress shape, which
+ * carries no locale information.
+ */
+export const getLanguage = (object: BaseNote): string | null => {
+  const localeKey =
+    firstLocaleKey(object.contentMap) ?? firstLocaleKey(object.summaryMap)
+  if (!localeKey) return null
+  return normalizeLanguageCode(localeKey) || null
 }
 
 export const getSummary = (object: BaseNote) => {
