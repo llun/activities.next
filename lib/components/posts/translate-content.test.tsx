@@ -4,14 +4,19 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { getTranslationCapability, translateStatus } from '@/lib/client'
+import {
+  getTranslationCapability,
+  getTranslationLanguages,
+  translateStatus
+} from '@/lib/client'
 import { Translation } from '@/lib/types/mastodon/translation'
 
 import { TranslateContent } from './translate-content'
 
 jest.mock('@/lib/client', () => ({
   translateStatus: jest.fn(),
-  getTranslationCapability: jest.fn()
+  getTranslationCapability: jest.fn(),
+  getTranslationLanguages: jest.fn()
 }))
 
 const translation: Translation = {
@@ -33,6 +38,9 @@ const mockCapability = (
     defaultLanguage
   })
 
+const mockLanguages = (pairs: Record<string, string[]> = {}) =>
+  (getTranslationLanguages as jest.Mock).mockResolvedValue(pairs)
+
 const renderContent = (language: string | null = 'en') =>
   render(
     <TranslateContent
@@ -44,11 +52,12 @@ const renderContent = (language: string | null = 'en') =>
   )
 
 const findTranslateButton = () =>
-  screen.findByRole('button', { name: 'Translate' })
+  screen.findByRole('button', { name: /Translate from/ })
 
 describe('TranslateContent', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockLanguages({})
   })
 
   it('does not offer translation when the status has no language', async () => {
@@ -56,7 +65,7 @@ describe('TranslateContent', () => {
     renderContent(null)
     await Promise.resolve()
     expect(
-      screen.queryByRole('button', { name: 'Translate' })
+      screen.queryByRole('button', { name: /Translate from/ })
     ).not.toBeInTheDocument()
   })
 
@@ -65,7 +74,7 @@ describe('TranslateContent', () => {
     renderContent('en')
     await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
     expect(
-      screen.queryByRole('button', { name: 'Translate' })
+      screen.queryByRole('button', { name: /Translate from/ })
     ).not.toBeInTheDocument()
   })
 
@@ -74,11 +83,11 @@ describe('TranslateContent', () => {
     renderContent('en')
     await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
     expect(
-      screen.queryByRole('button', { name: 'Translate' })
+      screen.queryByRole('button', { name: /Translate from/ })
     ).not.toBeInTheDocument()
   })
 
-  it('shows the translation and a toggle back to the original', async () => {
+  it('shows the translation, its attribution, and a toggle back to the original', async () => {
     mockCapability(true, 'fr')
     ;(translateStatus as jest.Mock).mockResolvedValue(translation)
     renderContent('en')
@@ -87,18 +96,33 @@ describe('TranslateContent', () => {
 
     expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
     expect(screen.queryByText('Hello world')).not.toBeInTheDocument()
-    expect(
-      screen.getByText(/Translated from en · DeepL\.com/)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Translated from English to/)).toBeInTheDocument()
+    expect(screen.getByText('DeepL.com')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show original' }))
     expect(screen.getByText('Hello world')).toBeInTheDocument()
     expect(screen.queryByText('Bonjour le monde')).not.toBeInTheDocument()
 
-    // Toggling back does not re-request the translation.
-    fireEvent.click(screen.getByRole('button', { name: 'Show translation' }))
-    expect(screen.getByText('Bonjour le monde')).toBeInTheDocument()
+    // Re-translating reuses the cached result without hitting the backend again.
+    fireEvent.click(await findTranslateButton())
+    expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
     expect(translateStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers a target-language picker when the backend supports more than one', async () => {
+    mockCapability(true, 'en')
+    mockLanguages({ de: ['en', 'fr', 'es'] })
+    ;(translateStatus as jest.Mock).mockResolvedValue({
+      ...translation,
+      detected_source_language: 'de'
+    })
+    renderContent('de')
+
+    // The default target (server primary language) leads the picker.
+    expect(
+      await screen.findByRole('button', { name: /Translate from German/ })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /English/ })).toBeInTheDocument()
   })
 
   it('reports when the server returns no translation', async () => {
@@ -109,7 +133,7 @@ describe('TranslateContent', () => {
     fireEvent.click(await findTranslateButton())
 
     expect(
-      await screen.findByText('Translation unavailable')
+      await screen.findByText(/Couldn't translate this post/)
     ).toBeInTheDocument()
     expect(screen.getByText('Hello world')).toBeInTheDocument()
   })
@@ -122,7 +146,7 @@ describe('TranslateContent', () => {
     fireEvent.click(await findTranslateButton())
 
     expect(
-      await screen.findByText('Translation unavailable')
+      await screen.findByText(/Couldn't translate this post/)
     ).toBeInTheDocument()
     expect(screen.getByText('Hello world')).toBeInTheDocument()
   })

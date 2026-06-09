@@ -8,6 +8,8 @@ import { votePoll } from '@/lib/client'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
+import { useTranslationContext } from './translation-context'
+
 interface Props {
   status: Status
   currentTime: number
@@ -15,6 +17,10 @@ interface Props {
 }
 
 export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
+  // When the surrounding status is translated, flip the option titles together
+  // with the body. Mastodon's translate response returns `poll.options[]` in
+  // the same order as the original choices.
+  const translation = useTranslationContext()
   const pollEndAt =
     status.type === StatusType.enum.Poll ? status.endAt : undefined
   const [now, setNow] = useState(currentTime)
@@ -52,6 +58,12 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
 
   const isPollClosed = now >= status.endAt
   const choices = status.choices
+  const translatedOptions =
+    translation?.showingTranslation && translation.translation?.poll
+      ? translation.translation.poll.options
+      : null
+  const titleFor = (index: number) =>
+    translatedOptions?.[index]?.title ?? choices[index].title
   const voteCount = choices.reduce((sum, choice) => sum + choice.totalVotes, 0)
   const totalVotes = voteCount || 1
 
@@ -144,7 +156,9 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                       <span className="size-1.5 rounded-full bg-primary-foreground" />
                     ))}
                 </span>
-                <span className="min-w-0 flex-1 truncate">{choice.title}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {titleFor(index)}
+                </span>
               </label>
             )
           }
@@ -173,7 +187,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                     mine && 'font-semibold'
                   )}
                 >
-                  {choice.title}
+                  {titleFor(index)}
                   {mine && <span className="text-primary"> ✓</span>}
                 </span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">

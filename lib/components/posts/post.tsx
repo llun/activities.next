@@ -37,6 +37,7 @@ import { Poll } from './poll'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
 import { TranslateContent } from './translate-content'
+import { TranslationProvider } from './translation-context'
 
 export interface PostProps {
   host: string
@@ -133,13 +134,20 @@ export const Post: FC<PostProps> = (props) => {
     Boolean(actualStatus.isLocalActor) &&
     props.currentActor?.id === actualStatus.actorId
   const summary = actualStatus.summary?.trim()
+  // Only offer translation to signed-in viewers (the API needs a token); this
+  // keeps the public landing feed free of dead Translate buttons.
+  const translationLanguage = props.currentActor ? actualStatus.language : null
   const statusBody = (
-    <>
+    <TranslationProvider
+      // Reset translation state cleanly if a mounted Post is reused for a
+      // different status (e.g. in a virtualized feed).
+      key={actualStatus.id}
+      statusId={actualStatus.id}
+      language={translationLanguage}
+    >
       <TranslateContent
         statusId={actualStatus.id}
-        // Only offer translation to signed-in viewers (the API needs a token);
-        // this keeps the public landing feed free of dead Translate buttons.
-        language={props.currentActor ? actualStatus.language : null}
+        language={translationLanguage}
         contentClassName="mt-1 text-sm leading-relaxed break-words markdown-content"
       >
         {collapsible && postLineLimit !== 0 && !summary ? (
@@ -264,7 +272,7 @@ export const Post: FC<PostProps> = (props) => {
         currentActorId={props.currentActor?.id}
       />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
-    </>
+    </TranslationProvider>
   )
 
   return (
