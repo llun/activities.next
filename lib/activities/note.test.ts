@@ -351,6 +351,17 @@ describe('note entity utilities', () => {
         description: 'returns null for a single-character locale key',
         note: { type: 'Note', contentMap: { a: '<p>Hello</p>' } },
         expected: null
+      },
+      {
+        description:
+          'returns null for a 3-letter ISO 639-2/3 code instead of truncating it',
+        note: { type: 'Note', contentMap: { fil: '<p>Kamusta</p>' } },
+        expected: null
+      },
+      {
+        description: 'normalizes an underscore regional contentMap key',
+        note: { type: 'Note', contentMap: { en_US: '<p>Hello</p>' } },
+        expected: 'en'
       }
     ])('$description', ({ note, expected }) => {
       expect(getLanguage(note as unknown as BaseNote)).toEqual(expected)

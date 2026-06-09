@@ -120,10 +120,16 @@ export const getLanguage = (object: BaseNote): string | null => {
   const localeKey =
     firstLocaleKey(object.contentMap) ?? firstLocaleKey(object.summaryMap)
   if (!localeKey) return null
-  // Reject malformed locale keys (e.g. "12", "!@", "a") so only a valid
-  // two-letter ISO 639-1 code is persisted.
-  const language = normalizeLanguageCode(localeKey)
-  return /^[a-z]{2}$/.test(language) ? language : null
+  // Take the primary subtag (drop any regional suffix like "en-US"/"en_US")
+  // and validate its length *before* normalizing. `normalizeLanguageCode`
+  // truncates to two chars, which would silently turn a 3-letter ISO 639-2/3
+  // code (e.g. "fil" → "fi", "ast" → "as") into the wrong language; checking
+  // the length first rejects those instead, while we still reuse the shared
+  // normalizer for the final lower-casing. Also rejects malformed keys
+  // ("12", "!@", "a").
+  const primarySubtag = localeKey.trim().split(/[-_]/)[0]
+  if (!/^[a-z]{2}$/i.test(primarySubtag)) return null
+  return normalizeLanguageCode(primarySubtag)
 }
 
 export const getSummary = (object: BaseNote) => {
