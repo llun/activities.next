@@ -8,6 +8,7 @@ import {
   BaseNote,
   getAttachments,
   getContent,
+  getLanguage,
   getReply,
   getSummary,
   getTags
@@ -70,6 +71,7 @@ export const createNoteJob = createJobHandle(
 
     const text = getContent(note)
     const summary = getSummary(note)
+    const language = getLanguage(note)
     const actorId = normalizeActorId(note.attributedTo) ?? note.attributedTo
 
     const publishedAt = new Date(note.published).getTime()
@@ -89,6 +91,7 @@ export const createNoteJob = createJobHandle(
 
         text,
         summary,
+        language,
 
         to: toRecipientArray(note.to),
         cc: toRecipientArray(note.cc),

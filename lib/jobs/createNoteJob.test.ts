@@ -266,6 +266,25 @@ describe('createNoteJob', () => {
     await expect(database.getStatus({ statusId: note.id })).resolves.toBeNull()
   })
 
+  it('stores the language derived from the note contentMap key', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: `https://${actor1!.domain}/notes/thai-language-${Date.now()}`,
+      content: '<p>สวัสดีครับ</p>',
+      contentMap: { th: '<p>สวัสดีครับ</p>' }
+    })
+    await createNoteJob(database, {
+      id: 'id-thai-language',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(status.language).toEqual('th')
+  })
+
   it('adds note with single content map when contentMap is array', async () => {
     const note = MockMastodonActivityPubNote({
       content: '<p>Hello</p>',
