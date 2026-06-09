@@ -731,6 +731,13 @@ describe('TimelineDatabase', () => {
         const after = await database.getLocalPublicStatusesCount()
         expect(after - before).toBe(2)
       }, 10000)
+
+      it('stops counting at the given limit', async () => {
+        // At least the two public posts from the previous case exist, so a
+        // limit of 1 must short-circuit to exactly 1.
+        const limited = await database.getLocalPublicStatusesCount(1)
+        expect(limited).toBe(1)
+      }, 10000)
     })
   })
 })

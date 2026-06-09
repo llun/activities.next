@@ -48,7 +48,12 @@ const Page = async () => {
     // so an outage isn't silently hidden as "no posts".
     let publicStatuses: Status[] = []
     try {
-      const publicCount = await database.getLocalPublicStatusesCount()
+      // Bounded check: only need to know whether the threshold is reached, so
+      // the count stops at LANDING_FEED_MIN_POSTS rather than scanning every
+      // public post on each anonymous request.
+      const publicCount = await database.getLocalPublicStatusesCount(
+        LANDING_FEED_MIN_POSTS
+      )
       if (publicCount >= LANDING_FEED_MIN_POSTS) {
         const { statuses } = await getFilteredStatusPage({
           database,
