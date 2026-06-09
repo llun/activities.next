@@ -98,8 +98,9 @@ const firstLocaleKey = (
   map: Record<string, string> | string[] | null | undefined
 ): string | undefined => {
   // Only locale-keyed objects encode a language; the array/Wordpress shape
-  // carries no locale information.
-  if (!map || Array.isArray(map)) return undefined
+  // carries no locale information. Guard against malformed AP payloads where
+  // `map` is a non-object primitive at runtime (`typeof null === 'object'`).
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return undefined
   return Object.keys(map)[0]
 }
 
@@ -109,6 +110,11 @@ const firstLocaleKey = (
  * read the first locale key, falling back to `summaryMap`. Returns `null` when
  * nothing is resolvable or when `contentMap` is the array/Wordpress shape, which
  * carries no locale information.
+ *
+ * This only works at ingestion time: the persisted status content blob keeps
+ * only the rendered fields and not the original `contentMap`, so the language of
+ * statuses federated before this helper existed cannot be recovered after the
+ * fact (they stay `language: null` until re-fetched or federated again).
  */
 export const getLanguage = (object: BaseNote): string | null => {
   const localeKey =
