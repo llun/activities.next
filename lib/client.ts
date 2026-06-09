@@ -397,7 +397,14 @@ export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
     translationLanguagesPromise = fetch(
       '/api/v1/instance/translation_languages'
     )
-      .then((response) => (response.ok ? response.json() : null))
+      .then((response) => {
+        // Throw on a non-OK status so an HTTP 5xx falls through to the catch
+        // and clears the memo too — not just network rejections.
+        if (!response.ok) {
+          throw new Error('Failed to fetch translation languages')
+        }
+        return response.json()
+      })
       .then(
         (data): TranslationLanguages =>
           data && typeof data === 'object' ? data : {}
