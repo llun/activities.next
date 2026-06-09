@@ -51,6 +51,67 @@ describe('updateNoteJob', () => {
     expect(status.type).toEqual(StatusType.enum.Note)
   })
 
+  it('refreshes the language when the edit carries a contentMap', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: 'https://somewhere.test/notes/update-language',
+      content: '<p>Hello</p>',
+      contentMap: { en: '<p>Hello</p>' }
+    })
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const updatedNote = {
+      ...note,
+      content: '<p>こんにちは</p>',
+      contentMap: { ja: '<p>こんにちは</p>' }
+    }
+    await updateNoteJob(database, {
+      id: 'id',
+      name: UPDATE_NOTE_JOB_NAME,
+      data: updatedNote
+    })
+
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(status.language).toEqual('ja')
+  })
+
+  it('preserves the existing language when the edit has no contentMap', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: 'https://somewhere.test/notes/preserve-language',
+      content: '<p>สวัสดี</p>',
+      contentMap: { th: '<p>สวัสดี</p>' }
+    })
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const updatedNote = {
+      ...note,
+      content: '<p>สวัสดีครับ</p>',
+      contentMap: {}
+    }
+    await updateNoteJob(database, {
+      id: 'id',
+      name: UPDATE_NOTE_JOB_NAME,
+      data: updatedNote
+    })
+
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(status.text).toEqual('<p>สวัสดีครับ</p>')
+    expect(status.language).toEqual('th')
+  })
+
   it('updates image activity in database', async () => {
     const image = {
       type: 'Image',

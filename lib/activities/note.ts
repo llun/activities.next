@@ -1,3 +1,4 @@
+import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import {
   ArticleContent,
   ImageContent,
@@ -91,6 +92,44 @@ export const getContent = (object: BaseNote) => {
     return object.contentMap[key]
   }
   return ''
+}
+
+const firstLocaleKey = (
+  map: Record<string, string> | string[] | null | undefined
+): string | undefined => {
+  // Only locale-keyed objects encode a language; the array/Wordpress shape
+  // carries no locale information. Guard against malformed AP payloads where
+  // `map` is a non-object primitive at runtime (`typeof null === 'object'`).
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return undefined
+  return Object.keys(map)[0]
+}
+
+/**
+ * Resolves the ISO 639-1 language of an incoming AP object. ActivityPub encodes
+ * the language as the key of `contentMap` (e.g. `{ "th": "<p>…</p>" }`), so we
+ * read the first locale key, falling back to `summaryMap`. Returns `null` when
+ * nothing is resolvable or when `contentMap` is the array/Wordpress shape, which
+ * carries no locale information.
+ *
+ * This only works at ingestion time: the persisted status content blob keeps
+ * only the rendered fields and not the original `contentMap`, so the language of
+ * statuses federated before this helper existed cannot be recovered after the
+ * fact (they stay `language: null` until re-fetched or federated again).
+ */
+export const getLanguage = (object: BaseNote): string | null => {
+  const localeKey =
+    firstLocaleKey(object.contentMap) ?? firstLocaleKey(object.summaryMap)
+  if (!localeKey) return null
+  // Take the primary subtag (drop any regional suffix like "en-US"/"en_US")
+  // and validate its length *before* normalizing. `normalizeLanguageCode`
+  // truncates to two chars, which would silently turn a 3-letter ISO 639-2/3
+  // code (e.g. "fil" → "fi", "ast" → "as") into the wrong language; checking
+  // the length first rejects those instead, while we still reuse the shared
+  // normalizer for the final lower-casing. Also rejects malformed keys
+  // ("12", "!@", "a").
+  const primarySubtag = localeKey.trim().split(/[-_]/)[0]
+  if (!/^[a-z]{2}$/i.test(primarySubtag)) return null
+  return normalizeLanguageCode(primarySubtag)
 }
 
 export const getSummary = (object: BaseNote) => {
