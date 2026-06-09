@@ -68,7 +68,6 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
 - ✅ **Markers** — Save and restore per-timeline read positions
 - ✅ **Endorsements** — Feature accounts on your profile
-- ✅ **Suggestions** — Follow suggestions via `/api/v2/suggestions`
 - ✅ **Account notes & preferences** — Private per-account notes and client preferences
 - ✅ **Featured tags API** — `/api/v1/featured_tags` endpoints backing the profile featured-hashtags feature
 - ✅ **Followed hashtags** — Follow and unfollow hashtags and view a followed-tags timeline
@@ -87,7 +86,7 @@ This document tracks the implemented and planned features for Activity.next.
 
 ## In Progress
 
-- 🚧 **Mastodon compatibility gaps** — Broad v1/v2 coverage is in place; a few endpoints (e.g. suggestions) remain minimal
+- 🚧 **Follow suggestions** — `/api/v2/suggestions` responds for Mastodon client compatibility but currently returns an empty set; a ranking implementation is pending
 - 🚧 **Fitness import hardening** — Repair and resume scripts cover interrupted or legacy Strava imports while the importer continues to mature
 
 ## Planned Features
