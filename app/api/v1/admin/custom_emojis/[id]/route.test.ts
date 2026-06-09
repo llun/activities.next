@@ -26,6 +26,7 @@ jest.mock('@/lib/utils/getAdminFromSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test', allowEmails: [] })
 }))
 
@@ -78,7 +79,10 @@ describe('/api/v1/admin/custom_emojis/[id]', () => {
     const response = await PATCH(
       new NextRequest('https://llun.test/api/v1/admin/custom_emojis/emoji-1', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Origin: 'https://llun.test',
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           disabled: true,
           visible_in_picker: false,
@@ -108,7 +112,10 @@ describe('/api/v1/admin/custom_emojis/[id]', () => {
     const response = await PATCH(
       new NextRequest('https://llun.test/api/v1/admin/custom_emojis/emoji-1', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Origin: 'https://llun.test',
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ category: null })
       }),
       { params: Promise.resolve({ id: 'emoji-1' }) }
@@ -128,7 +135,10 @@ describe('/api/v1/admin/custom_emojis/[id]', () => {
     const response = await PATCH(
       new NextRequest('https://llun.test/api/v1/admin/custom_emojis/emoji-1', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Origin: 'https://llun.test',
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ visible_in_picker: 12 })
       }),
       { params: Promise.resolve({ id: 'emoji-1' }) }
@@ -142,7 +152,10 @@ describe('/api/v1/admin/custom_emojis/[id]', () => {
     const response = await PATCH(
       new NextRequest('https://llun.test/api/v1/admin/custom_emojis/missing', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Origin: 'https://llun.test',
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ disabled: true })
       }),
       { params: Promise.resolve({ id: 'missing' }) }
@@ -154,7 +167,8 @@ describe('/api/v1/admin/custom_emojis/[id]', () => {
     mockDatabase.deleteCustomEmoji.mockResolvedValue(emojiRow)
     const response = await DELETE(
       new NextRequest('https://llun.test/api/v1/admin/custom_emojis/emoji-1', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { Origin: 'https://llun.test' }
       }),
       { params: Promise.resolve({ id: 'emoji-1' }) }
     )
@@ -166,7 +180,8 @@ describe('/api/v1/admin/custom_emojis/[id]', () => {
     mockDatabase.deleteCustomEmoji.mockResolvedValue(null)
     const response = await DELETE(
       new NextRequest('https://llun.test/api/v1/admin/custom_emojis/missing', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { Origin: 'https://llun.test' }
       }),
       { params: Promise.resolve({ id: 'missing' }) }
     )

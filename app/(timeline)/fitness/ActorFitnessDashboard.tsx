@@ -22,6 +22,7 @@ import {
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
 import { Card } from '@/lib/components/ui/card'
 import { cn } from '@/lib/utils'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 interface Props {
   actorId: string
@@ -43,19 +44,24 @@ const CALENDAR_METRICS: Array<[CalendarMetric, string]> = [
   ['duration', 'Duration']
 ]
 
-const MIN_DATE_RANGE_MS = 7 * 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
 
-// Format using UTC getters so the server render and the client hydration
-// produce the same string regardless of the local timezone.
-const formatDateInput = (date: Date): string => {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
+const MIN_DATE_RANGE_MS = 7 * DAY_MS
+
+// UTC formatting keeps the server render and the client hydration identical
+// regardless of the local timezone; it can differ from the user's local
+// calendar by one day, so post-hydration code uses the local variant below.
+const formatDateInput = (value: number | Date): string =>
+  getISOTimeUTC(value, true)
+
+// Local-calendar formatter — only safe after hydration (mount effects and
+// event handlers), where server/client output no longer has to match.
+const formatLocalDateInput = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
-
-const getPresetStartDate = (currentTime: number, days: number) =>
-  formatDateInput(new Date(currentTime - days * 24 * 60 * 60 * 1000))
 
 const formatDistance = (meters: number): string => {
   if (meters < 1000) return `${Math.round(meters)} m`
@@ -92,11 +98,18 @@ const getTotals = (summary: FitnessActivitySummary[]) =>
 export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
   const [preset, setPreset] = useState<PresetKey>('90d')
   const [startDate, setStartDate] = useState(() =>
-    getPresetStartDate(currentTime, 90)
+    formatDateInput(currentTime - 90 * DAY_MS)
   )
-  const [endDate, setEndDate] = useState(() =>
-    formatDateInput(new Date(currentTime))
-  )
+  const [endDate, setEndDate] = useState(() => formatDateInput(currentTime))
+
+  // After hydration, align the default range with the user's local calendar:
+  // the SSR-deterministic UTC defaults above can be a day off for non-UTC
+  // users, which would silently exclude today's activities.
+  useEffect(() => {
+    const now = Date.now()
+    setStartDate(formatLocalDateInput(new Date(now - 90 * DAY_MS)))
+    setEndDate(formatLocalDateInput(new Date(now)))
+  }, [])
   const [summary, setSummary] = useState<FitnessActivitySummary[]>([])
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
   const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('count')
@@ -161,8 +174,11 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
     const presetDef = PRESETS.find((item) => item.key === newPreset)
     if (!presetDef) return
     setPreset(newPreset)
-    setStartDate(getPresetStartDate(currentTime, presetDef.days))
-    setEndDate(formatDateInput(new Date(currentTime)))
+    // Event handler: use the actual current time, not the server-render
+    // snapshot, so a long-lived page still gets a range ending today.
+    const now = Date.now()
+    setStartDate(formatLocalDateInput(new Date(now - presetDef.days * DAY_MS)))
+    setEndDate(formatLocalDateInput(new Date(now)))
   }
 
   return (

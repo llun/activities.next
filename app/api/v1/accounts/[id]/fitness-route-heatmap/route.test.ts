@@ -202,6 +202,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   it('queues route heatmap generation', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
       body: JSON.stringify({
         activity_type: 'running',
         period_type: 'monthly',
@@ -251,6 +252,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
 
     const request = new NextRequest(baseUrl, {
       method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
       body: JSON.stringify({
         activity_type: 'running',
         period_type: 'monthly',
@@ -316,6 +318,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     try {
       const request = new NextRequest(baseUrl, {
         method: 'POST',
+        headers: { Origin: 'https://test.llun.dev' },
         body: JSON.stringify({
           activity_type: 'running',
           period_type: 'monthly',
@@ -373,6 +376,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     try {
       const request = new NextRequest(baseUrl, {
         method: 'POST',
+        headers: { Origin: 'https://test.llun.dev' },
         body: JSON.stringify({
           activity_type: 'running',
           period_type: 'monthly',
@@ -429,6 +433,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
 
     const request = new NextRequest(baseUrl, {
       method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
       body: JSON.stringify({
         activity_type: 'running',
         period_type: 'monthly',
@@ -482,6 +487,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
 
     const request = new NextRequest(baseUrl, {
       method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
       body: JSON.stringify({
         activity_type: 'running',
         period_type: 'monthly',
@@ -517,6 +523,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   it('normalizes an empty activity type trigger value to all activities', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
       body: JSON.stringify({
         activity_type: '',
         period_type: 'monthly',

@@ -1,31 +1,21 @@
 import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
+import { logger } from '@/lib/utils/logger'
 
 import { isTrustedHeaderHost } from './headerHost'
 
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
-const getOrigin = (value: string | null): string | null => {
-  if (!value) return null
+const isAllowedOrigin = (value: string, baseUrl: URL): boolean => {
+  let url: URL
   try {
-    return new URL(value).origin
+    url = new URL(value)
   } catch {
-    return null
+    return false
   }
-}
-
-const isAllowedOrigin = (value: string | null, baseOrigin: string): boolean => {
-  const origin = getOrigin(value)
-  if (!origin) return false
-  if (origin === baseOrigin) return true
-
-  const originUrl = new URL(origin)
-  const baseUrl = new URL(baseOrigin)
-  return (
-    originUrl.protocol === baseUrl.protocol &&
-    isTrustedHeaderHost(originUrl.host)
-  )
+  if (url.origin === baseUrl.origin) return true
+  return url.protocol === baseUrl.protocol && isTrustedHeaderHost(url.host)
 }
 
 /**
@@ -39,13 +29,24 @@ const isAllowedOrigin = (value: string | null, baseOrigin: string): boolean => {
 export const hasSameOriginProof = (req: NextRequest): boolean => {
   if (!STATE_CHANGING_METHODS.has(req.method)) return true
 
-  const baseOrigin = new URL(getBaseURL()).origin
+  const baseUrl = new URL(getBaseURL())
 
   const origin = req.headers.get('Origin')
-  if (origin) return isAllowedOrigin(origin, baseOrigin)
-
   const referer = req.headers.get('Referer')
-  if (referer) return isAllowedOrigin(referer, baseOrigin)
+  const allowed = origin
+    ? isAllowedOrigin(origin, baseUrl)
+    : Boolean(referer && isAllowedOrigin(referer, baseUrl))
 
-  return false
+  if (!allowed) {
+    // Surface rejections so a misconfigured host or missing trusted-host
+    // entry is diagnosable instead of presenting as a silent 403.
+    logger.warn({
+      message: 'Rejected state-changing request without same-origin proof',
+      method: req.method,
+      origin,
+      referer,
+      baseOrigin: baseUrl.origin
+    })
+  }
+  return allowed
 }

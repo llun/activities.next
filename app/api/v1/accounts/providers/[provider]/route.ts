@@ -2,10 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_401,
+  ERROR_403,
   ERROR_404,
   ERROR_500,
   apiResponse,
@@ -41,6 +43,17 @@ export const DELETE = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+
+    // Manually authenticated cookie-session mutation: apply the same CSRF
+    // same-origin proof as AuthenticatedGuard.
+    if (!hasSameOriginProof(req)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 

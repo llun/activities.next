@@ -25,6 +25,7 @@ jest.mock('@/lib/utils/getAdminFromSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test', allowEmails: [] })
 }))
 
@@ -58,7 +59,10 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
     const response = await PUT(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
         method: 'PUT',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
         body: JSON.stringify({ public_comment: 'Updated comment' })
       }),
       { params: Promise.resolve({ id: 'block-1' }) }
@@ -82,7 +86,10 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
     const response = await PUT(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
         method: 'PUT',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
         body: JSON.stringify({
           private_comment: ' ',
           public_comment: ''
@@ -133,7 +140,10 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
     const response = await PATCH(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
         method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
         body: JSON.stringify({ public_comment: 'Patched comment' })
       }),
       { params: Promise.resolve({ id: 'block-1' }) }
@@ -156,7 +166,8 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
 
     const response = await DELETE(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { Origin: 'https://llun.test' }
       }),
       { params: Promise.resolve({ id: 'block-1' }) }
     )

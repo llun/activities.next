@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { switchActor } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -100,11 +101,7 @@ export function AddActorDialog({
       }
 
       // Switch to the new actor
-      await fetch('/api/v1/actors/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: data.id })
-      })
+      await switchActor({ actorId: data.id })
 
       setUsername('')
       onSuccess()

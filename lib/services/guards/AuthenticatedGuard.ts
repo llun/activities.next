@@ -12,15 +12,17 @@ import { AppRouterParams, AuthenticatedApiHandle } from './types'
 export const AuthenticatedGuard =
   <P>(handle: AuthenticatedApiHandle<P>) =>
   async (req: NextRequest, context: AppRouterParams<P>) => {
+    // Reject forged cross-site mutations before paying for session
+    // resolution — the check only reads the method and two headers.
+    if (!hasSameOriginProof(req)) {
+      return apiErrorResponse(403)
+    }
+
     const database = getDatabase()
     const session = await getServerAuthSession()
 
     if (!database || !session?.user?.email) {
       return Response.redirect(getRedirectUrl(req, '/auth/signin'), 307)
-    }
-
-    if (!hasSameOriginProof(req)) {
-      return apiErrorResponse(403)
     }
 
     const currentActor = await getActorFromSession(database, session)

@@ -47,7 +47,11 @@ export const NotificationsList = ({
       if (notificationIds.length === 0) return true
 
       try {
-        await markNotificationsRead({ notificationIds })
+        const didMark = await markNotificationsRead({ notificationIds })
+        if (!didMark) {
+          setMarkReadError(true)
+          return false
+        }
         setMarkReadError(false)
         // Refresh the layout to update the notification badge count
         router.refresh()

@@ -5,6 +5,7 @@ import { getDatabase } from '@/lib/database'
 import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getQueue } from '@/lib/services/queue'
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
@@ -199,6 +200,17 @@ export const POST = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+
+    // Manually authenticated cookie-session mutation: apply the same CSRF
+    // same-origin proof as AuthenticatedGuard.
+    if (!hasSameOriginProof(req)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 

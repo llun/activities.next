@@ -570,7 +570,10 @@ export const createNoteFromUserInput = async ({
     seenActorIds.add(replyStatus.actorId)
     database
       .getActorFromId({ id: replyStatus.actorId })
-      .then((targetActor) => {
+      // A failed actor lookup only skips the email content; the push alert
+      // must still be dispatched.
+      .catch(() => null)
+      .then((targetActor) =>
         sendNotificationAlerts({
           database,
           actorId: replyStatus.actorId,
@@ -591,7 +594,7 @@ export const createNoteFromUserInput = async ({
             }
           ]
         })
-      })
+      )
       .catch(() => undefined)
   }
 
@@ -604,7 +607,10 @@ export const createNoteFromUserInput = async ({
       seenActorIds.add(mentionedActorId)
       database
         .getActorFromId({ id: mentionedActorId })
-        .then((targetActor) => {
+        // A failed actor lookup only skips the email content; the push alert
+        // must still be dispatched.
+        .catch(() => null)
+        .then((targetActor) =>
           sendNotificationAlerts({
             database,
             actorId: mentionedActorId,
@@ -625,7 +631,7 @@ export const createNoteFromUserInput = async ({
               }
             ]
           })
-        })
+        )
         .catch(() => undefined)
     }
   }

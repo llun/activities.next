@@ -656,13 +656,12 @@ interface FollowRequestParams {
   id: string
 }
 
-/**
- * Accepts a pending follow request using Mastodon-compatible API
- * @see https://docs.joinmastodon.org/methods/follow_requests/#accept
- */
-export const acceptFollowRequest = async ({ id }: FollowRequestParams) => {
+const respondToFollowRequest = async (
+  id: string,
+  action: 'authorize' | 'reject'
+) => {
   const response = await fetch(
-    `/api/v1/follow_requests/${encodeURIComponent(id)}/authorize`,
+    `/api/v1/follow_requests/${encodeURIComponent(id)}/${action}`,
     {
       method: 'POST'
     }
@@ -671,18 +670,18 @@ export const acceptFollowRequest = async ({ id }: FollowRequestParams) => {
 }
 
 /**
+ * Accepts a pending follow request using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/follow_requests/#accept
+ */
+export const acceptFollowRequest = ({ id }: FollowRequestParams) =>
+  respondToFollowRequest(id, 'authorize')
+
+/**
  * Rejects a pending follow request using Mastodon-compatible API
  * @see https://docs.joinmastodon.org/methods/follow_requests/#reject
  */
-export const rejectFollowRequest = async ({ id }: FollowRequestParams) => {
-  const response = await fetch(
-    `/api/v1/follow_requests/${encodeURIComponent(id)}/reject`,
-    {
-      method: 'POST'
-    }
-  )
-  return response.ok
-}
+export const rejectFollowRequest = ({ id }: FollowRequestParams) =>
+  respondToFollowRequest(id, 'reject')
 
 interface SwitchActorParams {
   actorId: string

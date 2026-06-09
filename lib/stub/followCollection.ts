@@ -50,36 +50,10 @@ const MockActivityPubFollowCollection = ({
   }
 }
 
-interface FollowersParams extends Omit<
-  BuilderParams,
-  'collection' | 'itemActorIds'
-> {
-  followersActorIds?: string[]
-}
+type CollectionParams = Omit<BuilderParams, 'collection'>
 
-export const MockActivityPubFollowers = ({
-  followersActorIds,
-  ...params
-}: FollowersParams) =>
-  MockActivityPubFollowCollection({
-    ...params,
-    collection: 'followers',
-    itemActorIds: followersActorIds
-  })
+export const MockActivityPubFollowers = (params: CollectionParams) =>
+  MockActivityPubFollowCollection({ ...params, collection: 'followers' })
 
-interface FollowingParams extends Omit<
-  BuilderParams,
-  'collection' | 'itemActorIds'
-> {
-  followingActorIds?: string[]
-}
-
-export const MockActivityPubFollowing = ({
-  followingActorIds,
-  ...params
-}: FollowingParams) =>
-  MockActivityPubFollowCollection({
-    ...params,
-    collection: 'following',
-    itemActorIds: followingActorIds
-  })
+export const MockActivityPubFollowing = (params: CollectionParams) =>
+  MockActivityPubFollowCollection({ ...params, collection: 'following' })

@@ -8,6 +8,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
+import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
@@ -46,6 +47,12 @@ export const POST = traceApiRoute(
 
     if (!database || !session?.user?.email) {
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+    }
+
+    // Manually authenticated cookie-session mutation: apply the same CSRF
+    // same-origin proof as AuthenticatedGuard.
+    if (!hasSameOriginProof(req)) {
+      return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
     }
 
     const currentActor = await getActorFromSession(database, session)

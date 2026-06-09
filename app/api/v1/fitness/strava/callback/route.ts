@@ -52,7 +52,13 @@ export const GET = traceApiRoute(
     }
 
     // Validate OAuth state for CSRF protection
-    if (!timingSafeStringEqual(state, fitnessSettings.oauthState)) {
+    // The explicit empty check keeps a forged callback with `state=` from
+    // matching a row whose stored state is also empty.
+    if (
+      !state ||
+      !fitnessSettings.oauthState ||
+      !timingSafeStringEqual(state, fitnessSettings.oauthState)
+    ) {
       logger.error({
         message: 'OAuth state mismatch - potential CSRF attack',
         actorId: currentActor.id
