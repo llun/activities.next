@@ -8,6 +8,7 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
+import { timingSafeStringEqual } from '@/lib/utils/timingSafeStringEqual'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 type Params = { webhookToken: string }
@@ -58,7 +59,7 @@ export const GET = traceApiRoute(
         })
       }
 
-      if (token !== fitnessSettings.webhookToken) {
+      if (!timingSafeStringEqual(token, fitnessSettings.webhookToken)) {
         logger.warn({
           message: 'Strava webhook verification token mismatch',
           actorId: fitnessSettings.actorId

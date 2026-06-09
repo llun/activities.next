@@ -11,6 +11,7 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-for-encryption',
@@ -174,6 +175,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: 100.5018,
@@ -233,6 +235,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyLocations: [
               {
@@ -311,6 +314,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyLocations: []
           })
@@ -362,6 +366,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyLocations: [
               {
@@ -424,6 +429,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: 100.5018,
@@ -456,6 +462,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyLocations: [{ latitude: 13.7563 }],
             privacyHomeLatitude: 13.7563,
@@ -476,6 +483,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: null,
@@ -496,6 +504,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyHomeLatitude: null,
             privacyHomeLongitude: null,
@@ -516,6 +525,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyHomeLatitude: '13.7563',
             privacyHomeLongitude: 100.5018,
@@ -539,7 +549,10 @@ describe('Fitness General Settings API', () => {
         {
           method: 'POST',
           body: 'not-json',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
         }
       )
 
@@ -560,6 +573,7 @@ describe('Fitness General Settings API', () => {
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: 100.5018,
