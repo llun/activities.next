@@ -213,7 +213,7 @@ export const TimelineSQLDatabaseMixin = (
     }
 
     const row = await query
-      .countDistinct<{ count: string | number }>('statuses.id as count')
+      .countDistinct<{ count: string | number }>({ count: 'statuses.id' })
       .first()
     // count() returns a string on PostgreSQL and a number on SQLite.
     return row ? Number(row.count) : 0
