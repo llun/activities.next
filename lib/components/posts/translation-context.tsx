@@ -199,19 +199,37 @@ export const useStatusTranslation = (
       ? (cache[effectiveTarget] ?? null)
       : null
 
-  return {
-    canTranslate,
-    state,
-    target: effectiveTarget,
-    options,
-    detectedSource: activeTranslation?.detected_source_language ?? source,
-    provider: activeTranslation?.provider ?? null,
-    translation: activeTranslation,
-    showingTranslation,
-    request,
-    pickTarget,
-    showOriginal
-  }
+  // Memoize the returned value so the context reference is stable across
+  // unrelated re-renders — otherwise every provider render would re-render all
+  // consumers (the poll and the body) even when nothing translation-related
+  // changed.
+  return useMemo(
+    () => ({
+      canTranslate,
+      state,
+      target: effectiveTarget,
+      options,
+      detectedSource: activeTranslation?.detected_source_language ?? source,
+      provider: activeTranslation?.provider ?? null,
+      translation: activeTranslation,
+      showingTranslation,
+      request,
+      pickTarget,
+      showOriginal
+    }),
+    [
+      canTranslate,
+      state,
+      effectiveTarget,
+      options,
+      activeTranslation,
+      source,
+      showingTranslation,
+      request,
+      pickTarget,
+      showOriginal
+    ]
+  )
 }
 
 interface ProviderProps {
