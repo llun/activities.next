@@ -1,0 +1,66 @@
+app/(nosidebar)/auth/signin/page.tsx
+  s_22590071b7246b::t_d0e529fd21c871 36
+  s_22590071b7246b::t_61f3b0404f6676 64-73
+app/(timeline)/landing/Landing.tsx
+  s_22590071b7246b::t_949ac7fae8b8b7 15-20,27-29,35-36
+  s_22590071b7246b::t_1f15971f710049 53
+app/api/v1/accounts/route.ts
+  s_22590071b7246b::t_4b86bc27405d91 125-136
+app/(timeline)/[actor]/[status]/page.tsx
+  s_22590071b7246b::t_b1179aac11a8ab 300-301
+  s_22590071b7246b::t_f0d826f190d24b 47
+  s_22590071b7246b::t_dba69167406f3c 238-240,299
+app/api/v1/accounts/route.test.ts
+  s_22590071b7246b::t_749f500194f2e6 122-142
+  s_22590071b7246b::t_b5f9475325fb8f 3,11-12
+lib/config/index.ts
+  s_22590071b7246b::t_018e95e424a452 40
+  s_22590071b7246b::t_4b2ce24c721c54 117-120
+lib/database/sql/timeline.ts
+  s_22590071b7246b::t_2178ef9d8a92b6 194-211
+docs/environment-variables.md
+  s_22590071b7246b::t_1da3dc357c77cd 17
+  s_22590071b7246b::t_b1179aac11a8ab 9-16,18-19
+app/(timeline)/page.tsx
+  s_22590071b7246b::t_51ebc8e94159ac 42-48,51-64,77
+  s_22590071b7246b::t_e98ff8019befc5 33
+  s_22590071b7246b::t_a873d629953c88 21-25
+lib/__mocks__/config.ts
+  s_22590071b7246b::t_7e8838b882de91 8
+lib/types/database/operations.ts
+  s_22590071b7246b::t_e35871e1fd893d 2269-2275
+app/(timeline)/PublicTopBar.tsx
+  s_22590071b7246b::t_b1179aac11a8ab 6
+  s_22590071b7246b::t_f650470fa83820 10-27,29-31
+app/(timeline)/landing/LandingAuthPanel.tsx
+  s_22590071b7246b::t_9bad5bf617b86a 1,9-14,22-25,28-40,42-69,71-82,84-91,93-108,110-111
+app/(timeline)/[actor]/[status]/SignInCallout.tsx
+  s_22590071b7246b::t_d0db3b362b0951 9-10,13-16,30-34
+lib/database/sql/timeline.test.ts
+  s_22590071b7246b::t_dfbd914f8a9390 661-734
+app/(timeline)/landing/Landing.test.tsx
+  s_22590071b7246b::t_e84e826e61cce2 77-99
+  s_22590071b7246b::t_17f5e715cde5cc 30,37
+lib/config/index.test.ts
+  s_22590071b7246b::t_b1179aac11a8ab 127-131,133-137
+  s_22590071b7246b::t_ed766240adaa3e 114-126,132,138-149
+app/(nosidebar)/auth/signup/page.tsx
+  s_22590071b7246b::t_fbffb217ec6328 30-35
+  s_22590071b7246b::t_4de85a4c8812ab 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "e5895f6b312cf4bde8812ee5ce5d3b961a991a45",
+  "prompts": {},
+  "sessions": {
+    "s_22590071b7246b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "baa913e5-238f-49be-99c2-804bcf42ec99",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
