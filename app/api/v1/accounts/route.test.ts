@@ -140,4 +140,26 @@ describe('POST /api/v1/accounts', () => {
     expect(res.status).toBe(403)
     expect(createAccount).not.toHaveBeenCalled()
   })
+
+  it('returns 403 for closed registration even when the body is invalid', async () => {
+    jest.mocked(getConfig).mockReturnValueOnce({
+      host: 'llun.test',
+      allowEmails: [],
+      registrationOpen: false
+    } as never)
+    const createAccount = jest.fn()
+    mockDatabase = { ...mockDatabase!, createAccount } as never
+    // Deliberately malformed/schema-invalid body — missing required fields.
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'not_a_valid_field=garbage',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(403)
+    expect(createAccount).not.toHaveBeenCalled()
+  })
 })

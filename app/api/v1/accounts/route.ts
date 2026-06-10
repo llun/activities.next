@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
@@ -112,6 +113,18 @@ export const POST = traceApiRoute(
           error: 'Account registration via the API is not supported'
         },
         responseStatusCode: 501
+      })
+    }
+
+    // A closed server accepts no new accounts at all. Check this before
+    // parsing the body so that a POST to a closed server always returns 403
+    // regardless of whether the body is valid.
+    if (!getConfig().registrationOpen) {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Registration is closed' },
+        responseStatusCode: 403
       })
     }
 
