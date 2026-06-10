@@ -1,0 +1,21 @@
+lib/database/sql/serverFilter.ts
+  s_a9e57dede8ad31::t_87c3621267cc9b 283-285
+lib/components/filters/FiltersPanel.tsx
+  s_a9e57dede8ad31::t_f437bd76d6e6c7 111-112,115,122,129-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2fc64001ef4924fd2f482ad8d3cc08a79e1c87cb",
+  "prompts": {},
+  "sessions": {
+    "s_a9e57dede8ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c26c4fb4-16ed-45cc-b64f-47ecc850a9d1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
