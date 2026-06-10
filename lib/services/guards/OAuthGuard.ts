@@ -19,7 +19,7 @@ import {
   codeMap
 } from '@/lib/utils/response'
 
-import { isTrustedHeaderHost } from './headerHost'
+import { hasSameOriginProof } from './sameOriginProof'
 import { hasGrantedScope } from './scopeHierarchy'
 import {
   AppRouterParams,
@@ -85,44 +85,6 @@ export const isBearerAuthorizationHeader = (
   authorizationHeader: string | null
 ): boolean =>
   authorizationHeader?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer'
-
-const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-
-const getOrigin = (value: string | null): string | null => {
-  if (!value) return null
-  try {
-    return new URL(value).origin
-  } catch {
-    return null
-  }
-}
-
-const isAllowedOrigin = (value: string | null, baseOrigin: string): boolean => {
-  const origin = getOrigin(value)
-  if (!origin) return false
-  if (origin === baseOrigin) return true
-
-  const originUrl = new URL(origin)
-  const baseUrl = new URL(baseOrigin)
-  return (
-    originUrl.protocol === baseUrl.protocol &&
-    isTrustedHeaderHost(originUrl.host)
-  )
-}
-
-const hasSameOriginProof = (req: NextRequest): boolean => {
-  if (!STATE_CHANGING_METHODS.has(req.method)) return true
-
-  const baseOrigin = new URL(getBaseURL()).origin
-
-  const origin = req.headers.get('Origin')
-  if (origin) return isAllowedOrigin(origin, baseOrigin)
-
-  const referer = req.headers.get('Referer')
-  if (referer) return isAllowedOrigin(referer, baseOrigin)
-
-  return false
-}
 
 type ScopeMatchMode = 'all' | 'any'
 

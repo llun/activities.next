@@ -407,7 +407,10 @@ describe('Strava archive import route', () => {
 
     const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      },
       body: JSON.stringify({
         fitnessFileId: 'pre-created-fitness-file-id',
         archiveId: '550e8400-e29b-41d4-a716-446655440001',
@@ -451,7 +454,10 @@ describe('Strava archive import route', () => {
 
     const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      },
       body: JSON.stringify({
         fitnessFileId: 'pre-created-fitness-file-id',
         archiveId: '550e8400-e29b-41d4-a716-446655440006',
@@ -487,7 +493,10 @@ describe('Strava archive import route', () => {
 
     const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      },
       body: JSON.stringify({
         fitnessFileId: 'pre-created-fitness-file-id',
         archiveId: '550e8400-e29b-41d4-a716-446655440005',
@@ -511,7 +520,10 @@ describe('Strava archive import route', () => {
 
     const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      },
       body: JSON.stringify({
         fitnessFileId: 'someone-elses-file',
         archiveId: '550e8400-e29b-41d4-a716-446655440002',
@@ -538,7 +550,10 @@ describe('Strava archive import route', () => {
 
     const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      },
       body: JSON.stringify({
         fitnessFileId: 'pre-created-fitness-file-id',
         archiveId: '550e8400-e29b-41d4-a716-446655440003',
@@ -565,7 +580,10 @@ describe('Strava archive import route', () => {
 
     const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      },
       body: JSON.stringify({
         fitnessFileId: 'pre-created-fitness-file-id',
         archiveId: '550e8400-e29b-41d4-a716-446655440004',

@@ -26,6 +26,7 @@ jest.mock('@/lib/utils/getAdminFromSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test', allowEmails: [] })
 }))
 
@@ -104,7 +105,10 @@ describe('/api/v1/admin/domain_blocks', () => {
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
         body: JSON.stringify({
           domain: 'new.test',
           severity: 'silence',
@@ -146,7 +150,10 @@ describe('/api/v1/admin/domain_blocks', () => {
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
         body: JSON.stringify({
           domain: 'form.test',
           reject_media: 'on',
@@ -170,7 +177,10 @@ describe('/api/v1/admin/domain_blocks', () => {
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
         body: '{'
       }),
       { params: Promise.resolve({}) }

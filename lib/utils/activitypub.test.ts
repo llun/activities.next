@@ -49,24 +49,14 @@ describe('extractActivityPubId', () => {
     ).toEqual('https://example.com/actor/1')
   })
 
-  it('returns undefined for null', () => {
-    expect(extractActivityPubId(null)).toBeUndefined()
-  })
-
-  it('returns undefined for undefined', () => {
-    expect(extractActivityPubId(undefined)).toBeUndefined()
-  })
-
-  it('returns undefined for number', () => {
-    expect(extractActivityPubId(123)).toBeUndefined()
-  })
-
-  it('returns undefined for empty object', () => {
-    expect(extractActivityPubId({})).toBeUndefined()
-  })
-
-  it('returns undefined for empty array', () => {
-    expect(extractActivityPubId([])).toBeUndefined()
+  it.each([
+    { description: 'null', value: null },
+    { description: 'undefined', value: undefined },
+    { description: 'number', value: 123 },
+    { description: 'empty object', value: {} },
+    { description: 'empty array', value: [] }
+  ])('returns undefined for $description', ({ value }) => {
+    expect(extractActivityPubId(value)).toBeUndefined()
   })
 })
 

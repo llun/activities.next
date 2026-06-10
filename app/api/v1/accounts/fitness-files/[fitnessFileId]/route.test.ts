@@ -92,7 +92,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     const response = await DELETE(
       new NextRequest(
         'http://llun.test/api/v1/accounts/fitness-files/fitness-file-1',
-        { method: 'DELETE' }
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
       ),
       {
         params: Promise.resolve({ fitnessFileId: 'fitness-file-1' })

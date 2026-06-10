@@ -14,7 +14,8 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 
 const mockGetConfig = jest.fn()
 jest.mock('@/lib/config', () => ({
-  getConfig: () => mockGetConfig()
+  getConfig: () => mockGetConfig(),
+  getBaseURL: () => 'https://llun.test'
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
@@ -64,7 +65,10 @@ describe('POST /api/v1/actors', () => {
   const createRequest = (body: Record<string, string>) =>
     new NextRequest('https://llun.test/api/v1/actors', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        origin: 'https://llun.test'
+      },
       body: JSON.stringify(body)
     })
 
@@ -100,6 +104,28 @@ describe('POST /api/v1/actors', () => {
     const data = await response.json()
     expect(response.status).toBe(200)
     expect(data.domain).toBe('llun.test')
+  })
+
+  it('returns 400 when the request body is malformed JSON', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      allowActorDomains: ['llun.test']
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/actors', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: 'not-json{'
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
   })
 
   it('rejects domains that are not on the allow list', async () => {

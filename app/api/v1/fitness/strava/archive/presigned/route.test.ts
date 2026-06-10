@@ -56,7 +56,10 @@ describe('Strava archive presigned URL endpoint', () => {
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
         body: JSON.stringify({
           fileName: 'export.zip',
           contentType: 'application/zip',
@@ -79,7 +82,10 @@ describe('Strava archive presigned URL endpoint', () => {
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
         body: JSON.stringify({
           fileName: 'export.zip',
           contentType: 'application/zip',
@@ -103,7 +109,10 @@ describe('Strava archive presigned URL endpoint', () => {
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
         body: JSON.stringify({ fileName: 'not-a-zip.txt', size: 1024 })
       }
     )
@@ -125,7 +134,10 @@ describe('Strava archive presigned URL endpoint', () => {
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
         body: JSON.stringify({
           fileName: 'export.zip',
           contentType: 'application/zip',
@@ -150,7 +162,10 @@ describe('Strava archive presigned URL endpoint', () => {
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
         body: JSON.stringify({
           fileName: 'export.zip',
           contentType: 'application/zip',
@@ -171,7 +186,10 @@ describe('Strava archive presigned URL endpoint', () => {
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
         body: JSON.stringify({
           fileName: 'export.zip',
           contentType: 'application/zip',

@@ -110,6 +110,7 @@ describe('/api/v1/accounts/[id]/fitness-heatmap legacy adapter', () => {
   it('keeps POST available for legacy refresh callers', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
       body: JSON.stringify({
         activity_type: 'running',
         period_type: 'yearly',

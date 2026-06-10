@@ -9,7 +9,6 @@ export type AppHostConfig = HostConfig & {
   allowActorDomains: string[]
 }
 
-let cachedHostConfig: AppHostConfig | null = null
 let cachedProxyHostConfig: HostConfig | null = null
 
 export const getHostConfigFromEnvironment = (
@@ -23,13 +22,6 @@ export const getHostConfigFromEnvironment = (
   trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
 })
 
-export const getHostConfig = (): AppHostConfig => {
-  if (cachedHostConfig) return cachedHostConfig
-
-  cachedHostConfig = getHostConfigFromEnvironment()
-  return cachedHostConfig
-}
-
 export const getProxyHostConfig = (): HostConfig => {
   if (cachedProxyHostConfig) return cachedProxyHostConfig
 
@@ -41,6 +33,5 @@ export const getProxyHostConfig = (): HostConfig => {
 }
 
 export const resetHostConfigCacheForTests = () => {
-  cachedHostConfig = null
   cachedProxyHostConfig = null
 }

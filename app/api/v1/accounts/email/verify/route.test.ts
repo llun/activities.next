@@ -11,6 +11,7 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
@@ -85,7 +86,10 @@ describe('POST /api/v1/accounts/email/verify', () => {
       {
         method: 'POST',
         body,
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
 
@@ -103,7 +107,10 @@ describe('POST /api/v1/accounts/email/verify', () => {
       {
         method: 'POST',
         body: JSON.stringify({ emailChangeCode: 'verification-code' }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
 

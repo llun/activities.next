@@ -52,7 +52,10 @@ describe('POST /api/v1/accounts/outbox', () => {
     const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
       method: 'POST',
       body: '{',
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
     })
 
     const res = await POST(req, { params: Promise.resolve({}) })
@@ -69,7 +72,10 @@ describe('POST /api/v1/accounts/outbox', () => {
         message: 'Direct note without recipients',
         visibility: 'direct'
       }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
     })
 
     const res = await POST(req, { params: Promise.resolve({}) })
@@ -91,7 +97,10 @@ describe('POST /api/v1/accounts/outbox', () => {
         durationInSeconds: 300,
         visibility: 'direct'
       }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
     })
 
     const res = await POST(req, { params: Promise.resolve({}) })
@@ -115,7 +124,10 @@ describe('DELETE /api/v1/accounts/outbox', () => {
     const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
       method: 'DELETE',
       body: '{',
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
     })
 
     const res = await DELETE(req, { params: Promise.resolve({}) })

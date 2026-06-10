@@ -1,5 +1,4 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { NextApiResponse } from 'next'
 import { NextRequest } from 'next/server'
 
 import { SERVICE_NAME } from '@/lib/constants'
@@ -57,31 +56,6 @@ export const codeMap = {
 }
 
 export type StatusCode = keyof typeof codeMap
-
-export const errorResponse = (
-  res: NextApiResponse,
-  code: keyof typeof codeMap
-) => {
-  const span = trace.getActiveSpan()
-  if (span) {
-    if (code >= 400) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: codeMap[code]?.status || ERROR_500.status
-      })
-    } else {
-      span.setStatus({
-        code: SpanStatusCode.OK
-      })
-    }
-  }
-
-  if (codeMap[code]) {
-    res.status(code).json(codeMap[code])
-    return
-  }
-  res.status(code).json(ERROR_500)
-}
 
 export const UNFOLLOW_NETWORK_ERROR_CODES = [
   'ENOTFOUND',

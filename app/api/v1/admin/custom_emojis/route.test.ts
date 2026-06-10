@@ -37,6 +37,7 @@ jest.mock('@/lib/services/medias', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: () => 'https://llun.test',
   getConfig: () => ({
     host: 'llun.test',
     allowEmails: [],
@@ -56,8 +57,8 @@ const makeMultipartRequest = (form: FormData) => {
     {
       method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data; boundary=test-boundary',
-        Origin: 'https://llun.test'
+        Origin: 'https://llun.test',
+        'Content-Type': 'multipart/form-data; boundary=test-boundary'
       }
     }
   )

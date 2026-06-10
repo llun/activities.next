@@ -4,6 +4,7 @@ import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { ensureWebhookSubscription } from '@/lib/services/strava/webhookSubscription'
 import { logger } from '@/lib/utils/logger'
+import { timingSafeStringEqual } from '@/lib/utils/timingSafeStringEqual'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface StravaTokenResponse {
@@ -51,7 +52,13 @@ export const GET = traceApiRoute(
     }
 
     // Validate OAuth state for CSRF protection
-    if (!state || state !== fitnessSettings.oauthState) {
+    // The explicit empty check keeps a forged callback with `state=` from
+    // matching a row whose stored state is also empty.
+    if (
+      !state ||
+      !fitnessSettings.oauthState ||
+      !timingSafeStringEqual(state, fitnessSettings.oauthState)
+    ) {
       logger.error({
         message: 'OAuth state mismatch - potential CSRF attack',
         actorId: currentActor.id

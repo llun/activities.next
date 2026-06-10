@@ -190,12 +190,13 @@ describe('createPollVoteJob', () => {
       name: 'Option A'
     })
 
-    // Should not throw
-    await createPollVoteJob(database, {
-      id: 'id',
-      name: CREATE_POLL_VOTE_JOB_NAME,
-      data: voteNote
-    })
+    await expect(
+      createPollVoteJob(database, {
+        id: 'id',
+        name: CREATE_POLL_VOTE_JOB_NAME,
+        data: voteNote
+      })
+    ).resolves.toBeUndefined()
   })
 
   it('ignores vote for non-poll status', async () => {
@@ -215,12 +216,13 @@ describe('createPollVoteJob', () => {
       name: 'Option A'
     })
 
-    // Should not throw
-    await createPollVoteJob(database, {
-      id: 'id',
-      name: CREATE_POLL_VOTE_JOB_NAME,
-      data: voteNote
-    })
+    await expect(
+      createPollVoteJob(database, {
+        id: 'id',
+        name: CREATE_POLL_VOTE_JOB_NAME,
+        data: voteNote
+      })
+    ).resolves.toBeUndefined()
   })
 
   it('ignores vote for invalid choice', async () => {

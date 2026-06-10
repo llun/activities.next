@@ -11,6 +11,7 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-for-encryption',
@@ -182,6 +183,7 @@ describe('Strava Settings API', () => {
         'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             clientId: '54321',
             clientSecret: 'newsecret456',
@@ -220,6 +222,7 @@ describe('Strava Settings API', () => {
         'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             defaultVisibility: 'direct'
           })
@@ -244,6 +247,7 @@ describe('Strava Settings API', () => {
         'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             clientId: 'abc123',
             clientSecret: 'secret'
@@ -263,6 +267,7 @@ describe('Strava Settings API', () => {
         'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             clientId: '12345',
             clientSecret: ''
@@ -282,6 +287,7 @@ describe('Strava Settings API', () => {
         'http://llun.test/api/v1/fitness/strava',
         {
           method: 'POST',
+          headers: { Origin: 'https://llun.test' },
           body: JSON.stringify({
             clientId: '12345',
             clientSecret: 'secret',
@@ -303,7 +309,10 @@ describe('Strava Settings API', () => {
         {
           method: 'POST',
           body: '{',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
         }
       )
 
@@ -334,7 +343,8 @@ describe('Strava Settings API', () => {
       const request = new NextRequest(
         'http://llun.test/api/v1/fitness/strava',
         {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: { Origin: 'https://llun.test' }
         }
       )
 
@@ -365,7 +375,8 @@ describe('Strava Settings API', () => {
       const request = new NextRequest(
         'http://llun.test/api/v1/fitness/strava',
         {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: { Origin: 'https://llun.test' }
         }
       )
 

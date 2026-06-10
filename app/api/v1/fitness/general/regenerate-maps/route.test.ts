@@ -13,6 +13,7 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-for-encryption',
@@ -159,7 +160,8 @@ describe('POST /api/v1/fitness/general/regenerate-maps', () => {
     const request = new NextRequest(
       'http://llun.test/api/v1/fitness/general/regenerate-maps',
       {
-        method: 'POST'
+        method: 'POST',
+        headers: { Origin: 'https://llun.test' }
       }
     )
 
@@ -205,7 +207,8 @@ describe('POST /api/v1/fitness/general/regenerate-maps', () => {
     const request = new NextRequest(
       'http://llun.test/api/v1/fitness/general/regenerate-maps',
       {
-        method: 'POST'
+        method: 'POST',
+        headers: { Origin: 'https://llun.test' }
       }
     )
 

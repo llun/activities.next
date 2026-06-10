@@ -43,105 +43,62 @@ describe('getMastodonNotification', () => {
   })
 
   describe('type mapping', () => {
-    it('should map like notification to favourite', async () => {
-      const notification = await database.createNotification({
-        actorId: actor1Id,
+    it.each([
+      {
+        description: 'maps like notification to favourite',
         type: NotificationType.enum.like,
-        sourceActorId: actor2Id,
-        statusId
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification
-      )
-
-      expect(mastodonNotification).not.toBeNull()
-      expect(mastodonNotification?.type).toBe('favourite')
-    })
-
-    it('should map reply notification to mention', async () => {
-      const notification = await database.createNotification({
-        actorId: actor1Id,
+        statusId,
+        expected: 'favourite'
+      },
+      {
+        description: 'maps reply notification to mention',
         type: NotificationType.enum.reply,
-        sourceActorId: actor2Id,
-        statusId
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification
-      )
-
-      expect(mastodonNotification).not.toBeNull()
-      expect(mastodonNotification?.type).toBe('mention')
-    })
-
-    it('should map reblog notification to reblog', async () => {
-      const notification = await database.createNotification({
-        actorId: actor1Id,
+        statusId,
+        expected: 'mention'
+      },
+      {
+        description: 'maps reblog notification to reblog',
         type: NotificationType.enum.reblog,
-        sourceActorId: actor2Id,
-        statusId
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification
-      )
-
-      expect(mastodonNotification).not.toBeNull()
-      expect(mastodonNotification?.type).toBe('reblog')
-    })
-
-    it('should keep follow type as follow', async () => {
-      const notification = await database.createNotification({
-        actorId: actor1Id,
+        statusId,
+        expected: 'reblog'
+      },
+      {
+        description: 'keeps follow type as follow',
         type: NotificationType.enum.follow,
-        sourceActorId: actor2Id
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification
-      )
-
-      expect(mastodonNotification).not.toBeNull()
-      expect(mastodonNotification?.type).toBe('follow')
-    })
-
-    it('should keep follow_request type as follow_request', async () => {
-      const notification = await database.createNotification({
-        actorId: actor1Id,
+        statusId: undefined,
+        expected: 'follow'
+      },
+      {
+        description: 'keeps follow_request type as follow_request',
         type: NotificationType.enum.follow_request,
-        sourceActorId: actor2Id
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification
-      )
-
-      expect(mastodonNotification).not.toBeNull()
-      expect(mastodonNotification?.type).toBe('follow_request')
-    })
-
-    it('should keep mention type as mention', async () => {
-      const notification = await database.createNotification({
-        actorId: actor1Id,
+        statusId: undefined,
+        expected: 'follow_request'
+      },
+      {
+        description: 'keeps mention type as mention',
         type: NotificationType.enum.mention,
-        sourceActorId: actor2Id,
-        statusId
-      })
+        statusId,
+        expected: 'mention'
+      }
+    ])(
+      '$description',
+      async ({ type, statusId: notificationStatusId, expected }) => {
+        const notification = await database.createNotification({
+          actorId: actor1Id,
+          type,
+          sourceActorId: actor2Id,
+          ...(notificationStatusId ? { statusId: notificationStatusId } : null)
+        })
 
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification
-      )
+        const mastodonNotification = await getMastodonNotification(
+          database,
+          notification
+        )
 
-      expect(mastodonNotification).not.toBeNull()
-      expect(mastodonNotification?.type).toBe('mention')
-    })
+        expect(mastodonNotification).not.toBeNull()
+        expect(mastodonNotification?.type).toBe(expected)
+      }
+    )
   })
 
   describe('account serialization', () => {

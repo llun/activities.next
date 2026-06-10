@@ -34,24 +34,29 @@ describe('counterBucket utils', () => {
   })
 
   describe('formatBucketHour', () => {
-    it('formats a date to compact UTC hour string', () => {
-      const date = new Date('2026-03-24T14:30:00Z')
-      expect(formatBucketHour(date)).toBe('2026032414')
-    })
-
-    it('pads single-digit months, days, and hours', () => {
-      const date = new Date('2026-01-05T03:00:00Z')
-      expect(formatBucketHour(date)).toBe('2026010503')
-    })
-
-    it('handles midnight correctly', () => {
-      const date = new Date('2026-12-31T00:00:00Z')
-      expect(formatBucketHour(date)).toBe('2026123100')
-    })
-
-    it('handles end of day correctly', () => {
-      const date = new Date('2026-06-15T23:59:59Z')
-      expect(formatBucketHour(date)).toBe('2026061523')
+    it.each([
+      {
+        description: 'formats a date to compact UTC hour string',
+        input: '2026-03-24T14:30:00Z',
+        expected: '2026032414'
+      },
+      {
+        description: 'pads single-digit months, days, and hours',
+        input: '2026-01-05T03:00:00Z',
+        expected: '2026010503'
+      },
+      {
+        description: 'handles midnight correctly',
+        input: '2026-12-31T00:00:00Z',
+        expected: '2026123100'
+      },
+      {
+        description: 'handles end of day correctly',
+        input: '2026-06-15T23:59:59Z',
+        expected: '2026061523'
+      }
+    ])('$description', ({ input, expected }) => {
+      expect(formatBucketHour(new Date(input))).toBe(expected)
     })
   })
 

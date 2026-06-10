@@ -4,6 +4,7 @@ import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { switchActor } from '@/lib/client'
 import { ActorInfo, AddActorDialog } from '@/lib/components/actor-switcher'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -62,13 +63,9 @@ export function ActorsSection({
     setIsSwitching(true)
     setMessage(null)
     try {
-      const response = await fetch('/api/v1/actors/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: selectedActorId })
-      })
+      const didSwitch = await switchActor({ actorId: selectedActorId })
 
-      if (response.ok) {
+      if (didSwitch) {
         window.location.reload()
       } else {
         setMessage({ type: 'error', text: 'Failed to switch actor' })

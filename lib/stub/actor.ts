@@ -83,7 +83,7 @@ export const MockActor = ({
   Actor.parse({
     id,
     username: new URL(id).pathname.split('/').pop() ?? 'me',
-    domain: 'chat.llun.dev',
+    domain: new URL(id).host,
     followersUrl: `${id}/followers`,
     inboxUrl: `${id}/inbox`,
     sharedInboxUrl,

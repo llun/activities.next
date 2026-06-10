@@ -21,7 +21,7 @@ jest.mock('@/lib/services/queue', () => ({
 }))
 
 jest.mock('@/lib/services/fitness-files', () => {
-  const actual = jest.requireActual('../services/fitness-files')
+  const actual = jest.requireActual('@/lib/services/fitness-files')
   return {
     ...actual,
     getFitnessFile: jest.fn()

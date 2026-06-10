@@ -8,6 +8,7 @@ import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 
+import { hasSameOriginProof } from './sameOriginProof'
 import { AppRouterParams } from './types'
 
 type AdminApiHandle<P> = (
@@ -50,6 +51,16 @@ export const AdminApiGuard =
     const session = await getServerAuthSession()
     const admin = await getAdminFromSession(database, session)
     if (admin) {
+      // Cookie-session admin mutations need the same CSRF same-origin proof
+      // as AuthenticatedGuard; bearer-token requests below are not at risk.
+      if (!hasSameOriginProof(req)) {
+        return apiResponse({
+          req,
+          allowedMethods,
+          data: { error: 'Forbidden' },
+          responseStatusCode: HTTP_STATUS.FORBIDDEN
+        })
+      }
       return handle(req, { database, params: context.params })
     }
 

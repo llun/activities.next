@@ -1,5 +1,5 @@
-const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
-const { TEST_DOMAIN } = jest.requireActual('../stub/const')
+const { MOCK_SECRET_PHASES } = jest.requireActual('@/lib/stub/actor')
+const { TEST_DOMAIN } = jest.requireActual('@/lib/stub/const')
 
 export const getConfig = jest.fn().mockReturnValue({
   host: TEST_DOMAIN,

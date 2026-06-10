@@ -1,7 +1,9 @@
 import { FetchMock } from 'jest-fetch-mock'
 
-import { MockActivityPubFollowers } from './followers'
-import { MockActivityPubFollowing } from './following'
+import {
+  MockActivityPubFollowers,
+  MockActivityPubFollowing
+} from './followCollection'
 import { MockImageDocument } from './imageDocument'
 import { MockLitepubNote, MockMastodonActivityPubNote } from './note'
 import { MockActivityPubOutbox } from './outbox'

@@ -21,6 +21,7 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 jest.mock('@/lib/config', () => ({
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
@@ -95,7 +96,10 @@ describe('POST /api/v1/accounts/password', () => {
       {
         method: 'POST',
         body: 'not-json',
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
 
@@ -114,7 +118,10 @@ describe('POST /api/v1/accounts/password', () => {
           currentPassword: 'current-password',
           newPassword: 'short'
         }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
 
@@ -135,7 +142,10 @@ describe('POST /api/v1/accounts/password', () => {
           currentPassword: 'current-password',
           newPassword: 'new-password'
         }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
       }
     )
 

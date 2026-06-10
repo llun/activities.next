@@ -220,11 +220,12 @@ describe('LikeDatabase', () => {
       })
 
       it('does nothing when status does not exist', async () => {
-        await database.deleteLike({
-          actorId: primaryActorId,
-          statusId: 'https://nonexistent.status/id'
-        })
-        // Just verifying no errors are thrown
+        await expect(
+          database.deleteLike({
+            actorId: primaryActorId,
+            statusId: 'https://nonexistent.status/id'
+          })
+        ).resolves.toBeUndefined()
       })
     })
 

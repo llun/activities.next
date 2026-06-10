@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { markNotificationsRead } from '@/lib/client'
 import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import type { Mastodon } from '@/lib/types/activitypub'
 import type { Status } from '@/lib/types/domain/status'
@@ -46,15 +47,11 @@ export const NotificationsList = ({
       if (notificationIds.length === 0) return true
 
       try {
-        await fetch('/api/v1/notifications/read', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            notification_ids: notificationIds
-          })
-        })
+        const didMark = await markNotificationsRead({ notificationIds })
+        if (!didMark) {
+          setMarkReadError(true)
+          return false
+        }
         setMarkReadError(false)
         // Refresh the layout to update the notification badge count
         router.refresh()

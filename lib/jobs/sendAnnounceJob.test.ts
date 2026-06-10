@@ -118,7 +118,10 @@ describe('sendAnnounceJob', () => {
       }
     })
 
-    // Job should complete without error
-    // (In a real test we'd verify inbox calls, but the test database may not have followers set up)
+    expect(
+      fetchMock.mock.calls.some(
+        (call) => call[0] === 'https://somewhere.test/inbox'
+      )
+    ).toBe(true)
   })
 })
