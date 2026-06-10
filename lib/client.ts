@@ -2883,7 +2883,12 @@ const requestFilters = async (path: string): Promise<ClientFilter[]> => {
     method: 'GET',
     headers: { Accept: 'application/json' }
   })
-  if (!response.ok) return []
+  // Throw (rather than returning []) so an HTTP error is surfaced by the
+  // caller's error handling instead of being indistinguishable from an
+  // empty list. Mirrors the throwing pattern used by createNote().
+  if (!response.ok) {
+    throw new Error(`Failed to load filters (${response.status})`)
+  }
   return (await response.json()) as ClientFilter[]
 }
 
