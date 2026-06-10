@@ -17,6 +17,10 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Multi-domain support** — Different domains for different actors
 - ✅ **Account blocks** — Block or unblock remote accounts and list blocked accounts
 - ✅ **Follow requests** — Review, authorize, and reject follow requests
+- ✅ **Custom emoji** — Instance-defined custom emoji with a sticker/emoji picker in the post box
+- ✅ **Featured hashtags** — Feature hashtags on your profile and manage them from settings
+- ✅ **Status translation** — Translate posts into your language via DeepL, LibreTranslate, or an OpenAI-compatible backend
+- ✅ **Public & logged-out pages** — Logged-out landing page plus publicly viewable profile and status pages, with design-system error pages (404/500)
 
 ### Authentication & OAuth
 
@@ -31,6 +35,8 @@ This document tracks the implemented and planned features for Activity.next.
 ### Timelines & Notifications
 
 - ✅ **Main timeline** — Home feed with posts from followed accounts
+- ✅ **Favorites page** — Browse posts you've favorited
+- ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering
 - ✅ **Notifications** — Like, follow, mention, reblog, and follow request notifications
 - ✅ **Notification grouping** — Group similar notifications together
 - ✅ **Email notifications** — Configurable email alerts for each notification type
@@ -53,10 +59,17 @@ This document tracks the implemented and planned features for Activity.next.
 
 ### API Compatibility
 
-- ✅ **Mastodon API v1/v2** — Compatible with Mastodon client applications
-- ✅ **Mastodon-compatible status actions** — Favourite, reblog, bookmark, pin, context, history, and relationship endpoints
+- ✅ **Mastodon API v1/v2** — Compatible with Mastodon client applications (including iOS clients); statuses, accounts, and media endpoints are fully Mastodon-compatible
+- ✅ **Mastodon-compatible status actions** — Favourite, reblog, bookmark, pin, context, history, translate, and relationship endpoints
+- ✅ **Granular OAuth scopes** — Fine-grained scope enforcement and client-credentials app tokens
 - ✅ **Search** — Search accounts, hashtags, and statuses via `/api/v2/search` (status search backed by a full-text index)
-- ✅ **Lists** — Create and manage timeline lists and their members
+- ✅ **Lists** — Create and manage timeline lists, their members, replies policy, and exclusive flag
+- ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering
+- ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
+- ✅ **Markers** — Save and restore per-timeline read positions
+- ✅ **Endorsements** — Feature accounts on your profile
+- ✅ **Account notes & preferences** — Private per-account notes and client preferences
+- ✅ **Featured tags API** — `/api/v1/featured_tags` endpoints backing the profile featured-hashtags feature
 - ✅ **Followed hashtags** — Follow and unfollow hashtags and view a followed-tags timeline
 - ✅ **Mutes** — Mute and unmute accounts
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`
@@ -73,13 +86,13 @@ This document tracks the implemented and planned features for Activity.next.
 
 ## In Progress
 
-- 🚧 **Mastodon compatibility gaps** — Broad v1/v2 coverage is in place; some endpoints (e.g. filters and suggestions) remain partial
+- 🚧 **Follow suggestions** — `/api/v2/suggestions` responds for Mastodon client compatibility but currently returns an empty set; a ranking implementation is pending
 - 🚧 **Fitness import hardening** — Repair and resume scripts cover interrupted or legacy Strava imports while the importer continues to mature
 
 ## Planned Features
 
 - [ ] Streaming API for real-time updates
-- [ ] Expanded moderation workflows
+- [ ] Moderation review dashboard for submitted reports
 - [ ] Bookmark collections
 
 ## Feature Requests
