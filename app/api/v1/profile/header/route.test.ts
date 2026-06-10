@@ -35,7 +35,7 @@ jest.mock('@/lib/config', () => ({
   })
 }))
 
-describe('DELETE /api/v1/profile/avatar', () => {
+describe('DELETE /api/v1/profile/header', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -57,7 +57,7 @@ describe('DELETE /api/v1/profile/avatar', () => {
   })
 
   const createRequest = () =>
-    new NextRequest('https://llun.test/api/v1/profile/avatar', {
+    new NextRequest('https://llun.test/api/v1/profile/header', {
       method: 'DELETE',
       headers: { origin: 'https://llun.test' }
     })
@@ -70,13 +70,13 @@ describe('DELETE /api/v1/profile/avatar', () => {
     expect(response.status).toBe(401)
   })
 
-  it('clears the actor icon and returns the credential account', async () => {
+  it('clears the actor header image and returns the credential account', async () => {
     await database.updateActor({
       actorId: ACTOR1_ID,
-      iconUrl: 'https://llun.test/icon.png'
+      headerImageUrl: 'https://llun.test/header.png'
     })
     const actorBefore = await database.getActorFromId({ id: ACTOR1_ID })
-    expect(actorBefore?.iconUrl).toBe('https://llun.test/icon.png')
+    expect(actorBefore?.headerImageUrl).toBe('https://llun.test/header.png')
 
     const response = await DELETE(createRequest(), {
       params: Promise.resolve({})
@@ -84,11 +84,11 @@ describe('DELETE /api/v1/profile/avatar', () => {
     expect(response.status).toBe(200)
 
     const actorAfter = await database.getActorFromId({ id: ACTOR1_ID })
-    expect(actorAfter?.iconUrl).toBeUndefined()
+    expect(actorAfter?.headerImageUrl).toBeUndefined()
 
     const body = await response.json()
     expect(body.source).toBeDefined()
-    // avatar should be empty string (getMastodonActorFromSQLActor default for no iconUrl)
-    expect(body.avatar).toBe('')
+    // header should be empty string (getMastodonActorFromSQLActor default for no headerImageUrl)
+    expect(body.header).toBe('')
   })
 })
