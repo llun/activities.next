@@ -197,6 +197,7 @@ CREATE INDEX `featured_tags_name` on `featured_tags` (`nameNormalized`);
 CREATE TABLE `translation_cache` (`provider` varchar(191) not null, `sourceLanguage` varchar(16) not null, `targetLanguage` varchar(16) not null, `sourceHash` varchar(64) not null, `content` text not null, `detectedSourceLanguage` varchar(16), `createdAt` datetime default CURRENT_TIMESTAMP, primary key (`provider`, `sourceLanguage`, `targetLanguage`, `sourceHash`));
 CREATE INDEX `translation_cache_created` on `translation_cache` (`createdAt`);
 CREATE TABLE `server_filters` (`id` varchar(255), `title` varchar(255) not null, `context` text not null, `filterAction` varchar(255) not null default 'warn', `expiresAt` bigint null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
+CREATE INDEX `server_filters_expires_at` on `server_filters` (`expiresAt`);
 CREATE INDEX `server_filters_created` on `server_filters` (`createdAt`);
 CREATE TABLE `server_filter_keywords` (`id` varchar(255), `filterId` varchar(255) not null, `keyword` text not null, `wholeWord` boolean not null default '0', `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
 CREATE UNIQUE INDEX `server_filter_keywords_filter_keyword_unique` on `server_filter_keywords` (`filterId`, `keyword`);

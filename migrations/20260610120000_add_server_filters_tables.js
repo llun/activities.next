@@ -17,6 +17,9 @@ exports.up = async (knex) => {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
+    // getActiveServerFilters filters on expiresAt on every timeline/notification
+    // request (a hot path), so index it alongside the ordering column.
+    table.index(['expiresAt'], 'server_filters_expires_at')
     table.index(['createdAt'], 'server_filters_created')
   })
 

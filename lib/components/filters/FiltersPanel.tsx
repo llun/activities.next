@@ -90,6 +90,11 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
             : result
         )
       })
+      .catch(() => {
+        // A network/parse failure must surface an error rather than silently
+        // showing the "No filters yet" empty state.
+        if (active) setListError('Failed to load filters. Please try again.')
+      })
       .finally(() => {
         if (active) setLoading(false)
       })

@@ -1332,6 +1332,8 @@ CREATE INDEX server_filter_keywords_filter_id ON public.server_filter_keywords U
 
 CREATE INDEX server_filters_created ON public.server_filters USING btree ("createdAt");
 
+CREATE INDEX server_filters_expires_at ON public.server_filters USING btree ("expiresAt");
+
 CREATE INDEX "sessions_accountId_token_idx" ON public.sessions USING btree ("accountId", token);
 
 CREATE INDEX "status_history_statusId_idx" ON public.status_history USING btree ("statusId", "createdAt", "updatedAt");
