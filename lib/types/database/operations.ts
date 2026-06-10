@@ -565,6 +565,7 @@ export type FavouritedByAccount = {
 export type GetRebloggedByParams = BaseStatusParams & {
   limit?: number
   maxStatusId?: string
+  minStatusId?: string
   sinceStatusId?: string
   visibleToActorId?: string | null
 }
