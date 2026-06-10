@@ -1,22 +1,16 @@
-import * as bcrypt from 'bcrypt'
-import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { sendMail } from '@/lib/services/email'
+import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { logger } from '@/lib/utils/logger'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
-import { generateKeyPair } from '@/lib/utils/signature'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 import { CreateAccountRequest } from './types'
 
-const BCRYPT_ROUND = 10
 const MAIN_ERROR_MESSAGE = 'Validation failed'
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -94,7 +88,6 @@ const isApiClient = (request: NextRequest): boolean => {
 export const POST = traceApiRoute(
   'createAccount',
   async (request: NextRequest) => {
-    const config = getConfig()
     const database = getDatabase()
     if (!database) {
       return apiResponse({
@@ -122,19 +115,6 @@ export const POST = traceApiRoute(
       })
     }
 
-    // A closed server accepts no new accounts at all. This is orthogonal to
-    // `allowEmails` below (which restricts *who* may register while open), so
-    // it is checked first and independently.
-    if (!config.registrationOpen) {
-      return apiResponse({
-        req: request,
-        allowedMethods: CORS_HEADERS,
-        data: { error: 'Registration is closed' },
-        responseStatusCode: 403
-      })
-    }
-
-    const { host: domain, allowEmails } = config
     // The web sign-up form posts urlencoded/multipart form data.
     let body: Record<string, unknown>
     try {
@@ -163,7 +143,24 @@ export const POST = traceApiRoute(
     }
 
     const form = content.data
-    if (allowEmails.length && !allowEmails.includes(form.email)) {
+    const result = await registerAccount({
+      database,
+      username: form.username,
+      email: form.email,
+      password: form.password,
+      name: form.name
+    })
+
+    if (result.type === 'registration_closed') {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Registration is closed' },
+        responseStatusCode: 403
+      })
+    }
+
+    if (result.type === 'email_not_allowed') {
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
@@ -179,69 +176,13 @@ export const POST = traceApiRoute(
       })
     }
 
-    const [isAccountExists, isUsernameExists] = await Promise.all([
-      database.isAccountExists({ email: form.email }),
-      database.isUsernameExists({ username: form.username, domain })
-    ])
-
-    const errorDetails: {
-      [key in 'email' | 'username']?: { error: string; description: string }[]
-    } = {}
-    if (isAccountExists) {
-      errorDetails.email = [
-        { error: 'ERR_TAKEN', description: 'Email is already taken' }
-      ]
-    }
-
-    if (isUsernameExists) {
-      errorDetails.username = [
-        { error: 'ERR_TAKEN', description: 'Username is already taken' }
-      ]
-    }
-    if (Object.keys(errorDetails).length > 0) {
+    if (result.type === 'validation_failed') {
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: { error: MAIN_ERROR_MESSAGE, details: errorDetails },
+        data: { error: MAIN_ERROR_MESSAGE, details: result.details },
         responseStatusCode: 422
       })
-    }
-
-    // TODO: If the request has auth bearer, return 200 instead
-    const [keyPair, passwordHash] = await Promise.all([
-      generateKeyPair(config.secretPhase),
-      bcrypt.hash(form.password, BCRYPT_ROUND)
-    ])
-
-    const verificationCode = config.email
-      ? crypto.randomBytes(32).toString('base64url')
-      : null
-
-    await database.createAccount({
-      domain,
-      email: form.email,
-      username: form.username,
-      name: form.name || null,
-      privateKey: keyPair.privateKey,
-      publicKey: keyPair.publicKey,
-      passwordHash,
-      verificationCode
-    })
-
-    if (config.email) {
-      try {
-        await sendMail({
-          from: config.email.serviceFromAddress,
-          to: [form.email],
-          subject: 'Email verification',
-          content: {
-            text: `Open this link to verify your email https://${config.host}/auth/confirmation?verificationCode=${verificationCode}`,
-            html: `Open <a href="https://${config.host}/auth/confirmation?verificationCode=${verificationCode}">this link</a> to verify your email.`
-          }
-        })
-      } catch {
-        logger.error({ to: form.email }, `Fail to send email`)
-      }
     }
 
     return Response.redirect(getRedirectUrl(request, '/auth/signin'), 307)
