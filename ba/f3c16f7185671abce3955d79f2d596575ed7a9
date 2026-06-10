@@ -1,0 +1,27 @@
+app/api/v1/profile/avatar/route.ts
+  s_b98341b16c5f05::t_ddebc60ff11166 2-5,8,14
+app/api/v1/profile/avatar/route.test.ts
+  s_b98341b16c5f05::t_fc399870f114c4 87
+app/api/v1/profile/header/route.ts
+  s_b98341b16c5f05::t_f99404edad4251 2-5,8,14
+lib/services/accounts/profileImageHandlers.ts
+  s_b98341b16c5f05::t_ca794e09b46958 1-55
+app/api/v1/profile/header/route.test.ts
+  s_b98341b16c5f05::t_0222c15a253d49 1-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "baf3c16f7185671abce3955d79f2d596575ed7a9",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
