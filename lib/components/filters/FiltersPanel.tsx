@@ -189,6 +189,9 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
               setEditorError(null)
               setEditing('new')
             }}
+            // Block creating while a delete is in flight so a failed-delete
+            // rollback can't drop the just-created filter from the list.
+            disabled={deletingId !== null}
           >
             <Plus className="size-4" />
             Add new filter

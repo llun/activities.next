@@ -100,7 +100,14 @@ export const FilterRow: FC<FilterRowProps> = ({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onEdit}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onEdit}
+          // Freeze edits while any delete is in flight so a failed-delete
+          // rollback can't discard a concurrent edit/create.
+          disabled={deleting}
+        >
           <Pencil className="size-3.5" />
           Edit
         </Button>
