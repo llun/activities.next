@@ -437,7 +437,7 @@ export const getMastodonStatus = async (
         (sum, choice) => sum + choice.totalVotes,
         0
       ),
-      voters_count: 0,
+      voters_count: status.votersCount ?? 0,
       options: status.choices.map((choice) => ({
         title: choice.title,
         votes_count: choice.totalVotes

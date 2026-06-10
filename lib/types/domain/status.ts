@@ -108,6 +108,7 @@ export const StatusPoll = StatusNote.extend({
   choices: PollChoice.array(),
   endAt: z.number(),
   pollType: z.enum(['oneOf', 'anyOf']).default('oneOf'),
+  votersCount: z.number().optional(),
   voted: z.boolean().optional(),
   ownVotes: z.array(z.number()).optional()
 })
