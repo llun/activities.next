@@ -116,9 +116,11 @@ export const POST = traceApiRoute(
       })
     }
 
-    // A closed server accepts no new accounts at all. Check this before
-    // parsing the body so that a POST to a closed server always returns 403
-    // regardless of whether the body is valid.
+    // Guard before parsing the body: a closed server must return 403 even when
+    // the body is malformed, preserving the historical response ordering.
+    // registerAccount() also checks registrationOpen so it is safe to call as a
+    // standalone service; the registration_closed branch in the result handler
+    // below is a defensive fallback for that standalone-caller scenario.
     if (!getConfig().registrationOpen) {
       return apiResponse({
         req: request,
@@ -164,6 +166,11 @@ export const POST = traceApiRoute(
       name: form.name
     })
 
+    // Defensive fallback: the early gate above normally prevents this branch
+    // from being reached in the web-form flow, but registerAccount() re-checks
+    // registrationOpen internally for standalone callers. Keeping this branch
+    // makes the result-union handler exhaustive and avoids a silent gap if the
+    // early gate is ever removed or bypassed.
     if (result.type === 'registration_closed') {
       return apiResponse({
         req: request,

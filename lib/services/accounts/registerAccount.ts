@@ -24,7 +24,6 @@ export interface RegisterAccountParams {
   email: string
   password: string
   name?: string | null
-  reason?: string | null
 }
 
 export const registerAccount = async ({

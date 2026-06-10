@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { registerAccount } from '@/lib/services/accounts/registerAccount'
 
 import { GET, POST } from './route'
 
@@ -13,10 +14,14 @@ jest.mock('@/lib/config', () => ({
   })
 }))
 
-type MockDatabase = Pick<
-  Database,
-  'getMastodonActorsFromIds' | 'isAccountExists' | 'isUsernameExists'
->
+jest.mock('@/lib/services/accounts/registerAccount', () => ({
+  registerAccount: jest.fn()
+}))
+
+// The route only calls getMastodonActorsFromIds directly; isAccountExists and
+// isUsernameExists moved into registerAccount (the service), which is mocked
+// above for route-level tests.
+type MockDatabase = Pick<Database, 'getMastodonActorsFromIds'>
 
 let mockDatabase: MockDatabase | null = null
 jest.mock('@/lib/database', () => ({
@@ -33,9 +38,7 @@ const mastodonAccount = {
 beforeEach(() => {
   jest.clearAllMocks()
   mockDatabase = {
-    getMastodonActorsFromIds: jest.fn().mockResolvedValue([mastodonAccount]),
-    isAccountExists: jest.fn().mockResolvedValue(false),
-    isUsernameExists: jest.fn().mockResolvedValue(false)
+    getMastodonActorsFromIds: jest.fn().mockResolvedValue([mastodonAccount])
   }
 })
 
@@ -161,5 +164,24 @@ describe('POST /api/v1/accounts', () => {
     const res = await POST(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(403)
     expect(createAccount).not.toHaveBeenCalled()
+  })
+
+  it('redirects to /auth/signin with 307 on successful registration', async () => {
+    jest.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'success',
+      accountId: 'new-account-id',
+      username: 'alice'
+    })
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'username=alice&email=alice@example.com&password=password123',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/auth/signin')
   })
 })
