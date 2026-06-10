@@ -4,7 +4,8 @@ import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import {
   OAuthGuardAnyScope,
-  OptionalOAuthGuard
+  OptionalOAuthGuard,
+  corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import {
   MAX_POLL_EXPIRATION_SECONDS,
@@ -18,6 +19,7 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
+import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -108,12 +110,10 @@ export const GET = traceApiRoute(
           return getMastodonStatus(database, status, currentActor?.id)
         })
       )
-      const statuses = resolved.filter(
-        (s): s is Exclude<typeof s, null> => s !== null
-      )
+      const statuses = resolved.filter((s): s is Mastodon.Status => s !== null)
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: statuses })
     },
-    { matchMode: 'any' }
+    { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }
   )
 )
 

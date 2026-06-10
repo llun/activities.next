@@ -5,6 +5,7 @@ import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Status } from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -603,5 +604,27 @@ describe('GET /api/v1/statuses', () => {
       urlToId(firstId),
       urlToId(secondId)
     ])
+  })
+
+  it('excludes a direct status by another actor that the authenticated actor cannot read', async () => {
+    const privateStatusId = `${ACTOR2_ID}/statuses/direct-to-actor3-only`
+    await database.createNote({
+      id: privateStatusId,
+      url: privateStatusId,
+      actorId: ACTOR2_ID,
+      to: [ACTOR3_ID],
+      cc: [],
+      text: 'Direct message to actor3 only'
+    })
+
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses?id[]=${urlToId(privateStatusId)}`
+    )
+    const response = await GET(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.map((s: { id: string }) => s.id)).not.toContain(
+      urlToId(privateStatusId)
+    )
   })
 })
