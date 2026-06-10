@@ -1,0 +1,19 @@
+app/api/v1/accounts/[id]/unendorse/route.test.ts
+  s_b98341b16c5f05::t_4a452174d308d9 1-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a1dbfdee3a7811ea5608d2a975cd56f3ea242dac",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
