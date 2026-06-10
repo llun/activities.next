@@ -1,0 +1,43 @@
+lib/services/accounts/sendConfirmationEmail.ts
+  s_b98341b16c5f05::t_15100311d7bd32 1-29
+lib/services/accounts/registerAccount.test.ts
+  s_b98341b16c5f05::t_0f7615cefb5706 31-34
+  s_b98341b16c5f05::t_e9667d71d1f388 44,64,84,219,248
+  s_b98341b16c5f05::t_64d632673c8776 6-13,15
+app/api/v1/emails/confirmations/route.ts
+  s_b98341b16c5f05::t_f1ec147abec322 5,8,22-27,55-60,68-81
+  s_b98341b16c5f05::t_c84d1382145dc0 62,64
+app/api/v1/emails/confirmations/route.test.ts
+  s_b98341b16c5f05::t_efe17da08bbcb1 108
+  s_b98341b16c5f05::t_c1b6a5f5f2077c 156,164-169,174-181,190,196-204
+  s_b98341b16c5f05::t_d454e5cb2d32fa 81
+  s_b98341b16c5f05::t_10e02163d00a9c 28
+lib/database/sql/account.ts
+  s_b98341b16c5f05::t_eaff0f6df8001f 38
+  s_b98341b16c5f05::t_610ad2692356d5 688-692,697-698
+  s_b98341b16c5f05::t_c84d1382145dc0 693-696
+lib/services/accounts/registerAccount.ts
+  s_b98341b16c5f05::t_a3fc8484113c90 6
+  s_b98341b16c5f05::t_c20fe33f63db6e 93,95
+lib/database/sql/account.test.ts
+  s_b98341b16c5f05::t_ed37d700a2399c 182-191
+lib/types/database/operations.ts
+  s_b98341b16c5f05::t_51241b31d3f04c 318-321
+  s_b98341b16c5f05::t_ec544938da7f6c 386
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "04560f692023c12a97eaccf56c877e010944ac04",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
