@@ -203,7 +203,9 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
           <p className="py-6 text-center text-sm text-muted-foreground">
             Loading filters…
           </p>
-        ) : filters.length === 0 ? (
+        ) : filters.length === 0 && !listError ? (
+          // Suppress the empty-state copy when a load error is already shown, so
+          // a failed fetch doesn't read as "you have no filters".
           <p className="py-6 text-center text-sm text-muted-foreground">
             No filters yet — add one to start hiding unwanted posts.
           </p>
