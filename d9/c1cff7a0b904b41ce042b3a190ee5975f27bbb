@@ -1,0 +1,26 @@
+next.config.ts
+  s_b98341b16c5f05::t_8d82b378396676 86-95
+lib/services/wellknown/index.test.ts
+  s_b98341b16c5f05::t_12cf3ff05c11fc 27-28
+  s_b98341b16c5f05::t_0644ba905a7899 72,74
+lib/services/wellknown/openidConfiguration.ts
+  s_b98341b16c5f05::t_196946bcf711dd 28,30
+lib/services/wellknown/oauthAuthorizationServer.ts
+  s_b98341b16c5f05::t_3fa10e43104064 28-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d9c1cff7a0b904b41ce042b3a190ee5975f27bbb",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
