@@ -19,7 +19,7 @@ Application boundary: Next.js App Router (app/)
         │
         ▼
 Domain and service boundary: Core library (lib/)
-  ├─ Services: auth, guards, media, fitness, email, queue, federation
+  ├─ Services: auth, guards, media, fitness, email, queue, federation, translation
   ├─ ActivityPub: create, follow, like, announce, update, delete, undo
   ├─ Jobs: delivery, imports, fitness processing, map and heatmap generation
   └─ Shared UI: post box, posts, settings, profile, timeline, UI primitives
@@ -181,9 +181,11 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
 Other tables: sessions, notifications, medias, fitness_files,
-              fitness_route_heatmaps, blocks, domain federation rules,
-              recipients, counters, poll_choices, applications,
-              oauth_access_tokens, oauth_authorization_codes
+              fitness_route_heatmaps, blocks, mutes, filters, reports,
+              markers, endorsements, lists, featured_tags, customEmojis,
+              translation_cache, domain federation rules, recipients,
+              counters, poll_choices, applications, oauth_access_tokens,
+              oauth_authorization_codes
 ```
 
 ## Technology Stack
