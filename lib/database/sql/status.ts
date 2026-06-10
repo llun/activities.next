@@ -411,6 +411,8 @@ export const StatusSQLDatabaseMixin = (
     reply = '',
     sensitive = false,
     language = null,
+    applicationName = null,
+    applicationWebsite = null,
     createdAt
   }: CreateNoteParams) {
     const currentTime = new Date()
@@ -440,6 +442,8 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Note,
         content: statusContent,
+        applicationName,
+        applicationWebsite,
         reply,
         replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
@@ -496,6 +500,8 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      applicationName,
+      applicationWebsite,
       reply,
       to,
       cc,
@@ -782,6 +788,8 @@ export const StatusSQLDatabaseMixin = (
     pollType = 'oneOf',
     sensitive = false,
     language = null,
+    applicationName = null,
+    applicationWebsite = null,
     createdAt
   }: CreatePollParams) {
     const currentTime = new Date()
@@ -813,6 +821,8 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Poll,
         content: statusContent,
+        applicationName,
+        applicationWebsite,
         reply,
         replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
@@ -880,6 +890,8 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      applicationName,
+      applicationWebsite,
       reply,
       to,
       cc,
@@ -2461,6 +2473,8 @@ export const StatusSQLDatabaseMixin = (
       summary: content.summary,
       sensitive: content.sensitive ?? false,
       language: content.language ?? null,
+      applicationName: data.applicationName ?? null,
+      applicationWebsite: data.applicationWebsite ?? null,
       reply: data.reply,
       replies: repliesNote,
       totalLikes,

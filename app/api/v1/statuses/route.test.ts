@@ -1,6 +1,8 @@
+import crypto from 'crypto'
+import knex, { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -12,14 +14,28 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET, POST } from './route'
 
+// better-auth stores tokens hashed as SHA-256 base64url; the guard re-hashes the
+// presented bearer token to look it up, so seeded tokens must match.
+const hashToken = (token: string) =>
+  crypto
+    .createHash('sha256')
+    .update(token)
+    .digest()
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: ReturnType<typeof getSQLDatabase> | null = null
+let mockKnex: Knex | null = null
 jest.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase
+  getDatabase: () => mockDatabase,
+  getKnex: () => mockKnex
 }))
 
 jest.mock('next/headers', () => ({
@@ -48,16 +64,23 @@ jest.mock('@/lib/config', () => ({
 }))
 
 describe('POST /api/v1/statuses', () => {
-  const database = getTestSQLDatabase()
+  const knexInstance = knex({
+    client: 'better-sqlite3',
+    useNullAsDefault: true,
+    connection: { filename: ':memory:' }
+  })
+  const database = getSQLDatabase(knexInstance)
 
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    mockKnex = knexInstance
   })
 
   afterAll(async () => {
     mockDatabase = null
+    mockKnex = null
     await database.destroy()
   })
 
@@ -566,6 +589,62 @@ describe('POST /api/v1/statuses', () => {
         key: idempotencyKey
       })
     ).resolves.toBe(secondStatus.uri)
+  })
+
+  it('records the OAuth client as the application on a token-created status', async () => {
+    await knexInstance('oauthClient').insert({
+      id: 'oauth-client-row-1',
+      clientId: 'client-test-app',
+      name: 'Test App',
+      uri: null,
+      redirectUris: JSON.stringify(['https://app.example.com/callback']),
+      scopes: JSON.stringify(['write'])
+    })
+    await knexInstance('oauthAccessToken').insert({
+      id: 'oauth-access-token-1',
+      token: hashToken('app-write-token'),
+      clientId: 'client-test-app',
+      referenceId: ACTOR1_ID,
+      expiresAt: new Date(Date.now() + 3600000),
+      scopes: JSON.stringify(['write'])
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({ status: 'Posted via an app token' }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer app-write-token'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.application).toEqual({
+      name: 'Test App',
+      website: null
+    })
+  })
+
+  it('leaves application null for a web-session created status', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({ status: 'Posted from the web session' }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.application).toBeNull()
   })
 })
 

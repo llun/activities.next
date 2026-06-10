@@ -329,6 +329,7 @@ export const getMastodonStatus = async (
     content: '',
     text: null,
     account,
+    application: null,
 
     mentions: [],
     tags: [],
@@ -398,6 +399,12 @@ export const getMastodonStatus = async (
 
     reblogged: status.actorAnnounceStatusId !== null,
     content: processStatusText(host, status),
+    application: status.applicationName
+      ? {
+          name: status.applicationName,
+          website: status.applicationWebsite ?? null
+        }
+      : null,
 
     text: status.text,
 

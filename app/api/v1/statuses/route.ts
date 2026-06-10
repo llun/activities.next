@@ -123,7 +123,7 @@ export const POST = traceApiRoute(
   OAuthGuardAnyScope(
     [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
-      const { currentActor, database } = context
+      const { currentActor, database, clientId } = context
       try {
         const content = await parseStatusRequestBody(req)
         const parsed = NoteSchema.safeParse(content)
@@ -177,6 +177,16 @@ export const POST = traceApiRoute(
           }
         }
 
+        // When the request authenticated via an OAuth app token, record the
+        // owning client as the status's Mastodon "application". Web-session
+        // creates have no clientId and leave application null.
+        const client = clientId
+          ? await database.getClientFromId({ clientId })
+          : null
+        const application = client?.name
+          ? { name: client.name, website: client.website ?? null }
+          : undefined
+
         let status
         if (note.poll) {
           status = await createPollFromUserInput({
@@ -190,6 +200,7 @@ export const POST = traceApiRoute(
             visibility: note.visibility,
             sensitive: note.sensitive,
             language: note.language ?? null,
+            application,
             database
           })
         } else {
@@ -224,6 +235,7 @@ export const POST = traceApiRoute(
             attachments,
             sensitive: note.sensitive,
             language: note.language ?? null,
+            application,
             database
           })
         }

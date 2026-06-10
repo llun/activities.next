@@ -95,6 +95,10 @@ type GuardContext<P> = {
   database: GuardDatabase
   params: Promise<P>
   grantedScopes?: string[]
+  // The OAuth client id behind a bearer token, when the request authenticated
+  // via a token (not the web session). Lets handlers resolve the owning client
+  // (e.g. to record the Mastodon "application" on a created status).
+  clientId?: string | null
 }
 
 // Token-level context resolved before any actor is required. App
@@ -252,7 +256,7 @@ const resolveAuthenticatedContext = async <P>({
       return { authenticated: false, response: tokenResult.response }
     }
 
-    const { actorId, grantedScopes } = tokenResult.context
+    const { actorId, clientId, grantedScopes } = tokenResult.context
     if (!actorId) {
       return { authenticated: false, response: apiErrorResponse(401) }
     }
@@ -269,7 +273,8 @@ const resolveAuthenticatedContext = async <P>({
           currentActor: Actor.parse(actor),
           database,
           params: context.params,
-          grantedScopes
+          grantedScopes,
+          clientId
         }
       }
     } catch (e) {
