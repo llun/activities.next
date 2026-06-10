@@ -41,7 +41,8 @@ jest.mock('@/lib/config', () => ({
   getConfig: () => ({
     host: 'llun.test',
     allowEmails: []
-  })
+  }),
+  getBaseURL: () => 'https://llun.test'
 }))
 
 describe('AuthenticatedGuard', () => {
@@ -63,9 +64,13 @@ describe('AuthenticatedGuard', () => {
     mockCookieValue.value = undefined
   })
 
-  const createRequest = () => {
+  const createRequest = (
+    method: string = 'GET',
+    headers: Record<string, string> = {}
+  ) => {
     return new NextRequest('https://llun.test/api/test', {
-      method: 'GET'
+      method,
+      headers
     })
   }
 
@@ -81,6 +86,61 @@ describe('AuthenticatedGuard', () => {
 
       const guard = AuthenticatedGuard(mockHandler)
       const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+  })
+
+  describe('same-origin proof for state-changing requests', () => {
+    beforeEach(() => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+    })
+
+    it('rejects a mutation without an Origin or Referer header', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST')
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(403)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    it('rejects a mutation with a cross-site Origin header', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST', { Origin: 'https://attacker.test' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(403)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    it('allows a mutation with a same-origin Origin header', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST', { Origin: 'https://llun.test' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    it('allows a mutation with a same-origin Referer header', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST', {
+        Referer: 'https://llun.test/settings'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    it('does not require same-origin proof for GET requests', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('GET')
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(200)

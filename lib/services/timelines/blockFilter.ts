@@ -8,19 +8,6 @@ export const getRelevantStatusActorIds = (status: Status) => [
     : [])
 ]
 
-export const isStatusBlockedForActor = async (
-  database: Database,
-  actorId: string,
-  status: Status
-) => {
-  const actorIds = [...new Set(getRelevantStatusActorIds(status))]
-  const relations = await database.getBlockRelations({
-    actorIds: [actorId],
-    targetActorIds: actorIds
-  })
-  return relations.length > 0
-}
-
 export const filterBlockedStatuses = async (
   database: Database,
   actorId: string | undefined,

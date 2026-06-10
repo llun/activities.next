@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
@@ -11,6 +13,10 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+
+const MarkNotificationsReadRequest = z.object({
+  notification_ids: z.array(z.string().min(1)).min(1)
+})
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -27,10 +33,10 @@ export const POST = traceApiRoute(
       })
     }
 
-    const body = await req.json()
-    const notificationIds = body.notification_ids || []
+    const body = await req.json().catch(() => null)
+    const parsed = MarkNotificationsReadRequest.safeParse(body)
 
-    if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+    if (!parsed.success) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -38,6 +44,8 @@ export const POST = traceApiRoute(
         responseStatusCode: 400
       })
     }
+
+    const notificationIds = parsed.data.notification_ids
 
     // Verify all notifications belong to the current actor (include filtered so
     // notifications returned via include_filtered=true can also be marked read)

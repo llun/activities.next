@@ -1,5 +1,6 @@
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { FitnessRouteHeatmapSummary } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -117,6 +118,17 @@ export const DELETE = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+
+    // Manually authenticated cookie-session mutation: apply the same CSRF
+    // same-origin proof as AuthenticatedGuard.
+    if (!hasSameOriginProof(req)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 

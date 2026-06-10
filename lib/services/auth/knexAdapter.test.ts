@@ -742,63 +742,49 @@ describe('knexAdapter', () => {
       expect(results).toHaveLength(2)
     })
 
-    it('not_in operator', async () => {
+    it.each([
+      {
+        description: 'excludes rows whose value is in a not_in list',
+        where: {
+          field: 'id',
+          value: ['u1', 'u3'],
+          operator: 'not_in' as const
+        },
+        expectedIds: ['u2']
+      },
+      {
+        description: 'matches substrings with the contains operator',
+        where: {
+          field: 'display_name',
+          value: 'li',
+          operator: 'contains' as const
+        },
+        expectedIds: ['u1', 'u3']
+      },
+      {
+        description: 'matches prefixes with the starts_with operator',
+        where: {
+          field: 'display_name',
+          value: 'Ch',
+          operator: 'starts_with' as const
+        },
+        expectedIds: ['u3']
+      },
+      {
+        description: 'matches suffixes with the ends_with operator',
+        where: {
+          field: 'email',
+          value: '@test.com',
+          operator: 'ends_with' as const
+        },
+        expectedIds: ['u1', 'u2', 'u3']
+      }
+    ])('$description', async ({ where, expectedIds }) => {
       const results = await adapter.findMany({
         model: 'users',
-        where: [
-          {
-            field: 'id',
-            value: ['u1', 'u3'],
-            operator: 'not_in' as const
-          }
-        ]
+        where: [where]
       })
-      expect(results).toHaveLength(1)
-      expect(results[0].id).toBe('u2')
-    })
-
-    it('contains operator (LIKE)', async () => {
-      const results = await adapter.findMany({
-        model: 'users',
-        where: [
-          {
-            field: 'display_name',
-            value: 'li',
-            operator: 'contains' as const
-          }
-        ]
-      })
-      expect(results).toHaveLength(2)
-      expect(results.map((r: any) => r.id).sort()).toEqual(['u1', 'u3'])
-    })
-
-    it('starts_with operator', async () => {
-      const results = await adapter.findMany({
-        model: 'users',
-        where: [
-          {
-            field: 'display_name',
-            value: 'Ch',
-            operator: 'starts_with' as const
-          }
-        ]
-      })
-      expect(results).toHaveLength(1)
-      expect(results[0].id).toBe('u3')
-    })
-
-    it('ends_with operator', async () => {
-      const results = await adapter.findMany({
-        model: 'users',
-        where: [
-          {
-            field: 'email',
-            value: '@test.com',
-            operator: 'ends_with' as const
-          }
-        ]
-      })
-      expect(results).toHaveLength(3)
+      expect(results.map((r: any) => r.id).sort()).toEqual(expectedIds)
     })
 
     it('escapes LIKE wildcards in contains', async () => {

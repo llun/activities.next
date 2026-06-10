@@ -107,6 +107,7 @@ jest.mock('@/lib/config', () => {
   const host = jest.requireActual('@/lib/stub/const').TEST_DOMAIN
   const secretPhase = jest.requireActual('@/lib/stub/actor').MOCK_SECRET_PHASES
   return {
+    getBaseURL: jest.fn().mockReturnValue(`https://${host}`),
     getConfig: jest.fn().mockReturnValue({
       serviceName: 'activities.next',
       host,

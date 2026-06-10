@@ -5,5 +5,5 @@ export const acceptContainsContentTypes = (
   contentTypes: string[]
 ) => {
   const accepts = acceptContentTypes(acceptHeaderValue)
-  return accepts.filter((item) => contentTypes.includes(item)).length > 0
+  return accepts.some((item) => contentTypes.includes(item))
 }

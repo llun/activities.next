@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -27,7 +28,13 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
     return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
   }
 
-  const body = await req.json()
+  // This route authenticates the cookie session manually instead of using
+  // AuthenticatedGuard, so it must apply the same CSRF same-origin proof.
+  if (!hasSameOriginProof(req)) {
+    return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+  }
+
+  const body = await req.json().catch(() => null)
   const parsed = SwitchActorRequest.safeParse(body)
 
   if (!parsed.success) {

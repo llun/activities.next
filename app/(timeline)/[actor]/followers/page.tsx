@@ -79,6 +79,7 @@ const Page: FC<Props> = async ({ params }) => {
             href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
           >
             <ArrowLeft className="h-5 w-5" />
+            <span className="sr-only">Back to profile</span>
           </Link>
         </Button>
         <div>

@@ -63,7 +63,7 @@ export const MockActivityPubOutbox = ({
     },
     {
       published: currentTime - 800,
-      content: 'Content 2'
+      content: 'Content 3'
     }
   ]
   const resolvedItems = items ?? defaultItems

@@ -37,6 +37,7 @@ import {
   createByteLimitTransform,
   readAsyncIterableToBufferWithLimit
 } from '@/lib/utils/streamLimit'
+import { waitFor } from '@/lib/utils/waitFor'
 
 import { createJobHandle } from './createJobHandle'
 import { IMPORT_STRAVA_ARCHIVE_JOB_NAME } from './names'
@@ -247,12 +248,6 @@ const resolveArchivePath = async (
       await fs.unlink(temporaryArchivePath).catch(() => undefined)
     }
   }
-}
-
-const sleep = async (ms: number) => {
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, ms)
-  })
 }
 
 const hasReachedRuntimeDeadline = (runtimeDeadlineMs: number): boolean => {
@@ -940,7 +935,7 @@ export const importStravaArchiveJob = createJobHandle(
 
       if (mediaActivities.length > 0) {
         if (isMediaRetryPass && MEDIA_ATTACHMENT_RETRY_DELAY_MS > 0) {
-          await sleep(MEDIA_ATTACHMENT_RETRY_DELAY_MS)
+          await waitFor(MEDIA_ATTACHMENT_RETRY_DELAY_MS)
         }
 
         const importedFitnessFiles = await getImportedFitnessFiles({

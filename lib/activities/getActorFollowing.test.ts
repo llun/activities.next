@@ -1,7 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { mockRequests } from '@/lib/stub/activities'
-import { MockActivityPubFollowing } from '@/lib/stub/following'
+import { MockActivityPubFollowing } from '@/lib/stub/followCollection'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'

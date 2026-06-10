@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
+import { acceptFollowRequest, rejectFollowRequest } from '@/lib/client'
 import { FollowRequestCard } from '@/lib/components/follow-request-card/FollowRequestCard'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -23,14 +24,9 @@ export const FollowRequestNotification: FC<Props> = ({
   const router = useRouter()
 
   const handleAccept = async (accountId: string) => {
-    const response = await fetch(
-      `/api/v1/follow_requests/${encodeURIComponent(accountId)}/authorize`,
-      {
-        method: 'POST'
-      }
-    )
+    const ok = await acceptFollowRequest({ id: accountId })
 
-    if (!response.ok) {
+    if (!ok) {
       throw new Error('Failed to accept follow request')
     }
 
@@ -38,14 +34,9 @@ export const FollowRequestNotification: FC<Props> = ({
   }
 
   const handleReject = async (accountId: string) => {
-    const response = await fetch(
-      `/api/v1/follow_requests/${encodeURIComponent(accountId)}/reject`,
-      {
-        method: 'POST'
-      }
-    )
+    const ok = await rejectFollowRequest({ id: accountId })
 
-    if (!response.ok) {
+    if (!ok) {
       throw new Error('Failed to reject follow request')
     }
 

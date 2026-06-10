@@ -147,7 +147,10 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   it('clears owner route heatmap history', async () => {
     mockDb.deleteFitnessRouteHeatmapsForActor.mockResolvedValue(3)
 
-    const request = new NextRequest(baseUrl, { method: 'DELETE' })
+    const request = new NextRequest(baseUrl, {
+      method: 'DELETE',
+      headers: { Origin: 'https://test.llun.dev' }
+    })
     const response = await DELETE(request, {
       params: Promise.resolve({ id: encodedId })
     })
@@ -165,7 +168,10 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
       id: 'https://llun.test/users/other'
     })
 
-    const request = new NextRequest(baseUrl, { method: 'DELETE' })
+    const request = new NextRequest(baseUrl, {
+      method: 'DELETE',
+      headers: { Origin: 'https://test.llun.dev' }
+    })
     const response = await DELETE(request, {
       params: Promise.resolve({ id: encodedId })
     })

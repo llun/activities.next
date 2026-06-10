@@ -570,8 +570,10 @@ export const createNoteFromUserInput = async ({
     seenActorIds.add(replyStatus.actorId)
     database
       .getActorFromId({ id: replyStatus.actorId })
+      // A failed actor lookup only skips the email content; the push alert
+      // must still be dispatched.
       .catch(() => null)
-      .then((targetActor) => {
+      .then((targetActor) =>
         sendNotificationAlerts({
           database,
           actorId: replyStatus.actorId,
@@ -592,7 +594,8 @@ export const createNoteFromUserInput = async ({
             }
           ]
         })
-      })
+      )
+      .catch(() => undefined)
   }
 
   for (const mention of notificationMentions) {
@@ -604,8 +607,10 @@ export const createNoteFromUserInput = async ({
       seenActorIds.add(mentionedActorId)
       database
         .getActorFromId({ id: mentionedActorId })
+        // A failed actor lookup only skips the email content; the push alert
+        // must still be dispatched.
         .catch(() => null)
-        .then((targetActor) => {
+        .then((targetActor) =>
           sendNotificationAlerts({
             database,
             actorId: mentionedActorId,
@@ -626,7 +631,8 @@ export const createNoteFromUserInput = async ({
               }
             ]
           })
-        })
+        )
+        .catch(() => undefined)
     }
   }
 

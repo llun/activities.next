@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { switchActor } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   DropdownMenu,
@@ -53,13 +54,9 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
 
     setIsSwitching(true)
     try {
-      const response = await fetch('/api/v1/actors/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId })
-      })
+      const didSwitch = await switchActor({ actorId })
 
-      if (response.ok) {
+      if (didSwitch) {
         // Use hard navigation to ensure full page reload with new actor
         window.location.reload()
       }

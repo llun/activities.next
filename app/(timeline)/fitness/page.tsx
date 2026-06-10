@@ -113,7 +113,10 @@ const Page: FC = async () => {
         }
       />
 
-      <ActorFitnessDashboard actorId={currentActor.id} />
+      <ActorFitnessDashboard
+        actorId={currentActor.id}
+        currentTime={currentTime}
+      />
 
       <RecentFitnessActivities
         host={host}

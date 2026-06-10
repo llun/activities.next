@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { switchActor } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 
 interface ActorInfo {
@@ -33,13 +34,9 @@ export function ActorSelectionList({ actors }: ActorSelectionListProps) {
 
     setIsLoading(actorId)
     try {
-      const response = await fetch('/api/v1/actors/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId })
-      })
+      const ok = await switchActor({ actorId })
 
-      if (response.ok) {
+      if (ok) {
         router.push('/')
       }
     } finally {
