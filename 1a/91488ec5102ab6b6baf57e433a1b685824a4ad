@@ -1,0 +1,30 @@
+app/api/v1/accounts/[id]/endorse/route.test.ts
+  s_b98341b16c5f05::t_9b58c3702ee511 1-116
+app/api/v1/accounts/[id]/pin/route.ts
+  s_b98341b16c5f05::t_bdc863388ea543 2-5,8,12-15,17
+app/api/v1/accounts/[id]/unendorse/route.ts
+  s_b98341b16c5f05::t_d4f6cdf3fbdfe7 1-17
+app/api/v1/accounts/[id]/unpin/route.ts
+  s_b98341b16c5f05::t_11f77a09421011 2-5,8,12-15,17
+lib/services/accounts/endorsementHandlers.ts
+  s_b98341b16c5f05::t_0b6c8f590a8c65 1-15,19-31,34-77,80-102
+  s_b98341b16c5f05::t_1fe8aefa072f04 16-18,32-33,78-79
+app/api/v1/accounts/[id]/endorse/route.ts
+  s_b98341b16c5f05::t_ade7eb88235516 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1a91488ec5102ab6b6baf57e433a1b685824a4ad",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
