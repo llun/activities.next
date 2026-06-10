@@ -1,8 +1,10 @@
+import crypto from 'crypto'
 import { Knex } from 'knex'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  CreateOAuthAccessTokenParams,
   GetClientFromAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
@@ -50,5 +52,30 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
       .first('oauthClient.*')
     if (!row) return null
     return parseClientRow(row)
+  },
+
+  async createOAuthAccessToken({
+    token,
+    clientId,
+    accountId,
+    actorId,
+    scopes,
+    expiresAt
+  }: CreateOAuthAccessTokenParams) {
+    // Mirrors the columns better-auth populates for an issued access token:
+    // `token` holds the SHA-256 hash (the caller hashes it), `userId` the
+    // owning account, and `referenceId` the delegated actor that OAuthGuard
+    // resolves the request actor from. Scopes are stored as a JSON array to
+    // match the existing oauthClient/oauthAccessToken rows.
+    await database('oauthAccessToken').insert({
+      id: crypto.randomUUID(),
+      token,
+      clientId,
+      userId: accountId,
+      referenceId: actorId,
+      scopes: JSON.stringify(scopes),
+      expiresAt: new Date(expiresAt),
+      createdAt: new Date()
+    })
   }
 })

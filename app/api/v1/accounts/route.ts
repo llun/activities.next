@@ -1,14 +1,23 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
+import {
+  OAuthAppGuard,
+  corsErrorResponse,
+  isBearerAuthorizationHeader
+} from '@/lib/services/guards/OAuthGuard'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
+import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
+import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
+import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 import { CreateAccountRequest } from './types'
 
@@ -69,16 +78,15 @@ export const GET = traceApiRoute(
   }
 )
 
-// Detects a Mastodon API client (vs. the HTML web sign-up form). The web form
-// is a browser navigation that always sends `Accept: text/html`; any request
-// that does not accept HTML — including form-encoded API registrations with
-// `Accept: */*` — is treated as an API client, as is anything sending a Bearer
-// token or a JSON content type. API clients are declined before any account is
-// created, since the registration Token response is not implemented.
+// Detects a non-bearer Mastodon API client (vs. the HTML web sign-up form). The
+// web form is a browser navigation that always sends `Accept: text/html`; any
+// request that does not accept HTML — including form-encoded API registrations
+// with `Accept: */*` — or that sends a JSON content type is treated as an API
+// client. Bearer-authenticated requests are handled separately (real API
+// registration), so they are intentionally not matched here. Non-bearer API
+// clients are still declined: Mastodon registration needs an app access token,
+// which they did not send.
 const isApiClient = (request: NextRequest): boolean => {
-  const authorization = request.headers.get('authorization') ?? ''
-  if (/^bearer\s/i.test(authorization.trim())) return true
-
   const contentType = request.headers.get('content-type') ?? ''
   if (contentType.includes('application/json')) return true
 
@@ -86,9 +94,155 @@ const isApiClient = (request: NextRequest): boolean => {
   return !accept.includes('text/html')
 }
 
+// Mastodon's "Register an account" body. Extends the web-form schema (keeping
+// the reserved-username and email/password validation) with the API-only
+// `agreement`/`locale`/`reason` fields. `agreement` is optional in the schema
+// so a missing value yields the dedicated ERR_ACCEPTED error below rather than
+// a generic schema failure.
+const RegisterApiRequest = CreateAccountRequest.extend({
+  agreement: Booleanish.optional(),
+  locale: z.string().optional(),
+  reason: z.string().max(5000).optional()
+})
+
+// POST /api/v1/accounts with a Bearer app token — registers an account and
+// returns a user access token bound to it (Mastodon's documented behavior).
+// Requires `write:accounts` (satisfied by the aggregate `write`) and an app
+// (client_credentials) token: a user-bound token must not mint another
+// account's token, so a token carrying an actor is rejected with 403.
+const registerViaApi = OAuthAppGuard(
+  [Scope.enum['write:accounts']],
+  async (req, { client, currentActor, grantedScopes, database }) => {
+    if (currentActor || !client) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'This method requires an app access token' },
+        responseStatusCode: 403
+      })
+    }
+
+    let body: Record<string, unknown>
+    try {
+      body = await getRequestBody(req)
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: MAIN_ERROR_MESSAGE },
+        responseStatusCode: 422
+      })
+    }
+
+    const content = RegisterApiRequest.safeParse(body)
+    if (!content.success) {
+      const fields = content.error.flatten((issue) => ({
+        error: 'ERR_INVALID',
+        description: issue.message
+      }))
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: MAIN_ERROR_MESSAGE, details: fields },
+        responseStatusCode: 422
+      })
+    }
+
+    const form = content.data
+    if (form.agreement !== true) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          error: `${MAIN_ERROR_MESSAGE}: Agreement must be accepted`,
+          details: {
+            agreement: [
+              {
+                error: 'ERR_ACCEPTED',
+                description: 'Agreement must be accepted'
+              }
+            ]
+          }
+        },
+        responseStatusCode: 422
+      })
+    }
+
+    const result = await registerAccount({
+      database,
+      username: form.username,
+      email: form.email,
+      password: form.password,
+      name: form.name
+    })
+
+    if (result.type === 'registration_closed') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Registration is closed' },
+        responseStatusCode: 403
+      })
+    }
+
+    if (result.type === 'email_not_allowed') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Email is not allowed to register on this server' },
+        responseStatusCode: 403
+      })
+    }
+
+    if (result.type === 'validation_failed') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: MAIN_ERROR_MESSAGE, details: result.details },
+        responseStatusCode: 422
+      })
+    }
+
+    // The new account's actor carries the id OAuthGuard resolves the request
+    // actor from, so the issued token authenticates as the freshly created user.
+    const actor = await database.getActorFromUsername({
+      username: result.username,
+      domain: getConfig().host
+    })
+    if (!actor) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
+    }
+
+    const issued = await issueAccessToken({
+      database,
+      clientId: client.clientId,
+      accountId: result.accountId,
+      actorId: actor.id,
+      scopes: grantedScopes
+    })
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: {
+        access_token: issued.token,
+        token_type: 'Bearer',
+        scope: issued.scopes.join(' '),
+        created_at: Math.floor(issued.createdAt / 1000)
+      }
+    })
+  },
+  { errorResponse: corsErrorResponse(CORS_HEADERS) }
+)
+
 export const POST = traceApiRoute(
   'createAccount',
-  async (request: NextRequest) => {
+  async (request: NextRequest, context) => {
     const database = getDatabase()
     if (!database) {
       return apiResponse({
@@ -99,18 +253,22 @@ export const POST = traceApiRoute(
       })
     }
 
-    // Mastodon's "Register an account" returns a Token bound to an OAuth app.
-    // Minting a real access token requires the authorization-code flow (and the
-    // account is unverified at creation), so it is not implemented here. Decline
-    // API clients cleanly *before* creating anything — returning the web-form
-    // 307 redirect would leave them with an account they cannot authenticate and
-    // cannot re-create (username/email already taken).
+    // A Bearer token marks a Mastodon API registration: validate the app token
+    // and return a user access token bound to the new account.
+    if (isBearerAuthorizationHeader(request.headers.get('authorization'))) {
+      return registerViaApi(request, context)
+    }
+
+    // Non-bearer API clients (JSON / non-HTML Accept) can't register: Mastodon
+    // requires an app access token, which they did not send. Decline cleanly
+    // *before* creating anything — returning the web-form 307 redirect would
+    // leave them with an account they cannot authenticate.
     if (isApiClient(request)) {
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
         data: {
-          error: 'Account registration via the API is not supported'
+          error: 'Account registration via the API requires an app access token'
         },
         responseStatusCode: 501
       })

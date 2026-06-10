@@ -2308,6 +2308,7 @@ export interface OAuthDatabase {
   getClientFromAccessToken(
     params: GetClientFromAccessTokenParams
   ): Promise<Client | null>
+  createOAuthAccessToken(params: CreateOAuthAccessTokenParams): Promise<void>
 }
 
 export const GetClientFromAccessTokenParams = z.object({
@@ -2316,6 +2317,22 @@ export const GetClientFromAccessTokenParams = z.object({
 export type GetClientFromAccessTokenParams = z.infer<
   typeof GetClientFromAccessTokenParams
 >
+
+export type CreateOAuthAccessTokenParams = {
+  // SHA-256 base64url hash of the issued bearer token, matching how
+  // OAuthGuard looks tokens up. Callers MUST pass the hash, never the raw
+  // token, so the raw token never touches the database.
+  token: string
+  clientId: string
+  // The owning account id (stored in `userId`).
+  accountId: string
+  // The actor delegated by the token (stored in `referenceId`); OAuthGuard
+  // resolves the request actor from this column.
+  actorId: string
+  scopes: string[]
+  // Epoch milliseconds.
+  expiresAt: number
+}
 
 // ============================================================================
 // Timeline Database
