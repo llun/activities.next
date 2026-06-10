@@ -2,7 +2,10 @@ import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  OptionalOAuthGuard
+} from '@/lib/services/guards/OAuthGuard'
 import {
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTIONS,
@@ -12,6 +15,7 @@ import {
   MIN_POLL_OPTIONS
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
@@ -24,9 +28,18 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { idToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
-const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+const CORS_HEADERS = [
+  HttpMethod.enum.OPTIONS,
+  HttpMethod.enum.GET,
+  HttpMethod.enum.POST
+]
+
+// Mastodon does not document a cap; bound the batch to keep per-request work
+// predictable.
+const MAX_BATCH_STATUSES = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -63,6 +76,46 @@ const NoteSchema = z
       note.media_ids.length > 0 ||
       (note.poll?.options.length ?? 0) > 0
   )
+
+// GET /api/v1/statuses?id[]=1&id[]=2 — batch-fetch multiple statuses at once.
+// https://docs.joinmastodon.org/methods/statuses/#index
+export const GET = traceApiRoute(
+  'getStatusesByIds',
+  OptionalOAuthGuard(
+    [Scope.enum.read, Scope.enum['read:statuses']],
+    async (req, context) => {
+      const { database, currentActor } = context
+      const searchParams = new URL(req.url).searchParams
+      const requestedIds = [
+        ...searchParams.getAll('id[]'),
+        ...searchParams.getAll('id')
+      ]
+      const uniqueIds = [...new Set(requestedIds)].slice(0, MAX_BATCH_STATUSES)
+      const resolved = await Promise.all(
+        uniqueIds.map(async (encodedId) => {
+          const statusId = idToUrl(encodedId)
+          const status = await database.getStatus({
+            statusId,
+            currentActorId: currentActor?.id
+          })
+          if (!status) return null
+          const hasAccess = await canActorReadStatus({
+            database,
+            status,
+            currentActor
+          })
+          if (!hasAccess) return null
+          return getMastodonStatus(database, status, currentActor?.id)
+        })
+      )
+      const statuses = resolved.filter(
+        (s): s is Exclude<typeof s, null> => s !== null
+      )
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: statuses })
+    },
+    { matchMode: 'any' }
+  )
+)
 
 export const POST = traceApiRoute(
   'createStatus',

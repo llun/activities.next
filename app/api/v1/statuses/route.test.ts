@@ -7,8 +7,9 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Status } from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { urlToId } from '@/lib/utils/urlToId'
 
-import { POST } from './route'
+import { GET, POST } from './route'
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
@@ -564,5 +565,43 @@ describe('POST /api/v1/statuses', () => {
         key: idempotencyKey
       })
     ).resolves.toBe(secondStatus.uri)
+  })
+})
+
+describe('GET /api/v1/statuses', () => {
+  const database = getTestSQLDatabase()
+
+  beforeAll(async () => {
+    await database.migrate()
+    await seedDatabase(database)
+    mockDatabase = database
+  })
+
+  afterAll(async () => {
+    mockDatabase = null
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+  })
+
+  it('returns readable statuses in request order and filters out missing ids', async () => {
+    const firstId = `${ACTOR1_ID}/statuses/post-1`
+    const secondId = `${ACTOR1_ID}/statuses/post-2`
+
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses?id[]=${urlToId(firstId)}&id[]=${urlToId(secondId)}&id[]=missing`
+    )
+    const response = await GET(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.map((s: { id: string }) => s.id)).toEqual([
+      urlToId(firstId),
+      urlToId(secondId)
+    ])
   })
 })
