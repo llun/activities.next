@@ -13,6 +13,10 @@ export type AuthenticatedApiHandle<P> = (
     currentActor: Actor
     params: Promise<P>
     grantedScopes?: string[]
+    // OAuth client id behind a bearer token (null/undefined for web-session
+    // requests). Lets handlers resolve the owning client, e.g. to record the
+    // Mastodon "application" on a created status.
+    clientId?: string | null
   }
 ) => Promise<Response> | Response
 
@@ -23,6 +27,7 @@ export type OptionalAuthenticatedApiHandle<P> = (
     currentActor: Actor | null
     params: Promise<P>
     grantedScopes?: string[]
+    clientId?: string | null
   }
 ) => Promise<Response> | Response
 
