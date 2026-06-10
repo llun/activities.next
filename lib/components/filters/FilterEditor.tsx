@@ -146,13 +146,15 @@ export const FilterEditor: FC<FilterEditorProps> = ({
       { key: nextKey(), keyword: '', wholeWord: true }
     ])
 
-  const removeKeyword = (key: string) =>
-    setKeywords((current) => {
-      const target = current.find((keyword) => keyword.key === key)
-      if (target?.id)
-        setRemovedKeywordIds((ids) => [...ids, target.id as string])
-      return current.filter((keyword) => keyword.key !== key)
-    })
+  const removeKeyword = (key: string) => {
+    // Keep both state updates in the event handler — a state updater must be
+    // pure, so the `_destroy` bookkeeping can't live inside setKeywords.
+    const target = keywords.find((keyword) => keyword.key === key)
+    if (target?.id) {
+      setRemovedKeywordIds((ids) => [...ids, target.id as string])
+    }
+    setKeywords((current) => current.filter((keyword) => keyword.key !== key))
+  }
 
   const handleSave = () => {
     const keywordInputs: FilterKeywordInput[] = []
@@ -354,12 +356,13 @@ export const FilterEditor: FC<FilterEditorProps> = ({
               <span className="w-24 text-center">Whole word</span>
               <span className="w-8" />
             </div>
-            {keywords.map((keyword) => (
+            {keywords.map((keyword, index) => (
               <div key={keyword.key} className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <Input
                     value={keyword.keyword}
                     placeholder="e.g. spoiler"
+                    aria-label={`Keyword or phrase ${index + 1}`}
                     onChange={(event) =>
                       patchKeyword(keyword.key, { keyword: event.target.value })
                     }
