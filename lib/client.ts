@@ -2833,7 +2833,9 @@ export const getListTimeline = async ({
 // Keyword filters for the account scope (/api/v2/filters) and the instance
 // scope (/api/v2/admin/filters). Server filters are returned merged into the
 // account list flagged read-only via the non-standard `server` field. Filter
-// ids are opaque UUIDs, so they are not url/id encoded.
+// ids are opaque UUIDs (not ActivityPub URLs), so unlike status/account ids
+// they are not transformed with urlToId — they are still escaped with
+// encodeURIComponent when placed in a request path.
 
 export interface ClientFilter extends MastodonFilter {
   // Present and true only on instance-wide server filters merged into the
