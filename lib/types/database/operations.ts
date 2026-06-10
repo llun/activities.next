@@ -79,8 +79,8 @@ export type UpdateActorParams = {
 
   name?: string
   summary?: string
-  iconUrl?: string
-  headerImageUrl?: string
+  iconUrl?: string | null
+  headerImageUrl?: string | null
   manuallyApprovesFollowers?: boolean
   // Mastodon profile metadata fields (name/value pairs).
   fields?: { name: string; value: string }[]

@@ -862,6 +862,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(sharedInboxUrl ? { sharedInboxUrl } : null)
     }
 
+    // null means "explicitly clear this field from settings" (distinct from
+    // undefined = "no change"). JSON.stringify omits keys set to undefined.
+    if (iconUrl === null) delete settings.iconUrl
+    if (headerImageUrl === null) delete settings.headerImageUrl
+
     const currentTime = new Date()
     const updatedActor: SQLActor = {
       ...persistedActor,
@@ -902,6 +907,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           }
         }
       }
+
+      // Re-apply explicit null-clears to finalSettings (covers the
+      // appendNotificationAcceptedSenders path which rebuilds from freshSettings).
+      if (iconUrl === null) delete finalSettings.iconUrl
+      if (headerImageUrl === null) delete finalSettings.headerImageUrl
 
       await trx<SQLActor>('actors')
         .where('id', actorId)
