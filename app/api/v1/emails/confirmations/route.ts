@@ -1,13 +1,11 @@
 // POST /api/v1/emails/confirmations — resend the confirmation email for an
 // account that has not confirmed yet. 403 once confirmed, per Mastodon.
-import crypto from 'crypto'
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
-import { sendMail } from '@/lib/services/email'
+import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
-import { HTTP_STATUS, apiCorsError, apiResponse } from '@/lib/utils/response'
+import { HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ConfirmationRequest = z.object({
@@ -21,7 +19,12 @@ export const POST = traceApiRoute(
     const account = currentActor.account
 
     if (!account) {
-      return apiCorsError(req, [], HTTP_STATUS.NOT_FOUND)
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Account not found' },
+        responseStatusCode: HTTP_STATUS.NOT_FOUND
+      })
     }
 
     // `verificationCode` is the pending-confirmation token set at registration
@@ -49,32 +52,33 @@ export const POST = traceApiRoute(
     const parsed = ConfirmationRequest.safeParse(body)
     const newEmail = parsed.success ? parsed.data.email : undefined
 
-    // Optional `email` param updates the pending address before resending.
+    // Optional `email` param updates the unconfirmed account's address directly
+    // before resending. Because the account is still unconfirmed we just point
+    // the existing verificationCode at the new address — verifyAccount then
+    // confirms the new email when the link is clicked. (This is distinct from
+    // the confirmed-user email-change flow in accounts/email, which uses the
+    // pending-change machinery.)
     if (newEmail && newEmail !== account.email) {
-      const emailChangeCode = crypto.randomBytes(32).toString('base64url')
-      await database.requestEmailChange({
+      await database.updateAccountEmail({
         accountId: account.id,
-        newEmail,
-        emailChangeCode
+        email: newEmail
       })
     }
 
-    const config = getConfig()
-    if (config.email) {
-      const recipient = newEmail ?? account.email
-      try {
-        await sendMail({
-          from: config.email.serviceFromAddress,
-          to: [recipient],
-          subject: 'Email verification',
-          content: {
-            text: `Open this link to verify your email https://${config.host}/auth/confirmation?verificationCode=${account.verificationCode}`,
-            html: `Open <a href="https://${config.host}/auth/confirmation?verificationCode=${account.verificationCode}">this link</a> to verify your email.`
-          }
-        })
-      } catch {
-        logger.error({ to: recipient }, `Fail to send email`)
-      }
+    const recipient = newEmail ?? account.email
+    try {
+      await sendConfirmationEmail({
+        recipient,
+        verificationCode: account.verificationCode
+      })
+    } catch {
+      logger.error({ to: recipient }, `Fail to send email`)
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Failed to send verification email' },
+        responseStatusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+      })
     }
 
     return apiResponse({

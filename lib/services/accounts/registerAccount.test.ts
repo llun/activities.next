@@ -3,14 +3,16 @@ import { Database } from '@/lib/database/types'
 
 import { registerAccount } from './registerAccount'
 
+const DEFAULT_CONFIG = {
+  host: 'llun.test',
+  allowEmails: [] as string[],
+  registrationOpen: true,
+  secretPhase: 'test-secret-phase-for-unit-tests-only',
+  email: null
+}
+
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
-    host: 'llun.test',
-    allowEmails: [],
-    registrationOpen: true,
-    secretPhase: 'test-secret-phase-for-unit-tests-only',
-    email: null
-  })
+  getConfig: jest.fn()
 }))
 
 jest.mock('@/lib/services/email', () => ({
@@ -26,6 +28,10 @@ let mockDatabase: MockDatabase
 
 beforeEach(() => {
   jest.clearAllMocks()
+  // registerAccount and the shared confirmation-mail helper each read config via
+  // getConfig(), so use a stable mockReturnValue (not mockReturnValueOnce) that
+  // every call within a single registration resolves to.
+  jest.mocked(getConfig).mockReturnValue(DEFAULT_CONFIG as never)
   mockDatabase = {
     isAccountExists: jest.fn().mockResolvedValue(false),
     isUsernameExists: jest.fn().mockResolvedValue(false),
@@ -35,7 +41,7 @@ beforeEach(() => {
 
 describe('registerAccount', () => {
   it('returns registration_closed when registration is disabled', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    jest.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: false,
@@ -55,7 +61,7 @@ describe('registerAccount', () => {
   })
 
   it('returns email_not_allowed when email is not on the allow-list', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    jest.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: ['allowed@example.com'],
       registrationOpen: true,
@@ -75,7 +81,7 @@ describe('registerAccount', () => {
   })
 
   it('returns email_not_allowed only when the allow-list is non-empty and the email is absent', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    jest.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: true,
@@ -210,7 +216,7 @@ describe('registerAccount', () => {
   })
 
   it('sends a verification email when email service is configured', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    jest.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: true,
@@ -239,7 +245,7 @@ describe('registerAccount', () => {
   })
 
   it('still returns success if email sending fails', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    jest.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: true,

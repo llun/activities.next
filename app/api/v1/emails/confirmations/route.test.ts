@@ -25,7 +25,7 @@ type MockDatabase = Pick<
   Database,
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
-  | 'getActorFromId'
+  | 'updateAccountEmail'
   | 'requestEmailChange'
 >
 
@@ -78,7 +78,7 @@ describe('POST /api/v1/emails/confirmations', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getAccountFromEmail: jest.fn(),
     getActorsForAccount: jest.fn(),
-    getActorFromId: jest.fn(),
+    updateAccountEmail: jest.fn(),
     requestEmailChange: jest.fn()
   }
 
@@ -105,6 +105,7 @@ describe('POST /api/v1/emails/confirmations', () => {
       }
     })
     mockSendMail.mockResolvedValue(undefined)
+    mockDb.updateAccountEmail.mockResolvedValue(undefined)
     mockDb.requestEmailChange.mockResolvedValue(undefined)
     setAccount(buildAccount(PENDING_CODE))
   })
@@ -152,7 +153,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 
-  it('updates the pending email before sending when an email param is provided', async () => {
+  it('updates the account email directly and confirms the new address when an email param is provided', async () => {
     const response = await POST(makeRequest({ email: 'new-email@llun.test' }), {
       params: Promise.resolve({})
     })
@@ -160,17 +161,24 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({})
 
-    expect(mockDb.requestEmailChange).toHaveBeenCalledTimes(1)
-    expect(mockDb.requestEmailChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        accountId: 'account-1',
-        newEmail: 'new-email@llun.test'
-      })
-    )
+    expect(mockDb.updateAccountEmail).toHaveBeenCalledTimes(1)
+    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      email: 'new-email@llun.test'
+    })
+    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
 
     expect(mockSendMail).toHaveBeenCalledTimes(1)
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].to).toEqual(['new-email@llun.test'])
+    // The resent link must carry the existing verificationCode so clicking it
+    // confirms the NEW address rather than stranding it.
+    expect(mailArgs[0].content.text).toContain(
+      `https://llun.test/auth/confirmation?verificationCode=${PENDING_CODE}`
+    )
+    expect(mailArgs[0].content.html).toContain(
+      `https://llun.test/auth/confirmation?verificationCode=${PENDING_CODE}`
+    )
   })
 
   it('ignores an invalid email param and resends to the existing address', async () => {
@@ -179,9 +187,21 @@ describe('POST /api/v1/emails/confirmations', () => {
     })
 
     expect(response.status).toBe(200)
+    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].to).toEqual([seedActor1.email])
+  })
+
+  it('returns 500 when sending the confirmation email fails', async () => {
+    mockSendMail.mockRejectedValueOnce(new Error('SMTP failure'))
+
+    const response = await POST(makeRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(500)
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
   })
 
   it('returns 200 without sending mail when email is not configured', async () => {

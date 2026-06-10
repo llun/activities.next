@@ -3,7 +3,7 @@ import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { sendMail } from '@/lib/services/email'
+import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { logger } from '@/lib/utils/logger'
 import { generateKeyPair } from '@/lib/utils/signature'
@@ -90,17 +90,9 @@ export const registerAccount = async ({
     verificationCode
   })
 
-  if (config.email) {
+  if (verificationCode) {
     try {
-      await sendMail({
-        from: config.email.serviceFromAddress,
-        to: [email],
-        subject: 'Email verification',
-        content: {
-          text: `Open this link to verify your email https://${config.host}/auth/confirmation?verificationCode=${verificationCode}`,
-          html: `Open <a href="https://${config.host}/auth/confirmation?verificationCode=${verificationCode}">this link</a> to verify your email.`
-        }
-      })
+      await sendConfirmationEmail({ recipient: email, verificationCode })
     } catch {
       logger.error({ to: email }, `Fail to send email`)
     }

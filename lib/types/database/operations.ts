@@ -316,6 +316,10 @@ export type ChangePasswordParams = {
   accountId: string
   newPasswordHash: string
 }
+export type UpdateAccountEmailParams = {
+  accountId: string
+  email: string
+}
 export type UpdateAccountNameParams = {
   accountId: string
   name: string | null
@@ -380,6 +384,7 @@ export interface AccountDatabase {
     params: ResetPasswordWithCodeParams
   ): Promise<Account | null>
   changePassword(params: ChangePasswordParams): Promise<void>
+  updateAccountEmail(params: UpdateAccountEmailParams): Promise<void>
   updateAccountName(params: UpdateAccountNameParams): Promise<void>
   updateAccountImage(params: UpdateAccountImageParams): Promise<void>
 }
