@@ -3461,4 +3461,156 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(descendantIds).not.toContain(urlToId(privateDescId))
     })
   })
+
+  describe('filter annotation on single status and context reads', () => {
+    beforeAll(async () => {
+      await database.createFilter({
+        actorId: ACTOR1_ID,
+        title: 'Spoilers',
+        context: ['thread'],
+        filterAction: 'warn',
+        expiresAt: null,
+        keywords: [{ keyword: 'spoiler', wholeWord: false }]
+      })
+    })
+
+    it('annotates the filtered field on a single status the active filter matches', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-filter-single-match`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'this contains a spoiler about the ending',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.filtered).toHaveLength(1)
+      expect(data.filtered[0].filter.title).toBe('Spoilers')
+      expect(data.filtered[0].keyword_matches).toEqual(['spoiler'])
+    })
+
+    it('leaves filtered empty for a status the active filter does not match', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const statusId = `${ACTOR1_ID}/statuses/api-filter-single-nomatch`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'an ordinary post with nothing notable',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.filtered ?? []).toHaveLength(0)
+    })
+
+    it('does not annotate filtered for anonymous single status reads', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-filter-single-anonymous`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'this contains a spoiler for anonymous readers',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.filtered ?? []).toHaveLength(0)
+    })
+
+    it('annotates filtered on matching ancestors and descendants in the context response', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const rootId = `${ACTOR1_ID}/statuses/api-filter-context-root`
+      const targetId = `${ACTOR1_ID}/statuses/api-filter-context-target`
+      const descId = `${ACTOR1_ID}/statuses/api-filter-context-desc`
+      await database.createNote({
+        id: rootId,
+        url: rootId,
+        actorId: ACTOR1_ID,
+        text: 'root status with a spoiler in it',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: targetId,
+        url: targetId,
+        actorId: ACTOR1_ID,
+        text: 'target status replying to the root',
+        reply: rootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: descId,
+        url: descId,
+        actorId: ACTOR1_ID,
+        text: 'descendant reply that also has a spoiler',
+        reply: targetId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(targetId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(targetId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const context = await response.json()
+
+      const ancestor = context.ancestors.find(
+        (s: { id: string }) => s.id === urlToId(rootId)
+      )
+      expect(ancestor.filtered).toHaveLength(1)
+      expect(ancestor.filtered[0].filter.title).toBe('Spoilers')
+
+      const descendant = context.descendants.find(
+        (s: { id: string }) => s.id === urlToId(descId)
+      )
+      expect(descendant.filtered).toHaveLength(1)
+      expect(descendant.filtered[0].filter.title).toBe('Spoilers')
+    })
+  })
 })

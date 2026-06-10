@@ -1,4 +1,8 @@
 import { Database } from '@/lib/database/types'
+import {
+  annotateMastodonStatusesWithFilters,
+  getActiveFilters
+} from '@/lib/services/filters/applyFilters'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
@@ -182,12 +186,31 @@ export const GET = traceApiRoute(
         getMastodonStatuses(database, descendantStatuses, currentActor?.id)
       ])
 
+      // Mastodon annotates the `filtered` field on context reads using the
+      // `thread` filter context. Filters are per-user, so an unauthenticated
+      // request loads no filters and the arrays pass through unchanged.
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor?.id,
+        'thread'
+      )
+      const annotatedAncestors = annotateMastodonStatusesWithFilters(
+        ancestors,
+        ancestorStatuses,
+        filterRecords
+      )
+      const annotatedDescendants = annotateMastodonStatusesWithFilters(
+        descendants,
+        descendantStatuses,
+        filterRecords
+      )
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: {
-          ancestors,
-          descendants
+          ancestors: annotatedAncestors,
+          descendants: annotatedDescendants
         }
       })
     },
