@@ -14,7 +14,8 @@ import {
   FilterAction,
   FilterContext,
   FilterKeyword,
-  FilterStatus
+  FilterStatus,
+  ServerFilter
 } from '@/lib/types/domain/filter'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
@@ -1534,6 +1535,10 @@ export type GetActiveFiltersForActorParams = {
   context?: FilterContext
 }
 
+export type GetFilterRecordsForActorParams = {
+  actorId: string
+}
+
 export type ActiveFilterRecord = {
   filter: Filter
   keywords: FilterKeyword[]
@@ -1599,6 +1604,12 @@ export interface FilterDatabase {
   getActiveFiltersForActor(
     params: GetActiveFiltersForActorParams
   ): Promise<ActiveFilterRecord[]>
+  // Like getActiveFiltersForActor but returns ALL of the actor's filters,
+  // including expired ones, so the management UI can list expired filters with
+  // an "Expired" badge and let the user reactivate them.
+  getFilterRecordsForActor(
+    params: GetFilterRecordsForActorParams
+  ): Promise<ActiveFilterRecord[]>
   addFilterKeyword(
     params: AddFilterKeywordParams
   ): Promise<FilterKeyword | null>
@@ -1622,6 +1633,66 @@ export interface FilterDatabase {
   deleteFilterStatus(
     params: DeleteFilterStatusParams
   ): Promise<FilterStatus | null>
+}
+
+// ============================================================================
+// Server Filter Database (instance-wide, admin-authored)
+// ============================================================================
+
+export type CreateServerFilterParams = {
+  title: string
+  context: FilterContext[]
+  filterAction: FilterAction
+  expiresAt: number | null
+  keywords?: CreateFilterKeywordInput[]
+}
+
+export type GetServerFilterParams = {
+  id: string
+}
+
+export type UpdateServerFilterParams = {
+  id: string
+  title?: string
+  context?: FilterContext[]
+  filterAction?: FilterAction
+  expiresAt?: number | null
+  keywords?: UpdateFilterKeywordInput[]
+}
+
+export type DeleteServerFilterParams = {
+  id: string
+}
+
+export type GetActiveServerFiltersParams = {
+  context?: FilterContext
+}
+
+export type ActiveServerFilterRecord = {
+  filter: ServerFilter
+  keywords: FilterKeyword[]
+}
+
+export interface ServerFilterDatabase {
+  createServerFilter(params: CreateServerFilterParams): Promise<ServerFilter>
+  // All server filters (including expired), hydrated with keywords, for the
+  // admin management UI.
+  getServerFilterRecords(): Promise<ActiveServerFilterRecord[]>
+  getServerFilter(params: GetServerFilterParams): Promise<ServerFilter | null>
+  getServerFilterKeywords(
+    params: GetServerFilterParams
+  ): Promise<FilterKeyword[] | null>
+  updateServerFilter(
+    params: UpdateServerFilterParams
+  ): Promise<ServerFilter | null>
+  deleteServerFilter(
+    params: DeleteServerFilterParams
+  ): Promise<ServerFilter | null>
+  // Only active (non-expired) server filters, hydrated with keywords, for
+  // merging into clients' filter lists and applying to timelines.
+  getActiveServerFilters(
+    params?: GetActiveServerFiltersParams
+  ): Promise<ActiveServerFilterRecord[]>
 }
 
 // ============================================================================

@@ -715,6 +715,25 @@ CREATE TABLE public.search_documents (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.server_filter_keywords (
+    id character varying(255) NOT NULL,
+    "filterId" character varying(255) NOT NULL,
+    keyword text NOT NULL,
+    "wholeWord" boolean DEFAULT false NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE public.server_filters (
+    id character varying(255) NOT NULL,
+    title character varying(255) NOT NULL,
+    context text NOT NULL,
+    "filterAction" character varying(255) DEFAULT 'warn'::character varying NOT NULL,
+    "expiresAt" bigint,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.sessions (
     id character varying(255) NOT NULL,
     "accountId" character varying(255),
@@ -1115,6 +1134,15 @@ ALTER TABLE ONLY public.reports
 ALTER TABLE ONLY public.search_documents
     ADD CONSTRAINT search_documents_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.server_filter_keywords
+    ADD CONSTRAINT server_filter_keywords_filter_keyword_unique UNIQUE ("filterId", keyword);
+
+ALTER TABLE ONLY public.server_filter_keywords
+    ADD CONSTRAINT server_filter_keywords_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.server_filters
+    ADD CONSTRAINT server_filters_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.sessions
     ADD CONSTRAINT sessions_pkey PRIMARY KEY (id);
 
@@ -1299,6 +1327,10 @@ CREATE INDEX search_documents_entity_type_entity_id ON public.search_documents U
 CREATE INDEX search_documents_last_post ON public.search_documents USING btree ("lastPostAt");
 
 CREATE INDEX search_documents_post_count ON public.search_documents USING btree ("postCount");
+
+CREATE INDEX server_filter_keywords_filter_id ON public.server_filter_keywords USING btree ("filterId");
+
+CREATE INDEX server_filters_created ON public.server_filters USING btree ("createdAt");
 
 CREATE INDEX "sessions_accountId_token_idx" ON public.sessions USING btree ("accountId", token);
 

@@ -3,6 +3,7 @@
 import {
   Ban,
   Bell,
+  Filter,
   Hash,
   Image as ImageIcon,
   Monitor,
@@ -37,6 +38,7 @@ const tabs: SectionNavTab[] = [
   { name: 'Notifications', url: '/settings/notifications', icon: Bell },
   { name: 'Blocked accounts', url: '/settings/blocks', icon: Ban },
   { name: 'Muted accounts', url: '/settings/mutes', icon: VolumeX },
+  { name: 'Filters', url: '/settings/filters', icon: Filter },
   { name: 'Sessions', url: '/settings/sessions', icon: Monitor }
 ]
 

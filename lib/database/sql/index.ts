@@ -28,6 +28,7 @@ import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscription'
 import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
+import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
@@ -55,6 +56,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
   const translationCacheDatabase = TranslationCacheSQLDatabaseMixin(database)
   const filterDatabase = FilterSQLDatabaseMixin(database)
+  const serverFilterDatabase = ServerFilterSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
   const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
   const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
@@ -118,6 +120,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...translationCacheDatabase,
     ...listDatabase,
     ...filterDatabase,
+    ...serverFilterDatabase,
     ...followerDatabase,
     ...followedTagDatabase,
     ...likeDatabase,

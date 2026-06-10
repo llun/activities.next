@@ -8,6 +8,7 @@ const toId = (url: string) =>
 const mockDatabase = {
   getNotifications: jest.fn(),
   getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
+  getActiveServerFilters: jest.fn().mockResolvedValue([]),
   getStatusesByIds: jest.fn(),
   getMastodonActorsFromIds: jest.fn()
 }

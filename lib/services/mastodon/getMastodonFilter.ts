@@ -1,9 +1,13 @@
 import { Database } from '@/lib/database/types'
-import { ActiveFilterRecord } from '@/lib/types/database/operations'
+import {
+  ActiveFilterRecord,
+  ActiveServerFilterRecord
+} from '@/lib/types/database/operations'
 import {
   Filter as DomainFilter,
   FilterKeyword as DomainFilterKeyword,
-  FilterStatus as DomainFilterStatus
+  FilterStatus as DomainFilterStatus,
+  ServerFilter as DomainServerFilter
 } from '@/lib/types/domain/filter'
 import * as Mastodon from '@/lib/types/mastodon'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -79,3 +83,43 @@ export const getMastodonFilters = async (
 export const getMastodonFilterFromRecord = (
   record: ActiveFilterRecord
 ): Mastodon.Filter => buildMastodonFilter(record)
+
+// ----------------------------------------------------------------------------
+// Server (instance-wide) filters.
+//
+// Returned to clients merged into the account filter list, flagged read-only
+// via the non-standard `server: true` field. Third-party Mastodon clients
+// ignore the unknown field and apply the filter natively; first-party clients
+// use it to hide edit/delete affordances. Server filters are keyword-only, so
+// `statuses` is always empty.
+// ----------------------------------------------------------------------------
+
+export type MastodonServerFilter = Mastodon.Filter & { server: true }
+
+const buildMastodonServerFilter = (
+  filter: DomainServerFilter,
+  keywords: DomainFilterKeyword[]
+): MastodonServerFilter => ({
+  id: filter.id,
+  title: filter.title,
+  context: filter.context,
+  expires_at:
+    filter.expiresAt !== null ? getISOTimeUTC(filter.expiresAt) : null,
+  filter_action: filter.filterAction,
+  keywords: keywords.map(getMastodonFilterKeyword),
+  statuses: [],
+  server: true
+})
+
+export const getMastodonServerFilterFromRecord = (
+  record: ActiveServerFilterRecord
+): MastodonServerFilter =>
+  buildMastodonServerFilter(record.filter, record.keywords)
+
+export const getMastodonServerFilter = async (
+  database: Database,
+  filter: DomainServerFilter
+): Promise<MastodonServerFilter> => {
+  const keywords = await database.getServerFilterKeywords({ id: filter.id })
+  return buildMastodonServerFilter(filter, keywords ?? [])
+}
