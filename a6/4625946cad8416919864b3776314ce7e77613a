@@ -1,0 +1,37 @@
+app/api/v2/admin/filters/[id]/route.ts
+  s_a9e57dede8ad31::t_dd6bc3b42bc1bc 40-41,48
+lib/database/sql/serverFilter.ts
+  s_a9e57dede8ad31::t_45b0308837f3e3 276-280,282-283
+  s_a9e57dede8ad31::t_7b753cd645f955 281
+  s_a9e57dede8ad31::t_2cde17e5dbe8cd 170-176
+lib/components/filters/FilterEditor.tsx
+  s_a9e57dede8ad31::t_faa2719c3d3961 334-339
+  s_a9e57dede8ad31::t_bb41a22569feb1 82-85,87-98
+  s_a9e57dede8ad31::t_2181cc2eb40756 126-128
+  s_a9e57dede8ad31::t_676f658cd96ce2 4
+  s_a9e57dede8ad31::t_85e08f3a163c5f 275,280-282,286,288
+  s_a9e57dede8ad31::t_f5cb94ace5d16f 86
+lib/database/sql/serverFilter.test.ts
+  s_a9e57dede8ad31::t_54e582d0aad507 77-96
+lib/types/database/operations.ts
+  s_a9e57dede8ad31::t_5bf5457d3a56a3 1681-1685
+lib/components/filters/FiltersPanel.tsx
+  s_a9e57dede8ad31::t_4d44d1d63b0131 130-132,136-138,140,144-152
+  s_a9e57dede8ad31::t_302ca47f54a83f 217-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a64625946cad8416919864b3776314ce7e77613a",
+  "prompts": {},
+  "sessions": {
+    "s_a9e57dede8ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c26c4fb4-16ed-45cc-b64f-47ecc850a9d1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
