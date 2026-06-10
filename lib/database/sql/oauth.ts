@@ -55,7 +55,7 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
   },
 
   async createOAuthAccessToken({
-    token,
+    hashedToken,
     clientId,
     accountId,
     actorId,
@@ -63,13 +63,13 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
     expiresAt
   }: CreateOAuthAccessTokenParams) {
     // Mirrors the columns better-auth populates for an issued access token:
-    // `token` holds the SHA-256 hash (the caller hashes it), `userId` the
-    // owning account, and `referenceId` the delegated actor that OAuthGuard
+    // the `token` column holds the SHA-256 hash (the caller hashes it), `userId`
+    // the owning account, and `referenceId` the delegated actor that OAuthGuard
     // resolves the request actor from. Scopes are stored as a JSON array to
     // match the existing oauthClient/oauthAccessToken rows.
     await database('oauthAccessToken').insert({
       id: crypto.randomUUID(),
-      token,
+      token: hashedToken,
       clientId,
       userId: accountId,
       referenceId: actorId,

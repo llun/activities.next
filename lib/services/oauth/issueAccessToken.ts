@@ -42,7 +42,7 @@ export const issueAccessToken = async ({
   const expiresAt = createdAt + ACCESS_TOKEN_EXPIRES_IN_MS
 
   await database.createOAuthAccessToken({
-    token: hashToken(token),
+    hashedToken: hashToken(token),
     clientId,
     accountId,
     actorId,

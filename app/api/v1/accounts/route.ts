@@ -203,26 +203,14 @@ const registerViaApi = OAuthAppGuard(
       })
     }
 
-    // The new account's actor carries the id OAuthGuard resolves the request
-    // actor from, so the issued token authenticates as the freshly created user.
-    const actor = await database.getActorFromUsername({
-      username: result.username,
-      domain: getConfig().host
-    })
-    if (!actor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
-
+    // registerAccount returns the new account's actor id (the id OAuthGuard
+    // resolves the request actor from), so the issued token authenticates as
+    // the freshly created user without an extra lookup.
     const issued = await issueAccessToken({
       database,
       clientId: client.clientId,
       accountId: result.accountId,
-      actorId: actor.id,
+      actorId: result.actorId,
       scopes: grantedScopes
     })
 

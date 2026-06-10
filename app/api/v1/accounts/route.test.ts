@@ -304,7 +304,8 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     jest.mocked(registerAccount).mockResolvedValueOnce({
       type: 'success',
       accountId,
-      username: NEW_USERNAME
+      username: NEW_USERNAME,
+      actorId
     })
 
     const res = await postRegister(
@@ -384,6 +385,17 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     jest
       .mocked(registerAccount)
       .mockResolvedValueOnce({ type: 'registration_closed' })
+    const res = await postRegister(
+      APP_TOKEN,
+      `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 403 when the email is not allowed to register', async () => {
+    jest
+      .mocked(registerAccount)
+      .mockResolvedValueOnce({ type: 'email_not_allowed' })
     const res = await postRegister(
       APP_TOKEN,
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`

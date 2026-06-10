@@ -168,7 +168,9 @@ describe('registerAccount', () => {
     expect(result).toMatchObject({
       type: 'success',
       accountId: 'new-account-id',
-      username: 'alice'
+      username: 'alice',
+      // Matches the actor createAccount derives from domain/username.
+      actorId: 'https://llun.test/users/alice'
     })
     expect(mockDatabase.createAccount).toHaveBeenCalledWith(
       expect.objectContaining({

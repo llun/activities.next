@@ -4,13 +4,14 @@ import crypto from 'crypto'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { sendMail } from '@/lib/services/email'
+import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { logger } from '@/lib/utils/logger'
 import { generateKeyPair } from '@/lib/utils/signature'
 
 const BCRYPT_ROUND = 10
 
 export type RegisterAccountResult =
-  | { type: 'success'; accountId: string; username: string }
+  | { type: 'success'; accountId: string; username: string; actorId: string }
   | { type: 'registration_closed' }
   | { type: 'email_not_allowed' }
   | {
@@ -105,5 +106,11 @@ export const registerAccount = async ({
     }
   }
 
-  return { type: 'success', accountId, username }
+  // createAccount derives the local actor id deterministically from
+  // domain/username (getLocalActorId), so recompute it here instead of issuing
+  // an extra lookup — it is guaranteed to match the actor just created and is
+  // the id OAuthGuard resolves the request actor from.
+  const actorId = getLocalActorId({ domain, username })
+
+  return { type: 'success', accountId, username, actorId }
 }

@@ -2320,9 +2320,10 @@ export type GetClientFromAccessTokenParams = z.infer<
 
 export type CreateOAuthAccessTokenParams = {
   // SHA-256 base64url hash of the issued bearer token, matching how
-  // OAuthGuard looks tokens up. Callers MUST pass the hash, never the raw
-  // token, so the raw token never touches the database.
-  token: string
+  // OAuthGuard looks tokens up (GetClientFromAccessTokenParams.hashedToken).
+  // Callers MUST pass the hash, never the raw token, so the raw token never
+  // touches the database.
+  hashedToken: string
   clientId: string
   // The owning account id (stored in `userId`).
   accountId: string
