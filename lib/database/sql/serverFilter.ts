@@ -280,7 +280,9 @@ export const ServerFilterSQLDatabaseMixin = (
         .where((builder) => {
           builder.whereNull('expiresAt').orWhere('expiresAt', '>=', Date.now())
         })
-        .orderBy('createdAt', 'desc')
+        // Oldest-first, consistent with the other server-filter listings
+        // (ordering is irrelevant for matching).
+        .orderBy('createdAt', 'asc')
       const filters = rows
         .map(fixServerFilterRow)
         .filter((filter) => !context || filter.context.includes(context))

@@ -108,24 +108,30 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
     setEditorError(null)
     try {
       if (editing === 'new') {
+        // The client helpers return a falsy value on a non-ok response; throw so
+        // both that and any network-layer rejection land in the same catch.
         const created = await client.create(input)
         if (!created) {
-          setEditorError('Failed to create filter. Please try again.')
-          return
+          throw new Error('Failed to create filter. Please try again.')
         }
         // Creation order — newly created filters append at the bottom.
         setFilters((current) => [...current, created])
       } else if (editing) {
         const updated = await client.update(editing, input)
         if (!updated) {
-          setEditorError('Failed to save changes. Please try again.')
-          return
+          throw new Error('Failed to save changes. Please try again.')
         }
         setFilters((current) =>
           current.map((filter) => (filter.id === updated.id ? updated : filter))
         )
       }
       setEditing(null)
+    } catch (error) {
+      setEditorError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save filter. Please try again.'
+      )
     } finally {
       setSaving(false)
     }
