@@ -37,16 +37,15 @@ export const GET = traceApiRoute(
   'adminGetServerFilter',
   AdminApiGuard<Params>(CORS_HEADERS, async (req, { database, params }) => {
     const { id } = await params
-    const keywords = await database.getServerFilterKeywords({ id })
-    const filter = await database.getServerFilter({ id })
-    if (!filter || !keywords)
+    const record = await database.getServerFilterRecord({ id })
+    if (!record)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: ERROR_404,
         responseStatusCode: HTTP_STATUS.NOT_FOUND
       })
-    const data = getMastodonServerFilterFromRecord({ filter, keywords })
+    const data = getMastodonServerFilterFromRecord(record)
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
   })
 )

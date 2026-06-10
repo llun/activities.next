@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowLeft, Plus, X } from 'lucide-react'
-import { FC, useRef, useState } from 'react'
+import { FC, type KeyboardEvent, useRef, useState } from 'react'
 
 import type {
   ClientFilter,
@@ -79,6 +79,23 @@ export const FilterEditor: FC<FilterEditorProps> = ({
   const isNew = !initial
   const keywordCounter = useRef(0)
   const nextKey = () => `new-${keywordCounter.current++}`
+  // Refs to the action radio cards for roving-focus arrow-key navigation.
+  const actionRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const handleActionKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown'
+    const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+    if (!forward && !backward) return
+    event.preventDefault()
+    const delta = forward ? 1 : -1
+    const nextIndex =
+      (index + delta + ACTION_CARDS.length) % ACTION_CARDS.length
+    setAction(ACTION_CARDS[nextIndex].id)
+    actionRefs.current[nextIndex]?.focus()
+  }
 
   const [title, setTitle] = useState(initial?.title ?? '')
   const [context, setContext] = useState<FilterContext[]>(
@@ -105,6 +122,9 @@ export const FilterEditor: FC<FilterEditorProps> = ({
   )
   // Existing keywords removed from the editor — sent as `_destroy` on save.
   const [removedKeywordIds, setRemovedKeywordIds] = useState<string[]>([])
+
+  // A filter needs at least one non-empty keyword to match anything.
+  const hasKeyword = keywords.some((k) => k.keyword.trim().length > 0)
 
   const toggleContext = (id: FilterContext) =>
     setContext((current) =>
@@ -252,15 +272,20 @@ export const FilterEditor: FC<FilterEditorProps> = ({
           role="radiogroup"
           aria-label="Filter action"
         >
-          {ACTION_CARDS.map((card) => {
+          {ACTION_CARDS.map((card, index) => {
             const selected = action === card.id
             return (
               <button
                 key={card.id}
+                ref={(element) => {
+                  actionRefs.current[index] = element
+                }}
                 type="button"
                 role="radio"
                 aria-checked={selected}
+                tabIndex={selected ? 0 : -1}
                 onClick={() => setAction(card.id)}
+                onKeyDown={(event) => handleActionKeyDown(event, index)}
                 className={cn(
                   'rounded-xl border p-3 text-left transition-colors',
                   selected
@@ -306,7 +331,12 @@ export const FilterEditor: FC<FilterEditorProps> = ({
               <Button variant="outline" onClick={onCancel} disabled={saving}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button
+                onClick={handleSave}
+                // A filter with no non-empty keywords matches nothing, so block
+                // saving until at least one keyword has text.
+                disabled={saving || !hasKeyword}
+              >
                 {isNew ? 'Create filter' : 'Save changes'}
               </Button>
             </div>

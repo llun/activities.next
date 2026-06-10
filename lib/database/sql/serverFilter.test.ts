@@ -74,6 +74,26 @@ describe('ServerFilterDatabase', () => {
     expect(remaining?.map((keyword) => keyword.keyword)).toEqual(['airdrop'])
   })
 
+  it('returns a single hydrated record via getServerFilterRecord', async () => {
+    const filter = await database.createServerFilter({
+      title: 'Single record',
+      context: ['home'],
+      filterAction: 'warn',
+      expiresAt: null,
+      keywords: [{ keyword: 'lookup', wholeWord: false }]
+    })
+
+    const record = await database.getServerFilterRecord({ id: filter.id })
+    expect(record?.filter.id).toBe(filter.id)
+    expect(record?.keywords.map((keyword) => keyword.keyword)).toEqual([
+      'lookup'
+    ])
+
+    expect(
+      await database.getServerFilterRecord({ id: 'does-not-exist' })
+    ).toBeNull()
+  })
+
   it('excludes expired server filters from the active set but keeps them in records', async () => {
     const expired = await database.createServerFilter({
       title: 'Old promo',

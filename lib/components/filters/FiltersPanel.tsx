@@ -127,17 +127,29 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
   }
 
   const handleDelete = async (filter: ClientFilter) => {
+    // A delete is already in flight — all delete buttons are disabled while
+    // `deletingId` is set, so this guards against any racing invocation.
+    if (deletingId) return
     setListError(null)
     setDeletingId(filter.id)
     const previous = filters
-    // Optimistic removal — restore the row if the request fails.
+    // Optimistic removal — restore the row if the request fails. Deletes are
+    // serialized (see the guard above), so `previous` is always the current
+    // list and rolling back to it cannot resurrect a separately-deleted row.
     setFilters((current) => current.filter((item) => item.id !== filter.id))
-    const ok = await client.remove(filter.id)
-    if (!ok) {
+    const restoreOnFailure = () => {
       setFilters(previous)
       setListError('Failed to delete filter. Please try again.')
     }
-    setDeletingId(null)
+    try {
+      const ok = await client.remove(filter.id)
+      if (!ok) restoreOnFailure()
+    } catch {
+      // A network-layer throw (connection drop, etc.) must still roll back.
+      restoreOnFailure()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   if (editing !== null) {
@@ -202,7 +214,9 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
                   setEditing(filter.id)
                 }}
                 onDelete={() => handleDelete(filter)}
-                deleting={deletingId === filter.id}
+                // Disable every delete button while any delete is in flight so
+                // deletes stay serialized and optimistic rollback is safe.
+                deleting={deletingId !== null}
               />
             ))}
           </div>

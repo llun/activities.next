@@ -60,9 +60,6 @@ const fixKeywordRow = (row: FilterKeyword): FilterKeyword => ({
   updatedAt: getCompatibleTime(row.updatedAt)
 })
 
-const isFilterActive = (filter: ServerFilter, now: number): boolean =>
-  filter.expiresAt === null || filter.expiresAt >= now
-
 export const ServerFilterSQLDatabaseMixin = (
   database: Knex
 ): ServerFilterDatabase => {
@@ -170,6 +167,13 @@ export const ServerFilterSQLDatabaseMixin = (
       return getServerFilterById(id)
     },
 
+    async getServerFilterRecord({ id }: GetServerFilterParams) {
+      const filter = await getServerFilterById(id)
+      if (!filter) return null
+      const [record] = await hydrate([filter])
+      return record ?? null
+    },
+
     async getServerFilterKeywords({ id }: GetServerFilterParams) {
       const filter = await getServerFilterById(id)
       if (!filter) return null
@@ -269,14 +273,16 @@ export const ServerFilterSQLDatabaseMixin = (
 
     async getActiveServerFilters(params?: GetActiveServerFiltersParams) {
       const context = params?.context
-      const rows = await database<ServerFilterRow>('server_filters').orderBy(
-        'createdAt',
-        'desc'
-      )
-      const now = Date.now()
+      // Drop expired filters in SQL — this runs on every timeline/notification
+      // request (including signed-out viewers), so expired rows must never be
+      // loaded. Context is a JSON column, so that filter stays in memory.
+      const rows = await database<ServerFilterRow>('server_filters')
+        .where((builder) => {
+          builder.whereNull('expiresAt').orWhere('expiresAt', '>=', Date.now())
+        })
+        .orderBy('createdAt', 'desc')
       const filters = rows
         .map(fixServerFilterRow)
-        .filter((filter) => isFilterActive(filter, now))
         .filter((filter) => !context || filter.context.includes(context))
       return hydrate(filters)
     }

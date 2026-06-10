@@ -1678,6 +1678,11 @@ export interface ServerFilterDatabase {
   // All server filters (including expired), hydrated with keywords, for the
   // admin management UI.
   getServerFilterRecords(): Promise<ActiveServerFilterRecord[]>
+  // A single server filter (including expired) hydrated with keywords, for the
+  // admin detail endpoint.
+  getServerFilterRecord(
+    params: GetServerFilterParams
+  ): Promise<ActiveServerFilterRecord | null>
   getServerFilter(params: GetServerFilterParams): Promise<ServerFilter | null>
   getServerFilterKeywords(
     params: GetServerFilterParams
