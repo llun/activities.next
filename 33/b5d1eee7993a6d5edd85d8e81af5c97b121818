@@ -1,0 +1,19 @@
+lib/types/database/operations.ts
+  s_b98341b16c5f05::t_43fd56d61b004d 82-83,578
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "33b5d1eee7993a6d5edd85d8e81af5c97b121818",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
