@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { getBaseURL, getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
 
 export interface SendConfirmationEmailParams {
@@ -17,13 +17,17 @@ export const sendConfirmationEmail = async ({
   const config = getConfig()
   if (!config.email) return
 
+  // getBaseURL() honors the configured scheme/host/port, so confirmation links
+  // are correct on http/local/custom-port deployments rather than assuming https.
+  const confirmationUrl = `${getBaseURL()}/auth/confirmation?verificationCode=${verificationCode}`
+
   await sendMail({
     from: config.email.serviceFromAddress,
     to: [recipient],
     subject: 'Email verification',
     content: {
-      text: `Open this link to verify your email https://${config.host}/auth/confirmation?verificationCode=${verificationCode}`,
-      html: `Open <a href="https://${config.host}/auth/confirmation?verificationCode=${verificationCode}">this link</a> to verify your email.`
+      text: `Open this link to verify your email ${confirmationUrl}`,
+      html: `Open <a href="${confirmationUrl}">this link</a> to verify your email.`
     }
   })
 }

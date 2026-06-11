@@ -9,6 +9,7 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
 import {
   OAuthGuardAnyScope,
@@ -112,10 +113,25 @@ export const POST = traceApiRoute(
           })
         }
 
-        await database.updateAccountEmail({
-          accountId: account.id,
-          email: newEmail
-        })
+        try {
+          await database.updateAccountEmail({
+            accountId: account.id,
+            email: newEmail
+          })
+        } catch (error) {
+          // The pre-check above covers the common case, but a concurrent
+          // claim of the same address can still race onto the unique
+          // constraint; map that to 422 rather than a 500.
+          if (isUniqueConstraintError(error)) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Email is already taken' },
+              responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+            })
+          }
+          throw error
+        }
       }
 
       const recipient = newEmail ?? account.email

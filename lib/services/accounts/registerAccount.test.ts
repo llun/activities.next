@@ -12,7 +12,8 @@ const DEFAULT_CONFIG = {
 }
 
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn()
+  getConfig: jest.fn(),
+  getBaseURL: jest.fn().mockReturnValue('https://llun.test')
 }))
 
 jest.mock('@/lib/services/email', () => ({
@@ -242,6 +243,45 @@ describe('registerAccount', () => {
         subject: 'Email verification'
       })
     )
+  })
+
+  it('maps a concurrent unique-constraint collision on createAccount to validation_failed', async () => {
+    // Both pre-checks pass (the racing request inserted after them), so the
+    // collision only surfaces at createAccount.
+    mockDatabase.createAccount = jest.fn().mockRejectedValue(
+      Object.assign(new Error('UNIQUE constraint failed: accounts.email'), {
+        code: 'SQLITE_CONSTRAINT_UNIQUE'
+      })
+    )
+
+    const result = await registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: 'alice',
+      email: 'alice@example.com',
+      password: 'password123'
+    })
+
+    expect(result).toEqual({
+      type: 'validation_failed',
+      details: {
+        email: [{ error: 'ERR_TAKEN', description: 'Email is already taken' }]
+      }
+    })
+  })
+
+  it('rethrows a non-unique-constraint error from createAccount', async () => {
+    mockDatabase.createAccount = jest
+      .fn()
+      .mockRejectedValue(new Error('connection reset'))
+
+    await expect(
+      registerAccount({
+        database: mockDatabase as unknown as Database,
+        username: 'alice',
+        email: 'alice@example.com',
+        password: 'password123'
+      })
+    ).rejects.toThrow('connection reset')
   })
 
   it('still returns success if email sending fails', async () => {

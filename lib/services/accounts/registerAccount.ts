@@ -2,6 +2,7 @@ import * as bcrypt from 'bcrypt'
 import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { Database } from '@/lib/database/types'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
@@ -79,16 +80,34 @@ export const registerAccount = async ({
     ? crypto.randomBytes(32).toString('base64url')
     : null
 
-  const accountId = await database.createAccount({
-    domain,
-    email,
-    username,
-    name: name || null,
-    privateKey: keyPair.privateKey,
-    publicKey: keyPair.publicKey,
-    passwordHash,
-    verificationCode
-  })
+  // The isAccountExists/isUsernameExists pre-checks above resolve the common
+  // case with field-specific 422s, but two concurrent registrations can still
+  // race past them and collide on the DB unique constraint. Map that collision
+  // back to the same validation_failed result instead of letting it surface as
+  // a 500.
+  let accountId: string
+  try {
+    accountId = await database.createAccount({
+      domain,
+      email,
+      username,
+      name: name || null,
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey,
+      passwordHash,
+      verificationCode
+    })
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return {
+        type: 'validation_failed',
+        details: {
+          email: [{ error: 'ERR_TAKEN', description: 'Email is already taken' }]
+        }
+      }
+    }
+    throw error
+  }
 
   if (verificationCode) {
     try {

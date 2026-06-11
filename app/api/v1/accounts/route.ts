@@ -150,14 +150,16 @@ const registerViaApi = OAuthAppGuard(
 
     const content = RegisterApiRequest.safeParse(body)
     if (!content.success) {
-      const fields = content.error.flatten((issue) => ({
+      // Mastodon's `details` is a flat field -> errors map, so return only
+      // fieldErrors (dropping flatten()'s separate formErrors bucket).
+      const { fieldErrors } = content.error.flatten((issue) => ({
         error: 'ERR_INVALID',
         description: issue.message
       }))
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: MAIN_ERROR_MESSAGE, details: fields },
+        data: { error: MAIN_ERROR_MESSAGE, details: fieldErrors },
         responseStatusCode: 422
       })
     }
@@ -304,15 +306,14 @@ export const POST = traceApiRoute(
     }
     const content = CreateAccountRequest.safeParse(body)
     if (!content.success) {
-      const error = content.error
-      const fields = error.flatten((issue) => ({
+      const { fieldErrors } = content.error.flatten((issue) => ({
         error: 'ERR_INVALID',
         description: issue.message
       }))
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: { error: MAIN_ERROR_MESSAGE, details: fields },
+        data: { error: MAIN_ERROR_MESSAGE, details: fieldErrors },
         responseStatusCode: 422
       })
     }

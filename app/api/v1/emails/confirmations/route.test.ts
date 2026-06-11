@@ -251,6 +251,26 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mailArgs[0].to).toEqual(['form-email@llun.test'])
   })
 
+  it('returns 422 when a concurrent claim races onto the unique-email constraint', async () => {
+    // Pre-check passes (the racing request committed after it), so the
+    // collision only surfaces when updateAccountEmail hits the DB constraint.
+    mockDb.updateAccountEmail.mockRejectedValueOnce(
+      Object.assign(new Error('UNIQUE constraint failed: accounts.email'), {
+        code: 'SQLITE_CONSTRAINT_UNIQUE'
+      })
+    )
+
+    const response = await POST(makeRequest({ email: 'raced@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Email is already taken'
+    })
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
+
   it('ignores an invalid email param and resends to the existing address', async () => {
     const response = await POST(makeRequest({ email: 'not-an-email' }), {
       params: Promise.resolve({})
