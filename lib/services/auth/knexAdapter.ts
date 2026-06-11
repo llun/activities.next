@@ -43,12 +43,13 @@ const normalizeEmailInData = (
   data: Record<string, unknown>
 ): Record<string, unknown> => {
   // Guard the better-auth boundary: only touch `accounts` rows that are real
-  // objects, so a malformed/primitive payload is passed through untouched
-  // rather than throwing on property access.
+  // (non-array) objects, so a malformed/primitive/array payload is passed
+  // through untouched rather than risking unexpected property access.
   if (
     tableName !== ACCOUNTS_TABLE ||
     typeof data !== 'object' ||
-    data === null
+    data === null ||
+    Array.isArray(data)
   ) {
     return data
   }
