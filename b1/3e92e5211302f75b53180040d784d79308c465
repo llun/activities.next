@@ -1,0 +1,31 @@
+lib/services/mastodon/constants.ts
+  s_b98341b16c5f05::t_21f25ef4033786 12-16
+app/api/v1/statuses/route.test.ts
+  s_b98341b16c5f05::t_f319e41f254ed9 4
+  s_b98341b16c5f05::t_35721586d7e1b5 585-586,590-630
+app/api/v1/scheduled_statuses/route.test.ts
+  s_b98341b16c5f05::t_625a4b304cdff8 4
+  s_b98341b16c5f05::t_6ec246fd242a16 193-194
+app/api/v1/statuses/route.ts
+  s_b98341b16c5f05::t_9bf898e5df8590 12-14
+  s_b98341b16c5f05::t_1fe8c3c197e35a 112,117
+app/api/v1/scheduled_statuses/[id]/route.ts
+  s_b98341b16c5f05::t_03462d1b7e2f8d 8-11
+  s_b98341b16c5f05::t_3a84b338b82577 125,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "b13e92e5211302f75b53180040d784d79308c465",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
