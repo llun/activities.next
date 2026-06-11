@@ -27,12 +27,16 @@ type MockDatabase = Pick<
   | 'getActorsForAccount'
   | 'updateAccountEmail'
   | 'requestEmailChange'
+  | 'isAccountExists'
 >
 
 let mockDatabase: MockDatabase | null = null
 jest.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase
+  getDatabase: () => mockDatabase,
+  getKnex: () => undefined
 }))
+
+jest.mock('better-auth/oauth2', () => ({ verifyAccessToken: jest.fn() }))
 
 jest.mock('next/headers', () => ({
   cookies: jest.fn().mockResolvedValue({
@@ -79,7 +83,8 @@ describe('POST /api/v1/emails/confirmations', () => {
     getAccountFromEmail: jest.fn(),
     getActorsForAccount: jest.fn(),
     updateAccountEmail: jest.fn(),
-    requestEmailChange: jest.fn()
+    requestEmailChange: jest.fn(),
+    isAccountExists: jest.fn()
   }
 
   const setAccount = (account: ReturnType<typeof buildAccount>) => {
@@ -107,6 +112,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     mockSendMail.mockResolvedValue(undefined)
     mockDb.updateAccountEmail.mockResolvedValue(undefined)
     mockDb.requestEmailChange.mockResolvedValue(undefined)
+    mockDb.isAccountExists.mockResolvedValue(false)
     setAccount(buildAccount(PENDING_CODE))
   })
 
@@ -179,6 +185,46 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mailArgs[0].content.html).toContain(
       `https://llun.test/auth/confirmation?verificationCode=${PENDING_CODE}`
     )
+  })
+
+  it('returns 403 when the new email is not on the server allow-list', async () => {
+    // The signed-in address stays on the allow-list (so auth still resolves the
+    // actor); only the requested new address is absent from it.
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [seedActor1.email],
+      allowActorDomains: [],
+      email: { serviceFromAddress: 'noreply@llun.test' }
+    })
+
+    const response = await POST(makeRequest({ email: 'blocked@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Email is not allowed on this server'
+    })
+    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
+
+  it('returns 422 when the new email is already registered to another account', async () => {
+    mockDb.isAccountExists.mockResolvedValue(true)
+
+    const response = await POST(makeRequest({ email: 'taken@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Email is already taken'
+    })
+    expect(mockDb.isAccountExists).toHaveBeenCalledWith({
+      email: 'taken@llun.test'
+    })
+    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockSendMail).not.toHaveBeenCalled()
   })
 
   it('ignores an invalid email param and resends to the existing address', async () => {
