@@ -191,6 +191,54 @@ describe('publishScheduledStatusJob', () => {
     expect(row).toBeNull()
   })
 
+  it('discards an obsolete job whose scheduledAt no longer matches the row', async () => {
+    const text = `Rescheduled away ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-obsolete',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      // A scheduledAt that does not match the stored row — this job is from a
+      // previous schedule and must be discarded without publishing.
+      data: {
+        scheduledStatusId: scheduled.id,
+        scheduledAt: Date.now() - 999_999
+      }
+    })
+
+    const statuses = await database.getActorStatuses({ actorId: actor1.id })
+    expect(statuses.some((status) => status.text.includes(text))).toBe(false)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+    // The row is left intact for the current schedule's own job to publish.
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).not.toBeNull()
+  })
+
+  it('publishes when the job scheduledAt matches the row', async () => {
+    const text = `Matching schedule ${Date.now()}`
+    const scheduledAt = Date.now() - 1_000
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt,
+      params: baseParams({ text })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-matching',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id, scheduledAt }
+    })
+
+    const statuses = await database.getActorStatuses({ actorId: actor1.id })
+    expect(statuses.some((status) => status.text.includes(text))).toBe(true)
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).toBeNull()
+  })
+
   it('is a no-op for an unknown scheduled status id', async () => {
     await expect(
       publishScheduledStatusJob(database, {

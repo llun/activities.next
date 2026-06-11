@@ -22,7 +22,11 @@ import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from './names'
 // no scheduler and drops delayed messages outright (see noqueue.ts), so under
 // NoQueue scheduled statuses do not auto-fire and this job never recurses.
 const PublishScheduledStatusData = z.object({
-  scheduledStatusId: z.string()
+  scheduledStatusId: z.string(),
+  // The scheduledAt this job was enqueued for. When the row has since been
+  // rescheduled to a different time, the job is obsolete and discarded so a
+  // reschedule-to-later does not leave the old job racing the new one.
+  scheduledAt: z.number().optional()
 })
 
 // A job that fires more than this far before the scheduled time is treated as
@@ -35,10 +39,16 @@ export const publishScheduledStatusJob = createJobHandle(
     const parsed = PublishScheduledStatusData.safeParse(message.data)
     if (!parsed.success) return
 
-    const { scheduledStatusId } = parsed.data
+    const { scheduledStatusId, scheduledAt } = parsed.data
     const row = await database.getScheduledStatusById({ id: scheduledStatusId })
     // Already published or deleted: nothing to do.
     if (!row) return
+
+    // Obsolete job: the row was rescheduled to a different time after this job
+    // was enqueued. Discard it so a reschedule-to-later does not leave the old
+    // job (which would otherwise re-enqueue itself) racing the new one at the
+    // new time. The current schedule's own job still fires.
+    if (scheduledAt !== undefined && row.scheduledAt !== scheduledAt) return
 
     // Too early: re-enqueue with the remaining delay and skip publishing. This
     // is the path the in-process NoQueue always takes (it ignores delays).
@@ -48,11 +58,12 @@ export const publishScheduledStatusJob = createJobHandle(
       // (which is `${id}-${scheduledAt}`). QStash keeps the dedup window open
       // for ~1h even after a message is consumed, so reusing the same id here
       // would let QStash silently drop this re-enqueue and the status would
-      // never fire.
+      // never fire. The payload carries the current scheduledAt so the
+      // re-enqueued job stays valid against the obsolete-job check above.
       await getQueue().publish({
         id: getHashFromString(`${row.id}-${row.scheduledAt}-reenqueue`),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-        data: { scheduledStatusId: row.id },
+        data: { scheduledStatusId: row.id, scheduledAt: row.scheduledAt },
         delaySeconds: scheduledDelaySeconds(row.scheduledAt)
       })
       return

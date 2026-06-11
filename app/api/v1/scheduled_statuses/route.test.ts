@@ -180,7 +180,7 @@ describe('scheduled_statuses CRUD', () => {
     expect(getQueue().publish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-        data: { scheduledStatusId: created.id },
+        data: expect.objectContaining({ scheduledStatusId: created.id }),
         delaySeconds: expect.any(Number)
       })
     )
@@ -193,6 +193,9 @@ describe('scheduled_statuses CRUD', () => {
       getHashFromString(`${created.id}-${Date.parse(newScheduledAt)}`)
     )
     expect(publishArgs.id).not.toBe(getHashFromString(created.id))
+    // The payload carries the new scheduledAt so the job can discard itself if
+    // the status is rescheduled again before it fires.
+    expect(publishArgs.data.scheduledAt).toBe(Date.parse(newScheduledAt))
   })
 
   it('returns 422 when PUT scheduled_at is less than five minutes ahead', async () => {

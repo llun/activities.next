@@ -754,7 +754,9 @@ describe('POST /api/v1/statuses', () => {
     expect(getQueue().publish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-        data: { scheduledStatusId: scheduledStatus.id },
+        data: expect.objectContaining({
+          scheduledStatusId: scheduledStatus.id
+        }),
         delaySeconds: expect.any(Number)
       })
     )

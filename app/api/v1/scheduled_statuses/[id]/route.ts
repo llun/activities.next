@@ -167,7 +167,10 @@ export const PUT = traceApiRoute(
         await getQueue().publish({
           id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
           name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-          data: { scheduledStatusId: scheduled.id },
+          data: {
+            scheduledStatusId: scheduled.id,
+            scheduledAt: scheduled.scheduledAt
+          },
           delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
         })
       } catch (error) {
