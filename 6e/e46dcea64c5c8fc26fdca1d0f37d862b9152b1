@@ -1,0 +1,30 @@
+scripts/manageAdminRole.ts
+  s_a4109b2d9b71dd::t_7ba3c6f4272191 11,19-21
+lib/database/sql/lowercaseAccountEmailsMigration.test.ts
+  s_a4109b2d9b71dd::t_4a940802f74c6e 1-27,33-40,46-73,76-119
+  s_a4109b2d9b71dd::t_9576c37502ae78 28-32,41-45,74-75
+lib/services/auth/knexAdapter.test.ts
+  s_a4109b2d9b71dd::t_9576c37502ae78 969-972
+  s_a4109b2d9b71dd::t_fd46274b5194ee 967-968,973-980
+lib/database/sql/account.test.ts
+  s_a4109b2d9b71dd::t_5f85421fa4c5e0 431-456
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_a4109b2d9b71dd::t_48adf3bc4000b2 58-61
+  s_a4109b2d9b71dd::t_70b1d4db6ac6c5 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6ee46dcea64c5c8fc26fdca1d0f37d862b9152b1",
+  "prompts": {},
+  "sessions": {
+    "s_a4109b2d9b71dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "027e6fe0-5adf-4bd1-96f8-b6e384141935",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
