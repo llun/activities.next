@@ -1,0 +1,37 @@
+app/api/v1/statuses/route.ts
+  s_aad18c3f613de8::t_a799e02c4f3978 386-387
+  s_aad18c3f613de8::t_13d535cec1d0ca 227-253
+  s_aad18c3f613de8::t_8940e1d26bd7a5 35
+app/api/v1/scheduled_statuses/[id]/route.ts
+  s_aad18c3f613de8::t_ebae00d3168246 21,25
+  s_aad18c3f613de8::t_57d4f945ee4ab3 143-150,162-188
+app/api/v1/statuses/route.test.ts
+  s_aad18c3f613de8::t_cd7e21c2a84a6e 15
+  s_aad18c3f613de8::t_f3b13908f2be12 576-585,596-627
+app/api/v1/scheduled_statuses/route.test.ts
+  s_aad18c3f613de8::t_312ba86f2a8e49 261-381
+  s_aad18c3f613de8::t_bd33b03ae823a8 9
+lib/database/sql/scheduledStatus.test.ts
+  s_aad18c3f613de8::t_1b0883a496de6a 119-175
+lib/jobs/publishScheduledStatusJob.ts
+  s_aad18c3f613de8::t_947bd5bbccd1b2 148-155
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_aad18c3f613de8::t_601bd3176f4d50 191-200,209-267
+  s_aad18c3f613de8::t_9ecb823489ca13 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "33308c51ea0735b56762ba7b659b3626868c042b",
+  "prompts": {},
+  "sessions": {
+    "s_aad18c3f613de8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b99b1bb-fc82-4e50-b1dc-acabeb2082ce",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
