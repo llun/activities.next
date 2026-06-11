@@ -454,6 +454,31 @@ describe('AccountDatabase', () => {
           await database.validatePasswordResetCode({ passwordResetCode })
         ).toBe(accountId)
       })
+
+      it('rejects an email-change verification when the pending address was claimed by another account', async () => {
+        const { accountId } = await createTestAccount()
+        const { email: takenEmail } = await createTestAccount()
+        const emailChangeCode = `change-${crypto.randomUUID()}`
+
+        // Account requests a change to an address that another account then
+        // ends up owning (here it already exists, simulating the race).
+        await database.requestEmailChange({
+          accountId,
+          newEmail: takenEmail.toUpperCase(),
+          emailChangeCode
+        })
+
+        const result = await database.verifyEmailChange({
+          accountId,
+          emailChangeCode
+        })
+
+        // Gracefully rejected rather than throwing the unique-constraint 500.
+        expect(result).toBeNull()
+        // The original account keeps its own email (no partial promotion).
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).not.toEqual(takenEmail)
+      })
     })
 
     describe('account providers', () => {

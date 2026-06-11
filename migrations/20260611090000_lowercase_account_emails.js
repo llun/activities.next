@@ -48,28 +48,34 @@ const forEachChunk = async (trx, columns, handle) => {
  */
 exports.up = async (knex) => {
   await knex.transaction(async (trx) => {
-    // Pass 1 — detect collisions before writing anything. Group accounts by
-    // their normalized email; any normalized value claimed by more than one
-    // account would violate the unique constraint once lowercased. Only the
-    // normalized email strings are retained (not full rows), so memory stays
-    // proportional to the number of distinct emails rather than row size.
-    const byNormalized = new Map()
+    // Pass 1 — detect collisions before writing anything. Any normalized email
+    // claimed by more than one account would violate the unique constraint once
+    // lowercased. `seen` keeps just the first original per distinct normalized
+    // value (one string per email); the (normally empty) `collisions` map only
+    // grows when an actual duplicate is found, so memory stays minimal even on
+    // instances with many accounts.
+    const seen = new Map()
+    const collisions = new Map()
     await forEachChunk(trx, ['id', 'email'], (rows) => {
       for (const account of rows) {
         if (account.email == null) continue
         const normalized = normalizeEmail(account.email)
-        const group = byNormalized.get(normalized) ?? []
-        group.push(account.email)
-        byNormalized.set(normalized, group)
+        const firstSeen = seen.get(normalized)
+        if (firstSeen === undefined) {
+          seen.set(normalized, account.email)
+          continue
+        }
+        const existing = collisions.get(normalized)
+        if (existing) {
+          existing.push(account.email)
+        } else {
+          collisions.set(normalized, [firstSeen, account.email])
+        }
       }
     })
 
-    const collisions = [...byNormalized.entries()].filter(
-      ([, originals]) => originals.length > 1
-    )
-
-    if (collisions.length > 0) {
-      const details = collisions
+    if (collisions.size > 0) {
+      const details = [...collisions.entries()]
         .map(
           ([normalized, originals]) =>
             `  ${normalized} <- [${originals.join(', ')}]`
@@ -83,7 +89,7 @@ exports.up = async (knex) => {
       )
     }
 
-    byNormalized.clear()
+    seen.clear()
 
     // Pass 2 — rewrite the rows whose stored value is not already canonical.
     // Update `email` and the pending-change column independently so both end up

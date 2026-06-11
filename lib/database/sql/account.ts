@@ -10,6 +10,7 @@ import {
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   AccountDatabase,
@@ -563,18 +564,36 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       return null
     }
 
-    await database('accounts')
-      .where('id', account.id)
-      .update({
-        // `emailChangePending` is stored already-normalized; normalize again when
-        // promoting it so the canonical `email` column can never drift.
-        email: normalizeEmail(pendingEmail),
+    // `emailChangePending` is stored already-normalized; normalize again when
+    // promoting it so the canonical `email` column can never drift.
+    const normalizedEmail = normalizeEmail(pendingEmail)
+
+    // The pending address may have been claimed by another account between the
+    // change request and this verification. Reject gracefully — callers map a
+    // null result to an "invalid or expired" response — instead of letting the
+    // unique-email constraint surface as a 500.
+    const conflicting = await database('accounts')
+      .where('email', normalizedEmail)
+      .whereNot('id', account.id)
+      .first('id')
+    if (conflicting) return null
+
+    try {
+      await database('accounts').where('id', account.id).update({
+        email: normalizedEmail,
         emailVerifiedAt: now,
         emailChangePending: null,
         emailChangeCode: null,
         emailChangeCodeExpiresAt: null,
         updatedAt: now
       })
+    } catch (error) {
+      // Pre-check covers the common case; a concurrent claim can still race onto
+      // the unique constraint between the check and the update. Map that to the
+      // same graceful null rather than a 500.
+      if (isUniqueConstraintError(error)) return null
+      throw error
+    }
 
     return this.getAccountFromId({ id: account.id })
   },
