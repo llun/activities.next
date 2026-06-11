@@ -6,7 +6,9 @@ export interface JobMessage {
   data: unknown
   verifiedSenderActorId?: string
   // Optional publish delay in seconds. QStash honors this natively; the
-  // in-process NoQueue ignores it and runs immediately.
+  // in-process NoQueue has no scheduler and DROPS any message with a positive
+  // delaySeconds, so delayed jobs (e.g. scheduled statuses) only fire under a
+  // real queue like QStash.
   delaySeconds?: number
 }
 

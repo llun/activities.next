@@ -8,6 +8,12 @@ import {
   ScheduledStatusParams
 } from '@/lib/types/mastodon/scheduledStatus'
 
+// Seconds of delay between now and the scheduled time, floored and clamped at
+// zero. Shared by the enqueue sites (POST create, PUT reschedule) and the
+// publish job's early re-enqueue so the delay is computed identically.
+export const scheduledDelaySeconds = (scheduledAt: number): number =>
+  Math.max(0, Math.floor((scheduledAt - Date.now()) / 1000))
+
 // The subset of the parsed `POST /api/v1/statuses` body the scheduled branch
 // needs to persist. Mirrors the route's NoteSchema output (after Zod defaults).
 export interface ScheduledStatusInput {

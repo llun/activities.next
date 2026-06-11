@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
+import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
@@ -27,6 +29,12 @@ jest.mock('next/headers', () => ({
 
 jest.mock('better-auth/oauth2', () => ({
   verifyAccessToken: jest.fn()
+}))
+
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
 }))
 
 jest.mock('@/lib/config', () => ({
@@ -163,6 +171,21 @@ describe('scheduled_statuses CRUD', () => {
       id: created.id
     })
     expect(stored?.scheduledAt).toBe(Date.parse(newScheduledAt))
+
+    // The publish job is re-enqueued with the new delay so the status fires at
+    // the rescheduled time.
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: created.id },
+        delaySeconds: expect.any(Number)
+      })
+    )
+    const delaySeconds = (getQueue().publish as jest.Mock).mock.calls[0][0]
+      .delaySeconds
+    // ~30 minutes ahead, comfortably above the five-minute floor.
+    expect(delaySeconds).toBeGreaterThan(20 * 60)
   })
 
   it('returns 422 when PUT scheduled_at is less than five minutes ahead', async () => {

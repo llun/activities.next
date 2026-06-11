@@ -91,6 +91,74 @@ describe('publishScheduledStatusJob', () => {
     expect(row).toBeNull()
   })
 
+  it('publishes a due scheduled poll and removes the scheduled row', async () => {
+    const text = `Due scheduled poll ${Date.now()}`
+    const options = ['Red', 'Green', 'Blue']
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({
+        text,
+        poll: {
+          options,
+          expires_in: 3600,
+          multiple: false,
+          hide_totals: false
+        }
+      })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-poll',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    const statuses = await database.getActorStatuses({ actorId: actor1.id })
+    const published = statuses.find((status) => status.text.includes(text))
+    expect(published).toBeDefined()
+    expect(published?.type).toBe('Poll')
+    const choices = (published as { choices: { title: string }[] }).choices
+    expect(choices.map((choice) => choice.title)).toEqual(options)
+
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).toBeNull()
+  })
+
+  it('drops the scheduled row without re-publishing when the idempotency key already maps to a status', async () => {
+    const text = `Idempotent scheduled note ${Date.now()}`
+    const idempotency = `idem-${Date.now()}`
+    // Simulate a prior publish: the idempotency key already maps to a status.
+    await database.saveIdempotencyKey({
+      actorId: actor1.id,
+      key: idempotency,
+      statusId: `${actor1.id}/statuses/already-published`
+    })
+
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text, idempotency })
+    })
+
+    const before = await database.getActorStatuses({ actorId: actor1.id })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-idempotent',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    // No duplicate status was created for the deduped scheduled post.
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    expect(after).toHaveLength(before.length)
+    expect(after.some((status) => status.text.includes(text))).toBe(false)
+
+    // The scheduled row is cleaned up regardless.
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).toBeNull()
+  })
+
   it('is a no-op for an unknown scheduled status id', async () => {
     await expect(
       publishScheduledStatusJob(database, {

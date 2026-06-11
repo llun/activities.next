@@ -4,7 +4,9 @@ import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { getQueue } from '@/lib/services/queue'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
+import { scheduledDelaySeconds } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from './names'
@@ -46,7 +48,7 @@ export const publishScheduledStatusJob = createJobHandle(
         id: getHashFromString(row.id),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
         data: { scheduledStatusId: row.id },
-        delaySeconds: Math.floor(remainingMs / 1000)
+        delaySeconds: scheduledDelaySeconds(row.scheduledAt)
       })
       return
     }
@@ -54,6 +56,10 @@ export const publishScheduledStatusJob = createJobHandle(
     const actor = await database.getActorFromId({ id: row.actorId })
     // Actor gone: drop the orphaned scheduled row, nothing to publish.
     if (!actor) {
+      logger.warn(
+        { scheduledStatusId: row.id, actorId: row.actorId },
+        'publishScheduledStatusJob: actor missing, dropping scheduled status'
+      )
       await database.deleteScheduledStatus({ id: row.id, actorId: row.actorId })
       return
     }
@@ -103,6 +109,10 @@ export const publishScheduledStatusJob = createJobHandle(
       // Media that no longer resolves (deleted before the status fired) aborts
       // the publish but still clears the row so it is not retried forever.
       if (!attachments) {
+        logger.warn(
+          { scheduledStatusId: row.id, actorId: row.actorId },
+          'publishScheduledStatusJob: media unresolved, dropping scheduled status'
+        )
         await database.deleteScheduledStatus({
           id: row.id,
           actorId: row.actorId
@@ -128,6 +138,13 @@ export const publishScheduledStatusJob = createJobHandle(
         key: idempotencyKey,
         statusId: status.id
       })
+    }
+
+    if (status) {
+      logger.info(
+        { statusId: status.id, scheduledStatusId: row.id },
+        'publishScheduledStatusJob: published scheduled status'
+      )
     }
 
     await database.deleteScheduledStatus({ id: row.id, actorId: row.actorId })

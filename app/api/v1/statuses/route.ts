@@ -25,6 +25,7 @@ import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import {
   buildScheduledParams,
+  scheduledDelaySeconds,
   toMastodonScheduledStatus
 } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -214,10 +215,7 @@ export const POST = traceApiRoute(
             id: getHashFromString(scheduled.id),
             name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
             data: { scheduledStatusId: scheduled.id },
-            delaySeconds: Math.max(
-              0,
-              Math.floor((scheduled.scheduledAt - Date.now()) / 1000)
-            )
+            delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
           })
           return apiResponse({
             req,

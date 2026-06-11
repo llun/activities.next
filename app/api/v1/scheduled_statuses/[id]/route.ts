@@ -11,7 +11,10 @@ import {
   SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
-import { toMastodonScheduledStatus } from '@/lib/services/statuses/scheduledStatusSerializer'
+import {
+  scheduledDelaySeconds,
+  toMastodonScheduledStatus
+} from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Scope } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -149,10 +152,7 @@ export const PUT = traceApiRoute(
         id: getHashFromString(scheduled.id),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
         data: { scheduledStatusId: scheduled.id },
-        delaySeconds: Math.max(
-          0,
-          Math.floor((scheduled.scheduledAt - Date.now()) / 1000)
-        )
+        delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
       })
 
       return apiResponse({
