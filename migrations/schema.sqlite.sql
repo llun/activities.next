@@ -202,3 +202,6 @@ CREATE INDEX `server_filters_created` on `server_filters` (`createdAt`);
 CREATE TABLE `server_filter_keywords` (`id` varchar(255), `filterId` varchar(255) not null, `keyword` text not null, `wholeWord` boolean not null default '0', `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
 CREATE UNIQUE INDEX `server_filter_keywords_filter_keyword_unique` on `server_filter_keywords` (`filterId`, `keyword`);
 CREATE INDEX `server_filter_keywords_filter_id` on `server_filter_keywords` (`filterId`);
+CREATE TABLE `scheduled_statuses` (`id` varchar(255), `actorId` varchar(255) not null, `scheduledAt` datetime not null, `params` text not null, `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`id`));
+CREATE INDEX `scheduled_statuses_actorid_index` on `scheduled_statuses` (`actorId`);
+CREATE INDEX `scheduled_statuses_scheduledat_index` on `scheduled_statuses` (`scheduledAt`);
