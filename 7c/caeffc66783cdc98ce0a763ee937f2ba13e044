@@ -1,0 +1,31 @@
+app/api/v1/emails/confirmations/route.ts
+  s_b85c748642e346::t_362d102ef3aee2 70-73,75
+  s_b85c748642e346::t_7562513ddf9377 18,30-31,33
+app/api/v1/accounts/route.ts
+  s_b85c748642e346::t_a170698a98c7d7 125-138
+  s_b85c748642e346::t_74a605846a8c23 351-354
+app/api/v1/accounts/route.test.ts
+  s_b85c748642e346::t_0ad5b6cdb918fb 190-221,225-246,251-252
+  s_b85c748642e346::t_0d1cadb00570a5 222-224
+  s_b85c748642e346::t_7469cc5725e306 464-477
+app/api/v1/emails/confirmations/route.test.ts
+  s_b85c748642e346::t_4847fa829396c7 230-253
+app/api/v1/accounts/types.ts
+  s_b85c748642e346::t_1e8552d80f9b28 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "7ccaeffc66783cdc98ce0a763ee937f2ba13e044",
+  "prompts": {},
+  "sessions": {
+    "s_b85c748642e346": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43742693-3970-46cf-8a8c-67248bb0b618",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
