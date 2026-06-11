@@ -8,6 +8,7 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 interface Props {
   providerName: string
@@ -54,9 +55,10 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
 
     try {
       const result = await authClient.signIn.email({
-        // Emails are stored and looked up case-insensitively; normalize here so
-        // the sign-in lookup matches regardless of how the user typed it.
-        email: email.trim().toLowerCase(),
+        // Emails are stored and looked up case-insensitively; normalize through
+        // the shared primitive so the sign-in lookup matches regardless of how
+        // the user typed it (and never drifts from server-side normalization).
+        email: normalizeEmail(email),
         password
       })
       if (result.error) {

@@ -8,6 +8,7 @@
 import { loadEnvConfig } from '@next/env'
 
 import { getKnex } from '@/lib/database'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -15,7 +16,9 @@ loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 async function manageAdminRole() {
   const args = process.argv.slice(2)
   const action = args[0]
-  const email = args[1]
+  // Stored emails are normalized (trimmed + lowercased); normalize the lookup
+  // key too so a mixed-case argument still matches the canonical row.
+  const email = args[1] ? normalizeEmail(args[1]) : args[1]
 
   if (!action || !email || !['add', 'remove'].includes(action)) {
     console.log('Usage:')

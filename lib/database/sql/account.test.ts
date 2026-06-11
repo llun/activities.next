@@ -428,6 +428,32 @@ describe('AccountDatabase', () => {
         })
         expect(found?.id).toEqual(accountId)
       })
+
+      it('stores a lowercased email when updateAccountEmail is given mixed case', async () => {
+        const { accountId } = await createTestAccount()
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const newEmail = `Updated.${suffix}@${TEST_DOMAIN}`
+
+        await database.updateAccountEmail({ accountId, email: newEmail })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).toEqual(newEmail.toLowerCase())
+      })
+
+      it('finds the account for a password reset regardless of the requested casing', async () => {
+        const { accountId, email } = await createTestAccount()
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+
+        const requested = await database.requestPasswordReset({
+          email: email.toUpperCase(),
+          passwordResetCode
+        })
+
+        expect(requested).toBeTrue()
+        expect(
+          await database.validatePasswordResetCode({ passwordResetCode })
+        ).toBe(accountId)
+      })
     })
 
     describe('account providers', () => {

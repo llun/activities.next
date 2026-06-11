@@ -964,5 +964,19 @@ describe('knexAdapter', () => {
       const row = await accountsDb('accounts').where('id', 'a1').first()
       expect(row.email).toBe('new.address@example.com')
     })
+
+    it('lowercases the email when updating many accounts', async () => {
+      await accountsDb('accounts').insert({
+        id: 'a1',
+        email: 'user@example.com'
+      })
+      await accountsAdapter.updateMany({
+        model: 'accounts',
+        where: [{ field: 'id', value: 'a1', operator: 'eq' as const }],
+        update: { email: 'Bulk.Update@Example.COM' }
+      })
+      const row = await accountsDb('accounts').where('id', 'a1').first()
+      expect(row.email).toBe('bulk.update@example.com')
+    })
   })
 })
