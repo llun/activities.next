@@ -47,4 +47,12 @@ describe('buildScheduledParams', () => {
     const params = buildScheduledParams(baseNote(), 'idem-key-1')
     expect(params.idempotency).toBe('idem-key-1')
   })
+
+  it('stores the application id when provided and defaults it to null', () => {
+    const withApp = buildScheduledParams(baseNote(), null, 'public', 'client-1')
+    expect(withApp.application_id).toBe('client-1')
+
+    const withoutApp = buildScheduledParams(baseNote(), null)
+    expect(withoutApp.application_id).toBeNull()
+  })
 })

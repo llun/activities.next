@@ -215,7 +215,8 @@ export const POST = traceApiRoute(
             params: buildScheduledParams(
               note,
               idempotencyKey ?? null,
-              actorSettings?.defaultPrivacy ?? 'public'
+              actorSettings?.defaultPrivacy ?? 'public',
+              clientId ?? null
             )
           })
           // Enqueue the publish job with a delay until the scheduled time. On

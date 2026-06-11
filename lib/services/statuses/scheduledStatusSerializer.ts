@@ -42,10 +42,13 @@ export interface ScheduledStatusInput {
 // When the client omits visibility, fall back to the actor's default privacy
 // (passed by the caller) so a scheduled status is stored — and later published
 // — with the user's configured visibility rather than always public.
+// applicationId persists the OAuth client that scheduled the status so the
+// "posted via …" attribution survives to publish time.
 export const buildScheduledParams = (
   note: ScheduledStatusInput,
   idempotencyKey: string | null,
-  defaultPrivacy: Visibility = 'public'
+  defaultPrivacy: Visibility = 'public',
+  applicationId: string | null = null
 ): ScheduledStatusParams => {
   const mediaIds = [...new Set(note.media_ids)]
   return {
@@ -64,7 +67,7 @@ export const buildScheduledParams = (
     visibility: note.visibility ?? defaultPrivacy,
     in_reply_to_id: note.in_reply_to_id ?? null,
     language: note.language ?? null,
-    application_id: null,
+    application_id: applicationId,
     scheduled_at: note.scheduled_at ?? null,
     idempotency: idempotencyKey,
     with_rate_limit: false
@@ -86,9 +89,13 @@ const hydrateMediaAttachments = async (
   if (!accountId) return []
 
   const host = getConfig().host
+  // Batch the lookup (single WHERE IN) instead of one query per id, then
+  // re-order to match the stored media_ids and drop any that no longer resolve.
+  const found = await database.getMediaByIdsForAccount({ mediaIds, accountId })
+  const byId = new Map(found.map((media) => [String(media.id), media]))
   const attachments: MediaAttachment[] = []
   for (const mediaId of mediaIds) {
-    const media = await database.getMediaByIdForAccount({ mediaId, accountId })
+    const media = byId.get(String(mediaId))
     if (!media) continue
     attachments.push(MediaAttachment.parse(getMediaAttachment(media, host)))
   }

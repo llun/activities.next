@@ -1976,6 +1976,10 @@ export type GetMediaByIdParams = {
   mediaId: string
   accountId: string
 }
+export type GetMediaByIdsForAccountParams = {
+  mediaIds: string[]
+  accountId: string
+}
 export type UpdateMediaParams = {
   mediaId: string
   accountId: string
@@ -2014,6 +2018,9 @@ export interface MediaDatabase {
     params: GetMediasForAccountParams
   ): Promise<PaginatedMediaWithStatus>
   getMediaByIdForAccount(params: GetMediaByIdParams): Promise<Media | null>
+  getMediaByIdsForAccount(
+    params: GetMediaByIdsForAccountParams
+  ): Promise<Media[]>
   updateMedia(params: UpdateMediaParams): Promise<UpdateMediaResult | null>
   getStorageUsageForAccount(
     params: GetStorageUsageForAccountParams

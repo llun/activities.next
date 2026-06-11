@@ -21,6 +21,7 @@ import {
   GetAttachmentsParams,
   GetAttachmentsWithMediaParams,
   GetMediaByIdParams,
+  GetMediaByIdsForAccountParams,
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
   MarkMediaUploadVerifiedParams,
@@ -514,6 +515,19 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     if (!data) return null
 
     return parseMediaRow(data)
+  },
+
+  async getMediaByIdsForAccount({
+    mediaIds,
+    accountId
+  }: GetMediaByIdsForAccountParams): Promise<Media[]> {
+    if (mediaIds.length === 0) return []
+    const rows = await database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .whereIn('medias.id', mediaIds)
+      .where('actors.accountId', accountId)
+      .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
+    return rows.map(parseMediaRow)
   },
 
   async updateMedia({

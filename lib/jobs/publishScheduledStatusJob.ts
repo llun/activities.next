@@ -87,6 +87,15 @@ export const publishScheduledStatusJob = createJobHandle(
       return
     }
 
+    // Re-resolve the OAuth client stored at schedule time so the published
+    // status keeps the same "posted via …" application attribution.
+    const client = params.application_id
+      ? await database.getClientFromId({ clientId: params.application_id })
+      : null
+    const application = client?.name
+      ? { name: client.name, website: client.website ?? null }
+      : undefined
+
     let status
     if (params.poll) {
       status = await createPollFromUserInput({
@@ -100,6 +109,7 @@ export const publishScheduledStatusJob = createJobHandle(
         visibility: params.visibility,
         sensitive: params.sensitive ?? false,
         language: params.language ?? null,
+        application,
         database
       })
     } else {
@@ -131,6 +141,7 @@ export const publishScheduledStatusJob = createJobHandle(
         attachments,
         sensitive: params.sensitive ?? false,
         language: params.language ?? null,
+        application,
         database
       })
     }
