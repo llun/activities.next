@@ -225,9 +225,12 @@ describe('publishScheduledStatusJob', () => {
       data: { scheduledStatusId: scheduled.id }
     })
     expect(publishArgs.delaySeconds).toBeGreaterThan(60)
-    // The early re-enqueue folds scheduledAt into the dedup id, matching the
-    // create and reschedule enqueue sites.
+    // The early re-enqueue uses a distinct dedup id (suffixed `-reenqueue`) so
+    // QStash does not drop it as a duplicate of the original create enqueue.
     expect(publishArgs.id).toBe(
+      getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}-reenqueue`)
+    )
+    expect(publishArgs.id).not.toBe(
       getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`)
     )
 

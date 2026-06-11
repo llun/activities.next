@@ -44,8 +44,13 @@ export const publishScheduledStatusJob = createJobHandle(
     // is the path the in-process NoQueue always takes (it ignores delays).
     const remainingMs = row.scheduledAt - Date.now()
     if (remainingMs > EARLY_THRESHOLD_MS) {
+      // Use a distinct dedup id from the original create/reschedule enqueue
+      // (which is `${id}-${scheduledAt}`). QStash keeps the dedup window open
+      // for ~1h even after a message is consumed, so reusing the same id here
+      // would let QStash silently drop this re-enqueue and the status would
+      // never fire.
       await getQueue().publish({
-        id: getHashFromString(`${row.id}-${row.scheduledAt}`),
+        id: getHashFromString(`${row.id}-${row.scheduledAt}-reenqueue`),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
         data: { scheduledStatusId: row.id },
         delaySeconds: scheduledDelaySeconds(row.scheduledAt)
