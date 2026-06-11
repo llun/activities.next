@@ -3,13 +3,16 @@ import { NextRequest } from 'next/server'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
+import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Status } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -540,6 +543,231 @@ describe('POST /api/v1/statuses', () => {
     const owned = await database.getActorStatuses({ actorId: ACTOR1_ID })
     const matching = owned.filter((status) => status.id === firstStatus.uri)
     expect(matching).toHaveLength(1)
+  })
+
+  it('stores a scheduled status instead of publishing when scheduled_at is far enough ahead', async () => {
+    const before = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'See you in ten minutes',
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const scheduledStatus = await response.json()
+    expect(scheduledStatus.scheduled_at).toBe(scheduledAt)
+    expect(scheduledStatus.params.text).toBe('See you in ten minutes')
+    expect(scheduledStatus.media_attachments).toEqual([])
+    // No status was published, but a delayed publish job was queued.
+    const after = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    expect(after).toHaveLength(before.length)
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    const publishArgs = (getQueue().publish as jest.Mock).mock.calls[0][0]
+    expect(publishArgs).toMatchObject({
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduledStatus.id }
+    })
+    expect(publishArgs.delaySeconds).toEqual(expect.any(Number))
+    // The dedup id folds in scheduledAt so a later reschedule is not dropped by
+    // QStash deduplication of the original schedule.
+    expect(publishArgs.id).toBe(
+      getHashFromString(`${scheduledStatus.id}-${Date.parse(scheduledAt)}`)
+    )
+
+    // Exactly one scheduled row now exists for the actor.
+    const stored = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    expect(stored.map((row) => row.id)).toContain(scheduledStatus.id)
+  })
+
+  it('rolls back the stored scheduled status and returns 500 when enqueue fails', async () => {
+    const before = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce(
+      new Error('queue unavailable')
+    )
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Enqueue will fail',
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(500)
+    // The orphan row was rolled back: no new scheduled status remains.
+    const after = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    expect(after).toHaveLength(before.length)
+  })
+
+  it('stores a scheduled status with the actor default privacy when visibility is omitted', async () => {
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      defaultPrivacy: 'private'
+    })
+    try {
+      const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'Scheduled with default privacy',
+            scheduled_at: scheduledAt
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const scheduledStatus = await response.json()
+      expect(scheduledStatus.params.visibility).toBe('private')
+    } finally {
+      await database.updateActor({
+        actorId: ACTOR1_ID,
+        defaultPrivacy: 'public'
+      })
+    }
+  })
+
+  it('treats a blank scheduled_at as an immediate post', async () => {
+    const before = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Blank schedule posts now',
+          scheduled_at: '   '
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    // A real status was published, not a scheduled one.
+    expect(mastodonStatus.id).toBeTruthy()
+    expect(mastodonStatus.scheduled_at).toBeUndefined()
+    const after = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    expect(after).toHaveLength(before.length)
+  })
+
+  it('returns 422 when scheduled_at is less than five minutes ahead', async () => {
+    const scheduledAt = new Date(Date.now() + 2 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Too soon to schedule',
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+    const error = await response.json()
+    expect(error.error).toBe(SCHEDULED_AT_TOO_SOON_ERROR)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('stores a scheduled status with a poll when scheduled_at is far enough ahead', async () => {
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Scheduled favourite color?',
+          scheduled_at: scheduledAt,
+          poll: {
+            options: ['Red', 'Green', 'Blue'],
+            expires_in: 3600,
+            multiple: true
+          }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const scheduledStatus = await response.json()
+    expect(scheduledStatus.scheduled_at).toBe(scheduledAt)
+    expect(scheduledStatus.params.poll).toMatchObject({
+      options: ['Red', 'Green', 'Blue'],
+      expires_in: 3600,
+      multiple: true
+    })
+    // No status was published, but a delayed publish job was queued.
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: expect.objectContaining({
+          scheduledStatusId: scheduledStatus.id
+        }),
+        delaySeconds: expect.any(Number)
+      })
+    )
+
+    const stored = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    const storedRow = stored.find((row) => row.id === scheduledStatus.id)
+    expect(storedRow).toBeTruthy()
+    expect(storedRow?.params.poll?.options).toEqual(['Red', 'Green', 'Blue'])
   })
 
   it('does not resurrect a deleted status for a reused Idempotency-Key (orphan cleanup)', async () => {
