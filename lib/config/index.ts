@@ -10,6 +10,7 @@ import { ResendConfig } from '@/lib/services/email/resend'
 import { SESConfig } from '@/lib/services/email/ses'
 import { SMTPConfig } from '@/lib/services/email/smtp'
 import { logger } from '@/lib/utils/logger'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
@@ -36,7 +37,14 @@ const Config = z.object({
   database: z.custom<Knex.Config>(),
   queue: QueueConfig.optional(),
   push: PushConfig.optional(),
-  allowEmails: z.string().array(),
+  // Normalized to lowercase once on load so the `allowEmails` gate is
+  // case-insensitive without each call site having to re-normalize the config
+  // side. Input emails are normalized at their entry points too. See
+  // `lib/utils/normalizeEmail.ts` and `isEmailAllowed`.
+  allowEmails: z
+    .string()
+    .array()
+    .transform((emails) => emails.map(normalizeEmail)),
   registrationOpen: z.boolean().default(true),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),

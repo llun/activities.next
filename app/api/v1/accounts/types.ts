@@ -11,7 +11,10 @@ export const CreateAccountRequest = z.object({
       message: 'Username is reserved'
     }),
   name: z.string().trim().max(255).optional(),
-  email: z.string().email().trim().max(255),
+  // Normalized to lowercase so casing never creates duplicate accounts or
+  // desyncs from case-insensitive lookups. Trim first, then lowercase, then
+  // validate format/length on the canonical value.
+  email: z.string().trim().toLowerCase().email().max(255),
   password: z.string().min(8).trim()
 })
 export type CreateAccountRequest = z.infer<typeof CreateAccountRequest>

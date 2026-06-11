@@ -10,6 +10,7 @@ import {
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   AccountDatabase,
@@ -53,11 +54,16 @@ import {
   getLocalActorInboxId,
   getLocalActorSharedInboxId
 } from '@/lib/utils/activitypubId'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
+// Emails are normalized (trimmed + lowercased) inside every method that stores
+// or looks up by email so storage and lookup can never disagree on casing. This
+// is the most robust place for it — it cannot be bypassed by a caller that
+// forgets to normalize first. See `lib/utils/normalizeEmail.ts`.
 export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
     const result = await database('accounts')
-      .where('email', email)
+      .where('email', normalizeEmail(email))
       .count<{ count: string }>('id as count')
       .first()
     return parseInt(result?.count ?? '0', 10) > 0
@@ -82,6 +88,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     privateKey,
     publicKey
   }: CreateAccountParams) {
+    const normalizedEmail = normalizeEmail(email)
     const accountId = crypto.randomUUID()
     const actorId = getLocalActorId({ domain, username })
     const currentTime = new Date()
@@ -107,7 +114,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     await database.transaction(async (trx) => {
       await trx('accounts').insert({
         id: accountId,
-        email,
+        email: normalizedEmail,
         name: name || null,
         passwordHash,
         ...(verificationCode
@@ -183,7 +190,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     email
   }: GetAccountFromEmailParams): Promise<Account | null> {
     const account = await database<SQLAccount>('accounts')
-      .where('email', email)
+      .where('email', normalizeEmail(email))
       .first()
     if (!account) return null
     return toDomainAccount(account)
@@ -515,12 +522,14 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     const currentTime = new Date()
     const expiresAt = new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
 
-    await database('accounts').where('id', accountId).update({
-      emailChangePending: newEmail,
-      emailChangeCode,
-      emailChangeCodeExpiresAt: expiresAt,
-      updatedAt: currentTime
-    })
+    await database('accounts')
+      .where('id', accountId)
+      .update({
+        emailChangePending: normalizeEmail(newEmail),
+        emailChangeCode,
+        emailChangeCodeExpiresAt: expiresAt,
+        updatedAt: currentTime
+      })
   },
 
   async verifyEmailChange({
@@ -555,14 +564,36 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       return null
     }
 
-    await database('accounts').where('id', account.id).update({
-      email: pendingEmail,
-      emailVerifiedAt: now,
-      emailChangePending: null,
-      emailChangeCode: null,
-      emailChangeCodeExpiresAt: null,
-      updatedAt: now
-    })
+    // `emailChangePending` is stored already-normalized; normalize again when
+    // promoting it so the canonical `email` column can never drift.
+    const normalizedEmail = normalizeEmail(pendingEmail)
+
+    // The pending address may have been claimed by another account between the
+    // change request and this verification. Reject gracefully — callers map a
+    // null result to an "invalid or expired" response — instead of letting the
+    // unique-email constraint surface as a 500.
+    const conflicting = await database('accounts')
+      .where('email', normalizedEmail)
+      .whereNot('id', account.id)
+      .first('id')
+    if (conflicting) return null
+
+    try {
+      await database('accounts').where('id', account.id).update({
+        email: normalizedEmail,
+        emailVerifiedAt: now,
+        emailChangePending: null,
+        emailChangeCode: null,
+        emailChangeCodeExpiresAt: null,
+        updatedAt: now
+      })
+    } catch (error) {
+      // Pre-check covers the common case; a concurrent claim can still race onto
+      // the unique constraint between the check and the update. Map that to the
+      // same graceful null rather than a 500.
+      if (isUniqueConstraintError(error)) return null
+      throw error
+    }
 
     return this.getAccountFromId({ id: account.id })
   },
@@ -574,7 +605,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     expiresAt
   }: RequestPasswordResetParams): Promise<boolean> {
     const account = await database<SQLAccount>('accounts')
-      .where('email', email)
+      .where('email', normalizeEmail(email))
       .first()
     if (!account) return false
 
@@ -690,10 +721,12 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     email
   }: UpdateAccountEmailParams): Promise<void> {
     const currentTime = new Date()
-    await database('accounts').where('id', accountId).update({
-      email,
-      updatedAt: currentTime
-    })
+    await database('accounts')
+      .where('id', accountId)
+      .update({
+        email: normalizeEmail(email),
+        updatedAt: currentTime
+      })
   },
 
   async updateAccountName({

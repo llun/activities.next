@@ -16,7 +16,11 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-const PasswordResetRequest = z.object({ email: z.string().email() })
+const PasswordResetRequest = z.object({
+  // Normalized to lowercase so the reset lookup matches the canonical stored
+  // email regardless of how it was typed. See normalizeEmail.
+  email: z.string().trim().toLowerCase().email().max(255)
+})
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const SUCCESS_MESSAGE =
