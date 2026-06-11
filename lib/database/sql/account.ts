@@ -35,6 +35,7 @@ import {
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
+  UpdateAccountEmailParams,
   UpdateAccountImageParams,
   UpdateAccountNameParams,
   UpdateAccountSessionParams,
@@ -681,6 +682,17 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         .onConflict('id')
         .merge({ password: newPasswordHash, updatedAt: currentTime })
       await trx('sessions').where('accountId', accountId).delete()
+    })
+  },
+
+  async updateAccountEmail({
+    accountId,
+    email
+  }: UpdateAccountEmailParams): Promise<void> {
+    const currentTime = new Date()
+    await database('accounts').where('id', accountId).update({
+      email,
+      updatedAt: currentTime
     })
   },
 

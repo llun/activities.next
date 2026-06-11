@@ -11,7 +11,7 @@ export const CreateAccountRequest = z.object({
       message: 'Username is reserved'
     }),
   name: z.string().trim().max(255).optional(),
-  email: z.string().email().trim(),
+  email: z.string().email().trim().max(255),
   password: z.string().min(8).trim()
 })
 export type CreateAccountRequest = z.infer<typeof CreateAccountRequest>
