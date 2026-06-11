@@ -71,6 +71,10 @@ describe('GET /api/v1/profile', () => {
     const response = await GET(createRequest(), { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
+    const allowedMethods = response.headers.get('Access-Control-Allow-Methods')
+    expect(allowedMethods).toContain('GET')
+    expect(allowedMethods).toContain('PATCH')
+    expect(allowedMethods).toContain('OPTIONS')
     const data = await response.json()
     expect(data).toEqual(
       expect.objectContaining({
