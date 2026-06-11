@@ -1,0 +1,28 @@
+app/api/v1/scheduled_statuses/route.ts
+  s_aad18c3f613de8::t_5d5bd3be25ad21 48-52
+app/api/v1/statuses/route.ts
+  s_aad18c3f613de8::t_b3444accd91919 266-270
+app/api/v1/scheduled_statuses/[id]/route.ts
+  s_aad18c3f613de8::t_b3444accd91919 94-98,206-210
+lib/database/sql/media.ts
+  s_aad18c3f613de8::t_0f6c1d1bbbef84 530
+lib/services/statuses/scheduledStatusSerializer.ts
+  s_aad18c3f613de8::t_350383618824b1 83-84,88-93,98-101
+  s_aad18c3f613de8::t_873cd8fb297866 116-117,122-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "943da33d30d0ef1c84e63f7cc66bcd358a16dd19",
+  "prompts": {},
+  "sessions": {
+    "s_aad18c3f613de8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b99b1bb-fc82-4e50-b1dc-acabeb2082ce",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
