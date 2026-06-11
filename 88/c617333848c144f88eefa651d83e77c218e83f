@@ -1,0 +1,55 @@
+app/api/v1/emails/confirmations/route.ts
+  s_b98341b16c5f05::t_e696532993ead4 1-4,6-7,9-21,28-54,61,63,65-67,82-91
+  s_b98341b16c5f05::t_f1ec147abec322 5,8,22-27,55-60,68-81
+  s_b98341b16c5f05::t_c84d1382145dc0 62,64
+lib/database/sql/account.ts
+  s_b98341b16c5f05::t_eaff0f6df8001f 38
+  s_b98341b16c5f05::t_610ad2692356d5 688-692,697-698
+  s_b98341b16c5f05::t_c84d1382145dc0 693-696
+lib/database/sql/account.test.ts
+  s_b98341b16c5f05::t_ed37d700a2399c 182-191
+lib/services/accounts/registerAccount.ts
+  s_b98341b16c5f05::t_fd5e4177bc6ccf 1-5,8-13,15-53,56-92,94,96-100,108
+  s_b98341b16c5f05::t_61e28706c6528d 54-55
+  s_b98341b16c5f05::t_5526f846090e88 7,14
+  s_b98341b16c5f05::t_f18c55b9c9348d 101-107
+  s_b98341b16c5f05::t_a3fc8484113c90 6
+  s_b98341b16c5f05::t_c20fe33f63db6e 93,95
+lib/services/accounts/registerAccount.test.ts
+  s_b98341b16c5f05::t_7ecaad85218744 1-5,14,16-30,35-43,45-63,65-83,85-176,180-218,220-247,249-270,13
+  s_b98341b16c5f05::t_9f11884b148405 178-179
+  s_b98341b16c5f05::t_64d632673c8776 6-12,15
+  s_b98341b16c5f05::t_0f7615cefb5706 31-34
+  s_b98341b16c5f05::t_e9667d71d1f388 44,64,84,219,248
+app/api/v1/emails/confirmations/route.test.ts
+  s_b98341b16c5f05::t_1efe8880476df7 1-19,21-27,29-80,82-107,109-138,141-155,157-163,170-173,182-189,191-193,207-223,168-169,198-202,205-206
+  s_b98341b16c5f05::t_b04815cb15ae15 20
+  s_b98341b16c5f05::t_90bb4fb0667a53 139-140
+  s_b98341b16c5f05::t_10e02163d00a9c 28
+  s_b98341b16c5f05::t_d454e5cb2d32fa 81
+  s_b98341b16c5f05::t_efe17da08bbcb1 108
+  s_b98341b16c5f05::t_c1b6a5f5f2077c 156,164-167,174-181,190,196-197,203-204
+lib/services/accounts/sendConfirmationEmail.ts
+  s_b98341b16c5f05::t_15100311d7bd32 1-29
+lib/types/database/operations.ts
+  s_b98341b16c5f05::t_51241b31d3f04c 318,319,321
+  s_b98341b16c5f05::t_a5aabaa1fc0017 2316,2326-2327,2332-2341,320,322
+  s_b98341b16c5f05::t_104f675485fa99 2328-2331
+  s_b98341b16c5f05::t_ec544938da7f6c 387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "88c617333848c144f88eefa651d83e77c218e83f",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
