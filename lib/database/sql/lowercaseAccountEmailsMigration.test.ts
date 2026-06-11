@@ -113,6 +113,28 @@ describe('lowercase account emails migration', () => {
     ])
   })
 
+  it('still fails loudly when a non-ASCII casing collision slips past the SQL lower() pre-check', async () => {
+    // SQLite's lower() is ASCII-only, so these two rows are NOT grouped by the
+    // SQL pre-check, but JS normalizeEmail folds both to the same address. The
+    // Pass 2 UPDATE must catch the resulting UNIQUE violation and re-raise the
+    // friendly collision error rather than an opaque DB error — and write
+    // nothing.
+    await database('accounts').insert([
+      { id: '1', email: 'CafÉ@example.com', emailChangePending: null },
+      { id: '2', email: 'café@example.com', emailChangePending: null }
+    ])
+
+    await expect(migration.up(database)).rejects.toThrow(
+      /collide once normalized to lowercase/
+    )
+
+    const rows = await database('accounts').orderBy('id')
+    expect(rows).toEqual([
+      { id: '1', email: 'CafÉ@example.com', emailChangePending: null },
+      { id: '2', email: 'café@example.com', emailChangePending: null }
+    ])
+  })
+
   it('has an irreversible no-op down that does not throw', async () => {
     await expect(migration.down(database)).resolves.toBeUndefined()
   })
