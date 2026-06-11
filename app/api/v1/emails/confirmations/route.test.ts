@@ -227,6 +227,30 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 
+  it('honors a form-encoded email param like the registration endpoint', async () => {
+    const request = new NextRequest(
+      'http://llun.test/api/v1/emails/confirmations',
+      {
+        method: 'POST',
+        body: 'email=form-email@llun.test',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      email: 'form-email@llun.test'
+    })
+    const [mailArgs] = mockSendMail.mock.calls
+    expect(mailArgs[0].to).toEqual(['form-email@llun.test'])
+  })
+
   it('ignores an invalid email param and resends to the existing address', async () => {
     const response = await POST(makeRequest({ email: 'not-an-email' }), {
       params: Promise.resolve({})

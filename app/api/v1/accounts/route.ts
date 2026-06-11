@@ -122,6 +122,20 @@ const registerViaApi = OAuthAppGuard(
       })
     }
 
+    // Gate before parsing the body so a closed server returns 403 even when the
+    // body is malformed, matching Mastodon's check_enabled_registrations (which
+    // runs as a before_action) and the web-form path. registerAccount() also
+    // re-checks registrationOpen, so the registration_closed result branch below
+    // remains a defensive fallback.
+    if (!getConfig().registrationOpen) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Registration is closed' },
+        responseStatusCode: 403
+      })
+    }
+
     let body: Record<string, unknown>
     try {
       body = await getRequestBody(req)
@@ -334,7 +348,10 @@ export const POST = traceApiRoute(
           error: MAIN_ERROR_MESSAGE,
           details: {
             email: [
-              { error: 'ERR_TAKEN', description: 'Email is already taken' }
+              {
+                error: 'ERR_BLOCKED',
+                description: 'Email is not allowed to register on this server'
+              }
             ]
           }
         },

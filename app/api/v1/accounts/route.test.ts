@@ -187,11 +187,69 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
     expect(createAccount).not.toHaveBeenCalled()
   })
 
+  it('returns 422 with an accurate message when the email is not allowed', async () => {
+    jest.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'email_not_allowed'
+    })
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'username=alice&email=alice@example.com&password=password123',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(422)
+    // The allow-list rejection must not be mislabeled as "already taken".
+    expect(await res.json()).toEqual({
+      error: 'Validation failed',
+      details: {
+        email: [
+          {
+            error: 'ERR_BLOCKED',
+            description: 'Email is not allowed to register on this server'
+          }
+        ]
+      }
+    })
+  })
+
+  it('returns 422 with field details when registration validation fails', async () => {
+    jest.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'validation_failed',
+      details: {
+        username: [
+          { error: 'ERR_TAKEN', description: 'Username is already taken' }
+        ]
+      }
+    })
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'username=alice&email=alice@example.com&password=password123',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(422)
+    expect(await res.json()).toEqual({
+      error: 'Validation failed',
+      details: {
+        username: [
+          { error: 'ERR_TAKEN', description: 'Username is already taken' }
+        ]
+      }
+    })
+  })
+
   it('redirects to /auth/signin with 307 on successful registration', async () => {
     jest.mocked(registerAccount).mockResolvedValueOnce({
       type: 'success',
       accountId: 'new-account-id',
-      username: 'alice'
+      username: 'alice',
+      actorId: 'https://llun.test/users/alice'
     })
     const req = new NextRequest('http://localhost/api/v1/accounts', {
       method: 'POST',
@@ -401,6 +459,20 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
     )
     expect(res.status).toBe(403)
+  })
+
+  it('returns 403 for closed registration before parsing the body', async () => {
+    jest.mocked(getConfig).mockReturnValueOnce({
+      host: 'llun.test',
+      allowEmails: [],
+      registrationOpen: false,
+      secretPhase: 'test-secret'
+    } as never)
+    // Malformed body (missing required fields): a closed server must still
+    // answer 403 without reaching schema validation or registerAccount().
+    const res = await postRegister(APP_TOKEN, 'garbage=1')
+    expect(res.status).toBe(403)
+    expect(registerAccount).not.toHaveBeenCalled()
   })
 
   it('returns 401 for an unknown bearer token', async () => {

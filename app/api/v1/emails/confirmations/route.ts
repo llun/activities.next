@@ -15,6 +15,7 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -26,8 +27,10 @@ const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+// `.max(255)` matches the accounts.email column width so an over-long address
+// fails validation here rather than at the DB insert (a 500).
 const ConfirmationRequest = z.object({
-  email: z.string().email().optional()
+  email: z.string().email().max(255).optional()
 })
 
 // Scope write:accounts (satisfied by aggregate `write`), matching the other
@@ -64,9 +67,12 @@ export const POST = traceApiRoute(
         })
       }
 
-      let body: unknown
+      // Parse with getRequestBody (JSON + urlencoded + multipart) so a client
+      // posting `email` as form data — like the registration endpoint accepts —
+      // is honored rather than silently dropped by a JSON-only parse.
+      let body: Record<string, unknown>
       try {
-        body = await req.json()
+        body = await getRequestBody(req)
       } catch {
         body = {}
       }
