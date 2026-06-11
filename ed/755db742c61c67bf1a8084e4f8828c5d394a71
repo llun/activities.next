@@ -1,0 +1,26 @@
+app/api/v1/emails/confirmations/route.test.ts
+  s_b85c748642e346::t_7d2983ed61311d 274,279-282,285-294
+lib/services/accounts/registerAccount.ts
+  s_b85c748642e346::t_a5f7be8ec17016 110-111
+  s_b85c748642e346::t_c6f3d9dcaacdc3 102-109,112-115,117-130
+app/api/v1/emails/confirmations/route.ts
+  s_b85c748642e346::t_085dedf3e5c42c 81-84,86-98
+lib/services/accounts/registerAccount.test.ts
+  s_b85c748642e346::t_6dd811441d5fb3 248,250-251,257-260,277-301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "ed755db742c61c67bf1a8084e4f8828c5d394a71",
+  "prompts": {},
+  "sessions": {
+    "s_b85c748642e346": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43742693-3970-46cf-8a8c-67248bb0b618",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
