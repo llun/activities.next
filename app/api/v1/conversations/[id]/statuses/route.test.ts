@@ -8,7 +8,8 @@ const mockCurrentActor = {
 
 const mockDatabase = {
   getDirectConversationStatuses: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([])
+  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
+  getActiveServerFilters: jest.fn().mockResolvedValue([])
 }
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({

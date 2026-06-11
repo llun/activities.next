@@ -1,7 +1,10 @@
 import { Database } from '@/lib/database/types'
 import { getMastodonFilterFromRecord } from '@/lib/services/mastodon/getMastodonFilter'
 import { Timeline } from '@/lib/services/timelines/types'
-import { ActiveFilterRecord } from '@/lib/types/database/operations'
+import {
+  ActiveFilterRecord,
+  ActiveServerFilterRecord
+} from '@/lib/types/database/operations'
 import {
   FilterKeyword as DomainFilterKeyword,
   FilterContext
@@ -142,13 +145,34 @@ const getCandidateStatusIds = (status: Status): string[] => {
   return [...ids].filter(Boolean)
 }
 
+// Instance-wide server filters carry no owning actor. Adapt them to the
+// per-actor ActiveFilterRecord shape so the matching pipeline can treat both
+// kinds uniformly; the synthetic empty actorId is never read during matching.
+const serverRecordToActiveFilterRecord = (
+  record: ActiveServerFilterRecord
+): ActiveFilterRecord => ({
+  filter: { ...record.filter, actorId: '' },
+  keywords: record.keywords,
+  statuses: []
+})
+
 export const getActiveFilters = async (
   database: Database,
   actorId: string | undefined,
   context: FilterContext
 ): Promise<ActiveFilterRecord[]> => {
-  if (!actorId) return []
-  return database.getActiveFiltersForActor({ actorId, context })
+  // Server filters apply to everyone — including signed-out viewers — so they
+  // are fetched regardless of `actorId`.
+  const [accountRecords, serverRecords] = await Promise.all([
+    actorId
+      ? database.getActiveFiltersForActor({ actorId, context })
+      : Promise.resolve([] as ActiveFilterRecord[]),
+    database.getActiveServerFilters({ context })
+  ])
+  return [
+    ...accountRecords,
+    ...serverRecords.map(serverRecordToActiveFilterRecord)
+  ]
 }
 
 const matchFilter = (

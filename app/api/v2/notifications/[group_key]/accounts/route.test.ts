@@ -6,6 +6,7 @@ const mockDatabase = {
   getNotificationsForGroupKey: jest.fn(),
   getMastodonActorsFromIds: jest.fn(),
   getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
+  getActiveServerFilters: jest.fn().mockResolvedValue([]),
   getStatusesByIds: jest.fn().mockResolvedValue([])
 }
 

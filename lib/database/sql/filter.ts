@@ -9,6 +9,7 @@ import {
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
 import {
+  ActiveFilterRecord,
   AddFilterKeywordParams,
   AddFilterStatusParams,
   CreateFilterParams,
@@ -20,6 +21,7 @@ import {
   GetFilterKeywordParams,
   GetFilterKeywordsParams,
   GetFilterParams,
+  GetFilterRecordsForActorParams,
   GetFilterStatusParams,
   GetFilterStatusesParams,
   GetFiltersParams,
@@ -97,6 +99,47 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
       await trx('filter_keywords').where('filterId', filterId).delete()
       await trx('filters').where('id', filterId).delete()
     })
+  }
+
+  const hydrateFilters = async (
+    filters: Filter[]
+  ): Promise<ActiveFilterRecord[]> => {
+    if (filters.length === 0) return []
+
+    const filterIds = filters.map((filter) => filter.id)
+    const batchSize = getWhereInBatchSize(database)
+    const keywordRows: FilterKeyword[] = []
+    const statusRows: FilterStatus[] = []
+    for (const chunk of chunkArray(filterIds, batchSize)) {
+      const [keywords, statuses] = await Promise.all([
+        database<FilterKeyword>('filter_keywords').whereIn('filterId', chunk),
+        database<FilterStatus>('filter_statuses').whereIn('filterId', chunk)
+      ])
+      keywordRows.push(...keywords)
+      statusRows.push(...statuses)
+    }
+
+    const keywordsByFilter = new Map<string, FilterKeyword[]>()
+    for (const keyword of keywordRows) {
+      const fixed = fixKeywordRow(keyword)
+      const bucket = keywordsByFilter.get(fixed.filterId) ?? []
+      bucket.push(fixed)
+      keywordsByFilter.set(fixed.filterId, bucket)
+    }
+
+    const statusesByFilter = new Map<string, FilterStatus[]>()
+    for (const status of statusRows) {
+      const fixed = fixStatusRow(status)
+      const bucket = statusesByFilter.get(fixed.filterId) ?? []
+      bucket.push(fixed)
+      statusesByFilter.set(fixed.filterId, bucket)
+    }
+
+    return filters.map((filter) => ({
+      filter,
+      keywords: keywordsByFilter.get(filter.id) ?? [],
+      statuses: statusesByFilter.get(filter.id) ?? []
+    }))
   }
 
   return {
@@ -268,42 +311,18 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
         .filter((filter) => isFilterActive(filter, now))
         .filter((filter) => !context || filter.context.includes(context))
 
-      if (filters.length === 0) return []
+      return hydrateFilters(filters)
+    },
 
-      const filterIds = filters.map((filter) => filter.id)
-      const batchSize = getWhereInBatchSize(database)
-      const keywordRows: FilterKeyword[] = []
-      const statusRows: FilterStatus[] = []
-      for (const chunk of chunkArray(filterIds, batchSize)) {
-        const [keywords, statuses] = await Promise.all([
-          database<FilterKeyword>('filter_keywords').whereIn('filterId', chunk),
-          database<FilterStatus>('filter_statuses').whereIn('filterId', chunk)
-        ])
-        keywordRows.push(...keywords)
-        statusRows.push(...statuses)
-      }
-
-      const keywordsByFilter = new Map<string, FilterKeyword[]>()
-      for (const keyword of keywordRows) {
-        const fixed = fixKeywordRow(keyword)
-        const bucket = keywordsByFilter.get(fixed.filterId) ?? []
-        bucket.push(fixed)
-        keywordsByFilter.set(fixed.filterId, bucket)
-      }
-
-      const statusesByFilter = new Map<string, FilterStatus[]>()
-      for (const status of statusRows) {
-        const fixed = fixStatusRow(status)
-        const bucket = statusesByFilter.get(fixed.filterId) ?? []
-        bucket.push(fixed)
-        statusesByFilter.set(fixed.filterId, bucket)
-      }
-
-      return filters.map((filter) => ({
-        filter,
-        keywords: keywordsByFilter.get(filter.id) ?? [],
-        statuses: statusesByFilter.get(filter.id) ?? []
-      }))
+    async getFilterRecordsForActor({
+      actorId
+    }: GetFilterRecordsForActorParams) {
+      // Oldest-first (creation order) so the management list is stable as new
+      // filters are appended at the bottom.
+      const rows = await database<FilterRow>('filters')
+        .where({ actorId })
+        .orderBy('createdAt', 'asc')
+      return hydrateFilters(rows.map(fixFilterRow))
     },
 
     async addFilterKeyword({

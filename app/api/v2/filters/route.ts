@@ -10,7 +10,8 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import {
   getMastodonFilter,
-  getMastodonFilterFromRecord
+  getMastodonFilterFromRecord,
+  getMastodonServerFilterFromRecord
 } from '@/lib/services/mastodon/getMastodonFilter'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -35,10 +36,18 @@ export const GET = traceApiRoute(
   OAuthGuardAnyScope(
     [Scope.enum.read, Scope.enum['read:filters']],
     async (req, { database, currentActor }) => {
-      const records = await database.getActiveFiltersForActor({
-        actorId: currentActor.id
-      })
-      const data = records.map(getMastodonFilterFromRecord)
+      // The actor's own filters, including expired ones, so the management UI
+      // can list them with an "Expired" badge and let the user reactivate them.
+      const [ownRecords, serverRecords] = await Promise.all([
+        database.getFilterRecordsForActor({ actorId: currentActor.id }),
+        // Active instance-wide rules, merged in flagged read-only so clients
+        // apply them natively (server filters never expose expired entries).
+        database.getActiveServerFilters()
+      ])
+      const data = [
+        ...ownRecords.map(getMastodonFilterFromRecord),
+        ...serverRecords.map(getMastodonServerFilterFromRecord)
+      ]
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
     }
   )
