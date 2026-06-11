@@ -80,18 +80,25 @@ export const buildScheduledParams = (
 const hydrateMediaAttachments = async (
   database: Database,
   actorId: string,
-  mediaIds: string[]
+  mediaIds: string[],
+  accountId?: string
 ): Promise<MediaAttachment[]> => {
   if (mediaIds.length === 0) return []
 
-  const actor = await database.getActorFromId({ id: actorId })
-  const accountId = actor?.account?.id
-  if (!accountId) return []
+  // Callers that already hold the owning actor (the actor-scoped routes) pass
+  // its accountId so we skip the actor lookup — avoids an extra query per item
+  // when serializing a whole list page.
+  const resolvedAccountId =
+    accountId ?? (await database.getActorFromId({ id: actorId }))?.account?.id
+  if (!resolvedAccountId) return []
 
   const host = getConfig().host
   // Batch the lookup (single WHERE IN) instead of one query per id, then
   // re-order to match the stored media_ids and drop any that no longer resolve.
-  const found = await database.getMediaByIdsForAccount({ mediaIds, accountId })
+  const found = await database.getMediaByIdsForAccount({
+    mediaIds,
+    accountId: resolvedAccountId
+  })
   const byId = new Map(found.map((media) => [String(media.id), media]))
   const attachments: MediaAttachment[] = []
   for (const mediaId of mediaIds) {
@@ -106,12 +113,14 @@ const hydrateMediaAttachments = async (
 // hydrating media_attachments from the persisted params.media_ids.
 export const toMastodonScheduledStatus = async (
   database: Database,
-  scheduled: ScheduledStatusData
+  scheduled: ScheduledStatusData,
+  accountId?: string
 ): Promise<ScheduledStatus> => {
   const mediaAttachments = await hydrateMediaAttachments(
     database,
     scheduled.actorId,
-    scheduled.params.media_ids ?? []
+    scheduled.params.media_ids ?? [],
+    accountId
   )
 
   return ScheduledStatus.parse({

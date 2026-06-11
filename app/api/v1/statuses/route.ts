@@ -263,7 +263,11 @@ export const POST = traceApiRoute(
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: await toMastodonScheduledStatus(database, scheduled)
+            data: await toMastodonScheduledStatus(
+              database,
+              scheduled,
+              currentActor.account?.id
+            )
           })
         }
 

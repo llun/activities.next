@@ -91,7 +91,11 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: await toMastodonScheduledStatus(database, scheduled)
+        data: await toMastodonScheduledStatus(
+          database,
+          scheduled,
+          currentActor.account?.id
+        )
       })
     }
   )
@@ -199,7 +203,11 @@ export const PUT = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: await toMastodonScheduledStatus(database, scheduled)
+        data: await toMastodonScheduledStatus(
+          database,
+          scheduled,
+          currentActor.account?.id
+        )
       })
     }
   )

@@ -45,7 +45,11 @@ export const GET = traceApiRoute(
 
       const data = await Promise.all(
         scheduledStatuses.map((scheduled) =>
-          toMastodonScheduledStatus(database, scheduled)
+          toMastodonScheduledStatus(
+            database,
+            scheduled,
+            currentActor.account?.id
+          )
         )
       )
 

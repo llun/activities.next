@@ -527,7 +527,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     const numericIds = mediaIds
       .filter(Boolean)
       .map((id) => Number(id))
-      .filter((id) => Number.isInteger(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
     if (numericIds.length === 0) return []
     const rows = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
