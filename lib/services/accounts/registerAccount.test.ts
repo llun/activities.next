@@ -303,6 +303,32 @@ describe('registerAccount', () => {
     })
   })
 
+  it('falls back to a generic email 422 when a raced constraint matches neither re-check', async () => {
+    // The constraint fired (e.g. on an unexpected unique column) but both
+    // re-checks come back free; the caller must still get a 422, not a 500.
+    mockDatabase.createAccount = jest.fn().mockRejectedValue(
+      Object.assign(new Error('UNIQUE constraint failed: accounts.something'), {
+        code: 'SQLITE_CONSTRAINT_UNIQUE'
+      })
+    )
+    // isAccountExists/isUsernameExists default mocks already resolve false for
+    // both the pre-check and the re-check.
+
+    const result = await registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: 'alice',
+      email: 'alice@example.com',
+      password: 'password123'
+    })
+
+    expect(result).toEqual({
+      type: 'validation_failed',
+      details: {
+        email: [{ error: 'ERR_TAKEN', description: 'Email is already taken' }]
+      }
+    })
+  })
+
   it('rethrows a non-unique-constraint error from createAccount', async () => {
     mockDatabase.createAccount = jest
       .fn()

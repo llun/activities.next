@@ -1,7 +1,11 @@
+import knex from 'knex'
 import { NextRequest } from 'next/server'
 
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
+import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { Scope } from '@/lib/types/database/operations'
 
 import { POST } from './route'
 
@@ -30,10 +34,11 @@ type MockDatabase = Pick<
   | 'isAccountExists'
 >
 
-let mockDatabase: MockDatabase | null = null
+let mockDatabase: unknown = null
+let mockKnex: unknown = undefined
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
-  getKnex: () => undefined
+  getKnex: () => mockKnex
 }))
 
 jest.mock('better-auth/oauth2', () => ({ verifyAccessToken: jest.fn() }))
@@ -321,6 +326,107 @@ describe('POST /api/v1/emails/confirmations', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({})
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
+})
+
+// Exercises the route's documented primary path: a freshly-registered client
+// presenting the Bearer access token from POST /api/v1/accounts (OAuthGuard),
+// rather than the cookie-session fallback used by the cases above.
+describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
+  const DOMAIN = 'llun.test'
+  const CLIENT_ID = 'confirmations-client'
+  const USER_TOKEN = 'user-token-value'
+  const USERNAME = 'pendingbie'
+
+  const apiKnex = knex({
+    client: 'better-sqlite3',
+    useNullAsDefault: true,
+    connection: { filename: ':memory:' }
+  })
+  const apiDatabase: Database = getSQLDatabase(apiKnex)
+
+  const bearerRequest = (token: string) =>
+    new NextRequest('https://llun.test/api/v1/emails/confirmations', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+  beforeAll(async () => {
+    await apiDatabase.migrate()
+    await apiKnex('oauthClient').insert({
+      id: 'confirmations-client-row',
+      clientId: CLIENT_ID,
+      name: 'Confirmations App',
+      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+      redirectUris: JSON.stringify(['https://app.test/redirect']),
+      requirePKCE: false,
+      disabled: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    const accountId = await apiDatabase.createAccount({
+      domain: DOMAIN,
+      email: 'pendingbie@llun.test',
+      username: USERNAME,
+      name: 'Pending Bie',
+      passwordHash: 'hashed-password',
+      // Still awaiting confirmation, so the resend is allowed.
+      verificationCode: PENDING_CODE,
+      privateKey: 'private-key',
+      publicKey: 'public-key'
+    })
+    const actor = await apiDatabase.getActorFromUsername({
+      username: USERNAME,
+      domain: DOMAIN
+    })
+    await apiKnex('oauthAccessToken').insert({
+      id: 'confirmations-token-row',
+      token: hashToken(USER_TOKEN),
+      clientId: CLIENT_ID,
+      userId: accountId,
+      referenceId: actor!.id,
+      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      createdAt: new Date()
+    })
+  })
+
+  afterAll(async () => {
+    await apiKnex.destroy()
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockDatabase = apiDatabase
+    mockKnex = apiKnex
+    mockGetConfig.mockReturnValue({
+      host: DOMAIN,
+      allowEmails: [],
+      allowActorDomains: [],
+      email: { serviceFromAddress: 'noreply@llun.test' }
+    })
+    mockSendMail.mockResolvedValue(undefined)
+  })
+
+  it('resolves the actor from a valid Bearer token and resends the email', async () => {
+    const response = await POST(bearerRequest(USER_TOKEN), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({})
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+    const [mailArgs] = mockSendMail.mock.calls
+    expect(mailArgs[0].to).toEqual(['pendingbie@llun.test'])
+  })
+
+  it('returns 401 for an unknown Bearer token', async () => {
+    const response = await POST(bearerRequest('totally-unknown-token'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(401)
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 })
