@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateScheduledStatusParams,
@@ -27,7 +28,7 @@ const toScheduledStatus = (row: SQLScheduledStatus): ScheduledStatusData => ({
   id: row.id,
   actorId: row.actorId,
   scheduledAt: getCompatibleTime(row.scheduledAt),
-  params: ScheduledStatusParams.parse(JSON.parse(row.params)),
+  params: ScheduledStatusParams.parse(getCompatibleJSON(row.params)),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -98,21 +99,16 @@ export const ScheduledStatusSQLDatabaseMixin = (
     id,
     scheduledAt
   }: UpdateScheduledStatusAtParams) {
-    const existing = await database<SQLScheduledStatus>('scheduled_statuses')
-      .where({ actorId, id })
-      .first()
-    if (!existing) return null
-
     const updatedAt = new Date()
-    await database('scheduled_statuses')
+    const affected = await database('scheduled_statuses')
       .where({ actorId, id })
       .update({ scheduledAt: new Date(scheduledAt), updatedAt })
+    if (!affected) return null
 
-    return {
-      ...toScheduledStatus(existing),
-      scheduledAt,
-      updatedAt: updatedAt.getTime()
-    }
+    const row = await database<SQLScheduledStatus>('scheduled_statuses')
+      .where({ actorId, id })
+      .first()
+    return row ? toScheduledStatus(row) : null
   },
 
   async deleteScheduledStatus({ actorId, id }: DeleteScheduledStatusParams) {
