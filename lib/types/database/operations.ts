@@ -1435,7 +1435,12 @@ export type UpdateScheduledStatusAtParams = {
   scheduledAt: number
 }
 export type DeleteScheduledStatusParams = { actorId: string; id: string }
-export type GetDueScheduledStatusesParams = { before: number }
+export type GetDueScheduledStatusesParams = {
+  before: number
+  // Optional cap so a future cron poller can drain due rows in bounded batches
+  // rather than loading every overdue scheduled status into memory at once.
+  limit?: number
+}
 
 export interface ScheduledStatusDatabase {
   createScheduledStatus(

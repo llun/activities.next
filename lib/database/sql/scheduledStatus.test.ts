@@ -357,5 +357,33 @@ describe('ScheduledStatusDatabase', () => {
         expect(ids).toContain(otherRow.id)
       })
     })
+
+    it('caps the result set to the optional limit, soonest first', async () => {
+      await withFreshDatabase(async (database) => {
+        const earliest = await database.createScheduledStatus({
+          actorId: ACTOR_ID,
+          scheduledAt: CUTOFF - 30_000,
+          params: baseParams()
+        })
+        await database.createScheduledStatus({
+          actorId: ACTOR_ID,
+          scheduledAt: CUTOFF - 20_000,
+          params: baseParams()
+        })
+        await database.createScheduledStatus({
+          actorId: ACTOR_ID,
+          scheduledAt: CUTOFF - 10_000,
+          params: baseParams()
+        })
+
+        const dueRows = await database.getDueScheduledStatuses({
+          before: CUTOFF,
+          limit: 2
+        })
+        expect(dueRows).toHaveLength(2)
+        // Ordered by scheduledAt ascending, so the earliest is included first.
+        expect(dueRows[0].id).toBe(earliest.id)
+      })
+    })
   })
 })

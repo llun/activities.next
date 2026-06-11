@@ -163,11 +163,16 @@ export const ScheduledStatusSQLDatabaseMixin = (
     return deleted > 0
   },
 
-  async getDueScheduledStatuses({ before }: GetDueScheduledStatusesParams) {
-    const rows = await database<SQLScheduledStatus>('scheduled_statuses')
+  async getDueScheduledStatuses({
+    before,
+    limit
+  }: GetDueScheduledStatusesParams) {
+    const query = database<SQLScheduledStatus>('scheduled_statuses')
       .where('scheduledAt', '<=', new Date(before))
       .orderBy('scheduledAt', 'asc')
       .orderBy('id', 'asc')
+    if (limit) query.limit(limit)
+    const rows = await query
     return rows.map(toScheduledStatus)
   }
 })
