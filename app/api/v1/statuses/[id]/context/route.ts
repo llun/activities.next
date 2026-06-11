@@ -187,8 +187,9 @@ export const GET = traceApiRoute(
       ])
 
       // Mastodon annotates the `filtered` field on context reads using the
-      // `thread` filter context. Filters are per-user, so an unauthenticated
-      // request loads no filters and the arrays pass through unchanged.
+      // `thread` filter context. Per-account filters are skipped for
+      // unauthenticated requests, but instance-wide server filters still apply
+      // to anonymous viewers (see getActiveFilters).
       const filterRecords = await getActiveFilters(
         database,
         currentActor?.id,

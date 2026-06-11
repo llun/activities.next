@@ -76,9 +76,10 @@ export const GET = traceApiRoute(
       )
       if (!mastodonStatus) return apiCorsError(req, CORS_HEADERS, 404)
 
-      // Mastodon annotates the `filtered` field on single-status reads using the
-      // `thread` filter context (the status detail view). Filters are per-user,
-      // so skip annotation for unauthenticated requests.
+      // Mastodon annotates the `filtered` field on single-status reads using
+      // the `thread` filter context (the status detail view). Per-account
+      // filters are skipped for unauthenticated requests, but instance-wide
+      // server filters still apply to anonymous viewers (see getActiveFilters).
       const filterRecords = await getActiveFilters(
         database,
         currentActor?.id,
