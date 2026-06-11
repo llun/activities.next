@@ -521,10 +521,17 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaIds,
     accountId
   }: GetMediaByIdsForAccountParams): Promise<Media[]> {
-    if (mediaIds.length === 0) return []
+    // medias.id is an integer column. Mastodon clients send ids as strings, so
+    // coerce numeric ids to numbers before the IN query — Postgres rejects
+    // comparing an integer column against text. Drop empty/invalid ids.
+    const numericIds = mediaIds
+      .filter(Boolean)
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id))
+    if (numericIds.length === 0) return []
     const rows = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
-      .whereIn('medias.id', mediaIds)
+      .whereIn('medias.id', numericIds)
       .where('actors.accountId', accountId)
       .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
     return rows.map(parseMediaRow)

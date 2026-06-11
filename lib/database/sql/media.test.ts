@@ -403,6 +403,85 @@ describe('MediaDatabase', () => {
       })
     })
 
+    describe('getMediaByIdsForAccount', () => {
+      it('returns only the account-owned media for the requested string ids', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const otherActor = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+
+        const first = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/batch-first.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        const second = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/batch-second.jpg',
+            bytes: 1200,
+            mimeType: 'image/jpeg',
+            metaData: { width: 120, height: 120 }
+          }
+        })
+        const foreign = await database.createMedia({
+          actorId: actors.replyAuthor.id,
+          original: {
+            path: '/test/batch-foreign.jpg',
+            bytes: 1400,
+            mimeType: 'image/jpeg',
+            metaData: { width: 140, height: 140 }
+          }
+        })
+
+        const results = await database.getMediaByIdsForAccount({
+          // Ids arrive as strings (Mastodon API) and include another account's
+          // media plus an unknown id; only the two owned ids should resolve.
+          mediaIds: [
+            String(first!.id),
+            String(second!.id),
+            String(foreign!.id),
+            '999999999'
+          ],
+          accountId: actor!.account!.id
+        })
+
+        const ids = results.map((media) => media.id).sort()
+        expect(ids).toEqual([String(first!.id), String(second!.id)].sort())
+        expect(results.some((media) => media.id === String(foreign!.id))).toBe(
+          false
+        )
+        // The foreign media is still readable by its own owner.
+        const foreignOwned = await database.getMediaByIdsForAccount({
+          mediaIds: [String(foreign!.id)],
+          accountId: otherActor!.account!.id
+        })
+        expect(foreignOwned.map((media) => media.id)).toEqual([
+          String(foreign!.id)
+        ])
+      })
+
+      it('returns an empty array for empty or non-numeric ids', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        expect(
+          await database.getMediaByIdsForAccount({
+            mediaIds: [],
+            accountId: actor!.account!.id
+          })
+        ).toEqual([])
+        expect(
+          await database.getMediaByIdsForAccount({
+            mediaIds: ['', 'not-a-number'],
+            accountId: actor!.account!.id
+          })
+        ).toEqual([])
+      })
+    })
+
     describe('getStorageUsageForAccount', () => {
       it('returns 0 when no media exists', async () => {
         const actor = await database.getActorFromId({
