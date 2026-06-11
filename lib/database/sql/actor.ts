@@ -833,8 +833,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     if (!persistedActor) return null
 
     const persistedSettings = getCompatibleJSON(persistedActor.settings)
-    const settings: ActorSettings = {
-      ...persistedSettings,
+    // The explicit settings changes requested by this call (undefined fields
+    // mean "no change"). Kept as a standalone object so the
+    // appendNotificationAcceptedSenders path can re-apply them on top of the
+    // fresh in-transaction read without losing any of them.
+    const settingsUpdates: Partial<ActorSettings> = {
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(manuallyApprovesFollowers !== undefined
@@ -861,6 +864,21 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(inboxUrl ? { inboxUrl } : null),
       ...(sharedInboxUrl ? { sharedInboxUrl } : null)
     }
+    // A null iconUrl/headerImageUrl means "explicitly clear this field"
+    // (distinct from undefined = "no change"). ActorSettings types these as
+    // optional strings, so we drop the key rather than storing null. Centralized
+    // here so every derived settings object (pre-transaction and the
+    // append-path rebuild) clears them the same way.
+    const applyExplicitClears = (target: ActorSettings): ActorSettings => {
+      if (iconUrl === null) delete target.iconUrl
+      if (headerImageUrl === null) delete target.headerImageUrl
+      return target
+    }
+
+    const settings = applyExplicitClears({
+      ...persistedSettings,
+      ...settingsUpdates
+    })
 
     const currentTime = new Date()
     const updatedActor: SQLActor = {
@@ -895,11 +913,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           // Base the merge on freshSettings so all settings fields (policy,
           // email/push notifications, etc.) come from the locked row, not the
           // stale pre-transaction snapshot. This prevents concurrent settings
-          // changes from being clobbered by this write.
-          finalSettings = {
+          // changes from being clobbered by this write. Re-apply this call's
+          // own explicit settingsUpdates on top so they are not lost when an
+          // append is combined with other settings changes in the same call,
+          // then re-clear any explicitly-nulled fields.
+          finalSettings = applyExplicitClears({
             ...freshSettings,
+            ...settingsUpdates,
             notificationAcceptedSenders: [...existing, ...toAdd]
-          }
+          })
         }
       }
 
