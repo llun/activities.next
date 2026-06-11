@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
@@ -567,10 +568,17 @@ describe('POST /api/v1/statuses', () => {
     expect(scheduledStatus.scheduled_at).toBe(scheduledAt)
     expect(scheduledStatus.params.text).toBe('See you in ten minutes')
     expect(scheduledStatus.media_attachments).toEqual([])
-    // No status was published and no publish job was queued.
-    expect(getQueue().publish).not.toHaveBeenCalled()
+    // No status was published, but a delayed publish job was queued.
     const after = await database.getActorStatuses({ actorId: ACTOR1_ID })
     expect(after).toHaveLength(before.length)
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduledStatus.id },
+        delaySeconds: expect.any(Number)
+      })
+    )
 
     // Exactly one scheduled row now exists for the actor.
     const stored = await database.getScheduledStatuses({
@@ -635,8 +643,15 @@ describe('POST /api/v1/statuses', () => {
       expires_in: 3600,
       multiple: true
     })
-    // No status was published and no publish job was queued.
-    expect(getQueue().publish).not.toHaveBeenCalled()
+    // No status was published, but a delayed publish job was queued.
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduledStatus.id },
+        delaySeconds: expect.any(Number)
+      })
+    )
 
     const stored = await database.getScheduledStatuses({
       actorId: ACTOR1_ID,

@@ -22,3 +22,4 @@ export const GENERATE_FITNESS_HEATMAP_JOB_NAME = 'GenerateFitnessHeatmapJob'
 export const GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME =
   'GenerateFitnessRouteHeatmapJob'
 export const FETCH_REMOTE_STATUS_JOB_NAME = 'FetchRemoteStatusJob'
+export const PUBLISH_SCHEDULED_STATUS_JOB_NAME = 'PublishScheduledStatusJob'

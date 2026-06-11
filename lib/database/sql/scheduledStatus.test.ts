@@ -65,6 +65,27 @@ describe('ScheduledStatusDatabase', () => {
     })
   })
 
+  it('reads a scheduled status by id without an actor scope', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = await database.createScheduledStatus({
+        actorId: ACTOR_ID,
+        scheduledAt: Date.now() + 1_000_000,
+        params: baseParams({ text: 'By id' })
+      })
+
+      const fetched = await database.getScheduledStatusById({ id: created.id })
+      expect(fetched).not.toBeNull()
+      expect(fetched?.id).toBe(created.id)
+      expect(fetched?.actorId).toBe(ACTOR_ID)
+      expect(fetched?.params.text).toBe('By id')
+
+      const missing = await database.getScheduledStatusById({
+        id: 'does-not-exist'
+      })
+      expect(missing).toBeNull()
+    })
+  })
+
   it('lists scheduled statuses for an actor', async () => {
     await withFreshDatabase(async (database) => {
       const first = await database.createScheduledStatus({

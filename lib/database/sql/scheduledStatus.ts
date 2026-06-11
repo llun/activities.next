@@ -7,6 +7,7 @@ import {
   CreateScheduledStatusParams,
   DeleteScheduledStatusParams,
   GetDueScheduledStatusesParams,
+  GetScheduledStatusByIdParams,
   GetScheduledStatusParams,
   GetScheduledStatusesParams,
   ScheduledStatusData,
@@ -89,6 +90,14 @@ export const ScheduledStatusSQLDatabaseMixin = (
   async getScheduledStatus({ actorId, id }: GetScheduledStatusParams) {
     const row = await database<SQLScheduledStatus>('scheduled_statuses')
       .where({ actorId, id })
+      .first()
+    if (!row) return null
+    return toScheduledStatus(row)
+  },
+
+  async getScheduledStatusById({ id }: GetScheduledStatusByIdParams) {
+    const row = await database<SQLScheduledStatus>('scheduled_statuses')
+      .where({ id })
       .first()
     if (!row) return null
     return toScheduledStatus(row)

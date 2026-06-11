@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
   OAuthGuard,
   OAuthGuardAnyScope
@@ -9,8 +10,10 @@ import {
   MIN_SCHEDULED_STATUS_AHEAD_MS,
   SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
+import { getQueue } from '@/lib/services/queue'
 import { toMastodonScheduledStatus } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Scope } from '@/lib/types/database/operations'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
@@ -138,6 +141,19 @@ export const PUT = traceApiRoute(
         scheduledAt
       })
       if (!scheduled) return notFound(req)
+
+      // Re-enqueue the publish job with the new delay so the status fires at the
+      // rescheduled time. The deduplication id is stable per scheduled status,
+      // and the job re-reads the row, so the latest scheduledAt always wins.
+      await getQueue().publish({
+        id: getHashFromString(scheduled.id),
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id },
+        delaySeconds: Math.max(
+          0,
+          Math.floor((scheduled.scheduledAt - Date.now()) / 1000)
+        )
+      })
 
       return apiResponse({
         req,

@@ -25,6 +25,7 @@ import {
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
+  PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
   SEND_BLOCK_JOB_NAME,
@@ -37,6 +38,7 @@ import {
   UPDATE_POLL_JOB_NAME
 } from './names'
 import { processFitnessFileJob } from './processFitnessFileJob'
+import { publishScheduledStatusJob } from './publishScheduledStatusJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendBlockJob } from './sendBlockJob'
@@ -74,5 +76,6 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
   [SEND_UNDO_FOLLOW_JOB_NAME]: sendUndoFollowJob,
   [SEND_UNBLOCK_JOB_NAME]: sendUnblockJob,
-  [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob
+  [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob,
+  [PUBLISH_SCHEDULED_STATUS_JOB_NAME]: publishScheduledStatusJob
 }

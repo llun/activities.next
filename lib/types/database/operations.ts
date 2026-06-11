@@ -1428,6 +1428,7 @@ export type GetScheduledStatusesParams = {
   sinceId?: string
 }
 export type GetScheduledStatusParams = { actorId: string; id: string }
+export type GetScheduledStatusByIdParams = { id: string }
 export type UpdateScheduledStatusAtParams = {
   actorId: string
   id: string
@@ -1447,6 +1448,11 @@ export interface ScheduledStatusDatabase {
   ): Promise<ScheduledStatusData[]>
   getScheduledStatus(
     params: GetScheduledStatusParams
+  ): Promise<ScheduledStatusData | null>
+  // Owner-agnostic lookup by id, for the background publish job which only
+  // carries the scheduled status id.
+  getScheduledStatusById(
+    params: GetScheduledStatusByIdParams
   ): Promise<ScheduledStatusData | null>
   // Reschedule; returns the updated row or null when not found/owned.
   updateScheduledStatusAt(

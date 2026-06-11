@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard,
@@ -18,6 +19,7 @@ import {
   SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getQueue } from '@/lib/services/queue'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
@@ -27,6 +29,7 @@ import {
 } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -203,7 +206,19 @@ export const POST = traceApiRoute(
             scheduledAt,
             params: buildScheduledParams(note, idempotencyKey ?? null)
           })
-          // Task 14: enqueue publish job
+          // Enqueue the publish job with a delay until the scheduled time. On
+          // QStash the delay is honored natively; the in-process NoQueue has no
+          // scheduler and drops delayed messages, so scheduled statuses only
+          // auto-fire when a real queue is configured.
+          await getQueue().publish({
+            id: getHashFromString(scheduled.id),
+            name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+            data: { scheduledStatusId: scheduled.id },
+            delaySeconds: Math.max(
+              0,
+              Math.floor((scheduled.scheduledAt - Date.now()) / 1000)
+            )
+          })
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,

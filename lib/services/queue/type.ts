@@ -5,6 +5,9 @@ export interface JobMessage {
   name: string
   data: unknown
   verifiedSenderActorId?: string
+  // Optional publish delay in seconds. QStash honors this natively; the
+  // in-process NoQueue ignores it and runs immediately.
+  delaySeconds?: number
 }
 
 export interface Queue {

@@ -19,6 +19,19 @@ describe('NoQueue', () => {
       // Should not throw - it will try to run the job but won't find a handler
       await expect(queue.publish(message)).resolves.toBeUndefined()
     })
+
+    it('drops delayed messages instead of running them immediately', async () => {
+      const message: JobMessage = {
+        id: 'job-delayed',
+        name: 'testJob',
+        data: { key: 'value' },
+        delaySeconds: 600
+      }
+      const handle = jest.spyOn(queue, 'handle')
+
+      await expect(queue.publish(message)).resolves.toBeUndefined()
+      expect(handle).not.toHaveBeenCalled()
+    })
   })
 
   describe('handle', () => {
