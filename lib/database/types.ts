@@ -29,6 +29,7 @@ import {
   PushSubscriptionDatabase,
   ReportDatabase,
   SearchDatabase,
+  ServerFilterDatabase,
   StatusDatabase,
   StatusMuteDatabase,
   TimelineDatabase,
@@ -51,6 +52,7 @@ export type Database = AccountDatabase &
   ListDatabase &
   FollowedTagDatabase &
   FilterDatabase &
+  ServerFilterDatabase &
   BookmarkDatabase &
   CustomEmojiDatabase &
   DirectConversationDatabase &

@@ -5,7 +5,8 @@ import { GET, POST } from './route'
 const mockDatabase = {
   getNotifications: jest.fn(),
   deleteNotification: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([])
+  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
+  getActiveServerFilters: jest.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = {

@@ -41,3 +41,18 @@ export const FilterStatus = z.object({
   createdAt: z.number()
 })
 export type FilterStatus = z.infer<typeof FilterStatus>
+
+// Instance-wide filter authored by an admin. Structurally identical to a
+// per-actor Filter minus `actorId` — these rules are not owned by any single
+// account. Server filter keywords reuse the FilterKeyword shape (their
+// `filterId` references a ServerFilter).
+export const ServerFilter = z.object({
+  id: z.string(),
+  title: z.string(),
+  context: FilterContext.array(),
+  filterAction: FilterAction,
+  expiresAt: z.number().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number()
+})
+export type ServerFilter = z.infer<typeof ServerFilter>
