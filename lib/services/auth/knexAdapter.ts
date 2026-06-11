@@ -3,9 +3,60 @@ import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 const escapeLikeValue = (value: unknown): string => {
   return String(value).replace(/[%_\\]/g, '\\$&')
+}
+
+// The `accounts` table holds better-auth's user records; `email` is the only
+// email column it manages here. Better-auth resolves sign-in/sign-up by `email`
+// through this adapter (it does NOT route through the SQL account methods), so
+// normalization must also happen here to keep auth lookups and writes
+// case-insensitive and consistent with stored values.
+const ACCOUNTS_TABLE = 'accounts'
+const EMAIL_FIELD = 'email'
+
+const isAccountsEmail = (tableName: string, field: string): boolean =>
+  tableName === ACCOUNTS_TABLE && field === EMAIL_FIELD
+
+// Lowercase the value(s) of an `accounts.email` where-clause so exact-match
+// lookups (and IN lists) hit the canonical stored form regardless of how the
+// email was typed.
+const normalizeWhereValue = (value: unknown): unknown => {
+  if (typeof value === 'string') return normalizeEmail(value)
+  if (Array.isArray(value)) {
+    return value.map((entry) =>
+      typeof entry === 'string' ? normalizeEmail(entry) : entry
+    )
+  }
+  return value
+}
+
+// Lowercase `accounts.email` in any record being inserted/updated so writes
+// going through better-auth (social/OAuth sign-up, email updates) store the
+// canonical form. Returns a NEW object when normalization applies rather than
+// mutating the caller's data — better-auth owns these objects and may rely on
+// reference stability, so we never mutate them in place.
+const normalizeEmailInData = (
+  tableName: string,
+  data: Record<string, unknown>
+): Record<string, unknown> => {
+  // Guard the better-auth boundary: only touch `accounts` rows that are real
+  // (non-array) objects, so a malformed/primitive/array payload is passed
+  // through untouched rather than risking unexpected property access.
+  if (
+    tableName !== ACCOUNTS_TABLE ||
+    typeof data !== 'object' ||
+    data === null ||
+    Array.isArray(data)
+  ) {
+    return data
+  }
+  if (typeof data[EMAIL_FIELD] === 'string') {
+    return { ...data, [EMAIL_FIELD]: normalizeEmail(data[EMAIL_FIELD]) }
+  }
+  return data
 }
 
 const supportsNativeBooleans = (db: Knex): boolean => {
@@ -67,41 +118,48 @@ const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
 
 const applyWhere = (
   query: Knex.QueryBuilder,
-  model: string,
+  tableName: string,
   where: CleanedWhere[]
 ) => {
   for (const clause of where) {
-    const { field, value, operator, connector } = clause
+    const { field, operator, connector } = clause
+    // Normalizing only changes string/string[] email values to lowercase, which
+    // preserves the original value type — cast back so knex's overloads resolve.
+    const value = (
+      isAccountsEmail(tableName, field)
+        ? normalizeWhereValue(clause.value)
+        : clause.value
+    ) as typeof clause.value
     const method = connector === 'OR' ? 'orWhere' : 'where'
 
     switch (operator) {
       case 'eq':
-        query = query[method](`${model}.${field}`, '=', value)
+        query = query[method](`${tableName}.${field}`, '=', value)
         break
       case 'ne':
-        query = query[method](`${model}.${field}`, '<>', value)
+        query = query[method](`${tableName}.${field}`, '<>', value)
         break
       case 'gt':
-        query = query[method](`${model}.${field}`, '>', value)
+        query = query[method](`${tableName}.${field}`, '>', value)
         break
       case 'gte':
-        query = query[method](`${model}.${field}`, '>=', value)
+        query = query[method](`${tableName}.${field}`, '>=', value)
         break
       case 'lt':
-        query = query[method](`${model}.${field}`, '<', value)
+        query = query[method](`${tableName}.${field}`, '<', value)
         break
       case 'lte':
-        query = query[method](`${model}.${field}`, '<=', value)
+        query = query[method](`${tableName}.${field}`, '<=', value)
         break
       case 'in':
         query = query[method === 'orWhere' ? 'orWhereIn' : 'whereIn'](
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           Array.isArray(value) ? value : [value]
         )
         break
       case 'not_in':
         query = query[method === 'orWhere' ? 'orWhereNotIn' : 'whereNotIn'](
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           Array.isArray(value) ? value : [value]
         )
         break
@@ -109,7 +167,7 @@ const applyWhere = (
         const escaped = escapeLikeValue(value)
         const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
         query = query[rawMethod]("?? like ? escape '\\'", [
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           `%${escaped}%`
         ])
         break
@@ -118,7 +176,7 @@ const applyWhere = (
         const escaped = escapeLikeValue(value)
         const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
         query = query[rawMethod]("?? like ? escape '\\'", [
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           `${escaped}%`
         ])
         break
@@ -127,7 +185,7 @@ const applyWhere = (
         const escaped = escapeLikeValue(value)
         const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
         query = query[rawMethod]("?? like ? escape '\\'", [
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           `%${escaped}`
         ])
         break
@@ -156,7 +214,10 @@ export const knexAdapter = (db: Knex) =>
       return {
         async create({ data, model }) {
           const tableName = getModelName(model)
-          const record = data as Record<string, unknown>
+          const record = normalizeEmailInData(
+            tableName,
+            data as Record<string, unknown>
+          )
           const id = record.id as string
 
           if (model === 'session' || tableName === 'sessions') {
@@ -237,9 +298,11 @@ export const knexAdapter = (db: Knex) =>
           const existing = await idQuery
           if (!existing) return null
           const id = existing.id
-          await db(tableName)
-            .where(`${tableName}.id`, id)
-            .update(updateData as Record<string, unknown>)
+          const update = normalizeEmailInData(
+            tableName,
+            updateData as Record<string, unknown>
+          )
+          await db(tableName).where(`${tableName}.id`, id).update(update)
           const row = await db(tableName).where(`${tableName}.id`, id).first()
           return row ? (hydrateDateFields(row) as any) : null
         },
@@ -250,9 +313,11 @@ export const knexAdapter = (db: Knex) =>
           if (where) {
             query = applyWhere(query, tableName, where)
           }
-          const result = await query.update(
+          const update = normalizeEmailInData(
+            tableName,
             updateData as Record<string, unknown>
           )
+          const result = await query.update(update)
           return result
         },
 

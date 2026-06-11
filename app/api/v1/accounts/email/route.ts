@@ -13,7 +13,9 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailChangeRequest = z.object({
-  newEmail: z.string().email()
+  // Normalized to lowercase so the "already in use" check and the stored
+  // pending email compare against the canonical form. See normalizeEmail.
+  newEmail: z.string().trim().toLowerCase().email().max(255)
 })
 
 export const POST = traceApiRoute(

@@ -351,6 +351,134 @@ describe('AccountDatabase', () => {
         })
         expect(await database.getAccountSession({ token })).toBeNull()
       })
+
+      it('stores account email lowercased even when created with mixed case', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `mixed-${suffix}`
+        const mixedEmail = `Mixed.${suffix}@${TEST_DOMAIN}`
+        const accountId = await database.createAccount({
+          email: mixedEmail,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).toEqual(mixedEmail.toLowerCase())
+      })
+
+      it.each<{ description: string; casing: (email: string) => string }>([
+        { description: 'the exact lowercase form', casing: (email) => email },
+        {
+          description: 'an uppercase form',
+          casing: (email) => email.toUpperCase()
+        },
+        {
+          description: 'a mixed-case form',
+          casing: (email) =>
+            email
+              .split('')
+              .map((c, i) => (i % 2 === 0 ? c.toUpperCase() : c))
+              .join('')
+        },
+        {
+          description: 'a form with surrounding whitespace',
+          casing: (email) => `  ${email.toUpperCase()}  `
+        }
+      ])(
+        'looks up an account case-insensitively by $description',
+        async ({ casing }) => {
+          const { accountId, email } = await createTestAccount()
+
+          expect(
+            await database.isAccountExists({ email: casing(email) })
+          ).toBeTrue()
+          const found = await database.getAccountFromEmail({
+            email: casing(email)
+          })
+          expect(found?.id).toEqual(accountId)
+        }
+      )
+
+      it('normalizes the pending email on request and promotes it lowercased on verify', async () => {
+        const { accountId } = await createTestAccount()
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const newEmail = `New.${suffix}@${TEST_DOMAIN}`
+        const emailChangeCode = `change-${crypto.randomUUID()}`
+
+        await database.requestEmailChange({
+          accountId,
+          newEmail,
+          emailChangeCode
+        })
+
+        const pending = await database.getAccountFromId({ id: accountId })
+        expect(pending?.emailChangePending).toEqual(newEmail.toLowerCase())
+
+        const updated = await database.verifyEmailChange({
+          accountId,
+          emailChangeCode
+        })
+        expect(updated?.email).toEqual(newEmail.toLowerCase())
+        // The promoted address is now resolvable regardless of casing.
+        const found = await database.getAccountFromEmail({
+          email: newEmail.toUpperCase()
+        })
+        expect(found?.id).toEqual(accountId)
+      })
+
+      it('stores a lowercased email when updateAccountEmail is given mixed case', async () => {
+        const { accountId } = await createTestAccount()
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const newEmail = `Updated.${suffix}@${TEST_DOMAIN}`
+
+        await database.updateAccountEmail({ accountId, email: newEmail })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).toEqual(newEmail.toLowerCase())
+      })
+
+      it('finds the account for a password reset regardless of the requested casing', async () => {
+        const { accountId, email } = await createTestAccount()
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+
+        const requested = await database.requestPasswordReset({
+          email: email.toUpperCase(),
+          passwordResetCode
+        })
+
+        expect(requested).toBeTrue()
+        expect(
+          await database.validatePasswordResetCode({ passwordResetCode })
+        ).toBe(accountId)
+      })
+
+      it('rejects an email-change verification when the pending address was claimed by another account', async () => {
+        const { accountId } = await createTestAccount()
+        const { email: takenEmail } = await createTestAccount()
+        const emailChangeCode = `change-${crypto.randomUUID()}`
+
+        // Account requests a change to an address that another account then
+        // ends up owning (here it already exists, simulating the race).
+        await database.requestEmailChange({
+          accountId,
+          newEmail: takenEmail.toUpperCase(),
+          emailChangeCode
+        })
+
+        const result = await database.verifyEmailChange({
+          accountId,
+          emailChangeCode
+        })
+
+        // Gracefully rejected rather than throwing the unique-constraint 500.
+        expect(result).toBeNull()
+        // The original account keeps its own email (no partial promotion).
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).not.toEqual(takenEmail)
+      })
     })
 
     describe('account providers', () => {

@@ -143,4 +143,53 @@ describe('POST /api/v1/accounts/email', () => {
     expect(response.status).toBe(422)
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
   })
+
+  it('normalizes the requested new email to lowercase before storing it', async () => {
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'New.Address@LLUN.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.requestEmailChange).toHaveBeenCalledWith(
+      expect.objectContaining({ newEmail: 'new.address@llun.test' })
+    )
+  })
+
+  it('rejects changing to a differently-cased address owned by another account', async () => {
+    // The session resolves to account-1; the requested new address (once
+    // normalized) already belongs to account-2, so the change is rejected.
+    mockDb.getAccountFromEmail.mockImplementation(
+      async ({ email }: { email: string }) =>
+        email.toLowerCase() === seedActor1.email.toLowerCase()
+          ? account
+          : { ...account, id: 'account-2', email: email.toLowerCase() }
+    )
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'Taken@LLUN.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Email already in use'
+    })
+    expect(mockDb.getAccountFromEmail).toHaveBeenCalledWith({
+      email: 'taken@llun.test'
+    })
+    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+  })
 })

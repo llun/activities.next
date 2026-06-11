@@ -8,6 +8,7 @@ import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { generateKeyPair } from '@/lib/utils/signature'
 
 const BCRYPT_ROUND = 10
@@ -16,7 +17,8 @@ const SESSION_MAX_AGE_DAYS = 30
 async function createMockUser() {
   const args = process.argv.slice(2)
   const username = args[0] || 'testuser'
-  const email = args[1] || 'test@example.com'
+  // Stored lowercase to match the case-insensitive account email handling.
+  const email = normalizeEmail(args[1] || 'test@example.com')
   const password = args[2] || 'testpassword123'
 
   console.log('Creating test user...')

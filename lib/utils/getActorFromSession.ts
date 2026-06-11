@@ -3,6 +3,7 @@ import { cache } from 'react'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
 
 export interface AuthSession {
   user: { email: string }
@@ -30,10 +31,7 @@ export const getAccountFromSession = async (
   if (!session?.user?.email) return null
 
   const config = getConfig()
-  if (
-    config.allowEmails.length &&
-    !config.allowEmails.includes(session.user.email)
-  ) {
+  if (!isEmailAllowed(config.allowEmails, session.user.email)) {
     return null
   }
 

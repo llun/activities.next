@@ -19,6 +19,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
+import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
 import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -31,7 +32,9 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 // `.max(255)` matches the accounts.email column width so an over-long address
 // fails validation here rather than at the DB insert (a 500).
 const ConfirmationRequest = z.object({
-  email: z.string().email().max(255).optional()
+  // Normalized to lowercase so the allow-list check, the duplicate-email check,
+  // and the stored address all use the canonical form. See normalizeEmail.
+  email: z.string().trim().toLowerCase().email().max(255).optional()
 })
 
 // Scope write:accounts (satisfied by aggregate `write`), matching the other
@@ -107,7 +110,7 @@ export const POST = traceApiRoute(
         // Honor the server's allow-list so the email param can't be used to
         // sidestep the same restriction enforced at registration.
         const { allowEmails } = getConfig()
-        if (allowEmails.length && !allowEmails.includes(newEmail)) {
+        if (!isEmailAllowed(allowEmails, newEmail)) {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
