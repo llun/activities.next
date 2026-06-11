@@ -161,7 +161,7 @@ export const POST = traceApiRoute(
         const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
 
         // A scheduled_at at least five minutes ahead stores the status for later
-        // publication (Task 14) instead of posting it now. Media is validated
+        // publication instead of posting it now. Media is validated
         // here too, so a scheduled status never references nonexistent media.
         if (note.scheduled_at) {
           const scheduledAt = Date.parse(note.scheduled_at)
