@@ -1,0 +1,21 @@
+migrations/schema.sqlite.sql
+  s_b98341b16c5f05::t_73a412fc9f009e 205-207
+migrations/schema.sql
+  s_b98341b16c5f05::t_6f5e01adbf4503 703-711,1143-1145,1331-1333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "c74d68dd550125100219d87d1a779e0deb5405f5",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
