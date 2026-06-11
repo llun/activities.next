@@ -237,7 +237,7 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
         database.getFollowRequestsCount({ targetActorId: currentActor.id })
       ])
       if (!account) {
-        logger.error({ message: 'update_credentials: actor not found' })
+        logger.error({ message: 'updateCredentialsHandler: actor not found' })
         return apiResponse({
           req,
           allowedMethods: corsHeaders,

@@ -151,6 +151,14 @@ describe('PATCH /api/v1/profile', () => {
     expect(response.status).toBe(401)
   })
 
+  it('returns 422 when a field fails validation', async () => {
+    const response = await PATCH(
+      createJsonRequest({ display_name: 'a'.repeat(256) }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(422)
+  })
+
   it('advertises GET, PATCH and OPTIONS in the Access-Control-Allow-Methods header', async () => {
     const response = await PATCH(
       createJsonRequest({ display_name: 'Profile Name' }),
