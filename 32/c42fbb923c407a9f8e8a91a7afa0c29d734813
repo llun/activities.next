@@ -1,0 +1,37 @@
+app/api/v1/statuses/route.test.ts
+  s_b98341b16c5f05::t_00aa9f320b5bb7 528-586
+app/api/v1/scheduled_statuses/[id]/route.ts
+  s_b98341b16c5f05::t_7f2d02458d43ce 2,8,11-16,26-28,35-36,45-67,72-87,91-92,95-149,155-169
+lib/services/statuses/parseStatusRequestBody.ts
+  s_b98341b16c5f05::t_bf19939f4eb624 11-12
+lib/services/statuses/scheduledStatusSerializer.ts
+  s_b98341b16c5f05::t_40b82cd28a7e73 1-105
+app/api/v1/scheduled_statuses/route.ts
+  s_b98341b16c5f05::t_15965fcd53538e 34,60
+  s_b98341b16c5f05::t_d0f3a8cfeebc02 1-2,4-5,8,13-14,18-27,32-33,35-59,61-68
+app/api/v1/statuses/route.ts
+  s_b98341b16c5f05::t_b09156e60545ce 35-37
+  s_b98341b16c5f05::t_09af3d0c597817 17-20
+  s_b98341b16c5f05::t_af5bef44289552 65
+  s_b98341b16c5f05::t_498eb75d01e380 104-163
+app/api/v1/scheduled_statuses/route.test.ts
+  s_b98341b16c5f05::t_15965fcd53538e 9,94,139
+  s_b98341b16c5f05::t_4076839a2aae5f 1-8,10-93,95-138,140-256,258-276
+  s_b98341b16c5f05::t_e17766060f55c7 257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "32c42fbb923c407a9f8e8a91a7afa0c29d734813",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
