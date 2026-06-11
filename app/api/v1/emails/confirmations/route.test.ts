@@ -271,14 +271,27 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 
-  it('ignores an invalid email param and resends to the existing address', async () => {
+  it('returns 422 with field details when the email param is invalid', async () => {
     const response = await POST(makeRequest({ email: 'not-an-email' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    const data = await response.json()
+    expect(data.error).toBe('Validation failed')
+    expect(data.details.email).toBeDefined()
+    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
+
+  it('resends to the existing address when no email param is provided', async () => {
+    const response = await POST(makeRequest({ other: 'field' }), {
       params: Promise.resolve({})
     })
 
     expect(response.status).toBe(200)
     expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
-    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].to).toEqual([seedActor1.email])
   })

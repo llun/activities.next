@@ -99,12 +99,35 @@ export const registerAccount = async ({
     })
   } catch (error) {
     if (isUniqueConstraintError(error)) {
-      return {
-        type: 'validation_failed',
-        details: {
-          email: [{ error: 'ERR_TAKEN', description: 'Email is already taken' }]
-        }
+      // createAccount inserts both an account (unique email) and an actor
+      // (unique username+domain), so the collision can be on either field.
+      // Re-run the existence checks to report the field(s) that are actually
+      // taken rather than parsing backend-specific constraint text.
+      const [emailTaken, usernameTaken] = await Promise.all([
+        database.isAccountExists({ email }),
+        database.isUsernameExists({ username, domain })
+      ])
+      const details: Record<string, { error: string; description: string }[]> =
+        {}
+      if (emailTaken) {
+        details.email = [
+          { error: 'ERR_TAKEN', description: 'Email is already taken' }
+        ]
       }
+      if (usernameTaken) {
+        details.username = [
+          { error: 'ERR_TAKEN', description: 'Username is already taken' }
+        ]
+      }
+      // A constraint fired but neither lookup confirms a duplicate (an
+      // unexpected unique column): fall back to a generic email collision so
+      // the caller still gets a 422 rather than a 500.
+      if (Object.keys(details).length === 0) {
+        details.email = [
+          { error: 'ERR_TAKEN', description: 'Email is already taken' }
+        ]
+      }
+      return { type: 'validation_failed', details }
     }
     throw error
   }

@@ -245,14 +245,19 @@ describe('registerAccount', () => {
     )
   })
 
-  it('maps a concurrent unique-constraint collision on createAccount to validation_failed', async () => {
+  it('maps a raced email-constraint collision on createAccount to a 422 email error', async () => {
     // Both pre-checks pass (the racing request inserted after them), so the
-    // collision only surfaces at createAccount.
+    // collision only surfaces at createAccount; the re-check then identifies
+    // email as the now-taken field.
     mockDatabase.createAccount = jest.fn().mockRejectedValue(
       Object.assign(new Error('UNIQUE constraint failed: accounts.email'), {
         code: 'SQLITE_CONSTRAINT_UNIQUE'
       })
     )
+    mockDatabase.isAccountExists = jest
+      .fn()
+      .mockResolvedValueOnce(false) // pre-check
+      .mockResolvedValueOnce(true) // re-check after the collision
 
     const result = await registerAccount({
       database: mockDatabase as unknown as Database,
@@ -265,6 +270,35 @@ describe('registerAccount', () => {
       type: 'validation_failed',
       details: {
         email: [{ error: 'ERR_TAKEN', description: 'Email is already taken' }]
+      }
+    })
+  })
+
+  it('maps a raced username-constraint collision on createAccount to a 422 username error', async () => {
+    mockDatabase.createAccount = jest.fn().mockRejectedValue(
+      Object.assign(new Error('UNIQUE constraint failed: actors.username'), {
+        code: 'SQLITE_CONSTRAINT_UNIQUE'
+      })
+    )
+    // Email is free on the re-check; the username is the colliding field.
+    mockDatabase.isUsernameExists = jest
+      .fn()
+      .mockResolvedValueOnce(false) // pre-check
+      .mockResolvedValueOnce(true) // re-check after the collision
+
+    const result = await registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: 'alice',
+      email: 'alice@example.com',
+      password: 'password123'
+    })
+
+    expect(result).toEqual({
+      type: 'validation_failed',
+      details: {
+        username: [
+          { error: 'ERR_TAKEN', description: 'Username is already taken' }
+        ]
       }
     })
   })

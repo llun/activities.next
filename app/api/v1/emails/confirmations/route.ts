@@ -78,8 +78,24 @@ export const POST = traceApiRoute(
         body = {}
       }
 
+      // A malformed `email` param is a client error: return 422 with field
+      // details (like the registration endpoints) rather than silently dropping
+      // it and resending to the old address. An absent `email` still parses
+      // successfully (it is optional) and resends to the current address.
       const parsed = ConfirmationRequest.safeParse(body)
-      const newEmail = parsed.success ? parsed.data.email : undefined
+      if (!parsed.success) {
+        const { fieldErrors } = parsed.error.flatten((issue) => ({
+          error: 'ERR_INVALID',
+          description: issue.message
+        }))
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Validation failed', details: fieldErrors },
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
+      }
+      const newEmail = parsed.data.email
 
       // Optional `email` param updates the unconfirmed account's address
       // directly before resending. Because the account is still unconfirmed we
