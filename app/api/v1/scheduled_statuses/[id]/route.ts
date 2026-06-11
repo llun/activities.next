@@ -146,10 +146,11 @@ export const PUT = traceApiRoute(
       if (!scheduled) return notFound(req)
 
       // Re-enqueue the publish job with the new delay so the status fires at the
-      // rescheduled time. The deduplication id is stable per scheduled status,
-      // and the job re-reads the row, so the latest scheduledAt always wins.
+      // rescheduled time. The dedup id folds in scheduledAt so rescheduling to a
+      // new time (especially an earlier one) produces a different id and is not
+      // dropped by QStash deduplication; retries of the same schedule still are.
       await getQueue().publish({
-        id: getHashFromString(scheduled.id),
+        id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
         data: { scheduledStatusId: scheduled.id },
         delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)

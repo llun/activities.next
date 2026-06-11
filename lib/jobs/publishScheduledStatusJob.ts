@@ -45,7 +45,7 @@ export const publishScheduledStatusJob = createJobHandle(
     const remainingMs = row.scheduledAt - Date.now()
     if (remainingMs > EARLY_THRESHOLD_MS) {
       await getQueue().publish({
-        id: getHashFromString(row.id),
+        id: getHashFromString(`${row.id}-${row.scheduledAt}`),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
         data: { scheduledStatusId: row.id },
         delaySeconds: scheduledDelaySeconds(row.scheduledAt)

@@ -588,6 +588,40 @@ describe('POST /api/v1/statuses', () => {
     expect(stored.map((row) => row.id)).toContain(scheduledStatus.id)
   })
 
+  it('stores a scheduled status with the actor default privacy when visibility is omitted', async () => {
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      defaultPrivacy: 'private'
+    })
+    try {
+      const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'Scheduled with default privacy',
+            scheduled_at: scheduledAt
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const scheduledStatus = await response.json()
+      expect(scheduledStatus.params.visibility).toBe('private')
+    } finally {
+      await database.updateActor({
+        actorId: ACTOR1_ID,
+        defaultPrivacy: 'public'
+      })
+    }
+  })
+
   it('returns 422 when scheduled_at is less than five minutes ahead', async () => {
     const scheduledAt = new Date(Date.now() + 2 * 60 * 1000).toISOString()
 

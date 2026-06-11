@@ -7,6 +7,7 @@ import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { DELETE, GET as GET_ID, PUT } from './[id]/route'
 import { GET } from './route'
@@ -182,10 +183,15 @@ describe('scheduled_statuses CRUD', () => {
         delaySeconds: expect.any(Number)
       })
     )
-    const delaySeconds = (getQueue().publish as jest.Mock).mock.calls[0][0]
-      .delaySeconds
+    const publishArgs = (getQueue().publish as jest.Mock).mock.calls[0][0]
     // ~30 minutes ahead, comfortably above the five-minute floor.
-    expect(delaySeconds).toBeGreaterThan(20 * 60)
+    expect(publishArgs.delaySeconds).toBeGreaterThan(20 * 60)
+    // The dedup id folds in the new scheduledAt so a reschedule is not dropped
+    // by QStash deduplication of the original schedule.
+    expect(publishArgs.id).toBe(
+      getHashFromString(`${created.id}-${Date.parse(newScheduledAt)}`)
+    )
+    expect(publishArgs.id).not.toBe(getHashFromString(created.id))
   })
 
   it('returns 422 when PUT scheduled_at is less than five minutes ahead', async () => {

@@ -202,17 +202,29 @@ export const POST = traceApiRoute(
             }
           }
 
+          // Fall back to the actor's configured default privacy when the
+          // client omits visibility, so a scheduled status is stored with the
+          // user's preference instead of always public.
+          const actorSettings = await database.getActorSettings({
+            actorId: currentActor.id
+          })
           const scheduled = await database.createScheduledStatus({
             actorId: currentActor.id,
             scheduledAt,
-            params: buildScheduledParams(note, idempotencyKey ?? null)
+            params: buildScheduledParams(
+              note,
+              idempotencyKey ?? null,
+              actorSettings?.defaultPrivacy ?? 'public'
+            )
           })
           // Enqueue the publish job with a delay until the scheduled time. On
           // QStash the delay is honored natively; the in-process NoQueue has no
           // scheduler and drops delayed messages, so scheduled statuses only
-          // auto-fire when a real queue is configured.
+          // auto-fire when a real queue is configured. The dedup id folds in
+          // scheduledAt so a later reschedule to a new time is not dropped by
+          // QStash deduplication while retries of the same schedule still are.
           await getQueue().publish({
-            id: getHashFromString(scheduled.id),
+            id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
             name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
             data: { scheduledStatusId: scheduled.id },
             delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)

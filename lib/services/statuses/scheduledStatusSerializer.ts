@@ -7,6 +7,7 @@ import {
   ScheduledStatus,
   ScheduledStatusParams
 } from '@/lib/types/mastodon/scheduledStatus'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 
 // Seconds of delay between now and the scheduled time, floored and clamped at
 // zero. Shared by the enqueue sites (POST create, PUT reschedule) and the
@@ -38,9 +39,13 @@ export interface ScheduledStatusInput {
 // absent client fields are normalised to null and `with_rate_limit` defaults to
 // false. media_ids are de-duplicated (matching the immediate-post path) and an
 // empty list is stored as null so the serializer can short-circuit hydration.
+// When the client omits visibility, fall back to the actor's default privacy
+// (passed by the caller) so a scheduled status is stored — and later published
+// — with the user's configured visibility rather than always public.
 export const buildScheduledParams = (
   note: ScheduledStatusInput,
-  idempotencyKey: string | null
+  idempotencyKey: string | null,
+  defaultPrivacy: Visibility = 'public'
 ): ScheduledStatusParams => {
   const mediaIds = [...new Set(note.media_ids)]
   return {
@@ -56,7 +61,7 @@ export const buildScheduledParams = (
     media_ids: mediaIds.length > 0 ? mediaIds : null,
     sensitive: note.sensitive,
     spoiler_text: note.spoiler_text ?? null,
-    visibility: note.visibility ?? 'public',
+    visibility: note.visibility ?? defaultPrivacy,
     in_reply_to_id: note.in_reply_to_id ?? null,
     language: note.language ?? null,
     application_id: null,
