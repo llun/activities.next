@@ -1,18 +1,23 @@
 # Code Review Checklist
 
 A focused checklist for reviewing changes to **activities.next**. It captures the
-project-specific invariants that are easy to miss in a diff. `AGENTS.md` remains
-the authoritative source for the full rules; this file is the reviewer's
-shortlist. Skip sections that a given change doesn't touch.
+project-specific invariants that are easy to miss in a diff — both the rules in
+`AGENTS.md` and recurring patterns surfaced in past code review. `AGENTS.md`
+remains the authoritative source for the full rules. Skip sections that a given
+change doesn't touch.
 
 ## Runtime vs. build-time configuration
 
 - No `ACTIVITIES_*` or `OTEL_EXPORTER_*` reads outside `lib/config/`, and no env
   var name constants defined elsewhere — callers import a config utility instead.
-- `next.config.ts` stays a thin entrypoint: no runtime deployment config
-  (`images.remotePatterns`, static headers, `allowedDevOrigins`, webpack,
-  `generateBuildId`), and no reusable helpers/parsers/constants. Build-only flags
-  (`NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`) are fine.
+- `next.config.ts` stays a thin entrypoint and must not _read_ runtime deployment
+  config — directly or via `images.remotePatterns`, `headers()`,
+  `allowedDevOrigins`, webpack config, or `generateBuildId`. Those constructs are
+  fine as long as they consume only build-safe values (delegate to `lib/config/`
+  helpers, as the committed config does); the build must still succeed with
+  `ACTIVITIES_*` missing. Don't define reusable helpers/parsers/constants here —
+  move them to `lib/`. Build-only flags (`NODE_ENV`, `BUILD_STANDALONE`,
+  `NEXT_TELEMETRY_DISABLED`) are fine to read.
 - Runtime config that affects browser-visible behavior (CSP, security headers,
   host redirects, upload origins) lives in request-time server code, not static
   Next config.
@@ -24,12 +29,18 @@ shortlist. Skip sections that a given change doesn't touch.
 
 - Responses go through `apiResponse` / `apiErrorResponse` from
   `@/lib/utils/response` — never `Response.json()`. On CORS-enabled routes (those
-  exporting `OPTIONS`), use `apiResponse` even for errors so CORS headers are sent.
+  exporting `OPTIONS`), use `apiResponse` even for errors so CORS headers are sent;
+  reserve `apiErrorResponse` for non-CORS routes or middleware.
 - Request bodies are validated with Zod **`safeParse`**, never `.parse()` (which
   throws and surfaces as a 500). Invalid input returns a 4xx, not a 500.
 - String fields backed by a sized column (e.g. `varchar(255)`) carry a matching
   `.max(...)`; nullable text columns normalize empty/whitespace input to `null`
   via `.transform((v) => v || null)`, consistently across create and update.
+- State-changing routes (POST/PUT/PATCH/DELETE) that authenticate a cookie session
+  manually — rather than through the standard guards — explicitly verify
+  same-origin proof via `hasSameOriginProof`
+  (`lib/services/guards/sameOriginProof`) to block CSRF. The shared guards
+  (`AuthenticatedGuard`, `AdminApiGuard`, …) already enforce this.
 
 ## Unique constraints (TOCTOU)
 
@@ -39,6 +50,10 @@ shortlist. Skip sections that a given change doesn't touch.
 - Wrap the write and catch the specific violation (e.g. `isUniqueConstraintError`),
   mapping it to a `422 Unprocessable Entity` instead of letting the raw DB error
   propagate. The pre-check is a UX nicety; the caught violation is the guarantee.
+- When a write can violate several unique constraints (multi-column / multi-table
+  inserts), identify the offending field by re-running the existence checks — do
+  not parse backend-specific constraint names or messages, which differ across
+  SQLite and PostgreSQL.
 
 ## Database & migrations
 
@@ -52,6 +67,12 @@ shortlist. Skip sections that a given change doesn't touch.
   schema-only regeneration as `none:`.
 - Better-auth plugins are only registered once their required tables exist in a
   migration; admin/dashboard plugins are gated with explicit access control.
+- Cursor-based pagination: pass the raw cursor row (with its stored representations,
+  e.g. a `Date`) to the query builder's cursor helper rather than pre-normalizing
+  it (e.g. to a millisecond `number`), so it matches the column's backend
+  representation. When resolving a cursor record by id, don't filter the lookup by
+  mutable status fields (`pending`, `requested`, …) — the row must still resolve if
+  its status changed between page requests.
 
 ## Client components & data flow
 
@@ -66,8 +87,17 @@ shortlist. Skip sections that a given change doesn't touch.
 - Settings/account forms are client components that POST JSON and show inline
   success/error, not HTML `<form method="post">` with server redirects; the route
   returns JSON via `apiResponse()`.
+- React state updater functions stay pure — no side effects, and don't fire another
+  variable's state update from inside an updater. Do the separate `setState` calls
+  in the event handler instead, so Strict Mode's double-invoke can't misfire them.
+- Optimistic UI (e.g. optimistic delete with rollback on failure) disables the
+  create/edit actions while the operation is in flight, so a rollback can't discard
+  items added in the meantime.
+- Don't wrap a callback in `useCallback` when its dependencies change on every
+  render, or when the consuming child isn't memoized — it adds cost without
+  preventing re-renders.
 
-## Page chrome (design system)
+## Page chrome, layout & accessibility
 
 - `(timeline)` pages use `PageHeader` from `@/lib/components/page-header` and share
   the single `max-w-content` (940px) width. No reintroduced `max-w-2xl`/`max-w-4xl`
@@ -75,6 +105,13 @@ shortlist. Skip sections that a given change doesn't touch.
 - Settings-style sections (settings, fitness, admin) use the shared
   `SectionNavDropdown` on every breakpoint — no re-inlined dropdown markup and no
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
+- When pairing a visible count with `sr-only` text, put only the noun (e.g.
+  "boosts") in the `sr-only` span, not the number — the visible digit is already
+  announced, so including it double-reads (see `posts/read-only-stats.tsx`).
+- Use the dynamic viewport unit `min-h-dvh` (not `min-h-screen` / `100vh`) for
+  full-height layouts, so mobile browser toolbars don't break centering.
+- One `<main>` landmark per page: don't render `<main>` in a `page.tsx` when an
+  ancestor layout already provides one.
 
 ## Logging
 
