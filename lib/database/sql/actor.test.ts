@@ -907,6 +907,29 @@ describe('ActorDatabase', () => {
         })
         expect(mastodonActor?.bot).toBeTrue()
       })
+
+      it('preserves other settings updates passed alongside an append', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({
+          actorId,
+          notificationAcceptedSenders: ['existing-sender']
+        })
+
+        await database.updateActor({
+          actorId,
+          appendNotificationAcceptedSenders: ['new-sender'],
+          manuallyApprovesFollowers: false,
+          defaultPrivacy: 'private'
+        })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings.notificationAcceptedSenders).toEqual([
+          'existing-sender',
+          'new-sender'
+        ])
+        expect(settings.manuallyApprovesFollowers).toBe(false)
+        expect(settings.defaultPrivacy).toBe('private')
+      })
     })
 
     describe('getActorSettings', () => {

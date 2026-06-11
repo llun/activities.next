@@ -833,8 +833,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     if (!persistedActor) return null
 
     const persistedSettings = getCompatibleJSON(persistedActor.settings)
-    const settings: ActorSettings = {
-      ...persistedSettings,
+    // The explicit settings changes requested by this call (undefined fields
+    // mean "no change"). Kept as a standalone object so the
+    // appendNotificationAcceptedSenders path can re-apply them on top of the
+    // fresh in-transaction read without losing any of them.
+    const settingsUpdates: Partial<ActorSettings> = {
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(manuallyApprovesFollowers !== undefined
@@ -860,6 +863,10 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(followersUrl ? { followersUrl } : null),
       ...(inboxUrl ? { inboxUrl } : null),
       ...(sharedInboxUrl ? { sharedInboxUrl } : null)
+    }
+    const settings: ActorSettings = {
+      ...persistedSettings,
+      ...settingsUpdates
     }
 
     // null means "explicitly clear this field from settings" (distinct from
@@ -900,9 +907,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           // Base the merge on freshSettings so all settings fields (policy,
           // email/push notifications, etc.) come from the locked row, not the
           // stale pre-transaction snapshot. This prevents concurrent settings
-          // changes from being clobbered by this write.
+          // changes from being clobbered by this write. Re-apply this call's
+          // own explicit settingsUpdates on top so they are not lost when an
+          // append is combined with other settings changes in the same call.
           finalSettings = {
             ...freshSettings,
+            ...settingsUpdates,
             notificationAcceptedSenders: [...existing, ...toAdd]
           }
         }

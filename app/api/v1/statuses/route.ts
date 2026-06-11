@@ -93,14 +93,15 @@ export const GET = traceApiRoute(
         ...searchParams.getAll('id')
       ]
       const uniqueIds = [...new Set(requestedIds)].slice(0, MAX_BATCH_STATUSES)
+      // Hydrate every requested status in a single batched round-trip instead of
+      // calling getStatus per id, which would fan out into a large N+1 of
+      // recipient/attachment/like/bookmark queries for a 100-id batch.
+      const statusesData = await database.getStatusesByIds({
+        statusIds: uniqueIds.map(idToUrl),
+        currentActorId: currentActor?.id
+      })
       const resolved = await Promise.all(
-        uniqueIds.map(async (encodedId) => {
-          const statusId = idToUrl(encodedId)
-          const status = await database.getStatus({
-            statusId,
-            currentActorId: currentActor?.id
-          })
-          if (!status) return null
+        statusesData.map(async (status) => {
           const hasAccess = await canActorReadStatus({
             database,
             status,
