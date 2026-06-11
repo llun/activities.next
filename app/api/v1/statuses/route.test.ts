@@ -542,6 +542,65 @@ describe('POST /api/v1/statuses', () => {
     expect(matching).toHaveLength(1)
   })
 
+  it('stores a scheduled status instead of publishing when scheduled_at is far enough ahead', async () => {
+    const before = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'See you in ten minutes',
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const scheduledStatus = await response.json()
+    expect(scheduledStatus.scheduled_at).toBe(scheduledAt)
+    expect(scheduledStatus.params.text).toBe('See you in ten minutes')
+    expect(scheduledStatus.media_attachments).toEqual([])
+    // No status was published and no publish job was queued.
+    expect(getQueue().publish).not.toHaveBeenCalled()
+    const after = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    expect(after).toHaveLength(before.length)
+
+    // Exactly one scheduled row now exists for the actor.
+    const stored = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    expect(stored.map((row) => row.id)).toContain(scheduledStatus.id)
+  })
+
+  it('returns 422 when scheduled_at is less than five minutes ahead', async () => {
+    const scheduledAt = new Date(Date.now() + 2 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Too soon to schedule',
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
   it('does not resurrect a deleted status for a reused Idempotency-Key (orphan cleanup)', async () => {
     const idempotencyKey = 'idem-key-orphan-456'
     const makeRequest = () =>

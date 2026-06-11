@@ -19,6 +19,10 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
+import {
+  buildScheduledParams,
+  toMastodonScheduledStatus
+} from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -42,6 +46,9 @@ const CORS_HEADERS = [
 // Mastodon does not document a cap; bound the batch to keep per-request work
 // predictable.
 const MAX_BATCH_STATUSES = 100
+
+// Mastodon rejects a scheduled_at less than five minutes in the future.
+const MIN_SCHEDULE_AHEAD_MS = 5 * 60 * 1000
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -70,6 +77,7 @@ const NoteSchema = z
     visibility: VisibilitySchema.optional(),
     language: z.string().trim().min(1).optional(),
     sensitive: Booleanish.optional().default(false),
+    scheduled_at: z.string().optional(),
     poll: PollSchema.optional()
   })
   .refine(
@@ -147,9 +155,68 @@ export const POST = traceApiRoute(
           })
         }
 
+        const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
+
+        // A scheduled_at at least five minutes ahead stores the status for later
+        // publication (Task 14) instead of posting it now. Media is validated
+        // here too, so a scheduled status never references nonexistent media.
+        if (note.scheduled_at) {
+          const scheduledAt = Date.parse(note.scheduled_at)
+          if (
+            Number.isNaN(scheduledAt) ||
+            scheduledAt - Date.now() < MIN_SCHEDULE_AHEAD_MS
+          ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: {
+                error:
+                  'Validation failed: Scheduled at must be at least 5 minutes in the future'
+              },
+              responseStatusCode: 422
+            })
+          }
+
+          if (!note.poll) {
+            const mediaIds = [...new Set(note.media_ids)]
+            if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_422,
+                responseStatusCode: 422
+              })
+            }
+            const attachments = await getAttachmentsFromMediaIds(
+              database,
+              currentActor,
+              mediaIds
+            )
+            if (!attachments) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_422,
+                responseStatusCode: 422
+              })
+            }
+          }
+
+          const scheduled = await database.createScheduledStatus({
+            actorId: currentActor.id,
+            scheduledAt,
+            params: buildScheduledParams(note, idempotencyKey ?? null)
+          })
+          // Task 14: enqueue publish job
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: await toMastodonScheduledStatus(database, scheduled)
+          })
+        }
+
         // Honor Idempotency-Key: a repeated key returns the original status
         // rather than creating a duplicate.
-        const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
         if (idempotencyKey) {
           const existingStatusId = await database.getIdempotentStatusId({
             actorId: currentActor.id,

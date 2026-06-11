@@ -1,12 +1,19 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 
 import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
+import { toMastodonScheduledStatus } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_404,
+  ERROR_422,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -16,15 +23,17 @@ const CORS_HEADERS = [
   HttpMethod.enum.DELETE
 ]
 
+// Mastodon rejects a scheduled_at less than five minutes in the future.
+const MIN_SCHEDULE_AHEAD_MS = 5 * 60 * 1000
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
   id: string
 }
 
-// https://docs.joinmastodon.org/methods/scheduled_statuses/
-// Scheduling is not supported (statuses publish immediately), so no scheduled
-// status can ever be found by id.
+const ScheduleUpdateSchema = z.object({ scheduled_at: z.string() })
+
 const notFound = (req: NextRequest) =>
   apiResponse({
     req,
@@ -33,24 +42,130 @@ const notFound = (req: NextRequest) =>
     responseStatusCode: 404
   })
 
+// Reads the request body across the content types Mastodon clients use (JSON,
+// urlencoded, multipart). Returns null on a malformed body so the caller can
+// surface a 422.
+const readBody = async (
+  req: NextRequest
+): Promise<Record<string, unknown> | null> => {
+  const contentType = req.headers.get('content-type')?.toLowerCase() ?? ''
+  try {
+    if (contentType.includes('application/json')) {
+      const text = await req.text()
+      if (text.trim() === '') return {}
+      const parsed: unknown = JSON.parse(text)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {}
+    }
+    const form = await req.formData()
+    return Object.fromEntries(form.entries())
+  } catch {
+    return null
+  }
+}
+
 export const GET = traceApiRoute(
   'getScheduledStatus',
   OAuthGuardAnyScope<Params>(
     [Scope.enum.read, Scope.enum['read:statuses']],
-    async (req) => notFound(req)
+    async (req, { database, currentActor, params }) => {
+      const { id } = (await params) ?? { id: undefined }
+      if (!id) return notFound(req)
+
+      const scheduled = await database.getScheduledStatus({
+        actorId: currentActor.id,
+        id
+      })
+      if (!scheduled) return notFound(req)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: await toMastodonScheduledStatus(database, scheduled)
+      })
+    }
   )
 )
 
+// https://docs.joinmastodon.org/methods/scheduled_statuses/#update
+// Mastodon's PUT only reschedules; it updates scheduled_at and nothing else.
 export const PUT = traceApiRoute(
   'updateScheduledStatus',
-  OAuthGuard<Params>([Scope.enum['write:statuses']], async (req) =>
-    notFound(req)
+  OAuthGuard<Params>(
+    [Scope.enum['write:statuses']],
+    async (req, { database, currentActor, params }) => {
+      const { id } = (await params) ?? { id: undefined }
+      if (!id) return notFound(req)
+
+      const body = await readBody(req)
+      if (!body) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      const parsed = ScheduleUpdateSchema.safeParse(body)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      const scheduledAt = Date.parse(parsed.data.scheduled_at)
+      if (
+        Number.isNaN(scheduledAt) ||
+        scheduledAt - Date.now() < MIN_SCHEDULE_AHEAD_MS
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            error:
+              'Validation failed: Scheduled at must be at least 5 minutes in the future'
+          },
+          responseStatusCode: 422
+        })
+      }
+
+      const scheduled = await database.updateScheduledStatusAt({
+        actorId: currentActor.id,
+        id,
+        scheduledAt
+      })
+      if (!scheduled) return notFound(req)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: await toMastodonScheduledStatus(database, scheduled)
+      })
+    }
   )
 )
 
 export const DELETE = traceApiRoute(
   'deleteScheduledStatus',
-  OAuthGuard<Params>([Scope.enum['write:statuses']], async (req) =>
-    notFound(req)
+  OAuthGuard<Params>(
+    [Scope.enum['write:statuses']],
+    async (req, { database, currentActor, params }) => {
+      const { id } = (await params) ?? { id: undefined }
+      if (!id) return notFound(req)
+
+      const deleted = await database.deleteScheduledStatus({
+        actorId: currentActor.id,
+        id
+      })
+      if (!deleted) return notFound(req)
+
+      // Mastodon's destroy renders an empty object with 200.
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
+    }
   )
 )
