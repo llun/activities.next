@@ -621,6 +621,48 @@ describe('POST /api/v1/statuses', () => {
     })
   })
 
+  it('records the OAuth client application on a token-created poll, including the client website', async () => {
+    await knexInstance('oauthClient').insert({
+      id: 'oauth-client-row-2',
+      clientId: 'client-poll-app',
+      name: 'Poll App',
+      uri: 'https://poll.example.com',
+      redirectUris: JSON.stringify(['https://poll.example.com/callback']),
+      scopes: JSON.stringify(['write'])
+    })
+    await knexInstance('oauthAccessToken').insert({
+      id: 'oauth-access-token-2',
+      token: hashToken('poll-write-token'),
+      clientId: 'client-poll-app',
+      referenceId: ACTOR1_ID,
+      expiresAt: new Date(Date.now() + 3600000),
+      scopes: JSON.stringify(['write'])
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Which option do you prefer?',
+          poll: { options: ['a', 'b'], expires_in: 3600 }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer poll-write-token'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.poll).not.toBeNull()
+    expect(mastodonStatus.application).toEqual({
+      name: 'Poll App',
+      website: 'https://poll.example.com'
+    })
+  })
+
   it('leaves application null for a web-session created status', async () => {
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/statuses', {

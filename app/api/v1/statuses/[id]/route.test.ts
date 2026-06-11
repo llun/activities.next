@@ -3612,5 +3612,44 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(descendant.filtered).toHaveLength(1)
       expect(descendant.filtered[0].filter.title).toBe('Spoilers')
     })
+
+    it('does not annotate filtered for anonymous context reads', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const rootId = `${ACTOR1_ID}/statuses/api-filter-context-anon-root`
+      const targetId = `${ACTOR1_ID}/statuses/api-filter-context-anon-target`
+      await database.createNote({
+        id: rootId,
+        url: rootId,
+        actorId: ACTOR1_ID,
+        text: 'root status with a spoiler for anonymous context readers',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: targetId,
+        url: targetId,
+        actorId: ACTOR1_ID,
+        text: 'target status replying to the anonymous root',
+        reply: rootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(targetId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(targetId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const context = await response.json()
+
+      const ancestor = context.ancestors.find(
+        (s: { id: string }) => s.id === urlToId(rootId)
+      )
+      expect(ancestor.filtered ?? []).toHaveLength(0)
+    })
   })
 })
