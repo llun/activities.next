@@ -1,0 +1,73 @@
+app/api/v1/accounts/route.test.ts
+  s_a4109b2d9b71dd::t_2261ebd304a7a7 168-222
+  s_a4109b2d9b71dd::t_a99ef7ae5520dd 16-23,26-29
+  s_a4109b2d9b71dd::t_f9abc097e12129 49-50,54-65
+lib/config/index.ts
+  s_a4109b2d9b71dd::t_0ad79d362f4c76 13
+  s_a4109b2d9b71dd::t_ae6310410bd896 40-47
+lib/services/auth/knexAdapter.test.ts
+  s_a4109b2d9b71dd::t_be4771e32fe34e 882-924,929-936,941-954,959-967
+  s_a4109b2d9b71dd::t_c58c071755d183 925-928,937-940,955-958
+app/api/v1/accounts/route.ts
+  s_a4109b2d9b71dd::t_8f0b1d3122b452 167
+  s_a4109b2d9b71dd::t_73861b83189aca 12
+migrations/20260611090000_lowercase_account_emails.js
+  s_a4109b2d9b71dd::t_5a29ce7883f76c 1-96
+lib/database/sql/account.ts
+  s_a4109b2d9b71dd::t_c466ce05013db7 55,57-60,64
+  s_a4109b2d9b71dd::t_75652947094fe2 191
+  s_a4109b2d9b71dd::t_c58c071755d183 523-530,565-576
+  s_a4109b2d9b71dd::t_a3881124117eaf 588
+  s_a4109b2d9b71dd::t_7dcc2e6d75512e 115
+  s_a4109b2d9b71dd::t_79a9e3b2871416 89
+app/api/v1/accounts/email/route.ts
+  s_a4109b2d9b71dd::t_e9a2e45035fc96 16-18
+lib/services/auth/knexAdapter.ts
+  s_a4109b2d9b71dd::t_63b5417ff2b676 6,12-46
+  s_a4109b2d9b71dd::t_93739291a8e92a 286-288,299-301
+  s_a4109b2d9b71dd::t_bf679e856adec1 112
+  s_a4109b2d9b71dd::t_777b41d0918733 113-119
+  s_a4109b2d9b71dd::t_ba8b515865ff4e 205
+lib/utils/getActorFromSession.ts
+  s_a4109b2d9b71dd::t_5ae3fee39b6c1f 6
+  s_a4109b2d9b71dd::t_6c187ccd1a86f2 34
+lib/utils/normalizeEmail.ts
+  s_a4109b2d9b71dd::t_deb6b0ae2d2c06 1-31
+lib/utils/normalizeEmail.test.ts
+  s_a4109b2d9b71dd::t_5de387c3611d7c 1-4,30-40,61-65,76-79
+  s_a4109b2d9b71dd::t_c58c071755d183 5-29,41-60,66-75
+app/api/v1/accounts/types.ts
+  s_a4109b2d9b71dd::t_fd53accbf99968 14-17
+app/api/v1/accounts/password/reset/request/route.ts
+  s_a4109b2d9b71dd::t_7432678ef73f4d 19-23
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_a4109b2d9b71dd::t_292ccd0033531f 57-59
+lib/database/sql/account.test.ts
+  s_a4109b2d9b71dd::t_8c5750374a77de 362,364-367
+  s_a4109b2d9b71dd::t_c58c071755d183 385-387
+  s_a4109b2d9b71dd::t_69cec1d22ebfa2 344-361,363,368-384,388-420
+lib/utils/getActorFromSession.test.ts
+  s_a4109b2d9b71dd::t_c58c071755d183 59-71
+  s_a4109b2d9b71dd::t_d677095b4506b1 1-58,72-83
+app/api/v1/accounts/email/route.test.ts
+  s_a4109b2d9b71dd::t_d9833a0226e79d 146-194
+scripts/createMockUser.ts
+  s_a4109b2d9b71dd::t_c9a174e3893836 20-21
+  s_a4109b2d9b71dd::t_88b395f5c69cf5 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1f5c85b31d9f21d8b769b78d3f52c615cc44b462",
+  "prompts": {},
+  "sessions": {
+    "s_a4109b2d9b71dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "027e6fe0-5adf-4bd1-96f8-b6e384141935",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
