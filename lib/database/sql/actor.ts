@@ -864,15 +864,21 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(inboxUrl ? { inboxUrl } : null),
       ...(sharedInboxUrl ? { sharedInboxUrl } : null)
     }
-    const settings: ActorSettings = {
-      ...persistedSettings,
-      ...settingsUpdates
+    // A null iconUrl/headerImageUrl means "explicitly clear this field"
+    // (distinct from undefined = "no change"). ActorSettings types these as
+    // optional strings, so we drop the key rather than storing null. Centralized
+    // here so every derived settings object (pre-transaction and the
+    // append-path rebuild) clears them the same way.
+    const applyExplicitClears = (target: ActorSettings): ActorSettings => {
+      if (iconUrl === null) delete target.iconUrl
+      if (headerImageUrl === null) delete target.headerImageUrl
+      return target
     }
 
-    // null means "explicitly clear this field from settings" (distinct from
-    // undefined = "no change"). JSON.stringify omits keys set to undefined.
-    if (iconUrl === null) delete settings.iconUrl
-    if (headerImageUrl === null) delete settings.headerImageUrl
+    const settings = applyExplicitClears({
+      ...persistedSettings,
+      ...settingsUpdates
+    })
 
     const currentTime = new Date()
     const updatedActor: SQLActor = {
@@ -909,19 +915,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           // stale pre-transaction snapshot. This prevents concurrent settings
           // changes from being clobbered by this write. Re-apply this call's
           // own explicit settingsUpdates on top so they are not lost when an
-          // append is combined with other settings changes in the same call.
-          finalSettings = {
+          // append is combined with other settings changes in the same call,
+          // then re-clear any explicitly-nulled fields.
+          finalSettings = applyExplicitClears({
             ...freshSettings,
             ...settingsUpdates,
             notificationAcceptedSenders: [...existing, ...toAdd]
-          }
+          })
         }
       }
-
-      // Re-apply explicit null-clears to finalSettings (covers the
-      // appendNotificationAcceptedSenders path which rebuilds from freshSettings).
-      if (iconUrl === null) delete finalSettings.iconUrl
-      if (headerImageUrl === null) delete finalSettings.headerImageUrl
 
       await trx<SQLActor>('actors')
         .where('id', actorId)
