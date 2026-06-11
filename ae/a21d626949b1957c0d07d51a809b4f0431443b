@@ -1,0 +1,23 @@
+lib/database/sql/scheduledStatus.test.ts
+  s_aad18c3f613de8::t_f7b0328d64b232 360-387
+lib/types/database/operations.ts
+  s_aad18c3f613de8::t_07cdd95cdcd8ef 1438-1443
+lib/database/sql/scheduledStatus.ts
+  s_aad18c3f613de8::t_71375738f9d26b 166-170,174-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "aea21d626949b1957c0d07d51a809b4f0431443b",
+  "prompts": {},
+  "sessions": {
+    "s_aad18c3f613de8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b99b1bb-fc82-4e50-b1dc-acabeb2082ce",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
