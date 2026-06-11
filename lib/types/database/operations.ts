@@ -408,6 +408,11 @@ interface BaseCreateStatusParams {
   sensitive?: boolean
   language?: string | null
 
+  // The registered OAuth client (Mastodon "application") that authored the
+  // status. Null when created through the web session.
+  applicationName?: string | null
+  applicationWebsite?: string | null
+
   createdAt?: number
 }
 

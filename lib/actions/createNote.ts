@@ -322,6 +322,9 @@ interface CreateNoteFromUserInputParams {
   visibility?: MastodonVisibility
   sensitive?: boolean
   language?: string | null
+  // The registered OAuth client (Mastodon "application") that authored the
+  // status, when created via an app token. Omitted for web-session creates.
+  application?: { name: string; website: string | null }
   database: Database
 }
 export const createNoteFromUserInput = async ({
@@ -334,6 +337,7 @@ export const createNoteFromUserInput = async ({
   visibility,
   sensitive = false,
   language = null,
+  application,
   database
 }: CreateNoteFromUserInputParams) => {
   const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
@@ -425,7 +429,9 @@ export const createNoteFromUserInput = async ({
 
     reply: replyStatus?.id || '',
     sensitive,
-    language
+    language,
+    applicationName: application?.name ?? null,
+    applicationWebsite: application?.website ?? null
   })
 
   // Tags must be persisted before timeline rules run so that

@@ -1,4 +1,8 @@
 import { Database } from '@/lib/database/types'
+import {
+  annotateMastodonStatusesWithFilters,
+  getActiveFilters
+} from '@/lib/services/filters/applyFilters'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
@@ -182,12 +186,32 @@ export const GET = traceApiRoute(
         getMastodonStatuses(database, descendantStatuses, currentActor?.id)
       ])
 
+      // Mastodon annotates the `filtered` field on context reads using the
+      // `thread` filter context. Per-account filters are skipped for
+      // unauthenticated requests, but instance-wide server filters still apply
+      // to anonymous viewers (see getActiveFilters).
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor?.id,
+        'thread'
+      )
+      const annotatedAncestors = annotateMastodonStatusesWithFilters(
+        ancestors,
+        ancestorStatuses,
+        filterRecords
+      )
+      const annotatedDescendants = annotateMastodonStatusesWithFilters(
+        descendants,
+        descendantStatuses,
+        filterRecords
+      )
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: {
-          ancestors,
-          descendants
+          ancestors: annotatedAncestors,
+          descendants: annotatedDescendants
         }
       })
     },

@@ -329,6 +329,7 @@ export const getMastodonStatus = async (
     content: '',
     text: null,
     account,
+    application: null,
 
     mentions: [],
     tags: [],
@@ -398,6 +399,12 @@ export const getMastodonStatus = async (
 
     reblogged: status.actorAnnounceStatusId !== null,
     content: processStatusText(host, status),
+    application: status.applicationName
+      ? {
+          name: status.applicationName,
+          website: status.applicationWebsite ?? null
+        }
+      : null,
 
     text: status.text,
 
@@ -430,7 +437,7 @@ export const getMastodonStatus = async (
         (sum, choice) => sum + choice.totalVotes,
         0
       ),
-      voters_count: 0,
+      voters_count: status.votersCount ?? 0,
       options: status.choices.map((choice) => ({
         title: choice.title,
         votes_count: choice.totalVotes

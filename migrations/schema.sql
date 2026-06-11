@@ -789,7 +789,9 @@ CREATE TABLE public.statuses (
     url text,
     "urlHash" character varying(64),
     "originalStatusId" character varying(255),
-    "replyHash" character varying(64)
+    "replyHash" character varying(64),
+    "applicationName" character varying(255),
+    "applicationWebsite" character varying(255)
 );
 
 CREATE TABLE public.strava_archive_imports (
