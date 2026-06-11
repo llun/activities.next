@@ -164,8 +164,12 @@ export const POST = traceApiRoute(
         // A scheduled_at at least five minutes ahead stores the status for later
         // publication instead of posting it now. Media is validated
         // here too, so a scheduled status never references nonexistent media.
-        if (note.scheduled_at) {
-          const scheduledAt = Date.parse(note.scheduled_at)
+        // A blank/whitespace-only scheduled_at is treated as "not scheduled"
+        // (immediate post), matching Mastodon's blank-aware check; a non-blank
+        // but unparseable value still falls through to the 422 below.
+        const scheduledAtInput = note.scheduled_at?.trim()
+        if (scheduledAtInput) {
+          const scheduledAt = Date.parse(scheduledAtInput)
           if (
             Number.isNaN(scheduledAt) ||
             scheduledAt - Date.now() < MIN_SCHEDULED_STATUS_AHEAD_MS

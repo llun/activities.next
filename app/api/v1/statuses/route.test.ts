@@ -661,6 +661,39 @@ describe('POST /api/v1/statuses', () => {
     }
   })
 
+  it('treats a blank scheduled_at as an immediate post', async () => {
+    const before = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Blank schedule posts now',
+          scheduled_at: '   '
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    // A real status was published, not a scheduled one.
+    expect(mastodonStatus.id).toBeTruthy()
+    expect(mastodonStatus.scheduled_at).toBeUndefined()
+    const after = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    expect(after).toHaveLength(before.length)
+  })
+
   it('returns 422 when scheduled_at is less than five minutes ahead', async () => {
     const scheduledAt = new Date(Date.now() + 2 * 60 * 1000).toISOString()
 
