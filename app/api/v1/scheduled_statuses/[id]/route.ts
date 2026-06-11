@@ -170,15 +170,24 @@ export const PUT = traceApiRoute(
         // The new time is committed but the delayed job failed to enqueue. Roll
         // the stored time back so it matches the (failed) enqueue rather than
         // showing a new time that will never fire, then surface the failure.
-        await database.updateScheduledStatusAt({
-          actorId: currentActor.id,
-          id,
-          scheduledAt: previousScheduledAt
-        })
+        // Log the enqueue failure first and guard the rollback so a cleanup
+        // failure cannot mask the original error.
         logger.error(
           { error, scheduledStatusId: id },
           'rescheduleScheduledStatus: failed to re-enqueue publish job'
         )
+        try {
+          await database.updateScheduledStatusAt({
+            actorId: currentActor.id,
+            id,
+            scheduledAt: previousScheduledAt
+          })
+        } catch (rollbackError) {
+          logger.error(
+            { rollbackError, scheduledStatusId: id },
+            'rescheduleScheduledStatus: failed to roll back scheduled time'
+          )
+        }
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

@@ -78,19 +78,21 @@ export const ScheduledStatusSQLDatabaseMixin = (
     // scheduledAt, with id as a stable tiebreaker — the same pattern the status
     // timeline uses on createdAt. The raw cursor value is passed straight into
     // the comparison (it is already in the column's storage format).
+    // A cursor that no longer resolves (the row was published/deleted between
+    // page requests) returns an empty page rather than silently falling back to
+    // the first page, which would loop the client over duplicate results.
     if (maxId) {
       const cursor = await database<SQLScheduledStatus>('scheduled_statuses')
         .where({ actorId, id: maxId })
         .first()
-      if (cursor) {
-        query.where((wb) => {
-          wb.where('scheduledAt', '<', cursor.scheduledAt).orWhere((tie) => {
-            tie
-              .where('scheduledAt', '=', cursor.scheduledAt)
-              .where('id', '<', maxId)
-          })
+      if (!cursor) return []
+      query.where((wb) => {
+        wb.where('scheduledAt', '<', cursor.scheduledAt).orWhere((tie) => {
+          tie
+            .where('scheduledAt', '=', cursor.scheduledAt)
+            .where('id', '<', maxId)
         })
-      }
+      })
     }
 
     const newerCursorId = minId || sinceId
@@ -98,15 +100,14 @@ export const ScheduledStatusSQLDatabaseMixin = (
       const cursor = await database<SQLScheduledStatus>('scheduled_statuses')
         .where({ actorId, id: newerCursorId })
         .first()
-      if (cursor) {
-        query.where((wb) => {
-          wb.where('scheduledAt', '>', cursor.scheduledAt).orWhere((tie) => {
-            tie
-              .where('scheduledAt', '=', cursor.scheduledAt)
-              .where('id', '>', newerCursorId)
-          })
+      if (!cursor) return []
+      query.where((wb) => {
+        wb.where('scheduledAt', '>', cursor.scheduledAt).orWhere((tie) => {
+          tie
+            .where('scheduledAt', '=', cursor.scheduledAt)
+            .where('id', '>', newerCursorId)
         })
-      }
+      })
     }
 
     if (minId) {

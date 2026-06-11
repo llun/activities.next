@@ -235,15 +235,23 @@ export const POST = traceApiRoute(
             // The row is committed but the delayed job failed to enqueue. With
             // no cron poller yet it would never fire, so roll the row back and
             // surface the failure rather than leave an orphan that silently
-            // never publishes.
-            await database.deleteScheduledStatus({
-              id: scheduled.id,
-              actorId: currentActor.id
-            })
+            // never publishes. Log the enqueue failure first and guard the
+            // rollback so a cleanup failure cannot mask the original error.
             logger.error(
               { error, scheduledStatusId: scheduled.id },
               'createStatus: failed to enqueue scheduled status publish job'
             )
+            try {
+              await database.deleteScheduledStatus({
+                id: scheduled.id,
+                actorId: currentActor.id
+              })
+            } catch (cleanupError) {
+              logger.error(
+                { cleanupError, scheduledStatusId: scheduled.id },
+                'createStatus: failed to roll back orphaned scheduled status'
+              )
+            }
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,

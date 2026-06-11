@@ -195,6 +195,32 @@ describe('ScheduledStatusDatabase', () => {
     })
   })
 
+  it('returns an empty page when the pagination cursor no longer exists', async () => {
+    await withFreshDatabase(async (database) => {
+      await database.createScheduledStatus({
+        actorId: ACTOR_ID,
+        scheduledAt: Date.now() + 1_000_000,
+        params: baseParams({ text: 'Still here' })
+      })
+
+      // A cursor pointing at a deleted/published row must not fall back to the
+      // first page (which would loop the client over duplicates).
+      const olderPage = await database.getScheduledStatuses({
+        actorId: ACTOR_ID,
+        limit: 20,
+        maxId: 'cursor-that-was-deleted'
+      })
+      expect(olderPage).toEqual([])
+
+      const newerPage = await database.getScheduledStatuses({
+        actorId: ACTOR_ID,
+        limit: 20,
+        sinceId: 'cursor-that-was-deleted'
+      })
+      expect(newerPage).toEqual([])
+    })
+  })
+
   it('returns the row (not null) when rescheduling to the same time', async () => {
     await withFreshDatabase(async (database) => {
       const scheduledAt = Date.now() + 1_000_000
