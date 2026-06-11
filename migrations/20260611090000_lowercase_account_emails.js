@@ -1,20 +1,27 @@
 // Backfills existing account emails to their canonical lowercase form so the
-// whole stack (storage, lookup, comparison) is case-insensitive. Normalization
-// is done in JS with the same `trim().toLowerCase()` rule the runtime uses (see
-// lib/utils/normalizeEmail.ts) rather than SQL `lower()`, so the backfill can
-// never disagree with runtime normalization (SQL `lower()` is ASCII-only on
-// SQLite, while JS `toLowerCase` is Unicode-aware).
+// whole stack (storage, lookup, comparison) is case-insensitive. The backfill
+// itself normalizes in JS with the same `trim().toLowerCase()` rule the runtime
+// uses (see lib/utils/normalizeEmail.ts) so stored values can never disagree
+// with runtime normalization (SQL `lower()` is ASCII-only on SQLite, while JS
+// `toLowerCase` is Unicode-aware).
 //
 // `accounts.email` carries a UNIQUE constraint, so lowercasing could collide if
 // two accounts already differ only by casing (e.g. `User@x.com` and
 // `user@x.com`). That is a data problem an operator must resolve by hand —
 // auto-merging accounts would be destructive — so this migration FAILS LOUDLY
-// listing the colliding addresses instead of attempting a merge.
+// listing the colliding addresses instead of attempting a merge. The collision
+// check is a single set-based SQL aggregate (`GROUP BY ... HAVING count > 1`),
+// so it uses O(number-of-collisions) memory — effectively zero on the common
+// case — rather than buffering every account in the Node process. The UNIQUE
+// constraint plus the wrapping transaction is the ultimate safety net: even if
+// a non-ASCII casing pair slipped past SQL `lower()`, the backfill UPDATE would
+// hit the constraint and roll the whole migration back rather than corrupt
+// data.
 //
-// Rows are read in keyset-paginated chunks (ordered by id) rather than loaded
-// all at once, to keep peak memory bounded on instances with many accounts.
-// Writes happen inside a single transaction so the backfill is atomic: either
-// every row is normalized or none is, and re-running after a failure is safe.
+// The backfill reads rows in keyset-paginated chunks (ordered by id) so peak
+// memory stays bounded, and runs inside a single transaction so it is atomic:
+// either every row is normalized or none is, and re-running after a failure is
+// safe.
 
 const normalizeEmail = (email) => String(email).trim().toLowerCase()
 
@@ -48,34 +55,37 @@ const forEachChunk = async (trx, columns, handle) => {
  */
 exports.up = async (knex) => {
   await knex.transaction(async (trx) => {
-    // Pass 1 — detect collisions before writing anything. Any normalized email
-    // claimed by more than one account would violate the unique constraint once
-    // lowercased. `seen` keeps just the first original per distinct normalized
-    // value (one string per email); the (normally empty) `collisions` map only
-    // grows when an actual duplicate is found, so memory stays minimal even on
-    // instances with many accounts.
-    const seen = new Map()
-    const collisions = new Map()
-    await forEachChunk(trx, ['id', 'email'], (rows) => {
-      for (const account of rows) {
-        if (account.email == null) continue
-        const normalized = normalizeEmail(account.email)
-        const firstSeen = seen.get(normalized)
-        if (firstSeen === undefined) {
-          seen.set(normalized, account.email)
-          continue
-        }
-        const existing = collisions.get(normalized)
-        if (existing) {
-          existing.push(account.email)
-        } else {
-          collisions.set(normalized, [firstSeen, account.email])
-        }
-      }
-    })
+    // Pass 1 — detect collisions before writing anything, with a set-based SQL
+    // aggregate so memory does not scale with the number of accounts. Any
+    // normalized email shared by more than one account would violate the unique
+    // constraint once lowercased. `lower(trim(...))` mirrors the runtime
+    // normalization for ASCII addresses (the realistic case); the transaction +
+    // unique constraint cover the rest.
+    const collisionGroups = await trx('accounts')
+      .whereNotNull('email')
+      .groupByRaw('lower(trim(email))')
+      .havingRaw('count(*) > 1')
+      .select(trx.raw('lower(trim(email)) as norm'))
 
-    if (collisions.size > 0) {
-      const details = [...collisions.entries()]
+    if (collisionGroups.length > 0) {
+      // Collisions are exceptional, so only here do we fetch the offending
+      // originals (just the colliding groups) to build a helpful message.
+      const norms = collisionGroups.map((group) => group.norm)
+      const placeholders = norms.map(() => '?').join(', ')
+      const rows = await trx('accounts')
+        .whereNotNull('email')
+        .whereRaw(`lower(trim(email)) in (${placeholders})`, norms)
+        .select('email')
+
+      const byNormalized = new Map()
+      for (const row of rows) {
+        const normalized = normalizeEmail(row.email)
+        const group = byNormalized.get(normalized) ?? []
+        group.push(row.email)
+        byNormalized.set(normalized, group)
+      }
+
+      const details = [...byNormalized.entries()]
         .map(
           ([normalized, originals]) =>
             `  ${normalized} <- [${originals.join(', ')}]`
@@ -88,8 +98,6 @@ exports.up = async (knex) => {
           `auto-merged):\n${details}`
       )
     }
-
-    seen.clear()
 
     // Pass 2 — rewrite the rows whose stored value is not already canonical.
     // Update `email` and the pending-change column independently so both end up
