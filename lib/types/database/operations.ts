@@ -316,6 +316,10 @@ export type ChangePasswordParams = {
   accountId: string
   newPasswordHash: string
 }
+export type UpdateAccountEmailParams = {
+  accountId: string
+  email: string
+}
 export type UpdateAccountNameParams = {
   accountId: string
   name: string | null
@@ -380,6 +384,7 @@ export interface AccountDatabase {
     params: ResetPasswordWithCodeParams
   ): Promise<Account | null>
   changePassword(params: ChangePasswordParams): Promise<void>
+  updateAccountEmail(params: UpdateAccountEmailParams): Promise<void>
   updateAccountName(params: UpdateAccountNameParams): Promise<void>
   updateAccountImage(params: UpdateAccountImageParams): Promise<void>
 }
@@ -2308,6 +2313,7 @@ export interface OAuthDatabase {
   getClientFromAccessToken(
     params: GetClientFromAccessTokenParams
   ): Promise<Client | null>
+  createOAuthAccessToken(params: CreateOAuthAccessTokenParams): Promise<void>
 }
 
 export const GetClientFromAccessTokenParams = z.object({
@@ -2316,6 +2322,23 @@ export const GetClientFromAccessTokenParams = z.object({
 export type GetClientFromAccessTokenParams = z.infer<
   typeof GetClientFromAccessTokenParams
 >
+
+export type CreateOAuthAccessTokenParams = {
+  // SHA-256 base64url hash of the issued bearer token, matching how
+  // OAuthGuard looks tokens up (GetClientFromAccessTokenParams.hashedToken).
+  // Callers MUST pass the hash, never the raw token, so the raw token never
+  // touches the database.
+  hashedToken: string
+  clientId: string
+  // The owning account id (stored in `userId`).
+  accountId: string
+  // The actor delegated by the token (stored in `referenceId`); OAuthGuard
+  // resolves the request actor from this column.
+  actorId: string
+  scopes: string[]
+  // Epoch milliseconds.
+  expiresAt: number
+}
 
 // ============================================================================
 // Timeline Database

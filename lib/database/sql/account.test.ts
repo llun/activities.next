@@ -179,6 +179,16 @@ describe('AccountDatabase', () => {
         expect(invalid).toBeNull()
       })
 
+      it('updates the account email', async () => {
+        const { accountId } = await createTestAccount()
+        const newEmail = `updated-${crypto.randomUUID()}@${TEST_DOMAIN}`
+
+        await database.updateAccountEmail({ accountId, email: newEmail })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({ id: accountId, email: newEmail })
+      })
+
       it('creates and consumes password reset codes', async () => {
         const { accountId, email } = await createTestAccount()
         const passwordResetCode = `reset-${crypto.randomUUID()}`
