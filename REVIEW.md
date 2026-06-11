@@ -41,6 +41,16 @@ change doesn't touch.
   same-origin proof via `hasSameOriginProof`
   (`lib/services/guards/sameOriginProof`) to block CSRF. The shared guards
   (`AuthenticatedGuard`, `AdminApiGuard`, …) already enforce this.
+- Fetch and apply the actor's active content filters even for unauthenticated
+  requests (`getActiveFiltersForActor`), so timeline and detail/context views
+  filter consistently.
+- Don't case-normalize identity fields (e.g. lowercasing an email) in a single
+  endpoint while the rest of the stack treats them case-sensitively — a partial
+  change splits lookups. Case-handling must be holistic across the codebase.
+- Mastodon-compat mutation responses return the affected entity even when the
+  actor can't otherwise read it — e.g. removing a bookmark from a now-unreadable
+  status still returns the full `Status` with `bookmarked: false`, not a redacted
+  one.
 
 ## Unique constraints (TOCTOU)
 
@@ -73,6 +83,12 @@ change doesn't touch.
   representation. When resolving a cursor record by id, don't filter the lookup by
   mutable status fields (`pending`, `requested`, …) — the row must still resolve if
   its status changed between page requests.
+- Mastodon pagination: `since_id` and `min_id` are not interchangeable —
+  `since_id` returns the newest band above the cursor (descending), `min_id` the
+  oldest band immediately after it (ascending, then reversed). Order each query
+  accordingly.
+- Idempotency-key storage uses `.onConflict().ignore()`, not `.merge()`, so the
+  first stored resource id is preserved when a request is retried.
 
 ## Client components & data flow
 
@@ -87,6 +103,10 @@ change doesn't touch.
 - Settings/account forms are client components that POST JSON and show inline
   success/error, not HTML `<form method="post">` with server redirects; the route
   returns JSON via `apiResponse()`.
+- Validate any user-controlled URL before using it as an `href`: parse with
+  `new URL()` and allow only the `http:`/`https:` protocols — not a `startsWith`
+  or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS
+  sink (see `lib/utils/fitness.ts`).
 - React state updater functions stay pure — no side effects, and don't fire another
   variable's state update from inside an updater. Do the separate `setState` calls
   in the event handler instead, so Strict Mode's double-invoke can't misfire them.
