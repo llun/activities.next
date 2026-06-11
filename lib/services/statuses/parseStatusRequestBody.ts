@@ -8,7 +8,8 @@ const STATUS_STRING_FIELDS = [
   'in_reply_to_id',
   'spoiler_text',
   'visibility',
-  'language'
+  'language',
+  'scheduled_at'
 ] as const
 
 const MEDIA_ID_FIELDS = ['media_ids', 'media_ids[]'] as const

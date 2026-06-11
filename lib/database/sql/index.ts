@@ -27,6 +27,7 @@ import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscription'
 import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
+import { ScheduledStatusSQLDatabaseMixin } from '@/lib/database/sql/scheduledStatus'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
 import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
@@ -65,6 +66,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
   const pushSubscriptionDatabase = PushSubscriptionSQLDatabaseMixin(database)
   const reportDatabase = ReportSQLDatabaseMixin(database)
+  const scheduledStatusDatabase = ScheduledStatusSQLDatabaseMixin(database)
   const oauthDatabase = OAuthSQLDatabaseMixin(database)
   const searchDatabase = SearchSQLDatabaseMixin(database)
   const stravaArchiveImportDatabase =
@@ -128,6 +130,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...notificationDatabase,
     ...pushSubscriptionDatabase,
     ...reportDatabase,
+    ...scheduledStatusDatabase,
     ...oauthDatabase,
     ...searchDatabase,
     ...stravaArchiveImportDatabase,

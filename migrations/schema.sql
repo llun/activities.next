@@ -700,6 +700,15 @@ CREATE TABLE public.reports (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.scheduled_statuses (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "scheduledAt" timestamp with time zone NOT NULL,
+    params text NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.search_documents (
     id character varying(320) NOT NULL,
     "entityType" character varying(32) NOT NULL,
@@ -1133,6 +1142,9 @@ ALTER TABLE ONLY public.recipients
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.scheduled_statuses
+    ADD CONSTRAINT scheduled_statuses_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.search_documents
     ADD CONSTRAINT search_documents_pkey PRIMARY KEY (id);
 
@@ -1317,6 +1329,10 @@ CREATE INDEX recipients_type_actor_created_status_idx ON public.recipients USING
 CREATE INDEX reports_actor_created ON public.reports USING btree ("actorId", "createdAt");
 
 CREATE INDEX reports_target ON public.reports USING btree ("targetActorId");
+
+CREATE INDEX scheduled_statuses_actorid_index ON public.scheduled_statuses USING btree ("actorId");
+
+CREATE INDEX scheduled_statuses_scheduledat_index ON public.scheduled_statuses USING btree ("scheduledAt");
 
 CREATE INDEX search_documents_actor ON public.search_documents USING btree ("actorId");
 

@@ -2,6 +2,8 @@ import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
+import { Database } from '@/lib/database/types'
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard,
@@ -13,15 +15,27 @@ import {
   MAX_POLL_OPTION_CHARS,
   MAX_STATUS_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS,
-  MIN_POLL_OPTIONS
+  MIN_POLL_OPTIONS,
+  MIN_SCHEDULED_STATUS_AHEAD_MS,
+  SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getQueue } from '@/lib/services/queue'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
+import {
+  buildScheduledParams,
+  scheduledDelaySeconds,
+  toMastodonScheduledStatus
+} from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_422,
@@ -70,6 +84,7 @@ const NoteSchema = z
     visibility: VisibilitySchema.optional(),
     language: z.string().trim().min(1).optional(),
     sensitive: Booleanish.optional().default(false),
+    scheduled_at: z.string().optional(),
     poll: PollSchema.optional()
   })
   .refine(
@@ -78,6 +93,20 @@ const NoteSchema = z
       note.media_ids.length > 0 ||
       (note.poll?.options.length ?? 0) > 0
   )
+
+// Dedupe, enforce the attachment cap, and resolve media ids to attachments.
+// Returns null when the set exceeds the cap or any id can't be resolved for the
+// actor — both the scheduled and immediate POST paths treat that as a 422.
+// Shared so the two paths can't drift apart.
+const resolveStatusMedia = async (
+  database: Database,
+  currentActor: Actor,
+  mediaIds: string[]
+): Promise<PostBoxAttachment[] | null> => {
+  const uniqueIds = [...new Set(mediaIds)]
+  if (uniqueIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) return null
+  return getAttachmentsFromMediaIds(database, currentActor, uniqueIds)
+}
 
 // GET /api/v1/statuses?id[]=1&id[]=2 — batch-fetch multiple statuses at once.
 // https://docs.joinmastodon.org/methods/statuses/#index
@@ -147,9 +176,121 @@ export const POST = traceApiRoute(
           })
         }
 
+        const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
+
+        // A scheduled_at at least five minutes ahead stores the status for later
+        // publication instead of posting it now. Media is validated
+        // here too, so a scheduled status never references nonexistent media.
+        // A blank/whitespace-only scheduled_at is treated as "not scheduled"
+        // (immediate post), matching Mastodon's blank-aware check; a non-blank
+        // but unparseable value still falls through to the 422 below.
+        const scheduledAtInput = note.scheduled_at?.trim()
+        if (scheduledAtInput) {
+          const scheduledAt = Date.parse(scheduledAtInput)
+          if (
+            Number.isNaN(scheduledAt) ||
+            scheduledAt - Date.now() < MIN_SCHEDULED_STATUS_AHEAD_MS
+          ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: SCHEDULED_AT_TOO_SOON_ERROR },
+              responseStatusCode: 422
+            })
+          }
+
+          if (!note.poll) {
+            // Validate media up front so a scheduled status never references
+            // media that is missing or over the cap (same rules as an immediate
+            // post). The resolved attachments are rebuilt from params at publish.
+            const attachments = await resolveStatusMedia(
+              database,
+              currentActor,
+              note.media_ids
+            )
+            if (!attachments) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_422,
+                responseStatusCode: 422
+              })
+            }
+          }
+
+          // Fall back to the actor's configured default privacy when the
+          // client omits visibility, so a scheduled status is stored with the
+          // user's preference instead of always public.
+          const actorSettings = await database.getActorSettings({
+            actorId: currentActor.id
+          })
+          const scheduled = await database.createScheduledStatus({
+            actorId: currentActor.id,
+            scheduledAt,
+            params: buildScheduledParams(
+              note,
+              idempotencyKey ?? null,
+              actorSettings?.defaultPrivacy ?? 'public',
+              clientId ?? null
+            )
+          })
+          // Enqueue the publish job with a delay until the scheduled time. On
+          // QStash the delay is honored natively; the in-process NoQueue has no
+          // scheduler and drops delayed messages, so scheduled statuses only
+          // auto-fire when a real queue is configured. The dedup id folds in
+          // scheduledAt so a later reschedule to a new time is not dropped by
+          // QStash deduplication while retries of the same schedule still are.
+          try {
+            await getQueue().publish({
+              id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
+              name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+              data: {
+                scheduledStatusId: scheduled.id,
+                scheduledAt: scheduled.scheduledAt
+              },
+              delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
+            })
+          } catch (error) {
+            // The row is committed but the delayed job failed to enqueue. With
+            // no cron poller yet it would never fire, so roll the row back and
+            // surface the failure rather than leave an orphan that silently
+            // never publishes. Log the enqueue failure first and guard the
+            // rollback so a cleanup failure cannot mask the original error.
+            logger.error(
+              { error, scheduledStatusId: scheduled.id },
+              'createStatus: failed to enqueue scheduled status publish job'
+            )
+            try {
+              await database.deleteScheduledStatus({
+                id: scheduled.id,
+                actorId: currentActor.id
+              })
+            } catch (cleanupError) {
+              logger.error(
+                { cleanupError, scheduledStatusId: scheduled.id },
+                'createStatus: failed to roll back orphaned scheduled status'
+              )
+            }
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_500,
+              responseStatusCode: 500
+            })
+          }
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: await toMastodonScheduledStatus(
+              database,
+              scheduled,
+              currentActor.account?.id
+            )
+          })
+        }
+
         // Honor Idempotency-Key: a repeated key returns the original status
         // rather than creating a duplicate.
-        const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
         if (idempotencyKey) {
           const existingStatusId = await database.getIdempotentStatusId({
             actorId: currentActor.id,
@@ -204,19 +345,10 @@ export const POST = traceApiRoute(
             database
           })
         } else {
-          const mediaIds = [...new Set(note.media_ids)]
-          if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: ERROR_422,
-              responseStatusCode: 422
-            })
-          }
-          const attachments = await getAttachmentsFromMediaIds(
+          const attachments = await resolveStatusMedia(
             database,
             currentActor,
-            mediaIds
+            note.media_ids
           )
           if (!attachments) {
             return apiResponse({
@@ -273,7 +405,8 @@ export const POST = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: mastodonStatus
         })
-      } catch {
+      } catch (error) {
+        logger.error({ error }, 'createStatus: request failed')
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
