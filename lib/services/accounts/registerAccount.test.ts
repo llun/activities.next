@@ -344,6 +344,65 @@ describe('registerAccount', () => {
     ).rejects.toThrow('connection reset')
   })
 
+  it('matches the allow-list case-insensitively when the entry differs in case', async () => {
+    jest.mocked(getConfig).mockReturnValue({
+      host: 'llun.test',
+      allowEmails: ['Allowed@Example.com'],
+      registrationOpen: true,
+      secretPhase: 'test-secret-phase-for-unit-tests-only',
+      email: null
+    } as never)
+
+    const result = await registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: 'alice',
+      email: 'allowed@example.COM',
+      password: 'password123'
+    })
+
+    expect(result.type).toBe('success')
+    expect(mockDatabase.createAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'allowed@example.com' })
+    )
+  })
+
+  it('blocks an email not on the allow-list regardless of case', async () => {
+    jest.mocked(getConfig).mockReturnValue({
+      host: 'llun.test',
+      allowEmails: ['allowed@example.com'],
+      registrationOpen: true,
+      secretPhase: 'test-secret-phase-for-unit-tests-only',
+      email: null
+    } as never)
+
+    const result = await registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: 'alice',
+      email: 'NotAllowed@Example.com',
+      password: 'password123'
+    })
+
+    expect(result).toEqual({ type: 'email_not_allowed' })
+    expect(mockDatabase.createAccount).not.toHaveBeenCalled()
+  })
+
+  it('normalizes a mixed-case email to lowercase before the existence checks and insert', async () => {
+    const result = await registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: 'alice',
+      email: '  Alice.Example@Example.COM ',
+      password: 'password123'
+    })
+
+    expect(result.type).toBe('success')
+    expect(mockDatabase.isAccountExists).toHaveBeenCalledWith({
+      email: 'alice.example@example.com'
+    })
+    expect(mockDatabase.createAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'alice.example@example.com' })
+    )
+  })
+
   it('still returns success if email sending fails', async () => {
     jest.mocked(getConfig).mockReturnValue({
       host: 'llun.test',

@@ -7,6 +7,7 @@ import { Database } from '@/lib/database/types'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { logger } from '@/lib/utils/logger'
+import { isEmailAllowed, normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { generateKeyPair } from '@/lib/utils/signature'
 
 const BCRYPT_ROUND = 10
@@ -31,7 +32,7 @@ export interface RegisterAccountParams {
 export const registerAccount = async ({
   database,
   username,
-  email,
+  email: rawEmail,
   password,
   name
 }: RegisterAccountParams): Promise<RegisterAccountResult> => {
@@ -41,9 +42,14 @@ export const registerAccount = async ({
     return { type: 'registration_closed' }
   }
 
+  // Normalize once at the service boundary so the allow-list check, the
+  // existence pre-checks, the DB insert, and the confirmation email all see the
+  // same canonical (lowercased) address — even when this service is called
+  // directly rather than through the request schema. See normalizeEmail.
+  const email = normalizeEmail(rawEmail)
   const { host: domain, allowEmails } = config
 
-  if (allowEmails.length && !allowEmails.includes(email)) {
+  if (!isEmailAllowed(allowEmails, email)) {
     return { type: 'email_not_allowed' }
   }
 

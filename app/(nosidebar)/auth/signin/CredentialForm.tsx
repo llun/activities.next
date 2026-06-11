@@ -54,7 +54,9 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
 
     try {
       const result = await authClient.signIn.email({
-        email,
+        // Emails are stored and looked up case-insensitively; normalize here so
+        // the sign-in lookup matches regardless of how the user typed it.
+        email: email.trim().toLowerCase(),
         password
       })
       if (result.error) {

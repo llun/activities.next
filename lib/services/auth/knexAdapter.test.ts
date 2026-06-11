@@ -879,4 +879,90 @@ describe('knexAdapter', () => {
       })
     })
   })
+
+  // Better-auth resolves sign-in/sign-up by email through this adapter against
+  // the `accounts` (user) table, so the adapter must normalize `accounts.email`
+  // on both writes and lookups to keep auth case-insensitive.
+  describe('accounts email normalization', () => {
+    let accountsDb: Knex
+    let accountsAdapter: ReturnType<ReturnType<typeof knexAdapter>>
+
+    beforeAll(async () => {
+      accountsDb = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: { filename: ':memory:' }
+      })
+      await accountsDb.schema.createTable('accounts', (table) => {
+        table.text('id').primary()
+        table.text('email').unique()
+        table.text('name')
+      })
+      accountsAdapter = knexAdapter(accountsDb)({} as never)
+    })
+
+    afterAll(async () => {
+      await accountsDb.destroy()
+    })
+
+    beforeEach(async () => {
+      await accountsDb('accounts').delete()
+    })
+
+    it('lowercases the email when creating an account', async () => {
+      await accountsAdapter.create({
+        model: 'accounts',
+        data: { id: 'a1', email: 'User.Name@Example.COM' }
+      })
+      const row = await accountsDb('accounts').where('id', 'a1').first()
+      expect(row.email).toBe('user.name@example.com')
+    })
+
+    it.each([
+      { description: 'an uppercase eq lookup', value: 'USER@EXAMPLE.COM' },
+      { description: 'a mixed-case eq lookup', value: 'User@Example.com' }
+    ])('finds an account by $description', async ({ value }) => {
+      await accountsDb('accounts').insert({
+        id: 'a1',
+        email: 'user@example.com'
+      })
+      const result = await accountsAdapter.findOne({
+        model: 'accounts',
+        where: [{ field: 'email', value, operator: 'eq' as const }]
+      })
+      expect(result).toMatchObject({ id: 'a1' })
+    })
+
+    it('normalizes each entry of an IN lookup on email', async () => {
+      await accountsDb('accounts').insert({
+        id: 'a1',
+        email: 'user@example.com'
+      })
+      const results = await accountsAdapter.findMany({
+        model: 'accounts',
+        where: [
+          {
+            field: 'email',
+            value: ['Missing@Example.com', 'USER@EXAMPLE.COM'],
+            operator: 'in' as const
+          }
+        ]
+      })
+      expect(results.map((r: any) => r.id)).toEqual(['a1'])
+    })
+
+    it('lowercases the email when updating an account', async () => {
+      await accountsDb('accounts').insert({
+        id: 'a1',
+        email: 'user@example.com'
+      })
+      await accountsAdapter.update({
+        model: 'accounts',
+        where: [{ field: 'id', value: 'a1', operator: 'eq' as const }],
+        update: { email: 'New.Address@Example.COM' }
+      })
+      const row = await accountsDb('accounts').where('id', 'a1').first()
+      expect(row.email).toBe('new.address@example.com')
+    })
+  })
 })

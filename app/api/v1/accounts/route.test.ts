@@ -263,6 +263,28 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/auth/signin')
   })
+
+  it('lowercases the submitted email via the schema before registering', async () => {
+    jest.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'success',
+      accountId: 'new-account-id',
+      username: 'alice',
+      actorId: 'https://llun.test/users/alice'
+    })
+    const req = new NextRequest('http://localhost/api/v1/accounts', {
+      method: 'POST',
+      body: 'username=alice&email=Alice.Example@Example.COM&password=password123',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(307)
+    expect(registerAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'alice.example@example.com' })
+    )
+  })
 })
 
 describe('POST /api/v1/accounts with a Bearer app token', () => {

@@ -3,9 +3,47 @@ import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 const escapeLikeValue = (value: unknown): string => {
   return String(value).replace(/[%_\\]/g, '\\$&')
+}
+
+// The `accounts` table holds better-auth's user records; `email` is the only
+// email column it manages here. Better-auth resolves sign-in/sign-up by `email`
+// through this adapter (it does NOT route through the SQL account methods), so
+// normalization must also happen here to keep auth lookups and writes
+// case-insensitive and consistent with stored values.
+const ACCOUNTS_TABLE = 'accounts'
+const EMAIL_FIELD = 'email'
+
+const isAccountsEmail = (tableName: string, field: string): boolean =>
+  tableName === ACCOUNTS_TABLE && field === EMAIL_FIELD
+
+// Lowercase the value(s) of an `accounts.email` where-clause so exact-match
+// lookups (and IN lists) hit the canonical stored form regardless of how the
+// email was typed.
+const normalizeWhereValue = (value: unknown): unknown => {
+  if (typeof value === 'string') return normalizeEmail(value)
+  if (Array.isArray(value)) {
+    return value.map((entry) =>
+      typeof entry === 'string' ? normalizeEmail(entry) : entry
+    )
+  }
+  return value
+}
+
+// Lowercase `accounts.email` in any record being inserted/updated so writes
+// going through better-auth (social/OAuth sign-up, email updates) store the
+// canonical form.
+const normalizeEmailInData = (
+  tableName: string,
+  data: Record<string, unknown>
+): void => {
+  if (tableName !== ACCOUNTS_TABLE) return
+  if (typeof data[EMAIL_FIELD] === 'string') {
+    data[EMAIL_FIELD] = normalizeEmail(data[EMAIL_FIELD] as string)
+  }
 }
 
 const supportsNativeBooleans = (db: Knex): boolean => {
@@ -71,7 +109,14 @@ const applyWhere = (
   where: CleanedWhere[]
 ) => {
   for (const clause of where) {
-    const { field, value, operator, connector } = clause
+    const { field, operator, connector } = clause
+    // Normalizing only changes string/string[] email values to lowercase, which
+    // preserves the original value type — cast back so knex's overloads resolve.
+    const value = (
+      isAccountsEmail(model, field)
+        ? normalizeWhereValue(clause.value)
+        : clause.value
+    ) as typeof clause.value
     const method = connector === 'OR' ? 'orWhere' : 'where'
 
     switch (operator) {
@@ -157,6 +202,7 @@ export const knexAdapter = (db: Knex) =>
         async create({ data, model }) {
           const tableName = getModelName(model)
           const record = data as Record<string, unknown>
+          normalizeEmailInData(tableName, record)
           const id = record.id as string
 
           if (model === 'session' || tableName === 'sessions') {
@@ -237,9 +283,9 @@ export const knexAdapter = (db: Knex) =>
           const existing = await idQuery
           if (!existing) return null
           const id = existing.id
-          await db(tableName)
-            .where(`${tableName}.id`, id)
-            .update(updateData as Record<string, unknown>)
+          const update = updateData as Record<string, unknown>
+          normalizeEmailInData(tableName, update)
+          await db(tableName).where(`${tableName}.id`, id).update(update)
           const row = await db(tableName).where(`${tableName}.id`, id).first()
           return row ? (hydrateDateFields(row) as any) : null
         },
@@ -250,9 +296,9 @@ export const knexAdapter = (db: Knex) =>
           if (where) {
             query = applyWhere(query, tableName, where)
           }
-          const result = await query.update(
-            updateData as Record<string, unknown>
-          )
+          const update = updateData as Record<string, unknown>
+          normalizeEmailInData(tableName, update)
+          const result = await query.update(update)
           return result
         },
 
