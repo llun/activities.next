@@ -116,8 +116,10 @@ describe('ScheduledStatusDatabase', () => {
     })
   })
 
-  it('paginates with max_id, since_id and min_id cursors', async () => {
+  it('paginates chronologically with max_id, since_id and min_id cursors', async () => {
     await withFreshDatabase(async (database) => {
+      // Strictly increasing scheduledAt so ordering is deterministic and
+      // independent of the random UUID ids.
       const created = []
       for (let i = 0; i < 3; i++) {
         created.push(
@@ -128,48 +130,43 @@ describe('ScheduledStatusDatabase', () => {
           })
         )
       }
-      // Rows are ordered by id (a UUID), so derive the expected ordering by
-      // sorting the actual ids lexicographically rather than by insertion.
-      const ascending = created.map((row) => row.id).sort()
-      const descending = [...ascending].reverse()
-      const middle = ascending[1]
+      const [earliest, middleRow, latest] = created
 
-      // Default order is id descending.
+      // Default order is scheduledAt descending (latest scheduled first), NOT
+      // shuffled by UUID id.
       const all = await database.getScheduledStatuses({
         actorId: ACTOR_ID,
         limit: 20
       })
-      expect(all.map((row) => row.id)).toEqual(descending)
+      expect(all.map((row) => row.id)).toEqual([
+        latest.id,
+        middleRow.id,
+        earliest.id
+      ])
 
-      // max_id: ids strictly less than the cursor, descending.
+      // max_id: rows scheduled before the cursor, descending.
       const older = await database.getScheduledStatuses({
         actorId: ACTOR_ID,
         limit: 20,
-        maxId: middle
+        maxId: middleRow.id
       })
-      expect(older.map((row) => row.id)).toEqual(
-        descending.filter((id) => id < middle)
-      )
+      expect(older.map((row) => row.id)).toEqual([earliest.id])
 
-      // since_id: ids strictly greater than the cursor, descending.
+      // since_id: rows scheduled after the cursor, descending.
       const newerSince = await database.getScheduledStatuses({
         actorId: ACTOR_ID,
         limit: 20,
-        sinceId: middle
+        sinceId: middleRow.id
       })
-      expect(newerSince.map((row) => row.id)).toEqual(
-        descending.filter((id) => id > middle)
-      )
+      expect(newerSince.map((row) => row.id)).toEqual([latest.id])
 
-      // min_id: ids strictly greater than the cursor, ascending (reversed).
+      // min_id: rows scheduled after the cursor, ascending (reversed).
       const newerMin = await database.getScheduledStatuses({
         actorId: ACTOR_ID,
         limit: 20,
-        minId: middle
+        minId: middleRow.id
       })
-      expect(newerMin.map((row) => row.id)).toEqual(
-        ascending.filter((id) => id > middle)
-      )
+      expect(newerMin.map((row) => row.id)).toEqual([latest.id])
     })
   })
 
@@ -195,6 +192,28 @@ describe('ScheduledStatusDatabase', () => {
         id: created.id
       })
       expect(fetched?.scheduledAt).toBe(newScheduledAt)
+    })
+  })
+
+  it('returns the row (not null) when rescheduling to the same time', async () => {
+    await withFreshDatabase(async (database) => {
+      const scheduledAt = Date.now() + 1_000_000
+      const created = await database.createScheduledStatus({
+        actorId: ACTOR_ID,
+        scheduledAt,
+        params: baseParams()
+      })
+
+      // SQLite reports 0 changed rows for a no-op update; the method must still
+      // return the existing row rather than a false null (which would 404).
+      const updated = await database.updateScheduledStatusAt({
+        actorId: ACTOR_ID,
+        id: created.id,
+        scheduledAt
+      })
+      expect(updated).not.toBeNull()
+      expect(updated?.id).toBe(created.id)
+      expect(updated?.scheduledAt).toBe(scheduledAt)
     })
   })
 

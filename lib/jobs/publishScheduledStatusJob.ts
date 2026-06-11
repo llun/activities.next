@@ -65,23 +65,26 @@ export const publishScheduledStatusJob = createJobHandle(
     }
 
     const { params } = row
-    const idempotencyKey = params.idempotency?.trim() || null
+    // Fall back to a key derived from the row id when the client supplied no
+    // Idempotency-Key, so the job is idempotent by default: if it is retried
+    // after the status was created but before the row was deleted, the retry
+    // finds the existing mapping below and skips re-publishing rather than
+    // posting a duplicate.
+    const idempotencyKey = params.idempotency?.trim() || `scheduled-${row.id}`
 
-    // Honor the stored Idempotency-Key the same way the POST route does: a key
-    // that already maps to a status means this scheduled post was published
-    // already, so just clean up the row.
-    if (idempotencyKey) {
-      const existingStatusId = await database.getIdempotentStatusId({
-        actorId: row.actorId,
-        key: idempotencyKey
+    // Honor the Idempotency-Key the same way the POST route does: a key that
+    // already maps to a status means this scheduled post was published already,
+    // so just clean up the row.
+    const existingStatusId = await database.getIdempotentStatusId({
+      actorId: row.actorId,
+      key: idempotencyKey
+    })
+    if (existingStatusId) {
+      await database.deleteScheduledStatus({
+        id: row.id,
+        actorId: row.actorId
       })
-      if (existingStatusId) {
-        await database.deleteScheduledStatus({
-          id: row.id,
-          actorId: row.actorId
-        })
-        return
-      }
+      return
     }
 
     let status
@@ -132,7 +135,7 @@ export const publishScheduledStatusJob = createJobHandle(
       })
     }
 
-    if (status && idempotencyKey) {
+    if (status) {
       await database.saveIdempotencyKey({
         actorId: row.actorId,
         key: idempotencyKey,

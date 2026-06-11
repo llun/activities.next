@@ -73,14 +73,46 @@ export const ScheduledStatusSQLDatabaseMixin = (
       .where('actorId', actorId)
       .limit(limit)
 
-    if (maxId) query.where('id', '<', maxId)
+    // Cursors are row ids, but ids are random UUIDs, so comparing them directly
+    // would shuffle pagination. Look the cursor row up and keyset on its
+    // scheduledAt, with id as a stable tiebreaker — the same pattern the status
+    // timeline uses on createdAt. The raw cursor value is passed straight into
+    // the comparison (it is already in the column's storage format).
+    if (maxId) {
+      const cursor = await database<SQLScheduledStatus>('scheduled_statuses')
+        .where({ actorId, id: maxId })
+        .first()
+      if (cursor) {
+        query.where((wb) => {
+          wb.where('scheduledAt', '<', cursor.scheduledAt).orWhere((tie) => {
+            tie
+              .where('scheduledAt', '=', cursor.scheduledAt)
+              .where('id', '<', maxId)
+          })
+        })
+      }
+    }
+
     const newerCursorId = minId || sinceId
-    if (newerCursorId) query.where('id', '>', newerCursorId)
+    if (newerCursorId) {
+      const cursor = await database<SQLScheduledStatus>('scheduled_statuses')
+        .where({ actorId, id: newerCursorId })
+        .first()
+      if (cursor) {
+        query.where((wb) => {
+          wb.where('scheduledAt', '>', cursor.scheduledAt).orWhere((tie) => {
+            tie
+              .where('scheduledAt', '=', cursor.scheduledAt)
+              .where('id', '>', newerCursorId)
+          })
+        })
+      }
+    }
 
     if (minId) {
-      query.orderBy('id', 'asc')
+      query.orderBy('scheduledAt', 'asc').orderBy('id', 'asc')
     } else {
-      query.orderBy('id', 'desc')
+      query.orderBy('scheduledAt', 'desc').orderBy('id', 'desc')
     }
 
     const rows = await query
@@ -109,10 +141,13 @@ export const ScheduledStatusSQLDatabaseMixin = (
     scheduledAt
   }: UpdateScheduledStatusAtParams) {
     const updatedAt = new Date()
-    const affected = await database('scheduled_statuses')
+    // Do not key existence off the affected-row count: SQLite reports 0 changed
+    // rows when scheduledAt is updated to its current value, which would falsely
+    // 404 a no-op reschedule. Re-read the row instead — it is null only when the
+    // (actorId, id) pair does not exist.
+    await database('scheduled_statuses')
       .where({ actorId, id })
       .update({ scheduledAt: new Date(scheduledAt), updatedAt })
-    if (!affected) return null
 
     const row = await database<SQLScheduledStatus>('scheduled_statuses')
       .where({ actorId, id })

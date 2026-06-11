@@ -160,6 +160,37 @@ describe('publishScheduledStatusJob', () => {
     expect(row).toBeNull()
   })
 
+  it('is idempotent by default (no client key) using a row-derived key', async () => {
+    const text = `Default-idempotent scheduled note ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text, idempotency: null })
+    })
+    // Simulate a prior publish recorded under the row-derived fallback key
+    // (what the job saves when the client supplied no Idempotency-Key).
+    await database.saveIdempotencyKey({
+      actorId: actor1.id,
+      key: `scheduled-${scheduled.id}`,
+      statusId: `${actor1.id}/statuses/already-published-default`
+    })
+
+    const before = await database.getActorStatuses({ actorId: actor1.id })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-default-idempotent',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    // The retry did not publish a duplicate, and the row is cleaned up.
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    expect(after).toHaveLength(before.length)
+    expect(after.some((status) => status.text.includes(text))).toBe(false)
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).toBeNull()
+  })
+
   it('is a no-op for an unknown scheduled status id', async () => {
     await expect(
       publishScheduledStatusJob(database, {
