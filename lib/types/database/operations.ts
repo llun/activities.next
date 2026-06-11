@@ -1399,6 +1399,69 @@ export interface FeaturedTagDatabase {
 }
 
 // ============================================================================
+// Scheduled Status Database
+// ============================================================================
+
+// A status an actor has scheduled for future publication. `params` is the
+// Mastodon "params" payload (text, visibility, media_ids, poll, …) stored as
+// JSON text; `scheduledAt`/`createdAt`/`updatedAt` are epoch milliseconds in
+// the domain shape regardless of the backend's timestamp storage.
+export type ScheduledStatusData = {
+  id: string
+  actorId: string
+  scheduledAt: number
+  params: Mastodon.ScheduledStatusParams
+  createdAt: number
+  updatedAt: number
+}
+
+export type CreateScheduledStatusParams = {
+  actorId: string
+  scheduledAt: number
+  params: Mastodon.ScheduledStatusParams
+}
+export type GetScheduledStatusesParams = {
+  actorId: string
+  limit: number
+  maxId?: string
+  minId?: string
+  sinceId?: string
+}
+export type GetScheduledStatusParams = { actorId: string; id: string }
+export type UpdateScheduledStatusAtParams = {
+  actorId: string
+  id: string
+  scheduledAt: number
+}
+export type DeleteScheduledStatusParams = { actorId: string; id: string }
+export type GetDueScheduledStatusesParams = { before: number }
+
+export interface ScheduledStatusDatabase {
+  createScheduledStatus(
+    params: CreateScheduledStatusParams
+  ): Promise<ScheduledStatusData>
+  // Owner-scoped list ordered by id for Mastodon's scheduled_statuses cursor
+  // pagination (maxId/minId/sinceId keyset on the id).
+  getScheduledStatuses(
+    params: GetScheduledStatusesParams
+  ): Promise<ScheduledStatusData[]>
+  getScheduledStatus(
+    params: GetScheduledStatusParams
+  ): Promise<ScheduledStatusData | null>
+  // Reschedule; returns the updated row or null when not found/owned.
+  updateScheduledStatusAt(
+    params: UpdateScheduledStatusAtParams
+  ): Promise<ScheduledStatusData | null>
+  // Owner-scoped delete; true when a row was removed.
+  deleteScheduledStatus(params: DeleteScheduledStatusParams): Promise<boolean>
+  // Rows due for publication (scheduledAt <= before) across all actors, for the
+  // background publish job.
+  getDueScheduledStatuses(
+    params: GetDueScheduledStatusesParams
+  ): Promise<ScheduledStatusData[]>
+}
+
+// ============================================================================
 // Report Database
 // ============================================================================
 
