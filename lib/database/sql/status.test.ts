@@ -339,6 +339,8 @@ describe('StatusDatabase', () => {
           summary: '',
           sensitive: false,
           language: null,
+          applicationName: null,
+          applicationWebsite: null,
           reply: '',
           replies: [],
           actorAnnounceStatusId: null,

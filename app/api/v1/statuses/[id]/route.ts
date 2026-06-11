@@ -4,6 +4,10 @@ import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
 import {
+  annotateMastodonStatusesWithFilters,
+  getActiveFilters
+} from '@/lib/services/filters/applyFilters'
+import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
@@ -72,10 +76,25 @@ export const GET = traceApiRoute(
       )
       if (!mastodonStatus) return apiCorsError(req, CORS_HEADERS, 404)
 
+      // Mastodon annotates the `filtered` field on single-status reads using
+      // the `thread` filter context (the status detail view). Per-account
+      // filters are skipped for unauthenticated requests, but instance-wide
+      // server filters still apply to anonymous viewers (see getActiveFilters).
+      const filterRecords = await getActiveFilters(
+        database,
+        currentActor?.id,
+        'thread'
+      )
+      const [annotatedStatus] = annotateMastodonStatusesWithFilters(
+        [mastodonStatus],
+        [status],
+        filterRecords
+      )
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: mastodonStatus
+        data: annotatedStatus
       })
     },
     { matchMode: 'any' }

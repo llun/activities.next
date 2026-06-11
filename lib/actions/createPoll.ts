@@ -29,6 +29,9 @@ interface CreatePollFromUserInputParams {
   visibility?: MastodonVisibility
   sensitive?: boolean
   language?: string | null
+  // The registered OAuth client (Mastodon "application") that authored the
+  // status, when created via an app token. Omitted for web-session creates.
+  application?: { name: string; website: string | null }
 }
 export const createPollFromUserInput = async ({
   text,
@@ -41,7 +44,8 @@ export const createPollFromUserInput = async ({
   pollType,
   visibility,
   sensitive = false,
-  language = null
+  language = null,
+  application
 }: CreatePollFromUserInputParams) => {
   const config = getConfig()
   const span = getSpan('actions', 'createPollFromUser', {
@@ -113,7 +117,9 @@ export const createPollFromUserInput = async ({
     endAt,
     pollType,
     sensitive,
-    language
+    language,
+    applicationName: application?.name ?? null,
+    applicationWebsite: application?.website ?? null
   })
 
   await Promise.all([

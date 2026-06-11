@@ -35,7 +35,7 @@ export const BaseStatus = z.object({
     ),
 
   media_attachments: MediaAttachment.array(),
-  application: Application.optional(),
+  application: Application.nullable().optional(),
   emojis: CustomEmoji.array().describe(
     'Custom emoji to be used when rendering status content'
   ),

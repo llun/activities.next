@@ -82,6 +82,12 @@ export const StatusNote = StatusBase.extend({
   sensitive: z.boolean().optional(),
   // ISO 639 Part 1 two-letter language code, or null when unknown.
   language: z.string().nullable().optional(),
+  // The registered OAuth client (Mastodon "application") that authored the
+  // status, when it was created via an app token. Null/absent for statuses
+  // created through the web session. Optional so existing status literals and
+  // remote notes that predate the fields remain valid.
+  applicationName: z.string().nullable().optional(),
+  applicationWebsite: z.string().nullable().optional(),
   reply: z.string(),
   replies: z.looseObject(StatusBase.shape).array(),
 
@@ -102,6 +108,7 @@ export const StatusPoll = StatusNote.extend({
   choices: PollChoice.array(),
   endAt: z.number(),
   pollType: z.enum(['oneOf', 'anyOf']).default('oneOf'),
+  votersCount: z.number().optional(),
   voted: z.boolean().optional(),
   ownVotes: z.array(z.number()).optional()
 })

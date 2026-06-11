@@ -350,6 +350,73 @@ describe('getMastodonStatus', () => {
       }
     })
 
+    it('reports distinct voters_count for a multiple-choice poll', async () => {
+      const pollId = `${ACTOR3_ID}/statuses/mastodon-anyof-voters-${Date.now()}`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR3_ID,
+        text: 'Multiple choice poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['First', 'Second'],
+        pollType: 'anyOf',
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR1_ID,
+        choices: [0, 1],
+        allowAdditionalChoices: true
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR2_ID,
+        choices: [0],
+        allowAdditionalChoices: true
+      })
+
+      const status = (await database.getStatus({ statusId: pollId })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR3_ID
+      )
+
+      expect(mastodonStatus.poll?.votes_count).toEqual(3)
+      expect(mastodonStatus.poll?.voters_count).toEqual(2)
+    })
+
+    it('reports voters_count equal to votes_count for a single-choice poll', async () => {
+      const pollId = `${ACTOR3_ID}/statuses/mastodon-oneof-voters-${Date.now()}`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR3_ID,
+        text: 'Single choice poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        pollType: 'oneOf',
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR1_ID,
+        choices: [0]
+      })
+
+      const status = (await database.getStatus({ statusId: pollId })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR3_ID
+      )
+
+      expect(mastodonStatus.poll?.votes_count).toEqual(1)
+      expect(mastodonStatus.poll?.voters_count).toEqual(1)
+    })
+
     it('keys hydrated account cache by actor id when account url is a profile url', async () => {
       const status = (await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`

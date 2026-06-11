@@ -411,6 +411,8 @@ export const StatusSQLDatabaseMixin = (
     reply = '',
     sensitive = false,
     language = null,
+    applicationName = null,
+    applicationWebsite = null,
     createdAt
   }: CreateNoteParams) {
     const currentTime = new Date()
@@ -440,6 +442,8 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Note,
         content: statusContent,
+        applicationName,
+        applicationWebsite,
         reply,
         replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
@@ -496,6 +500,8 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      applicationName,
+      applicationWebsite,
       reply,
       to,
       cc,
@@ -782,6 +788,8 @@ export const StatusSQLDatabaseMixin = (
     pollType = 'oneOf',
     sensitive = false,
     language = null,
+    applicationName = null,
+    applicationWebsite = null,
     createdAt
   }: CreatePollParams) {
     const currentTime = new Date()
@@ -813,6 +821,8 @@ export const StatusSQLDatabaseMixin = (
         actorId,
         type: StatusType.enum.Poll,
         content: statusContent,
+        applicationName,
+        applicationWebsite,
         reply,
         replyHash: getStatusReplyHash(reply),
         createdAt: statusCreatedAt,
@@ -880,6 +890,8 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      applicationName,
+      applicationWebsite,
       reply,
       to,
       cc,
@@ -2338,6 +2350,14 @@ export const StatusSQLDatabaseMixin = (
     )
   }
 
+  async function getPollVotersCount(statusId: string): Promise<number> {
+    const result = await database('poll_voters')
+      .where('statusId', statusId)
+      .count<{ count: string }>('* as count')
+      .first()
+    return parseInt(String(result?.count ?? '0'), 10)
+  }
+
   async function getStatusWithAttachmentsFromData(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
@@ -2461,6 +2481,8 @@ export const StatusSQLDatabaseMixin = (
       summary: content.summary,
       sensitive: content.sensitive ?? false,
       language: content.language ?? null,
+      applicationName: data.applicationName ?? null,
+      applicationWebsite: data.applicationWebsite ?? null,
       reply: data.reply,
       replies: repliesNote,
       totalLikes,
@@ -2522,8 +2544,9 @@ export const StatusSQLDatabaseMixin = (
       })
     }
     if (data.type === StatusType.enum.Poll) {
-      const [pollChoices, voted, ownVotes] = await Promise.all([
+      const [pollChoices, votersCount, voted, ownVotes] = await Promise.all([
         getPollChoices(data.id),
+        getPollVotersCount(data.id),
         currentActorId
           ? hasActorVoted({ statusId: data.id, actorId: currentActorId })
           : false,
@@ -2537,6 +2560,7 @@ export const StatusSQLDatabaseMixin = (
         // TODO: Fix this endAt in the data or making sure it's not null
         endAt: content.endAt ?? Date.now(),
         pollType: content.pollType ?? 'oneOf',
+        votersCount,
         voted,
         ownVotes
       })
