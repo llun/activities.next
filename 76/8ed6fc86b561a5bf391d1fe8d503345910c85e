@@ -1,0 +1,38 @@
+lib/types/mastodon/scheduledStatus.ts
+  s_b98341b16c5f05::t_947af719c7054c 1-34
+lib/database/sql/scheduledStatus.ts
+  s_b98341b16c5f05::t_5421c4cf97a1c4 1-132
+lib/database/sql/index.ts
+  s_b98341b16c5f05::t_4206132cc7f0fb 30
+  s_b98341b16c5f05::t_70fccf3a7bdb0b 133
+  s_b98341b16c5f05::t_20be033a5fb98d 69
+lib/database/types.ts
+  s_b98341b16c5f05::t_a0ae72cf17cc4f 31
+  s_b98341b16c5f05::t_9eb3e46680831d 68
+lib/database/sql/scheduledStatus.test.ts
+  s_b98341b16c5f05::t_926b2341928125 1-238
+lib/types/database/operations.ts
+  s_b98341b16c5f05::t_aa8b8cdb3fc4f2 1391-1444,1446-1452
+  s_b98341b16c5f05::t_4e61d7e3692307 1445
+lib/types/mastodon/index.ts
+  s_b98341b16c5f05::t_371167355db215 17
+migrations/20260611042432_add_scheduled_statuses.js
+  s_b98341b16c5f05::t_c9b30082405e3f 1,13-15,29-33
+  s_b98341b16c5f05::t_1bf9e5f532eae8 2-12,16-28,34-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "768ed6fc86b561a5bf391d1fe8d503345910c85e",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
