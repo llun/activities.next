@@ -192,6 +192,45 @@ describe('POST /api/v1/emails/confirmations', () => {
     )
   })
 
+  it('normalizes a mixed-case new email param to lowercase before updating', async () => {
+    const response = await POST(
+      makeRequest({ email: '  New-Email@LLUN.test ' }),
+      {
+        params: Promise.resolve({})
+      }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDb.isAccountExists).toHaveBeenCalledWith({
+      email: 'new-email@llun.test'
+    })
+    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      email: 'new-email@llun.test'
+    })
+    const [mailArgs] = mockSendMail.mock.calls
+    expect(mailArgs[0].to).toEqual(['new-email@llun.test'])
+  })
+
+  it('allows a new email whose case differs from the allow-list entry', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [seedActor1.email, 'Allowed@LLUN.test'],
+      allowActorDomains: [],
+      email: { serviceFromAddress: 'noreply@llun.test' }
+    })
+
+    const response = await POST(makeRequest({ email: 'allowed@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      email: 'allowed@llun.test'
+    })
+  })
+
   it('returns 403 when the new email is not on the server allow-list', async () => {
     // The signed-in address stays on the allow-list (so auth still resolves the
     // actor); only the requested new address is absent from it.

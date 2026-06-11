@@ -35,15 +35,18 @@ const normalizeWhereValue = (value: unknown): unknown => {
 
 // Lowercase `accounts.email` in any record being inserted/updated so writes
 // going through better-auth (social/OAuth sign-up, email updates) store the
-// canonical form.
+// canonical form. Returns a NEW object when normalization applies rather than
+// mutating the caller's data — better-auth owns these objects and may rely on
+// reference stability, so we never mutate them in place.
 const normalizeEmailInData = (
   tableName: string,
   data: Record<string, unknown>
-): void => {
-  if (tableName !== ACCOUNTS_TABLE) return
+): Record<string, unknown> => {
+  if (tableName !== ACCOUNTS_TABLE) return data
   if (typeof data[EMAIL_FIELD] === 'string') {
-    data[EMAIL_FIELD] = normalizeEmail(data[EMAIL_FIELD] as string)
+    return { ...data, [EMAIL_FIELD]: normalizeEmail(data[EMAIL_FIELD]) }
   }
+  return data
 }
 
 const supportsNativeBooleans = (db: Knex): boolean => {
@@ -201,8 +204,10 @@ export const knexAdapter = (db: Knex) =>
       return {
         async create({ data, model }) {
           const tableName = getModelName(model)
-          const record = data as Record<string, unknown>
-          normalizeEmailInData(tableName, record)
+          const record = normalizeEmailInData(
+            tableName,
+            data as Record<string, unknown>
+          )
           const id = record.id as string
 
           if (model === 'session' || tableName === 'sessions') {
@@ -283,8 +288,10 @@ export const knexAdapter = (db: Knex) =>
           const existing = await idQuery
           if (!existing) return null
           const id = existing.id
-          const update = updateData as Record<string, unknown>
-          normalizeEmailInData(tableName, update)
+          const update = normalizeEmailInData(
+            tableName,
+            updateData as Record<string, unknown>
+          )
           await db(tableName).where(`${tableName}.id`, id).update(update)
           const row = await db(tableName).where(`${tableName}.id`, id).first()
           return row ? (hydrateDateFields(row) as any) : null
@@ -296,8 +303,10 @@ export const knexAdapter = (db: Knex) =>
           if (where) {
             query = applyWhere(query, tableName, where)
           }
-          const update = updateData as Record<string, unknown>
-          normalizeEmailInData(tableName, update)
+          const update = normalizeEmailInData(
+            tableName,
+            updateData as Record<string, unknown>
+          )
           const result = await query.update(update)
           return result
         },

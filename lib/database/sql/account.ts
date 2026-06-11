@@ -702,10 +702,12 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     email
   }: UpdateAccountEmailParams): Promise<void> {
     const currentTime = new Date()
-    await database('accounts').where('id', accountId).update({
-      email: normalizeEmail(email),
-      updatedAt: currentTime
-    })
+    await database('accounts')
+      .where('id', accountId)
+      .update({
+        email: normalizeEmail(email),
+        updatedAt: currentTime
+      })
   },
 
   async updateAccountName({

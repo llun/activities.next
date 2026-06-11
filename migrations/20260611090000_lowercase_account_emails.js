@@ -10,8 +10,37 @@
 // `user@x.com`). That is a data problem an operator must resolve by hand —
 // auto-merging accounts would be destructive — so this migration FAILS LOUDLY
 // listing the colliding addresses instead of attempting a merge.
+//
+// Rows are read in keyset-paginated chunks (ordered by id) rather than loaded
+// all at once, to keep peak memory bounded on instances with many accounts.
+// Writes happen inside a single transaction so the backfill is atomic: either
+// every row is normalized or none is, and re-running after a failure is safe.
 
 const normalizeEmail = (email) => String(email).trim().toLowerCase()
+
+const CHUNK_SIZE = 500
+
+// Iterates a table in id-ordered chunks, invoking `handle(rows)` per chunk.
+// Keyset pagination (id > cursor) keeps each query bounded and avoids holding
+// the whole table in memory at once.
+const forEachChunk = async (trx, columns, handle) => {
+  let cursor = null
+  for (;;) {
+    let query = trx('accounts')
+      .select(columns)
+      .orderBy('id', 'asc')
+      .limit(CHUNK_SIZE)
+    if (cursor !== null) query = query.where('id', '>', cursor)
+
+    const rows = await query
+    if (rows.length === 0) break
+
+    await handle(rows)
+
+    if (rows.length < CHUNK_SIZE) break
+    cursor = rows[rows.length - 1].id
+  }
+}
 
 /**
  * @param { import("knex").Knex } knex
@@ -19,23 +48,21 @@ const normalizeEmail = (email) => String(email).trim().toLowerCase()
  */
 exports.up = async (knex) => {
   await knex.transaction(async (trx) => {
-    const accounts = await trx('accounts').select(
-      'id',
-      'email',
-      'emailChangePending'
-    )
-
-    // Detect collisions before writing anything: group accounts by their
-    // normalized email and flag any normalized value claimed by more than one
-    // account.
+    // Pass 1 — detect collisions before writing anything. Group accounts by
+    // their normalized email; any normalized value claimed by more than one
+    // account would violate the unique constraint once lowercased. Only the
+    // normalized email strings are retained (not full rows), so memory stays
+    // proportional to the number of distinct emails rather than row size.
     const byNormalized = new Map()
-    for (const account of accounts) {
-      if (account.email == null) continue
-      const normalized = normalizeEmail(account.email)
-      const group = byNormalized.get(normalized) ?? []
-      group.push(account.email)
-      byNormalized.set(normalized, group)
-    }
+    await forEachChunk(trx, ['id', 'email'], (rows) => {
+      for (const account of rows) {
+        if (account.email == null) continue
+        const normalized = normalizeEmail(account.email)
+        const group = byNormalized.get(normalized) ?? []
+        group.push(account.email)
+        byNormalized.set(normalized, group)
+      }
+    })
 
     const collisions = [...byNormalized.entries()].filter(
       ([, originals]) => originals.length > 1
@@ -56,30 +83,42 @@ exports.up = async (knex) => {
       )
     }
 
-    // No collisions — rewrite the rows whose stored value is not already
-    // canonical. Update `email` and the pending-change column independently so
-    // both end up normalized.
-    for (const account of accounts) {
-      const update = {}
+    byNormalized.clear()
 
-      if (account.email != null) {
-        const normalizedEmail = normalizeEmail(account.email)
-        if (normalizedEmail !== account.email) {
-          update.email = normalizedEmail
+    // Pass 2 — rewrite the rows whose stored value is not already canonical.
+    // Update `email` and the pending-change column independently so both end up
+    // normalized. Per-row updates (rather than a set-based `lower()` UPDATE) are
+    // intentional: they apply the exact same JS normalization as the runtime,
+    // which a SQL `lower()` cannot guarantee on SQLite. Only differing rows are
+    // touched, and the read is chunked, so work is proportional to the number of
+    // rows that actually need changing.
+    await forEachChunk(
+      trx,
+      ['id', 'email', 'emailChangePending'],
+      async (rows) => {
+        for (const account of rows) {
+          const update = {}
+
+          if (account.email != null) {
+            const normalizedEmail = normalizeEmail(account.email)
+            if (normalizedEmail !== account.email) {
+              update.email = normalizedEmail
+            }
+          }
+
+          if (account.emailChangePending != null) {
+            const normalizedPending = normalizeEmail(account.emailChangePending)
+            if (normalizedPending !== account.emailChangePending) {
+              update.emailChangePending = normalizedPending
+            }
+          }
+
+          if (Object.keys(update).length > 0) {
+            await trx('accounts').where('id', account.id).update(update)
+          }
         }
       }
-
-      if (account.emailChangePending != null) {
-        const normalizedPending = normalizeEmail(account.emailChangePending)
-        if (normalizedPending !== account.emailChangePending) {
-          update.emailChangePending = normalizedPending
-        }
-      }
-
-      if (Object.keys(update).length > 0) {
-        await trx('accounts').where('id', account.id).update(update)
-      }
-    }
+    )
   })
 }
 
