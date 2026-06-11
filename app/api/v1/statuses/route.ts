@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
+import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
   OAuthGuardAnyScope,
@@ -30,6 +31,8 @@ import {
 } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -90,6 +93,20 @@ const NoteSchema = z
       note.media_ids.length > 0 ||
       (note.poll?.options.length ?? 0) > 0
   )
+
+// Dedupe, enforce the attachment cap, and resolve media ids to attachments.
+// Returns null when the set exceeds the cap or any id can't be resolved for the
+// actor — both the scheduled and immediate POST paths treat that as a 422.
+// Shared so the two paths can't drift apart.
+const resolveStatusMedia = async (
+  database: Database,
+  currentActor: Actor,
+  mediaIds: string[]
+): Promise<PostBoxAttachment[] | null> => {
+  const uniqueIds = [...new Set(mediaIds)]
+  if (uniqueIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) return null
+  return getAttachmentsFromMediaIds(database, currentActor, uniqueIds)
+}
 
 // GET /api/v1/statuses?id[]=1&id[]=2 — batch-fetch multiple statuses at once.
 // https://docs.joinmastodon.org/methods/statuses/#index
@@ -183,19 +200,13 @@ export const POST = traceApiRoute(
           }
 
           if (!note.poll) {
-            const mediaIds = [...new Set(note.media_ids)]
-            if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
-              return apiResponse({
-                req,
-                allowedMethods: CORS_HEADERS,
-                data: ERROR_422,
-                responseStatusCode: 422
-              })
-            }
-            const attachments = await getAttachmentsFromMediaIds(
+            // Validate media up front so a scheduled status never references
+            // media that is missing or over the cap (same rules as an immediate
+            // post). The resolved attachments are rebuilt from params at publish.
+            const attachments = await resolveStatusMedia(
               database,
               currentActor,
-              mediaIds
+              note.media_ids
             )
             if (!attachments) {
               return apiResponse({
@@ -334,19 +345,10 @@ export const POST = traceApiRoute(
             database
           })
         } else {
-          const mediaIds = [...new Set(note.media_ids)]
-          if (mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) {
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: ERROR_422,
-              responseStatusCode: 422
-            })
-          }
-          const attachments = await getAttachmentsFromMediaIds(
+          const attachments = await resolveStatusMedia(
             database,
             currentActor,
-            mediaIds
+            note.media_ids
           )
           if (!attachments) {
             return apiResponse({

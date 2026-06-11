@@ -1446,8 +1446,9 @@ export interface ScheduledStatusDatabase {
   createScheduledStatus(
     params: CreateScheduledStatusParams
   ): Promise<ScheduledStatusData>
-  // Owner-scoped list ordered by id for Mastodon's scheduled_statuses cursor
-  // pagination (maxId/minId/sinceId keyset on the id).
+  // Owner-scoped list ordered by scheduledAt descending (id as a stable
+  // tiebreaker) for Mastodon's scheduled_statuses cursor pagination — the
+  // maxId/minId/sinceId cursors keyset on scheduledAt + id.
   getScheduledStatuses(
     params: GetScheduledStatusesParams
   ): Promise<ScheduledStatusData[]>
