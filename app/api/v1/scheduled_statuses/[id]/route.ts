@@ -5,6 +5,10 @@ import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
+import {
+  MIN_SCHEDULED_STATUS_AHEAD_MS,
+  SCHEDULED_AT_TOO_SOON_ERROR
+} from '@/lib/services/mastodon/constants'
 import { toMastodonScheduledStatus } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -22,9 +26,6 @@ const CORS_HEADERS = [
   HttpMethod.enum.PUT,
   HttpMethod.enum.DELETE
 ]
-
-// Mastodon rejects a scheduled_at less than five minutes in the future.
-const MIN_SCHEDULE_AHEAD_MS = 5 * 60 * 1000
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -121,15 +122,12 @@ export const PUT = traceApiRoute(
       const scheduledAt = Date.parse(parsed.data.scheduled_at)
       if (
         Number.isNaN(scheduledAt) ||
-        scheduledAt - Date.now() < MIN_SCHEDULE_AHEAD_MS
+        scheduledAt - Date.now() < MIN_SCHEDULED_STATUS_AHEAD_MS
       ) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: {
-            error:
-              'Validation failed: Scheduled at must be at least 5 minutes in the future'
-          },
+          data: { error: SCHEDULED_AT_TOO_SOON_ERROR },
           responseStatusCode: 422
         })
       }

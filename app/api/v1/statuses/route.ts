@@ -13,7 +13,9 @@ import {
   MAX_POLL_OPTION_CHARS,
   MAX_STATUS_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS,
-  MIN_POLL_OPTIONS
+  MIN_POLL_OPTIONS,
+  MIN_SCHEDULED_STATUS_AHEAD_MS,
+  SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
@@ -46,9 +48,6 @@ const CORS_HEADERS = [
 // Mastodon does not document a cap; bound the batch to keep per-request work
 // predictable.
 const MAX_BATCH_STATUSES = 100
-
-// Mastodon rejects a scheduled_at less than five minutes in the future.
-const MIN_SCHEDULE_AHEAD_MS = 5 * 60 * 1000
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -164,15 +163,12 @@ export const POST = traceApiRoute(
           const scheduledAt = Date.parse(note.scheduled_at)
           if (
             Number.isNaN(scheduledAt) ||
-            scheduledAt - Date.now() < MIN_SCHEDULE_AHEAD_MS
+            scheduledAt - Date.now() < MIN_SCHEDULED_STATUS_AHEAD_MS
           ) {
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: {
-                error:
-                  'Validation failed: Scheduled at must be at least 5 minutes in the future'
-              },
+              data: { error: SCHEDULED_AT_TOO_SOON_ERROR },
               responseStatusCode: 422
             })
           }

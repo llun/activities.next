@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
@@ -189,6 +190,8 @@ describe('scheduled_statuses CRUD', () => {
     )
 
     expect(response.status).toBe(422)
+    const error = await response.json()
+    expect(error.error).toBe(SCHEDULED_AT_TOO_SOON_ERROR)
   })
 
   it('deletes a scheduled status and then 404s on lookup', async () => {

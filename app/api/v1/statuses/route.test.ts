@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
+import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -598,7 +599,52 @@ describe('POST /api/v1/statuses', () => {
     )
 
     expect(response.status).toBe(422)
+    const error = await response.json()
+    expect(error.error).toBe(SCHEDULED_AT_TOO_SOON_ERROR)
     expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('stores a scheduled status with a poll when scheduled_at is far enough ahead', async () => {
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Scheduled favourite color?',
+          scheduled_at: scheduledAt,
+          poll: {
+            options: ['Red', 'Green', 'Blue'],
+            expires_in: 3600,
+            multiple: true
+          }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const scheduledStatus = await response.json()
+    expect(scheduledStatus.scheduled_at).toBe(scheduledAt)
+    expect(scheduledStatus.params.poll).toMatchObject({
+      options: ['Red', 'Green', 'Blue'],
+      expires_in: 3600,
+      multiple: true
+    })
+    // No status was published and no publish job was queued.
+    expect(getQueue().publish).not.toHaveBeenCalled()
+
+    const stored = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    const storedRow = stored.find((row) => row.id === scheduledStatus.id)
+    expect(storedRow).toBeTruthy()
+    expect(storedRow?.params.poll?.options).toEqual(['Red', 'Green', 'Blue'])
   })
 
   it('does not resurrect a deleted status for a reused Idempotency-Key (orphan cleanup)', async () => {
