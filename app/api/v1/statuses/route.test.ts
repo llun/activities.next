@@ -1,8 +1,9 @@
-import crypto from 'crypto'
 import knex, { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -16,15 +17,6 @@ import { GET, POST } from './route'
 
 // better-auth stores tokens hashed as SHA-256 base64url; the guard re-hashes the
 // presented bearer token to look it up, so seeded tokens must match.
-const hashToken = (token: string) =>
-  crypto
-    .createHash('sha256')
-    .update(token)
-    .digest()
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
 
 const mockGetServerSession = jest.fn()
 jest.mock('@/lib/services/auth/getSession', () => ({
