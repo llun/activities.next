@@ -104,7 +104,7 @@ change doesn't touch.
   success/error, not HTML `<form method="post">` with server redirects; the route
   returns JSON via `apiResponse()`.
 - Validate any user-controlled URL before using it as an `href`: parse with
-  `new URL()` and allow only the `http:`/`https:` protocols — not a `startsWith`
+  `new URL()` and allow only the `http:` or `https:` protocols — not a `startsWith`
   or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS
   sink (see `lib/utils/fitness.ts`).
 - React state updater functions stay pure — no side effects, and don't fire another
