@@ -2018,6 +2018,7 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     limit,
     maxStatusId,
+    minStatusId,
     sinceStatusId,
     visibleToActorId
   }: GetRebloggedByParams) {
@@ -2078,9 +2079,15 @@ export const StatusSQLDatabaseMixin = (
           })
       })
 
-    const [maxCursor, sinceCursor] = await Promise.all([
+    const [maxCursor, minCursor, sinceCursor] = await Promise.all([
       maxStatusId
         ? visibleReblogsQuery.clone().where('statuses.id', maxStatusId).first<{
+            id: string
+            createdAt: Date
+          }>('statuses.id', 'statuses.createdAt')
+        : null,
+      minStatusId
+        ? visibleReblogsQuery.clone().where('statuses.id', minStatusId).first<{
             id: string
             createdAt: Date
           }>('statuses.id', 'statuses.createdAt')
@@ -2096,12 +2103,15 @@ export const StatusSQLDatabaseMixin = (
         : null
     ])
     if (maxStatusId && !maxCursor) return []
+    if (minStatusId && !minCursor) return []
     if (sinceStatusId && !sinceCursor) return []
 
-    let query = dedupedReblogsQuery
-      .clone()
-      .orderBy('createdAt', 'desc')
-      .orderBy('id', 'desc')
+    let query = dedupedReblogsQuery.clone()
+    if (minStatusId) {
+      query = query.orderBy('createdAt', 'asc').orderBy('id', 'asc')
+    } else {
+      query = query.orderBy('createdAt', 'desc').orderBy('id', 'desc')
+    }
 
     if (maxCursor) {
       query = query.where((builder) => {
@@ -2111,6 +2121,18 @@ export const StatusSQLDatabaseMixin = (
             sameTimestampBuilder
               .where('createdAt', maxCursor.createdAt)
               .where('id', '<', maxCursor.id)
+          })
+      })
+    }
+
+    if (minCursor) {
+      query = query.where((builder) => {
+        builder
+          .where('createdAt', '>', minCursor.createdAt)
+          .orWhere((sameTimestampBuilder) => {
+            sameTimestampBuilder
+              .where('createdAt', minCursor.createdAt)
+              .where('id', '>', minCursor.id)
           })
       })
     }
@@ -2132,7 +2154,8 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const result = await query
-    return result.map((item) => ({
+    const ordered = minStatusId ? result.reverse() : result
+    return ordered.map((item) => ({
       actorId: item.actorId,
       statusId: item.id
     }))

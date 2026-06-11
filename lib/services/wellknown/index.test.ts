@@ -24,8 +24,8 @@ describe('wellknown services', () => {
         authorization_endpoint:
           'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',
-        revocation_endpoint: 'https://test.example.com/api/oauth/revoke',
-        userinfo_endpoint: 'https://test.example.com/api/oauth/userinfo',
+        revocation_endpoint: 'https://test.example.com/oauth/revoke',
+        userinfo_endpoint: 'https://test.example.com/oauth/userinfo',
         jwks_uri: 'https://test.example.com/api/auth/jwks',
         response_types_supported: ['code'],
         response_modes_supported: ['query'],
@@ -69,9 +69,9 @@ describe('wellknown services', () => {
         authorization_endpoint:
           'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',
-        userinfo_endpoint: 'https://test.example.com/api/oauth/userinfo',
+        userinfo_endpoint: 'https://test.example.com/oauth/userinfo',
         jwks_uri: 'https://test.example.com/api/auth/jwks',
-        revocation_endpoint: 'https://test.example.com/api/oauth/revoke',
+        revocation_endpoint: 'https://test.example.com/oauth/revoke',
         response_types_supported: ['code'],
         subject_types_supported: ['public'],
         id_token_signing_alg_values_supported: ['RS256'],

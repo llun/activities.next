@@ -83,6 +83,16 @@ const nextConfig: NextConfig = {
       {
         source: '/nodeinfo/:path*',
         destination: '/api/nodeinfo/:path*'
+      },
+      // Mastodon/OIDC clients hardcode the spec paths; the handlers live under
+      // /api/oauth/* so route the standard paths there.
+      {
+        source: '/oauth/revoke',
+        destination: '/api/oauth/revoke'
+      },
+      {
+        source: '/oauth/userinfo',
+        destination: '/api/oauth/userinfo'
       }
     ]
   }
