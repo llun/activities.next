@@ -13,5 +13,5 @@ export const OPTIONS = defaultOptions(UPDATE_CREDENTIALS_CORS_HEADERS)
 // Scope: write:accounts (satisfied by the aggregate `write`).
 export const PATCH = traceApiRoute(
   'updateCredentials',
-  updateCredentialsHandler
+  updateCredentialsHandler(UPDATE_CREDENTIALS_CORS_HEADERS)
 )

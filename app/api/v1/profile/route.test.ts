@@ -150,4 +150,17 @@ describe('PATCH /api/v1/profile', () => {
     })
     expect(response.status).toBe(401)
   })
+
+  it('advertises GET, PATCH and OPTIONS in the Access-Control-Allow-Methods header', async () => {
+    const response = await PATCH(
+      createJsonRequest({ display_name: 'Profile Name' }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const allowedMethods = response.headers.get('Access-Control-Allow-Methods')
+    expect(allowedMethods).toContain('GET')
+    expect(allowedMethods).toContain('PATCH')
+    expect(allowedMethods).toContain('OPTIONS')
+  })
 })

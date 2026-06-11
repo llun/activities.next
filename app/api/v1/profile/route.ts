@@ -24,4 +24,7 @@ export const GET = traceApiRoute(
 // updated CredentialAccount. Same semantics as update_credentials.
 // https://docs.joinmastodon.org/methods/profile/#update
 // Scope: write:accounts (satisfied by the aggregate `write`).
-export const PATCH = traceApiRoute('patchProfile', updateCredentialsHandler)
+export const PATCH = traceApiRoute(
+  'patchProfile',
+  updateCredentialsHandler(CORS_HEADERS)
+)

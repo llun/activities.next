@@ -17,10 +17,6 @@ export const UPDATE_CREDENTIALS_CORS_HEADERS = [
   HttpMethod.enum.PATCH
 ]
 
-const guardOptions = {
-  errorResponse: corsErrorResponse(UPDATE_CREDENTIALS_CORS_HEADERS)
-}
-
 const FieldAttribute = z.object({
   name: z.string().max(255),
   value: z.string().max(2047)
@@ -125,132 +121,135 @@ const normalizeJsonBody = (json: Record<string, unknown>) => {
 // PATCH /api/v1/profile. Updates the current actor's profile fields (display
 // name / note / fields / privacy / avatar / header / ...) and returns the
 // updated CredentialAccount.
+// The CORS allow-list differs per route (update_credentials = OPTIONS,PATCH;
+// profile = OPTIONS,GET,PATCH), so it is passed in.
 // Scope: write:accounts (satisfied by the aggregate `write`).
-export const updateCredentialsHandler = OAuthGuardAnyScope(
-  [Scope.enum.write, Scope.enum['write:accounts']],
-  async (req, context) => {
-    const { currentActor, database } = context
+export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
+  OAuthGuardAnyScope(
+    [Scope.enum.write, Scope.enum['write:accounts']],
+    async (req, context) => {
+      const { currentActor, database } = context
 
-    let scalars: Record<string, unknown> = {}
-    let avatarFile: File | null = null
-    let headerFile: File | null = null
+      let scalars: Record<string, unknown> = {}
+      let avatarFile: File | null = null
+      let headerFile: File | null = null
 
-    const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
-    if (contentType.includes('application/json')) {
-      const text = await req.text()
-      if (text.trim() !== '') {
-        let json: unknown
+      const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
+      if (contentType.includes('application/json')) {
+        const text = await req.text()
+        if (text.trim() !== '') {
+          let json: unknown
+          try {
+            json = JSON.parse(text)
+          } catch {
+            return apiResponse({
+              req,
+              allowedMethods: corsHeaders,
+              data: { error: 'Invalid request body' },
+              responseStatusCode: 400
+            })
+          }
+          if (typeof json === 'object' && json !== null) {
+            scalars = normalizeJsonBody(json as Record<string, unknown>)
+          }
+        }
+      } else {
         try {
-          json = JSON.parse(text)
+          const form = await req.formData()
+          const parsedForm = assignFieldsFromForm(form)
+          scalars = parsedForm.scalars
+          avatarFile = parsedForm.avatar
+          headerFile = parsedForm.header
         } catch {
-          return apiResponse({
-            req,
-            allowedMethods: UPDATE_CREDENTIALS_CORS_HEADERS,
-            data: { error: 'Invalid request body' },
-            responseStatusCode: 400
-          })
-        }
-        if (typeof json === 'object' && json !== null) {
-          scalars = normalizeJsonBody(json as Record<string, unknown>)
+          scalars = {}
         }
       }
-    } else {
-      try {
-        const form = await req.formData()
-        const parsedForm = assignFieldsFromForm(form)
-        scalars = parsedForm.scalars
-        avatarFile = parsedForm.avatar
-        headerFile = parsedForm.header
-      } catch {
-        scalars = {}
-      }
-    }
 
-    const parsed = UpdateCredentialsRequest.safeParse(scalars)
-    if (!parsed.success) {
-      return apiResponse({
-        req,
-        allowedMethods: UPDATE_CREDENTIALS_CORS_HEADERS,
-        data: { error: 'Invalid input' },
-        responseStatusCode: 422
-      })
-    }
-
-    const { display_name, note, locked, bot, discoverable, fields, source } =
-      parsed.data
-
-    // Persist avatar/header through the shared media-save pipeline and store
-    // the resulting URLs as actor settings. An invalid file (wrong type/too
-    // large) is a 422; a valid file with no storage configured leaves the
-    // existing image unchanged (saveMedia returns null).
-    let iconUrl: string | undefined
-    let headerImageUrl: string | undefined
-    for (const [file, assign] of [
-      [avatarFile, (url: string) => (iconUrl = url)],
-      [headerFile, (url: string) => (headerImageUrl = url)]
-    ] as const) {
-      if (!file) continue
-      const media = MediaSchema.safeParse({ file })
-      if (!media.success) {
+      const parsed = UpdateCredentialsRequest.safeParse(scalars)
+      if (!parsed.success) {
         return apiResponse({
           req,
-          allowedMethods: UPDATE_CREDENTIALS_CORS_HEADERS,
-          data: { error: 'Invalid image file' },
+          allowedMethods: corsHeaders,
+          data: { error: 'Invalid input' },
           responseStatusCode: 422
         })
       }
-      const saved = await saveMedia(database, currentActor, media.data)
-      if (saved) assign(saved.url)
-    }
 
-    const manuallyApprovesFollowers = parseBoolean(locked)
-    const botFlag = parseBoolean(bot)
-    const discoverableFlag = parseBoolean(discoverable)
-    const sensitiveFlag = parseBoolean(source?.sensitive)
+      const { display_name, note, locked, bot, discoverable, fields, source } =
+        parsed.data
 
-    await database.updateActor({
-      actorId: currentActor.id,
-      ...(display_name !== undefined ? { name: display_name } : null),
-      ...(note !== undefined ? { summary: note } : null),
-      ...(manuallyApprovesFollowers !== undefined
-        ? { manuallyApprovesFollowers }
-        : null),
-      ...(botFlag !== undefined ? { bot: botFlag } : null),
-      ...(discoverableFlag !== undefined
-        ? { discoverable: discoverableFlag }
-        : null),
-      ...(fields !== undefined ? { fields } : null),
-      ...(source?.privacy !== undefined
-        ? { defaultPrivacy: source.privacy }
-        : null),
-      ...(sensitiveFlag !== undefined
-        ? { defaultSensitive: sensitiveFlag }
-        : null),
-      ...(source?.language !== undefined
-        ? { defaultLanguage: source.language }
-        : null),
-      ...(iconUrl !== undefined ? { iconUrl } : null),
-      ...(headerImageUrl !== undefined ? { headerImageUrl } : null)
-    })
+      // Persist avatar/header through the shared media-save pipeline and store
+      // the resulting URLs as actor settings. An invalid file (wrong type/too
+      // large) is a 422; a valid file with no storage configured leaves the
+      // existing image unchanged (saveMedia returns null).
+      let iconUrl: string | undefined
+      let headerImageUrl: string | undefined
+      for (const [file, assign] of [
+        [avatarFile, (url: string) => (iconUrl = url)],
+        [headerFile, (url: string) => (headerImageUrl = url)]
+      ] as const) {
+        if (!file) continue
+        const media = MediaSchema.safeParse({ file })
+        if (!media.success) {
+          return apiResponse({
+            req,
+            allowedMethods: corsHeaders,
+            data: { error: 'Invalid image file' },
+            responseStatusCode: 422
+          })
+        }
+        const saved = await saveMedia(database, currentActor, media.data)
+        if (saved) assign(saved.url)
+      }
 
-    const [account, followRequestsCount] = await Promise.all([
-      database.getMastodonActorFromId({ id: currentActor.id }),
-      database.getFollowRequestsCount({ targetActorId: currentActor.id })
-    ])
-    if (!account) {
-      logger.error({ message: 'update_credentials: actor not found' })
+      const manuallyApprovesFollowers = parseBoolean(locked)
+      const botFlag = parseBoolean(bot)
+      const discoverableFlag = parseBoolean(discoverable)
+      const sensitiveFlag = parseBoolean(source?.sensitive)
+
+      await database.updateActor({
+        actorId: currentActor.id,
+        ...(display_name !== undefined ? { name: display_name } : null),
+        ...(note !== undefined ? { summary: note } : null),
+        ...(manuallyApprovesFollowers !== undefined
+          ? { manuallyApprovesFollowers }
+          : null),
+        ...(botFlag !== undefined ? { bot: botFlag } : null),
+        ...(discoverableFlag !== undefined
+          ? { discoverable: discoverableFlag }
+          : null),
+        ...(fields !== undefined ? { fields } : null),
+        ...(source?.privacy !== undefined
+          ? { defaultPrivacy: source.privacy }
+          : null),
+        ...(sensitiveFlag !== undefined
+          ? { defaultSensitive: sensitiveFlag }
+          : null),
+        ...(source?.language !== undefined
+          ? { defaultLanguage: source.language }
+          : null),
+        ...(iconUrl !== undefined ? { iconUrl } : null),
+        ...(headerImageUrl !== undefined ? { headerImageUrl } : null)
+      })
+
+      const [account, followRequestsCount] = await Promise.all([
+        database.getMastodonActorFromId({ id: currentActor.id }),
+        database.getFollowRequestsCount({ targetActorId: currentActor.id })
+      ])
+      if (!account) {
+        logger.error({ message: 'update_credentials: actor not found' })
+        return apiResponse({
+          req,
+          allowedMethods: corsHeaders,
+          data: { error: 'Account not found' },
+          responseStatusCode: 500
+        })
+      }
       return apiResponse({
         req,
-        allowedMethods: UPDATE_CREDENTIALS_CORS_HEADERS,
-        data: { error: 'Account not found' },
-        responseStatusCode: 500
+        allowedMethods: corsHeaders,
+        data: buildCredentialAccount({ account, followRequestsCount })
       })
-    }
-    return apiResponse({
-      req,
-      allowedMethods: UPDATE_CREDENTIALS_CORS_HEADERS,
-      data: buildCredentialAccount({ account, followRequestsCount })
-    })
-  },
-  guardOptions
-)
+    },
+    { errorResponse: corsErrorResponse(corsHeaders) }
+  )
