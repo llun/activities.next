@@ -42,7 +42,16 @@ const normalizeEmailInData = (
   tableName: string,
   data: Record<string, unknown>
 ): Record<string, unknown> => {
-  if (tableName !== ACCOUNTS_TABLE) return data
+  // Guard the better-auth boundary: only touch `accounts` rows that are real
+  // objects, so a malformed/primitive payload is passed through untouched
+  // rather than throwing on property access.
+  if (
+    tableName !== ACCOUNTS_TABLE ||
+    typeof data !== 'object' ||
+    data === null
+  ) {
+    return data
+  }
   if (typeof data[EMAIL_FIELD] === 'string') {
     return { ...data, [EMAIL_FIELD]: normalizeEmail(data[EMAIL_FIELD]) }
   }
@@ -108,7 +117,7 @@ const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
 
 const applyWhere = (
   query: Knex.QueryBuilder,
-  model: string,
+  tableName: string,
   where: CleanedWhere[]
 ) => {
   for (const clause of where) {
@@ -116,7 +125,7 @@ const applyWhere = (
     // Normalizing only changes string/string[] email values to lowercase, which
     // preserves the original value type — cast back so knex's overloads resolve.
     const value = (
-      isAccountsEmail(model, field)
+      isAccountsEmail(tableName, field)
         ? normalizeWhereValue(clause.value)
         : clause.value
     ) as typeof clause.value
@@ -124,32 +133,32 @@ const applyWhere = (
 
     switch (operator) {
       case 'eq':
-        query = query[method](`${model}.${field}`, '=', value)
+        query = query[method](`${tableName}.${field}`, '=', value)
         break
       case 'ne':
-        query = query[method](`${model}.${field}`, '<>', value)
+        query = query[method](`${tableName}.${field}`, '<>', value)
         break
       case 'gt':
-        query = query[method](`${model}.${field}`, '>', value)
+        query = query[method](`${tableName}.${field}`, '>', value)
         break
       case 'gte':
-        query = query[method](`${model}.${field}`, '>=', value)
+        query = query[method](`${tableName}.${field}`, '>=', value)
         break
       case 'lt':
-        query = query[method](`${model}.${field}`, '<', value)
+        query = query[method](`${tableName}.${field}`, '<', value)
         break
       case 'lte':
-        query = query[method](`${model}.${field}`, '<=', value)
+        query = query[method](`${tableName}.${field}`, '<=', value)
         break
       case 'in':
         query = query[method === 'orWhere' ? 'orWhereIn' : 'whereIn'](
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           Array.isArray(value) ? value : [value]
         )
         break
       case 'not_in':
         query = query[method === 'orWhere' ? 'orWhereNotIn' : 'whereNotIn'](
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           Array.isArray(value) ? value : [value]
         )
         break
@@ -157,7 +166,7 @@ const applyWhere = (
         const escaped = escapeLikeValue(value)
         const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
         query = query[rawMethod]("?? like ? escape '\\'", [
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           `%${escaped}%`
         ])
         break
@@ -166,7 +175,7 @@ const applyWhere = (
         const escaped = escapeLikeValue(value)
         const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
         query = query[rawMethod]("?? like ? escape '\\'", [
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           `${escaped}%`
         ])
         break
@@ -175,7 +184,7 @@ const applyWhere = (
         const escaped = escapeLikeValue(value)
         const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
         query = query[rawMethod]("?? like ? escape '\\'", [
-          `${model}.${field}`,
+          `${tableName}.${field}`,
           `%${escaped}`
         ])
         break
