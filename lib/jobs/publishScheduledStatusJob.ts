@@ -145,6 +145,14 @@ export const publishScheduledStatusJob = createJobHandle(
         { statusId: status.id, scheduledStatusId: row.id },
         'publishScheduledStatusJob: published scheduled status'
       )
+    } else {
+      // createNote/createPoll returns null for an unpublishable status (e.g. a
+      // direct-visibility post with no resolvable mentions). Drop the row like
+      // the other terminal cases, but warn so it is not lost silently.
+      logger.warn(
+        { scheduledStatusId: row.id, actorId: row.actorId },
+        'publishScheduledStatusJob: status creation returned null, dropping scheduled status'
+      )
     }
 
     await database.deleteScheduledStatus({ id: row.id, actorId: row.actorId })

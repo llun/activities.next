@@ -12,6 +12,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Status } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -572,12 +573,16 @@ describe('POST /api/v1/statuses', () => {
     const after = await database.getActorStatuses({ actorId: ACTOR1_ID })
     expect(after).toHaveLength(before.length)
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
-    expect(getQueue().publish).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-        data: { scheduledStatusId: scheduledStatus.id },
-        delaySeconds: expect.any(Number)
-      })
+    const publishArgs = (getQueue().publish as jest.Mock).mock.calls[0][0]
+    expect(publishArgs).toMatchObject({
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduledStatus.id }
+    })
+    expect(publishArgs.delaySeconds).toEqual(expect.any(Number))
+    // The dedup id folds in scheduledAt so a later reschedule is not dropped by
+    // QStash deduplication of the original schedule.
+    expect(publishArgs.id).toBe(
+      getHashFromString(`${scheduledStatus.id}-${Date.parse(scheduledAt)}`)
     )
 
     // Exactly one scheduled row now exists for the actor.
@@ -586,6 +591,40 @@ describe('POST /api/v1/statuses', () => {
       limit: 40
     })
     expect(stored.map((row) => row.id)).toContain(scheduledStatus.id)
+  })
+
+  it('rolls back the stored scheduled status and returns 500 when enqueue fails', async () => {
+    const before = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce(
+      new Error('queue unavailable')
+    )
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Enqueue will fail',
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(500)
+    // The orphan row was rolled back: no new scheduled status remains.
+    const after = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    expect(after).toHaveLength(before.length)
   })
 
   it('stores a scheduled status with the actor default privacy when visibility is omitted', async () => {

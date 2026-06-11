@@ -8,6 +8,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from './names'
 
@@ -187,21 +188,82 @@ describe('publishScheduledStatusJob', () => {
 
     // Re-enqueued with the remaining delay, not published.
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
-    expect(getQueue().publish).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-        data: { scheduledStatusId: scheduled.id },
-        delaySeconds: expect.any(Number)
-      })
+    const publishArgs = (getQueue().publish as jest.Mock).mock.calls[0][0]
+    expect(publishArgs).toMatchObject({
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+    expect(publishArgs.delaySeconds).toBeGreaterThan(60)
+    // The early re-enqueue folds scheduledAt into the dedup id, matching the
+    // create and reschedule enqueue sites.
+    expect(publishArgs.id).toBe(
+      getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`)
     )
-    const delaySeconds = (getQueue().publish as jest.Mock).mock.calls[0][0]
-      .delaySeconds
-    expect(delaySeconds).toBeGreaterThan(60)
 
     // No status was published and the scheduled row still exists.
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
     expect(statuses.some((status) => status.text.includes(text))).toBe(false)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).not.toBeNull()
+  })
+
+  it('drops the scheduled row without publishing when the actor no longer exists', async () => {
+    const scheduled = await database.createScheduledStatus({
+      actorId: 'https://llun.test/users/ghost-actor',
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text: `Orphan scheduled note ${Date.now()}` })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-actor-missing',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    expect(getQueue().publish).not.toHaveBeenCalled()
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).toBeNull()
+  })
+
+  it('drops the scheduled row without publishing when the media can no longer be resolved', async () => {
+    const text = `Missing media scheduled note ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text, media_ids: ['999999999'] })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-media-missing',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    const statuses = await database.getActorStatuses({ actorId: actor1.id })
+    expect(statuses.some((status) => status.text.includes(text))).toBe(false)
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).toBeNull()
+  })
+
+  it('drops the scheduled row without publishing when status creation returns null', async () => {
+    // A direct-visibility note with no resolvable mentions is unpublishable:
+    // createNoteFromUserInput returns null. The job must still clear the row.
+    const text = `Direct with no mentions ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text, visibility: 'direct' })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-null-status',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    const statuses = await database.getActorStatuses({ actorId: actor1.id })
+    expect(statuses.some((status) => status.text.includes(text))).toBe(false)
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(row).toBeNull()
   })
 })

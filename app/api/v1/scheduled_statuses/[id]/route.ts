@@ -18,9 +18,11 @@ import {
 import { Scope } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_404,
   ERROR_422,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -138,6 +140,14 @@ export const PUT = traceApiRoute(
         })
       }
 
+      // Capture the prior time first so we can roll back if re-enqueue fails.
+      const existing = await database.getScheduledStatus({
+        actorId: currentActor.id,
+        id
+      })
+      if (!existing) return notFound(req)
+      const previousScheduledAt = existing.scheduledAt
+
       const scheduled = await database.updateScheduledStatusAt({
         actorId: currentActor.id,
         id,
@@ -149,12 +159,33 @@ export const PUT = traceApiRoute(
       // rescheduled time. The dedup id folds in scheduledAt so rescheduling to a
       // new time (especially an earlier one) produces a different id and is not
       // dropped by QStash deduplication; retries of the same schedule still are.
-      await getQueue().publish({
-        id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
-        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-        data: { scheduledStatusId: scheduled.id },
-        delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
-      })
+      try {
+        await getQueue().publish({
+          id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
+          name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+          data: { scheduledStatusId: scheduled.id },
+          delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
+        })
+      } catch (error) {
+        // The new time is committed but the delayed job failed to enqueue. Roll
+        // the stored time back so it matches the (failed) enqueue rather than
+        // showing a new time that will never fire, then surface the failure.
+        await database.updateScheduledStatusAt({
+          actorId: currentActor.id,
+          id,
+          scheduledAt: previousScheduledAt
+        })
+        logger.error(
+          { error, scheduledStatusId: id },
+          'rescheduleScheduledStatus: failed to re-enqueue publish job'
+        )
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+      }
 
       return apiResponse({
         req,

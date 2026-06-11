@@ -32,6 +32,7 @@ import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_422,
@@ -223,12 +224,33 @@ export const POST = traceApiRoute(
           // auto-fire when a real queue is configured. The dedup id folds in
           // scheduledAt so a later reschedule to a new time is not dropped by
           // QStash deduplication while retries of the same schedule still are.
-          await getQueue().publish({
-            id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
-            name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
-            data: { scheduledStatusId: scheduled.id },
-            delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
-          })
+          try {
+            await getQueue().publish({
+              id: getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`),
+              name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+              data: { scheduledStatusId: scheduled.id },
+              delaySeconds: scheduledDelaySeconds(scheduled.scheduledAt)
+            })
+          } catch (error) {
+            // The row is committed but the delayed job failed to enqueue. With
+            // no cron poller yet it would never fire, so roll the row back and
+            // surface the failure rather than leave an orphan that silently
+            // never publishes.
+            await database.deleteScheduledStatus({
+              id: scheduled.id,
+              actorId: currentActor.id
+            })
+            logger.error(
+              { error, scheduledStatusId: scheduled.id },
+              'createStatus: failed to enqueue scheduled status publish job'
+            )
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_500,
+              responseStatusCode: 500
+            })
+          }
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
@@ -361,7 +383,8 @@ export const POST = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: mastodonStatus
         })
-      } catch {
+      } catch (error) {
+        logger.error({ error }, 'createStatus: request failed')
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

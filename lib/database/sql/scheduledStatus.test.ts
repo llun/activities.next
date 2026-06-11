@@ -116,6 +116,63 @@ describe('ScheduledStatusDatabase', () => {
     })
   })
 
+  it('paginates with max_id, since_id and min_id cursors', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = []
+      for (let i = 0; i < 3; i++) {
+        created.push(
+          await database.createScheduledStatus({
+            actorId: ACTOR_ID,
+            scheduledAt: Date.now() + (i + 1) * 1_000_000,
+            params: baseParams({ text: `Page ${i}` })
+          })
+        )
+      }
+      // Rows are ordered by id (a UUID), so derive the expected ordering by
+      // sorting the actual ids lexicographically rather than by insertion.
+      const ascending = created.map((row) => row.id).sort()
+      const descending = [...ascending].reverse()
+      const middle = ascending[1]
+
+      // Default order is id descending.
+      const all = await database.getScheduledStatuses({
+        actorId: ACTOR_ID,
+        limit: 20
+      })
+      expect(all.map((row) => row.id)).toEqual(descending)
+
+      // max_id: ids strictly less than the cursor, descending.
+      const older = await database.getScheduledStatuses({
+        actorId: ACTOR_ID,
+        limit: 20,
+        maxId: middle
+      })
+      expect(older.map((row) => row.id)).toEqual(
+        descending.filter((id) => id < middle)
+      )
+
+      // since_id: ids strictly greater than the cursor, descending.
+      const newerSince = await database.getScheduledStatuses({
+        actorId: ACTOR_ID,
+        limit: 20,
+        sinceId: middle
+      })
+      expect(newerSince.map((row) => row.id)).toEqual(
+        descending.filter((id) => id > middle)
+      )
+
+      // min_id: ids strictly greater than the cursor, ascending (reversed).
+      const newerMin = await database.getScheduledStatuses({
+        actorId: ACTOR_ID,
+        limit: 20,
+        minId: middle
+      })
+      expect(newerMin.map((row) => row.id)).toEqual(
+        ascending.filter((id) => id > middle)
+      )
+    })
+  })
+
   it('updates the scheduled time and reflects it on read', async () => {
     await withFreshDatabase(async (database) => {
       const created = await database.createScheduledStatus({

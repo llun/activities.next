@@ -6,6 +6,7 @@ import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -255,6 +256,127 @@ describe('scheduled_statuses CRUD', () => {
       { params: Promise.resolve({ id: created.id }) }
     )
     expect(getResponse.status).toBe(404)
+  })
+
+  it('does not let another actor read, reschedule or delete a scheduled status', async () => {
+    const created = await database.createScheduledStatus({
+      actorId: ACTOR1_ID,
+      scheduledAt: tenMinutesAhead(),
+      params: baseParams('Owned by actor1')
+    })
+
+    // Sign in as actor2 for the next three handler calls.
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    const getResponse = await GET_ID(
+      new NextRequest(
+        `https://llun.test/api/v1/scheduled_statuses/${created.id}`,
+        { headers: { Origin: 'https://llun.test' } }
+      ),
+      { params: Promise.resolve({ id: created.id }) }
+    )
+    expect(getResponse.status).toBe(404)
+
+    const putResponse = await PUT(
+      new NextRequest(
+        `https://llun.test/api/v1/scheduled_statuses/${created.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            scheduled_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }
+      ),
+      { params: Promise.resolve({ id: created.id }) }
+    )
+    expect(putResponse.status).toBe(404)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+
+    const deleteResponse = await DELETE(
+      new NextRequest(
+        `https://llun.test/api/v1/scheduled_statuses/${created.id}`,
+        { method: 'DELETE', headers: { Origin: 'https://llun.test' } }
+      ),
+      { params: Promise.resolve({ id: created.id }) }
+    )
+    expect(deleteResponse.status).toBe(404)
+
+    // The owner's row is untouched.
+    const stillStored = await database.getScheduledStatus({
+      actorId: ACTOR1_ID,
+      id: created.id
+    })
+    expect(stillStored).not.toBeNull()
+  })
+
+  it('rolls back the reschedule and returns 500 when re-enqueue fails', async () => {
+    const created = await database.createScheduledStatus({
+      actorId: ACTOR1_ID,
+      scheduledAt: tenMinutesAhead(),
+      params: baseParams('Reschedule enqueue fails')
+    })
+    const originalScheduledAt = created.scheduledAt
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce(
+      new Error('queue unavailable')
+    )
+
+    const response = await PUT(
+      new NextRequest(
+        `https://llun.test/api/v1/scheduled_statuses/${created.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            scheduled_at: new Date(Date.now() + 45 * 60 * 1000).toISOString()
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }
+      ),
+      { params: Promise.resolve({ id: created.id }) }
+    )
+
+    expect(response.status).toBe(500)
+    // The stored time was rolled back to the original schedule.
+    const stored = await database.getScheduledStatus({
+      actorId: ACTOR1_ID,
+      id: created.id
+    })
+    expect(stored?.scheduledAt).toBe(originalScheduledAt)
+  })
+
+  it('emits a next-page Link header when the page is full', async () => {
+    for (let i = 0; i < 3; i++) {
+      await database.createScheduledStatus({
+        actorId: ACTOR2_ID,
+        scheduledAt: tenMinutesAhead() + i * 1000,
+        params: baseParams(`Actor2 paginated ${i}`)
+      })
+    }
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/scheduled_statuses?limit=2', {
+        headers: { Origin: 'https://llun.test', host: 'llun.test' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const list = await response.json()
+    expect(list).toHaveLength(2)
+    const linkHeader = response.headers.get('Link')
+    expect(linkHeader).toContain('rel="next"')
+    expect(linkHeader).toContain(`max_id=${list[1].id}`)
   })
 
   it('returns 404 when deleting an unknown scheduled status id', async () => {
