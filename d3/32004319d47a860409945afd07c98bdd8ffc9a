@@ -1,0 +1,24 @@
+lib/database/sql/lowercaseAccountEmailsMigration.test.ts
+  s_a4109b2d9b71dd::t_a81ff06d6a6bb6 116-137
+migrations/20260611090000_lowercase_account_emails.js
+  s_a4109b2d9b71dd::t_aedc0b20eca784 31-52
+  s_a4109b2d9b71dd::t_d8d4a469470b7a 15-20
+  s_a4109b2d9b71dd::t_2a12b2cda3e719 117
+  s_a4109b2d9b71dd::t_6579f6b37ada30 150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d332004319d47a860409945afd07c98bdd8ffc9a",
+  "prompts": {},
+  "sessions": {
+    "s_a4109b2d9b71dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "027e6fe0-5adf-4bd1-96f8-b6e384141935",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
