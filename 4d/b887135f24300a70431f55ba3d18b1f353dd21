@@ -1,0 +1,34 @@
+lib/services/statuses/scheduledStatusSerializer.ts
+  s_aad18c3f613de8::t_2a827db13eadf1 45-46,50-51
+  s_aad18c3f613de8::t_6402212dfbd3d7 92-95,98
+  s_aad18c3f613de8::t_fbc5a4f05dbce3 70
+lib/jobs/publishScheduledStatusJob.ts
+  s_aad18c3f613de8::t_89d2c679c84c8a 90-98,112
+  s_aad18c3f613de8::t_4bd607e8e4d10e 144
+lib/types/database/operations.ts
+  s_aad18c3f613de8::t_ce7d553286bbbf 2021-2023
+  s_aad18c3f613de8::t_9e01295eb98296 1979-1982
+lib/database/sql/media.ts
+  s_aad18c3f613de8::t_b9f3767a410a87 24
+  s_aad18c3f613de8::t_6c3b2ad2aa6003 520-532
+app/api/v1/statuses/route.ts
+  s_aad18c3f613de8::t_bb57571c7b5aa0 218-219
+lib/services/statuses/scheduledStatusSerializer.test.ts
+  s_aad18c3f613de8::t_1ec42e34300f74 50-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4db887135f24300a70431f55ba3d18b1f353dd21",
+  "prompts": {},
+  "sessions": {
+    "s_aad18c3f613de8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b99b1bb-fc82-4e50-b1dc-acabeb2082ce",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
