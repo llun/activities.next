@@ -1,0 +1,24 @@
+migrations/20260612135800_add_suggestion_dismissals.js
+  s_2de5d568423448::t_7f915d92a304a6 2-10,14-21,27-29
+  s_2de5d568423448::t_aaf8ead0535fb3 1,11-13,22-26
+lib/types/mastodon/suggestion.ts
+  s_2de5d568423448::t_278938141e5ce6 1-19
+lib/types/mastodon/index.ts
+  s_2de5d568423448::t_b79e1a45db7484 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "0d30bdbb57578b1608ac90c02a7c98d92c1d2295",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
