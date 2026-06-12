@@ -15,6 +15,7 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Textarea } from '@/lib/components/ui/textarea'
+import { MAX_RULE_POSITION } from '@/lib/services/rules/adminRule'
 
 // The server returns rules ordered by position ascending (ties broken by
 // creation time). `Array.prototype.sort` is stable, so re-sorting after an
@@ -127,10 +128,14 @@ export const RulesPanel: FC = () => {
     // An emptied field or an unchanged/invalid value reverts to the saved
     // position instead of sending an update.
     const next = Number(draft)
+    // The `max` attribute only styles the field; a typed/pasted out-of-range
+    // value still commits on blur. Reject it here (like negatives) so we revert
+    // instead of firing a doomed request the server would 422.
     if (
       draft.trim() === '' ||
       !Number.isInteger(next) ||
       next < 0 ||
+      next > MAX_RULE_POSITION ||
       next === rule.position
     ) {
       clearDraft()
@@ -246,6 +251,9 @@ export const RulesPanel: FC = () => {
                     id={`rule-position-${rule.id}`}
                     type="number"
                     min={0}
+                    // Match the 32-bit integer cap enforced server-side so the
+                    // field flags out-of-range values before submission.
+                    max={MAX_RULE_POSITION}
                     step={1}
                     className="w-20"
                     value={positionDrafts[rule.id] ?? String(rule.position)}
@@ -256,6 +264,13 @@ export const RulesPanel: FC = () => {
                       }))
                     }
                     onBlur={() => handlePositionCommit(rule)}
+                    // The input isn't inside a form, so Enter would otherwise do
+                    // nothing. Blur on Enter to commit the position via onBlur.
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.currentTarget.blur()
+                      }
+                    }}
                     // Serialize position updates so two in-flight edits can't
                     // interleave their list re-sorts, and block edits while a
                     // delete is in flight so its rollback snapshot can't discard
