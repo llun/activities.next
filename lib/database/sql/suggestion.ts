@@ -25,7 +25,7 @@ export const SuggestionSQLDatabaseMixin = (
     // edges count on both hops, and candidates the actor already follows,
     // has a pending follow request to, or has dismissed are excluded
     // (Undo/Rejected follows remain suggestable).
-    const rows = await database('follows as f1')
+    const rows = (await database('follows as f1')
       .join('follows as f2', function () {
         this.on('f2.actorId', 'f1.targetActorId').andOnVal(
           'f2.status',
@@ -35,9 +35,8 @@ export const SuggestionSQLDatabaseMixin = (
       .where('f1.actorId', actorId)
       .where('f1.status', FollowStatus.enum.Accepted)
       .whereNot('f2.targetActorId', actorId)
-      .whereNotIn('f2.targetActorId', (builder) => {
-        builder
-          .select('targetActorId')
+      .whereNotIn('f2.targetActorId', function () {
+        this.select('targetActorId')
           .from('follows')
           .where('actorId', actorId)
           .whereIn('status', [
@@ -45,20 +44,19 @@ export const SuggestionSQLDatabaseMixin = (
             FollowStatus.enum.Requested
           ])
       })
-      .whereNotIn('f2.targetActorId', (builder) => {
-        builder
-          .select('targetActorId')
+      .whereNotIn('f2.targetActorId', function () {
+        this.select('targetActorId')
           .from('suggestion_dismissals')
           .where({ actorId })
       })
       .groupBy('f2.targetActorId')
       .select('f2.targetActorId as targetActorId')
-      .count<SQLFriendsOfFriendsRow[]>('* as mutuals')
+      .count({ mutuals: '*' })
       .orderBy([
         { column: 'mutuals', order: 'desc' },
         { column: 'targetActorId' }
       ])
-      .limit(limit)
+      .limit(limit)) as SQLFriendsOfFriendsRow[]
 
     return rows.map(
       (row): FriendsOfFriendsSuggestion => ({
