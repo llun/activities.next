@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   MAX_PINNED_STATUSES,
@@ -11,6 +12,7 @@ import {
   MAX_FILE_SIZE
 } from '@/lib/services/medias/constants'
 import { isTranslationEnabled } from '@/lib/services/translation'
+import { Rule } from '@/lib/types/mastodon/rule'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -23,6 +25,10 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 // Public per Mastodon: GET /api/v2/instance is served unauthenticated.
 export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
   const config = getConfig()
+  // The instance payload must stay robust: when the database is unavailable,
+  // serve the static configuration with an empty rules list instead of failing.
+  const database = getDatabase()
+  const rules = database ? await database.getInstanceRules() : []
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
@@ -68,7 +74,10 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         approval_required: false,
         message: null,
         url: null
-      }
+      },
+      rules: rules.map((rule) =>
+        Rule.parse({ id: rule.id, text: rule.text, hint: rule.hint })
+      )
     }
   })
 })
