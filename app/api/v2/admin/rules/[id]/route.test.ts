@@ -129,6 +129,11 @@ describe('/api/v2/admin/rules/[id]', () => {
       body: { position: -1 }
     },
     {
+      description:
+        'returns 422 when the updated position exceeds the 32-bit int max',
+      body: { position: 2147483648 }
+    },
+    {
       description: 'returns 422 when the body has no updatable fields',
       body: {}
     }

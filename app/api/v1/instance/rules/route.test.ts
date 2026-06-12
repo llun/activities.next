@@ -72,4 +72,22 @@ describe('GET /api/v1/instance/rules', () => {
       mockDatabase = database
     }
   })
+
+  it('returns a JSON 500 when loading rules throws', async () => {
+    const spy = jest
+      .spyOn(database, 'getInstanceRules')
+      .mockRejectedValueOnce(new Error('connection lost'))
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/instance/rules'),
+        params
+      )
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Failed to load rules'
+      })
+    } finally {
+      spy.mockRestore()
+    }
+  })
 })

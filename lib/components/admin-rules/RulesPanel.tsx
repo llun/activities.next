@@ -15,6 +15,7 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Textarea } from '@/lib/components/ui/textarea'
+import { MAX_RULE_POSITION } from '@/lib/services/rules/adminRule'
 
 // The server returns rules ordered by position ascending (ties broken by
 // creation time). `Array.prototype.sort` is stable, so re-sorting after an
@@ -246,6 +247,9 @@ export const RulesPanel: FC = () => {
                     id={`rule-position-${rule.id}`}
                     type="number"
                     min={0}
+                    // Match the 32-bit integer cap enforced server-side so the
+                    // field flags out-of-range values before submission.
+                    max={MAX_RULE_POSITION}
                     step={1}
                     className="w-20"
                     value={positionDrafts[rule.id] ?? String(rule.position)}

@@ -118,6 +118,10 @@ describe('/api/v2/admin/rules', () => {
     {
       description: 'returns 422 when the position is negative',
       body: { text: 'ok', position: -1 }
+    },
+    {
+      description: 'returns 422 when the position exceeds the 32-bit int max',
+      body: { text: 'ok', position: 2147483648 }
     }
   ])('$description', async ({ body }) => {
     const response = await POST(baseRequest({ method: 'POST', body }), {
