@@ -102,6 +102,19 @@ describe('/api/v2/admin/rules', () => {
     expect(entry).toEqual(created)
   })
 
+  it('accepts a position at the 32-bit integer max boundary', async () => {
+    const response = await POST(
+      baseRequest({
+        method: 'POST',
+        body: { text: 'Boundary rule', position: 2147483647 }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    const created = await response.json()
+    expect(created.position).toBe(2147483647)
+  })
+
   it.each([
     {
       description: 'returns 422 when the text is empty',
