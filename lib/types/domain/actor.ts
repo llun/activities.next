@@ -44,6 +44,11 @@ export const Actor = ActorProfile.extend({
   privateKey: z.string().optional(),
   publicKey: z.string(),
   account: Account.optional(),
+  // Mastodon `reading:*` preferences. Private per-user settings: kept on Actor
+  // (not ActorProfile) so they never leak into public profile shapes.
+  readingExpandMedia: z.enum(['default', 'show_all', 'hide_all']).optional(),
+  readingExpandSpoilers: z.boolean().optional(),
+  readingAutoplayGifs: z.boolean().optional(),
   updatedAt: z.number(),
   deletionStatus: z.enum(['scheduled', 'deleting']).nullable().optional(),
   deletionScheduledAt: z.number().nullable().optional()
