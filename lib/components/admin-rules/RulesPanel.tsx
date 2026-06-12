@@ -256,6 +256,13 @@ export const RulesPanel: FC = () => {
                       }))
                     }
                     onBlur={() => handlePositionCommit(rule)}
+                    // The input isn't inside a form, so Enter would otherwise do
+                    // nothing. Blur on Enter to commit the position via onBlur.
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.currentTarget.blur()
+                      }
+                    }}
                     // Serialize position updates so two in-flight edits can't
                     // interleave their list re-sorts, and block edits while a
                     // delete is in flight so its rollback snapshot can't discard
