@@ -385,6 +385,15 @@ CREATE TABLE public.idempotency_keys (
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.instance_rules (
+    id character varying(255) NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    text text NOT NULL,
+    hint text DEFAULT ''::text NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.jwks (
     id character varying(255) NOT NULL,
     "publicKey" text NOT NULL,
@@ -1048,6 +1057,9 @@ ALTER TABLE ONLY public.follows
 
 ALTER TABLE ONLY public.idempotency_keys
     ADD CONSTRAINT idempotency_keys_pkey PRIMARY KEY ("actorId", key);
+
+ALTER TABLE ONLY public.instance_rules
+    ADD CONSTRAINT instance_rules_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.jwks
     ADD CONSTRAINT jwks_pkey PRIMARY KEY (id);
