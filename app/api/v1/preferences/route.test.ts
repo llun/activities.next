@@ -91,7 +91,9 @@ describe('/api/v1/preferences', () => {
       defaultPrivacy: 'private',
       defaultSensitive: true,
       defaultLanguage: 'th',
-      readingExpandSpoilers: true
+      readingExpandMedia: 'show_all',
+      readingExpandSpoilers: true,
+      readingAutoplayGifs: true
     })
     const response = await GET(
       new NextRequest('https://llun.test/api/v1/preferences'),
@@ -102,9 +104,9 @@ describe('/api/v1/preferences', () => {
       'posting:default:visibility': 'private',
       'posting:default:sensitive': true,
       'posting:default:language': 'th',
-      'reading:expand:media': 'default',
+      'reading:expand:media': 'show_all',
       'reading:expand:spoilers': true,
-      'reading:autoplay:gifs': false
+      'reading:autoplay:gifs': true
     })
   })
 })
