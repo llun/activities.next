@@ -128,10 +128,14 @@ export const RulesPanel: FC = () => {
     // An emptied field or an unchanged/invalid value reverts to the saved
     // position instead of sending an update.
     const next = Number(draft)
+    // The `max` attribute only styles the field; a typed/pasted out-of-range
+    // value still commits on blur. Reject it here (like negatives) so we revert
+    // instead of firing a doomed request the server would 422.
     if (
       draft.trim() === '' ||
       !Number.isInteger(next) ||
       next < 0 ||
+      next > MAX_RULE_POSITION ||
       next === rule.position
     ) {
       clearDraft()
