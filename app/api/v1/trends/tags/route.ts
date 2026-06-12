@@ -1,5 +1,10 @@
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonTag } from '@/lib/services/mastodon/getMastodonTag'
+import {
+  TRENDS_DAYS,
+  normalizeTrendsLimit,
+  normalizeTrendsOffset
+} from '@/lib/services/trends/request'
 import { Scope, TagDailyHistoryPoint } from '@/lib/types/database/operations'
 import { Tag, TagHistory } from '@/lib/types/mastodon/tag'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -10,24 +15,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const TRENDS_DAYS = 7
-const TRENDS_DEFAULT_LIMIT = 10
-const TRENDS_MAX_LIMIT = 20
 const DAY_MS = 86_400_000
-
-// Garbage or absent input falls back to the default; valid input is clamped
-// to the Mastodon maximum of 20. Mirrors normalizeSuggestionsLimit.
-const normalizeTrendsLimit = (rawLimit: string | null): number => {
-  const limit = rawLimit !== null ? Number(rawLimit) : null
-  return Number.isSafeInteger(limit) && limit && limit > 0
-    ? Math.min(limit, TRENDS_MAX_LIMIT)
-    : TRENDS_DEFAULT_LIMIT
-}
-
-const normalizeTrendsOffset = (rawOffset: string | null): number => {
-  const offset = rawOffset !== null ? Number(rawOffset) : null
-  return Number.isSafeInteger(offset) && offset && offset > 0 ? offset : 0
-}
 
 // Seven UTC-day buckets newest first, zero-filled for days without uses.
 // `day` is the unix-second start of the UTC day; all values are strings per
