@@ -1,6 +1,7 @@
 import { getDatabase } from '@/lib/database'
 import { Rule } from '@/lib/types/mastodon/rule'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -22,7 +23,24 @@ export const GET = traceApiRoute('getInstanceRules', async (req) => {
     })
   }
 
-  const rules = await database.getInstanceRules()
+  let rules
+  try {
+    rules = await database.getInstanceRules()
+  } catch (error) {
+    // A query failure (timeout, lock, etc.) must return structured JSON like
+    // the database-unavailable branch above, not let Next.js emit a non-JSON
+    // 500 that Mastodon clients expecting JSON can't parse.
+    logger.warn({
+      message: 'Failed to load instance rules for /api/v1/instance/rules',
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { error: 'Failed to load rules' },
+      responseStatusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+    })
+  }
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
