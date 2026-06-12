@@ -34,6 +34,7 @@ import {
   ServerFilterDatabase,
   StatusDatabase,
   StatusMuteDatabase,
+  SuggestionDatabase,
   TimelineDatabase,
   TranslationCacheDatabase
 } from '@/lib/types/database/operations'
@@ -71,6 +72,7 @@ export type Database = AccountDatabase &
   SearchDatabase &
   StatusDatabase &
   StatusMuteDatabase &
+  SuggestionDatabase &
   IdempotencyDatabase &
   TranslationCacheDatabase &
   TimelineDatabase &
