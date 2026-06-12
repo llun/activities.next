@@ -19,6 +19,7 @@ import {
   FollowedTagDatabase,
   IdempotencyDatabase,
   InstanceActivityDatabase,
+  InstanceRuleDatabase,
   LikeDatabase,
   ListDatabase,
   MarkerDatabase,
@@ -42,6 +43,7 @@ export type Database = AccountDatabase &
   ActorDatabase &
   AdminDatabase &
   InstanceActivityDatabase &
+  InstanceRuleDatabase &
   FitnessFileDatabase &
   FitnessRouteHeatmapDatabase &
   FitnessSettingsDatabase &

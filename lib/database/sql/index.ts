@@ -18,6 +18,7 @@ import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { FollowedTagSQLDatabaseMixin } from '@/lib/database/sql/followedTag'
 import { IdempotencySQLDatabaseMixin } from '@/lib/database/sql/idempotency'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
+import { InstanceRuleSQLDatabaseMixin } from '@/lib/database/sql/instanceRule'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MarkerSQLDatabaseMixin } from '@/lib/database/sql/marker'
@@ -61,6 +62,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
   const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
   const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
+  const instanceRuleDatabase = InstanceRuleSQLDatabaseMixin(database)
   const likeDatabase = LikeSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
@@ -110,6 +112,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...fitnessRouteHeatmapDatabase,
     ...fitnessSettingsDatabase,
     ...instanceActivityDatabase,
+    ...instanceRuleDatabase,
     ...bookmarkDatabase,
     ...blockDatabase,
     ...customEmojiDatabase,

@@ -14,6 +14,7 @@ export * from './tag'
 export * from './marker'
 export * from './list'
 export * from './report'
+export * from './rule'
 export * from './scheduledStatus'
 
 export * from './filter/index'
