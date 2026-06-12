@@ -62,13 +62,14 @@ export const SuggestionSQLDatabaseMixin = (
         this.select('actorId').from('blocks').where('targetActorId', actorId)
       })
       // Mutes are one-directional (only what the actor mutes) and expire: a
-      // mute is active while endsAt IS NULL or endsAt > now.
+      // mute is active while endsAt IS NULL or endsAt >= now (matching
+      // applyBlockMuteFilter and getMute/isMuting's "expired when endsAt < now").
       .whereNotIn('f2.targetActorId', function () {
         this.select('targetActorId')
           .from('mutes')
           .where('actorId', actorId)
           .andWhere(function () {
-            this.whereNull('endsAt').orWhere('endsAt', '>', now)
+            this.whereNull('endsAt').orWhere('endsAt', '>=', now)
           })
       })
       .groupBy('f2.targetActorId')
