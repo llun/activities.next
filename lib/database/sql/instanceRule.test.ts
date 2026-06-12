@@ -129,6 +129,16 @@ describe('updateInstanceRule', () => {
       expected: { text: 'Original text', hint: 'Original hint', position: 5 }
     },
     {
+      description: 'moves the rule to position 0 when position 0 is provided',
+      update: { position: 0 },
+      expected: { text: 'Original text', hint: 'Original hint', position: 0 }
+    },
+    {
+      description: 'clears the hint when an empty hint is provided',
+      update: { hint: '' },
+      expected: { text: 'Original text', hint: '', position: 1 }
+    },
+    {
       description: 'updates every field when all fields are provided',
       update: { text: 'Updated text', hint: 'Updated hint', position: 9 },
       expected: { text: 'Updated text', hint: 'Updated hint', position: 9 }

@@ -95,11 +95,27 @@ describe('/api/v2/admin/rules', () => {
     expect(entry).toEqual(created)
   })
 
-  it('returns 422 when the text is empty', async () => {
-    const response = await POST(
-      baseRequest({ method: 'POST', body: { text: '', hint: 'something' } }),
-      { params: Promise.resolve({}) }
-    )
+  it.each([
+    {
+      description: 'returns 422 when the text is empty',
+      body: { text: '', hint: 'something' }
+    },
+    {
+      description: 'returns 422 when the text exceeds 1000 characters',
+      body: { text: 'a'.repeat(1001) }
+    },
+    {
+      description: 'returns 422 when the hint exceeds 2000 characters',
+      body: { text: 'ok', hint: 'a'.repeat(2001) }
+    },
+    {
+      description: 'returns 422 when the position is negative',
+      body: { text: 'ok', position: -1 }
+    }
+  ])('$description', async ({ body }) => {
+    const response = await POST(baseRequest({ method: 'POST', body }), {
+      params: Promise.resolve({})
+    })
     expect(response.status).toBe(422)
   })
 })

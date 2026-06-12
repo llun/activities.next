@@ -117,6 +117,42 @@ describe('/api/v2/admin/rules/[id]', () => {
 
   it.each([
     {
+      description: 'returns 422 when the updated text is empty',
+      body: { text: '' }
+    },
+    {
+      description: 'returns 422 when the updated text exceeds 1000 characters',
+      body: { text: 'a'.repeat(1001) }
+    },
+    {
+      description: 'returns 422 when the updated position is negative',
+      body: { position: -1 }
+    }
+  ])('$description', async ({ body }) => {
+    const rule = await database.createInstanceRule({
+      text: 'Guarded rule',
+      hint: 'Guarded hint',
+      position: 2
+    })
+
+    const response = await PATCH(
+      baseRequest(rule.id, { method: 'PATCH', body }),
+      { params: Promise.resolve({ id: rule.id }) }
+    )
+    expect(response.status).toBe(422)
+
+    const rules = await database.getInstanceRules()
+    expect(rules.find((item) => item.id === rule.id)).toEqual(
+      expect.objectContaining({
+        text: 'Guarded rule',
+        hint: 'Guarded hint',
+        position: 2
+      })
+    )
+  })
+
+  it.each([
+    {
       description: 'returns 404 when updating an unknown rule',
       handler: PATCH,
       init: { method: 'PATCH', body: { text: 'Updated rule' } }
