@@ -62,7 +62,10 @@ export const RulesPanel: FC = () => {
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const text = newText.trim()
-    if (!text || saving) return
+    // Also bail while a delete is in flight: the submit button is disabled
+    // then, but a programmatic submit must not slip a create past the
+    // delete-rollback snapshot.
+    if (!text || saving || deletingId !== null) return
     setSaving(true)
     setFormError(null)
     try {
@@ -113,6 +116,10 @@ export const RulesPanel: FC = () => {
   }
 
   const handlePositionCommit = async (rule: ServerRule) => {
+    // Bail while a delete is in flight. Disabling the input mid-edit fires its
+    // onBlur, which would otherwise commit a position change past the
+    // delete-rollback snapshot.
+    if (deletingId !== null) return
     const draft = positionDrafts[rule.id]
     if (draft === undefined) return
     const clearDraft = () =>
