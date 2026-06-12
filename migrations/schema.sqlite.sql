@@ -205,3 +205,4 @@ CREATE INDEX `server_filter_keywords_filter_id` on `server_filter_keywords` (`fi
 CREATE TABLE `scheduled_statuses` (`id` varchar(255), `actorId` varchar(255) not null, `scheduledAt` datetime not null, `params` text not null, `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`id`));
 CREATE INDEX `scheduled_statuses_actorid_index` on `scheduled_statuses` (`actorId`);
 CREATE INDEX `scheduled_statuses_scheduledat_index` on `scheduled_statuses` (`scheduledAt`);
+CREATE TABLE `instance_rules` (`id` varchar(255), `position` integer not null default '0', `text` text not null, `hint` text not null default '', `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`id`));
