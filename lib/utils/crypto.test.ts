@@ -168,10 +168,22 @@ describe('crypto utilities', () => {
         chiSquare += Math.pow(observed - expected, 2) / expected
       }
 
-      // For 62 characters (degrees of freedom = 61)
-      // Critical value at 0.05 significance level ≈ 79.08
-      // If chi-square < critical value, distribution is not significantly biased
-      expect(chiSquare).toBeLessThan(100) // Relaxed threshold for test reliability
+      // The statistic follows a chi-square distribution with
+      // degrees of freedom = chars.length - 1 = 61 under the null
+      // hypothesis of a uniform distribution. Note that increasing the
+      // sample size does NOT shrink this statistic — under the null it
+      // stays ~chi-square(61) for any sample size — so the only way to
+      // control the false-positive (flake) rate is to pick the threshold
+      // from the distribution's critical values.
+      //
+      // We use a very small significance level alpha = 1e-4 so a fair
+      // generator only trips this assertion about once every 10,000 runs,
+      // which keeps CI reliable while still catching real bias. The
+      // critical value chi-square(61, 1 - 1e-4) ≈ 110.84.
+      const degreesOfFreedom = chars.length - 1
+      expect(degreesOfFreedom).toBe(61)
+      const chiSquareCriticalValue = 110.84 // alpha = 1e-4, df = 61
+      expect(chiSquare).toBeLessThan(chiSquareCriticalValue)
     })
 
     it('generates at least 10 of each character type in large sample', () => {
