@@ -12,8 +12,10 @@ import {
   MAX_FILE_SIZE
 } from '@/lib/services/medias/constants'
 import { isTranslationEnabled } from '@/lib/services/translation'
+import { InstanceRuleData } from '@/lib/types/database/operations'
 import { Rule } from '@/lib/types/mastodon/rule'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { VERSION } from '@/lib/utils/version'
@@ -28,7 +30,19 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
   // The instance payload must stay robust: when the database is unavailable,
   // serve the static configuration with an empty rules list instead of failing.
   const database = getDatabase()
-  const rules = database ? await database.getInstanceRules() : []
+  let rules: InstanceRuleData[] = []
+  if (database) {
+    try {
+      rules = await database.getInstanceRules()
+    } catch (error) {
+      // A query failure (timeout, lock, etc.) must not take down the public
+      // metadata endpoint — fall back to an empty rules list.
+      logger.warn({
+        message: 'Failed to load instance rules for /api/v2/instance',
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,

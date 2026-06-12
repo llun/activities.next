@@ -62,13 +62,11 @@ export const InstanceRuleSQLDatabaseMixin = (
     hint,
     position
   }: UpdateInstanceRuleParams) {
-    const existing = await database<SQLInstanceRule>('instance_rules')
-      .where({ id })
-      .first()
-    if (!existing) return null
-
     const updatedAt = new Date()
-    await database('instance_rules')
+    // Update first and use the affected-row count to detect a missing rule;
+    // this drops the extra existence SELECT (3 roundtrips → 2). Knex returns
+    // the affected-row count for update() on SQLite/PostgreSQL/MySQL.
+    const updatedCount = await database('instance_rules')
       .where({ id })
       .update({
         ...(text !== undefined ? { text } : null),
@@ -76,6 +74,7 @@ export const InstanceRuleSQLDatabaseMixin = (
         ...(position !== undefined ? { position } : null),
         updatedAt
       })
+    if (updatedCount === 0) return null
 
     const row = await database<SQLInstanceRule>('instance_rules')
       .where({ id })

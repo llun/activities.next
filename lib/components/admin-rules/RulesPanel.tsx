@@ -190,7 +190,12 @@ export const RulesPanel: FC = () => {
           <div className="flex justify-end">
             <Button
               type="submit"
-              disabled={saving || newText.trim().length === 0}
+              // Block creation while a delete is in flight: the delete rollback
+              // restores a pre-create snapshot, which would discard a rule
+              // added mid-delete if the delete then fails.
+              disabled={
+                saving || deletingId !== null || newText.trim().length === 0
+              }
             >
               <Plus className="size-4" />
               Add rule
@@ -245,8 +250,12 @@ export const RulesPanel: FC = () => {
                     }
                     onBlur={() => handlePositionCommit(rule)}
                     // Serialize position updates so two in-flight edits can't
-                    // interleave their list re-sorts.
-                    disabled={updatingPositionId !== null}
+                    // interleave their list re-sorts, and block edits while a
+                    // delete is in flight so its rollback snapshot can't discard
+                    // a position change committed mid-delete.
+                    disabled={
+                      updatingPositionId !== null || deletingId !== null
+                    }
                   />
                 </label>
                 <button
