@@ -137,6 +137,62 @@ describe('getFriendsOfFriendsSuggestions', () => {
     })
   })
 
+  it.each([
+    {
+      description: 'excludes a candidate the actor blocks',
+      block: [ACTOR1_ID, ACTOR_C_ID] as const
+    },
+    {
+      description: 'excludes a candidate that blocks the actor',
+      block: [ACTOR_C_ID, ACTOR1_ID] as const
+    }
+  ])('$description', async ({ block }) => {
+    await withFreshDatabase(async (database) => {
+      await seedFriendGraph(database)
+
+      const [blockActorId, blockTargetActorId] = block
+      await database.createBlock({
+        actorId: blockActorId,
+        targetActorId: blockTargetActorId,
+        uri: `${blockActorId}#blocks/1`
+      })
+
+      expect(
+        await database.getFriendsOfFriendsSuggestions({
+          actorId: ACTOR1_ID,
+          limit: 10
+        })
+      ).toEqual([{ targetActorId: ACTOR_D_ID, mutuals: 1 }])
+    })
+  })
+
+  it('excludes an actively muted candidate but keeps an expired mute suggestable', async () => {
+    await withFreshDatabase(async (database) => {
+      await seedFriendGraph(database)
+
+      // Active mute on C hides it; an expired mute on D leaves it suggestable.
+      await database.createMute({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR_C_ID,
+        notifications: false,
+        endsAt: null
+      })
+      await database.createMute({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR_D_ID,
+        notifications: false,
+        endsAt: Date.now() - 1000
+      })
+
+      expect(
+        await database.getFriendsOfFriendsSuggestions({
+          actorId: ACTOR1_ID,
+          limit: 10
+        })
+      ).toEqual([{ targetActorId: ACTOR_D_ID, mutuals: 1 }])
+    })
+  })
+
   it('returns only the highest ranked accounts when limit is smaller than the candidate count', async () => {
     await withFreshDatabase(async (database) => {
       await seedFriendGraph(database)

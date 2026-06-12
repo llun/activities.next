@@ -1549,9 +1549,10 @@ export type DismissSuggestionParams = {
 export interface SuggestionDatabase {
   // Accounts followed by the accounts `actorId` follows, ranked by mutual
   // count descending (targetActorId ascending as a stable tiebreaker).
-  // Excludes `actorId` itself, anyone `actorId` already follows (Accepted),
-  // and anyone `actorId` has dismissed. Only Accepted follow edges count on
-  // both hops.
+  // Excludes `actorId` itself, anyone `actorId` already follows (Accepted) or
+  // has a pending request to, anyone `actorId` has dismissed, anyone in a block
+  // with `actorId` (either direction), and anyone `actorId` actively mutes.
+  // Only Accepted follow edges count on both hops.
   getFriendsOfFriendsSuggestions(
     params: GetFriendsOfFriendsSuggestionsParams
   ): Promise<FriendsOfFriendsSuggestion[]>

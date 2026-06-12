@@ -22,9 +22,12 @@ export const SuggestionSQLDatabaseMixin = (
     limit
   }: GetFriendsOfFriendsSuggestionsParams) {
     // f1: who actorId follows; f2: who those accounts follow. Only Accepted
-    // edges count on both hops, and candidates the actor already follows,
-    // has a pending follow request to, or has dismissed are excluded
-    // (Undo/Rejected follows remain suggestable).
+    // edges count on both hops. A candidate is excluded when the actor already
+    // follows it, has a pending follow request to it, has dismissed it, is in a
+    // block with it (either direction), or has an active mute on it. Filtering
+    // here — BEFORE LIMIT — mirrors applyBlockMuteFilter so the page is never
+    // returned short (Undo/Rejected follows remain suggestable).
+    const now = Date.now()
     const rows = (await database('follows as f1')
       .join('follows as f2', function () {
         this.on('f2.actorId', 'f1.targetActorId').andOnVal(
@@ -48,6 +51,25 @@ export const SuggestionSQLDatabaseMixin = (
         this.select('targetActorId')
           .from('suggestion_dismissals')
           .where({ actorId })
+      })
+      // Blocks are bidirectional: drop a candidate the actor blocks OR who
+      // blocks the actor. Two separate clauses so each can use its own
+      // (actorId|targetActorId) index on the blocks table.
+      .whereNotIn('f2.targetActorId', function () {
+        this.select('targetActorId').from('blocks').where('actorId', actorId)
+      })
+      .whereNotIn('f2.targetActorId', function () {
+        this.select('actorId').from('blocks').where('targetActorId', actorId)
+      })
+      // Mutes are one-directional (only what the actor mutes) and expire: a
+      // mute is active while endsAt IS NULL or endsAt > now.
+      .whereNotIn('f2.targetActorId', function () {
+        this.select('targetActorId')
+          .from('mutes')
+          .where('actorId', actorId)
+          .andWhere(function () {
+            this.whereNull('endsAt').orWhere('endsAt', '>', now)
+          })
       })
       .groupBy('f2.targetActorId')
       .select('f2.targetActorId as targetActorId')
