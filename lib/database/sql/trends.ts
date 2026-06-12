@@ -63,8 +63,15 @@ const getWindowedPublicTagUsage = (
   const normalizedNameSQL = getNormalizedHashtagNameSQL(database)
   // statuses.createdAt is written as a Date; binding a Date keeps the window
   // predicate portable (epoch milliseconds on SQLite, timestamptz on
-  // Postgres) — same pattern as the nodeinfo active-user window.
-  const since = new Date(Date.now() - days * DAY_MS)
+  // Postgres) — same pattern as the nodeinfo active-user window. The window
+  // starts at the oldest rendered UTC day bucket (today minus `days - 1`
+  // whole days) so the ranking counts exactly the rows the route's
+  // zero-filled `days` calendar-day history can show — a rolling
+  // `days × 24h` window would also count rows from an older, never-rendered
+  // bucket.
+  const since = new Date(
+    Math.floor(Date.now() / DAY_MS) * DAY_MS - (days - 1) * DAY_MS
+  )
   return database('tags')
     .distinct(
       database.raw(`${normalizedNameSQL.sql} as ??`, [

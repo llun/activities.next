@@ -117,6 +117,62 @@ describe('getTrendingStatuses', () => {
     })
   })
 
+  it('weights reblogs double so a boosted status outranks a more-liked one', async () => {
+    await withFreshDatabase(async (database) => {
+      await createActor(database, FIRST_ACTOR_ID, 'first')
+      await createActor(database, SECOND_ACTOR_ID, 'second')
+      await createActor(database, THIRD_ACTOR_ID, 'third')
+
+      const now = Date.now()
+      const boostedStatusId = `${FIRST_ACTOR_ID}/statuses/boosted`
+      const likedStatusId = `${FIRST_ACTOR_ID}/statuses/liked`
+      // The liked status is newer, so a like-only or tied ordering would put
+      // it first — only the reblog term can flip the order.
+      await createPublicNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: boostedStatusId,
+        createdAt: now - 2000
+      })
+      await createPublicNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: likedStatusId,
+        createdAt: now - 1000
+      })
+
+      // liked: three likes, no boosts → score 3.
+      for (const actorId of [FIRST_ACTOR_ID, SECOND_ACTOR_ID, THIRD_ACTOR_ID]) {
+        await database.createLike({ actorId, statusId: likedStatusId })
+      }
+      // boosted: zero likes, two boosts → weighted score 2 × 2 = 4. At 1×
+      // weight it would score 2 (losing to 3) and with reblogs dropped it
+      // would score 0 (filtered out) — either regression breaks the order.
+      await database.createAnnounce({
+        id: `${SECOND_ACTOR_ID}/statuses/boost-boosted`,
+        actorId: SECOND_ACTOR_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: boostedStatusId
+      })
+      await database.createAnnounce({
+        id: `${THIRD_ACTOR_ID}/statuses/boost-boosted`,
+        actorId: THIRD_ACTOR_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: boostedStatusId
+      })
+
+      const statuses = await getTrendingStatuses({
+        database,
+        limit: 10,
+        offset: 0
+      })
+      expect(statuses.map((status) => status.id)).toEqual([
+        boostedStatusId,
+        likedStatusId
+      ])
+    })
+  })
+
   it('counts replies toward the score', async () => {
     await withFreshDatabase(async (database) => {
       await createActor(database, FIRST_ACTOR_ID, 'first')

@@ -139,6 +139,38 @@ describe('getTrendingTags', () => {
     })
   })
 
+  it('aligns the window start to the oldest rendered UTC day bucket', async () => {
+    await withFreshDatabase(async (database) => {
+      await createActor(database, FIRST_ACTOR_ID, 'first')
+
+      const todayBucketMs = Math.floor(Date.now() / DAY_MS) * DAY_MS
+      const oldestBucketMs = todayBucketMs - 6 * DAY_MS
+      // First instant of the oldest rendered bucket — still counted.
+      await createTaggedNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/1`,
+        tag: 'edge',
+        createdAt: oldestBucketMs
+      })
+      // Just before the oldest rendered bucket: inside a rolling 7×24h window
+      // but in an eighth UTC day bucket the route never renders — it must not
+      // count toward the ranking.
+      await createTaggedNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/2`,
+        tag: 'edge',
+        createdAt: oldestBucketMs - 1000
+      })
+
+      const tags = await database.getTrendingTags({
+        days: 7,
+        limit: 10,
+        offset: 0
+      })
+      expect(tags).toEqual([{ name: 'edge', uses: 1, accounts: 1 }])
+    })
+  })
+
   it('ignores tags carried only by non-public statuses', async () => {
     await withFreshDatabase(async (database) => {
       await createActor(database, FIRST_ACTOR_ID, 'first')
