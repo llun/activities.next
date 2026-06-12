@@ -36,15 +36,18 @@ const createFollow = (
     sharedInbox: 'https://suggestions.test/inbox'
   })
 
-// actor1 follows A and B; A and B both follow C; A also follows D.
-// All edges are Accepted, so for actor1 the friends-of-friends candidates
-// are C (2 mutuals) and D (1 mutual).
+// actor1 follows A and B; A and B both follow C; A also follows D and
+// follows actor1 back (a mutual), making actor1 its own second-hop
+// candidate unless the query excludes the querying actor. All edges are
+// Accepted, so for actor1 the friends-of-friends candidates are
+// C (2 mutuals) and D (1 mutual).
 const seedFriendGraph = async (database: Database) => {
   await createFollow(database, ACTOR1_ID, ACTOR_A_ID)
   await createFollow(database, ACTOR1_ID, ACTOR_B_ID)
   await createFollow(database, ACTOR_A_ID, ACTOR_C_ID)
   await createFollow(database, ACTOR_B_ID, ACTOR_C_ID)
   await createFollow(database, ACTOR_A_ID, ACTOR_D_ID)
+  await createFollow(database, ACTOR_A_ID, ACTOR1_ID)
 }
 
 describe('getFriendsOfFriendsSuggestions', () => {
@@ -68,6 +71,10 @@ describe('getFriendsOfFriendsSuggestions', () => {
       description: 'ignores a pending second-hop edge when counting mutuals',
       extraFollows: [
         [ACTOR_B_ID, ACTOR_D_ID, FollowStatus.enum.Requested] as const
+      ],
+      expected: [
+        { targetActorId: ACTOR_C_ID, mutuals: 2 },
+        { targetActorId: ACTOR_D_ID, mutuals: 1 }
       ]
     },
     {
@@ -76,9 +83,21 @@ describe('getFriendsOfFriendsSuggestions', () => {
       extraFollows: [
         [ACTOR1_ID, ACTOR_E_ID, FollowStatus.enum.Requested] as const,
         [ACTOR_E_ID, ACTOR_F_ID, FollowStatus.enum.Accepted] as const
+      ],
+      expected: [
+        { targetActorId: ACTOR_C_ID, mutuals: 2 },
+        { targetActorId: ACTOR_D_ID, mutuals: 1 }
       ]
+    },
+    {
+      description:
+        'excludes a candidate the actor already has a pending follow request to',
+      extraFollows: [
+        [ACTOR1_ID, ACTOR_D_ID, FollowStatus.enum.Requested] as const
+      ],
+      expected: [{ targetActorId: ACTOR_C_ID, mutuals: 2 }]
     }
-  ])('$description', async ({ extraFollows }) => {
+  ])('$description', async ({ extraFollows, expected }) => {
     await withFreshDatabase(async (database) => {
       await seedFriendGraph(database)
       for (const [actorId, targetActorId, status] of extraFollows) {
@@ -89,10 +108,7 @@ describe('getFriendsOfFriendsSuggestions', () => {
         actorId: ACTOR1_ID,
         limit: 10
       })
-      expect(suggestions).toEqual([
-        { targetActorId: ACTOR_C_ID, mutuals: 2 },
-        { targetActorId: ACTOR_D_ID, mutuals: 1 }
-      ])
+      expect(suggestions).toEqual(expected)
     })
   })
 

@@ -22,8 +22,9 @@ export const SuggestionSQLDatabaseMixin = (
     limit
   }: GetFriendsOfFriendsSuggestionsParams) {
     // f1: who actorId follows; f2: who those accounts follow. Only Accepted
-    // edges count on both hops, and candidates the actor already follows or
-    // has dismissed are excluded.
+    // edges count on both hops, and candidates the actor already follows,
+    // has a pending follow request to, or has dismissed are excluded
+    // (Undo/Rejected follows remain suggestable).
     const rows = await database('follows as f1')
       .join('follows as f2', function () {
         this.on('f2.actorId', 'f1.targetActorId').andOnVal(
@@ -38,7 +39,11 @@ export const SuggestionSQLDatabaseMixin = (
         builder
           .select('targetActorId')
           .from('follows')
-          .where({ actorId, status: FollowStatus.enum.Accepted })
+          .where('actorId', actorId)
+          .whereIn('status', [
+            FollowStatus.enum.Accepted,
+            FollowStatus.enum.Requested
+          ])
       })
       .whereNotIn('f2.targetActorId', (builder) => {
         builder
