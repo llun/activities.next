@@ -206,3 +206,4 @@ CREATE TABLE `scheduled_statuses` (`id` varchar(255), `actorId` varchar(255) not
 CREATE INDEX `scheduled_statuses_actorid_index` on `scheduled_statuses` (`actorId`);
 CREATE INDEX `scheduled_statuses_scheduledat_index` on `scheduled_statuses` (`scheduledAt`);
 CREATE TABLE `instance_rules` (`id` varchar(255), `position` integer not null default '0', `text` text not null, `hint` text not null default '', `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`id`));
+CREATE TABLE `suggestion_dismissals` (`actorId` varchar(255) not null, `targetActorId` varchar(255) not null, `createdAt` datetime not null, primary key (`actorId`, `targetActorId`));
