@@ -1,0 +1,28 @@
+lib/database/sql/instanceRule.ts
+  s_9c50388aa3aae7::t_123f3d8aba2f1c 66-69,77
+lib/components/admin-rules/RulesPanel.tsx
+  s_9c50388aa3aae7::t_f2b504ef620abf 253-255
+  s_9c50388aa3aae7::t_1686aca0c1ae1f 193-198
+  s_9c50388aa3aae7::t_897bae2220b6f8 256-258
+app/api/v2/instance/route.ts
+  s_9c50388aa3aae7::t_6859e53310b609 15
+  s_9c50388aa3aae7::t_2a03bd45029f7d 18
+  s_9c50388aa3aae7::t_7ebb0e1fa11cd4 34-45
+  s_9c50388aa3aae7::t_e1cc51387756e3 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "36e9636133e201193190733ce72c06361ffc44d0",
+  "prompts": {},
+  "sessions": {
+    "s_9c50388aa3aae7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f8d4378-a408-4ea0-ad21-9f87e6267281",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
