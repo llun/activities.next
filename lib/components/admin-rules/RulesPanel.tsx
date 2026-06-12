@@ -262,9 +262,14 @@ export const RulesPanel: FC = () => {
                   type="button"
                   aria-label={`Delete rule ${rule.text}`}
                   onClick={() => handleDelete(rule)}
-                  // Disable every delete button while any delete is in flight
-                  // so deletes stay serialized and optimistic rollback is safe.
-                  disabled={deletingId !== null}
+                  // Keep all three mutations mutually exclusive: block deletes
+                  // while any delete, create, or position edit is in flight.
+                  // The delete rollback restores a snapshot captured before
+                  // those writes, so a concurrent create/edit would otherwise be
+                  // discarded if the delete then fails.
+                  disabled={
+                    deletingId !== null || saving || updatingPositionId !== null
+                  }
                   className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[hsl(0_84.2%_60.2%/0.4)] text-[hsl(0_72%_45%)] transition-colors hover:bg-[hsl(0_72%_45%/0.08)] disabled:pointer-events-none disabled:opacity-50"
                 >
                   <Trash2 className="size-4" />
