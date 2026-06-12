@@ -8,22 +8,24 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const DEFAULT_USER_PREFERENCES = {
-  'posting:default:visibility': 'public',
-  'posting:default:sensitive': false,
-  'posting:default:language': 'en',
-  'reading:expand:media': 'default',
-  'reading:expand:spoilers': false,
-  'reading:autoplay:gifs': false
-}
-
 export const GET = traceApiRoute(
   'getPreferences',
-  OAuthGuard([Scope.enum.read], async (req) => {
+  OAuthGuard([Scope.enum.read], async (req, context) => {
+    const { database, currentActor } = context
+    const account = await database.getMastodonActorFromId({
+      id: currentActor.id
+    })
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: DEFAULT_USER_PREFERENCES
+      data: {
+        'posting:default:visibility': account?.source?.privacy ?? 'public',
+        'posting:default:sensitive': account?.source?.sensitive ?? false,
+        'posting:default:language': account?.source?.language ?? 'en',
+        'reading:expand:media': currentActor.readingExpandMedia ?? 'default',
+        'reading:expand:spoilers': currentActor.readingExpandSpoilers ?? false,
+        'reading:autoplay:gifs': currentActor.readingAutoplayGifs ?? false
+      }
     })
   })
 )

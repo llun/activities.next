@@ -25,6 +25,10 @@ export interface ActorSettings {
   defaultSensitive?: boolean
   defaultLanguage?: string
   postLineLimit?: PostLineLimit
+  // Mastodon `reading:*` preferences surfaced by /api/v1/preferences.
+  readingExpandMedia?: 'default' | 'show_all' | 'hide_all'
+  readingExpandSpoilers?: boolean
+  readingAutoplayGifs?: boolean
   emailNotifications?: {
     follow_request?: boolean
     follow?: boolean
