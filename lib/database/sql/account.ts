@@ -464,6 +464,15 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
           ? { headerImageUrl: settings.headerImageUrl }
           : null),
         manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
+        ...(settings.readingExpandMedia !== undefined
+          ? { readingExpandMedia: settings.readingExpandMedia }
+          : null),
+        ...(settings.readingExpandSpoilers !== undefined
+          ? { readingExpandSpoilers: settings.readingExpandSpoilers }
+          : null),
+        ...(settings.readingAutoplayGifs !== undefined
+          ? { readingAutoplayGifs: settings.readingAutoplayGifs }
+          : null),
         followersUrl: settings.followersUrl,
         inboxUrl: settings.inboxUrl,
         sharedInboxUrl: settings.sharedInboxUrl,
