@@ -4,7 +4,6 @@ import {
   normalizeSuggestionsLimit
 } from '@/lib/services/suggestions/getSuggestionAccounts'
 import { Scope } from '@/lib/types/database/operations'
-import { Suggestion } from '@/lib/types/mastodon'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -13,9 +12,11 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-// https://docs.joinmastodon.org/methods/suggestions/#v2
+// https://docs.joinmastodon.org/methods/suggestions/#v1
+// Deprecated v1 shape: the same ranked suggestions as /api/v2/suggestions but
+// returned as a plain array of accounts without the suggestion wrapper.
 export const GET = traceApiRoute(
-  'getSuggestions',
+  'getSuggestionsV1',
   OAuthGuard([Scope.enum.read], async (req, { database, currentActor }) => {
     const limit = normalizeSuggestionsLimit(
       new URL(req.url).searchParams.get('limit')
@@ -25,13 +26,6 @@ export const GET = traceApiRoute(
       actorId: currentActor.id,
       limit
     })
-    const suggestions = accounts.map(
-      (account): Suggestion => ({
-        source: 'past_interactions',
-        sources: ['friends_of_friends'],
-        account
-      })
-    )
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: suggestions })
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: accounts })
   })
 )

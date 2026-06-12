@@ -34,6 +34,7 @@ import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
+import { SuggestionSQLDatabaseMixin } from '@/lib/database/sql/suggestion'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { TranslationCacheSQLDatabaseMixin } from '@/lib/database/sql/translationCache'
 import { Database } from '@/lib/database/types'
@@ -73,6 +74,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const searchDatabase = SearchSQLDatabaseMixin(database)
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)
+  const suggestionDatabase = SuggestionSQLDatabaseMixin(database)
   const statusDatabase = StatusSQLDatabaseMixin(
     database,
     actorDatabase,
@@ -137,6 +139,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...oauthDatabase,
     ...searchDatabase,
     ...stravaArchiveImportDatabase,
+    ...suggestionDatabase,
     ...statusDatabase,
     ...directConversationDatabase,
 

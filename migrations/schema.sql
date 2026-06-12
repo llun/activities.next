@@ -833,6 +833,12 @@ CREATE TABLE public.strava_archive_imports (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE public.suggestion_dismissals (
+    "actorId" character varying(255) NOT NULL,
+    "targetActorId" character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.tags (
     id character varying(255) NOT NULL,
     "statusId" character varying(255),
@@ -1189,6 +1195,9 @@ ALTER TABLE ONLY public.strava_archive_imports
 
 ALTER TABLE ONLY public.strava_archive_imports
     ADD CONSTRAINT strava_archive_imports_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.suggestion_dismissals
+    ADD CONSTRAINT suggestion_dismissals_pkey PRIMARY KEY ("actorId", "targetActorId");
 
 ALTER TABLE ONLY public.tags
     ADD CONSTRAINT tags_pkey PRIMARY KEY (id);

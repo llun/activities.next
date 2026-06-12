@@ -16,6 +16,7 @@ export * from './list'
 export * from './report'
 export * from './rule'
 export * from './scheduledStatus'
+export * from './suggestion'
 
 export * from './filter/index'
 export * from './filter/keyword'
