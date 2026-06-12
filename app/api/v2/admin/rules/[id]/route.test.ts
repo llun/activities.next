@@ -127,6 +127,10 @@ describe('/api/v2/admin/rules/[id]', () => {
     {
       description: 'returns 422 when the updated position is negative',
       body: { position: -1 }
+    },
+    {
+      description: 'returns 422 when the body has no updatable fields',
+      body: {}
     }
   ])('$description', async ({ body }) => {
     const rule = await database.createInstanceRule({

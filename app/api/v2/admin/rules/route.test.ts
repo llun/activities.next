@@ -74,6 +74,13 @@ describe('/api/v2/admin/rules', () => {
     expect(response.status).toBe(403)
   })
 
+  it('rejects non-admin list requests', async () => {
+    mockGetAdminFromSession.mockResolvedValue(null)
+
+    const response = await GET(baseRequest(), { params: Promise.resolve({}) })
+    expect(response.status).toBe(403)
+  })
+
   it('creates a rule and lists it with its position', async () => {
     const postResponse = await POST(
       baseRequest({ method: 'POST', body: { text: 'Be kind', hint: '' } }),

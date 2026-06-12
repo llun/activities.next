@@ -12,12 +12,22 @@ export const RuleCreateInput = z.object({
 })
 
 // Partial update — every field is optional, but present fields must satisfy
-// the same constraints as creation.
-export const RuleUpdateInput = z.object({
-  text: z.string().trim().min(1).max(1000).optional(),
-  hint: z.string().trim().max(2000).optional(),
-  position: z.coerce.number().int().min(0).optional()
-})
+// the same constraints as creation. At least one field must be present so an
+// empty body is rejected with 422 rather than silently performing a
+// timestamp-only no-op update.
+export const RuleUpdateInput = z
+  .object({
+    text: z.string().trim().min(1).max(1000).optional(),
+    hint: z.string().trim().max(2000).optional(),
+    position: z.coerce.number().int().min(0).optional()
+  })
+  .refine(
+    (data) =>
+      data.text !== undefined ||
+      data.hint !== undefined ||
+      data.position !== undefined,
+    { message: 'At least one of text, hint, or position must be provided' }
+  )
 
 // Admin shape — unlike the public Mastodon Rule entity this includes
 // `position` so the admin panel can reorder rules by editing it.

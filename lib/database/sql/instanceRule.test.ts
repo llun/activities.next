@@ -196,10 +196,18 @@ describe('deleteInstanceRule', () => {
         position: 1
       })
 
-      await database.deleteInstanceRule({ id: remove.id })
+      const deleted = await database.deleteInstanceRule({ id: remove.id })
+      expect(deleted).toBe(true)
 
       const rules = await database.getInstanceRules()
       expect(rules).toEqual([keep])
+    })
+  })
+
+  it('returns false for an unknown id', async () => {
+    await withFreshDatabase(async (database) => {
+      const deleted = await database.deleteInstanceRule({ id: 'no-such-id' })
+      expect(deleted).toBe(false)
     })
   })
 })
