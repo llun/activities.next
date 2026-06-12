@@ -930,6 +930,45 @@ describe('ActorDatabase', () => {
         expect(settings.manuallyApprovesFollowers).toBe(false)
         expect(settings.defaultPrivacy).toBe('private')
       })
+
+      it('persists and returns reading preferences', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({
+          actorId,
+          readingExpandMedia: 'show_all',
+          readingExpandSpoilers: true,
+          readingAutoplayGifs: true
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.readingExpandMedia).toEqual('show_all')
+        expect(actor?.readingExpandSpoilers).toEqual(true)
+        expect(actor?.readingAutoplayGifs).toEqual(true)
+      })
+
+      it('round-trips false reading preference values', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({
+          actorId,
+          readingExpandSpoilers: false,
+          readingAutoplayGifs: false
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.readingExpandSpoilers).toEqual(false)
+        expect(actor?.readingAutoplayGifs).toEqual(false)
+      })
+
+      it('preserves existing settings when updating reading preferences', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({ actorId, defaultPrivacy: 'unlisted' })
+
+        await database.updateActor({ actorId, readingExpandMedia: 'hide_all' })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings.defaultPrivacy).toEqual('unlisted')
+        expect(settings.readingExpandMedia).toEqual('hide_all')
+      })
     })
 
     describe('getActorSettings', () => {

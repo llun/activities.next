@@ -712,6 +712,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ? { headerImageUrl: settings.headerImageUrl }
         : null),
       manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
+      // Booleans use !== undefined so a persisted `false` survives the
+      // row-to-domain round-trip (a truthy spread would drop it).
+      ...(settings.readingExpandMedia !== undefined
+        ? { readingExpandMedia: settings.readingExpandMedia }
+        : null),
+      ...(settings.readingExpandSpoilers !== undefined
+        ? { readingExpandSpoilers: settings.readingExpandSpoilers }
+        : null),
+      ...(settings.readingAutoplayGifs !== undefined
+        ? { readingAutoplayGifs: settings.readingAutoplayGifs }
+        : null),
       followersUrl: settings.followersUrl,
       inboxUrl: settings.inboxUrl,
       sharedInboxUrl: settings.sharedInboxUrl,
@@ -814,6 +825,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     defaultSensitive,
     defaultLanguage,
     postLineLimit,
+    readingExpandMedia,
+    readingExpandSpoilers,
+    readingAutoplayGifs,
     emailNotifications,
     pushNotifications,
     notificationPolicy,
@@ -850,6 +864,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
       ...(defaultLanguage !== undefined ? { defaultLanguage } : null),
       ...(postLineLimit !== undefined ? { postLineLimit } : null),
+      ...(readingExpandMedia !== undefined ? { readingExpandMedia } : null),
+      ...(readingExpandSpoilers !== undefined
+        ? { readingExpandSpoilers }
+        : null),
+      ...(readingAutoplayGifs !== undefined ? { readingAutoplayGifs } : null),
       ...(emailNotifications !== undefined ? { emailNotifications } : null),
       ...(pushNotifications !== undefined ? { pushNotifications } : null),
       ...(notificationPolicy !== undefined ? { notificationPolicy } : null),
