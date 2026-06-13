@@ -9,7 +9,7 @@
  * read per distinct member in chunked IN queries (not one query per membership)
  * so an account on many lists is fetched once per chunk, and the chunk sizes keep
  * both the SELECT and INSERT under SQLite's 999 bound-parameter limit.
- *
+ */
 // Normalize a stored createdAt to a Date the same way the runtime fan-out does
 // (lib/database/sql/utils/getCompatibleTime + new Date), so list rows written
 // here serialize identically to rows written at runtime — the list read orders
