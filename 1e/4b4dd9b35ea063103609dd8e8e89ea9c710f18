@@ -1,0 +1,24 @@
+lib/services/timelines/mention.ts
+  s_c7b95c4c5de3ed::t_ce48400dc47015 5-7,9-13
+  s_c7b95c4c5de3ed::t_941f8b1b84db52 87-96
+  s_c7b95c4c5de3ed::t_64f750817f56d9 97-111,113
+  s_c7b95c4c5de3ed::t_6040d5cf6b9452 171-173
+lib/services/timelines/mention.test.ts
+  s_c7b95c4c5de3ed::t_5d39c3a1ed6a57 541-638
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1e4b4dd9b35ea063103609dd8e8e89ea9c710f18",
+  "prompts": {},
+  "sessions": {
+    "s_c7b95c4c5de3ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be603871-1265-497e-bab3-8b3a0841136d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
