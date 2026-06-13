@@ -538,6 +538,104 @@ describe('mentionTimelineRule', () => {
     expect(events[0].type).toBe(NotificationType.enum.reply)
   })
 
+  it('carries the reply email on the merged reply event for a remote reply that also mentions the recipient', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const originalPost = await createNote(
+      database,
+      ACTOR3_ID,
+      'Reply+mention email post',
+      `${ACTOR3_ID}/followers`
+    )
+    const replyMentionStatus = await createNote(
+      database,
+      EXTERNAL_ACTOR1,
+      `Hey ${getActorURL(actor)} replying to you!`,
+      EXTERNAL_ACTOR1_FOLLOWERS,
+      originalPost.id
+    )
+    await createMentionTag(
+      database,
+      replyMentionStatus.id,
+      getActorURL(actor),
+      actor.username
+    )
+
+    await mentionTimelineRule({
+      database,
+      currentActor: actor,
+      status: replyMentionStatus
+    })
+
+    // The reply email must ride on the surviving reply event — the mention
+    // branch that used to carry it is skipped once the reply is created, so
+    // without this the email channel silently drops for remote reply+mentions.
+    expect(mockSendAlerts).toHaveBeenCalledTimes(1)
+    const { events } = mockSendAlerts.mock.calls[0][0]
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: NotificationType.enum.reply,
+      emailContent: expect.objectContaining({
+        recipientEmail: actor.account?.email,
+        subject: expect.stringContaining('replied to your post')
+      })
+    })
+  })
+
+  it('keeps a single filtered reply notification and sends no alert when a filtered reply also mentions the recipient', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    await database.updateNotificationPolicy({
+      actorId: actor.id,
+      for_not_following: 'filter'
+    })
+    try {
+      const originalPost = await createNote(
+        database,
+        ACTOR3_ID,
+        'Filtered reply+mention post',
+        `${ACTOR3_ID}/followers`
+      )
+      const replyMentionStatus = await createNote(
+        database,
+        EXTERNAL_ACTOR1,
+        `Hey ${getActorURL(actor)} replying to you!`,
+        EXTERNAL_ACTOR1_FOLLOWERS,
+        originalPost.id
+      )
+      await createMentionTag(
+        database,
+        replyMentionStatus.id,
+        getActorURL(actor),
+        actor.username
+      )
+
+      await mentionTimelineRule({
+        database,
+        currentActor: actor,
+        status: replyMentionStatus
+      })
+
+      // A filtered reply still collapses to a single (filtered) reply
+      // notification with no duplicate mention, and pushes no alert event.
+      const notifications = await database.getNotifications({
+        actorId: actor.id,
+        limit: 100,
+        includeFiltered: true
+      })
+      const forStatus = notifications.filter(
+        (n) => n.statusId === replyMentionStatus.id
+      )
+      expect(forStatus).toHaveLength(1)
+      expect(forStatus[0].type).toBe(NotificationType.enum.reply)
+      expect(forStatus[0].filtered).toBe(true)
+      expect(mockSendAlerts).not.toHaveBeenCalled()
+    } finally {
+      await database.updateNotificationPolicy({
+        actorId: actor.id,
+        for_not_following: 'accept'
+      })
+    }
+  })
+
   it('returns null for remote reply to another actor post', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     // Create a post by ACTOR1 (not the current actor)
