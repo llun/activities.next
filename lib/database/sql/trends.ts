@@ -26,6 +26,16 @@ const PUBLIC_ACTIVITY_RECIPIENTS = [
 
 const DAY_MS = 86_400_000
 
+// Upper bound on the trending-status candidate set. The window already bounds
+// the volume on a personal-scale instance, but a busy or federated instance
+// could accumulate far more public statuses in seven days; without a cap the
+// ids would be loaded into memory and fanned out through getStatusesByIds'
+// single `whereIn` (risking the backend's bind-variable limit). 1000 newest
+// candidates is well above what a personal server produces in the window yet
+// safely bounds memory and the query — the service still ranks and slices to
+// Mastodon's max of 20 from within them.
+const TRENDING_STATUS_CANDIDATE_LIMIT = 1000
+
 type SQLTrendingTagRow = {
   name: string
   // count() comes back as a string on Postgres but a number on SQLite.
@@ -146,7 +156,8 @@ export const TrendsSQLDatabaseMixin = (database: Knex): TrendsDatabase => ({
       .where('statuses.createdAt', '>=', since)
       .distinct('statuses.id as id', 'statuses.createdAt as createdAt')
       .orderBy('statuses.createdAt', 'desc')
-      .orderBy('statuses.id', 'desc')) as { id: string }[]
+      .orderBy('statuses.id', 'desc')
+      .limit(TRENDING_STATUS_CANDIDATE_LIMIT)) as { id: string }[]
     return rows.map((row) => row.id)
   },
 

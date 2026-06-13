@@ -314,13 +314,14 @@ describe('getTrendingStatusCandidateIds', () => {
       createdAt
     })
 
-  it('returns every public top-level candidate newest first, ignoring a fixed cap', async () => {
+  it('returns every windowed public top-level candidate newest first', async () => {
     await withFreshDatabase(async (database) => {
       await createActor(database, FIRST_ACTOR_ID, 'first')
 
       const now = Date.now()
-      // Far more than any small newest-N timeline slice would keep, so a cap
-      // would drop the oldest-within-window ones from the candidate set.
+      // Far more than any small newest-N timeline slice would keep, yet well
+      // under the query's 1000-row safety cap, so the whole windowed set is
+      // returned — including the oldest-within-window status.
       const total = 250
       for (let index = 0; index < total; index += 1) {
         await createNote(database, {

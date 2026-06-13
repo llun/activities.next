@@ -1601,12 +1601,13 @@ export interface TrendsDatabase {
   // days, ranked by distinct status uses descending (tag name ascending as
   // the deterministic tiebreaker), sliced by offset/limit.
   getTrendingTags(params: GetTrendingTagsParams): Promise<TrendingTag[]>
-  // The complete set of trending-status candidate ids: every public,
-  // top-level (non-reply) Note/Poll authored by a local actor within the last
-  // `days` days, newest first. Unlike a fixed newest-N timeline slice this
-  // never drops a highly-interacted older-within-window status before the
-  // service ranks it. The window bounds the row volume on a personal-scale
-  // instance, matching the tag-trends scan.
+  // Trending-status candidate ids: public, top-level (non-reply) Note/Poll
+  // statuses authored by a local actor within the last `days` days, newest
+  // first, capped at a safety bound. Unlike a small fixed newest-N timeline
+  // slice this keeps the whole realistic windowed set so a highly-interacted
+  // older-within-window status is not dropped before the service ranks it; the
+  // cap only guards memory and the bind-variable limit against a pathological
+  // backlog on a busy instance.
   getTrendingStatusCandidateIds(
     params: GetTrendingStatusCandidateIdsParams
   ): Promise<string[]>

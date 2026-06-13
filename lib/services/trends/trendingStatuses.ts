@@ -16,13 +16,13 @@ interface GetTrendingStatusesParams {
 
 /**
  * Local trending statuses computed live from the last seven days of public
- * interactions on this instance. Candidates are the complete windowed set of
- * top-level public statuses by local actors (`getTrendingStatusCandidateIds`
- * resolves the public/window/type filters in SQL), not a fixed newest-N
- * timeline slice — so a highly-interacted older-within-window status is never
- * dropped before ranking. Ranking stays app-side: the per-status counters are
- * key-value rows, so joining on their concatenated keys in SQL would be
- * dialect-fragile.
+ * interactions on this instance. Candidates are the windowed set of top-level
+ * public statuses by local actors (`getTrendingStatusCandidateIds` resolves
+ * the public/window/type filters in SQL and applies a safety cap), not a small
+ * fixed newest-N timeline slice — so a highly-interacted older-within-window
+ * status is not dropped before ranking. Ranking stays app-side: the per-status
+ * counters are key-value rows, so joining on their concatenated keys in SQL
+ * would be dialect-fragile.
  *
  * The score reads exactly the fields the Mastodon serializer exposes —
  * `status.totalLikes` (favourites_count) plus the reblog and reply counters
