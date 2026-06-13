@@ -99,7 +99,16 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
     try {
       const input: ServerAnnouncementInput = {
         text,
-        starts_at: fromLocalInputValue(newStartsAt),
+        // For an all-day event the time-of-day is not meaningful and the picked
+        // date must be treated as a zone-less calendar date. The Home banner
+        // renders all-day bounds in UTC, so store UTC midnight of the picked day
+        // rather than converting the naive local input to UTC (which would shift
+        // the calendar date for creators not in UTC). Timed events keep the
+        // local->UTC conversion.
+        starts_at:
+          newAllDay && newStartsAt.trim() !== ''
+            ? `${newStartsAt.trim().slice(0, 10)}T00:00:00.000Z`
+            : fromLocalInputValue(newStartsAt),
         // When the event is all-day, the end bound is not meaningful, so drop
         // whatever was previously typed.
         ends_at: newAllDay ? null : fromLocalInputValue(newEndsAt),
