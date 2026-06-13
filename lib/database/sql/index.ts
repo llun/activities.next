@@ -37,6 +37,7 @@ import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaAr
 import { SuggestionSQLDatabaseMixin } from '@/lib/database/sql/suggestion'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { TranslationCacheSQLDatabaseMixin } from '@/lib/database/sql/translationCache'
+import { TrendsSQLDatabaseMixin } from '@/lib/database/sql/trends'
 import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
@@ -75,6 +76,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)
   const suggestionDatabase = SuggestionSQLDatabaseMixin(database)
+  const trendsDatabase = TrendsSQLDatabaseMixin(database)
   const statusDatabase = StatusSQLDatabaseMixin(
     database,
     actorDatabase,
@@ -140,6 +142,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...searchDatabase,
     ...stravaArchiveImportDatabase,
     ...suggestionDatabase,
+    ...trendsDatabase,
     ...statusDatabase,
     ...directConversationDatabase,
 
