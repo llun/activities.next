@@ -4,6 +4,7 @@ import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { AccountNoteSQLDatabaseMixin } from '@/lib/database/sql/accountNote'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
+import { AnnouncementSQLDatabaseMixin } from '@/lib/database/sql/announcement'
 import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
 import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
@@ -45,6 +46,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const accountNoteDatabase = AccountNoteSQLDatabaseMixin(database)
   const actorDatabase = ActorSQLDatabaseMixin(database)
   const adminDatabase = AdminSQLDatabaseMixin(database)
+  const announcementDatabase = AnnouncementSQLDatabaseMixin(database)
   const fitnessFileDatabase = FitnessFileSQLDatabaseMixin(database)
   const fitnessRouteHeatmapDatabase =
     FitnessRouteHeatmapSQLDatabaseMixin(database)
@@ -112,6 +114,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...accountNoteDatabase,
     ...actorDatabase,
     ...adminDatabase,
+    ...announcementDatabase,
     ...fitnessFileDatabase,
     ...fitnessRouteHeatmapDatabase,
     ...fitnessSettingsDatabase,

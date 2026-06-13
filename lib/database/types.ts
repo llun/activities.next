@@ -7,6 +7,7 @@ import {
   AccountNoteDatabase,
   ActorDatabase,
   AdminDatabase,
+  AnnouncementDatabase,
   BaseDatabase,
   BlockDatabase,
   BookmarkDatabase,
@@ -44,6 +45,7 @@ export type Database = AccountDatabase &
   AccountNoteDatabase &
   ActorDatabase &
   AdminDatabase &
+  AnnouncementDatabase &
   InstanceActivityDatabase &
   InstanceRuleDatabase &
   FitnessFileDatabase &
