@@ -1,0 +1,19 @@
+migrations/20260613120100_backfill_list_timelines.js
+  s_19722648e340c9::t_15f62b77fc96b8 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "705b272928f6287d60b5ecbf5fee45bf79bfd6fb",
+  "prompts": {},
+  "sessions": {
+    "s_19722648e340c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a33b983-7b2a-4715-b72d-8ab931240ebe",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
