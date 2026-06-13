@@ -26,16 +26,6 @@ const sortAnnouncements = (
 ): ServerAnnouncement[] =>
   [...announcements].sort((a, b) => b.created_at - a.created_at)
 
-// Converts epoch-ms (or null) to the `YYYY-MM-DDTHH:mm` value a
-// `datetime-local` input expects, in the viewer's local time. Runs only after
-// the client-side fetch resolves, so it does not affect SSR/hydration.
-const toLocalInputValue = (time: number | null): string => {
-  if (time === null) return ''
-  const date = new Date(time)
-  const offsetMs = date.getTimezoneOffset() * 60_000
-  return new Date(time - offsetMs).toISOString().slice(0, 16)
-}
-
 // Converts a `datetime-local` value back to an ISO-8601 string the API accepts,
 // or null when the field is empty.
 const fromLocalInputValue = (value: string): string | null => {
@@ -45,6 +35,15 @@ const fromLocalInputValue = (value: string): string | null => {
   if (Number.isNaN(parsed)) return null
   return new Date(parsed).toISOString()
 }
+
+// Formats epoch-ms as a localized, human-readable date-time for the list
+// display. Passing `undefined` as the locale defaults to the viewer's browser
+// locale.
+const formatDateTime = (time: number): string =>
+  new Date(time).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  })
 
 export const AnnouncementsPanel: FC = () => {
   const [announcements, setAnnouncements] = useState<ServerAnnouncement[]>([])
@@ -299,12 +298,14 @@ export const AnnouncementsPanel: FC = () => {
                 </FilterField>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   {announcement.starts_at !== null && (
-                    <span>
-                      Starts {toLocalInputValue(announcement.starts_at)}
+                    <span suppressHydrationWarning>
+                      Starts {formatDateTime(announcement.starts_at)}
                     </span>
                   )}
                   {announcement.ends_at !== null && (
-                    <span>Ends {toLocalInputValue(announcement.ends_at)}</span>
+                    <span suppressHydrationWarning>
+                      Ends {formatDateTime(announcement.ends_at)}
+                    </span>
                   )}
                   {announcement.all_day && <span>All day</span>}
                 </div>
