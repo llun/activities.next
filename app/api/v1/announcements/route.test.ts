@@ -157,11 +157,13 @@ describe('/api/v1/announcements', () => {
       text: 'react to me',
       published: true
     })
-    const emoji = encodeURIComponent('🎉')
+    // Next.js App Router delivers route params already percent-decoded, so the
+    // handler receives the raw emoji even though the URL path is encoded.
+    const encodedEmoji = encodeURIComponent('🎉')
 
     const addResponse = await ADD_REACTION(
-      writeRequest(`${created.id}/reactions/${emoji}`, 'PUT'),
-      { params: Promise.resolve({ id: created.id, name: emoji }) }
+      writeRequest(`${created.id}/reactions/${encodedEmoji}`, 'PUT'),
+      { params: Promise.resolve({ id: created.id, name: '🎉' }) }
     )
     expect(addResponse.status).toBe(200)
     await expect(addResponse.json()).resolves.toEqual({})
@@ -176,8 +178,8 @@ describe('/api/v1/announcements', () => {
     ])
 
     const removeResponse = await REMOVE_REACTION(
-      writeRequest(`${created.id}/reactions/${emoji}`, 'DELETE'),
-      { params: Promise.resolve({ id: created.id, name: emoji }) }
+      writeRequest(`${created.id}/reactions/${encodedEmoji}`, 'DELETE'),
+      { params: Promise.resolve({ id: created.id, name: '🎉' }) }
     )
     expect(removeResponse.status).toBe(200)
     await expect(removeResponse.json()).resolves.toEqual({})
@@ -202,6 +204,25 @@ describe('/api/v1/announcements', () => {
       { params: Promise.resolve({ id: created.id, name: longName }) }
     )
     expect(response.status).toBe(422)
+  })
+
+  it('accepts a reaction name containing a literal percent sign', async () => {
+    // Regression: the handler used to call decodeURIComponent on the already
+    // decoded route param, which threw a URIError (wrong 422) on a literal '%'.
+    const created = await database.createAnnouncement({
+      text: 'percent reaction',
+      published: true
+    })
+    const name = '100%'
+
+    const response = await ADD_REACTION(
+      writeRequest(
+        `${created.id}/reactions/${encodeURIComponent(name)}`,
+        'PUT'
+      ),
+      { params: Promise.resolve({ id: created.id, name }) }
+    )
+    expect(response.status).toBe(200)
   })
 
   it('reaction on an unknown announcement returns 404', async () => {

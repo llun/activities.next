@@ -34,17 +34,9 @@ const reactionHandler =
   async (req, { database, currentActor, params }) => {
     const { id, name } = await params
 
-    // The [name] segment may be URL-encoded (e.g. an emoji). A malformed
-    // percent-encoding makes decodeURIComponent throw, which we treat as
-    // invalid input (422) rather than letting it surface as a 500.
-    let decodedName: string
-    try {
-      decodedName = decodeURIComponent(name)
-    } catch {
-      return apiCorsError(req, CORS_HEADERS, 422)
-    }
-
-    const parsed = ReactionName.safeParse(decodedName)
+    // Next.js App Router already percent-decodes dynamic route segments, so
+    // `name` is the decoded emoji/shortcode; we must not decode it again.
+    const parsed = ReactionName.safeParse(name)
     if (!parsed.success) {
       return apiCorsError(req, CORS_HEADERS, 422)
     }

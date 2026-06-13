@@ -10,8 +10,8 @@ import { AnnouncementData } from '@/lib/types/database/operations'
 // "on" still validate.
 export const AnnouncementCreateInput = z.object({
   text: z.string().trim().min(1).max(5000),
-  starts_at: z.string().datetime().optional().nullable(),
-  ends_at: z.string().datetime().optional().nullable(),
+  starts_at: z.string().datetime({ offset: true }).optional().nullable(),
+  ends_at: z.string().datetime({ offset: true }).optional().nullable(),
   all_day: z.coerce.boolean().optional(),
   published: z.coerce.boolean().optional()
 })
@@ -23,8 +23,8 @@ export const AnnouncementCreateInput = z.object({
 export const AnnouncementUpdateInput = z
   .object({
     text: z.string().trim().min(1).max(5000).optional(),
-    starts_at: z.string().datetime().optional().nullable(),
-    ends_at: z.string().datetime().optional().nullable(),
+    starts_at: z.string().datetime({ offset: true }).optional().nullable(),
+    ends_at: z.string().datetime({ offset: true }).optional().nullable(),
     all_day: z.coerce.boolean().optional(),
     published: z.coerce.boolean().optional()
   })
