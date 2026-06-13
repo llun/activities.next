@@ -1441,6 +1441,8 @@ CREATE INDEX "tags_statusId_type_idx" ON public.tags USING btree ("statusId", ty
 
 CREATE INDEX "timelinesActorIdTimelineCreatedAtIndex" ON public.timelines USING btree ("actorId", timeline, "createdAt");
 
+CREATE INDEX "timelinesActorTimelineStatusActorIndex" ON public.timelines USING btree ("actorId", timeline, "statusActorId");
+
 CREATE INDEX "timelinesStatusIdIndex" ON public.timelines USING btree ("statusId");
 
 CREATE INDEX translation_cache_created ON public.translation_cache USING btree ("createdAt");

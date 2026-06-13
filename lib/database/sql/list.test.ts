@@ -384,6 +384,144 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('shows posts published after a member is added (new-status fan-out)', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // Add the member to the list BEFORE any post exists, so the row can only
+      // appear via the new-status fan-out (addStatusToListTimelines), not the
+      // add-account backfill.
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Fan-out list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statusId = `${member.id}/statuses/after-add`
+      const status = await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'posted after being added to the list',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.addStatusToListTimelines({ status })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(statuses.map((item) => item.id)).toContain(statusId)
+    })
+  })
+
+  it('removes a member’s posts from the list timeline when the member is removed', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'hello from a list member',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Timeline list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      expect(
+        (
+          await database.getListTimeline({ listId: list.id, actorId: owner.id })
+        ).map((status) => status.id)
+      ).toContain(statusId)
+
+      await database.removeListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      expect(
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).toHaveLength(0)
+    })
+  })
+
+  it('drops the materialized feed when the list is deleted', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'hello from a list member',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Timeline list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      await database.deleteList({ id: list.id, actorId: owner.id })
+
+      // The list and its materialized rows are gone; reading by the same id
+      // returns nothing rather than stale posts.
+      expect(
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).toHaveLength(0)
+    })
+  })
+
   it('excludes member statuses the owner cannot see from the list timeline', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')

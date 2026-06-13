@@ -11,6 +11,18 @@ export enum Timeline {
   LOCAL_PUBLIC = 'local-public'
 }
 
+// List feeds are materialized into the same `timelines` table as the fixed feeds
+// above, keyed per list so the read is a single indexed partition scan (the same
+// shape that makes the home feed fast) instead of a live statuses⋈list_accounts
+// join. The `timeline` column is a free-form string, so a list uses the synthetic
+// key `list:<listId>` (scoped, like the fixed feeds, by the owner's actorId).
+// List feeds are materialized into the same `timelines` table as the fixed feeds
+// above so the read is a single indexed partition scan (the shape that makes the
+// home feed fast) rather than a live statuses⋈list_accounts join. The `timeline`
+// column is a free-form string, so a list uses the key `list:<listId>` (scoped,
+// like the fixed feeds, by the owner's actorId).
+export const listTimelineKey = (listId: string): string => `list:${listId}`
+
 export interface TimelineRuleParams {
   database: Database
   currentActor: Actor

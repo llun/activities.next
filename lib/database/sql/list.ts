@@ -11,9 +11,11 @@ import {
 } from '@/lib/database/sql/utils/knex'
 import { applyListRepliesPolicyFilter } from '@/lib/database/sql/utils/listRepliesPolicy'
 import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
+import { listTimelineKey } from '@/lib/services/timelines/types'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AddListAccountsParams,
+  AddStatusToListTimelinesParams,
   CreateListParams,
   DeleteListParams,
   GetListAccountCountsParams,
@@ -48,6 +50,48 @@ const fixListRow = (row: SQLList): List => ({
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
+
+// Materialize the given members' existing posts into a list's `timelines`
+// partition. Used to backfill full history when members are added (and by the
+// one-time backfill migration via the same column shape). Inserts are idempotent
+// on the unique (actorId, timeline, statusId), so it can safely overlap with the
+// new-status fan-out and is a no-op for members already present.
+const backfillListTimelineForMembers = async ({
+  database,
+  listId,
+  ownerId,
+  targetActorIds
+}: {
+  database: Knex
+  listId: string
+  ownerId: string
+  targetActorIds: string[]
+}): Promise<void> => {
+  if (targetActorIds.length === 0) return
+  const timeline = listTimelineKey(listId)
+  const updatedAt = new Date()
+  for (const targetActorId of targetActorIds) {
+    const statuses = await database('statuses')
+      .where('actorId', targetActorId)
+      .select('id', 'createdAt')
+    if (statuses.length === 0) continue
+    const rows = statuses.map((statusRow) => ({
+      actorId: ownerId,
+      timeline,
+      statusId: statusRow.id as string,
+      statusActorId: targetActorId,
+      createdAt: new Date(getCompatibleTime(statusRow.createdAt)),
+      updatedAt
+    }))
+    const batchSize = getInsertBatchSize(database, rows[0])
+    for (const chunk of chunkArray(rows, batchSize)) {
+      await database('timelines')
+        .insert(chunk)
+        .onConflict(['actorId', 'timeline', 'statusId'])
+        .ignore()
+    }
+  }
+}
 
 export const ListSQLDatabaseMixin = (
   database: Knex,
@@ -121,6 +165,11 @@ export const ListSQLDatabaseMixin = (
 
     await database.transaction(async (trx) => {
       await trx('list_accounts').where('listId', id).delete()
+      // Drop the materialized feed for this list so its rows don't linger in the
+      // timelines table after the list is gone.
+      await trx('timelines')
+        .where({ actorId, timeline: listTimelineKey(id) })
+        .delete()
       await trx('lists').where({ id, actorId }).delete()
     })
     return true
@@ -229,6 +278,18 @@ export const ListSQLDatabaseMixin = (
         .onConflict(['listId', 'targetActorId'])
         .ignore()
     }
+
+    // Backfill the materialized list feed with each new member's existing posts
+    // so the timeline shows full history immediately (matching the old live
+    // join), not just posts published after they were added. onConflict ignores
+    // any rows the new-status fan-out already wrote, so re-adding a member is a
+    // no-op rather than a duplicate.
+    await backfillListTimelineForMembers({
+      database,
+      listId,
+      ownerId: actorId,
+      targetActorIds
+    })
   },
 
   async removeListAccounts({
@@ -245,6 +306,18 @@ export const ListSQLDatabaseMixin = (
       await database('list_accounts')
         .where({ listId, actorId })
         .whereIn('targetActorId', chunk)
+        .delete()
+    }
+
+    // Drop the removed members' posts from the materialized list feed. Reserve
+    // two bindings (actorId + timeline) before chunking the statusActorId list,
+    // mirroring the membership delete above.
+    const purgeBatchSize = getWhereInBatchSize(database, 2)
+    const timeline = listTimelineKey(listId)
+    for (const chunk of chunkArray(targetActorIds, purgeBatchSize)) {
+      await database('timelines')
+        .where({ actorId, timeline })
+        .whereIn('statusActorId', chunk)
         .delete()
     }
   },
@@ -278,16 +351,20 @@ export const ListSQLDatabaseMixin = (
     const repliesPolicy = (listRow?.repliesPolicy ??
       'list') as ListRepliesPolicy
 
-    const query = database('statuses')
-      .innerJoin(
-        'list_accounts',
-        'list_accounts.targetActorId',
-        'statuses.actorId'
-      )
-      .where('list_accounts.listId', listId)
+    // Read the list feed from the materialized `timelines` partition (kept in
+    // sync by addStatusToListTimelines on new posts and by the addListAccounts
+    // backfill) instead of a live statuses⋈list_accounts join. The
+    // partition is pre-narrowed by the (actorId, timeline, createdAt) index, so
+    // this is the same fast indexed read the home feed uses. The candidate set is
+    // identical to the old join — every status whose author is a list member — so
+    // the visibility / replies-policy / block-mute filters below (still applied
+    // pre-LIMIT against the joined statuses row) produce the same result.
+    const query = database('timelines')
+      .innerJoin('statuses', 'statuses.id', 'timelines.statusId')
       // Scope to the owner defensively so a caller can never read another
       // actor's list timeline even if they know the listId.
-      .andWhere('list_accounts.actorId', actorId)
+      .where('timelines.actorId', actorId)
+      .andWhere('timelines.timeline', listTimelineKey(listId))
     // Apply the owner's visibility before LIMIT so the page counts only
     // statuses they may read — a member's direct/non-public posts addressed to
     // others never appear, and the limit isn't spent on rows that would be
@@ -365,5 +442,38 @@ export const ListSQLDatabaseMixin = (
     // their action state (isActorLiked/isActorBookmarked/announce) is hydrated —
     // otherwise the timeline would render every post as un-acted.
     return getStatusesByIds(statusIds, actorId)
+  },
+
+  async addStatusToListTimelines({
+    status
+  }: AddStatusToListTimelinesParams): Promise<void> {
+    // Find every list whose membership includes this status's author. Each
+    // list_accounts row already carries the owner (actorId) and listId, so no
+    // join to `lists` is needed; targetActorId is indexed for this lookup.
+    const memberships = await database('list_accounts')
+      .where('targetActorId', status.actorId)
+      .select('listId', 'actorId')
+    if (memberships.length === 0) return
+
+    const createdAt = new Date(status.createdAt)
+    const updatedAt = new Date()
+    const rows = memberships.map((membership) => ({
+      actorId: membership.actorId as string,
+      timeline: listTimelineKey(membership.listId as string),
+      statusId: status.id,
+      statusActorId: status.actorId,
+      createdAt,
+      updatedAt
+    }))
+    // Idempotent on the unique (actorId, timeline, statusId): a repeated fan-out
+    // (e.g. an edit re-running addStatusToTimelines) or overlap with a backfill
+    // is ignored rather than duplicated.
+    const batchSize = getInsertBatchSize(database, rows[0])
+    for (const chunk of chunkArray(rows, batchSize)) {
+      await database('timelines')
+        .insert(chunk)
+        .onConflict(['actorId', 'timeline', 'statusId'])
+        .ignore()
+    }
   }
 })
