@@ -22,7 +22,9 @@ const Page = async () => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  return <AnnouncementsPanel />
+  // Pass the wall clock as a number (never a Date) so the panel can compute
+  // lifecycle status badges without a hydration mismatch.
+  return <AnnouncementsPanel currentTime={Date.now()} />
 }
 
 export default Page

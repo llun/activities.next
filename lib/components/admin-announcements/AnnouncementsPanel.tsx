@@ -11,12 +11,15 @@ import {
   getServerAnnouncements,
   updateServerAnnouncement
 } from '@/lib/client'
+import { AnnouncementBadge } from '@/lib/components/announcements/AnnouncementBanner'
 import { FilterField, FilterSection } from '@/lib/components/filters/filterUi'
 import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
-import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
+import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
+
+import { computeAnnouncementStatus } from './announcementStatus'
 
 // The server returns announcements newest-first by createdAt. `Array.prototype
 // .sort` is stable, so re-sorting after an edit preserves that order for rows
@@ -45,7 +48,15 @@ const formatDateTime = (time: number): string =>
     timeStyle: 'short'
   })
 
-export const AnnouncementsPanel: FC = () => {
+interface AnnouncementsPanelProps {
+  // Wall clock as a number (never a Date) from the server component, used to
+  // compute lifecycle status badges without a hydration mismatch.
+  currentTime: number
+}
+
+export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
+  currentTime
+}) => {
   const [announcements, setAnnouncements] = useState<ServerAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
@@ -89,7 +100,9 @@ export const AnnouncementsPanel: FC = () => {
       const input: ServerAnnouncementInput = {
         text,
         starts_at: fromLocalInputValue(newStartsAt),
-        ends_at: fromLocalInputValue(newEndsAt),
+        // When the event is all-day, the end bound is not meaningful, so drop
+        // whatever was previously typed.
+        ends_at: newAllDay ? null : fromLocalInputValue(newEndsAt),
         all_day: newAllDay,
         published: newPublished
       }
@@ -191,25 +204,29 @@ export const AnnouncementsPanel: FC = () => {
         description="Instance-wide announcements served from the Mastodon announcements API. Published announcements within their active window are shown to everyone."
       />
 
-      {listError && <p className="text-sm text-destructive">{listError}</p>}
+      {listError && <p className="text-destructive text-sm">{listError}</p>}
 
       <FilterSection
         title="Add an announcement"
-        description="Markdown is supported. Leave the start and end empty to show it immediately and indefinitely."
+        description="Markdown is supported. Leave the event window empty to show it immediately and indefinitely."
       >
         <form onSubmit={handleCreate} className="space-y-4">
-          <FilterField label="Text" htmlFor="announcement-text">
+          <FilterField
+            label="Text"
+            htmlFor="announcement-text"
+            help="Plain text with hashtags and mentions; keep it under a few sentences. No attachments."
+          >
             <Textarea
               id="announcement-text"
               value={newText}
               onChange={(event) => setNewText(event.target.value)}
               maxLength={5000}
-              rows={3}
+              rows={4}
               required
             />
           </FilterField>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FilterField label="Starts at" htmlFor="announcement-starts-at">
+            <FilterField label="Event starts" htmlFor="announcement-starts-at">
               <Input
                 id="announcement-starts-at"
                 type="datetime-local"
@@ -217,38 +234,50 @@ export const AnnouncementsPanel: FC = () => {
                 onChange={(event) => setNewStartsAt(event.target.value)}
               />
             </FilterField>
-            <FilterField label="Ends at" htmlFor="announcement-ends-at">
+            <FilterField label="Event ends" htmlFor="announcement-ends-at">
               <Input
                 id="announcement-ends-at"
                 type="datetime-local"
                 value={newEndsAt}
                 onChange={(event) => setNewEndsAt(event.target.value)}
+                disabled={newAllDay}
               />
             </FilterField>
           </div>
-          <label
-            className="flex items-center gap-2 text-sm"
-            htmlFor="announcement-all-day"
-          >
-            <Checkbox
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">All-day event</p>
+              <p className="text-muted-foreground text-sm">
+                Hide the times and show only the dates.
+              </p>
+            </div>
+            <Switch
               id="announcement-all-day"
               checked={newAllDay}
-              onChange={(event) => setNewAllDay(event.target.checked)}
+              onCheckedChange={setNewAllDay}
+              aria-label="All-day event"
             />
-            All day
-          </label>
-          <label
-            className="flex items-center gap-2 text-sm"
-            htmlFor="announcement-published"
-          >
-            <Checkbox
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Publish now</p>
+              <p className="text-muted-foreground text-sm">
+                Publish immediately. Leave off to save as a draft.
+              </p>
+            </div>
+            <Switch
               id="announcement-published"
               checked={newPublished}
-              onChange={(event) => setNewPublished(event.target.checked)}
+              onCheckedChange={setNewPublished}
+              aria-label="Publish now"
             />
-            Published
-          </label>
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          </div>
+          <p className="text-muted-foreground text-[0.8rem]">
+            Times are stored in UTC and display in each reader&apos;s local
+            timezone. The announcement disappears for everyone after the end
+            date.
+          </p>
+          {formError && <p className="text-destructive text-sm">{formError}</p>}
           <div className="flex justify-end">
             <Button
               type="submit"
@@ -257,7 +286,7 @@ export const AnnouncementsPanel: FC = () => {
               }
             >
               <Plus className="size-4" />
-              Add announcement
+              {newPublished ? 'Publish' : 'Save draft'}
             </Button>
           </div>
         </form>
@@ -265,72 +294,83 @@ export const AnnouncementsPanel: FC = () => {
 
       <FilterSection>
         {loading ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground py-6 text-center text-sm">
             Loading announcements…
           </p>
         ) : announcements.length === 0 && !listError ? (
           // Suppress the empty-state copy when a load error is already shown, so
           // a failed fetch doesn't read as "you have no announcements".
-          <p className="py-6 text-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground py-6 text-center text-sm">
             No announcements yet — add one to show it to everyone.
           </p>
         ) : (
           <div className="space-y-4">
-            {announcements.map((announcement) => (
-              <div
-                key={announcement.id}
-                className="space-y-3 rounded-lg border p-3"
-              >
-                <FilterField
-                  label="Text"
-                  htmlFor={`announcement-text-${announcement.id}`}
+            {announcements.map((announcement) => {
+              const status = computeAnnouncementStatus(
+                announcement,
+                currentTime
+              )
+              return (
+                <div
+                  key={announcement.id}
+                  className="space-y-3 rounded-lg border p-3"
                 >
-                  <Textarea
-                    id={`announcement-text-${announcement.id}`}
-                    defaultValue={announcement.text}
-                    maxLength={5000}
-                    rows={2}
-                    disabled={busyId !== null || saving}
-                    onBlur={(event) =>
-                      handleEditText(announcement, event.target.value)
-                    }
-                  />
-                </FilterField>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  {announcement.starts_at !== null && (
-                    <span suppressHydrationWarning>
-                      Starts {formatDateTime(announcement.starts_at)}
-                    </span>
-                  )}
-                  {announcement.ends_at !== null && (
-                    <span suppressHydrationWarning>
-                      Ends {formatDateTime(announcement.ends_at)}
-                    </span>
-                  )}
-                  {announcement.all_day && <span>All day</span>}
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleTogglePublished(announcement)}
-                    disabled={busyId !== null || saving}
+                  <div className="flex items-center gap-2">
+                    <AnnouncementBadge tone={status.tone}>
+                      {status.label}
+                    </AnnouncementBadge>
+                  </div>
+                  <FilterField
+                    label="Text"
+                    htmlFor={`announcement-text-${announcement.id}`}
                   >
-                    {announcement.published ? 'Unpublish' : 'Publish'}
-                  </Button>
-                  <button
-                    type="button"
-                    aria-label={`Delete announcement ${announcement.text}`}
-                    onClick={() => handleDelete(announcement)}
-                    disabled={busyId !== null || saving}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[hsl(0_84.2%_60.2%/0.4)] text-[hsl(0_72%_45%)] transition-colors hover:bg-[hsl(0_72%_45%/0.08)] disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                    <Textarea
+                      id={`announcement-text-${announcement.id}`}
+                      defaultValue={announcement.text}
+                      maxLength={5000}
+                      rows={2}
+                      disabled={busyId !== null || saving}
+                      onBlur={(event) =>
+                        handleEditText(announcement, event.target.value)
+                      }
+                    />
+                  </FilterField>
+                  <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                    {announcement.starts_at !== null && (
+                      <span suppressHydrationWarning>
+                        Starts {formatDateTime(announcement.starts_at)}
+                      </span>
+                    )}
+                    {announcement.ends_at !== null && (
+                      <span suppressHydrationWarning>
+                        Ends {formatDateTime(announcement.ends_at)}
+                      </span>
+                    )}
+                    {announcement.all_day && <span>All day</span>}
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTogglePublished(announcement)}
+                      disabled={busyId !== null || saving}
+                    >
+                      {announcement.published ? 'Unpublish' : 'Publish'}
+                    </Button>
+                    <button
+                      type="button"
+                      aria-label={`Delete announcement ${announcement.text}`}
+                      onClick={() => handleDelete(announcement)}
+                      disabled={busyId !== null || saving}
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </FilterSection>
