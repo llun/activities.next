@@ -8,6 +8,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { listTimelineKey } from '@/lib/services/timelines/types'
 import {
   CreateFollowParams,
   FollowDatabase,
@@ -395,6 +396,34 @@ export const FollowerSQLDatabaseMixin = (
             currentTime
           )
         ])
+      }
+
+      // Mastodon ties list membership to the follow: unfollowing an account
+      // removes it from all of the unfollower's lists. List membership is the
+      // source of truth for the list timeline, so dropping the membership (and
+      // the materialized list-feed rows it produced) is all that's needed — the
+      // owner is existingFollow.actorId (the follower) and the member is
+      // existingFollow.targetActorId (the followed). A user has few lists, so
+      // this is a small indexed delete on a rare action.
+      if (status === FollowStatus.enum.Undo) {
+        const ownerId = existingFollow.actorId
+        const memberId = existingFollow.targetActorId
+        const memberships = await trx('list_accounts')
+          .where({ actorId: ownerId, targetActorId: memberId })
+          .select('listId')
+        if (memberships.length > 0) {
+          await trx('list_accounts')
+            .where({ actorId: ownerId, targetActorId: memberId })
+            .delete()
+          await trx('timelines')
+            .where('actorId', ownerId)
+            .where('statusActorId', memberId)
+            .whereIn(
+              'timeline',
+              memberships.map((row) => listTimelineKey(row.listId as string))
+            )
+            .delete()
+        }
       }
     })
   },

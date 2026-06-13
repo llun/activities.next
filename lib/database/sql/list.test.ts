@@ -522,6 +522,74 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('removes a member from the owner’s lists when the owner unfollows them', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      await database.createFollow({
+        actorId: owner.id,
+        targetActorId: member.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${member.id}/inbox`,
+        sharedInbox: `${member.id}/inbox`
+      })
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'hello from a followed list member',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Timeline list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      expect(
+        (
+          await database.getListTimeline({ listId: list.id, actorId: owner.id })
+        ).map((status) => status.id)
+      ).toContain(statusId)
+
+      // Unfollowing flips the follow to Undo through the canonical chokepoint,
+      // which must drop the member from the owner's lists and the materialized
+      // feed (Mastodon parity).
+      const follow = await database.getAcceptedOrRequestedFollow({
+        actorId: owner.id,
+        targetActorId: member.id
+      })
+      if (!follow) throw new Error('follow not created')
+      await database.updateFollowStatus({
+        followId: follow.id,
+        status: FollowStatus.enum.Undo
+      })
+
+      expect(
+        (await database.getListAccounts({ listId: list.id, actorId: owner.id }))
+          .accounts
+      ).toHaveLength(0)
+      expect(
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).toHaveLength(0)
+    })
+  })
+
   it('excludes member statuses the owner cannot see from the list timeline', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')
