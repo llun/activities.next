@@ -53,6 +53,13 @@ export const addStatusToTimelines = async (
           actors.map((actor) => actor.id),
           status
         )
+      // Fan the post into the materialized feed of every list that includes its
+      // author (independent of the recipient fan-out below, since list ownership
+      // — not delivery — decides list membership). Visibility/replies-policy are
+      // enforced at read time, so this materializes the same candidate set the
+      // old live list query scanned.
+      await database.addStatusToListTimelines({ status })
+
       const isDirect = isDirectStatus(status)
       if (isDirect) {
         await database.syncDirectConversationForStatus({
