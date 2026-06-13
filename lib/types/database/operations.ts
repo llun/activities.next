@@ -1592,12 +1592,24 @@ export type GetTagDailyHistoryParams = {
   names: string[]
   days: number
 }
+export type GetTrendingStatusCandidateIdsParams = {
+  days: number
+}
 
 export interface TrendsDatabase {
   // Hashtags on public Note/Poll statuses created within the last `days`
   // days, ranked by distinct status uses descending (tag name ascending as
   // the deterministic tiebreaker), sliced by offset/limit.
   getTrendingTags(params: GetTrendingTagsParams): Promise<TrendingTag[]>
+  // The complete set of trending-status candidate ids: every public,
+  // top-level (non-reply) Note/Poll authored by a local actor within the last
+  // `days` days, newest first. Unlike a fixed newest-N timeline slice this
+  // never drops a highly-interacted older-within-window status before the
+  // service ranks it. The window bounds the row volume on a personal-scale
+  // instance, matching the tag-trends scan.
+  getTrendingStatusCandidateIds(
+    params: GetTrendingStatusCandidateIdsParams
+  ): Promise<string[]>
   // Per-UTC-day usage buckets (newest first) for each requested name within
   // the last `days` days. Every requested name maps to an entry — possibly an
   // empty list — so routes can zero-fill missing days uniformly.

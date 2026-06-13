@@ -1,5 +1,4 @@
 import { Database } from '@/lib/database/types'
-import { Timeline } from '@/lib/services/timelines/types'
 import {
   Status,
   StatusNote,
@@ -8,8 +7,6 @@ import {
 } from '@/lib/types/domain/status'
 
 const CANDIDATE_WINDOW_DAYS = 7
-const CANDIDATE_LIMIT = 200
-const DAY_MS = 86_400_000
 
 interface GetTrendingStatusesParams {
   database: Database
@@ -19,10 +16,13 @@ interface GetTrendingStatusesParams {
 
 /**
  * Local trending statuses computed live from the last seven days of public
- * interactions on this instance. Candidates come from the local-public
- * timeline (top-level public statuses by local actors, newest first) and are
- * ranked app-side: the per-status counters are key-value rows, so joining on
- * their concatenated keys in SQL would be dialect-fragile.
+ * interactions on this instance. Candidates are the complete windowed set of
+ * top-level public statuses by local actors (`getTrendingStatusCandidateIds`
+ * resolves the public/window/type filters in SQL), not a fixed newest-N
+ * timeline slice — so a highly-interacted older-within-window status is never
+ * dropped before ranking. Ranking stays app-side: the per-status counters are
+ * key-value rows, so joining on their concatenated keys in SQL would be
+ * dialect-fragile.
  *
  * The score reads exactly the fields the Mastodon serializer exposes —
  * `status.totalLikes` (favourites_count) plus the reblog and reply counters
@@ -35,15 +35,20 @@ export const getTrendingStatuses = async ({
   limit,
   offset
 }: GetTrendingStatusesParams): Promise<Status[]> => {
-  const candidates = await database.getTimeline({
-    timeline: Timeline.LOCAL_PUBLIC,
-    limit: CANDIDATE_LIMIT
+  const candidateIds = await database.getTrendingStatusCandidateIds({
+    days: CANDIDATE_WINDOW_DAYS
   })
+  if (candidateIds.length === 0) return []
 
-  const since = Date.now() - CANDIDATE_WINDOW_DAYS * DAY_MS
+  const candidates = await database.getStatusesByIds({
+    statusIds: candidateIds
+  })
+  // The SQL filter already restricts candidates to Note/Poll; this narrows the
+  // type for the counter lookups below (an Announce carries no own counters).
   const windowedStatuses = candidates.filter(
     (status): status is StatusNote | StatusPoll =>
-      status.type !== StatusType.enum.Announce && status.createdAt >= since
+      status.type === StatusType.enum.Note ||
+      status.type === StatusType.enum.Poll
   )
   if (windowedStatuses.length === 0) return []
 

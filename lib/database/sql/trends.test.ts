@@ -285,3 +285,93 @@ describe('getTagDailyHistory', () => {
     })
   })
 })
+
+describe('getTrendingStatusCandidateIds', () => {
+  const createNote = (
+    database: Database,
+    {
+      actorId,
+      id,
+      createdAt,
+      isPublic = true,
+      reply
+    }: {
+      actorId: string
+      id: string
+      createdAt: number
+      isPublic?: boolean
+      reply?: string
+    }
+  ) =>
+    database.createNote({
+      id,
+      url: id,
+      actorId,
+      to: isPublic ? [ACTIVITY_STREAM_PUBLIC] : [`${actorId}/followers`],
+      cc: [],
+      text: 'Candidate',
+      ...(reply ? { reply } : null),
+      createdAt
+    })
+
+  it('returns every public top-level candidate newest first, ignoring a fixed cap', async () => {
+    await withFreshDatabase(async (database) => {
+      await createActor(database, FIRST_ACTOR_ID, 'first')
+
+      const now = Date.now()
+      // Far more than any small newest-N timeline slice would keep, so a cap
+      // would drop the oldest-within-window ones from the candidate set.
+      const total = 250
+      for (let index = 0; index < total; index += 1) {
+        await createNote(database, {
+          actorId: FIRST_ACTOR_ID,
+          id: `${FIRST_ACTOR_ID}/statuses/${index}`,
+          createdAt: now - index * 1000
+        })
+      }
+
+      const ids = await database.getTrendingStatusCandidateIds({ days: 7 })
+      expect(ids).toHaveLength(total)
+      // Newest first, and the oldest-within-window status is still present.
+      expect(ids[0]).toBe(`${FIRST_ACTOR_ID}/statuses/0`)
+      expect(ids).toContain(`${FIRST_ACTOR_ID}/statuses/${total - 1}`)
+    })
+  })
+
+  it('excludes replies, non-public, and out-of-window statuses', async () => {
+    await withFreshDatabase(async (database) => {
+      await createActor(database, FIRST_ACTOR_ID, 'first')
+
+      const now = Date.now()
+      const keptId = `${FIRST_ACTOR_ID}/statuses/kept`
+      await createNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: keptId,
+        createdAt: now - 1000
+      })
+      // A reply is not a top-level candidate.
+      await createNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/reply`,
+        createdAt: now - 2000,
+        reply: keptId
+      })
+      // Followers-only is never public.
+      await createNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/private`,
+        createdAt: now - 3000,
+        isPublic: false
+      })
+      // Eight days old — outside the seven-day window.
+      await createNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/old`,
+        createdAt: now - 8 * DAY_MS
+      })
+
+      const ids = await database.getTrendingStatusCandidateIds({ days: 7 })
+      expect(ids).toEqual([keptId])
+    })
+  })
+})

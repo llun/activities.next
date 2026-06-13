@@ -7,6 +7,7 @@ import {
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   GetTagDailyHistoryParams,
+  GetTrendingStatusCandidateIdsParams,
   GetTrendingTagsParams,
   TagDailyHistoryPoint,
   TrendingTag,
@@ -120,6 +121,33 @@ export const TrendsSQLDatabaseMixin = (database: Knex): TrendsDatabase => ({
         accounts: Number(row.accounts)
       })
     )
+  },
+
+  async getTrendingStatusCandidateIds({
+    days
+  }: GetTrendingStatusCandidateIdsParams) {
+    // Mirror the LOCAL_PUBLIC timeline selection (top-level public statuses by
+    // local actors), but restricted to the trends window and to content types
+    // that carry their own counters — Announce boosts are skipped, the boosted
+    // original ranks through its own row. Public is encoded directly in SQL via
+    // the `to` recipient on the public collection, so the candidate set needs
+    // no per-status async access check before ranking. Binding a Date keeps the
+    // window predicate portable across SQLite (epoch ms) and Postgres
+    // (timestamptz), matching getWindowedPublicTagUsage.
+    const since = new Date(Date.now() - days * DAY_MS)
+    const rows = (await database('recipients')
+      .where('recipients.type', 'to')
+      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+      .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
+      .innerJoin('actors', 'statuses.actorId', 'actors.id')
+      .whereNotNull('actors.privateKey')
+      .where('statuses.reply', '')
+      .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      .where('statuses.createdAt', '>=', since)
+      .distinct('statuses.id as id', 'statuses.createdAt as createdAt')
+      .orderBy('statuses.createdAt', 'desc')
+      .orderBy('statuses.id', 'desc')) as { id: string }[]
+    return rows.map((row) => row.id)
   },
 
   async getTagDailyHistory({ names, days }: GetTagDailyHistoryParams) {
