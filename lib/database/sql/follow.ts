@@ -8,6 +8,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
 import { listTimelineKey } from '@/lib/services/timelines/types'
 import {
   CreateFollowParams,
@@ -415,14 +416,24 @@ export const FollowerSQLDatabaseMixin = (
           await trx('list_accounts')
             .where({ actorId: ownerId, targetActorId: memberId })
             .delete()
-          await trx('timelines')
-            .where('actorId', ownerId)
-            .where('statusActorId', memberId)
-            .whereIn(
-              'timeline',
-              memberships.map((row) => listTimelineKey(row.listId as string))
-            )
-            .delete()
+          // Purge the member's posts from each of the owner's list partitions.
+          // The whereIn on the list keys is what scopes this to lists — without
+          // it the (actorId, statusActorId) delete would also wipe the member's
+          // posts from the owner's home feed (timeline='main'). Chunk the keys
+          // (reserving the actorId + statusActorId bindings) so an owner with
+          // very many lists can't exceed SQLite's bound-parameter limit, matching
+          // the other purge hooks.
+          const timelineKeys = memberships.map((row) =>
+            listTimelineKey(row.listId as string)
+          )
+          const batchSize = getWhereInBatchSize(database, 2)
+          for (const keyChunk of chunkArray(timelineKeys, batchSize)) {
+            await trx('timelines')
+              .where('actorId', ownerId)
+              .where('statusActorId', memberId)
+              .whereIn('timeline', keyChunk)
+              .delete()
+          }
         }
       }
     })

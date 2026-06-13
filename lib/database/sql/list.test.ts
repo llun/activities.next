@@ -4,6 +4,7 @@ import {
   getTestSQLDatabase
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import { Timeline } from '@/lib/services/timelines/types'
 import { EXTERNAL_ACTORS, TEST_DOMAIN } from '@/lib/stub/const'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { ListRepliesPolicy } from '@/lib/types/domain/list'
@@ -544,13 +545,20 @@ describe('ListDatabase', () => {
         sharedInbox: `${member.id}/inbox`
       })
       const statusId = `${member.id}/statuses/1`
-      await database.createNote({
+      const status = await database.createNote({
         id: statusId,
         url: statusId,
         actorId: member.id,
         text: 'hello from a followed list member',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
+      })
+      // Also place the member's post in the owner's HOME feed, so we can prove
+      // the unfollow purge is scoped to list partitions and never touches home.
+      await database.createTimelineStatus({
+        actorId: owner.id,
+        status,
+        timeline: Timeline.MAIN
       })
       const list = await database.createList({
         actorId: owner.id,
@@ -564,7 +572,7 @@ describe('ListDatabase', () => {
       expect(
         (
           await database.getListTimeline({ listId: list.id, actorId: owner.id })
-        ).map((status) => status.id)
+        ).map((item) => item.id)
       ).toContain(statusId)
 
       // Unfollowing flips the follow to Undo through the canonical chokepoint,
@@ -587,6 +595,15 @@ describe('ListDatabase', () => {
       expect(
         await database.getListTimeline({ listId: list.id, actorId: owner.id })
       ).toHaveLength(0)
+      // The home feed must be untouched by the list purge.
+      expect(
+        (
+          await database.getTimeline({
+            timeline: Timeline.MAIN,
+            actorId: owner.id
+          })
+        ).map((item) => item.id)
+      ).toContain(statusId)
     })
   })
 
