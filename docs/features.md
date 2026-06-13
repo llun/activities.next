@@ -71,6 +71,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Account notes & preferences** — Private per-account notes and client preferences
 - ✅ **Featured tags API** — `/api/v1/featured_tags` endpoints backing the profile featured-hashtags feature
 - ✅ **Follow suggestions** — friends-of-friends suggestions via `GET /api/v2/suggestions` (plus deprecated `GET /api/v1/suggestions`), with per-account dismissal via `DELETE /api/v1/suggestions/:account_id`
+- ✅ **Trends** — local trending hashtags via `GET /api/v1/trends/tags` (plus deprecated `GET /api/v1/trends`) and trending statuses via `GET /api/v1/trends/statuses`, both computed live from the last seven days of public local activity; `GET /api/v1/trends/links` intentionally stays an empty list (no preview-card storage)
 - ✅ **Followed hashtags** — Follow and unfollow hashtags and view a followed-tags timeline
 - ✅ **Mutes** — Mute and unmute accounts
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`

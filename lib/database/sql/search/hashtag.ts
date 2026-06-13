@@ -86,7 +86,11 @@ const getTagUrl = (name: string) => {
   return `${baseURL}/tags/${encodeURIComponent(name)}`
 }
 
-const getNormalizedHashtagNameSQL = (database: KnexConnection) => {
+// Strips the optional leading `#` from `tags.nameNormalized` in SQL so both
+// stored forms (`bare` and `#bare`) group/match as one normalized tag name.
+// Exported for other tag aggregations (e.g. trends) that must count the same
+// rows hashtag search counts.
+export const getNormalizedHashtagNameSQL = (database: KnexConnection) => {
   if (isSQLiteClient(database)) {
     return {
       sql: 'lower(ltrim(??, ?))',
