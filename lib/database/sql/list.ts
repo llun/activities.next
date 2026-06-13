@@ -272,28 +272,32 @@ export const ListSQLDatabaseMixin = (
       targetActorId,
       createdAt: currentTime
     }))
-    // Batch insert, chunked to stay under SQLite's 999 bound-parameter limit
-    // (the batch size is derived from the column count). Targets already on the
-    // list are ignored so repeated adds stay idempotent (matching Mastodon)
-    // without per-row round-trips.
-    const batchSize = getInsertBatchSize(database, rows[0])
-    for (const chunk of chunkArray(rows, batchSize)) {
-      await database('list_accounts')
-        .insert(chunk)
-        .onConflict(['listId', 'targetActorId'])
-        .ignore()
-    }
+    // Run the membership insert and the materialized backfill in one transaction
+    // so a crash can't leave members on the list without their feed rows (or, on
+    // re-add, partially backfilled). Targets already on the list are ignored so
+    // repeated adds stay idempotent (matching Mastodon).
+    await database.transaction(async (trx) => {
+      // Batch insert, chunked to stay under SQLite's 999 bound-parameter limit
+      // (the batch size is derived from the column count).
+      const batchSize = getInsertBatchSize(trx, rows[0])
+      for (const chunk of chunkArray(rows, batchSize)) {
+        await trx('list_accounts')
+          .insert(chunk)
+          .onConflict(['listId', 'targetActorId'])
+          .ignore()
+      }
 
-    // Backfill the materialized list feed with each new member's existing posts
-    // so the timeline shows full history immediately (matching the old live
-    // join), not just posts published after they were added. onConflict ignores
-    // any rows the new-status fan-out already wrote, so re-adding a member is a
-    // no-op rather than a duplicate.
-    await backfillListTimelineForMembers({
-      database,
-      listId,
-      ownerId: actorId,
-      targetActorIds
+      // Backfill the materialized list feed with each new member's existing posts
+      // so the timeline shows full history immediately (matching the old live
+      // join), not just posts published after they were added. onConflict ignores
+      // any rows the new-status fan-out already wrote, so re-adding a member is a
+      // no-op rather than a duplicate.
+      await backfillListTimelineForMembers({
+        database: trx,
+        listId,
+        ownerId: actorId,
+        targetActorIds
+      })
     })
   },
 
@@ -303,28 +307,28 @@ export const ListSQLDatabaseMixin = (
     targetActorIds
   }: RemoveListAccountsParams) {
     if (targetActorIds.length === 0) return
-    // Scope to the owner defensively so a caller can never delete members from
-    // a list they do not own. Chunk the whereIn list to stay under SQLite's 999
-    // bound-parameter limit, reserving two bindings for listId + actorId.
-    const batchSize = getWhereInBatchSize(database, 2)
-    for (const chunk of chunkArray(targetActorIds, batchSize)) {
-      await database('list_accounts')
-        .where({ listId, actorId })
-        .whereIn('targetActorId', chunk)
-        .delete()
-    }
-
-    // Drop the removed members' posts from the materialized list feed. Reserve
-    // two bindings (actorId + timeline) before chunking the statusActorId list,
-    // mirroring the membership delete above.
-    const purgeBatchSize = getWhereInBatchSize(database, 2)
     const timeline = listTimelineKey(listId)
-    for (const chunk of chunkArray(targetActorIds, purgeBatchSize)) {
-      await database('timelines')
-        .where({ actorId, timeline })
-        .whereIn('statusActorId', chunk)
-        .delete()
-    }
+    // Run the membership delete and the feed purge in one transaction so the two
+    // can't diverge on a crash. Both whereIn deletes reserve two bindings
+    // (listId+actorId / actorId+timeline) before chunking the id list to stay
+    // under SQLite's 999 bound-parameter limit. Scope to the owner defensively so
+    // a caller can never delete members from a list they do not own.
+    await database.transaction(async (trx) => {
+      const batchSize = getWhereInBatchSize(trx, 2)
+      for (const chunk of chunkArray(targetActorIds, batchSize)) {
+        await trx('list_accounts')
+          .where({ listId, actorId })
+          .whereIn('targetActorId', chunk)
+          .delete()
+      }
+      // Drop the removed members' posts from the materialized list feed.
+      for (const chunk of chunkArray(targetActorIds, batchSize)) {
+        await trx('timelines')
+          .where({ actorId, timeline })
+          .whereIn('statusActorId', chunk)
+          .delete()
+      }
+    })
   },
 
   async getListsWithAccount({
