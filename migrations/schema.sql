@@ -77,6 +77,31 @@ CREATE TABLE public.actors (
     type character varying(255) DEFAULT 'Person'::character varying NOT NULL
 );
 
+CREATE TABLE public.announcement_reactions (
+    "announcementId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL
+);
+
+CREATE TABLE public.announcement_reads (
+    "announcementId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL
+);
+
+CREATE TABLE public.announcements (
+    id character varying(255) NOT NULL,
+    text text NOT NULL,
+    published boolean DEFAULT false NOT NULL,
+    "allDay" boolean DEFAULT false NOT NULL,
+    "startsAt" timestamp with time zone,
+    "endsAt" timestamp with time zone,
+    "publishedAt" timestamp with time zone,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.attachments (
     id character varying(255) NOT NULL,
     "statusId" character varying(255),
@@ -953,6 +978,15 @@ ALTER TABLE ONLY public.actors
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_username_domain_unique UNIQUE (username, domain);
 
+ALTER TABLE ONLY public.announcement_reactions
+    ADD CONSTRAINT announcement_reactions_pkey PRIMARY KEY ("announcementId", "actorId", name);
+
+ALTER TABLE ONLY public.announcement_reads
+    ADD CONSTRAINT announcement_reads_pkey PRIMARY KEY ("announcementId", "actorId");
+
+ALTER TABLE ONLY public.announcements
+    ADD CONSTRAINT announcements_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.clients
     ADD CONSTRAINT applications_clientname_unique UNIQUE (name);
 
@@ -1471,4 +1505,3 @@ ALTER TABLE ONLY public.status_pins
 
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT twofactor_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id) ON DELETE CASCADE;
-

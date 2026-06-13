@@ -5,6 +5,7 @@ import {
   Filter,
   Globe,
   Hash,
+  Megaphone,
   ScrollText,
   Settings,
   Smile,
@@ -31,6 +32,7 @@ const tabs: SectionNavTab[] = [
   { name: 'Hashtags', url: '/admin/tags', icon: Hash },
   { name: 'Filters', url: '/admin/filters', icon: Filter },
   { name: 'Rules', url: '/admin/rules', icon: ScrollText },
+  { name: 'Announcements', url: '/admin/announcements', icon: Megaphone },
   { name: 'Federation', url: '/admin/federation', icon: Globe },
   { name: 'Custom emojis', url: '/admin/emojis', icon: Smile },
   { name: 'System', url: '/admin/system', icon: Settings }

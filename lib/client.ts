@@ -1,4 +1,5 @@
 import { Duration } from '@/lib/components/post-box/poll-choices'
+import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
 import type { AdminRule } from '@/lib/services/rules/adminRule'
 import { TimelineFormat } from '@/lib/services/timelines/const'
@@ -14,6 +15,7 @@ import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
+import type { Announcement } from '@/lib/types/mastodon/announcement'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Filter as MastodonFilter } from '@/lib/types/mastodon/filter'
@@ -3013,6 +3015,108 @@ export const deleteServerRule = async (id: string): Promise<boolean> => {
   const response = await fetch(
     `/api/v2/admin/rules/${encodeURIComponent(id)}`,
     { method: 'DELETE' }
+  )
+  return response.ok
+}
+
+export type ServerAnnouncement = AdminAnnouncement
+
+export interface ServerAnnouncementInput {
+  text: string
+  starts_at?: string | null
+  ends_at?: string | null
+  all_day?: boolean
+  published?: boolean
+}
+
+export const getServerAnnouncements = async (): Promise<
+  ServerAnnouncement[]
+> => {
+  const response = await fetch('/api/v2/admin/announcements', {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  // Throw (rather than returning []) so an HTTP error is surfaced by the
+  // caller's error handling instead of being indistinguishable from an empty
+  // list. Mirrors the throwing pattern used by getServerRules().
+  if (!response.ok) {
+    throw new Error(`Failed to load announcements (${response.status})`)
+  }
+  return (await response.json()) as ServerAnnouncement[]
+}
+
+export const createServerAnnouncement = async (
+  input: ServerAnnouncementInput
+): Promise<ServerAnnouncement | null> => {
+  const response = await fetch('/api/v2/admin/announcements', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  })
+  if (!response.ok) return null
+  return (await response.json()) as ServerAnnouncement
+}
+
+export const updateServerAnnouncement = async (
+  id: string,
+  input: Partial<ServerAnnouncementInput>
+): Promise<ServerAnnouncement | null> => {
+  const response = await fetch(
+    `/api/v2/admin/announcements/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    }
+  )
+  if (!response.ok) return null
+  return (await response.json()) as ServerAnnouncement
+}
+
+export const deleteServerAnnouncement = async (
+  id: string
+): Promise<boolean> => {
+  const response = await fetch(
+    `/api/v2/admin/announcements/${encodeURIComponent(id)}`,
+    { method: 'DELETE' }
+  )
+  return response.ok
+}
+
+// Public announcements (https://docs.joinmastodon.org/methods/announcements/).
+// The active server announcements shown to a signed-in user, each carrying a
+// per-actor `read` flag. Distinct from the admin `getServerAnnouncements`
+// management list above — these render published content for the timeline
+// banner.
+
+// Returns the active announcements for the current actor. Returns [] on a
+// non-OK response so the timeline banner degrades to showing nothing rather
+// than surfacing an error to the reader.
+export const getAnnouncements = async (): Promise<Announcement[]> => {
+  const response = await fetch('/api/v1/announcements', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) return []
+  return (await response.json()) as Announcement[]
+}
+
+/**
+ * Dismisses (marks as read) a single announcement for the current actor using
+ * the Mastodon-compatible announcements API.
+ * @see https://docs.joinmastodon.org/methods/announcements/#dismiss
+ */
+export const dismissAnnouncement = async (id: string): Promise<boolean> => {
+  const response = await fetch(
+    `/api/v1/announcements/${encodeURIComponent(id)}/dismiss`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
   )
   return response.ok
 }

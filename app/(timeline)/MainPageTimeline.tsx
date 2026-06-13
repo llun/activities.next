@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react'
 import { FC, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
+import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementBanner'
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { Posts } from '@/lib/components/posts/posts'
@@ -225,6 +226,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
+      <AnnouncementBanner host={host} currentTime={currentTime} />
       <PageHeader
         title="Timeline"
         description="Latest posts from your network."
