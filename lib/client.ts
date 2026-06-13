@@ -15,6 +15,7 @@ import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
+import type { Announcement } from '@/lib/types/mastodon/announcement'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Filter as MastodonFilter } from '@/lib/types/mastodon/filter'
@@ -3078,6 +3079,44 @@ export const deleteServerAnnouncement = async (
   const response = await fetch(
     `/api/v2/admin/announcements/${encodeURIComponent(id)}`,
     { method: 'DELETE' }
+  )
+  return response.ok
+}
+
+// Public announcements (https://docs.joinmastodon.org/methods/announcements/).
+// The active server announcements shown to a signed-in user, each carrying a
+// per-actor `read` flag. Distinct from the admin `getServerAnnouncements`
+// management list above — these render published content for the timeline
+// banner.
+
+// Returns the active announcements for the current actor. Returns [] on a
+// non-OK response so the timeline banner degrades to showing nothing rather
+// than surfacing an error to the reader.
+export const getAnnouncements = async (): Promise<Announcement[]> => {
+  const response = await fetch('/api/v1/announcements', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) return []
+  return (await response.json()) as Announcement[]
+}
+
+/**
+ * Dismisses (marks as read) a single announcement for the current actor using
+ * the Mastodon-compatible announcements API.
+ * @see https://docs.joinmastodon.org/methods/announcements/#dismiss
+ */
+export const dismissAnnouncement = async (id: string): Promise<boolean> => {
+  const response = await fetch(
+    `/api/v1/announcements/${encodeURIComponent(id)}/dismiss`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
   )
   return response.ok
 }

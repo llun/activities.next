@@ -14,6 +14,10 @@ jest.mock('@/lib/client', () => ({
   getTimeline: jest.fn()
 }))
 
+jest.mock('@/lib/components/announcements/AnnouncementBanner', () => ({
+  AnnouncementBanner: () => null
+}))
+
 jest.mock('@/lib/components/page-header', () => ({
   PageHeader: () => null
 }))
