@@ -43,6 +43,45 @@ describe('getMastodonAnnouncement', () => {
     expect(announcement.content).toContain('<strong>world</strong>')
   })
 
+  it.each([
+    {
+      description: 'strips a script tag',
+      text: '<script>alert(1)</script>',
+      forbidden: '<script'
+    },
+    {
+      description: 'strips an img onerror handler',
+      text: '<img src=x onerror=alert(1)>',
+      forbidden: 'onerror'
+    },
+    {
+      description: 'strips a javascript: link',
+      text: '[x](javascript:alert(1))',
+      forbidden: 'javascript:'
+    },
+    {
+      description: 'strips an iframe tag',
+      text: '<iframe src="https://evil.example"></iframe>',
+      forbidden: '<iframe'
+    },
+    {
+      description: 'strips an inline event handler attribute',
+      text: '<div onclick="evil()">x</div>',
+      forbidden: 'onclick'
+    }
+  ])(
+    'sanitizes admin-entered HTML in content: $description',
+    ({ text, forbidden }) => {
+      const announcement = getMastodonAnnouncement({
+        announcement: { ...baseAnnouncement, text },
+        read: false,
+        reactions: [],
+        customEmojis: []
+      })
+      expect(announcement.content).not.toContain(forbidden)
+    }
+  )
+
   it('serializes the timestamps as ISO strings and empty entity arrays', () => {
     const announcement = getMastodonAnnouncement({
       announcement: baseAnnouncement,

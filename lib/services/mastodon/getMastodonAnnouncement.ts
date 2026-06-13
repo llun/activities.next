@@ -9,6 +9,10 @@ import {
   AnnouncementReaction
 } from '@/lib/types/mastodon/announcement'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
+import {
+  sanitizeText,
+  sanitizeTrustedStatusText
+} from '@/lib/utils/text/sanitizeText'
 
 const toIsoOrNull = (time: number | null): string | null =>
   time === null ? null : new Date(time).toISOString()
@@ -30,9 +34,11 @@ const toMastodonReaction = (
 }
 
 // The single construction point for the Mastodon Announcement entity. `text` is
-// rendered to HTML with the same markdown pipeline status content uses; the
-// caller supplies the per-actor `read` flag, the reaction rollups, and the
-// custom emojis used to resolve reaction urls.
+// rendered to HTML with the same markdown-and-sanitization pipeline status
+// content uses (convertMarkdownText -> sanitizeText -> sanitizeTrustedStatusText),
+// so admin-entered HTML is stripped to the allowlist before it leaves the
+// server. The caller supplies the per-actor `read` flag, the reaction rollups,
+// and the custom emojis used to resolve reaction urls.
 export const getMastodonAnnouncement = ({
   announcement,
   read,
@@ -50,7 +56,9 @@ export const getMastodonAnnouncement = ({
   )
   return {
     id: announcement.id,
-    content: convertMarkdownText(host)(announcement.text),
+    content: sanitizeTrustedStatusText(
+      sanitizeText(convertMarkdownText(host)(announcement.text))
+    ),
     starts_at: toIsoOrNull(announcement.startsAt),
     ends_at: toIsoOrNull(announcement.endsAt),
     all_day: announcement.allDay,

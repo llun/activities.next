@@ -25,10 +25,12 @@ const AnnouncementCard: FC<AnnouncementCardProps> = ({
   announcement,
   onDismiss
 }) => {
-  // The announcement content is already sanitized HTML produced server-side by
-  // the same markdown pipeline status content uses, so the only remaining step
-  // is turning that HTML into React nodes — the final `cleanClassName` step the
-  // Post component runs. We never use dangerouslySetInnerHTML.
+  // The announcement content is markdown-rendered and sanitized HTML produced
+  // server-side by the same status pipeline (convertMarkdownText -> sanitizeText
+  // -> sanitizeTrustedStatusText in getMastodonAnnouncement), so the only
+  // remaining step is turning that HTML into React nodes — the final
+  // `cleanClassName` step the Post component runs. We never use
+  // dangerouslySetInnerHTML.
   const content = useMemo(
     () => cleanClassName(announcement.content),
     [announcement.content]

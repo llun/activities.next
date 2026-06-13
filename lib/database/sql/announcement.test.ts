@@ -131,6 +131,35 @@ describe('updateAnnouncement', () => {
     })
   })
 
+  it('preserves the original publishedAt when republished after being unpublished', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = await database.createAnnouncement({
+        text: 'draft',
+        published: false
+      })
+      expect(created.publishedAt).toBeNull()
+
+      const firstPublish = await database.updateAnnouncement({
+        id: created.id,
+        published: true
+      })
+      const originalPublishedAt = firstPublish?.publishedAt
+      expect(originalPublishedAt).not.toBeNull()
+
+      // Space the timestamps so a re-stamp would produce a different value.
+      await delay(5)
+      await database.updateAnnouncement({ id: created.id, published: false })
+      await delay(5)
+      const republished = await database.updateAnnouncement({
+        id: created.id,
+        published: true
+      })
+
+      expect(republished?.published).toBe(true)
+      expect(republished?.publishedAt).toBe(originalPublishedAt)
+    })
+  })
+
   it('returns null when the announcement does not exist', async () => {
     await withFreshDatabase(async (database) => {
       const updated = await database.updateAnnouncement({
