@@ -358,18 +358,19 @@ export const ListSQLDatabaseMixin = (
 
     // Read the list feed from the materialized `timelines` partition (kept in
     // sync by addStatusToListTimelines on new posts and by the addListAccounts
-    // backfill) instead of a live statuses⋈list_accounts join. The
-    // partition is pre-narrowed by the (actorId, timeline, createdAt) index, so
-    // this is the same fast indexed read the home feed uses. The candidate set is
+    // backfill) instead of a live statuses⋈list_accounts join. The partition is
+    // seeked and ordered by the (actorId, timeline, createdAt) index, so this is
+    // the same fast indexed read the home feed uses. The candidate set is
     // identical to the old join — every status whose author is a list member — so
     // the visibility / replies-policy / block-mute filters below (still applied
     // pre-LIMIT against the joined statuses row) produce the same result.
+    const timeline = listTimelineKey(listId)
     const query = database('timelines')
       .innerJoin('statuses', 'statuses.id', 'timelines.statusId')
       // Scope to the owner defensively so a caller can never read another
       // actor's list timeline even if they know the listId.
       .where('timelines.actorId', actorId)
-      .andWhere('timelines.timeline', listTimelineKey(listId))
+      .andWhere('timelines.timeline', timeline)
     // Apply the owner's visibility before LIMIT so the page counts only
     // statuses they may read — a member's direct/non-public posts addressed to
     // others never appear, and the limit isn't spent on rows that would be
@@ -397,39 +398,60 @@ export const ListSQLDatabaseMixin = (
       viewerActorId: actorId,
       now: Date.now()
     })
+    // Order on the timelines partition's own (createdAt, id) — the columns of
+    // timelinesActorIdTimelineCreatedAtIndex — so ORDER BY ... LIMIT is served by
+    // an index walk that stops at the page boundary (the same top-N read the home
+    // feed uses), rather than sorting the whole filtered partition. timelines.
+    // createdAt mirrors statuses.createdAt (both written as new Date(status.
+    // createdAt) on every write path) and timelines.id is a monotonic tie-breaker.
     query
-      .orderBy('statuses.createdAt', 'desc')
-      .orderBy('statuses.id', 'desc')
+      .orderBy('timelines.createdAt', 'desc')
+      .orderBy('timelines.id', 'desc')
       .limit(limit)
       .select('statuses.id')
 
     // A status appears at most once: list_accounts is unique on
-    // (listId, targetActorId), so the join cannot duplicate a status row.
+    // (listId, targetActorId), so a member's status is materialized once per
+    // list, and the join to statuses (by primary key) cannot duplicate it.
     // Avoid SELECT DISTINCT, which on PostgreSQL would require every ORDER BY
-    // column (statuses.createdAt) to also appear in the select list.
-    // Status IDs are URIs (not chronologically ordered), so paginate on the
-    // referenced status's createdAt with the id as a stable tie-breaker.
-    // Returns false when the cursor status no longer exists, so the caller can
-    // end pagination with an empty page instead of silently dropping the WHERE
-    // and re-returning the newest page (an infinite loop). Mirrors the home
-    // timeline's `if (maxStatusId && !maxRow) return []`.
+    // column to also appear in the select list.
+    // Resolve the cursor from this list's timelines row (id + createdAt),
+    // mirroring the home feed's lookupTimelineCursor, so pagination matches the
+    // index order. Fall back to the status's createdAt (without the row-id
+    // tie-breaker) if the row was already purged, so pagination still advances.
+    // Returns false when neither exists, so the caller ends pagination with an
+    // empty page instead of silently dropping the WHERE and re-returning the
+    // newest page (an infinite loop). Mirrors `if (maxStatusId && !maxRow) []`.
     const applyCursor = async (
       cursorStatusId: string,
       direction: 'older' | 'newer'
     ): Promise<boolean> => {
-      const cursor = await database('statuses')
-        .where('id', cursorStatusId)
-        .select('createdAt')
-        .first<{ createdAt: number | Date }>()
-      if (!cursor) return false
+      let cursor = await database('timelines')
+        .where('actorId', actorId)
+        .where('timeline', timeline)
+        .where('statusId', cursorStatusId)
+        .select('id', 'createdAt')
+        .first<{ id: number | null; createdAt: number | Date }>()
+      if (!cursor) {
+        const statusRow = await database('statuses')
+          .where('id', cursorStatusId)
+          .select('createdAt')
+          .first<{ createdAt: number | Date }>()
+        if (!statusRow) return false
+        cursor = { id: null, createdAt: statusRow.createdAt }
+      }
       const operator = direction === 'older' ? '<' : '>'
+      const { id: cursorId, createdAt: cursorCreatedAt } = cursor
       query.andWhere((builder) => {
         builder
-          .where('statuses.createdAt', operator, cursor.createdAt)
+          .where('timelines.createdAt', operator, cursorCreatedAt)
           .orWhere((tie) => {
-            tie
-              .where('statuses.createdAt', cursor.createdAt)
-              .andWhere('statuses.id', operator, cursorStatusId)
+            // Only break createdAt ties by row id when we resolved one.
+            if (cursorId !== null) {
+              tie
+                .where('timelines.createdAt', cursorCreatedAt)
+                .andWhere('timelines.id', operator, cursorId)
+            }
           })
       })
       return true
