@@ -1,0 +1,38 @@
+lib/database/sql/announcement.test.ts
+  s_2de5d568423448::t_936a11fa21f965 32-33,42-43
+  s_2de5d568423448::t_b537bc853336b8 169-171
+  s_2de5d568423448::t_9fb3fafc47200b 21-23
+  s_2de5d568423448::t_360bf7d3aae5c2 1-20,24-31,34-41,44-168,172-369
+lib/database/sql/index.ts
+  s_2de5d568423448::t_fa6a7232e44a64 117
+  s_2de5d568423448::t_2ef62111db2be3 7
+  s_2de5d568423448::t_c409bdb7ae5f6b 49
+lib/database/sql/announcement.ts
+  s_2de5d568423448::t_936a11fa21f965 39-40
+  s_2de5d568423448::t_ad8e0974689f06 1-38,41-239
+lib/services/mastodon/getMastodonAnnouncement.ts
+  s_2de5d568423448::t_8bcd6f196dfe75 1-70
+lib/database/types.ts
+  s_2de5d568423448::t_f7be5873780ea3 10
+  s_2de5d568423448::t_e6510a40bf3a3e 48
+lib/services/mastodon/getMastodonAnnouncement.test.ts
+  s_2de5d568423448::t_84c7eb5e56a967 1-113
+lib/types/database/operations.ts
+  s_2de5d568423448::t_e04f5ae202bc64 1564-1672
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "225db93ebeeb5627ef33e6aba873d7c9e6841f6e",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
