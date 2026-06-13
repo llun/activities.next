@@ -1,0 +1,35 @@
+lib/components/admin-announcements/AnnouncementsPanel.tsx
+  s_774e674f3d62f4::t_4c5907ce3e2b37 333-341,343
+lib/components/announcements/AnnouncementBanner.test.tsx
+  s_774e674f3d62f4::t_60454db3689278 188-194
+  s_774e674f3d62f4::t_e964d14b7ee0bf 351-355,357,360-361,365,374-478
+  s_774e674f3d62f4::t_b0a46d1edb515f 45
+lib/components/admin-announcements/announcementStatus.test.ts
+  s_774e674f3d62f4::t_28f6efcd7687ac 9-12,14
+  s_774e674f3d62f4::t_eade234c247ac0 48-69
+lib/components/admin-announcements/announcementStatus.ts
+  s_774e674f3d62f4::t_38fa8303264ebe 3
+  s_774e674f3d62f4::t_9ae16b12a87fca 13,20-23,25-35,37,46-47
+lib/components/announcements/AnnouncementBanner.tsx
+  s_774e674f3d62f4::t_71ef8184984216 92
+  s_774e674f3d62f4::t_45f1356428b061 155-157
+  s_774e674f3d62f4::t_f4965b07d4cbc1 307-310,312-332
+  s_774e674f3d62f4::t_545b3ae630580c 46-50,55-62
+  s_774e674f3d62f4::t_bb5c03f50e311a 199-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1066ab9b4d05bbd0fb47e74b10f9e57266c32c43",
+  "prompts": {},
+  "sessions": {
+    "s_774e674f3d62f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bced70a-1dd7-4235-a117-e2f9c9007f2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
