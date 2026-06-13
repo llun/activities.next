@@ -70,16 +70,21 @@ const backfillListTimelineForMembers = async ({
   if (targetActorIds.length === 0) return
   const timeline = listTimelineKey(listId)
   const updatedAt = new Date()
-  for (const targetActorId of targetActorIds) {
+  // Fetch the added members' posts in chunked IN queries rather than one query
+  // per member (avoids an N+1 across the accounts being added). Each chunk's rows
+  // carry statusActorId from the status itself, so a single pass materializes the
+  // whole chunk.
+  const whereInBatchSize = getWhereInBatchSize(database, 0)
+  for (const idChunk of chunkArray(targetActorIds, whereInBatchSize)) {
     const statuses = await database('statuses')
-      .where('actorId', targetActorId)
-      .select('id', 'createdAt')
+      .whereIn('actorId', idChunk)
+      .select('id', 'actorId', 'createdAt')
     if (statuses.length === 0) continue
     const rows = statuses.map((statusRow) => ({
       actorId: ownerId,
       timeline,
       statusId: statusRow.id as string,
-      statusActorId: targetActorId,
+      statusActorId: statusRow.actorId as string,
       createdAt: new Date(getCompatibleTime(statusRow.createdAt)),
       updatedAt
     }))
