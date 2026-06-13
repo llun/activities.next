@@ -1292,6 +1292,9 @@ export type GetListTimelineParams = {
   maxStatusId?: string | null
   minStatusId?: string | null
 }
+export type AddStatusToListTimelinesParams = {
+  status: Status
+}
 
 export interface ListDatabase {
   createList(params: CreateListParams): Promise<List>
@@ -1309,6 +1312,11 @@ export interface ListDatabase {
   removeListAccounts(params: RemoveListAccountsParams): Promise<void>
   getListsWithAccount(params: GetListsWithAccountParams): Promise<List[]>
   getListTimeline(params: GetListTimelineParams): Promise<Status[]>
+  // Fan a newly created status into every list (in the `timelines` table) whose
+  // membership includes the status author. Called from addStatusToTimelines.
+  addStatusToListTimelines(
+    params: AddStatusToListTimelinesParams
+  ): Promise<void>
 }
 
 // ============================================================================

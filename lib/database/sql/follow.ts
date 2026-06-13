@@ -8,6 +8,8 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
+import { listTimelineKey } from '@/lib/services/timelines/types'
 import {
   CreateFollowParams,
   FollowDatabase,
@@ -395,6 +397,44 @@ export const FollowerSQLDatabaseMixin = (
             currentTime
           )
         ])
+      }
+
+      // Mastodon ties list membership to the follow: unfollowing an account
+      // removes it from all of the unfollower's lists. List membership is the
+      // source of truth for the list timeline, so dropping the membership (and
+      // the materialized list-feed rows it produced) is all that's needed — the
+      // owner is existingFollow.actorId (the follower) and the member is
+      // existingFollow.targetActorId (the followed). A user has few lists, so
+      // this is a small indexed delete on a rare action.
+      if (status === FollowStatus.enum.Undo) {
+        const ownerId = existingFollow.actorId
+        const memberId = existingFollow.targetActorId
+        const memberships = await trx('list_accounts')
+          .where({ actorId: ownerId, targetActorId: memberId })
+          .select('listId')
+        if (memberships.length > 0) {
+          await trx('list_accounts')
+            .where({ actorId: ownerId, targetActorId: memberId })
+            .delete()
+          // Purge the member's posts from each of the owner's list partitions.
+          // The whereIn on the list keys is what scopes this to lists — without
+          // it the (actorId, statusActorId) delete would also wipe the member's
+          // posts from the owner's home feed (timeline='main'). Chunk the keys
+          // (reserving the actorId + statusActorId bindings) so an owner with
+          // very many lists can't exceed SQLite's bound-parameter limit, matching
+          // the other purge hooks.
+          const timelineKeys = memberships.map((row) =>
+            listTimelineKey(row.listId as string)
+          )
+          const batchSize = getWhereInBatchSize(database, 2)
+          for (const keyChunk of chunkArray(timelineKeys, batchSize)) {
+            await trx('timelines')
+              .where('actorId', ownerId)
+              .where('statusActorId', memberId)
+              .whereIn('timeline', keyChunk)
+              .delete()
+          }
+        }
       }
     })
   },

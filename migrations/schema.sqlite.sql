@@ -210,3 +210,4 @@ CREATE TABLE `suggestion_dismissals` (`actorId` varchar(255) not null, `targetAc
 CREATE TABLE `announcements` (`id` varchar(255), `text` text not null, `published` boolean not null default '0', `allDay` boolean not null default '0', `startsAt` datetime null, `endsAt` datetime null, `publishedAt` datetime null, `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`id`));
 CREATE TABLE `announcement_reads` (`announcementId` varchar(255) not null, `actorId` varchar(255) not null, `createdAt` datetime not null, primary key (`announcementId`, `actorId`));
 CREATE TABLE `announcement_reactions` (`announcementId` varchar(255) not null, `actorId` varchar(255) not null, `name` varchar(255) not null, `createdAt` datetime not null, primary key (`announcementId`, `actorId`, `name`));
+CREATE INDEX `timelinesActorTimelineStatusActorIndex` on `timelines` (`actorId`, `timeline`, `statusActorId`);
