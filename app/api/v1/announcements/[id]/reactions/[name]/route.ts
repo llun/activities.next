@@ -24,8 +24,9 @@ interface Params {
 }
 
 // A reaction name is either a unicode emoji or a custom-emoji shortcode. Keep
-// the constraint minimal: non-empty and within the column limit so we don't
-// over-restrict legitimate emoji/shortcode characters.
+// the constraint minimal: non-empty and capped at 100 chars as a product limit
+// (well under the varchar(255) column) so we don't over-restrict legitimate
+// emoji/shortcode characters.
 const ReactionName = z.string().trim().min(1).max(100)
 
 const reactionHandler =
