@@ -64,9 +64,12 @@ exports.up = async function (knex) {
       .select('id', 'actorId', 'createdAt')
     const rows = []
     for (const statusRow of statuses) {
-      for (const { ownerId, listId } of destinationsByMember.get(
-        statusRow.actorId
-      )) {
+      // Every fetched actorId came from memberChunk (a subset of the map keys),
+      // so this is normally always present; guard defensively so unexpected data
+      // (e.g. a casing mismatch) skips the row instead of crashing the migration.
+      const destinations = destinationsByMember.get(statusRow.actorId)
+      if (!destinations) continue
+      for (const { ownerId, listId } of destinations) {
         rows.push({
           actorId: ownerId,
           timeline: `list:${listId}`,
