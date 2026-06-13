@@ -443,16 +443,18 @@ export const ListSQLDatabaseMixin = (
       const operator = direction === 'older' ? '<' : '>'
       const { id: cursorId, createdAt: cursorCreatedAt } = cursor
       query.andWhere((builder) => {
-        builder
-          .where('timelines.createdAt', operator, cursorCreatedAt)
-          .orWhere((tie) => {
-            // Only break createdAt ties by row id when we resolved one.
-            if (cursorId !== null) {
-              tie
-                .where('timelines.createdAt', cursorCreatedAt)
-                .andWhere('timelines.id', operator, cursorId)
-            }
+        builder.where('timelines.createdAt', operator, cursorCreatedAt)
+        // Break createdAt ties by row id only when we resolved one — the cursor
+        // row may be gone (purged), leaving just the status's createdAt. Apply
+        // the orWhere conditionally so an unresolved id never produces an empty
+        // Knex group (which would emit invalid `OR ()`).
+        if (cursorId !== null) {
+          builder.orWhere((tie) => {
+            tie
+              .where('timelines.createdAt', cursorCreatedAt)
+              .andWhere('timelines.id', operator, cursorId)
           })
+        }
       })
       return true
     }

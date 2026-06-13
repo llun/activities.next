@@ -10,6 +10,25 @@
  * so an account on many lists is fetched once per chunk, and the chunk sizes keep
  * both the SELECT and INSERT under SQLite's 999 bound-parameter limit.
  *
+// Normalize a stored createdAt to a Date the same way the runtime fan-out does
+// (lib/database/sql/utils/getCompatibleTime + new Date), so list rows written
+// here serialize identically to rows written at runtime — the list read orders
+// by timelines.createdAt, so mixed formats in one partition would break it.
+// SQLite returns "YYYY-MM-DD HH:MM:SS(.sss)" UTC strings without a zone, so the
+// missing 'Z' is added before parsing to avoid a local-time shift.
+const SQLITE_UTC_TIMESTAMP_PATTERN =
+  /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/
+const toDate = (value) => {
+  if (value instanceof Date) return value
+  if (typeof value === 'number') return new Date(value)
+  const trimmed = String(value).trim()
+  const normalized = SQLITE_UTC_TIMESTAMP_PATTERN.test(trimmed)
+    ? `${trimmed.replace(' ', 'T')}Z`
+    : trimmed
+  return new Date(normalized)
+}
+
+/**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
@@ -53,7 +72,7 @@ exports.up = async function (knex) {
           timeline: `list:${listId}`,
           statusId: statusRow.id,
           statusActorId: statusRow.actorId,
-          createdAt: statusRow.createdAt,
+          createdAt: toDate(statusRow.createdAt),
           updatedAt: now
         })
       }

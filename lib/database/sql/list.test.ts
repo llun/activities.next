@@ -1153,4 +1153,76 @@ describe('ListDatabase', () => {
       expect(olderPage.map((status) => status.id)).toEqual([older])
     })
   })
+
+  it('paginates from a cursor that exists but is not in the list partition', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      await createLocalAccount(database, 'other')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      const other = await database.getActorFromUsername({
+        username: 'other',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member || !other) throw new Error('actors not created')
+
+      // Member posts at createdAt 1000/2000/3000.
+      const memberIds: string[] = []
+      for (let i = 1; i <= 3; i++) {
+        const id = `${member.id}/statuses/${i}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: member.id,
+          text: `member ${i}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: 1000 * i
+        })
+        memberIds.push(id)
+      }
+      const [m1000, m2000] = memberIds
+
+      // A non-member status that exists in `statuses` but is never materialized
+      // into the list partition, at a createdAt between the member posts.
+      const outsiderId = `${other.id}/statuses/outsider`
+      await database.createNote({
+        id: outsiderId,
+        url: outsiderId,
+        actorId: other.id,
+        text: 'not on the list',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: 2500
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Fallback cursor list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // The cursor resolves from `statuses` (not the partition), so it has no row
+      // id — pagination must fall back to a strict createdAt compare without
+      // emitting an invalid empty Knex group, returning only strictly-older
+      // member posts.
+      const page = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        maxStatusId: outsiderId
+      })
+      expect(page.map((status) => status.id)).toEqual([m2000, m1000])
+    })
+  })
 })
