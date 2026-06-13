@@ -2,10 +2,15 @@ import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
 import {
-  getHTMLContent,
-  getSubject,
-  getTextContent
+  getHTMLContent as getMentionHTMLContent,
+  getSubject as getMentionSubject,
+  getTextContent as getMentionTextContent
 } from '@/lib/services/email/templates/mention'
+import {
+  getHTMLContent as getReplyHTMLContent,
+  getSubject as getReplySubject,
+  getTextContent as getReplyTextContent
+} from '@/lib/services/email/templates/reply'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import {
   NotificationEvent,
@@ -55,6 +60,10 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
 
       let addToTimeline = false
       const alertEvents: NotificationEvent[] = []
+      // A reply that also mentions the recipient is a single event. Once a reply
+      // notification is created for this status we suppress the duplicate mention
+      // notification below so the recipient sees one entry, not two.
+      let replyNotificationCreated = false
 
       // --- Reply detection ---
       if (status.reply && !status.isLocalActor) {
@@ -75,8 +84,33 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
                 groupKey: `reply:${repliedStatus.id}`
               }
             )
+            // Mark the reply handled as soon as we know it's a reply to the
+            // current actor — before inspecting the policy verdict — so the
+            // mention branch below is suppressed even when the reply
+            // notification is dropped or filtered by policy. This matches the
+            // local path in createNote.ts (which suppresses unconditionally) and
+            // avoids a redundant mention policy evaluation. The notification
+            // policy returns the same verdict for `reply` and `mention`, so no
+            // duplicate can slip through; this just keeps the two paths aligned.
+            replyNotificationCreated = true
             if (replyNotification && !replyNotification.filtered) {
-              alertEvents.push({ type: NotificationType.enum.reply })
+              const replyEvent: NotificationEvent = {
+                type: NotificationType.enum.reply
+              }
+              // Carry the reply email on the surviving reply event. The mention
+              // branch below — which used to attach the email for a
+              // reply-that-mentions — is now skipped, so without this the email
+              // channel would silently drop for that case.
+              const account = currentActor.account
+              if (config.email && account && status.actor) {
+                replyEvent.emailContent = {
+                  recipientEmail: account.email,
+                  subject: getReplySubject(status.actor),
+                  text: getReplyTextContent(status),
+                  html: getReplyHTMLContent(status)
+                }
+              }
+              alertEvents.push(replyEvent)
             }
           }
         } catch (error) {
@@ -103,7 +137,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         addToTimeline = true
         const account = currentActor.account
 
-        if (!status.isLocalActor) {
+        // Skip the mention notification when a reply notification already covers
+        // this status for the same recipient — they are the same event.
+        if (!status.isLocalActor && !replyNotificationCreated) {
           // Error is recorded but not re-thrown: a notification DB failure
           // should not block the mention from being added to the timeline.
           let mentionNotification = null
@@ -132,9 +168,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             if (config.email && account && status.actor) {
               mentionEvent.emailContent = {
                 recipientEmail: account.email,
-                subject: getSubject(status.actor),
-                text: getTextContent(status),
-                html: getHTMLContent(status)
+                subject: getMentionSubject(status.actor),
+                text: getMentionTextContent(status),
+                html: getMentionHTMLContent(status)
               }
             }
             alertEvents.push(mentionEvent)

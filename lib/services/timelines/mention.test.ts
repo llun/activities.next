@@ -482,7 +482,7 @@ describe('mentionTimelineRule', () => {
     ).toBeUndefined()
   })
 
-  it('sends reply event first when status is both reply and mention', async () => {
+  it('merges into a single reply notification when status is both reply and mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const originalPost = await createNote(
       database,
@@ -511,7 +511,8 @@ describe('mentionTimelineRule', () => {
       status: replyMentionStatus
     })
 
-    // Both notifications should be created in DB
+    // A reply that also mentions the recipient is a single event: keep only the
+    // (more specific) reply notification and suppress the duplicate mention one.
     const notifications = await database.getNotifications({
       actorId: actor.id,
       limit: 100
@@ -525,15 +526,168 @@ describe('mentionTimelineRule', () => {
       notifications.find(
         (n) => n.statusId === replyMentionStatus.id && n.type === 'mention'
       )
-    ).toBeDefined()
+    ).toBeUndefined()
+    expect(
+      notifications.filter((n) => n.statusId === replyMentionStatus.id)
+    ).toHaveLength(1)
 
-    // sendNotificationAlerts called once with reply event first (push priority)
-    // and mention event second (carries email content)
+    // sendNotificationAlerts called once with a single reply event.
     expect(mockSendAlerts).toHaveBeenCalledTimes(1)
     const { events } = mockSendAlerts.mock.calls[0][0]
-    expect(events).toHaveLength(2)
+    expect(events).toHaveLength(1)
     expect(events[0].type).toBe(NotificationType.enum.reply)
-    expect(events[1].type).toBe(NotificationType.enum.mention)
+  })
+
+  it('carries the reply email on the merged reply event for a remote reply that also mentions the recipient', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const originalPost = await createNote(
+      database,
+      ACTOR3_ID,
+      'Reply+mention email post',
+      `${ACTOR3_ID}/followers`
+    )
+    const replyMentionStatus = await createNote(
+      database,
+      EXTERNAL_ACTOR1,
+      `Hey ${getActorURL(actor)} replying to you!`,
+      EXTERNAL_ACTOR1_FOLLOWERS,
+      originalPost.id
+    )
+    await createMentionTag(
+      database,
+      replyMentionStatus.id,
+      getActorURL(actor),
+      actor.username
+    )
+
+    await mentionTimelineRule({
+      database,
+      currentActor: actor,
+      status: replyMentionStatus
+    })
+
+    // The reply email must ride on the surviving reply event — the mention
+    // branch that used to carry it is skipped once the reply is created, so
+    // without this the email channel silently drops for remote reply+mentions.
+    expect(mockSendAlerts).toHaveBeenCalledTimes(1)
+    const { events } = mockSendAlerts.mock.calls[0][0]
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: NotificationType.enum.reply,
+      emailContent: expect.objectContaining({
+        recipientEmail: actor.account?.email,
+        subject: expect.stringContaining('replied to your post')
+      })
+    })
+  })
+
+  it('keeps a single filtered reply notification and sends no alert when a filtered reply also mentions the recipient', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    await database.updateNotificationPolicy({
+      actorId: actor.id,
+      for_not_following: 'filter'
+    })
+    try {
+      const originalPost = await createNote(
+        database,
+        ACTOR3_ID,
+        'Filtered reply+mention post',
+        `${ACTOR3_ID}/followers`
+      )
+      const replyMentionStatus = await createNote(
+        database,
+        EXTERNAL_ACTOR1,
+        `Hey ${getActorURL(actor)} replying to you!`,
+        EXTERNAL_ACTOR1_FOLLOWERS,
+        originalPost.id
+      )
+      await createMentionTag(
+        database,
+        replyMentionStatus.id,
+        getActorURL(actor),
+        actor.username
+      )
+
+      await mentionTimelineRule({
+        database,
+        currentActor: actor,
+        status: replyMentionStatus
+      })
+
+      // A filtered reply still collapses to a single (filtered) reply
+      // notification with no duplicate mention, and pushes no alert event.
+      const notifications = await database.getNotifications({
+        actorId: actor.id,
+        limit: 100,
+        includeFiltered: true
+      })
+      const forStatus = notifications.filter(
+        (n) => n.statusId === replyMentionStatus.id
+      )
+      expect(forStatus).toHaveLength(1)
+      expect(forStatus[0].type).toBe(NotificationType.enum.reply)
+      expect(forStatus[0].filtered).toBe(true)
+      expect(mockSendAlerts).not.toHaveBeenCalled()
+    } finally {
+      await database.updateNotificationPolicy({
+        actorId: actor.id,
+        for_not_following: 'accept'
+      })
+    }
+  })
+
+  it('still creates a mention notification with the mention email when a remote reply to another actor also mentions the recipient', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    // Parent post belongs to ACTOR1, not the current actor (ACTOR3).
+    const otherActorPost = await createNote(
+      database,
+      ACTOR1_ID,
+      'Post owned by another actor',
+      `${ACTOR1_ID}/followers`
+    )
+    // Remote actor replies to ACTOR1's post but mentions ACTOR3.
+    const replyMentionStatus = await createNote(
+      database,
+      EXTERNAL_ACTOR1,
+      `Replying to test1 but pinging ${getActorURL(actor)}`,
+      EXTERNAL_ACTOR1_FOLLOWERS,
+      otherActorPost.id
+    )
+    await createMentionTag(
+      database,
+      replyMentionStatus.id,
+      getActorURL(actor),
+      actor.username
+    )
+
+    await mentionTimelineRule({
+      database,
+      currentActor: actor,
+      status: replyMentionStatus
+    })
+
+    // ACTOR3 is not the parent author, so the reply branch does not fire and the
+    // mention must NOT be suppressed: exactly one mention notification, carrying
+    // the mention email template (not the reply one).
+    const notifications = await database.getNotifications({
+      actorId: actor.id,
+      limit: 100
+    })
+    const forStatus = notifications.filter(
+      (n) => n.statusId === replyMentionStatus.id
+    )
+    expect(forStatus).toHaveLength(1)
+    expect(forStatus[0].type).toBe(NotificationType.enum.mention)
+
+    expect(mockSendAlerts).toHaveBeenCalledTimes(1)
+    const { events } = mockSendAlerts.mock.calls[0][0]
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: NotificationType.enum.mention,
+      emailContent: expect.objectContaining({
+        subject: expect.stringContaining('mentions you in')
+      })
+    })
   })
 
   it('returns null for remote reply to another actor post', async () => {

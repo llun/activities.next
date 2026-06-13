@@ -507,15 +507,17 @@ export const createNoteFromUserInput = async ({
   > = []
 
   // Create reply notification if this is a reply
-  if (
+  const replyNotifiedActorId =
     shouldNotifyReply &&
     replyStatus &&
     eligibleNotificationActorIds.has(replyStatus.actorId)
-  ) {
+      ? replyStatus.actorId
+      : null
+  if (replyNotifiedActorId && replyStatus) {
     notificationEntries.push([
-      replyStatus.actorId,
+      replyNotifiedActorId,
       createNotificationWithPolicy(database, {
-        actorId: replyStatus.actorId,
+        actorId: replyNotifiedActorId,
         type: NotificationType.enum.reply,
         sourceActorId: currentActor.id,
         statusId,
@@ -527,6 +529,11 @@ export const createNoteFromUserInput = async ({
   // Create mention notifications
   for (const mention of notificationMentions) {
     const mentionedActorId = mention.href
+    // A reply that also mentions the parent author is a single event: the reply
+    // notification above already covers them, so skip the duplicate mention one.
+    if (mentionedActorId === replyNotifiedActorId) {
+      continue
+    }
     // Don't create notification for self-mentions
     if (eligibleNotificationActorIds.has(mentionedActorId)) {
       notificationEntries.push([
