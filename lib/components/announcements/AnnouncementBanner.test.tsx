@@ -58,7 +58,12 @@ describe('AnnouncementBanner', () => {
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
+    // Flush any pending mark-read timer inside act() so the timer's
+    // setAnnouncements update is wrapped, avoiding "not wrapped in act(...)"
+    // warnings during teardown.
+    act(() => {
+      jest.runOnlyPendingTimers()
+    })
     jest.useRealTimers()
   })
 
@@ -279,6 +284,78 @@ describe('AnnouncementBanner', () => {
     // A reaction at zero disappears.
     expect(
       screen.queryByRole('button', { name: /👍 reaction/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('adds your reaction to an existing chip you do not own, bumping the count and pressing it', async () => {
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({
+        read: true,
+        reactions: [{ name: '👍', count: 2, me: false }]
+      })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    // Read-only list defaults collapsed; expand to reveal the reaction row.
+    await waitFor(() => {
+      expect(mockGetAnnouncements).toHaveBeenCalled()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /announcements/i }))
+    })
+
+    const chip = await screen.findByRole('button', {
+      name: /add 👍 reaction/i
+    })
+    await act(async () => {
+      fireEvent.click(chip)
+    })
+
+    expect(mockAddAnnouncementReaction).toHaveBeenCalledWith(
+      'announcement-1',
+      '👍'
+    )
+    // The optimistic update bumps the count and flips ownership on.
+    const pressed = await screen.findByRole('button', {
+      name: /remove 👍 reaction/i
+    })
+    expect(pressed).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  it('closes the reaction picker when Escape is pressed', async () => {
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({ read: true, reactions: [] })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    await waitFor(() => {
+      expect(mockGetAnnouncements).toHaveBeenCalled()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /announcements/i }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /add reaction/i }))
+    })
+
+    // The picker is open: a quick-emoji button is visible.
+    expect(
+      screen.getByRole('button', { name: /react with 🎉/i })
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' })
+    })
+
+    expect(
+      screen.queryByRole('button', { name: /react with 🎉/i })
     ).not.toBeInTheDocument()
   })
 })

@@ -6,12 +6,9 @@ const NOW = Date.parse('2026-06-13T12:00:00.000Z')
 const HOUR = 60 * 60 * 1000
 
 const build = (
-  overrides: Partial<
-    Pick<ServerAnnouncement, 'published' | 'published_at' | 'ends_at'>
-  >
-): Pick<ServerAnnouncement, 'published' | 'published_at' | 'ends_at'> => ({
+  overrides: Partial<Pick<ServerAnnouncement, 'published' | 'ends_at'>>
+): Pick<ServerAnnouncement, 'published' | 'ends_at'> => ({
   published: false,
-  published_at: null,
   ends_at: null,
   ...overrides
 })
@@ -19,22 +16,8 @@ const build = (
 describe('computeAnnouncementStatus', () => {
   it.each([
     {
-      description: 'unpublished with a future publish time is Scheduled',
-      input: { published: false, published_at: NOW + HOUR },
-      expectedStatus: 'scheduled',
-      expectedLabel: 'Scheduled',
-      expectedTone: 'orange'
-    },
-    {
-      description: 'unpublished with no publish time is Draft',
-      input: { published: false, published_at: null },
-      expectedStatus: 'draft',
-      expectedLabel: 'Draft',
-      expectedTone: 'gray'
-    },
-    {
-      description: 'unpublished with a past publish time is Draft',
-      input: { published: false, published_at: NOW - HOUR },
+      description: 'unpublished is Draft',
+      input: { published: false },
       expectedStatus: 'draft',
       expectedLabel: 'Draft',
       expectedTone: 'gray'

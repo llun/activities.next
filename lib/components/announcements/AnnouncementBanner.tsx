@@ -7,7 +7,7 @@ import {
   Megaphone,
   SmilePlus
 } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   addAnnouncementReaction,
@@ -129,25 +129,41 @@ interface ReactionPickerProps {
   onClose: () => void
 }
 
-const ReactionPicker: FC<ReactionPickerProps> = ({ onPick, onClose }) => (
-  <>
-    {/* Outside-click overlay closes the picker. */}
-    <div className="fixed inset-0 z-30" onClick={onClose} />
-    <div className="bg-popover absolute bottom-9 left-0 z-40 flex gap-1 rounded-xl border p-1.5 shadow-lg">
-      {QUICK_EMOJI.map((emoji) => (
-        <button
-          key={emoji}
-          type="button"
-          aria-label={`React with ${emoji}`}
-          onClick={() => onPick(emoji)}
-          className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-colors"
-        >
-          {emoji}
-        </button>
-      ))}
-    </div>
-  </>
-)
+const ReactionPicker: FC<ReactionPickerProps> = ({ onPick, onClose }) => {
+  // Escape closes the picker, matching the post-box emoji picker so keyboard
+  // users can dismiss it without clicking the outside overlay.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <>
+      {/* Outside-click overlay closes the picker. */}
+      <div className="fixed inset-0 z-30" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-label="Choose a reaction"
+        className="bg-popover absolute bottom-9 left-0 z-40 flex gap-1 rounded-xl border p-1.5 shadow-lg"
+      >
+        {QUICK_EMOJI.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            aria-label={`React with ${emoji}`}
+            onClick={() => onPick(emoji)}
+            className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-colors"
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
 
 interface ReactionRowProps {
   reactions: AnnouncementReaction[]
@@ -188,7 +204,6 @@ const ReactionRow: FC<ReactionRowProps> = ({ reactions, onToggle, onAdd }) => {
 }
 
 interface AnnouncementBannerProps {
-  host: string
   // Forwarded for consistency with other timeline client components and to keep
   // time-dependent output deterministic between SSR and hydration. The banner
   // never reads the wall clock during render — it uses `currentTime` if it ever
@@ -204,8 +219,10 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
   // localStorage during render.
   const [collapsed, setCollapsed] = useState<boolean | null>(null)
   // Ids whose mark-read-on-view timer has already fired, so each announcement
-  // dismisses at most once even as the pager moves back and forth.
-  const [dismissed] = useState<Set<string>>(() => new Set())
+  // dismisses at most once even as the pager moves back and forth. A ref (not
+  // state) — it is only ever mutated in place, and its stable identity keeps it
+  // out of the mark-read effect's dependency array.
+  const dismissed = useRef<Set<string>>(new Set())
 
   // Load the active announcements (read + unread) once on mount; the banner
   // pages across all of them rather than filtering to unread.
@@ -263,10 +280,10 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
   // "New" badge) and the orange "{n} new" count drains live. Fired once per id.
   useEffect(() => {
     if (isCollapsed || !current || current.read !== false) return
-    if (dismissed.has(current.id)) return
+    if (dismissed.current.has(current.id)) return
     const id = current.id
     const timer = setTimeout(() => {
-      dismissed.add(id)
+      dismissed.current.add(id)
       setAnnouncements((previous) =>
         previous.map((announcement) =>
           announcement.id === id
@@ -277,21 +294,22 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
       void dismissAnnouncement(id)
     }, 900)
     return () => clearTimeout(timer)
-  }, [current, isCollapsed, dismissed])
+  }, [current, isCollapsed])
 
   const toggleCollapsed = useCallback(() => {
-    setCollapsed((previous) => {
-      const next = !(previous ?? false)
-      if (typeof window !== 'undefined') {
-        try {
-          window.localStorage.setItem(COLLAPSE_STORAGE_KEY, String(next))
-        } catch {
-          // Ignore storage write failures.
-        }
+    // Compute the next value from current state and set it directly; the
+    // localStorage write is a side effect kept out of the state updater (which
+    // must stay pure — React may re-invoke it under StrictMode/concurrency).
+    const next = !(collapsed ?? false)
+    setCollapsed(next)
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(COLLAPSE_STORAGE_KEY, String(next))
+      } catch {
+        // Ignore storage write failures.
       }
-      return next
-    })
-  }, [])
+    }
+  }, [collapsed])
 
   // Applies a reaction transform to the currently visible announcement only.
   const mutateReactions = useCallback(
@@ -312,14 +330,14 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
   )
 
   // Adding an emoji: bump + set `me` if the chip exists (no-op when already
-  // yours), otherwise append a new chip. Always PUT.
+  // yours), otherwise append a new chip. Always PUT, reverting the optimistic
+  // chip/count if the request fails (mirrors AnnouncementsPanel's rollback).
   const onAdd = useCallback(
-    (name: string) => {
+    async (name: string) => {
       if (!current) return
       const id = current.id
-      const existing = current.reactions.find(
-        (reaction) => reaction.name === name
-      )
+      const previous = current.reactions
+      const existing = previous.find((reaction) => reaction.name === name)
       if (existing?.me) return
       mutateReactions((reactions) =>
         reactions.some((reaction) => reaction.name === name)
@@ -330,20 +348,21 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
             )
           : [...reactions, { name, count: 1, me: true }]
       )
-      void addAnnouncementReaction(id, name)
+      const ok = await addAnnouncementReaction(id, name).catch(() => false)
+      if (!ok) mutateReactions(() => previous)
     },
     [current, mutateReactions]
   )
 
   // Toggling a chip you own removes your reaction (count-1; the chip disappears
   // at 0) and calls DELETE. Toggling one you don't own adds your reaction.
+  // Reverts the optimistic update if the DELETE fails.
   const onToggle = useCallback(
-    (name: string) => {
+    async (name: string) => {
       if (!current) return
       const id = current.id
-      const existing = current.reactions.find(
-        (reaction) => reaction.name === name
-      )
+      const previous = current.reactions
+      const existing = previous.find((reaction) => reaction.name === name)
       if (existing?.me) {
         mutateReactions((reactions) =>
           reactions
@@ -354,9 +373,10 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
             )
             .filter((reaction) => reaction.count > 0)
         )
-        void removeAnnouncementReaction(id, name)
+        const ok = await removeAnnouncementReaction(id, name).catch(() => false)
+        if (!ok) mutateReactions(() => previous)
       } else {
-        onAdd(name)
+        await onAdd(name)
       }
     },
     [current, mutateReactions, onAdd]
@@ -378,10 +398,12 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
   const eventStart = current.starts_at
     ? formatEventBound(current.starts_at, current.all_day)
     : null
-  const eventEnd =
-    !current.all_day && current.ends_at
-      ? formatEventBound(current.ends_at, current.all_day)
-      : null
+  // Render the end bound whenever one exists, including all-day events spanning
+  // multiple days. formatEventBound strips the clock when all_day is true, so an
+  // all-day range shows dates only and never leaks a time.
+  const eventEnd = current.ends_at
+    ? formatEventBound(current.ends_at, current.all_day)
+    : null
 
   return (
     <div className="bg-background/80 rounded-2xl border shadow-sm backdrop-blur">

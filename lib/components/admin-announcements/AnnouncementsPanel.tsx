@@ -214,7 +214,7 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
           <FilterField
             label="Text"
             htmlFor="announcement-text"
-            help="Plain text with hashtags and mentions; keep it under a few sentences. No attachments."
+            help="Markdown with hashtags and mentions; keep it under a few sentences. No attachments."
           >
             <Textarea
               id="announcement-text"
