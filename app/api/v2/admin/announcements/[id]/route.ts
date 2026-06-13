@@ -88,9 +88,8 @@ export const DELETE = traceApiRoute(
     const { id } = await params
     // deleteAnnouncement returns void and is idempotent, so check existence
     // first to distinguish an unknown id (404) from a real delete (200).
-    const announcements = await database.getAnnouncements()
-    const exists = announcements.some((announcement) => announcement.id === id)
-    if (!exists)
+    const announcement = await database.getAnnouncement({ id })
+    if (!announcement)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

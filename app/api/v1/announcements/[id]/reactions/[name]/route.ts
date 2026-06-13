@@ -48,9 +48,8 @@ const reactionHandler =
       return apiCorsError(req, CORS_HEADERS, 422)
     }
 
-    const announcements = await database.getAnnouncements()
-    const exists = announcements.some((announcement) => announcement.id === id)
-    if (!exists) return apiCorsError(req, CORS_HEADERS, 404)
+    const announcement = await database.getAnnouncement({ id })
+    if (!announcement) return apiCorsError(req, CORS_HEADERS, 404)
 
     if (mode === 'add') {
       await database.addAnnouncementReaction({

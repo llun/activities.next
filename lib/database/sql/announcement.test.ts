@@ -212,6 +212,29 @@ describe('getAnnouncements', () => {
   })
 })
 
+describe('getAnnouncement', () => {
+  it('returns the announcement matching the id', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = await database.createAnnouncement({
+        text: 'hello',
+        published: true
+      })
+
+      const found = await database.getAnnouncement({ id: created.id })
+      expect(found).not.toBeNull()
+      expect(found?.id).toBe(created.id)
+      expect(found?.text).toBe('hello')
+      expect(found?.published).toBe(true)
+    })
+  })
+
+  it('returns null when the announcement does not exist', async () => {
+    await withFreshDatabase(async (database) => {
+      expect(await database.getAnnouncement({ id: 'missing' })).toBeNull()
+    })
+  })
+})
+
 describe('markAnnouncementRead', () => {
   it('is idempotent when called twice for the same actor', async () => {
     await withFreshDatabase(async (database) => {

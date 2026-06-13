@@ -10,6 +10,7 @@ import {
   CreateAnnouncementParams,
   DeleteAnnouncementParams,
   GetActiveAnnouncementsParams,
+  GetAnnouncementParams,
   GetAnnouncementReactionsParams,
   GetAnnouncementReadIdsParams,
   MarkAnnouncementReadParams,
@@ -144,6 +145,13 @@ export const AnnouncementSQLDatabaseMixin = (
       'desc'
     )
     return rows.map(toAnnouncementData)
+  },
+
+  async getAnnouncement({ id }: GetAnnouncementParams) {
+    const row = await database<SQLAnnouncement>('announcements')
+      .where({ id })
+      .first()
+    return row ? toAnnouncementData(row) : null
   },
 
   async getActiveAnnouncements({ now }: GetActiveAnnouncementsParams) {

@@ -1599,6 +1599,7 @@ export type UpdateAnnouncementParams = {
   published?: boolean
 }
 export type DeleteAnnouncementParams = { id: string }
+export type GetAnnouncementParams = { id: string }
 export type GetActiveAnnouncementsParams = {
   // Epoch milliseconds used to evaluate the active window.
   now: number
@@ -1647,6 +1648,10 @@ export interface AnnouncementDatabase {
   deleteAnnouncement(params: DeleteAnnouncementParams): Promise<void>
   // Admin: all announcements, newest first by createdAt.
   getAnnouncements(): Promise<AnnouncementData[]>
+  // Get a single announcement by id, or null when it does not exist.
+  getAnnouncement(
+    params: GetAnnouncementParams
+  ): Promise<AnnouncementData | null>
   // Public: published announcements whose optional active window contains `now`
   // (startsAt is null or <= now, and endsAt is null or >= now), newest first.
   getActiveAnnouncements(
