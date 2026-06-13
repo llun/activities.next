@@ -67,7 +67,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering
 - ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
 - ✅ **Markers** — Save and restore per-timeline read positions
-- ✅ **Announcements** — Read active instance announcements via `GET /api/v1/announcements`, dismiss them with `POST /api/v1/announcements/:id/dismiss`, and react with `PUT`/`DELETE /api/v1/announcements/:id/reactions/:name`
+- ✅ **Announcements** — Read active instance announcements via `GET /api/v1/announcements`, dismiss them with `POST /api/v1/announcements/:id/dismiss`, and react with `PUT`/`DELETE /api/v1/announcements/:id/reactions/:name`; admins manage them in the admin area (`/admin/announcements`) backed by `/api/v2/admin/announcements`
 - ✅ **Endorsements** — Feature accounts on your profile
 - ✅ **Account notes & preferences** — Private per-account notes and client preferences
 - ✅ **Featured tags API** — `/api/v1/featured_tags` endpoints backing the profile featured-hashtags feature
