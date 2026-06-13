@@ -43,18 +43,28 @@ const formatPublishedDate = (iso: string): string => {
   })
 }
 
-// "Sat Jun 13, 09:00" for a timed event; "Sat Jun 13" when all-day. Times are
-// stored in UTC and rendered in the reader's local timezone.
+// "Sat Jun 13, 09:00" for a timed event; "Sat Jun 13" when all-day. Timed
+// events are stored in UTC and rendered in the reader's local timezone. All-day
+// events store a UTC-midnight instant that represents a calendar date, so they
+// are rendered in UTC to show that exact day rather than shifting it across the
+// date line for readers west of UTC.
 const formatEventBound = (iso: string, allDay: boolean): string => {
   const time = Date.parse(iso)
   if (Number.isNaN(time)) return ''
   const date = new Date(time)
+  if (allDay) {
+    return date.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC'
+    })
+  }
   const day = date.toLocaleDateString(undefined, {
     weekday: 'short',
     month: 'short',
     day: 'numeric'
   })
-  if (allDay) return day
   const clock = date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit'
@@ -79,7 +89,7 @@ export const AnnouncementBadge: FC<BadgeProps> = ({
   const tones: Record<NonNullable<BadgeProps['tone']>, string> = {
     orange: 'border-primary/30 bg-primary/10 text-primary',
     green:
-      'border-emerald-600/30 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400',
+      'border-green-600/30 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     gray: 'border-border bg-muted text-muted-foreground'
   }
   return (
@@ -142,8 +152,9 @@ const ReactionPicker: FC<ReactionPickerProps> = ({ onPick, onClose }) => {
 
   return (
     <>
-      {/* Outside-click overlay closes the picker. */}
-      <div className="fixed inset-0 z-30" onClick={onClose} />
+      {/* Outside-click overlay closes the picker. aria-hidden keeps this
+          full-viewport click target out of the accessibility tree. */}
+      <div className="fixed inset-0 z-30" aria-hidden onClick={onClose} />
       <div
         role="dialog"
         aria-label="Choose a reaction"
@@ -185,6 +196,8 @@ const ReactionRow: FC<ReactionRowProps> = ({ reactions, onToggle, onAdd }) => {
       <button
         type="button"
         aria-label="Add reaction"
+        aria-haspopup="dialog"
+        aria-expanded={picking}
         onClick={() => setPicking((previous) => !previous)}
         className="border-border bg-background text-muted-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded-full border transition-colors"
       >
@@ -291,7 +304,32 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
             : announcement
         )
       )
+      // Mirror the reaction handlers' guard: swallow a network-layer rejection
+      // so the fired timer never produces an unhandled promise rejection. On
+      // failure, revert the optimistic local read flip and clear the dismissed
+      // marker so a later view retries the dismiss.
       void dismissAnnouncement(id)
+        .then((ok) => {
+          if (ok) return
+          dismissed.current.delete(id)
+          setAnnouncements((previous) =>
+            previous.map((announcement) =>
+              announcement.id === id
+                ? { ...announcement, read: false }
+                : announcement
+            )
+          )
+        })
+        .catch(() => {
+          dismissed.current.delete(id)
+          setAnnouncements((previous) =>
+            previous.map((announcement) =>
+              announcement.id === id
+                ? { ...announcement, read: false }
+                : announcement
+            )
+          )
+        })
     }, 900)
     return () => clearTimeout(timer)
   }, [current, isCollapsed])

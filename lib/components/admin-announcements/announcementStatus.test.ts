@@ -6,9 +6,12 @@ const NOW = Date.parse('2026-06-13T12:00:00.000Z')
 const HOUR = 60 * 60 * 1000
 
 const build = (
-  overrides: Partial<Pick<ServerAnnouncement, 'published' | 'ends_at'>>
-): Pick<ServerAnnouncement, 'published' | 'ends_at'> => ({
+  overrides: Partial<
+    Pick<ServerAnnouncement, 'published' | 'starts_at' | 'ends_at'>
+  >
+): Pick<ServerAnnouncement, 'published' | 'starts_at' | 'ends_at'> => ({
   published: false,
+  starts_at: null,
   ends_at: null,
   ...overrides
 })
@@ -39,6 +42,28 @@ describe('computeAnnouncementStatus', () => {
     {
       description: 'published with a past end time is Expired',
       input: { published: true, ends_at: NOW - HOUR },
+      expectedStatus: 'expired',
+      expectedLabel: 'Expired',
+      expectedTone: 'gray'
+    },
+    {
+      description: 'published with a future start time is Scheduled',
+      input: { published: true, starts_at: NOW + HOUR },
+      expectedStatus: 'scheduled',
+      expectedLabel: 'Scheduled',
+      expectedTone: 'orange'
+    },
+    {
+      description: 'published with a past start time is Published',
+      input: { published: true, starts_at: NOW - HOUR },
+      expectedStatus: 'published',
+      expectedLabel: 'Published',
+      expectedTone: 'green'
+    },
+    {
+      description:
+        'expired takes precedence over a future start time (past end wins)',
+      input: { published: true, starts_at: NOW + HOUR, ends_at: NOW - HOUR },
       expectedStatus: 'expired',
       expectedLabel: 'Expired',
       expectedTone: 'gray'

@@ -42,7 +42,7 @@ const buildAnnouncement = (
 })
 
 const renderBanner = () =>
-  render(<AnnouncementBanner host="llun.test" currentTime={1735689600000} />)
+  render(<AnnouncementBanner currentTime={1735689600000} />)
 
 describe('AnnouncementBanner', () => {
   beforeEach(() => {
@@ -185,6 +185,13 @@ describe('AnnouncementBanner', () => {
     expect(
       screen.queryByText('Scheduled maintenance tonight')
     ).not.toBeInTheDocument()
+
+    // The mark-read-on-view timer must not fire while collapsed, so a collapsed
+    // banner never silently drains the unread count.
+    await act(async () => {
+      jest.advanceTimersByTime(1000)
+    })
+    expect(mockDismissAnnouncement).not.toHaveBeenCalled()
   })
 
   it('marks an unread announcement read on view, draining the count but keeping the item', async () => {
@@ -341,14 +348,21 @@ describe('AnnouncementBanner', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /announcements/i }))
     })
+
+    const addButton = screen.getByRole('button', { name: /add reaction/i })
+    expect(addButton).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(addButton).toHaveAttribute('aria-expanded', 'false')
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /add reaction/i }))
+      fireEvent.click(addButton)
     })
 
-    // The picker is open: a quick-emoji button is visible.
+    // The picker is open: a quick-emoji button is visible and the trigger
+    // reports its expanded state to assistive tech.
     expect(
       screen.getByRole('button', { name: /react with 🎉/i })
     ).toBeInTheDocument()
+    expect(addButton).toHaveAttribute('aria-expanded', 'true')
 
     await act(async () => {
       fireEvent.keyDown(document, { key: 'Escape' })
@@ -357,5 +371,110 @@ describe('AnnouncementBanner', () => {
     expect(
       screen.queryByRole('button', { name: /react with 🎉/i })
     ).not.toBeInTheDocument()
+    expect(addButton).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('does not call the add client function when re-picking an emoji you already own', async () => {
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({
+        read: true,
+        reactions: [{ name: '👍', count: 1, me: true }]
+      })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    await waitFor(() => {
+      expect(mockGetAnnouncements).toHaveBeenCalled()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /announcements/i }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /add reaction/i }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /react with 👍/i }))
+    })
+
+    // Re-picking an emoji you already own is a no-op: no PUT and no count bump.
+    expect(mockAddAnnouncementReaction).not.toHaveBeenCalled()
+    expect(screen.getByText('1')).toBeInTheDocument()
+  })
+
+  it('reverts the optimistic add when the add request fails', async () => {
+    mockAddAnnouncementReaction.mockResolvedValueOnce(false)
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({ read: true, reactions: [] })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    await waitFor(() => {
+      expect(mockGetAnnouncements).toHaveBeenCalled()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /announcements/i }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /add reaction/i }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /react with 🎉/i }))
+    })
+
+    expect(mockAddAnnouncementReaction).toHaveBeenCalledWith(
+      'announcement-1',
+      '🎉'
+    )
+    // The optimistic chip is rolled back to the prior (empty) state.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: /🎉 reaction/i })
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  it('reverts the optimistic removal when the remove request fails', async () => {
+    mockRemoveAnnouncementReaction.mockResolvedValueOnce(false)
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({
+        read: true,
+        reactions: [{ name: '👍', count: 3, me: true }]
+      })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    await waitFor(() => {
+      expect(mockGetAnnouncements).toHaveBeenCalled()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /announcements/i }))
+    })
+
+    const chip = await screen.findByRole('button', {
+      name: /remove 👍 reaction/i
+    })
+    await act(async () => {
+      fireEvent.click(chip)
+    })
+
+    expect(mockRemoveAnnouncementReaction).toHaveBeenCalledWith(
+      'announcement-1',
+      '👍'
+    )
+    // The owned chip reappears with its original count and pressed state.
+    const restored = await screen.findByRole('button', {
+      name: /remove 👍 reaction/i
+    })
+    expect(restored).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('3')).toBeInTheDocument()
   })
 })

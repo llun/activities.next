@@ -330,9 +330,17 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                       maxLength={5000}
                       rows={2}
                       disabled={busyId !== null || saving}
-                      onBlur={(event) =>
+                      onBlur={(event) => {
+                        // The textarea is uncontrolled (defaultValue), so an
+                        // ignored empty edit would otherwise leave the field
+                        // showing the empty value even though the stored text
+                        // is unchanged. Reset it back to the persisted text so
+                        // the display stays in sync without a reload.
+                        if (event.target.value.trim() === '') {
+                          event.target.value = announcement.text
+                        }
                         handleEditText(announcement, event.target.value)
-                      }
+                      }}
                     />
                   </FilterField>
                   <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
