@@ -59,6 +59,16 @@ const getHashtagLookupNames = (name: string) => {
   return bare ? [bare, `#${bare}`] : []
 }
 
+// Shared start of the trends window, used by both the tag and status queries
+// so the two endpoints always agree on which rows are "in window". It starts at
+// the oldest rendered UTC day bucket (today minus `days - 1` whole days) rather
+// than a rolling `days × 24h` span, so the tag ranking counts exactly the rows
+// the route's zero-filled `days` calendar-day history can show. Binding a Date
+// keeps the predicate portable (epoch milliseconds on SQLite, timestamptz on
+// Postgres) — the same pattern as the nodeinfo active-user window.
+const getTrendsWindowStart = (days: number): Date =>
+  new Date(Math.floor(Date.now() / DAY_MS) * DAY_MS - (days - 1) * DAY_MS)
+
 // Distinct (normalized tag name, statusId, statusActorId[, statusCreatedAt])
 // rows for hashtags on publicly-addressed Note/Poll statuses created within
 // the last `days` days. Mirrors the featured-tag / hashtag-search aggregation
@@ -72,17 +82,7 @@ const getWindowedPublicTagUsage = (
   }: { days: number; includeCreatedAt?: boolean }
 ) => {
   const normalizedNameSQL = getNormalizedHashtagNameSQL(database)
-  // statuses.createdAt is written as a Date; binding a Date keeps the window
-  // predicate portable (epoch milliseconds on SQLite, timestamptz on
-  // Postgres) — same pattern as the nodeinfo active-user window. The window
-  // starts at the oldest rendered UTC day bucket (today minus `days - 1`
-  // whole days) so the ranking counts exactly the rows the route's
-  // zero-filled `days` calendar-day history can show — a rolling
-  // `days × 24h` window would also count rows from an older, never-rendered
-  // bucket.
-  const since = new Date(
-    Math.floor(Date.now() / DAY_MS) * DAY_MS - (days - 1) * DAY_MS
-  )
+  const since = getTrendsWindowStart(days)
   return database('tags')
     .distinct(
       database.raw(`${normalizedNameSQL.sql} as ??`, [
@@ -139,22 +139,28 @@ export const TrendsSQLDatabaseMixin = (database: Knex): TrendsDatabase => ({
     // Mirror the LOCAL_PUBLIC timeline selection (top-level public statuses by
     // local actors), but restricted to the trends window and to content types
     // that carry their own counters — Announce boosts are skipped, the boosted
-    // original ranks through its own row. Public is encoded directly in SQL via
-    // the `to` recipient on the public collection, so the candidate set needs
-    // no per-status async access check before ranking. Binding a Date keeps the
-    // window predicate portable across SQLite (epoch ms) and Postgres
-    // (timestamptz), matching getWindowedPublicTagUsage.
-    const since = new Date(Date.now() - days * DAY_MS)
-    const rows = (await database('recipients')
-      .where('recipients.type', 'to')
-      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
-      .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
+    // original ranks through its own row. Public is gated with a `whereExists`
+    // on the `to` recipient pointing at the public collection (the strictly
+    // public, non-unlisted addressing the public timeline uses): the candidate
+    // set needs no per-status async access check before ranking, and the
+    // semi-join avoids the row duplication a direct join would need `distinct`
+    // to undo. Shares getTrendsWindowStart so the window matches trending tags.
+    const since = getTrendsWindowStart(days)
+    const rows = (await database('statuses')
       .innerJoin('actors', 'statuses.actorId', 'actors.id')
       .whereNotNull('actors.privateKey')
       .where('statuses.reply', '')
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .where('statuses.createdAt', '>=', since)
-      .distinct('statuses.id as id', 'statuses.createdAt as createdAt')
+      .whereExists((builder) => {
+        builder
+          .select(database.raw('1'))
+          .from('recipients')
+          .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
+          .where('recipients.type', 'to')
+          .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+      })
+      .select('statuses.id as id')
       .orderBy('statuses.createdAt', 'desc')
       .orderBy('statuses.id', 'desc')
       .limit(TRENDING_STATUS_CANDIDATE_LIMIT)) as { id: string }[]
