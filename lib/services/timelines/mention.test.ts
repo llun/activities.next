@@ -482,7 +482,7 @@ describe('mentionTimelineRule', () => {
     ).toBeUndefined()
   })
 
-  it('sends reply event first when status is both reply and mention', async () => {
+  it('merges into a single reply notification when status is both reply and mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const originalPost = await createNote(
       database,
@@ -511,7 +511,8 @@ describe('mentionTimelineRule', () => {
       status: replyMentionStatus
     })
 
-    // Both notifications should be created in DB
+    // A reply that also mentions the recipient is a single event: keep only the
+    // (more specific) reply notification and suppress the duplicate mention one.
     const notifications = await database.getNotifications({
       actorId: actor.id,
       limit: 100
@@ -525,15 +526,16 @@ describe('mentionTimelineRule', () => {
       notifications.find(
         (n) => n.statusId === replyMentionStatus.id && n.type === 'mention'
       )
-    ).toBeDefined()
+    ).toBeUndefined()
+    expect(
+      notifications.filter((n) => n.statusId === replyMentionStatus.id)
+    ).toHaveLength(1)
 
-    // sendNotificationAlerts called once with reply event first (push priority)
-    // and mention event second (carries email content)
+    // sendNotificationAlerts called once with a single reply event.
     expect(mockSendAlerts).toHaveBeenCalledTimes(1)
     const { events } = mockSendAlerts.mock.calls[0][0]
-    expect(events).toHaveLength(2)
+    expect(events).toHaveLength(1)
     expect(events[0].type).toBe(NotificationType.enum.reply)
-    expect(events[1].type).toBe(NotificationType.enum.mention)
   })
 
   it('returns null for remote reply to another actor post', async () => {

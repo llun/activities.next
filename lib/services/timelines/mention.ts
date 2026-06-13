@@ -55,6 +55,10 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
 
       let addToTimeline = false
       const alertEvents: NotificationEvent[] = []
+      // A reply that also mentions the recipient is a single event. Once a reply
+      // notification is created for this status we suppress the duplicate mention
+      // notification below so the recipient sees one entry, not two.
+      let replyNotificationCreated = false
 
       // --- Reply detection ---
       if (status.reply && !status.isLocalActor) {
@@ -75,8 +79,11 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
                 groupKey: `reply:${repliedStatus.id}`
               }
             )
-            if (replyNotification && !replyNotification.filtered) {
-              alertEvents.push({ type: NotificationType.enum.reply })
+            if (replyNotification) {
+              replyNotificationCreated = true
+              if (!replyNotification.filtered) {
+                alertEvents.push({ type: NotificationType.enum.reply })
+              }
             }
           }
         } catch (error) {
@@ -103,7 +110,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         addToTimeline = true
         const account = currentActor.account
 
-        if (!status.isLocalActor) {
+        // Skip the mention notification when a reply notification already covers
+        // this status for the same recipient — they are the same event.
+        if (!status.isLocalActor && !replyNotificationCreated) {
           // Error is recorded but not re-thrown: a notification DB failure
           // should not block the mention from being added to the timeline.
           let mentionNotification = null

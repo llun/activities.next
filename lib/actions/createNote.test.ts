@@ -366,6 +366,47 @@ describe('Create note action', () => {
       }
     })
 
+    it('merges into a single reply notification when a reply also mentions the parent author', async () => {
+      await clearSettledNotificationAlerts()
+      const originalStatus = (await createNoteFromUserInput({
+        text: 'Original post from actor2 for reply+mention merge',
+        currentActor: actor2,
+        database
+      })) as StatusNote
+
+      const replyStatus = (await createNoteFromUserInput({
+        text: '@test2@llun.test thanks for the post!',
+        currentActor: actor1,
+        replyNoteId: originalStatus.id,
+        database
+      })) as StatusNote
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const notifications = await database.getNotifications({
+        actorId: actor2.id,
+        limit: 100
+      })
+      const replyMentionNotifications = notifications.filter(
+        (notification) => notification.statusId === replyStatus.id
+      )
+      // Only the reply notification should be kept — the duplicate mention one
+      // for the same parent author is suppressed.
+      expect(replyMentionNotifications).toHaveLength(1)
+      expect(replyMentionNotifications[0].type).toBe(
+        NotificationType.enum.reply
+      )
+
+      // A single reply alert is dispatched for the parent author.
+      const replyAlertCalls = mockSendNotificationAlerts.mock.calls.filter(
+        ([call]) =>
+          call.actorId === actor2.id && call.statusId === replyStatus.id
+      )
+      expect(replyAlertCalls).toHaveLength(1)
+      expect(replyAlertCalls[0][0].events).toEqual([
+        expect.objectContaining({ type: NotificationType.enum.reply })
+      ])
+    })
+
     it('does not create reply notification when reply target mutes source with notifications=true', async () => {
       await clearSettledNotificationAlerts()
       const originalStatus = (await createNoteFromUserInput({
