@@ -22,6 +22,10 @@ const toDate = (value) => {
   if (value instanceof Date) return value
   if (typeof value === 'number') return new Date(value)
   const trimmed = String(value).trim()
+  // Defensive: a Postgres bigint column would come back as an all-digits string
+  // (epoch ms) — new Date('1700000000000') is Invalid, so parse it as a number.
+  // (statuses.createdAt is a timestamp here, so this normally never triggers.)
+  if (/^\d+$/.test(trimmed)) return new Date(Number(trimmed))
   const normalized = SQLITE_UTC_TIMESTAMP_PATTERN.test(trimmed)
     ? `${trimmed.replace(' ', 'T')}Z`
     : trimmed
