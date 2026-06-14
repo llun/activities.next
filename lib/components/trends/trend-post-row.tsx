@@ -11,10 +11,14 @@ interface TrendPostRowProps {
 }
 
 const getAccountLabel = (status: MastodonStatus) =>
-  status.account.display_name || status.account.username || status.account.acct
+  status.account.display_name ||
+  status.account.username ||
+  status.account.acct ||
+  'Unknown'
 
 const getAccountHandle = (status: MastodonStatus) => {
-  const acct = status.account.acct || status.account.username
+  const acct = status.account.acct || status.account.username || ''
+  if (!acct) return ''
   return acct.startsWith('@') ? acct : `@${acct}`
 }
 

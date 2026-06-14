@@ -13,6 +13,7 @@ import { PageHeader } from '@/lib/components/page-header'
 import { TrendLinkCard } from '@/lib/components/trends/trend-link-card'
 import { TrendPostRow } from '@/lib/components/trends/trend-post-row'
 import { TrendTagRow } from '@/lib/components/trends/trend-tag-row'
+import { Button } from '@/lib/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
@@ -49,12 +50,19 @@ const SkeletonRows = ({ count = 4 }: { count?: number }) => (
   </div>
 )
 
-const EmptyNote = ({ children }: { children: React.ReactNode }) => (
+const EmptyNote = ({
+  children,
+  action
+}: {
+  children: React.ReactNode
+  action?: React.ReactNode
+}) => (
   <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
     <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
       <TrendingUp className="size-[18px]" />
     </span>
     <p className="max-w-sm text-sm text-muted-foreground">{children}</p>
+    {action && <div className="pt-1">{action}</div>}
   </div>
 )
 
@@ -151,14 +159,24 @@ export const ExplorePageClient = ({ currentTime }: ExplorePageClientProps) => {
 
   const activeState =
     tab === 'tags' ? tagsState : tab === 'posts' ? postsState : linksState
+  const reloadActiveTab =
+    tab === 'tags' ? loadTags : tab === 'posts' ? loadPosts : loadLinks
 
   const renderBody = () => {
     if (activeState.status === 'loading' || activeState.status === 'idle') {
       return <SkeletonRows count={4} />
     }
     if (activeState.status === 'error') {
+      // The loader flips the tab back to 'loading' immediately, so the retry
+      // button unmounts on click — no separate in-flight guard is needed.
       return (
-        <EmptyNote>
+        <EmptyNote
+          action={
+            <Button variant="outline" size="sm" onClick={reloadActiveTab}>
+              Try again
+            </Button>
+          }
+        >
           Couldn&apos;t load trends right now. Try again in a moment.
         </EmptyNote>
       )

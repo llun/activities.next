@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import {
@@ -115,6 +115,20 @@ describe('ExplorePageClient', () => {
     expect(
       await screen.findByText(/Couldn't load trends right now/)
     ).toBeInTheDocument()
+  })
+
+  it('retries the active tab when the Try again button is clicked', async () => {
+    mockGetTrendingTags
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce([tag('fediverse')])
+
+    renderExplore(null, Date.now())
+
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    fireEvent.click(retry)
+
+    expect(await screen.findByText('#fediverse')).toBeInTheDocument()
+    expect(mockGetTrendingTags).toHaveBeenCalledTimes(2)
   })
 
   it('shows the news empty note when no links are trending', async () => {
