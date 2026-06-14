@@ -226,7 +226,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <AnnouncementBanner host={host} currentTime={currentTime} />
+      <AnnouncementBanner currentTime={currentTime} />
       <PageHeader
         title="Timeline"
         description="Latest posts from your network."
