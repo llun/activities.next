@@ -1274,7 +1274,10 @@ const getTrends = async <T>(
   if (!response.ok) {
     throw new Error(`Failed to load trending ${resource}: ${response.status}`)
   }
-  return (await response.json()) as T
+  // Every trends endpoint returns a JSON array; coerce anything else to an empty
+  // list so callers can safely `.map`/`.length` over the result.
+  const data = await response.json()
+  return (Array.isArray(data) ? data : []) as T
 }
 
 export const getTrendingTags = (limit?: number): Promise<Tag[]> =>

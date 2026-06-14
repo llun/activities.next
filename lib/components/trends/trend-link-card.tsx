@@ -1,3 +1,4 @@
+import { safeExternalHref } from '@/lib/components/trends/safeHref'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 
 interface TrendLinkCardProps {
@@ -21,7 +22,7 @@ export const TrendLinkCard = ({ link }: TrendLinkCardProps) => {
 
   return (
     <a
-      href={link.url}
+      href={safeExternalHref(link.url)}
       target="_blank"
       rel="noopener noreferrer"
       className="flex gap-4 rounded-xl border bg-card p-3 shadow-sm transition-colors hover:bg-muted"

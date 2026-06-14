@@ -1,6 +1,7 @@
 import { formatDistance } from 'date-fns'
 import { Heart, Repeat2, Reply } from 'lucide-react'
 
+import { safeExternalHref } from '@/lib/components/trends/safeHref'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
@@ -39,7 +40,7 @@ export const TrendPostRow = ({ status, currentTime }: TrendPostRowProps) => {
 
   return (
     <a
-      href={status.url || status.uri}
+      href={safeExternalHref(status.url || status.uri)}
       target="_blank"
       rel="noopener noreferrer"
       className="flex gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted"

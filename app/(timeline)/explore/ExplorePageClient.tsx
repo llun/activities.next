@@ -154,7 +154,8 @@ export const ExplorePageClient = ({ currentTime }: ExplorePageClientProps) => {
       params.set('tab', nextTab)
     }
     const query = params.toString()
-    router.replace(query ? `/explore?${query}` : '/explore')
+    // Keep the reader's scroll position when flipping tabs.
+    router.replace(query ? `/explore?${query}` : '/explore', { scroll: false })
   }
 
   const activeState =
