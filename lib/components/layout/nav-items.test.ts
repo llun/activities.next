@@ -8,6 +8,7 @@ describe('buildNavItems', () => {
     expect(itemHrefs({})).toEqual([
       '/',
       '/search',
+      '/explore',
       '/messages',
       '/bookmarks',
       '/lists',
@@ -21,6 +22,7 @@ describe('buildNavItems', () => {
     expect(itemHrefs({ fitnessUrl: '/@llun@llun.test/fitness' })).toEqual([
       '/',
       '/search',
+      '/explore',
       '/messages',
       '/bookmarks',
       '/lists',
@@ -35,6 +37,7 @@ describe('buildNavItems', () => {
     expect(itemHrefs({ isAdmin: true })).toEqual([
       '/',
       '/search',
+      '/explore',
       '/messages',
       '/bookmarks',
       '/lists',
@@ -51,6 +54,7 @@ describe('buildNavItems', () => {
     ).toEqual([
       '/',
       '/search',
+      '/explore',
       '/messages',
       '/bookmarks',
       '/lists',

@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   Bookmark,
+  Compass,
   Heart,
   Home,
   List,
@@ -24,6 +25,7 @@ export interface NavItem {
 const baseNavItems: NavItem[] = [
   { href: '/', label: 'Timeline', shortLabel: 'Home', icon: Home },
   { href: '/search', label: 'Search', icon: Search },
+  { href: '/explore', label: 'Explore', icon: Compass },
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/lists', label: 'Lists', icon: List },
