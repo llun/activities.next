@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Monitor,
   Settings as SettingsIcon,
+  SlidersHorizontal,
   User,
   VolumeX
 } from 'lucide-react'
@@ -29,6 +30,11 @@ interface Props {
 const tabs: SectionNavTab[] = [
   { name: 'General', url: '/settings', icon: SettingsIcon },
   { name: 'Account', url: '/settings/account', icon: User },
+  {
+    name: 'Preferences',
+    url: '/settings/preferences',
+    icon: SlidersHorizontal
+  },
   {
     name: 'Featured hashtags',
     url: '/settings/featured-hashtags',
