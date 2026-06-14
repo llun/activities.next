@@ -31,6 +31,24 @@ export const isLocalFederationDomain = (value: string): boolean => {
   })
 }
 
+/**
+ * The instance's concrete (non-wildcard) local domains: the configured host
+ * plus every entry in `allowActorDomains`. Wildcard patterns are dropped since
+ * they cannot be used as a literal domain to query an actor by. Useful for
+ * resolving a local username that may live on a different served domain than
+ * the one a client addressed it by (multi-domain hosting).
+ */
+export const getLocalActorDomains = (): string[] => {
+  const config = getConfig()
+  const domains = [config.host, ...(config.allowActorDomains ?? [])]
+    .map((domain) => normalizeDomain(domain))
+    .filter(
+      (domain): domain is string => domain !== null && !domain.startsWith('*.')
+    )
+
+  return Array.from(new Set(domains))
+}
+
 export const isDomainBlocked = async (
   database: Database,
   value: string

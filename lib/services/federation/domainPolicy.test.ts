@@ -3,6 +3,7 @@ import { Database } from '@/lib/database/types'
 import {
   canFederateWithDomain,
   filterFederatedUrls,
+  getLocalActorDomains,
   isDomainAllowed,
   isLocalFederationDomain
 } from './domainPolicy'
@@ -132,6 +133,26 @@ describe('domainPolicy', () => {
     expect(isLocalFederationDomain('https://sub.trusted.test/users/a')).toBe(
       true
     )
+  })
+
+  it('lists concrete local actor domains and drops wildcards/duplicates', () => {
+    mockGetConfig.mockReturnValue({
+      host: 'local.test',
+      allowActorDomains: ['alias.test', '*.trusted.test', 'local.test'],
+      federationMode: 'open'
+    })
+
+    expect(getLocalActorDomains()).toEqual(['local.test', 'alias.test'])
+  })
+
+  it('lists the configured host when no actor domains are set', () => {
+    mockGetConfig.mockReturnValue({
+      host: 'local.test',
+      allowActorDomains: [],
+      federationMode: 'open'
+    })
+
+    expect(getLocalActorDomains()).toEqual(['local.test'])
   })
 
   it('filters URLs with a batched block lookup', async () => {

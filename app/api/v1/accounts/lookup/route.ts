@@ -6,6 +6,10 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
+  getLocalActorDomains,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
+import {
   OptionalOAuthGuard,
   corsErrorResponse,
   isBearerAuthorizationHeader
@@ -89,7 +93,29 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
 
   const { username, domain } = handle
   let actor = await database.getActorFromUsername({ username, domain })
-  if (!actor && resolve && domain !== config.host) {
+
+  // Multi-domain hosting: clients build the current user's handle as
+  // `username@<instance host>`, but the actor's canonical domain may be a
+  // *different* local domain (e.g. an `ACTIVITIES_ALLOW_ACTOR_DOMAINS` entry
+  // while the user signed in via the configured host). When the requested
+  // domain is one of our own served domains and the exact match misses,
+  // resolve the username against the instance's other local domains before
+  // giving up. This is what lets Phanpy's account switcher — which looks up
+  // `null@<host>` for the logged-in `null@<other-local-domain>` user — load
+  // the profile instead of failing with "Unable to load account".
+  if (!actor && isLocalFederationDomain(domain)) {
+    const normalizedDomain = domain.toLowerCase()
+    for (const localDomain of getLocalActorDomains()) {
+      if (localDomain === normalizedDomain) continue
+      actor = await database.getActorFromUsername({
+        username,
+        domain: localDomain
+      })
+      if (actor) break
+    }
+  }
+
+  if (!actor && resolve && !isLocalFederationDomain(domain)) {
     const hasBearerAuthorization = isBearerAuthorizationHeader(
       req.headers.get('Authorization')
     )

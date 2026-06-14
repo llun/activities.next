@@ -40,7 +40,7 @@ jest.mock('@/lib/database', () => ({
 
 jest.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
-  getConfig: () => ({ host: 'llun.test' })
+  getConfig: () => ({ host: 'llun.test', allowActorDomains: ['llun.dev'] })
 }))
 
 jest.mock('better-auth/oauth2', () => ({
@@ -81,6 +81,53 @@ describe('GET /api/v1/accounts/lookup', () => {
       username: 'test1',
       domain: 'llun.test'
     })
+  })
+
+  it('resolves a local username addressed by a different local domain', async () => {
+    // The user `null` lives on the allowed actor domain `llun.dev`, but a client
+    // (e.g. Phanpy) looks them up as `null@llun.test` (the configured host).
+    const actor = { id: 'https://llun.dev/users/null' }
+    const account = {
+      id: 'llun.dev:users:null',
+      username: 'null',
+      acct: 'null@llun.dev'
+    }
+    mockGetActorFromUsername.mockImplementation(
+      ({ username, domain }: { username: string; domain: string }) =>
+        username === 'null' && domain === 'llun.dev' ? actor : null
+    )
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=null@llun.test'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'null',
+      domain: 'llun.test'
+    })
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'null',
+      domain: 'llun.dev'
+    })
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(await response.json()).toEqual(account)
+  })
+
+  it('does not remotely resolve a missing local-domain account', async () => {
+    mockGetActorFromUsername.mockResolvedValue(null)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=ghost@llun.dev&resolve=true'
+      )
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
   })
 
   it('rejects handles with more than one username/domain separator', async () => {
