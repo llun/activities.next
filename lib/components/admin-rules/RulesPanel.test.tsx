@@ -146,6 +146,20 @@ describe('RulesPanel', () => {
     expect(await screen.findByText('Be kinder')).toBeInTheDocument()
   })
 
+  it('locks other list actions while a rule is being edited', async () => {
+    await renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rule 1' }))
+    // The other row's Edit/Delete, both reorder grips, and the Add controls
+    // are disabled so the open editor's draft can't be discarded.
+    expect(screen.getByRole('button', { name: 'Edit rule 2' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete rule 2' })).toBeDisabled()
+    screen
+      .getAllByRole('button', { name: /^Reorder rule/ })
+      .forEach((grip) => expect(grip).toBeDisabled())
+    expect(screen.getByLabelText('New rule text')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add rule' })).toBeDisabled()
+  })
+
   it('deletes a rule optimistically', async () => {
     mockDelete.mockResolvedValue(true)
     await renderPanel()

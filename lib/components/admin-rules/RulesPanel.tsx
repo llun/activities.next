@@ -60,6 +60,11 @@ export const RulesPanel: FC = () => {
   // optimistic snapshot and rolls back to it on failure, so overlapping writes
   // could otherwise restore a stale list.
   const busy = saving || deletingId !== null || savingEdit || reordering
+  // A rule is open in the inline editor. While true, every other list action
+  // (drag, keyboard reorder, other rows' Edit/Delete, the Add form) is blocked
+  // so they can't silently discard the unsaved draft or shift the list under
+  // the open editor.
+  const editing = editingId !== null
   // Synchronous in-flight lock. `busy` is captured in each handler's closure at
   // render time, so two events fired in the same tick (e.g. rapid ArrowDown on
   // the grip before the disabled re-render lands) would both read a stale
@@ -88,7 +93,7 @@ export const RulesPanel: FC = () => {
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const text = newText.trim()
-    if (!text || busy || inFlightRef.current) return
+    if (!text || busy || editing || inFlightRef.current) return
     inFlightRef.current = true
     setSaving(true)
     setFormError(null)
@@ -124,7 +129,7 @@ export const RulesPanel: FC = () => {
   }
 
   const beginEdit = (rule: ServerRule) => {
-    if (busy) return
+    if (busy || editing) return
     setListError(null)
     setEditingId(rule.id)
     setEditText(rule.text)
@@ -289,7 +294,7 @@ export const RulesPanel: FC = () => {
         <div className="divide-y rounded-2xl border bg-background/80 shadow-sm backdrop-blur">
           {rules.map((rule, index) => {
             const isEditing = editingId === rule.id
-            const draggable = !isEditing && !busy
+            const draggable = !busy && !editing
             return (
               <div
                 key={rule.id}
@@ -326,7 +331,7 @@ export const RulesPanel: FC = () => {
                 <button
                   type="button"
                   aria-label={`Reorder rule ${index + 1}: use arrow up and arrow down keys to move`}
-                  disabled={busy || isEditing}
+                  disabled={busy || editing}
                   onKeyDown={(event) => {
                     if (event.key === 'ArrowUp') {
                       event.preventDefault()
@@ -403,7 +408,7 @@ export const RulesPanel: FC = () => {
                     <button
                       type="button"
                       aria-label={`Edit rule ${index + 1}`}
-                      disabled={busy}
+                      disabled={busy || editing}
                       onClick={() => beginEdit(rule)}
                       className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                     >
@@ -412,7 +417,7 @@ export const RulesPanel: FC = () => {
                     <button
                       type="button"
                       aria-label={`Delete rule ${index + 1}`}
-                      disabled={busy}
+                      disabled={busy || editing}
                       onClick={() => handleDelete(rule)}
                       className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
                     >
@@ -433,9 +438,13 @@ export const RulesPanel: FC = () => {
             placeholder="Add a rule…"
             value={newText}
             maxLength={1000}
+            disabled={busy || editing}
             onChange={(event) => setNewText(event.target.value)}
           />
-          <Button type="submit" disabled={busy || newText.trim().length === 0}>
+          <Button
+            type="submit"
+            disabled={busy || editing || newText.trim().length === 0}
+          >
             <Plus className="size-4" />
             Add rule
           </Button>
