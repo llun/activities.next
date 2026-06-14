@@ -163,9 +163,12 @@ describe('RulesPanel', () => {
       expect(mockUpdate).toHaveBeenCalledWith('2', { position: 0 })
       expect(mockUpdate).toHaveBeenCalledWith('1', { position: 1 })
     })
-    // The "No spam" rule is now numbered 1.
-    const grips = screen.getAllByRole('button', { name: /^Reorder rule/ })
-    expect(grips).toHaveLength(2)
+    // "No spam" now sits above "Be kind" in document order.
+    const beKind = screen.getByText('Be kind')
+    const noSpam = screen.getByText('No spam')
+    expect(
+      noSpam.compareDocumentPosition(beKind) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('resyncs from the server when a reorder write fails', async () => {
