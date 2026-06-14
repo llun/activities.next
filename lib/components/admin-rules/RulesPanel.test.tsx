@@ -168,6 +168,27 @@ describe('RulesPanel', () => {
     expect(grips).toHaveLength(2)
   })
 
+  it('resyncs from the server when a reorder write fails', async () => {
+    mockUpdate.mockResolvedValue(null)
+    const serverOrder: ServerRule[] = [
+      rule({ id: '2', text: 'No spam', position: 0 }),
+      rule({ id: '1', text: 'Be kind', position: 1 })
+    ]
+    // First call is the initial load; second is the post-failure resync.
+    mockGet.mockResolvedValueOnce(seed).mockResolvedValueOnce(serverOrder)
+    await renderPanel()
+    fireEvent.keyDown(
+      screen.getByRole('button', {
+        name: 'Reorder rule 1: use arrow up and arrow down keys to move'
+      }),
+      { key: 'ArrowDown' }
+    )
+    expect(
+      await screen.findByText('Failed to reorder rules. Please try again.')
+    ).toBeInTheDocument()
+    await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2))
+  })
+
   it('does not persist when reordering past the list boundary', async () => {
     await renderPanel()
     // ArrowUp on the first rule is a no-op — nothing to move it above.

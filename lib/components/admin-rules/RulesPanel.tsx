@@ -1,7 +1,7 @@
 'use client'
 
 import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react'
-import { FC, FormEvent, useEffect, useState } from 'react'
+import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import {
   type ServerRule,
@@ -53,11 +53,18 @@ export const RulesPanel: FC = () => {
   // The row currently picked up by a drag, used to compute the drop target.
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
+  // Polite live-region text announcing a reorder to screen readers.
+  const [reorderStatus, setReorderStatus] = useState('')
 
   // Any in-flight mutation blocks the others: every write path takes an
   // optimistic snapshot and rolls back to it on failure, so overlapping writes
   // could otherwise restore a stale list.
   const busy = saving || deletingId !== null || savingEdit || reordering
+  // Synchronous in-flight lock. `busy` is captured in each handler's closure at
+  // render time, so two events fired in the same tick (e.g. rapid ArrowDown on
+  // the grip before the disabled re-render lands) would both read a stale
+  // `busy === false`. This ref flips synchronously to serialize them.
+  const inFlightRef = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -81,7 +88,8 @@ export const RulesPanel: FC = () => {
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const text = newText.trim()
-    if (!text || busy) return
+    if (!text || busy || inFlightRef.current) return
+    inFlightRef.current = true
     setSaving(true)
     setFormError(null)
     // Append the new rule after the current last one. createInstanceRule
@@ -111,6 +119,7 @@ export const RulesPanel: FC = () => {
       )
     } finally {
       setSaving(false)
+      inFlightRef.current = false
     }
   }
 
@@ -131,15 +140,14 @@ export const RulesPanel: FC = () => {
   const handleEditSave = async (rule: ServerRule) => {
     const text = editText.trim()
     // Bail on an emptied required field or while another write is in flight.
-    if (!text || savingEdit || deletingId !== null || saving || reordering) {
-      return
-    }
+    if (!text || busy || inFlightRef.current) return
     const hint = editHint.trim()
     // Nothing changed — close the editor without a doomed round-trip.
     if (text === rule.text && hint === rule.hint) {
       cancelEdit()
       return
     }
+    inFlightRef.current = true
     setSavingEdit(true)
     setListError(null)
     try {
@@ -157,11 +165,13 @@ export const RulesPanel: FC = () => {
       setListError('Failed to update rule. Please try again.')
     } finally {
       setSavingEdit(false)
+      inFlightRef.current = false
     }
   }
 
   const handleDelete = async (rule: ServerRule) => {
-    if (busy) return
+    if (busy || inFlightRef.current) return
+    inFlightRef.current = true
     setListError(null)
     setDeletingId(rule.id)
     const previous = rules
@@ -180,11 +190,16 @@ export const RulesPanel: FC = () => {
       restoreOnFailure()
     } finally {
       setDeletingId(null)
+      inFlightRef.current = false
     }
   }
 
   // Persist a reorder by writing back the new sequential position of every
-  // rule whose position changed. Rolls the whole list back on any failure.
+  // rule whose position changed. Writes run sequentially (not Promise.all) to
+  // avoid concurrent transactions contending for the same table; the first
+  // failure stops the loop. On any failure the local state can no longer be
+  // trusted (some writes may have landed), so resync from the server rather
+  // than blindly restoring the pre-move snapshot.
   const persistReorder = async (
     reordered: ServerRule[],
     previous: ServerRule[]
@@ -193,37 +208,49 @@ export const RulesPanel: FC = () => {
       const before = previous.find((item) => item.id === rule.id)
       return before === undefined || before.position !== index
     })
-    if (changed.length === 0) return
+    if (changed.length === 0) {
+      inFlightRef.current = false
+      return
+    }
     setReordering(true)
     setListError(null)
     try {
-      const results = await Promise.all(
-        changed.map((rule) =>
-          updateServerRule(rule.id, { position: rule.position })
-        )
-      )
-      if (results.some((result) => result === null)) {
-        throw new Error('Failed to reorder rules. Please try again.')
+      for (const rule of changed) {
+        const updated = await updateServerRule(rule.id, {
+          position: rule.position
+        })
+        if (!updated) {
+          throw new Error('Failed to reorder rules. Please try again.')
+        }
       }
     } catch {
-      setRules(previous)
       setListError('Failed to reorder rules. Please try again.')
+      try {
+        // Resync to the server's actual order after a partial write.
+        const fresh = await getServerRules()
+        setRules(sortRules(fresh))
+      } catch {
+        setRules(previous)
+      }
     } finally {
       setReordering(false)
+      inFlightRef.current = false
     }
   }
 
   const moveRule = (from: number, to: number) => {
-    if (busy) return
+    if (busy || inFlightRef.current) return
     // `reorder` returns the same reference for a no-op or out-of-range move
     // (e.g. ArrowUp on the first row), so bail before normalizing — otherwise
     // `normalize` would allocate a fresh array and could trigger a spurious
     // position write.
     const moved = reorder(rules, from, to)
     if (moved === rules) return
+    inFlightRef.current = true
     const reordered = normalize(moved)
     const previous = rules
     setRules(reordered)
+    setReorderStatus(`Moved rule to position ${to + 1} of ${reordered.length}.`)
     void persistReorder(reordered, previous)
   }
 
@@ -243,6 +270,10 @@ export const RulesPanel: FC = () => {
       />
 
       {listError && <p className="text-sm text-destructive">{listError}</p>}
+
+      <p aria-live="polite" className="sr-only">
+        {reorderStatus}
+      </p>
 
       {loading ? (
         <p className="rounded-2xl border bg-background/80 py-10 text-center text-sm text-muted-foreground shadow-sm">
@@ -269,7 +300,17 @@ export const RulesPanel: FC = () => {
                   event.preventDefault()
                   setOverIndex(index)
                 }}
-                onDrop={() => handleDrop(index)}
+                onDragLeave={() => {
+                  // Clear the drop highlight when the cursor leaves this row, so
+                  // dragging off the list doesn't leave a row stuck highlighted.
+                  setOverIndex((current) =>
+                    current === index ? null : current
+                  )
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  handleDrop(index)
+                }}
                 onDragEnd={() => {
                   setDragIndex(null)
                   setOverIndex(null)
