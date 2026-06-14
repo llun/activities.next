@@ -117,6 +117,32 @@ describe('GET /api/v1/accounts/lookup', () => {
     expect(await response.json()).toEqual(account)
   })
 
+  it('resolves a mixed-case local host handle in canonical form', async () => {
+    // `acct=test1@LLUN.TEST` must still find the host's own user even though
+    // actors are stored with a lowercase domain.
+    const actor = { id: 'https://llun.test/users/test1' }
+    const account = { id: 'test1', username: 'test1', acct: 'test1' }
+    mockGetActorFromUsername.mockImplementation(
+      ({ username, domain }: { username: string; domain: string }) =>
+        username === 'test1' && domain === 'llun.test' ? actor : null
+    )
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=test1@LLUN.TEST'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'test1',
+      domain: 'llun.test'
+    })
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(await response.json()).toEqual(account)
+  })
+
   it('does not remotely resolve a missing local-domain account', async () => {
     mockGetActorFromUsername.mockResolvedValue(null)
 
