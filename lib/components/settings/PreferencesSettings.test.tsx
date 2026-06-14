@@ -66,6 +66,9 @@ describe('PreferencesSettings', () => {
       )
     )
     expect(await screen.findByText('Saved')).toBeInTheDocument()
+    // After a successful save the form is no longer dirty, so Save disables
+    // again until the next change.
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
   })
 
   it('shows an error message when saving fails', async () => {

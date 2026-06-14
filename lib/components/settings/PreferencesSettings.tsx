@@ -20,7 +20,11 @@ const VISIBILITIES: { value: PostingVisibility; label: string }[] = [
     value: 'unlisted',
     label: 'Unlisted — public, but out of trends and search'
   },
-  { value: 'private', label: 'Followers only' }
+  { value: 'private', label: 'Followers only' },
+  // `direct` is not a typical default, but the account model allows it (e.g. set
+  // by a Mastodon client). Listing it keeps the select from silently rewriting a
+  // stored `direct` default to a different value on save.
+  { value: 'direct', label: 'Direct — only people mentioned' }
 ]
 
 const LANGUAGES: { value: string; label: string }[] = [
@@ -81,6 +85,11 @@ interface Props {
 }
 
 export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
+  // The baseline the form diffs against. Tracked in state (seeded from the
+  // server prop) so a successful save can reset it — otherwise the form would
+  // stay "dirty" against the immutable prop and keep Save enabled.
+  const [savedPreferences, setSavedPreferences] =
+    useState<PreferencesInput>(initialPreferences)
   const [preferences, setPreferences] =
     useState<PreferencesInput>(initialPreferences)
   const [saving, setSaving] = useState(false)
@@ -90,10 +99,27 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
   const dirty = useMemo(
     () =>
       (Object.keys(preferences) as (keyof PreferencesInput)[]).some(
-        (key) => preferences[key] !== initialPreferences[key]
+        (key) => preferences[key] !== savedPreferences[key]
       ),
-    [preferences, initialPreferences]
+    [preferences, savedPreferences]
   )
+
+  // `defaultLanguage` is an arbitrary string in actor settings, so the stored
+  // value may not be in the curated list. Keep it selectable to avoid the
+  // select rendering blank and silently overwriting it on save.
+  const languageOptions = useMemo(() => {
+    if (
+      LANGUAGES.some((option) => option.value === initialPreferences.language)
+    )
+      return LANGUAGES
+    return [
+      {
+        value: initialPreferences.language,
+        label: initialPreferences.language
+      },
+      ...LANGUAGES
+    ]
+  }, [initialPreferences.language])
 
   const update = <K extends keyof PreferencesInput>(
     key: K,
@@ -112,6 +138,7 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
       const ok = await updatePreferences(preferences)
       if (ok) {
         setSaved(true)
+        setSavedPreferences(preferences)
       } else {
         setError('Failed to save preferences. Please try again.')
       }
@@ -162,7 +189,7 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
             value={preferences.language}
             onChange={(event) => update('language', event.target.value)}
           >
-            {LANGUAGES.map((option) => (
+            {languageOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -195,8 +222,11 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
         </div>
 
         <div className="space-y-2">
-          <div className="text-sm font-medium">Media display</div>
+          <div id="media-display-label" className="text-sm font-medium">
+            Media display
+          </div>
           <RadioGroup
+            aria-labelledby="media-display-label"
             value={preferences.expandMedia}
             onValueChange={(value) =>
               update('expandMedia', value as ExpandMedia)
@@ -206,11 +236,10 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
             {MEDIA_DISPLAY.map((option, index) => {
               const active = preferences.expandMedia === option.value
               return (
-                <Label
+                <div
                   key={option.value}
-                  htmlFor={`media-${option.value}`}
                   className={cn(
-                    'flex cursor-pointer items-start gap-3 px-4 py-3 font-normal transition-colors hover:bg-muted/50',
+                    'flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50',
                     index > 0 && 'border-t',
                     active && 'bg-primary/5'
                   )}
@@ -220,15 +249,18 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
                     value={option.value}
                     className="mt-0.5"
                   />
-                  <span className="min-w-0">
+                  <Label
+                    htmlFor={`media-${option.value}`}
+                    className="min-w-0 flex-1 cursor-pointer font-normal"
+                  >
                     <span className="block text-sm font-medium">
                       {option.label}
                     </span>
                     <span className="block text-[0.8rem] text-muted-foreground">
                       {option.help}
                     </span>
-                  </span>
-                </Label>
+                  </Label>
+                </div>
               )
             })}
           </RadioGroup>
