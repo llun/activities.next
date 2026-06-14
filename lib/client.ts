@@ -21,6 +21,8 @@ import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Filter as MastodonFilter } from '@/lib/types/mastodon/filter'
 import type { ListEntity } from '@/lib/types/mastodon/list'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
+import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
+import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import type { Translation } from '@/lib/types/mastodon/translation'
 import { normalizeActorId } from '@/lib/utils/activitypub'
@@ -1245,6 +1247,59 @@ export const getFeaturedTagSuggestions = async (): Promise<Tag[]> => {
   })
   if (!response.ok) return []
   return (await response.json()) as Tag[]
+}
+
+// Trends (https://docs.joinmastodon.org/methods/trends/). All three endpoints
+// are read-scope and tolerate logged-out callers; every helper resolves to an
+// empty list on a non-OK response so the Explore/Search surfaces degrade to
+// their empty states instead of throwing.
+const buildTrendsQuery = (limit?: number) =>
+  typeof limit === 'number' ? `?limit=${limit}` : ''
+
+export const getTrendingTags = async (limit?: number): Promise<Tag[]> => {
+  const response = await fetch(
+    `/api/v1/trends/tags${buildTrendsQuery(limit)}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+  if (!response.ok) return []
+  return (await response.json()) as Tag[]
+}
+
+export const getTrendingStatuses = async (
+  limit?: number
+): Promise<MastodonStatus[]> => {
+  const response = await fetch(
+    `/api/v1/trends/statuses${buildTrendsQuery(limit)}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+  if (!response.ok) return []
+  return (await response.json()) as MastodonStatus[]
+}
+
+export const getTrendingLinks = async (
+  limit?: number
+): Promise<PreviewCard[]> => {
+  const response = await fetch(
+    `/api/v1/trends/links${buildTrendsQuery(limit)}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+  if (!response.ok) return []
+  return (await response.json()) as PreviewCard[]
 }
 
 interface DeleteSessionParams {

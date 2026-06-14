@@ -13,6 +13,9 @@ import {
   getBookmarks,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
+  getTrendingLinks,
+  getTrendingStatuses,
+  getTrendingTags,
   search,
   startStravaArchiveImport,
   triggerFitnessRouteHeatmap,
@@ -799,6 +802,55 @@ describe('client startStravaArchiveImport', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
+    )
+  })
+})
+
+describe('client trends', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+  })
+
+  it('requests trending tags with a limit and returns the payload', async () => {
+    const tags = [
+      { name: 'gravel', url: 'https://llun.test/tags/gravel', history: [] }
+    ]
+    fetchMock.mockResponseOnce(JSON.stringify(tags), { status: 200 })
+
+    await expect(getTrendingTags(10)).resolves.toEqual(tags)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/trends/tags?limit=10',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('omits the limit query when none is provided', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify([]), { status: 200 })
+
+    await getTrendingTags()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/trends/tags',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('returns an empty list when trending statuses respond non-OK', async () => {
+    fetchMock.mockResponseOnce('', { status: 503 })
+
+    await expect(getTrendingStatuses(20)).resolves.toEqual([])
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/trends/statuses?limit=20',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('returns trending links from the payload', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify([]), { status: 200 })
+
+    await expect(getTrendingLinks()).resolves.toEqual([])
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/trends/links',
+      expect.objectContaining({ method: 'GET' })
     )
   })
 })
