@@ -557,7 +557,7 @@ export const createNoteFromUserInput = async ({
     notificationEntries
       .filter((_, i) => {
         const n = notificationResults[i]
-        return n !== null && !n.filtered
+        return n && !n.filtered
       })
       .map(([actorId]) => actorId)
   )
@@ -568,7 +568,7 @@ export const createNoteFromUserInput = async ({
   const notificationIdByActorId = new Map<string, string>()
   notificationEntries.forEach(([actorId], i) => {
     const n = notificationResults[i]
-    if (n !== null && !n.filtered) {
+    if (n && !n.filtered) {
       notificationIdByActorId.set(actorId, n.id)
     }
   })

@@ -146,7 +146,10 @@ const buildPayload = (params: {
     // that has no notification record.
     notification_id: notificationId ?? '',
     notification_type: internalTypeToMastodon(type),
-    icon: sourceActor.iconUrl,
+    // `iconUrl` is `string | undefined` today, but coerce a possible null to
+    // undefined so JSON.stringify always omits the key (never emits
+    // `"icon": null`) and the assignment stays valid if the type ever widens.
+    icon: sourceActor.iconUrl ?? undefined,
     title: content.title,
     body: content.body,
     url: '/notifications'
