@@ -36,6 +36,10 @@ jest.mock('@/lib/database', () => ({
 }))
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+  getTokenFromHeader: (header: string | null) =>
+    header?.toLowerCase().startsWith('bearer ')
+      ? header.slice('bearer '.length).trim() || null
+      : null,
   OAuthGuard:
     (
       scopes: Scope[],

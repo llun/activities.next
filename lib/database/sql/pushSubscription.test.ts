@@ -58,6 +58,27 @@ describe('PushSubscription Database', () => {
         expect(sub.auth).toBe('auth1')
         expect(sub.createdAt).toBeNumber()
         expect(sub.updatedAt).toBeNumber()
+        // No bearer token was supplied, so the access token stays unset.
+        expect(sub.accessToken).toBeUndefined()
+      })
+
+      it('stores and round-trips the access token', async () => {
+        const endpoint = 'https://push.example.com/endpoint/token-rt'
+        const created = await database.createPushSubscription({
+          actorId: actor1Id,
+          endpoint,
+          p256dh: 'key-token',
+          auth: 'auth-token',
+          accessToken: 'device-access-token'
+        })
+        expect(created.accessToken).toBe('device-access-token')
+
+        const fetched = await database.getPushSubscriptionsForActor({
+          actorId: actor1Id
+        })
+        expect(
+          fetched.find((sub) => sub.endpoint === endpoint)?.accessToken
+        ).toBe('device-access-token')
       })
 
       it('upserts on duplicate endpoint', async () => {

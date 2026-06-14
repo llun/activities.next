@@ -24,6 +24,7 @@ interface SQLPushSubscription {
   alerts: string | null
   policy: string | null
   standard: boolean | number | null
+  accessToken: string | null
   createdAt: number | Date
   updatedAt: number | Date
 }
@@ -99,6 +100,7 @@ const fixPushSubscription = (row: SQLPushSubscription): PushSubscription => ({
   alerts: parseStoredAlerts(row.alerts),
   policy: (row.policy as PushPolicy) ?? 'all',
   standard: Boolean(row.standard),
+  accessToken: row.accessToken ?? undefined,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -113,13 +115,15 @@ export const PushSubscriptionSQLDatabaseMixin = (
     auth,
     alerts,
     policy,
-    standard
+    standard,
+    accessToken
   }: CreatePushSubscriptionParams): Promise<PushSubscription> {
     const id = randomUUID()
     const now = new Date()
     const alertsValue = JSON.stringify(normalizeAlerts(alerts))
     const policyValue = policy ?? 'all'
     const standardValue = standard ?? false
+    const accessTokenValue = accessToken ?? null
 
     await database('push_subscriptions')
       .insert({
@@ -131,6 +135,7 @@ export const PushSubscriptionSQLDatabaseMixin = (
         alerts: alertsValue,
         policy: policyValue,
         standard: standardValue,
+        accessToken: accessTokenValue,
         createdAt: now,
         updatedAt: now
       })
@@ -142,6 +147,7 @@ export const PushSubscriptionSQLDatabaseMixin = (
         alerts: alertsValue,
         policy: policyValue,
         standard: standardValue,
+        accessToken: accessTokenValue,
         updatedAt: now
       })
 

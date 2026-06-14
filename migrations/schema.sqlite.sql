@@ -85,7 +85,7 @@ CREATE INDEX `passkey_userid_index` on `passkey` (`userId`);
 CREATE UNIQUE INDEX `passkey_credentialid_unique` on `passkey` (`credentialID`);
 CREATE INDEX `counters_bucket_hour_index` on `counters` (`bucketHour`);
 CREATE INDEX `tags_nameNormalized_type_idx` on `tags` (`nameNormalized`, `type`);
-CREATE TABLE `push_subscriptions` (`id` varchar(255), `actorId` varchar(255) not null, `endpoint` text not null, `p256dh` varchar(255) not null, `auth` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `alerts` text null, `policy` varchar(255) not null default 'all', `standard` boolean not null default '1', primary key (`id`));
+CREATE TABLE `push_subscriptions` (`id` varchar(255), `actorId` varchar(255) not null, `endpoint` text not null, `p256dh` varchar(255) not null, `auth` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `alerts` text null, `policy` varchar(255) not null default 'all', `standard` boolean not null default '1', `accessToken` text null, primary key (`id`));
 CREATE INDEX `push_subscriptions_actor_idx` on `push_subscriptions` (`actorId`);
 CREATE UNIQUE INDEX `push_subscriptions_endpoint_unique` on `push_subscriptions` (`endpoint`);
 CREATE TABLE `twoFactor` (`id` varchar(255), `secret` text not null, `backupCodes` text not null, `userId` varchar(255) not null, `verified` boolean not null default '0', foreign key(`userId`) references `accounts`(`id`) on delete CASCADE, primary key (`id`));

@@ -2,10 +2,15 @@ import webpush from 'web-push'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType, PushAlerts } from '@/lib/types/database/operations'
+import {
+  NotificationType,
+  PushAlerts,
+  PushSubscription
+} from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
+import { internalTypeToMastodon } from './notificationTypeMapping'
 import { shouldSendPushForNotification } from './pushNotificationSettings'
 
 // Maps this app's internal NotificationType to the Mastodon WebPushSubscription
@@ -41,7 +46,27 @@ const initVapid = () => {
   vapidInitialized = true
 }
 
-interface PushNotificationPayload {
+interface PushNotificationContent {
+  title: string
+  body: string
+}
+
+// The Mastodon Web Push payload. Mirrors `Web::NotificationSerializer` so native
+// clients (Mastodon iOS, Ivory, …) decode it into their expected struct and can
+// render the notification content, attribute it to the right account via
+// `access_token`, and fetch the full notification via `notification_id`. Without
+// these fields the client's decoder fails and the notification shows only the
+// app icon with no content.
+//
+// `url` is an additive, non-Mastodon field used by this app's own service
+// worker (`public/sw.js`) to deep-link the click; native clients ignore unknown
+// keys, so it is safe to include alongside the standard fields.
+interface MastodonPushPayload {
+  access_token: string
+  preferred_locale: string
+  notification_id: string
+  notification_type: string
+  icon?: string
   title: string
   body: string
   url: string
@@ -50,53 +75,84 @@ interface PushNotificationPayload {
 const getNotificationContent = (
   type: NotificationType,
   sourceActor: Actor
-): PushNotificationPayload => {
+): PushNotificationContent => {
   const displayName = sourceActor.name || sourceActor.username
 
   switch (type) {
     case 'follow':
       return {
         title: 'New Follower',
-        body: `${displayName} followed you`,
-        url: '/notifications'
+        body: `${displayName} followed you`
       }
     case 'follow_request':
       return {
         title: 'Follow Request',
-        body: `${displayName} wants to follow you`,
-        url: '/notifications'
+        body: `${displayName} wants to follow you`
       }
     case 'like':
       return {
         title: 'New Like',
-        body: `${displayName} liked your post`,
-        url: '/notifications'
+        body: `${displayName} liked your post`
       }
     case 'mention':
       return {
         title: 'Mentioned',
-        body: `${displayName} mentioned you`,
-        url: '/notifications'
+        body: `${displayName} mentioned you`
       }
     case 'reply':
       return {
         title: 'New Reply',
-        body: `${displayName} replied to your post`,
-        url: '/notifications'
+        body: `${displayName} replied to your post`
       }
     case 'reblog':
       return {
         title: 'Reblogged',
-        body: `${displayName} reblogged your post`,
-        url: '/notifications'
+        body: `${displayName} reblogged your post`
       }
     default:
       return {
         title: 'New Notification',
-        body: 'You have a new notification',
-        url: '/notifications'
+        body: 'You have a new notification'
       }
   }
+}
+
+// Builds the per-subscription Mastodon Web Push payload. The payload is built
+// per subscription because `access_token` differs between subscriptions (each
+// native client subscribes with its own token).
+const buildPayload = (params: {
+  subscription: PushSubscription
+  type: NotificationType
+  content: PushNotificationContent
+  sourceActor: Actor
+  notificationId?: string
+  preferredLocale: string
+}): string => {
+  const {
+    subscription,
+    type,
+    content,
+    sourceActor,
+    notificationId,
+    preferredLocale
+  } = params
+
+  const payload: MastodonPushPayload = {
+    access_token: subscription.accessToken ?? '',
+    preferred_locale: preferredLocale,
+    // Mastodon's id is an integer; this app uses string ids (matching its
+    // notifications API, like GoToSocial's ULIDs), which mainstream clients
+    // accept. Fall back to the empty string only for the rare delivery path
+    // that has no notification record.
+    notification_id: notificationId ?? '',
+    notification_type: internalTypeToMastodon(type),
+    icon: sourceActor.iconUrl,
+    title: content.title,
+    body: content.body,
+    url: '/notifications'
+  }
+
+  return JSON.stringify(payload)
 }
 
 export const sendPushNotification = async (params: {
@@ -105,9 +161,21 @@ export const sendPushNotification = async (params: {
   type: NotificationType
   sourceActor: Actor
   statusId?: string
+  notificationId?: string
+  preferredLocale?: string
   skipSettingsCheck?: boolean
 }): Promise<void> => {
-  const { database, actorId, type, sourceActor, skipSettingsCheck } = params
+  const {
+    database,
+    actorId,
+    type,
+    sourceActor,
+    notificationId,
+    skipSettingsCheck
+  } = params
+  // Mastodon serializes the recipient's preferred locale; this app does not
+  // track a per-actor UI locale yet, so default to English.
+  const preferredLocale = params.preferredLocale ?? 'en'
 
   const config = getConfig()
   if (!config.push) return
@@ -139,7 +207,7 @@ export const sendPushNotification = async (params: {
 
   initVapid()
 
-  const payload = JSON.stringify(getNotificationContent(type, sourceActor))
+  const content = getNotificationContent(type, sourceActor)
 
   await Promise.allSettled(
     subscriptions.map(async (sub) => {
@@ -149,7 +217,14 @@ export const sendPushNotification = async (params: {
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth }
           },
-          payload,
+          buildPayload({
+            subscription: sub,
+            type,
+            content,
+            sourceActor,
+            notificationId,
+            preferredLocale
+          }),
           {
             // Match the encryption to the encoding advertised in the
             // WebPushSubscription `standard` flag: `true` → RFC8291 standard

@@ -36,6 +36,10 @@ jest.mock('@/lib/database', () => ({
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({
   corsErrorResponse: () => () => new Response(null, { status: 401 }),
+  getTokenFromHeader: (header: string | null) =>
+    header?.toLowerCase().startsWith('bearer ')
+      ? header.slice('bearer '.length).trim() || null
+      : null,
   OAuthGuard:
     (
       scopes: Scope[],
@@ -181,6 +185,25 @@ describe('POST /api/v1/push/subscription', () => {
         standard: true,
         policy: 'followed'
       })
+    )
+  })
+
+  it('stores the bearer token as the subscription access token', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: { endpoint, keys: { p256dh, auth }, standard: true }
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost',
+        Authorization: 'Bearer device-access-token'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+    expect(mockDatabase!.createPushSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'device-access-token' })
     )
   })
 })
