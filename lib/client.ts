@@ -2112,32 +2112,37 @@ export interface PreferencesInput {
 // PATCH /api/v1/accounts/update_credentials (the documented Mastodon write path
 // third-party clients also use); reading preferences go to the web-internal
 // endpoint since GET /api/v1/preferences is read-only by design.
+//
+// The two writes run sequentially: if the posting-defaults PATCH fails we skip
+// the reading POST entirely, so a failure can't leave a half-applied state.
+// Both writes are idempotent, so retrying after any failure re-applies the
+// identical payloads safely.
 export const updatePreferences = async (
   preferences: PreferencesInput
 ): Promise<boolean> => {
-  const [postingResponse, readingResponse] = await Promise.all([
-    fetch('/api/v1/accounts/update_credentials', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: {
-          privacy: preferences.visibility,
-          sensitive: preferences.sensitive,
-          language: preferences.language
-        }
-      })
-    }),
-    fetch('/api/v1/accounts/reading-preferences', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        readingExpandMedia: preferences.expandMedia,
-        readingExpandSpoilers: preferences.expandSpoilers,
-        readingAutoplayGifs: preferences.autoplayGifs
-      })
+  const postingResponse = await fetch('/api/v1/accounts/update_credentials', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: {
+        privacy: preferences.visibility,
+        sensitive: preferences.sensitive,
+        language: preferences.language
+      }
     })
-  ])
-  return postingResponse.ok && readingResponse.ok
+  })
+  if (!postingResponse.ok) return false
+
+  const readingResponse = await fetch('/api/v1/accounts/reading-preferences', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      readingExpandMedia: preferences.expandMedia,
+      readingExpandSpoilers: preferences.expandSpoilers,
+      readingAutoplayGifs: preferences.autoplayGifs
+    })
+  })
+  return readingResponse.ok
 }
 
 // Fitness Route Heatmap
