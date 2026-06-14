@@ -2,7 +2,7 @@
 
 import { Newspaper, TrendingUp } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import {
   getTrendingLinks,
@@ -114,22 +114,28 @@ export const ExplorePageClient = ({ currentTime }: ExplorePageClientProps) => {
       .catch(() => setLinksState({ status: 'error', items: [] }))
   }, [])
 
-  // Fetch the active tab once, lazily. Refs hold the latest loaders so the
-  // effect only depends on the active tab.
-  const loadersRef = useRef({ loadTags, loadPosts, loadLinks })
-  loadersRef.current = { loadTags, loadPosts, loadLinks }
-
+  // Fetch the active tab once, lazily. The loaders are stable (memoized with
+  // empty deps), so depending on them keeps the effect honest without re-running
+  // on every render.
   useEffect(() => {
     if (tab === 'tags' && tagsState.status === 'idle') {
-      loadersRef.current.loadTags()
+      loadTags()
     }
     if (tab === 'posts' && postsState.status === 'idle') {
-      loadersRef.current.loadPosts()
+      loadPosts()
     }
     if (tab === 'news' && linksState.status === 'idle') {
-      loadersRef.current.loadLinks()
+      loadLinks()
     }
-  }, [tab, tagsState.status, postsState.status, linksState.status])
+  }, [
+    tab,
+    tagsState.status,
+    postsState.status,
+    linksState.status,
+    loadTags,
+    loadPosts,
+    loadLinks
+  ])
 
   const onTabChange = (value: string) => {
     const nextTab = getExploreTab(value)

@@ -17,8 +17,12 @@ export const Sparkline = ({
   height = 27,
   className
 }: SparklineProps) => {
+  // A line needs at least two points; with fewer, render nothing rather than a
+  // degenerate (single-point / empty) polyline.
+  if (values.length < 2) return null
+
   const max = Math.max(...values, 1)
-  const lastIndex = Math.max(values.length - 1, 1)
+  const lastIndex = values.length - 1
   const points = values.map((value, index): [number, number] => [
     (index / lastIndex) * (width - 2) + 1,
     height - 2 - (value / max) * (height - 6)

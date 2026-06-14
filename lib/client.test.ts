@@ -834,10 +834,12 @@ describe('client trends', () => {
     )
   })
 
-  it('returns an empty list when trending statuses respond non-OK', async () => {
+  it('throws when trending statuses respond non-OK', async () => {
     fetchMock.mockResponseOnce('', { status: 503 })
 
-    await expect(getTrendingStatuses(20)).resolves.toEqual([])
+    await expect(getTrendingStatuses(20)).rejects.toThrow(
+      'Failed to load trending statuses: 503'
+    )
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/trends/statuses?limit=20',
       expect.objectContaining({ method: 'GET' })

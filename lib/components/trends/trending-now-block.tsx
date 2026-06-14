@@ -19,9 +19,15 @@ export const TrendingNowBlock = () => {
 
   useEffect(() => {
     let active = true
-    void getTrendingTags(TRENDING_NOW_LIMIT).then((nextTags) => {
-      if (active) setTags(nextTags)
-    })
+    getTrendingTags(TRENDING_NOW_LIMIT)
+      .then((nextTags) => {
+        if (active) setTags(nextTags)
+      })
+      // A failed/disabled trends endpoint should just hide the block, never
+      // surface an error on the Search page.
+      .catch(() => {
+        if (active) setTags([])
+      })
     return () => {
       active = false
     }

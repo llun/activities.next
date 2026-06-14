@@ -1250,15 +1250,20 @@ export const getFeaturedTagSuggestions = async (): Promise<Tag[]> => {
 }
 
 // Trends (https://docs.joinmastodon.org/methods/trends/). All three endpoints
-// are read-scope and tolerate logged-out callers; every helper resolves to an
-// empty list on a non-OK response so the Explore/Search surfaces degrade to
-// their empty states instead of throwing.
+// are read-scope and tolerate logged-out callers. Each helper throws on a
+// non-OK response (mirroring getActorStatuses) so the Explore page can tell a
+// real failure apart from "nothing is trending" and render its error state; the
+// callers that prefer to stay quiet (the Search "Trending now" block) catch and
+// hide instead.
 const buildTrendsQuery = (limit?: number) =>
   typeof limit === 'number' ? `?limit=${limit}` : ''
 
-export const getTrendingTags = async (limit?: number): Promise<Tag[]> => {
+const getTrends = async <T>(
+  resource: 'tags' | 'statuses' | 'links',
+  limit?: number
+): Promise<T> => {
   const response = await fetch(
-    `/api/v1/trends/tags${buildTrendsQuery(limit)}`,
+    `/api/v1/trends/${resource}${buildTrendsQuery(limit)}`,
     {
       method: 'GET',
       headers: {
@@ -1266,41 +1271,21 @@ export const getTrendingTags = async (limit?: number): Promise<Tag[]> => {
       }
     }
   )
-  if (!response.ok) return []
-  return (await response.json()) as Tag[]
+  if (!response.ok) {
+    throw new Error(`Failed to load trending ${resource}: ${response.status}`)
+  }
+  return (await response.json()) as T
 }
 
-export const getTrendingStatuses = async (
-  limit?: number
-): Promise<MastodonStatus[]> => {
-  const response = await fetch(
-    `/api/v1/trends/statuses${buildTrendsQuery(limit)}`,
-    {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json'
-      }
-    }
-  )
-  if (!response.ok) return []
-  return (await response.json()) as MastodonStatus[]
-}
+export const getTrendingTags = (limit?: number): Promise<Tag[]> =>
+  getTrends<Tag[]>('tags', limit)
 
-export const getTrendingLinks = async (
+export const getTrendingStatuses = (
   limit?: number
-): Promise<PreviewCard[]> => {
-  const response = await fetch(
-    `/api/v1/trends/links${buildTrendsQuery(limit)}`,
-    {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json'
-      }
-    }
-  )
-  if (!response.ok) return []
-  return (await response.json()) as PreviewCard[]
-}
+): Promise<MastodonStatus[]> => getTrends<MastodonStatus[]>('statuses', limit)
+
+export const getTrendingLinks = (limit?: number): Promise<PreviewCard[]> =>
+  getTrends<PreviewCard[]>('links', limit)
 
 interface DeleteSessionParams {
   token: string

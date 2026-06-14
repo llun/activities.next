@@ -36,6 +36,8 @@ export const TrendPostRow = ({ status, currentTime }: TrendPostRowProps) => {
   return (
     <a
       href={status.url || status.uri}
+      target="_blank"
+      rel="noopener noreferrer"
       className="flex gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted"
     >
       <Avatar className="size-10 shrink-0">

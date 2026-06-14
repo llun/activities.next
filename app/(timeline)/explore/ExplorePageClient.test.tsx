@@ -107,6 +107,16 @@ describe('ExplorePageClient', () => {
     expect(mockGetTrendingStatuses).toHaveBeenCalledWith(20)
   })
 
+  it('shows the error note when loading trends fails', async () => {
+    mockGetTrendingTags.mockRejectedValue(new Error('boom'))
+
+    renderExplore(null, Date.now())
+
+    expect(
+      await screen.findByText(/Couldn't load trends right now/)
+    ).toBeInTheDocument()
+  })
+
   it('shows the news empty note when no links are trending', async () => {
     renderExplore('news', Date.now())
 

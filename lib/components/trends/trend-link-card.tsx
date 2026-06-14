@@ -4,12 +4,13 @@ interface TrendLinkCardProps {
   link: PreviewCard
 }
 
+// Always derive the bare hostname from the URL so it can stand on its own and,
+// when a distinct `provider_name` is present, pair with it as "publisher · domain".
 const getDomain = (card: PreviewCard) => {
-  if (card.provider_name) return card.provider_name
   try {
     return new URL(card.url).hostname.replace(/^www\./, '')
   } catch {
-    return card.url
+    return card.provider_name || card.url
   }
 }
 
@@ -21,6 +22,8 @@ export const TrendLinkCard = ({ link }: TrendLinkCardProps) => {
   return (
     <a
       href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
       className="flex gap-4 rounded-xl border bg-card p-3 shadow-sm transition-colors hover:bg-muted"
     >
       {link.image && (
