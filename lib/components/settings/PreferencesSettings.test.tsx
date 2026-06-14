@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { PreferencesInput } from '@/lib/client'
+import type { PreferencesInput } from '@/lib/client'
 
 import { PreferencesSettings } from './PreferencesSettings'
 

@@ -95,6 +95,14 @@ describe('POST /api/v1/accounts/reading-preferences', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 for an empty body without persisting', async () => {
+    const res = await POST(buildRequest(JSON.stringify({})), {
+      params: Promise.resolve({})
+    })
+    expect(res.status).toBe(400)
+    expect(mockDb.updateActor).not.toHaveBeenCalled()
+  })
+
   it('persists reading preferences for the current actor', async () => {
     const res = await POST(
       buildRequest(

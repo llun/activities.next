@@ -9,11 +9,17 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 // GET /api/v1/preferences endpoint stays read-only by design, so the
 // Preferences settings page saves reading defaults here while posting defaults
 // go through the standard PATCH /api/v1/accounts/update_credentials.
-const ReadingPreferencesRequest = z.object({
-  readingExpandMedia: z.enum(['default', 'show_all', 'hide_all']).optional(),
-  readingExpandSpoilers: z.boolean().optional(),
-  readingAutoplayGifs: z.boolean().optional()
-})
+const ReadingPreferencesRequest = z
+  .object({
+    readingExpandMedia: z.enum(['default', 'show_all', 'hide_all']).optional(),
+    readingExpandSpoilers: z.boolean().optional(),
+    readingAutoplayGifs: z.boolean().optional()
+  })
+  // Require at least one known key so an empty (or unknown-only) body doesn't
+  // trigger a no-op updateActor write.
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one reading preference is required'
+  })
 
 export const POST = traceApiRoute(
   'updateReadingPreferences',
