@@ -299,7 +299,7 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
           <span className="text-sm text-muted-foreground">Unsaved changes</span>
         )}
         {!error && !dirty && saved && (
-          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
             Saved
           </span>
         )}
