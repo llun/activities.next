@@ -15,7 +15,8 @@ jest.mock('next/navigation', () => ({
 }))
 
 jest.mock('@/lib/client', () => ({
-  search: jest.fn()
+  search: jest.fn(),
+  getTrendingTags: jest.fn().mockResolvedValue([])
 }))
 
 jest.mock('@/lib/components/posts/posts', () => ({

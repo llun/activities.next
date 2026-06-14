@@ -17,6 +17,7 @@ import type { ReactNode } from 'react'
 import { SearchResult, SearchType, search as searchClient } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
+import { TrendingNowBlock } from '@/lib/components/trends/trending-now-block'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
@@ -524,6 +525,11 @@ export const SearchPageClient = ({
           ))}
         </TabsList>
       </Tabs>
+
+      {/* Before a query is typed, surface the top trending hashtags. The block
+          self-hides when the server has no qualifying trends, falling back to
+          the empty-search placeholder below. */}
+      {!submittedQuery.trim() && <TrendingNowBlock />}
 
       <section className="overflow-hidden rounded-lg border bg-background/80 shadow-sm">
         {error && !hasVisibleResults ? (
