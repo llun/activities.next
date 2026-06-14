@@ -85,7 +85,7 @@ export const createFollower = async ({
         events: [
           {
             type: NotificationType.enum.follow_request,
-            notificationId: followRequestNotification.id,
+            notificationId: followRequestNotification?.id,
             emailContent: targetActor.account
               ? {
                   recipientEmail: targetActor.account.email,
@@ -130,7 +130,7 @@ export const createFollower = async ({
         events: [
           {
             type: NotificationType.enum.follow,
-            notificationId: followNotification.id,
+            notificationId: followNotification?.id,
             emailContent: targetActor.account
               ? {
                   recipientEmail: targetActor.account.email,

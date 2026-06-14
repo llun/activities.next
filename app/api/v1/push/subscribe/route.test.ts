@@ -36,10 +36,15 @@ jest.mock('@/lib/database', () => ({
 }))
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({
-  getTokenFromHeader: (header: string | null) =>
-    header?.toLowerCase().startsWith('bearer ')
-      ? header.slice('bearer '.length).trim() || null
-      : null,
+  // Mirror the real parser in OAuthGuard.ts exactly (trim + split on \s+,
+  // require exactly two parts, case-insensitive scheme) so the route tests
+  // exercise the same token-extraction behavior as production.
+  getTokenFromHeader: (header: string | null) => {
+    if (!header) return null
+    const parts = header.trim().split(/\s+/)
+    if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') return null
+    return parts[1] || null
+  },
   OAuthGuard:
     (
       scopes: Scope[],

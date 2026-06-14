@@ -108,6 +108,29 @@ describe('sendNotificationAlerts', () => {
     )
   })
 
+  it('forwards the event notificationId to the push sender', async () => {
+    const db = makeDb()
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      statusId: 'status1',
+      events: [
+        { type: NotificationType.enum.reply, notificationId: 'notification-1' }
+      ]
+    })
+    await flushPromises()
+
+    expect(mockSendPush).toHaveBeenCalledTimes(1)
+    expect(mockSendPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'actor1',
+        type: NotificationType.enum.reply,
+        notificationId: 'notification-1'
+      })
+    )
+  })
+
   it('uses provided sourceActor without DB fetch', async () => {
     const db = makeDb()
     sendNotificationAlerts({

@@ -61,7 +61,7 @@ export const likeRequest = async ({
             events: [
               {
                 type: NotificationType.enum.like,
-                notificationId: likeNotification.id,
+                notificationId: likeNotification?.id,
                 emailContent: targetActor?.account
                   ? {
                       recipientEmail: targetActor.account.email,
