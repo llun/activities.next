@@ -146,6 +146,20 @@ describe('RulesPanel', () => {
     expect(await screen.findByText('Be kinder')).toBeInTheDocument()
   })
 
+  it('cancels the inline edit when Escape is pressed', async () => {
+    await renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rule 1' }))
+    const textField = screen.getByLabelText('Rule text')
+    fireEvent.change(textField, { target: { value: 'changed' } })
+    fireEvent.keyDown(textField, { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Rule text')).not.toBeInTheDocument()
+    )
+    // The editor closed without saving; the original text is still shown.
+    expect(screen.getByText('Be kind')).toBeInTheDocument()
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
   it('keeps the editor Save and Cancel enabled while editing', async () => {
     await renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Edit rule 1' }))

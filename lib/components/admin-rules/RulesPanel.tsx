@@ -357,11 +357,18 @@ export const RulesPanel: FC = () => {
                       if (savingEdit || editText.trim().length === 0) return
                       handleEditSave(rule)
                     }}
+                    onKeyDown={(event) => {
+                      // Escape cancels the edit, the standard inline-edit
+                      // keyboard affordance.
+                      if (event.key === 'Escape' && !savingEdit) cancelEdit()
+                    }}
                   >
                     <Input
                       aria-label="Rule text"
                       value={editText}
                       maxLength={1000}
+                      required
+                      autoFocus
                       onChange={(event) => setEditText(event.target.value)}
                     />
                     <Textarea
@@ -438,6 +445,7 @@ export const RulesPanel: FC = () => {
             placeholder="Add a rule…"
             value={newText}
             maxLength={1000}
+            required
             disabled={busy || editing}
             onChange={(event) => setNewText(event.target.value)}
           />
