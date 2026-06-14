@@ -293,13 +293,15 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
 
       <div className="flex items-center justify-end gap-3">
         {error && <p className="text-sm text-destructive">{error}</p>}
-        {!error && saved && (
+        {/* Dirty wins over "Saved": if the user edits again (even while a save
+            is in flight) the badge must not claim the form is saved. */}
+        {!error && dirty && (
+          <span className="text-sm text-muted-foreground">Unsaved changes</span>
+        )}
+        {!error && !dirty && saved && (
           <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
             Saved
           </span>
-        )}
-        {!error && !saved && dirty && (
-          <span className="text-sm text-muted-foreground">Unsaved changes</span>
         )}
         <Button onClick={handleSave} disabled={saving || !dirty}>
           {saving ? 'Saving…' : 'Save changes'}
