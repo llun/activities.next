@@ -104,15 +104,18 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
   // `null@<host>` for the logged-in `null@<other-local-domain>` user — load
   // the profile instead of failing with "Unable to load account".
   //
-  // `getLocalActorDomains()` is already normalized (lowercase, no wildcards),
-  // so iterating it also re-tries the requested domain in canonical form,
-  // catching mixed-case handles the raw exact match above can miss. Usernames
-  // are unique per domain; if the same username exists on multiple local
-  // domains, this returns the first match in `getLocalActorDomains()` order
-  // (configured host first). The response still carries the actor's own
-  // qualified `acct`, so clients never collapse distinct same-name accounts.
+  // `getLocalActorDomains()` is normalized (lowercase, no wildcards). We skip
+  // the domain already queried above to avoid a redundant roundtrip, but only
+  // by exact string match — a mixed-case handle (e.g. `user@LLUN.TEST`) still
+  // falls through to its canonical `llun.test` entry here, which is how actors
+  // are stored. Usernames are unique per domain; if the same username exists
+  // on multiple local domains this returns the first match in
+  // `getLocalActorDomains()` order (configured host first). The response still
+  // carries the actor's own qualified `acct`, so clients never collapse
+  // distinct same-name accounts.
   if (!actor && isLocalFederationDomain(domain)) {
     for (const localDomain of getLocalActorDomains()) {
+      if (localDomain === domain) continue
       actor = await database.getActorFromUsername({
         username,
         domain: localDomain
