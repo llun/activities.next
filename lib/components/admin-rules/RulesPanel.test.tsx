@@ -146,6 +146,26 @@ describe('RulesPanel', () => {
     expect(await screen.findByText('Be kinder')).toBeInTheDocument()
   })
 
+  it('keeps the editor Save and Cancel enabled while editing', async () => {
+    await renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rule 1' }))
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+  })
+
+  it('surfaces an error and keeps the input when creating fails', async () => {
+    mockCreate.mockResolvedValue(null)
+    await renderPanel()
+    const input = screen.getByLabelText('New rule text')
+    fireEvent.change(input, { target: { value: 'No doxxing' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add rule' }))
+    expect(
+      await screen.findByText('Failed to create rule. Please try again.')
+    ).toBeInTheDocument()
+    // The typed text is preserved so the admin can retry.
+    expect(input).toHaveValue('No doxxing')
+  })
+
   it('locks other list actions while a rule is being edited', async () => {
     await renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Edit rule 1' }))
