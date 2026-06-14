@@ -127,6 +127,25 @@ describe('RulesPanel', () => {
     expect(await screen.findByText('Be excellent')).toBeInTheDocument()
   })
 
+  it('saves the inline edit when the editor form is submitted', async () => {
+    mockUpdate.mockResolvedValue(
+      rule({ id: '1', text: 'Be kinder', hint: '', position: 0 })
+    )
+    await renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rule 1' }))
+    const textField = screen.getByLabelText('Rule text')
+    fireEvent.change(textField, { target: { value: 'Be kinder' } })
+    // Submitting the form (e.g. pressing Enter in the text field) saves.
+    fireEvent.submit(textField.closest('form') as HTMLFormElement)
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith('1', {
+        text: 'Be kinder',
+        hint: ''
+      })
+    )
+    expect(await screen.findByText('Be kinder')).toBeInTheDocument()
+  })
+
   it('deletes a rule optimistically', async () => {
     mockDelete.mockResolvedValue(true)
     await renderPanel()

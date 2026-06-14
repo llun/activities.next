@@ -342,7 +342,17 @@ export const RulesPanel: FC = () => {
                 </button>
                 <RuleNumber n={index + 1} />
                 {isEditing ? (
-                  <div className="min-w-0 flex-1 space-y-2">
+                  <form
+                    className="min-w-0 flex-1 space-y-2"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      // Guard explicitly: pressing Enter can submit even when
+                      // the Save button is disabled. handleEditSave re-checks,
+                      // but bail early here too to avoid a no-op round-trip.
+                      if (savingEdit || editText.trim().length === 0) return
+                      handleEditSave(rule)
+                    }}
+                  >
                     <Input
                       aria-label="Rule text"
                       value={editText}
@@ -359,10 +369,9 @@ export const RulesPanel: FC = () => {
                     />
                     <div className="flex gap-2">
                       <Button
-                        type="button"
+                        type="submit"
                         size="sm"
                         disabled={savingEdit || editText.trim().length === 0}
-                        onClick={() => handleEditSave(rule)}
                       >
                         Save
                       </Button>
@@ -376,7 +385,7 @@ export const RulesPanel: FC = () => {
                         Cancel
                       </Button>
                     </div>
-                  </div>
+                  </form>
                 ) : (
                   <div className="min-w-0 flex-1 pt-0.5">
                     <p className="text-sm leading-snug font-medium">
