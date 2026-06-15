@@ -5,38 +5,38 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { GET, POST } from './route'
 
 const mockDatabase = {
-  getCustomEmojis: jest.fn(),
-  getCustomEmojiByShortcode: jest.fn(),
-  createCustomEmoji: jest.fn()
+  getCustomEmojis: vi.fn(),
+  getCustomEmojiByShortcode: vi.fn(),
+  createCustomEmoji: vi.fn()
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue({
     user: { email: 'admin@llun.test' }
   })
 }))
 
-jest.mock('@/lib/utils/getAdminFromSession', () => ({
-  getAdminFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getAdminFromSession', () => ({
+  getAdminFromSession: vi.fn().mockResolvedValue({
     id: 'admin',
     email: 'admin@llun.test'
   })
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn().mockResolvedValue({ id: 'actor-1' })
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn().mockResolvedValue({ id: 'actor-1' })
 }))
 
-const mockSaveMedia = jest.fn()
-jest.mock('@/lib/services/medias', () => ({
+const mockSaveMedia = vi.fn()
+vi.mock('@/lib/services/medias', () => ({
   saveMedia: (...args: unknown[]) => mockSaveMedia(...args)
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({
     host: 'llun.test',
@@ -63,7 +63,7 @@ const makeMultipartRequest = (form: FormData) => {
     }
   )
   Object.defineProperty(request, 'formData', {
-    value: jest.fn().mockResolvedValue(form)
+    value: vi.fn().mockResolvedValue(form)
   })
   return request
 }

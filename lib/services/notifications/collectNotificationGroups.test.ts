@@ -35,7 +35,7 @@ describe('collectNotificationGroups', () => {
       })
       // Short batch (< batchSize) → source exhausted.
     ]
-    const getNotifications = jest
+    const getNotifications = vi
       .fn()
       .mockResolvedValueOnce(batch1)
       .mockResolvedValueOnce(batch2)
@@ -75,7 +75,7 @@ describe('collectNotificationGroups', () => {
         createdAt: 998
       })
     ]
-    const getNotifications = jest.fn().mockResolvedValue(batch1)
+    const getNotifications = vi.fn().mockResolvedValue(batch1)
     const database = { getNotifications } as unknown as Database
 
     const result = await collectNotificationGroups({
@@ -100,7 +100,7 @@ describe('collectNotificationGroups', () => {
     const batch2 = [
       notif({ id: 'alice0', sourceActorId: ALICE, createdAt: 900 })
     ]
-    const getNotifications = jest
+    const getNotifications = vi
       .fn()
       .mockResolvedValueOnce(batch1)
       .mockResolvedValueOnce(batch2)
@@ -134,7 +134,7 @@ describe('collectNotificationGroups', () => {
           createdAt: 1000 - i
         })
       })
-    const getNotifications = jest
+    const getNotifications = vi
       .fn()
       .mockImplementation(() => Promise.resolve(fullBatch()))
     const database = { getNotifications } as unknown as Database
@@ -165,7 +165,7 @@ describe('collectNotificationGroups', () => {
           createdAt: 1000 - seq
         })
       })
-    const getNotifications = jest
+    const getNotifications = vi
       .fn()
       .mockImplementation(() => Promise.resolve(bobBatch()))
     const database = { getNotifications } as unknown as Database

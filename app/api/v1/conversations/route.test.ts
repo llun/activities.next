@@ -7,10 +7,10 @@ const mockCurrentActor = {
 }
 
 const mockDatabase = {
-  getDirectConversations: jest.fn()
+  getDirectConversations: vi.fn()
 }
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuardAnyScope:
     (
       _scopes: unknown[],
@@ -29,10 +29,10 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonConversation', () => ({
-  getMastodonConversationAccountMap: jest.fn().mockResolvedValue(new Map()),
-  getMastodonConversationAccounts: jest.fn().mockReturnValue([]),
-  getMastodonConversations: jest.fn(
+vi.mock('@/lib/services/mastodon/getMastodonConversation', () => ({
+  getMastodonConversationAccountMap: vi.fn().mockResolvedValue(new Map()),
+  getMastodonConversationAccounts: vi.fn().mockReturnValue([]),
+  getMastodonConversations: vi.fn(
     async (
       _database: unknown,
       conversations: { id: string }[],
@@ -53,7 +53,7 @@ const conversation = (id: string) => ({
 
 describe('GET /api/v1/conversations', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('omits next when the final conversations page exactly matches the limit', async () => {

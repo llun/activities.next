@@ -73,7 +73,7 @@ describe('blocklistSources', () => {
   })
 
   it('fetches a known source and parses the response', async () => {
-    const requestImpl = jest.fn().mockResolvedValue({
+    const requestImpl = vi.fn().mockResolvedValue({
       statusCode: 200,
       headers: {},
       body: 'domain,severity,reject_media,reject_reports,public_comment,obfuscate\nbad.test,suspend,False,False,spam,False'
@@ -99,7 +99,7 @@ describe('blocklistSources', () => {
   })
 
   it('includes response error details when downloading a known source fails', async () => {
-    const requestImpl = jest.fn().mockResolvedValue({
+    const requestImpl = vi.fn().mockResolvedValue({
       statusCode: 500,
       headers: {},
       body: '{"message":"upstream unavailable"}'
@@ -113,7 +113,7 @@ describe('blocklistSources', () => {
   })
 
   it('rejects oversized known source responses by content length', async () => {
-    const requestImpl = jest.fn().mockResolvedValue({
+    const requestImpl = vi.fn().mockResolvedValue({
       statusCode: 200,
       headers: {
         'content-length': String(KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES + 1)
@@ -127,7 +127,7 @@ describe('blocklistSources', () => {
   })
 
   it('rejects oversized known source response bodies', async () => {
-    const requestImpl = jest.fn().mockResolvedValue({
+    const requestImpl = vi.fn().mockResolvedValue({
       statusCode: 200,
       headers: {},
       body: 'a'.repeat(KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES + 1)

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -12,19 +12,19 @@ import { ListEntity } from '@/lib/types/mastodon/list'
 
 import { ListTimeline } from './ListTimeline'
 
-jest.mock('@/lib/client', () => ({
-  getListTimeline: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getListTimeline: vi.fn()
 }))
 
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn() })
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() })
 }))
 
-jest.mock('@/lib/components/scroll-to-top-button', () => ({
+vi.mock('@/lib/components/scroll-to-top-button', () => ({
   ScrollToTopButton: () => null
 }))
 
-jest.mock('@/lib/components/page-header', () => ({
+vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     title,
     description,
@@ -42,7 +42,7 @@ jest.mock('@/lib/components/page-header', () => ({
   )
 }))
 
-jest.mock('@/lib/components/posts/posts', () => ({
+vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
     currentTime
@@ -119,7 +119,7 @@ describe('ListTimeline', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('renders posts using the currentTime prop, not a freshly computed Date.now()', () => {
@@ -127,7 +127,7 @@ describe('ListTimeline', () => {
     // rendered by <Posts> must derive from the server-provided currentTime so
     // SSR and client hydration agree. A freshly computed Date.now() here would
     // diverge from the server value and break hydration.
-    const dateNowSpy = jest
+    const dateNowSpy = vi
       .spyOn(Date, 'now')
       .mockReturnValue(FIXED_CURRENT_TIME + 5 * 60 * 1000)
 

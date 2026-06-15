@@ -5,7 +5,7 @@ describe('readResponseArrayBufferWithLimit', () => {
     const response = {
       headers: new Headers(),
       body: null,
-      arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(2048))
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048))
     } as unknown as Response
 
     await expect(
@@ -19,7 +19,7 @@ describe('readResponseArrayBufferWithLimit', () => {
     const response = {
       headers: new Headers({ 'content-length': '3' }),
       body: null,
-      arrayBuffer: jest.fn().mockResolvedValue(arrayBuffer)
+      arrayBuffer: vi.fn().mockResolvedValue(arrayBuffer)
     } as unknown as Response
 
     const result = await readResponseArrayBufferWithLimit(
@@ -34,7 +34,7 @@ describe('readResponseArrayBufferWithLimit', () => {
   })
 
   it('cancels streaming responses when the byte limit is exceeded', async () => {
-    const cancel = jest.fn()
+    const cancel = vi.fn()
     const response = {
       headers: new Headers(),
       body: new ReadableStream({

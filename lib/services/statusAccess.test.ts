@@ -92,7 +92,7 @@ describe('status access helpers', () => {
 
   it('allows accepted followers to read followers-only statuses', async () => {
     const database = {
-      getAcceptedOrRequestedFollow: jest.fn().mockResolvedValue({
+      getAcceptedOrRequestedFollow: vi.fn().mockResolvedValue({
         status: FollowStatus.enum.Accepted
       })
     }
@@ -113,7 +113,7 @@ describe('status access helpers', () => {
 
   it('does not allow requested followers to read followers-only statuses', async () => {
     const database = {
-      getAcceptedOrRequestedFollow: jest.fn().mockResolvedValue({
+      getAcceptedOrRequestedFollow: vi.fn().mockResolvedValue({
         status: FollowStatus.enum.Requested
       })
     }
@@ -134,7 +134,7 @@ describe('status access helpers', () => {
 
   it('allows direct recipients to read direct statuses', async () => {
     const database = {
-      getAcceptedOrRequestedFollow: jest.fn()
+      getAcceptedOrRequestedFollow: vi.fn()
     }
     const status = note({
       id: `${ACTOR_ID}/statuses/direct-for-recipient`,
@@ -154,7 +154,7 @@ describe('status access helpers', () => {
 
   it('allows direct recipients to read followers-only statuses', async () => {
     const database = {
-      getAcceptedOrRequestedFollow: jest.fn()
+      getAcceptedOrRequestedFollow: vi.fn()
     }
     const status = note({
       id: `${ACTOR_ID}/statuses/private-direct-recipient`,
@@ -174,7 +174,7 @@ describe('status access helpers', () => {
 
   it('recognizes the fallback actor followers audience', async () => {
     const database = {
-      getAcceptedOrRequestedFollow: jest.fn().mockResolvedValue({
+      getAcceptedOrRequestedFollow: vi.fn().mockResolvedValue({
         status: FollowStatus.enum.Accepted
       })
     }
@@ -201,7 +201,7 @@ describe('status access helpers', () => {
 
   it('uses pre-fetched follower state when provided', async () => {
     const database = {
-      getAcceptedOrRequestedFollow: jest.fn()
+      getAcceptedOrRequestedFollow: vi.fn()
     }
     const status = note({
       id: `${ACTOR_ID}/statuses/private-prefetched-follower`,
@@ -222,7 +222,7 @@ describe('status access helpers', () => {
 
   it('uses pre-fetched follower state for announced originals', async () => {
     const database = {
-      getAcceptedOrRequestedFollow: jest.fn()
+      getAcceptedOrRequestedFollow: vi.fn()
     }
     const originalStatus = note({
       id: `${ACTOR_ID}/statuses/private-original-for-announce`,

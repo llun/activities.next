@@ -3,20 +3,20 @@ import { NextRequest } from 'next/server'
 import { GET } from './route'
 
 const mockDatabase = {
-  getNotificationsForGroupKey: jest.fn(),
-  getMastodonActorsFromIds: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
-  getActiveServerFilters: jest.fn().mockResolvedValue([]),
-  getStatusesByIds: jest.fn().mockResolvedValue([])
+  getNotificationsForGroupKey: vi.fn(),
+  getMastodonActorsFromIds: vi.fn(),
+  getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
+  getActiveServerFilters: vi.fn().mockResolvedValue([]),
+  getStatusesByIds: vi.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -34,7 +34,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('GET /api/v2/notifications/:group_key/accounts', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns 404 when group key is not found', async () => {

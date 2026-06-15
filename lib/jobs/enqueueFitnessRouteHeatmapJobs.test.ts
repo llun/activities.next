@@ -4,9 +4,9 @@ import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
@@ -17,12 +17,12 @@ type MockDatabase = Pick<
 
 describe('enqueueFitnessRouteHeatmapJobs', () => {
   const mockDatabase: jest.Mocked<MockDatabase> = {
-    getDistinctRouteHeatmapRegionsForActor: jest.fn(),
-    getFitnessRouteHeatmapByKey: jest.fn()
+    getDistinctRouteHeatmapRegionsForActor: vi.fn(),
+    getFitnessRouteHeatmapByKey: vi.fn()
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getDistinctRouteHeatmapRegionsForActor.mockResolvedValue([])
     mockDatabase.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
   })

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -11,8 +11,8 @@ import {
   type SectionNavTab
 } from '@/lib/components/section-nav-dropdown'
 
-jest.mock('next/navigation', () => ({
-  usePathname: jest.fn()
+vi.mock('next/navigation', () => ({
+  usePathname: vi.fn()
 }))
 
 const tabs: SectionNavTab[] = [

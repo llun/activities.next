@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -9,9 +9,9 @@ import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { BookmarkButton } from './bookmark-button'
 
-jest.mock('@/lib/client', () => ({
-  bookmarkStatus: jest.fn(),
-  undoBookmarkStatus: jest.fn()
+vi.mock('@/lib/client', () => ({
+  bookmarkStatus: vi.fn(),
+  undoBookmarkStatus: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -56,7 +56,7 @@ const status: StatusNote = {
 
 describe('BookmarkButton', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('does not reserve idle error message space in the action grid', () => {
@@ -68,7 +68,7 @@ describe('BookmarkButton', () => {
 
   it('shows an error and keeps state when bookmarking fails', async () => {
     ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
-    const onBookmarkChanged = jest.fn()
+    const onBookmarkChanged = vi.fn()
 
     render(
       <BookmarkButton status={status} onBookmarkChanged={onBookmarkChanged} />
@@ -85,7 +85,7 @@ describe('BookmarkButton', () => {
 
   it('shows an error and keeps state when removing a bookmark fails', async () => {
     ;(undoBookmarkStatus as jest.Mock).mockResolvedValue(false)
-    const onBookmarkChanged = jest.fn()
+    const onBookmarkChanged = vi.fn()
 
     render(
       <BookmarkButton
@@ -119,7 +119,7 @@ describe('BookmarkButton', () => {
   })
 
   it('auto-dismisses bookmark errors after a short delay', async () => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     let resolveBookmark: (value: boolean) => void = () => {}
     const bookmarkPromise = new Promise<boolean>((resolve) => {
       resolveBookmark = resolve
@@ -141,12 +141,12 @@ describe('BookmarkButton', () => {
       )
 
       act(() => {
-        jest.advanceTimersByTime(4000)
+        vi.advanceTimersByTime(4000)
       })
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
   })
 })

@@ -12,18 +12,18 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/services/timelines', () => ({
-  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('@/lib/services/email', () => ({
-  sendMail: jest.fn()
+vi.mock('@/lib/services/email', () => ({
+  sendMail: vi.fn()
 }))
 
 describe('Announce action', () => {
@@ -49,7 +49,7 @@ describe('Announce action', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('userAnnounce', () => {

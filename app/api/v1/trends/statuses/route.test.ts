@@ -6,31 +6,31 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockImplementation(() =>
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockImplementation(() =>
     Promise.resolve({
       get: () => undefined
     })
   )
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
@@ -134,7 +134,7 @@ describe('GET /api/v1/trends/statuses', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // No session → optional auth resolves currentActor = null (anonymous).
     mockGetServerSession.mockResolvedValue(null)
   })

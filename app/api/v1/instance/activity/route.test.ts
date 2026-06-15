@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 
 import { GET } from './route'
 
-const mockGetDatabase = jest.fn()
-jest.mock('@/lib/database', () => ({
+const mockGetDatabase = vi.fn()
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockGetDatabase()
 }))
 
@@ -13,7 +13,7 @@ describe('GET /api/v1/instance/activity', () => {
   })
 
   it('returns Mastodon-shaped weekly activity from the database service', async () => {
-    const getInstanceActivity = jest.fn().mockResolvedValue([
+    const getInstanceActivity = vi.fn().mockResolvedValue([
       {
         week: '1765756800',
         statuses: '12',
@@ -56,7 +56,7 @@ describe('GET /api/v1/instance/activity', () => {
   })
 
   it('returns a JSON 500 when the activity query fails', async () => {
-    const getInstanceActivity = jest
+    const getInstanceActivity = vi
       .fn()
       .mockRejectedValue(new Error('query failed'))
     mockGetDatabase.mockReturnValue({ getInstanceActivity })

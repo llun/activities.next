@@ -54,9 +54,9 @@ describe('resolveStatusFromPath', () => {
     }) as Status
 
   const createDatabase = () => ({
-    getActorFromUsername: jest.fn().mockResolvedValue({ id: originalActorId }),
-    getStatusFromUrlHash: jest.fn().mockResolvedValue(null),
-    getStatus: jest.fn().mockResolvedValue(null)
+    getActorFromUsername: vi.fn().mockResolvedValue({ id: originalActorId }),
+    getStatusFromUrlHash: vi.fn().mockResolvedValue(null),
+    getStatus: vi.fn().mockResolvedValue(null)
   })
 
   it('resolves a hash route from the scoped actor lookup', async () => {

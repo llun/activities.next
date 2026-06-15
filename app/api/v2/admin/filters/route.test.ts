@@ -5,25 +5,25 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { GET, POST } from './route'
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => null
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi
     .fn()
     .mockResolvedValue({ user: { email: 'admin@llun.test' } })
 }))
 
-const mockGetAdminFromSession = jest.fn()
-jest.mock('@/lib/utils/getAdminFromSession', () => ({
+const mockGetAdminFromSession = vi.fn()
+vi.mock('@/lib/utils/getAdminFromSession', () => ({
   getAdminFromSession: () => mockGetAdminFromSession()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
@@ -44,7 +44,7 @@ describe('/api/v2/admin/filters', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetAdminFromSession.mockResolvedValue({
       id: 'admin',
       email: 'admin@llun.test'

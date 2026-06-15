@@ -11,9 +11,9 @@ import { DirectConversation } from '@/lib/types/database/operations'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { urlToId } from '@/lib/utils/urlToId'
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: jest.fn().mockResolvedValue(null),
-  getMastodonStatuses: jest.fn().mockResolvedValue([])
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+  getMastodonStatus: vi.fn().mockResolvedValue(null),
+  getMastodonStatuses: vi.fn().mockResolvedValue([])
 }))
 
 const mastodonAccount = (actorId: string): Mastodon.Account => ({
@@ -106,7 +106,7 @@ const mastodonStatus = (uri: string): Mastodon.Status => ({
 
 describe('getMastodonConversation', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(getMastodonStatuses as jest.Mock).mockResolvedValue([])
   })
 
@@ -130,7 +130,7 @@ describe('getMastodonConversation', () => {
       ]
     ])
     const database = {
-      getMastodonActorsFromIds: jest.fn(({ ids }: { ids: string[] }) =>
+      getMastodonActorsFromIds: vi.fn(({ ids }: { ids: string[] }) =>
         Promise.resolve(
           ids
             .map((id) => accountByActorId.get(id))
@@ -178,7 +178,7 @@ describe('getMastodonConversation', () => {
       url: profileUrl
     }
     const database = {
-      getMastodonActorsFromIds: jest.fn().mockResolvedValue([account])
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue([account])
     } as unknown as Database
     const conversations = [
       {
@@ -230,7 +230,7 @@ describe('getMastodonConversation', () => {
 
   it('returns null when the conversation cannot be serialized as Mastodon JSON', async () => {
     const database = {
-      getMastodonActorsFromIds: jest
+      getMastodonActorsFromIds: vi
         .fn()
         .mockResolvedValue([{ id: 123, url: 'bad-account' }])
     } as unknown as Database

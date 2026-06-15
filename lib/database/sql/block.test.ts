@@ -302,17 +302,17 @@ describe('BlockDatabase', () => {
     }
 
     const builder = {
-      orWhere: jest.fn((callback?: (value: typeof builder) => void) => {
+      orWhere: vi.fn((callback?: (value: typeof builder) => void) => {
         callback?.(builder)
         return builder
       }),
-      where: jest.fn((callback?: (value: typeof builder) => void) => {
+      where: vi.fn((callback?: (value: typeof builder) => void) => {
         callback?.(builder)
         return builder
       }),
-      whereIn: jest.fn(() => builder)
+      whereIn: vi.fn(() => builder)
     }
-    const databaseStub = jest.fn(() => {
+    const databaseStub = vi.fn(() => {
       const promise = new Promise<BlockRelation[]>((resolve) => {
         const resolver = () => resolve([])
         if (releaseQueries) {
@@ -322,9 +322,9 @@ describe('BlockDatabase', () => {
         }
       })
       const query = {
-        select: jest.fn(() => query),
+        select: vi.fn(() => query),
         then: promise.then.bind(promise),
-        where: jest.fn((callback?: (value: typeof builder) => void) => {
+        where: vi.fn((callback?: (value: typeof builder) => void) => {
           startedQueries += 1
           callback?.(builder)
           return query

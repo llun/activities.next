@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.createTable('reports', (table) => {
     table.string('id').primary()
     // Reporter (local actor) and the reported account.
@@ -27,4 +27,4 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => knex.schema.dropTableIfExists('reports')
+export const down = (knex) => knex.schema.dropTableIfExists('reports')

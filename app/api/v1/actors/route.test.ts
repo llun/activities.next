@@ -7,32 +7,32 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', async () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockGetConfig = jest.fn()
-jest.mock('@/lib/config', () => ({
+const mockGetConfig = vi.fn()
+vi.mock('@/lib/config', async () => ({
   getConfig: () => mockGetConfig(),
   getBaseURL: () => 'https://llun.test'
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', async () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
 
-jest.mock('crypto', () => {
-  const actual = jest.requireActual('crypto')
-  const { promisify } = jest.requireActual('util')
-  const mockGenerateKeyPair = jest.fn()
+vi.mock('crypto', async () => {
+  const actual = await vi.importActual('crypto')
+  const { promisify } = await vi.importActual('util')
+  const mockGenerateKeyPair = vi.fn()
   mockGenerateKeyPair[promisify.custom] = () =>
     Promise.resolve({ publicKey: 'public-key', privateKey: 'private-key' })
   return {

@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.createTable('passkey', (table) => {
     table.string('id').primary()
     table.string('name').nullable()
@@ -32,6 +32,6 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.schema.dropTableIfExists('passkey')
 }

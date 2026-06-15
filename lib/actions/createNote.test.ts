@@ -23,18 +23,18 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/services/timelines', () => ({
-  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
-  sendNotificationAlerts: jest.fn()
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: vi.fn()
 }))
 
 describe('Create note action', () => {
@@ -70,7 +70,7 @@ describe('Create note action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('createNoteFromUserInput', () => {
@@ -118,7 +118,7 @@ describe('Create note action', () => {
     })
 
     it('batches hashtag search reindexing after hashtag tags are created', async () => {
-      const indexHashtagSearchDocuments = jest.spyOn(
+      const indexHashtagSearchDocuments = vi.spyOn(
         database,
         'indexHashtagSearchDocuments'
       )

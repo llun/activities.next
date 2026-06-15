@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -14,30 +14,30 @@ import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient
 
 import { Posts } from './posts'
 
-const mockPush = jest.fn()
+const mockPush = vi.fn()
 
-jest.mock('./collapsible-content', () => ({
+vi.mock('./collapsible-content', () => ({
   CollapsibleContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   )
 }))
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush
   })
 }))
 
-jest.mock('@/lib/client', () => ({
-  votePoll: jest.fn()
+vi.mock('@/lib/client', () => ({
+  votePoll: vi.fn()
 }))
 
-jest.mock('@/lib/utils/getStatusDetailPathClient', () => ({
-  getStatusDetailPathClient: jest.fn()
+vi.mock('@/lib/utils/getStatusDetailPathClient', () => ({
+  getStatusDetailPathClient: vi.fn()
 }))
 
-const mockVotePoll = jest.mocked(votePoll)
-const mockGetStatusDetailPathClient = jest.mocked(getStatusDetailPathClient)
+const mockVotePoll = vi.mocked(votePoll)
+const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
 
 describe('Posts', () => {
   beforeEach(() => {

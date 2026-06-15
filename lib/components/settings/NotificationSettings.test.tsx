@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -7,14 +7,14 @@ import { render, screen } from '@testing-library/react'
 import { NotificationSettings } from './NotificationSettings'
 import { PushNotificationSettings } from './PushNotificationSettings'
 
-const mockGetVapidKey = jest.fn()
+const mockGetVapidKey = vi.fn()
 
-jest.mock('@/lib/client', () => ({
+vi.mock('@/lib/client', () => ({
   getVapidKey: () => mockGetVapidKey(),
-  subscribePushNotifications: jest.fn(),
-  unsubscribePushNotifications: jest.fn(),
-  updateEmailNotifications: jest.fn(),
-  updatePushNotifications: jest.fn()
+  subscribePushNotifications: vi.fn(),
+  unsubscribePushNotifications: vi.fn(),
+  updateEmailNotifications: vi.fn(),
+  updatePushNotifications: vi.fn()
 }))
 
 describe('Notification settings', () => {
@@ -43,7 +43,7 @@ describe('Notification settings', () => {
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
       value: {
-        getRegistration: jest.fn()
+        getRegistration: vi.fn()
       }
     })
   })

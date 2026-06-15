@@ -304,7 +304,7 @@ describe('getActorPosts', () => {
     }
     cachedOriginalStatus.actor = null
 
-    const getStatusSpy = jest
+    const getStatusSpy = vi
       .spyOn(database, 'getStatus')
       .mockResolvedValue(cachedOriginalStatus)
 

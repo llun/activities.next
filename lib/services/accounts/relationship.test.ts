@@ -6,13 +6,13 @@ import { getRelationship } from './relationship'
 
 describe('getRelationship', () => {
   const mockDatabase = {
-    getActorFromId: jest.fn(),
-    isCurrentActorFollowing: jest.fn(),
-    getAcceptedOrRequestedFollow: jest.fn(),
-    isBlocking: jest.fn(),
-    getMute: jest.fn(),
-    getAccountNote: jest.fn(),
-    getEndorsement: jest.fn()
+    getActorFromId: vi.fn(),
+    isCurrentActorFollowing: vi.fn(),
+    getAcceptedOrRequestedFollow: vi.fn(),
+    isBlocking: vi.fn(),
+    getMute: vi.fn(),
+    getAccountNote: vi.fn(),
+    getEndorsement: vi.fn()
   }
 
   const mockCurrentActor = {
@@ -22,7 +22,7 @@ describe('getRelationship', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://example.com/users/target',
       summary: 'Target user bio'

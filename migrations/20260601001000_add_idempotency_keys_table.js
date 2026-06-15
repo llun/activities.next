@@ -7,7 +7,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.createTable('idempotency_keys', (table) => {
     table.string('actorId').notNullable()
     table.string('key').notNullable()
@@ -25,4 +25,4 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => knex.schema.dropTable('idempotency_keys')
+export const down = (knex) => knex.schema.dropTable('idempotency_keys')

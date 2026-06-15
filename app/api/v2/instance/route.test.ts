@@ -5,13 +5,13 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { GET } from './route'
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => null
 }))
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     trustedHosts: ['alias.llun.test'],
     serviceName: undefined,

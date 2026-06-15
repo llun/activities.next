@@ -4,7 +4,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { knexAdapter } from './knexAdapter'
 
-jest.mock('better-auth/adapters', () => ({
+vi.mock('better-auth/adapters', () => ({
   createAdapterFactory: ({
     adapter
   }: {
@@ -144,8 +144,8 @@ describe('knexAdapter', () => {
       })
 
       try {
-        jest.useFakeTimers()
-        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
 
         await adapter.create({
           model: 'sessions',
@@ -178,7 +178,7 @@ describe('knexAdapter', () => {
           }
         ])
       } finally {
-        jest.useRealTimers()
+        vi.useRealTimers()
       }
     })
 
@@ -197,8 +197,8 @@ describe('knexAdapter', () => {
       })
 
       try {
-        jest.useFakeTimers()
-        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
 
         await adapter.create({
           model: 'session',
@@ -212,7 +212,7 @@ describe('knexAdapter', () => {
 
         expect(await getLoginTotal()).toBe(1)
       } finally {
-        jest.useRealTimers()
+        vi.useRealTimers()
       }
     })
 
@@ -229,8 +229,8 @@ describe('knexAdapter', () => {
       ])
 
       try {
-        jest.useFakeTimers()
-        jest.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-02-04T10:00:00.000Z'))
 
         await adapter.create({
           model: 'session',
@@ -258,7 +258,7 @@ describe('knexAdapter', () => {
         ])
         expect(sessionRow?.accountId).toBeNull()
       } finally {
-        jest.useRealTimers()
+        vi.useRealTimers()
       }
     })
 
@@ -323,7 +323,7 @@ describe('knexAdapter', () => {
     })
 
     it('creates sessions when login counter recording fails', async () => {
-      const errorSpy = jest
+      const errorSpy = vi
         .spyOn(logger, 'error')
         .mockImplementation(() => undefined)
 

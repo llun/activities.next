@@ -10,13 +10,13 @@ import { OnlyLocalUserGuard } from './OnlyLocalUserGuard'
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/config', () => {
-  const { TEST_DOMAIN } = jest.requireActual('@/lib/stub/const')
-  const { MOCK_SECRET_PHASES } = jest.requireActual('@/lib/stub/actor')
+vi.mock('@/lib/config', async () => {
+  const { TEST_DOMAIN } = await vi.importActual('@/lib/stub/const')
+  const { MOCK_SECRET_PHASES } = await vi.importActual('@/lib/stub/actor')
 
   return {
     getConfig: () => ({
@@ -50,7 +50,7 @@ describe('OnlyLocalUserGuard', () => {
     })
   }
 
-  const mockHandler = jest.fn().mockImplementation(() => {
+  const mockHandler = vi.fn().mockImplementation(() => {
     return NextResponse.json({ success: true }, { status: 200 })
   })
 

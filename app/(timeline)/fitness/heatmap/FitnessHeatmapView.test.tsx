@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import {
@@ -27,17 +27,17 @@ import { loadMapboxModule } from '@/lib/utils/mapbox'
 
 import { FitnessHeatmapView, RouteHeatmapMap } from './FitnessHeatmapView'
 
-jest.mock('@/lib/utils/mapbox', () => ({
-  loadMapboxModule: jest.fn()
+vi.mock('@/lib/utils/mapbox', () => ({
+  loadMapboxModule: vi.fn()
 }))
 
-jest.mock('@/lib/client', () => ({
-  clearFitnessRouteHeatmaps: jest.fn(),
-  getDistinctFitnessActivityTypes: jest.fn(),
-  getFitnessCalendarData: jest.fn(),
-  getFitnessRouteHeatmap: jest.fn(),
-  getFitnessRouteHeatmaps: jest.fn(),
-  triggerFitnessRouteHeatmap: jest.fn()
+vi.mock('@/lib/client', () => ({
+  clearFitnessRouteHeatmaps: vi.fn(),
+  getDistinctFitnessActivityTypes: vi.fn(),
+  getFitnessCalendarData: vi.fn(),
+  getFitnessRouteHeatmap: vi.fn(),
+  getFitnessRouteHeatmaps: vi.fn(),
+  triggerFitnessRouteHeatmap: vi.fn()
 }))
 
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
@@ -169,7 +169,7 @@ const buildLargeHeatmap = (): FitnessRouteHeatmapData => {
 
 describe('FitnessHeatmapView', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetDistinctFitnessActivityTypes.mockResolvedValue([])
     mockGetFitnessCalendarData.mockResolvedValue([])
     mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
@@ -179,12 +179,12 @@ describe('FitnessHeatmapView', () => {
   })
 
   afterEach(() => {
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('keeps polling fresh history entries without stalling a completed selection', async () => {
-    jest.useFakeTimers()
-    jest.setSystemTime(TEST_NOW)
+    vi.useFakeTimers()
+    vi.setSystemTime(TEST_NOW)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
       pendingSummaryAtAge(IN_FLIGHT_HISTORY_POLL_WINDOW_MS)
     ])
@@ -203,7 +203,7 @@ describe('FitnessHeatmapView', () => {
 
     for (let i = 0; i < 2; i++) {
       await act(async () => {
-        jest.advanceTimersByTime(5000)
+        vi.advanceTimersByTime(5000)
         await Promise.resolve()
       })
     }
@@ -218,8 +218,8 @@ describe('FitnessHeatmapView', () => {
   })
 
   it('does not keep polling stale in-progress history entries', async () => {
-    jest.useFakeTimers()
-    jest.setSystemTime(TEST_NOW)
+    vi.useFakeTimers()
+    vi.setSystemTime(TEST_NOW)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
       pendingSummaryAtAge(IN_FLIGHT_HISTORY_POLL_WINDOW_MS + 1)
     ])
@@ -234,7 +234,7 @@ describe('FitnessHeatmapView', () => {
     const callsAfterInitialLoad = mockGetFitnessRouteHeatmaps.mock.calls.length
 
     await act(async () => {
-      jest.advanceTimersByTime(15_000)
+      vi.advanceTimersByTime(15_000)
       await Promise.resolve()
     })
 
@@ -449,7 +449,7 @@ describe('FitnessHeatmapView', () => {
 
 describe('RouteHeatmapMap', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('renders the SVG route fallback when Mapbox is not configured', () => {
@@ -477,14 +477,14 @@ describe('RouteHeatmapMap', () => {
   })
 
   it('uses Mapbox when a token is configured', async () => {
-    const mapConstructor = jest.fn().mockImplementation(() => ({
+    const mapConstructor = vi.fn().mockImplementation(() => ({
       on: (_event: string, callback: () => void) => callback(),
-      remove: jest.fn(),
-      resize: jest.fn(),
-      addSource: jest.fn(),
-      addLayer: jest.fn(),
-      getSource: jest.fn(),
-      fitBounds: jest.fn()
+      remove: vi.fn(),
+      resize: vi.fn(),
+      addSource: vi.fn(),
+      addLayer: vi.fn(),
+      getSource: vi.fn(),
+      fitBounds: vi.fn()
     }))
     mockLoadMapboxModule.mockResolvedValue({
       Map: mapConstructor
@@ -508,16 +508,16 @@ describe('RouteHeatmapMap', () => {
   })
 
   it('falls back with a diagnostic reason when Mapbox setup fails', async () => {
-    const mapConstructor = jest.fn().mockImplementation(() => ({
+    const mapConstructor = vi.fn().mockImplementation(() => ({
       on: (_event: string, callback: () => void) => callback(),
-      remove: jest.fn(),
-      resize: jest.fn(),
-      addSource: jest.fn(() => {
+      remove: vi.fn(),
+      resize: vi.fn(),
+      addSource: vi.fn(() => {
         throw new Error('source unavailable')
       }),
-      addLayer: jest.fn(),
-      getSource: jest.fn(),
-      fitBounds: jest.fn()
+      addLayer: vi.fn(),
+      getSource: vi.fn(),
+      fitBounds: vi.fn()
     }))
     mockLoadMapboxModule.mockResolvedValue({
       Map: mapConstructor
@@ -567,16 +567,16 @@ describe('RouteHeatmapMap', () => {
   })
 
   it('retries Mapbox when the same route cache is regenerated', async () => {
-    const failingMapConstructor = jest.fn().mockImplementation(() => ({
+    const failingMapConstructor = vi.fn().mockImplementation(() => ({
       on: (_event: string, callback: () => void) => callback(),
-      remove: jest.fn(),
-      resize: jest.fn(),
-      addSource: jest.fn(() => {
+      remove: vi.fn(),
+      resize: vi.fn(),
+      addSource: vi.fn(() => {
         throw new Error('source unavailable')
       }),
-      addLayer: jest.fn(),
-      getSource: jest.fn(),
-      fitBounds: jest.fn()
+      addLayer: vi.fn(),
+      getSource: vi.fn(),
+      fitBounds: vi.fn()
     }))
     mockLoadMapboxModule.mockResolvedValue({
       Map: failingMapConstructor
@@ -595,14 +595,14 @@ describe('RouteHeatmapMap', () => {
       ).toBeInTheDocument()
     )
 
-    const workingMapConstructor = jest.fn().mockImplementation(() => ({
+    const workingMapConstructor = vi.fn().mockImplementation(() => ({
       on: (_event: string, callback: () => void) => callback(),
-      remove: jest.fn(),
-      resize: jest.fn(),
-      addSource: jest.fn(),
-      addLayer: jest.fn(),
-      getSource: jest.fn(),
-      fitBounds: jest.fn()
+      remove: vi.fn(),
+      resize: vi.fn(),
+      addSource: vi.fn(),
+      addLayer: vi.fn(),
+      getSource: vi.fn(),
+      fitBounds: vi.fn()
     }))
     mockLoadMapboxModule.mockResolvedValue({
       Map: workingMapConstructor

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -10,11 +10,11 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { ActorTimelines } from './ActorTimelines'
 
-jest.mock('@/lib/client', () => ({
-  getActorStatuses: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getActorStatuses: vi.fn()
 }))
 
-jest.mock('@/lib/components/posts/posts', () => ({
+vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
     currentTime
@@ -31,11 +31,11 @@ jest.mock('@/lib/components/posts/posts', () => ({
   )
 }))
 
-jest.mock('./ActorMediaGallery', () => ({
+vi.mock('./ActorMediaGallery', () => ({
   ActorMediaGallery: () => null
 }))
 
-jest.mock('@/lib/components/ui/tabs', () => ({
+vi.mock('@/lib/components/ui/tabs', () => ({
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -44,7 +44,7 @@ jest.mock('@/lib/components/ui/tabs', () => ({
   )
 }))
 
-jest.mock('@/lib/components/ui/button', () => ({
+vi.mock('@/lib/components/ui/button', () => ({
   Button: ({
     children,
     disabled,
@@ -289,7 +289,7 @@ describe('ActorTimelines', () => {
     // so the SSR and client-hydration output match. Computing Date.now() inside
     // this client component produces a different value on the client and breaks
     // hydration.
-    const dateNowSpy = jest
+    const dateNowSpy = vi
       .spyOn(Date, 'now')
       .mockReturnValue(FIXED_CURRENT_TIME + 5 * 60 * 1000)
 

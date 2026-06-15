@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -13,10 +13,10 @@ import { Translation } from '@/lib/types/mastodon/translation'
 
 import { useStatusTranslation } from './translation-context'
 
-jest.mock('@/lib/client', () => ({
-  translateStatus: jest.fn(),
-  getTranslationCapability: jest.fn(),
-  getTranslationLanguages: jest.fn()
+vi.mock('@/lib/client', () => ({
+  translateStatus: vi.fn(),
+  getTranslationCapability: vi.fn(),
+  getTranslationLanguages: vi.fn()
 }))
 
 const makeTranslation = (language: string): Translation => ({
@@ -31,7 +31,7 @@ const makeTranslation = (language: string): Translation => ({
 
 describe('useStatusTranslation', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(getTranslationCapability as jest.Mock).mockResolvedValue({
       enabled: true,
       defaultLanguage: 'en'

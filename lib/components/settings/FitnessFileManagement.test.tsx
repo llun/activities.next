@@ -1,20 +1,20 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { FitnessFileManagement } from './FitnessFileManagement'
 
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(() => ({
-    push: jest.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(() => ({
+    push: vi.fn()
   }))
 }))
 
 describe('FitnessFileManagement', () => {
   afterEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
   })
 
   describe('pagination state sync', () => {
@@ -114,7 +114,7 @@ describe('FitnessFileManagement', () => {
 
   describe('delete error handling', () => {
     it('shows an error message when deletion fails', async () => {
-      jest.spyOn(global, 'fetch').mockResolvedValue({
+      vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
         text: async () => 'Delete failed',
         statusText: 'Bad Request'
@@ -160,7 +160,7 @@ describe('FitnessFileManagement', () => {
     })
 
     it('parses API JSON errors into readable delete messages', async () => {
-      jest.spyOn(global, 'fetch').mockResolvedValue({
+      vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
         text: async () => JSON.stringify({ status: 'Not Found' }),
         statusText: 'Not Found'

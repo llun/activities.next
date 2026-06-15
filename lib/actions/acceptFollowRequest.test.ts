@@ -19,8 +19,8 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
-  sendNotificationAlerts: jest.fn()
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: vi.fn()
 }))
 
 describe('Accept follow action', () => {
@@ -39,7 +39,7 @@ describe('Accept follow action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('acceptFollowRequest', () => {

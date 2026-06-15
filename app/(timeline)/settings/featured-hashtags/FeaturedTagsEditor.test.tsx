@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -14,11 +14,11 @@ import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 
 import { FeaturedTagsEditor } from './FeaturedTagsEditor'
 
-jest.mock('@/lib/client', () => ({
-  getFeaturedTags: jest.fn(),
-  getFeaturedTagSuggestions: jest.fn(),
-  addFeaturedTag: jest.fn(),
-  removeFeaturedTag: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getFeaturedTags: vi.fn(),
+  getFeaturedTagSuggestions: vi.fn(),
+  addFeaturedTag: vi.fn(),
+  removeFeaturedTag: vi.fn()
 }))
 
 const mockGetFeaturedTags = getFeaturedTags as jest.Mock
@@ -39,7 +39,7 @@ const buildTag = (overrides: Partial<FeaturedTag> = {}): FeaturedTag => ({
 
 describe('FeaturedTagsEditor', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetFeaturedTags.mockResolvedValue([])
     mockGetSuggestions.mockResolvedValue([])
   })

@@ -3,10 +3,10 @@ import { NextRequest } from 'next/server'
 import { GET } from './route'
 
 const mockDatabase = {
-  getCustomEmojis: jest.fn()
+  getCustomEmojis: vi.fn()
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 

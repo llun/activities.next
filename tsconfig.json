@@ -37,6 +37,6 @@
     ".next/dev/types/**/*.ts",
     ".next/dev/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "plans"],
+  "exclude": ["node_modules", "plans", "vitest.setup.ts", "vitest-shims"],
   "files": ["global.d.ts"]
 }

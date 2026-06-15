@@ -11,48 +11,48 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST as followAccount } from './route'
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
   })
 }))
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
 // Federation side effects are not under test here; stub the network-touching
 // pieces so the route exercises only its body parsing and persistence.
-jest.mock('@/lib/activities', () => ({
-  follow: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/activities', () => ({
+  follow: vi.fn().mockResolvedValue(undefined)
 }))
-jest.mock('@/lib/activities/getActorPerson', () => ({
-  getActorPerson: jest.fn().mockResolvedValue({ id: 'remote-person' })
+vi.mock('@/lib/activities/getActorPerson', () => ({
+  getActorPerson: vi.fn().mockResolvedValue({ id: 'remote-person' })
 }))
-jest.mock('@/lib/services/federation/getFederationSigningActor', () => ({
-  getFederationSigningActor: jest.fn().mockResolvedValue(null)
+vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
+  getFederationSigningActor: vi.fn().mockResolvedValue(null)
 }))
-jest.mock('@/lib/services/federation/domainPolicy', () => ({
-  canFederateWithDomain: jest.fn().mockResolvedValue(true)
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
+  canFederateWithDomain: vi.fn().mockResolvedValue(true)
 }))
 
 /**
@@ -85,7 +85,7 @@ describe('Account Action Endpoints', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

@@ -5,31 +5,31 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { GET, POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockGetActorFromSession = jest.fn()
-jest.mock('@/lib/utils/getActorFromSession', () => ({
+const mockGetActorFromSession = vi.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-const mockPublish = jest.fn()
-jest.mock('@/lib/services/queue', () => ({
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
 type MockDatabase = Pick<Database, 'getFitnessRouteHeatmapByKey'>
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('/api/v1/accounts/[id]/fitness-heatmap legacy adapter', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessRouteHeatmapByKey: jest.fn()
+    getFitnessRouteHeatmapByKey: vi.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -40,7 +40,7 @@ describe('/api/v1/accounts/[id]/fitness-heatmap legacy adapter', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

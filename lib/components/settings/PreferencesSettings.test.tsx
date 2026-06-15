@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -8,9 +8,9 @@ import type { PreferencesInput } from '@/lib/client'
 
 import { PreferencesSettings } from './PreferencesSettings'
 
-const mockUpdatePreferences = jest.fn()
+const mockUpdatePreferences = vi.fn()
 
-jest.mock('@/lib/client', () => ({
+vi.mock('@/lib/client', () => ({
   updatePreferences: (preferences: unknown) =>
     mockUpdatePreferences(preferences)
 }))
@@ -26,7 +26,7 @@ const initialPreferences: PreferencesInput = {
 
 describe('PreferencesSettings', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockUpdatePreferences.mockResolvedValue(true)
   })
 

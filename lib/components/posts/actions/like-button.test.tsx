@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -10,9 +10,9 @@ import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { LikeButton } from './like-button'
 
-jest.mock('@/lib/client', () => ({
-  likeStatus: jest.fn(),
-  undoLikeStatus: jest.fn()
+vi.mock('@/lib/client', () => ({
+  likeStatus: vi.fn(),
+  undoLikeStatus: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -65,7 +65,7 @@ const status: StatusNote = {
 
 describe('LikeButton', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('disables while liking to avoid duplicate requests', async () => {

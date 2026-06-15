@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import {
@@ -23,21 +23,21 @@ import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/
 
 import { PostMenu } from './post-menu'
 
-const refresh = jest.fn()
+const refresh = vi.fn()
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh })
 }))
 
-jest.mock('@/lib/client', () => ({
-  getRelationship: jest.fn().mockResolvedValue(null),
-  mute: jest.fn(),
-  unmute: jest.fn(),
-  block: jest.fn(),
-  unblock: jest.fn(),
-  createReport: jest.fn(),
-  deleteStatus: jest.fn(),
-  updateStatusVisibility: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getRelationship: vi.fn().mockResolvedValue(null),
+  mute: vi.fn(),
+  unmute: vi.fn(),
+  block: vi.fn(),
+  unblock: vi.fn(),
+  createReport: vi.fn(),
+  deleteStatus: vi.fn(),
+  updateStatusVisibility: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -132,7 +132,7 @@ const openMenu = async () => {
 
 describe('PostMenu', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(getRelationship as jest.Mock).mockResolvedValue(null)
   })
 
@@ -142,8 +142,8 @@ describe('PostMenu', () => {
         status={ownStatus}
         isOwner
         canEdit
-        onEdit={jest.fn()}
-        onPostDeleted={jest.fn()}
+        onEdit={vi.fn()}
+        onPostDeleted={vi.fn()}
       />
     )
 
@@ -209,14 +209,14 @@ describe('PostMenu', () => {
 
   it('confirms before deleting and reports success to onPostDeleted', async () => {
     ;(deleteStatus as jest.Mock).mockResolvedValue(true)
-    const onPostDeleted = jest.fn()
+    const onPostDeleted = vi.fn()
 
     render(
       <PostMenu
         status={ownStatus}
         isOwner
         canEdit
-        onEdit={jest.fn()}
+        onEdit={vi.fn()}
         onPostDeleted={onPostDeleted}
       />
     )

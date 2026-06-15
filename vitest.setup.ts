@@ -1,16 +1,23 @@
-/* eslint-disable no-undef */
+import * as matchers from 'jest-extended'
 import fetchMock from 'jest-fetch-mock'
-import { Readable } from 'node:stream'
 import { TextDecoder, TextEncoder } from 'node:util'
+import { afterEach, beforeEach, expect, vi } from 'vitest'
+
+import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
+// Direct sub-path import required: the barrel loads cors.ts which imports
+// @/lib/config, interfering with per-test module mock isolation.
+import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/http-headers/csp'
+
+expect.extend(matchers)
 
 fetchMock.enableMocks()
-
-// changes default behavior of fetchMock to use the real 'fetch' implementation and not mock responses
+// Default to the real `fetch` implementation; tests opt into mocking.
 fetchMock.dontMock()
-global.TextEncoder = TextEncoder
-global.TextDecoder = TextDecoder
 
-// Polyfill Response.json() for Node test environment
+global.TextEncoder = TextEncoder
+global.TextDecoder = TextDecoder as typeof global.TextDecoder
+
+// Polyfill Response.json() for the Node test environment.
 if (typeof Response.json !== 'function') {
   Response.json = function (data, init) {
     const body = JSON.stringify(data)
@@ -20,7 +27,7 @@ if (typeof Response.json !== 'function') {
   }
 }
 
-// Polyfill Response.redirect() for Node test environment
+// Polyfill Response.redirect() for the Node test environment.
 if (typeof Response.redirect !== 'function') {
   Response.redirect = function (url, status = 302) {
     const headers = new Headers({ location: url.toString() })
@@ -28,13 +35,28 @@ if (typeof Response.redirect !== 'function') {
   }
 }
 
-// Additional safeguard for EventEmitter warnings in test environment
-// Set a reasonable higher limit for test execution
 if (process.setMaxListeners) {
   process.setMaxListeners(50)
 }
 
-jest.mock('got', () => {
+// Jest exposed a global `fail()`; Vitest does not. Provide a compatible shim.
+globalThis.fail = (message?: string): never => {
+  throw new Error(message ?? 'fail() was called')
+}
+
+beforeEach(() => {
+  resetTrustProxyIpHeadersConfigCacheForTests()
+  resetContentSecurityPolicyCacheForTests()
+})
+
+afterEach(() => {
+  resetTrustProxyIpHeadersConfigCacheForTests()
+  resetContentSecurityPolicyCacheForTests()
+})
+
+vi.mock('got', async () => {
+  const { Readable } = await import('node:stream')
+
   const readResponse = async (url, options) => {
     const response = await fetch(url, {
       method: options.method,
@@ -93,25 +115,28 @@ jest.mock('got', () => {
     return stream
   }
 
-  return gotMock
+  return { default: gotMock }
 })
 
-jest.mock('node:dns/promises', () => ({
-  lookup: jest.fn(async (_hostname, options) => {
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async (_hostname, options) => {
     const address = { address: '93.184.216.34', family: 4 }
     return options?.all ? [address] : address
   })
-}))
+  return { default: { lookup }, lookup }
+})
 
-jest.mock('@/lib/config', () => {
-  const host = jest.requireActual('@/lib/stub/const').TEST_DOMAIN
-  const secretPhase = jest.requireActual('@/lib/stub/actor').MOCK_SECRET_PHASES
+vi.mock('@/lib/config', async () => {
+  const { TEST_DOMAIN } =
+    await vi.importActual<typeof import('@/lib/stub/const')>('@/lib/stub/const')
+  const { MOCK_SECRET_PHASES } =
+    await vi.importActual<typeof import('@/lib/stub/actor')>('@/lib/stub/actor')
   return {
-    getBaseURL: jest.fn().mockReturnValue(`https://${host}`),
-    getConfig: jest.fn().mockReturnValue({
+    getBaseURL: vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`),
+    getConfig: vi.fn().mockReturnValue({
       serviceName: 'activities.next',
-      host,
-      secretPhase,
+      host: TEST_DOMAIN,
+      secretPhase: MOCK_SECRET_PHASES,
       email: {
         serviceFromAddress: 'test@llun.dev'
       },
@@ -127,11 +152,6 @@ jest.mock('@/lib/config', () => {
   }
 })
 
-// Mock uuid to avoid ESM issues
-jest.mock(
-  'uuid',
-  () => ({
-    v4: jest.fn(() => 'test-uuid-' + Math.random().toString(36).substring(7))
-  }),
-  { virtual: true }
-)
+vi.mock('uuid', () => ({
+  v4: vi.fn(() => 'test-uuid-' + Math.random().toString(36).substring(7))
+}))

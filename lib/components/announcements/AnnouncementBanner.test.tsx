@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -8,12 +8,12 @@ import type { Announcement } from '@/lib/types/mastodon/announcement'
 
 import { AnnouncementBanner } from './AnnouncementBanner'
 
-const mockGetAnnouncements = jest.fn()
-const mockDismissAnnouncement = jest.fn()
-const mockAddAnnouncementReaction = jest.fn()
-const mockRemoveAnnouncementReaction = jest.fn()
+const mockGetAnnouncements = vi.fn()
+const mockDismissAnnouncement = vi.fn()
+const mockAddAnnouncementReaction = vi.fn()
+const mockRemoveAnnouncementReaction = vi.fn()
 
-jest.mock('@/lib/client', () => ({
+vi.mock('@/lib/client', () => ({
   getAnnouncements: () => mockGetAnnouncements(),
   dismissAnnouncement: (id: string) => mockDismissAnnouncement(id),
   addAnnouncementReaction: (id: string, name: string) =>
@@ -46,7 +46,7 @@ const renderBanner = () =>
 
 describe('AnnouncementBanner', () => {
   beforeEach(() => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     mockGetAnnouncements.mockReset()
     mockDismissAnnouncement.mockReset()
     mockAddAnnouncementReaction.mockReset()
@@ -62,9 +62,9 @@ describe('AnnouncementBanner', () => {
     // setAnnouncements update is wrapped, avoiding "not wrapped in act(...)"
     // warnings during teardown.
     act(() => {
-      jest.runOnlyPendingTimers()
+      vi.runOnlyPendingTimers()
     })
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('renders nothing when there are no announcements', async () => {
@@ -189,7 +189,7 @@ describe('AnnouncementBanner', () => {
     // The mark-read-on-view timer must not fire while collapsed, so a collapsed
     // banner never silently drains the unread count.
     await act(async () => {
-      jest.advanceTimersByTime(1000)
+      vi.advanceTimersByTime(1000)
     })
     expect(mockDismissAnnouncement).not.toHaveBeenCalled()
   })
@@ -208,7 +208,7 @@ describe('AnnouncementBanner', () => {
     expect(screen.getByText('1 new')).toBeInTheDocument()
 
     await act(async () => {
-      jest.advanceTimersByTime(900)
+      vi.advanceTimersByTime(900)
     })
 
     expect(mockDismissAnnouncement).toHaveBeenCalledWith('announcement-1')

@@ -8,34 +8,34 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import { AdminApiGuard } from './AdminApiGuard'
 
 const mockDatabase = {} as Database
-const mockGetServerSession = jest.fn()
-const mockGetAdminFromSession = jest.fn()
-const mockOAuthGuardAnyScope = jest.fn()
+const mockGetServerSession = vi.fn()
+const mockGetAdminFromSession = vi.fn()
+const mockOAuthGuardAnyScope = vi.fn()
 let mockOAuthActor = {
   account: { role: 'admin' }
 } as Actor
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-jest.mock('@/lib/utils/getAdminFromSession', () => ({
+vi.mock('@/lib/utils/getAdminFromSession', () => ({
   getAdminFromSession: (...params: unknown[]) =>
     mockGetAdminFromSession(...params)
 }))
 
-jest.mock('./OAuthGuard', () => ({
+vi.mock('./OAuthGuard', () => ({
   OAuthGuardAnyScope: (...params: unknown[]) =>
     mockOAuthGuardAnyScope(...params)
 }))
 
 describe('AdminApiGuard', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockOAuthActor = {
       account: { role: 'admin' }
     } as Actor
@@ -62,7 +62,7 @@ describe('AdminApiGuard', () => {
     )
   })
 
-  const handle = jest.fn(() => NextResponse.json({ ok: true }))
+  const handle = vi.fn(() => NextResponse.json({ ok: true }))
 
   it('allows an admin cookie session', async () => {
     const session = { user: { email: 'admin@llun.test' } }

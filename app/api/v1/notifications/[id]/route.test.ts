@@ -3,21 +3,21 @@ import { NextRequest } from 'next/server'
 import { GET, POST } from './route'
 
 const mockDatabase = {
-  getNotifications: jest.fn(),
-  deleteNotification: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([])
+  getNotifications: vi.fn(),
+  deleteNotification: vi.fn(),
+  getActiveFiltersForActor: vi.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun'
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/notifications/getMastodonNotification', () => ({
-  getMastodonNotification: jest.fn().mockResolvedValue({
+vi.mock('@/lib/services/notifications/getMastodonNotification', () => ({
+  getMastodonNotification: vi.fn().mockResolvedValue({
     id: 'n1',
     type: 'follow',
     created_at: '2026-01-01T00:00:00Z',
@@ -25,7 +25,7 @@ jest.mock('@/lib/services/notifications/getMastodonNotification', () => ({
   })
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -48,7 +48,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('GET /api/v1/notifications/:id', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('fetches with includeFiltered: true so filtered notifications are visible by ID', async () => {
@@ -98,7 +98,7 @@ describe('GET /api/v1/notifications/:id', () => {
 
 describe('POST /api/v1/notifications/:id (dismiss)', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('dismisses with includeFiltered: true so filtered notifications can be dismissed by ID', async () => {

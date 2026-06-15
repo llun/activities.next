@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -9,26 +9,26 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Layout from './layout'
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn(() => ({}))
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(() => ({}))
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn()
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn()
 }))
 
-jest.mock('@/app/(timeline)/PublicShell', () => ({
+vi.mock('@/app/(timeline)/PublicShell', () => ({
   PublicShell: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="public-shell">{children}</div>
   )
 }))
 
-const mockGetServerAuthSession = jest.mocked(getServerAuthSession)
-const mockGetActorFromSession = jest.mocked(getActorFromSession)
+const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
+const mockGetActorFromSession = vi.mocked(getActorFromSession)
 
 const renderLayout = async () => {
   const element = await Layout({ children: <div data-testid="child" /> })
@@ -37,7 +37,7 @@ const renderLayout = async () => {
 
 describe('tags Layout', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerAuthSession.mockResolvedValue(null)
   })
 

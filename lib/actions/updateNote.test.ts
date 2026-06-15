@@ -15,14 +15,14 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/services/timelines', () => ({
-  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
 describe('Update note action', () => {
@@ -46,7 +46,7 @@ describe('Update note action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('updateNoteFromUserInput', () => {

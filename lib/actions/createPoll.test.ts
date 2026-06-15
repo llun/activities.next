@@ -12,8 +12,8 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/timelines', () => ({
-  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
 describe('Create poll action', () => {
@@ -42,7 +42,7 @@ describe('Create poll action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('createPollFromUserInput', () => {

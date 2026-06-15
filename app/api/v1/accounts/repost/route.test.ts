@@ -8,18 +8,18 @@ const mockCurrentActor = {
   id: 'https://llun.test/users/llun'
 }
 
-const mockUserAnnounce = jest.fn()
-const mockUserUndoAnnounce = jest.fn()
+const mockUserAnnounce = vi.fn()
+const mockUserUndoAnnounce = vi.fn()
 
-jest.mock('@/lib/actions/announce', () => ({
+vi.mock('@/lib/actions/announce', () => ({
   userAnnounce: (...args: unknown[]) => mockUserAnnounce(...args)
 }))
 
-jest.mock('@/lib/actions/undoAnnounce', () => ({
+vi.mock('@/lib/actions/undoAnnounce', () => ({
   userUndoAnnounce: (...args: unknown[]) => mockUserUndoAnnounce(...args)
 }))
 
-jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
+vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
   AuthenticatedGuard:
     (
       handle: (
@@ -41,7 +41,7 @@ jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
 
 describe('POST /api/v1/accounts/repost', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns 400 when the request payload is malformed JSON', async () => {
@@ -65,7 +65,7 @@ describe('POST /api/v1/accounts/repost', () => {
 
 describe('DELETE /api/v1/accounts/repost', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns 400 when the request payload is malformed JSON', async () => {

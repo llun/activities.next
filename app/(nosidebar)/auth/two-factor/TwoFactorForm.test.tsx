@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -9,18 +9,18 @@ import { authClient } from '@/lib/services/auth/auth-client'
 
 import { TwoFactorForm } from './TwoFactorForm'
 
-const mockPush = jest.fn()
-const mockRefresh = jest.fn()
+const mockPush = vi.fn()
+const mockRefresh = vi.fn()
 
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn()
 }))
 
-jest.mock('@/lib/services/auth/auth-client', () => ({
+vi.mock('@/lib/services/auth/auth-client', () => ({
   authClient: {
     twoFactor: {
-      verifyTotp: jest.fn(),
-      verifyBackupCode: jest.fn()
+      verifyTotp: vi.fn(),
+      verifyBackupCode: vi.fn()
     }
   }
 }))

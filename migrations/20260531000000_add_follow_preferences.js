@@ -8,7 +8,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.alterTable('follows', (table) => {
     table.boolean('reblogs').notNullable().defaultTo(true)
     table.boolean('notify').notNullable().defaultTo(false)
@@ -19,7 +19,7 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) =>
+export const down = (knex) =>
   knex.schema.alterTable('follows', (table) => {
     table.dropColumn('reblogs')
     table.dropColumn('notify')

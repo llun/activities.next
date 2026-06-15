@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -7,8 +7,8 @@ import { usePathname } from 'next/navigation'
 
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 
-jest.mock('next/navigation', () => ({
-  usePathname: jest.fn()
+vi.mock('next/navigation', () => ({
+  usePathname: vi.fn()
 }))
 
 describe('MobileNav', () => {

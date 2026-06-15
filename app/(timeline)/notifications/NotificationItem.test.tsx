@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -109,7 +109,7 @@ const renderNotificationItemWithOptions = (
       host="llun.social"
       isRead={options.isRead ?? true}
       currentTime={currentTime}
-      observeElement={options.observeElement ?? jest.fn()}
+      observeElement={options.observeElement ?? vi.fn()}
     />
   )
 }
@@ -293,7 +293,7 @@ describe('NotificationItem', () => {
   )
 
   it('observes unread stale status-backed notifications so they can be marked read', () => {
-    const observeElement = jest.fn()
+    const observeElement = vi.fn()
 
     renderNotificationItemWithOptions(
       {

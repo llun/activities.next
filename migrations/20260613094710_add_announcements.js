@@ -15,7 +15,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.createTable('announcements', (table) => {
     table.string('id').primary()
     table.text('text').notNullable() // raw text; HTML rendered at serialization
@@ -46,7 +46,7 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.schema.dropTableIfExists('announcement_reactions')
   await knex.schema.dropTableIfExists('announcement_reads')
   await knex.schema.dropTableIfExists('announcements')

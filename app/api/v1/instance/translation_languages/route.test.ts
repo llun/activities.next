@@ -4,15 +4,15 @@ import { getTranslationProvider } from '@/lib/services/translation'
 
 import { GET } from './route'
 
-jest.mock('@/lib/services/translation', () => ({
-  getTranslationProvider: jest.fn()
+vi.mock('@/lib/services/translation', () => ({
+  getTranslationProvider: vi.fn()
 }))
 
 const request = () =>
   new NextRequest('https://llun.test/api/v1/instance/translation_languages')
 
 describe('GET /api/v1/instance/translation_languages', () => {
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => vi.clearAllMocks())
 
   it('returns an empty map when no backend is configured', async () => {
     ;(getTranslationProvider as jest.Mock).mockReturnValue(null)

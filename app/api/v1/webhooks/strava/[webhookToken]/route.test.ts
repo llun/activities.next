@@ -8,29 +8,29 @@ import { GET, POST } from './route'
 type MockDatabase = Pick<Database, 'getFitnessSettingsByWebhookToken'>
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-const mockPublish = jest.fn()
-jest.mock('@/lib/services/queue', () => ({
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({
     publish: (...args: unknown[]) => mockPublish(...args)
   })
 }))
 
-const mockLoggerWarn = jest.fn()
-jest.mock('@/lib/utils/logger', () => ({
+const mockLoggerWarn = vi.fn()
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    error: jest.fn(),
-    info: jest.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
     warn: (...args: unknown[]) => mockLoggerWarn(...args)
   }
 }))
 
 describe('Strava Webhook API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessSettingsByWebhookToken: jest.fn()
+    getFitnessSettingsByWebhookToken: vi.fn()
   }
 
   beforeAll(() => {
@@ -38,7 +38,7 @@ describe('Strava Webhook API', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     mockDb.getFitnessSettingsByWebhookToken.mockResolvedValue({
       id: 'fitness-settings-1',

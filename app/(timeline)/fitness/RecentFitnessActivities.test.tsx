@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -9,7 +9,7 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { RecentFitnessActivities } from './RecentFitnessActivities'
 
-jest.mock('@/lib/components/posts/posts', () => ({
+vi.mock('@/lib/components/posts/posts', () => ({
   Posts: (props: { currentTime: number; statuses: Status[] }) => (
     <div data-testid="posts" data-current-time={props.currentTime}>
       {props.statuses.length} posts

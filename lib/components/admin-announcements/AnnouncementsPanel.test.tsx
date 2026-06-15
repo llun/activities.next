@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -8,12 +8,12 @@ import type { ServerAnnouncement } from '@/lib/client'
 
 import { AnnouncementsPanel } from './AnnouncementsPanel'
 
-const mockGetServerAnnouncements = jest.fn()
-const mockCreateServerAnnouncement = jest.fn()
-const mockUpdateServerAnnouncement = jest.fn()
-const mockDeleteServerAnnouncement = jest.fn()
+const mockGetServerAnnouncements = vi.fn()
+const mockCreateServerAnnouncement = vi.fn()
+const mockUpdateServerAnnouncement = vi.fn()
+const mockDeleteServerAnnouncement = vi.fn()
 
-jest.mock('@/lib/client', () => ({
+vi.mock('@/lib/client', () => ({
   getServerAnnouncements: () => mockGetServerAnnouncements(),
   createServerAnnouncement: (input: unknown) =>
     mockCreateServerAnnouncement(input),
@@ -51,10 +51,10 @@ describe('AnnouncementsPanel', () => {
     // Radix Switch observes its size; jsdom has no ResizeObserver.
     Object.defineProperty(globalThis, 'ResizeObserver', {
       configurable: true,
-      value: jest.fn().mockImplementation(() => ({
-        disconnect: jest.fn(),
-        observe: jest.fn(),
-        unobserve: jest.fn()
+      value: vi.fn().mockImplementation(() => ({
+        disconnect: vi.fn(),
+        observe: vi.fn(),
+        unobserve: vi.fn()
       }))
     })
   })

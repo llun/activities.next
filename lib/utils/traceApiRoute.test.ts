@@ -13,24 +13,24 @@ describe('traceApiRoute', () => {
 
   beforeEach(() => {
     mockSpan = {
-      setAttribute: jest.fn(),
-      setStatus: jest.fn(),
-      recordException: jest.fn(),
-      end: jest.fn()
+      setAttribute: vi.fn(),
+      setStatus: vi.fn(),
+      recordException: vi.fn(),
+      end: vi.fn()
     }
 
     // Mock the trace module
-    jest.spyOn(trace, 'getTracer').mockReturnValue({
-      startActiveSpan: jest.fn().mockImplementation((_name, fn) => fn(mockSpan))
+    vi.spyOn(trace, 'getTracer').mockReturnValue({
+      startActiveSpan: vi.fn().mockImplementation((_name, fn) => fn(mockSpan))
     } as unknown as Tracer)
   })
 
   afterEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
   })
 
   it('wraps a successful route handler with tracing', async () => {
-    const handler = jest.fn().mockResolvedValue(
+    const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {
         status: 200
       })
@@ -51,7 +51,7 @@ describe('traceApiRoute', () => {
   })
 
   it('marks span as error for 4xx responses', async () => {
-    const handler = jest.fn().mockResolvedValue(
+    const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404
       })
@@ -72,7 +72,7 @@ describe('traceApiRoute', () => {
   })
 
   it('marks span as error for 5xx responses', async () => {
-    const handler = jest.fn().mockResolvedValue(
+    const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500
       })
@@ -94,7 +94,7 @@ describe('traceApiRoute', () => {
 
   it('records exceptions when handler throws', async () => {
     const error = new Error('Test error')
-    const handler = jest.fn().mockRejectedValue(error)
+    const handler = vi.fn().mockRejectedValue(error)
 
     const wrapped = traceApiRoute('testRoute', handler)
     const req = new NextRequest('http://localhost/api/test')
@@ -111,7 +111,7 @@ describe('traceApiRoute', () => {
   })
 
   it('adds custom attributes when provided', async () => {
-    const handler = jest.fn().mockResolvedValue(
+    const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {
         status: 200
       })
@@ -136,16 +136,16 @@ describe('traceApiRoute', () => {
   })
 
   it('uses custom op when provided', async () => {
-    const handler = jest.fn().mockResolvedValue(
+    const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {
         status: 200
       })
     )
 
-    const startActiveSpanMock = jest
+    const startActiveSpanMock = vi
       .fn()
       .mockImplementation((_name, fn) => fn(mockSpan))
-    jest.spyOn(trace, 'getTracer').mockReturnValue({
+    vi.spyOn(trace, 'getTracer').mockReturnValue({
       startActiveSpan: startActiveSpanMock
     } as unknown as Tracer)
 
@@ -162,7 +162,7 @@ describe('traceApiRoute', () => {
   })
 
   it('skips undefined attributes', async () => {
-    const handler = jest.fn().mockResolvedValue(
+    const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {
         status: 200
       })

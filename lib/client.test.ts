@@ -26,8 +26,8 @@ import {
 
 enableFetchMocks()
 
-jest.mock('@/lib/utils/getMediaWidthAndHeight', () => ({
-  getMediaWidthAndHeight: jest.fn().mockResolvedValue({ width: 10, height: 20 })
+vi.mock('@/lib/utils/getMediaWidthAndHeight', () => ({
+  getMediaWidthAndHeight: vi.fn().mockResolvedValue({ width: 10, height: 20 })
 }))
 
 describe('client updateNote', () => {
@@ -621,7 +621,7 @@ describe('client uploadAttachment presigned completion', () => {
 
   beforeEach(() => {
     fetchMock.resetMocks()
-    setTimeoutSpy = jest
+    setTimeoutSpy = vi
       .spyOn(globalThis, 'setTimeout')
       .mockImplementation((handler: Parameters<typeof setTimeout>[0]) => {
         if (typeof handler === 'function') {

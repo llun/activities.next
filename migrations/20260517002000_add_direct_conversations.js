@@ -1,4 +1,4 @@
-const crypto = require('crypto')
+import crypto from 'node:crypto'
 
 const PUBLIC_AUDIENCES = new Set([
   'https://www.w3.org/ns/activitystreams#Public',
@@ -473,12 +473,12 @@ const restoreLegacyTimelineRows = async (knex) => {
   }
 }
 
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await createTables(knex)
   await backfillDirectConversations(knex)
 }
 
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await restoreLegacyTimelineRows(knex)
   await knex.schema.dropTableIfExists('direct_conversation_memberships')
   await knex.schema.dropTableIfExists('direct_conversation_statuses')

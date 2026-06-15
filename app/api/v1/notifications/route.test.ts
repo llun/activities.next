@@ -3,21 +3,21 @@ import { NextRequest } from 'next/server'
 import { GET, POST } from './route'
 
 const mockDatabase = {
-  getNotifications: jest.fn(),
-  deleteNotification: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
-  getActiveServerFilters: jest.fn().mockResolvedValue([])
+  getNotifications: vi.fn(),
+  deleteNotification: vi.fn(),
+  getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
+  getActiveServerFilters: vi.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun'
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -38,7 +38,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('GET /api/v1/notifications', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns 422 when notification query parameters fail schema validation', async () => {
@@ -140,7 +140,7 @@ describe('GET /api/v1/notifications', () => {
 
 describe('POST /api/v1/notifications (clear-all)', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('fetches notifications with includeFiltered: true so filtered notifications are cleared', async () => {

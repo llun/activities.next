@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -8,7 +8,7 @@ import { ContentWarning } from './content-warning'
 
 describe('ContentWarning', () => {
   it('hides content until expanded', () => {
-    const onParentClick = jest.fn()
+    const onParentClick = vi.fn()
     render(
       <div onClick={onParentClick}>
         <ContentWarning summary="Spoilers">

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -15,15 +15,15 @@ import type { Tag } from '@/lib/types/mastodon/tag'
 
 import { ExplorePageClient } from './ExplorePageClient'
 
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(),
-  useSearchParams: jest.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(),
+  useSearchParams: vi.fn()
 }))
 
-jest.mock('@/lib/client', () => ({
-  getTrendingTags: jest.fn(),
-  getTrendingStatuses: jest.fn(),
-  getTrendingLinks: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getTrendingTags: vi.fn(),
+  getTrendingStatuses: vi.fn(),
+  getTrendingLinks: vi.fn()
 }))
 
 const mockGetTrendingTags = getTrendingTags as jest.Mock
@@ -65,7 +65,7 @@ const status = (overrides: Partial<MastodonStatus> = {}): MastodonStatus =>
 const renderExplore = (tabParam: string | null, currentTime: number) => {
   const params = new URLSearchParams(tabParam ? { tab: tabParam } : {})
   mockUseSearchParams.mockReturnValue(params)
-  mockUseRouter.mockReturnValue({ replace: jest.fn(), push: jest.fn() })
+  mockUseRouter.mockReturnValue({ replace: vi.fn(), push: vi.fn() })
   return render(<ExplorePageClient currentTime={currentTime} />)
 }
 

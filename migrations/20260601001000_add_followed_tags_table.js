@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.createTable('followed_tags', (table) => {
     table.string('id').primary()
     table.string('actorId').notNullable()
@@ -24,4 +24,4 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => knex.schema.dropTableIfExists('followed_tags')
+export const down = (knex) => knex.schema.dropTableIfExists('followed_tags')

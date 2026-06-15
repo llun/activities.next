@@ -16,8 +16,8 @@ const knexDatabase = knex({
   connection: { filename: ':memory:' }
 })
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn(),
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(),
   getKnex: () => knexDatabase
 }))
 

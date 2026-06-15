@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   await knex.schema.createTable('strava_archive_imports', function (table) {
     table.string('id').primary()
     table.string('actorId').notNullable()
@@ -64,7 +64,7 @@ exports.up = async function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function (knex) {
+export const down = async function (knex) {
   const client = knex.client.config.client
   const supportsPartialUniqueIndex = [
     'pg',

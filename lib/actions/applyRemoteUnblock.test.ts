@@ -3,9 +3,9 @@ import { Database } from '@/lib/database/types'
 import { applyRemoteUnblock } from './applyRemoteUnblock'
 
 const createDatabase = () => ({
-  deleteBlock: jest.fn(),
-  deleteBlockByUri: jest.fn(),
-  getBlockByUri: jest.fn()
+  deleteBlock: vi.fn(),
+  deleteBlockByUri: vi.fn(),
+  getBlockByUri: vi.fn()
 })
 
 const createStoredBlock = () => ({

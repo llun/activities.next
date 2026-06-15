@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
+export const up = (knex) => {
   return knex.schema.alterTable('statuses', function (table) {
     table.text('content')
     table.dropColumn('text')
@@ -20,7 +20,7 @@ exports.up = (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('statuses', function (table) {
     table.dropColumn('content')
     table.text('text')

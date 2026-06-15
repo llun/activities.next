@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 
 import { GET } from './route'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     trustedHosts: ['alias.llun.test'],
     serviceName: undefined,

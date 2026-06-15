@@ -10,6 +10,15 @@ import { MockActivityPubOutbox } from './outbox'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
 
+// jest-fetch-mock's `FetchMock` type extends `jest.MockInstance` from
+// @types/jest, which we no longer install under Vitest. The recorded call data
+// (`.mock.calls`) is otherwise untyped, so describe just the shape we read.
+type FetchMockCalls = {
+  mock: {
+    calls: Array<[string, { body?: unknown; method?: string } | undefined]>
+  }
+}
+
 export const mockRequests = (fetchMock: FetchMock) => {
   fetchMock.mockResponse(async (req) => {
     const url = new URL(req.url)
@@ -246,7 +255,9 @@ export const expectCall = (
   method: string,
   body: Record<string, unknown>
 ) => {
-  const call = fetchMock.mock.calls.find((call) => call[0] === url)
+  const call = (fetchMock as unknown as FetchMockCalls).mock.calls.find(
+    (call) => call[0] === url
+  )
   if (!call) fail(`${url} request must exist`)
 
   const request = call[1]

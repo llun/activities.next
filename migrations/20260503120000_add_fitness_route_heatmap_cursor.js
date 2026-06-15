@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   const hasRouteHeatmaps = await knex.schema.hasTable('fitness_route_heatmaps')
   if (!hasRouteHeatmaps) {
     return
@@ -23,7 +23,7 @@ exports.up = async function (knex) {
 /**
  * @returns { Promise<void> }
  */
-exports.down = async function () {
+export const down = async function () {
   // No-op: cursorOffset is now owned by the baseline route heatmap schema.
   // This migration only backfills older route-cache tables that were created
   // before the baseline included checkpoint progress.

@@ -5,30 +5,30 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 
 import { ActivityPubVerifySenderGuard } from './ActivityPubVerifyGuard'
 
-const mockCanFederateWithDomain = jest.fn()
+const mockCanFederateWithDomain = vi.fn()
 const mockDatabase = {}
-const mockGetSenderPublicKey = jest.fn()
-const mockGetSenderPublicKeyDetails = jest.fn()
-const mockVerify = jest.fn()
+const mockGetSenderPublicKey = vi.fn()
+const mockGetSenderPublicKeyDetails = vi.fn()
+const mockVerify = vi.fn()
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/federation/domainPolicy', () => ({
+vi.mock('@/lib/services/federation/domainPolicy', async () => ({
   canFederateWithDomain: (...params: unknown[]) =>
     mockCanFederateWithDomain(...params)
 }))
 
-jest.mock('@/lib/services/guards/getSenderPublicKey', () => ({
+vi.mock('@/lib/services/guards/getSenderPublicKey', async () => ({
   getSenderPublicKey: (...params: unknown[]) =>
     mockGetSenderPublicKey(...params),
   getSenderPublicKeyDetails: (...params: unknown[]) =>
     mockGetSenderPublicKeyDetails(...params)
 }))
 
-jest.mock('@/lib/utils/signature', () => {
-  const actual = jest.requireActual('@/lib/utils/signature')
+vi.mock('@/lib/utils/signature', async () => {
+  const actual = await vi.importActual('@/lib/utils/signature')
 
   return {
     ...actual,
@@ -75,7 +75,7 @@ const createSignedPostRequest = ({
 
 describe('ActivityPubVerifySenderGuard', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockCanFederateWithDomain.mockResolvedValue(true)
     mockGetSenderPublicKey.mockResolvedValue('public-key')
     mockGetSenderPublicKeyDetails.mockResolvedValue({
@@ -86,7 +86,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('returns CORS headers on verification errors when methods are provided', async () => {
-    const handler = jest.fn()
+    const handler = vi.fn()
     const guard = ActivityPubVerifySenderGuard(handler, [
       HttpMethod.enum.OPTIONS,
       HttpMethod.enum.POST
@@ -114,7 +114,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects stale signed dates', async () => {
-    const handler = jest.fn()
+    const handler = vi.fn()
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -137,7 +137,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects signed dates too far in the future', async () => {
-    const handler = jest.fn()
+    const handler = vi.fn()
     const guard = ActivityPubVerifySenderGuard(handler)
     const bodyText = JSON.stringify({
       actor: 'https://remote.test/users/alice',
@@ -169,7 +169,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects POST requests without a host header', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -191,7 +191,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects mutating signatures that do not cover host', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -213,7 +213,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects mutating signatures that do not cover request-target', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -235,7 +235,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects POST requests without a digest header', async () => {
-    const handler = jest.fn()
+    const handler = vi.fn()
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -257,7 +257,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects mismatched signed digest headers', async () => {
-    const handler = jest.fn()
+    const handler = vi.fn()
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -279,7 +279,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects POST activities with invalid JSON after validating the digest', async () => {
-    const handler = jest.fn()
+    const handler = vi.fn()
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -297,7 +297,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('accepts a matching sha-256 value from a multi-value signed digest header', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
     const body = JSON.stringify({
       actor: 'https://remote.test/users/alice',
@@ -332,7 +332,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('accepts POST activities whose actor is an object with an id', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -359,7 +359,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('includes query strings when verifying GET request targets', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -386,7 +386,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects POST activities without a string actor', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -407,7 +407,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects POST activities without a non-empty actor identity', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -429,7 +429,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('rejects POST activities when the signing key owner does not match the activity actor', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
 
     const response = await guard(
@@ -448,7 +448,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('accepts POST activities when a path-based signing key is owned by the activity actor', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
     const keyId = 'https://remote.test/users/alice/keys/main'
 
@@ -473,7 +473,7 @@ describe('ActivityPubVerifySenderGuard', () => {
   })
 
   it('accepts POST activities when actor and key owner only differ by fragment', async () => {
-    const handler = jest.fn().mockResolvedValue(Response.json({ ok: true }))
+    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
     const guard = ActivityPubVerifySenderGuard(handler)
     mockGetSenderPublicKeyDetails.mockResolvedValue({
       owner: 'https://remote.test/users/alice#main-key',

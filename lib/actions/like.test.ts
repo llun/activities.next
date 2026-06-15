@@ -14,8 +14,8 @@ import {
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/email', () => ({
-  sendMail: jest.fn()
+vi.mock('@/lib/services/email', () => ({
+  sendMail: vi.fn()
 }))
 
 describe('Like action', () => {

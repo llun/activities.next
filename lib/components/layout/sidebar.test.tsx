@@ -1,17 +1,17 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import { Sidebar } from '@/lib/components/layout/sidebar'
 
-const mockPathname = jest.fn(() => '/lists')
-jest.mock('next/navigation', () => ({
+const mockPathname = vi.fn(() => '/lists')
+vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname()
 }))
 
-jest.mock('@/lib/components/actor-switcher/ActorSwitcher', () => ({
+vi.mock('@/lib/components/actor-switcher/ActorSwitcher', () => ({
   ActorSwitcher: () => <div data-testid="actor-switcher" />
 }))
 

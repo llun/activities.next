@@ -7,12 +7,12 @@ const mockCurrentActor = {
 }
 
 const mockDatabase = {
-  getDirectConversationStatuses: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
-  getActiveServerFilters: jest.fn().mockResolvedValue([])
+  getDirectConversationStatuses: vi.fn(),
+  getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
+  getActiveServerFilters: vi.fn().mockResolvedValue([])
 }
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuardAnyScope:
     <TParams>(
       _scopes: unknown[],
@@ -33,8 +33,8 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatuses: jest.fn(
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+  getMastodonStatuses: vi.fn(
     async (_database: unknown, statuses: { id: string }[]) =>
       statuses.map((status) => ({ id: status.id }))
   )
@@ -51,7 +51,7 @@ const status = (id: string) => ({
 
 describe('GET /api/v1/conversations/[id]/statuses', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('omits nextMaxStatusId when the final statuses page exactly matches the limit', async () => {

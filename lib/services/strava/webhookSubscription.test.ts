@@ -6,7 +6,7 @@ import {
   getSubscription
 } from './webhookSubscription'
 
-const mockFetch = jest.fn()
+const mockFetch = vi.fn()
 global.fetch = mockFetch
 
 describe('webhookSubscription', () => {

@@ -15,56 +15,56 @@ import { SearchSQLDatabaseMixin } from './search'
 import { StatusSQLDatabaseMixin } from './status'
 import { TimelineSQLDatabaseMixin } from './timeline'
 
-jest.mock('@/lib/database/sql/account', () => ({
-  AccountSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/account', () => ({
+  AccountSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/actor', () => ({
-  ActorSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/actor', () => ({
+  ActorSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/block', () => ({
-  BlockSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/block', () => ({
+  BlockSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/bookmark', () => ({
-  BookmarkSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/bookmark', () => ({
+  BookmarkSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/fitnessSettings', () => ({
-  FitnessSettingsSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/fitnessSettings', () => ({
+  FitnessSettingsSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/follow', () => ({
-  FollowerSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/follow', () => ({
+  FollowerSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/like', () => ({
-  LikeSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/like', () => ({
+  LikeSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/media', () => ({
-  MediaSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/media', () => ({
+  MediaSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/notification', () => ({
-  NotificationSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/notification', () => ({
+  NotificationSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/oauth', () => ({
-  OAuthSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/oauth', () => ({
+  OAuthSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/search', () => ({
-  SearchSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/search', () => ({
+  SearchSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/status', () => ({
-  StatusSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/status', () => ({
+  StatusSQLDatabaseMixin: vi.fn()
 }))
 
-jest.mock('@/lib/database/sql/timeline', () => ({
-  TimelineSQLDatabaseMixin: jest.fn()
+vi.mock('@/lib/database/sql/timeline', () => ({
+  TimelineSQLDatabaseMixin: vi.fn()
 }))
 
 describe('getSQLDatabase', () => {
@@ -87,57 +87,57 @@ describe('getSQLDatabase', () => {
   let _knexMock: Knex
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   const createComposedDatabase = () => {
     const knexDatabase = {
       migrate: {
-        latest: jest.fn().mockResolvedValue(undefined)
+        latest: vi.fn().mockResolvedValue(undefined)
       },
-      destroy: jest.fn().mockResolvedValue(undefined)
+      destroy: vi.fn().mockResolvedValue(undefined)
     } as unknown as Knex
 
     const accountDatabase = {
-      isAccountExists: jest.fn(),
+      isAccountExists: vi.fn(),
       testPriority: 'account'
     }
     const actorDatabase = {
-      getActorFromId: jest.fn(),
+      getActorFromId: vi.fn(),
       testPriority: 'actor'
     }
     const fitnessSettingsDatabase = {
-      createFitnessSettings: jest.fn()
+      createFitnessSettings: vi.fn()
     }
     const blockDatabase = {
-      createBlock: jest.fn()
+      createBlock: vi.fn()
     }
     const bookmarkDatabase = {
-      createBookmark: jest.fn()
+      createBookmark: vi.fn()
     }
     const followerDatabase = {
-      getFollowers: jest.fn()
+      getFollowers: vi.fn()
     }
     const likeDatabase = {
-      createLike: jest.fn()
+      createLike: vi.fn()
     }
     const mediaDatabase = {
-      createMedia: jest.fn()
+      createMedia: vi.fn()
     }
     const notificationDatabase = {
-      createNotification: jest.fn()
+      createNotification: vi.fn()
     }
     const oauthDatabase = {
-      getClientFromName: jest.fn()
+      getClientFromName: vi.fn()
     }
     const searchDatabase = {
-      searchDocuments: jest.fn()
+      searchDocuments: vi.fn()
     }
     const statusDatabase = {
-      getStatus: jest.fn()
+      getStatus: vi.fn()
     }
     const timelineDatabase = {
-      getTimeline: jest.fn(),
+      getTimeline: vi.fn(),
       testPriority: 'timeline'
     }
 

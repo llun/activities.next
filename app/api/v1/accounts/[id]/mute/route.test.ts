@@ -7,14 +7,14 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { POST } from './route'
 
 const mockDatabase = {
-  getActorFromId: jest.fn()
+  getActorFromId: vi.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me',
   domain: 'local.test'
 }
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown,
@@ -35,12 +35,12 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
-jest.mock('@/lib/actions/applyMute', () => ({
-  applyMute: jest.fn()
+vi.mock('@/lib/actions/applyMute', () => ({
+  applyMute: vi.fn()
 }))
 
-jest.mock('@/lib/services/accounts/relationship', () => ({
-  getRelationship: jest.fn()
+vi.mock('@/lib/services/accounts/relationship', () => ({
+  getRelationship: vi.fn()
 }))
 
 const createRequest = (
@@ -73,7 +73,7 @@ describe('POST /api/v1/accounts/:id/mute', () => {
   const getRelationshipMock = getRelationship as jest.Mock
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://remote.test/users/alice'
     })

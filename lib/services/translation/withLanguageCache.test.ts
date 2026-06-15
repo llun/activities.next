@@ -18,7 +18,7 @@ const baseProvider = (
 
 describe('withLanguageCache', () => {
   it('memoizes a successful languages() lookup across calls', async () => {
-    const languages = jest
+    const languages = vi
       .fn()
       .mockResolvedValue({ source: ['en'], target: ['fr'] })
     const provider = withLanguageCache(baseProvider(languages))
@@ -30,7 +30,7 @@ describe('withLanguageCache', () => {
   })
 
   it('does not cache a rejected lookup, so a transient failure can be retried', async () => {
-    const languages = jest
+    const languages = vi
       .fn()
       .mockRejectedValueOnce(new Error('transient'))
       .mockResolvedValue({ source: ['en'], target: ['fr'] })

@@ -123,7 +123,7 @@ describe('timelineErrorBoundary', () => {
     new NextRequest('https://llun.test/api/v1/timelines/public')
 
   it('passes through the handler response when it succeeds', async () => {
-    const handler = jest
+    const handler = vi
       .fn()
       .mockResolvedValue(new Response('ok', { status: 200 }))
     const wrapped = timelineErrorBoundary(CORS_HEADERS, handler)
@@ -133,7 +133,7 @@ describe('timelineErrorBoundary', () => {
   })
 
   it('returns a CORS-aware 500 when the handler throws', async () => {
-    const handler = jest.fn().mockRejectedValue(new Error('boom'))
+    const handler = vi.fn().mockRejectedValue(new Error('boom'))
     const wrapped = timelineErrorBoundary(CORS_HEADERS, handler)
 
     const response = await wrapped(request(), {})

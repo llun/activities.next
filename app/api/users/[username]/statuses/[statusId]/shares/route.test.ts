@@ -7,8 +7,8 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { GET } from './route'
 
 const mockDatabase = {
-  getStatus: jest.fn(),
-  getStatusReblogsCount: jest.fn()
+  getStatus: vi.fn(),
+  getStatusReblogsCount: vi.fn()
 }
 const mockActor: Actor = {
   id: 'https://example.com/users/test',
@@ -28,7 +28,7 @@ const mockActor: Actor = {
   publicKey: 'public-key'
 }
 
-jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
+vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
   OnlyLocalUserGuard:
     (handle: (...params: unknown[]) => Promise<Response> | Response) =>
     (req: NextRequest, query: unknown) =>
@@ -37,7 +37,7 @@ jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
 
 describe('GET /api/users/[username]/statuses/[statusId]/shares', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue({
       id: 'https://example.com/users/test/statuses/123',
       url: 'https://example.com/users/test/statuses/123',

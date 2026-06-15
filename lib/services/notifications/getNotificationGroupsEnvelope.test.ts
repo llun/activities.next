@@ -2,8 +2,8 @@ import { Database } from '@/lib/database/types'
 import { getNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
-const mockGetMastodonStatus = jest.fn()
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+const mockGetMastodonStatus = vi.fn()
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   getMastodonStatus: (...args: unknown[]) => mockGetMastodonStatus(...args)
 }))
 
@@ -27,13 +27,13 @@ const grouped = (
 
 describe('getNotificationGroupsEnvelope', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('dedupes accounts and statuses referenced across groups', async () => {
     const mockDatabase = {
       // Return id in urlToId format so sample_account_ids filtering works.
-      getMastodonActorsFromIds: jest
+      getMastodonActorsFromIds: vi
         .fn()
         .mockImplementation(({ ids }: { ids: string[] }) =>
           Promise.resolve(
@@ -42,8 +42,8 @@ describe('getNotificationGroupsEnvelope', () => {
             }))
           )
         ),
-      getStatus: jest.fn().mockResolvedValue({ id: STATUS }),
-      getStatusesByIds: jest
+      getStatus: vi.fn().mockResolvedValue({ id: STATUS }),
+      getStatusesByIds: vi
         .fn()
         .mockImplementation(({ statusIds }: { statusIds: string[] }) =>
           Promise.resolve(statusIds.map((id) => ({ id })))
@@ -104,8 +104,8 @@ describe('getNotificationGroupsEnvelope', () => {
 
   it('returns empty accounts/statuses when there is nothing to resolve', async () => {
     const mockDatabase = {
-      getMastodonActorsFromIds: jest.fn().mockResolvedValue([]),
-      getStatusesByIds: jest.fn()
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue([]),
+      getStatusesByIds: vi.fn()
     } as unknown as Database
 
     const envelope = await getNotificationGroupsEnvelope(mockDatabase, [])

@@ -6,19 +6,19 @@ import { getConfig } from '@/lib/config'
 
 import { request } from './request'
 
-jest.mock('got', () => {
+vi.mock('got', async () => {
   type GotMockOptions = {
     method?: string
     body?: string
     headers?: Record<string, string>
   }
 
-  const { Buffer } = jest.requireActual(
+  const { Buffer } = (await vi.importActual(
     'node:buffer'
-  ) as typeof import('node:buffer')
-  const { Readable } = jest.requireActual(
+  )) as typeof import('node:buffer')
+  const { Readable } = (await vi.importActual(
     'node:stream'
-  ) as typeof import('node:stream')
+  )) as typeof import('node:stream')
 
   const readResponse = async (url: string, options: GotMockOptions) => {
     const response = await fetch(url, {
@@ -81,7 +81,7 @@ jest.mock('got', () => {
     }
   )
 
-  return gotMock
+  return { default: gotMock }
 })
 
 enableFetchMocks()
@@ -135,8 +135,8 @@ const withDevelopmentNodeEnv = async (callback: () => Promise<void>) => {
 
 describe('request utility', () => {
   afterEach(() => {
-    jest.restoreAllMocks()
-    jest.useRealTimers()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   beforeEach(() => {
@@ -305,7 +305,7 @@ describe('request utility', () => {
     })
 
     it('does not retry URLs blocked by safe remote fetch validation', async () => {
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout')
+      const setTimeoutSpy = vi.spyOn(global, 'setTimeout')
 
       await expect(
         request({
@@ -323,7 +323,7 @@ describe('request utility', () => {
     it.each([408, 429, 500, 502, 503, 504, 521, 522, 524])(
       'retries transient HTTP status %s after reading the body',
       async (status) => {
-        jest.useFakeTimers()
+        vi.useFakeTimers()
         fetchMock.mockResponseOnce('temporary upstream failure', { status })
         fetchMock.mockResponseOnce('ok', { status: 200 })
 
@@ -332,7 +332,7 @@ describe('request utility', () => {
           numberOfRetry: 1,
           retryNoise: null
         })
-        await jest.advanceTimersByTimeAsync(1000)
+        await vi.advanceTimersByTimeAsync(1000)
 
         await expect(responsePromise).resolves.toMatchObject({
           body: 'ok',
@@ -360,7 +360,7 @@ describe('request utility', () => {
     })
 
     it('honors retry-after before retrying transient HTTP status responses', async () => {
-      jest.useFakeTimers()
+      vi.useFakeTimers()
       fetchMock.mockResponseOnce('rate limited', {
         headers: { 'retry-after': '2' },
         status: 429
@@ -372,11 +372,11 @@ describe('request utility', () => {
         numberOfRetry: 1,
         retryNoise: null
       })
-      await jest.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
 
       expect(fetchMock).toHaveBeenCalledTimes(1)
 
-      await jest.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
 
       await expect(responsePromise).resolves.toMatchObject({
         body: 'ok',
@@ -386,8 +386,8 @@ describe('request utility', () => {
     })
 
     it('honors retry-after with an HTTP-date header', async () => {
-      jest.useFakeTimers()
-      jest.setSystemTime(new Date('2026-05-14T00:00:00.000Z'))
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-05-14T00:00:00.000Z'))
       const retryAt = new Date(Date.now() + 2000).toUTCString()
       fetchMock.mockResponseOnce('rate limited', {
         headers: { 'retry-after': retryAt },
@@ -400,11 +400,11 @@ describe('request utility', () => {
         numberOfRetry: 1,
         retryNoise: null
       })
-      await jest.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
 
       expect(fetchMock).toHaveBeenCalledTimes(1)
 
-      await jest.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
 
       await expect(responsePromise).resolves.toMatchObject({
         body: 'ok',
@@ -462,7 +462,7 @@ describe('request utility', () => {
       'ENOTFOUND',
       'ETIMEDOUT'
     ])('retries transient socket error %s', async (code) => {
-      jest.useFakeTimers()
+      vi.useFakeTimers()
       const error = Object.assign(new Error(`socket failure: ${code}`), {
         code
       })
@@ -474,7 +474,7 @@ describe('request utility', () => {
         numberOfRetry: 1,
         retryNoise: null
       })
-      await jest.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
 
       await expect(responsePromise).resolves.toMatchObject({
         body: 'ok',
@@ -484,7 +484,7 @@ describe('request utility', () => {
     })
 
     it('waits with retry noise before retrying retryable errors', async () => {
-      jest.useFakeTimers()
+      vi.useFakeTimers()
       mockGetConfig.mockReturnValue({
         ...defaultConfig,
         request: {
@@ -494,7 +494,7 @@ describe('request utility', () => {
           maxResponseSizeInBytes: 1024
         }
       })
-      jest.spyOn(Math, 'random').mockReturnValue(0.5)
+      vi.spyOn(Math, 'random').mockReturnValue(0.5)
       const error = Object.assign(new Error('dns lookup timed out'), {
         code: 'EAI_AGAIN'
       })
@@ -504,11 +504,11 @@ describe('request utility', () => {
       const responsePromise = request({
         url: 'https://example.com/api/test'
       })
-      await jest.advanceTimersByTimeAsync(1024)
+      await vi.advanceTimersByTimeAsync(1024)
 
       expect(fetchMock).toHaveBeenCalledTimes(1)
 
-      await jest.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(1)
 
       await expect(responsePromise).resolves.toMatchObject({
         body: 'ok',
@@ -518,7 +518,7 @@ describe('request utility', () => {
     })
 
     it('uses absolute retry noise for negative configured values', async () => {
-      jest.useFakeTimers()
+      vi.useFakeTimers()
       mockGetConfig.mockReturnValue({
         ...defaultConfig,
         request: {
@@ -528,7 +528,7 @@ describe('request utility', () => {
           maxResponseSizeInBytes: 1024
         }
       })
-      jest.spyOn(Math, 'random').mockReturnValue(0.5)
+      vi.spyOn(Math, 'random').mockReturnValue(0.5)
       const error = Object.assign(new Error('dns lookup timed out'), {
         code: 'EAI_AGAIN'
       })
@@ -538,11 +538,11 @@ describe('request utility', () => {
       const responsePromise = request({
         url: 'https://example.com/api/test'
       })
-      await jest.advanceTimersByTimeAsync(1024)
+      await vi.advanceTimersByTimeAsync(1024)
 
       expect(fetchMock).toHaveBeenCalledTimes(1)
 
-      await jest.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(1)
 
       await expect(responsePromise).resolves.toMatchObject({
         body: 'ok',
@@ -552,7 +552,7 @@ describe('request utility', () => {
     })
 
     it('preserves configured null retry noise', async () => {
-      jest.useFakeTimers()
+      vi.useFakeTimers()
       mockGetConfig.mockReturnValue({
         ...defaultConfig,
         request: {
@@ -562,7 +562,7 @@ describe('request utility', () => {
           maxResponseSizeInBytes: 1024
         }
       })
-      jest.spyOn(Math, 'random').mockReturnValue(0.5)
+      vi.spyOn(Math, 'random').mockReturnValue(0.5)
       const error = Object.assign(new Error('dns lookup timed out'), {
         code: 'EAI_AGAIN'
       })
@@ -572,7 +572,7 @@ describe('request utility', () => {
       const responsePromise = request({
         url: 'https://example.com/api/test'
       })
-      await jest.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
 
       expect(fetchMock).toHaveBeenCalledTimes(2)
       await expect(responsePromise).resolves.toMatchObject({
@@ -582,7 +582,7 @@ describe('request utility', () => {
     })
 
     it('preserves configured zero retry noise', async () => {
-      jest.useFakeTimers()
+      vi.useFakeTimers()
       mockGetConfig.mockReturnValue({
         ...defaultConfig,
         request: {
@@ -592,7 +592,7 @@ describe('request utility', () => {
           maxResponseSizeInBytes: 1024
         }
       })
-      const randomSpy = jest.spyOn(Math, 'random')
+      const randomSpy = vi.spyOn(Math, 'random')
       const error = Object.assign(new Error('dns lookup timed out'), {
         code: 'EAI_AGAIN'
       })
@@ -602,7 +602,7 @@ describe('request utility', () => {
       const responsePromise = request({
         url: 'https://example.com/api/test'
       })
-      await jest.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
 
       expect(randomSpy).not.toHaveBeenCalled()
       expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -613,9 +613,9 @@ describe('request utility', () => {
     })
 
     it('caps retry backoff at thirty seconds', async () => {
-      jest.useFakeTimers()
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout')
-      jest.spyOn(Math, 'random').mockReturnValue(1)
+      vi.useFakeTimers()
+      const setTimeoutSpy = vi.spyOn(global, 'setTimeout')
+      vi.spyOn(Math, 'random').mockReturnValue(1)
       const error = Object.assign(new Error('dns lookup timed out'), {
         code: 'EAI_AGAIN'
       })
@@ -628,14 +628,16 @@ describe('request utility', () => {
       }).catch((error) => error as Error)
 
       for (const delay of [1100, 2100, 4100, 8100, 16100]) {
-        await jest.advanceTimersByTimeAsync(delay)
+        await vi.advanceTimersByTimeAsync(delay)
       }
 
       const scheduledDelays = setTimeoutSpy.mock.calls.map(([, delay]) => delay)
       expect(scheduledDelays).toEqual([1100, 2100, 4100, 8100, 16100, 30000])
 
-      await jest.advanceTimersByTimeAsync(30000)
-      await expect(responsePromise).resolves.toThrow('dns lookup timed out')
+      await vi.advanceTimersByTimeAsync(30000)
+      // responsePromise resolves to the caught error (see `.catch` above).
+      const settledError = (await responsePromise) as Error
+      expect(settledError.message).toContain('dns lookup timed out')
       expect(fetchMock).toHaveBeenCalledTimes(7)
     })
   })

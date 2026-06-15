@@ -23,7 +23,7 @@ const ALL_ALERTS_ENABLED = {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   await knex.schema.alterTable('push_subscriptions', function (table) {
     // Mastodon WebPushSubscription preferences. `alerts` is stored as a JSON
     // string (text, not jsonb) so SQLite/MySQL/PostgreSQL all behave the same.
@@ -51,7 +51,7 @@ exports.up = async function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema.alterTable('push_subscriptions', function (table) {
     table.dropColumn('alerts')
     table.dropColumn('policy')

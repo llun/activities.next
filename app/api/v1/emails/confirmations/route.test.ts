@@ -9,19 +9,19 @@ import { Scope } from '@/lib/types/database/operations'
 
 import { POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockSendMail = jest.fn()
-jest.mock('@/lib/services/email', () => ({
+const mockSendMail = vi.fn()
+vi.mock('@/lib/services/email', () => ({
   sendMail: (...args: unknown[]) => mockSendMail(...args)
 }))
 
-const mockGetConfig = jest.fn()
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
+const mockGetConfig = vi.fn()
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
   getConfig: () => mockGetConfig()
 }))
 
@@ -36,15 +36,15 @@ type MockDatabase = Pick<
 
 let mockDatabase: unknown = null
 let mockKnex: unknown = undefined
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => mockKnex
 }))
 
-jest.mock('better-auth/oauth2', () => ({ verifyAccessToken: jest.fn() }))
+vi.mock('better-auth/oauth2', () => ({ verifyAccessToken: vi.fn() }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
@@ -85,11 +85,11 @@ const makeRequest = (body?: unknown) =>
 
 describe('POST /api/v1/emails/confirmations', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getAccountFromEmail: jest.fn(),
-    getActorsForAccount: jest.fn(),
-    updateAccountEmail: jest.fn(),
-    requestEmailChange: jest.fn(),
-    isAccountExists: jest.fn()
+    getAccountFromEmail: vi.fn(),
+    getActorsForAccount: vi.fn(),
+    updateAccountEmail: vi.fn(),
+    requestEmailChange: vi.fn(),
+    isAccountExists: vi.fn()
   }
 
   const setAccount = (account: ReturnType<typeof buildAccount>) => {
@@ -102,7 +102,7 @@ describe('POST /api/v1/emails/confirmations', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -436,7 +436,7 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase = apiDatabase
     mockKnex = apiKnex
     mockGetConfig.mockReturnValue({

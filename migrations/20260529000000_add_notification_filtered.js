@@ -7,7 +7,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
+export const up = (knex) => {
   return knex.schema.alterTable('notifications', function (table) {
     table.boolean('filtered').notNullable().defaultTo(false)
     table.index(
@@ -21,7 +21,7 @@ exports.up = (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('notifications', function (table) {
     table.dropIndex(
       ['actorId', 'filtered', 'createdAt'],

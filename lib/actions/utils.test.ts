@@ -5,9 +5,9 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 
 import { BlockedFederationDomainError, recordActorIfNeeded } from './utils'
 
-const mockGetActorPerson = jest.fn()
+const mockGetActorPerson = vi.fn()
 
-jest.mock('@/lib/activities/getActorPerson', () => ({
+vi.mock('@/lib/activities/getActorPerson', () => ({
   getActorPerson: (...params: unknown[]) => mockGetActorPerson(...params)
 }))
 
@@ -23,7 +23,7 @@ describe('recordActorIfNeeded', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('rejects actors from blocked domains before fetching them', async () => {

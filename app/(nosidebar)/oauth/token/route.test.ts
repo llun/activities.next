@@ -2,20 +2,20 @@ import { NextRequest } from 'next/server'
 
 import { POST } from './route'
 
-const mockAuthHandler = jest.fn()
-const mockLoggerWarn = jest.fn()
+const mockAuthHandler = vi.fn()
+const mockLoggerWarn = vi.fn()
 const mockClients = new Map<string, Record<string, unknown>>()
 let mockClientLookupCount = 0
 let mockClientLookupError: Error | null = null
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     host: 'llun.test'
   }),
   getBaseURL: () => 'https://llun.test'
 }))
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getKnex: () => (table: string) => ({
     where: (_field: string, value: string) => ({
       first: () => {
@@ -29,18 +29,18 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('@/lib/services/auth/auth', () => ({
+vi.mock('@/lib/services/auth/auth', () => ({
   getAuth: () => ({
     handler: mockAuthHandler
   })
 }))
 
-jest.mock('@/lib/utils/logger', () => {
+vi.mock('@/lib/utils/logger', () => {
   const logger = {
-    error: jest.fn(),
+    error: vi.fn(),
     warn: (...args: unknown[]) => mockLoggerWarn(...args),
-    info: jest.fn(),
-    debug: jest.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
     child: () => logger
   }
   return { logger }
@@ -832,7 +832,7 @@ describe('OAuth token endpoint', () => {
         client_secret: 'client-secret'
       })
     })
-    const arrayBufferSpy = jest.spyOn(req, 'arrayBuffer')
+    const arrayBufferSpy = vi.spyOn(req, 'arrayBuffer')
     Object.defineProperty(req, 'body', {
       value: {},
       configurable: true

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import {
@@ -16,9 +16,9 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { MutesList } from './MutesList'
 
-jest.mock('@/lib/client', () => ({
-  getMutes: jest.fn(),
-  unmute: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getMutes: vi.fn(),
+  unmute: vi.fn()
 }))
 
 const createAccount = (

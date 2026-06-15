@@ -30,13 +30,13 @@ describe('getFilteredStatusPage', () => {
       [null, [visible1, visible2, visible3]],
       [visible3.id, [visible4, visible5, visible6]]
     ])
-    const getBlockRelations = jest.fn(async () => [])
-    const getMuteRelations = jest.fn(async () => [])
+    const getBlockRelations = vi.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
       getMuteRelations
     } as unknown as Database
-    const fetchBatch = jest.fn(({ maxStatusId }) =>
+    const fetchBatch = vi.fn(({ maxStatusId }) =>
       Promise.resolve(batches.get(maxStatusId) ?? [])
     )
 
@@ -66,13 +66,13 @@ describe('getFilteredStatusPage', () => {
       [null, [blocked, visible1, visible2]],
       [visible2.id, [visible3, visible4]]
     ])
-    const getBlockRelations = jest.fn(
+    const getBlockRelations = vi.fn(
       async ({ targetActorIds }: GetBlockRelationsParams) =>
         targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const getMuteRelations = jest.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
       getMuteRelations
@@ -105,13 +105,13 @@ describe('getFilteredStatusPage', () => {
       [null, [blocked1, visible1, visible2]],
       [visible2.id, [visible3, blocked2, blocked3]]
     ])
-    const getBlockRelations = jest.fn(
+    const getBlockRelations = vi.fn(
       async ({ targetActorIds }: GetBlockRelationsParams) =>
         targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const getMuteRelations = jest.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
       getMuteRelations
@@ -142,13 +142,13 @@ describe('getFilteredStatusPage', () => {
       [null, [blocked, visible1, visible2]],
       [visible2.id, [visible3]]
     ])
-    const getBlockRelations = jest.fn(
+    const getBlockRelations = vi.fn(
       async ({ targetActorIds }: GetBlockRelationsParams) =>
         targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const getMuteRelations = jest.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
       getMuteRelations
@@ -215,13 +215,13 @@ describe('getFilteredStatusPage', () => {
         ]
       ]
     ])
-    const getBlockRelations = jest.fn(
+    const getBlockRelations = vi.fn(
       async ({ targetActorIds }: GetBlockRelationsParams) =>
         targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
           ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
           : []
     )
-    const getMuteRelations = jest.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
       getMuteRelations
@@ -253,8 +253,8 @@ describe('getFilteredStatusPage', () => {
       [null, [muted, visible1, visible2]],
       [visible2.id, [visible3]]
     ])
-    const getBlockRelations = jest.fn(async () => [])
-    const getMuteRelations = jest.fn(
+    const getBlockRelations = vi.fn(async () => [])
+    const getMuteRelations = vi.fn(
       async ({ targetActorIds }: GetMuteRelationsParams) =>
         targetActorIds.some((targetActorId) => targetActorId === mutedActorId)
           ? [

@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   // Add the region column as nullable first so we can backfill.
   await knex.schema.alterTable('fitness_heatmaps', function (table) {
     // Empty string '' = world-wide (no region filter).
@@ -38,7 +38,7 @@ exports.up = async function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function (knex) {
+export const down = async function (knex) {
   await knex.schema.alterTable('fitness_heatmaps', function (table) {
     table.dropUnique([
       'actorId',

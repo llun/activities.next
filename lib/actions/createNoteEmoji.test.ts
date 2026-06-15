@@ -13,18 +13,18 @@ import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/services/timelines', () => ({
-  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
-  sendNotificationAlerts: jest.fn()
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: vi.fn()
 }))
 
 describe('Custom emoji status federation', () => {

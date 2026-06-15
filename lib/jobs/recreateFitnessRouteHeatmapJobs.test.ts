@@ -6,17 +6,17 @@ import {
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { logger } from '@/lib/utils/logger'
 
-const mockPublish = jest.fn()
+const mockPublish = vi.fn()
 const mockWarn = logger.warn as jest.Mock
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn(() => ({
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn(() => ({
     publish: mockPublish
   }))
 }))
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    warn: jest.fn()
+    warn: vi.fn()
   }
 }))
 
@@ -46,7 +46,7 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
   })
 
   it('deletes existing heatmaps and queues every discoverable actor variant', async () => {
-    const getFitnessFilesByActor = jest
+    const getFitnessFilesByActor = vi
       .fn()
       .mockResolvedValueOnce([
         makeFitnessFile({
@@ -62,11 +62,11 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
       ])
       .mockResolvedValueOnce([])
     const database = {
-      getDistinctRouteHeatmapRegionsForActor: jest
+      getDistinctRouteHeatmapRegionsForActor: vi
         .fn()
         .mockResolvedValue(['encoded-region']),
       getFitnessFilesByActor,
-      deleteFitnessRouteHeatmapsForActor: jest.fn().mockResolvedValue(3)
+      deleteFitnessRouteHeatmapsForActor: vi.fn().mockResolvedValue(3)
     }
 
     const result = await recreateFitnessRouteHeatmapJobs({
@@ -155,8 +155,8 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
 
   it('skips deletion and publishing in dry-run mode', async () => {
     const database = {
-      getDistinctRouteHeatmapRegionsForActor: jest.fn().mockResolvedValue([]),
-      getFitnessFilesByActor: jest
+      getDistinctRouteHeatmapRegionsForActor: vi.fn().mockResolvedValue([]),
+      getFitnessFilesByActor: vi
         .fn()
         .mockResolvedValueOnce([
           makeFitnessFile({
@@ -164,7 +164,7 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
           })
         ])
         .mockResolvedValueOnce([]),
-      deleteFitnessRouteHeatmapsForActor: jest.fn()
+      deleteFitnessRouteHeatmapsForActor: vi.fn()
     }
 
     const result = await recreateFitnessRouteHeatmapJobs({
@@ -220,7 +220,7 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
         activityStartTime: Date.UTC(2026, 0, 1)
       })
     )
-    const getFitnessFilesByActor = jest
+    const getFitnessFilesByActor = vi
       .fn()
       .mockResolvedValueOnce(firstPage)
       .mockResolvedValueOnce([
@@ -231,9 +231,9 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
         })
       ])
     const database = {
-      getDistinctRouteHeatmapRegionsForActor: jest.fn().mockResolvedValue([]),
+      getDistinctRouteHeatmapRegionsForActor: vi.fn().mockResolvedValue([]),
       getFitnessFilesByActor,
-      deleteFitnessRouteHeatmapsForActor: jest.fn()
+      deleteFitnessRouteHeatmapsForActor: vi.fn()
     }
 
     const result = await recreateFitnessRouteHeatmapJobs({
@@ -279,8 +279,8 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
         : Promise.resolve()
     })
     const database = {
-      getDistinctRouteHeatmapRegionsForActor: jest.fn().mockResolvedValue([]),
-      getFitnessFilesByActor: jest
+      getDistinctRouteHeatmapRegionsForActor: vi.fn().mockResolvedValue([]),
+      getFitnessFilesByActor: vi
         .fn()
         .mockResolvedValueOnce([
           makeFitnessFile({
@@ -288,7 +288,7 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
           })
         ])
         .mockResolvedValueOnce([]),
-      deleteFitnessRouteHeatmapsForActor: jest.fn().mockResolvedValue(1)
+      deleteFitnessRouteHeatmapsForActor: vi.fn().mockResolvedValue(1)
     }
 
     const result = await recreateFitnessRouteHeatmapJobs({
@@ -338,8 +338,8 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
         })
     )
     const database = {
-      getDistinctRouteHeatmapRegionsForActor: jest.fn().mockResolvedValue([]),
-      getFitnessFilesByActor: jest
+      getDistinctRouteHeatmapRegionsForActor: vi.fn().mockResolvedValue([]),
+      getFitnessFilesByActor: vi
         .fn()
         .mockResolvedValueOnce(
           Array.from({ length: 6 }, (_value, index) =>
@@ -351,7 +351,7 @@ describe('recreateFitnessRouteHeatmapJobs', () => {
           )
         )
         .mockResolvedValueOnce([]),
-      deleteFitnessRouteHeatmapsForActor: jest.fn().mockResolvedValue(1)
+      deleteFitnessRouteHeatmapsForActor: vi.fn().mockResolvedValue(1)
     }
 
     const resultPromise = recreateFitnessRouteHeatmapJobs({

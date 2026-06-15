@@ -8,21 +8,21 @@ import { Actor } from '@/lib/types/domain/actor'
 import { AuthenticatedGuard } from './AuthenticatedGuard'
 
 // Mock auth session
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 // Mock cookies from next/headers
 const mockCookieValue: { value?: string } = {}
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockImplementation(() =>
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockImplementation(() =>
     Promise.resolve({
       get: (name: string) => {
         if (name === 'activities.actor-id') {
@@ -37,7 +37,7 @@ jest.mock('next/headers', () => ({
 }))
 
 // Mock config
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     host: 'llun.test',
     allowEmails: []
@@ -74,7 +74,7 @@ describe('AuthenticatedGuard', () => {
     })
   }
 
-  const mockHandler = jest.fn().mockImplementation(() => {
+  const mockHandler = vi.fn().mockImplementation(() => {
     return NextResponse.json({ success: true }, { status: 200 })
   })
 
@@ -235,7 +235,7 @@ describe('AuthenticatedGuard', () => {
       mockCookieValue.value = undefined
 
       let capturedActor: Actor | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
+      const handler = vi.fn().mockImplementation((_req, context) => {
         capturedActor = context.currentActor
         return NextResponse.json({ success: true }, { status: 200 })
       })
@@ -255,7 +255,7 @@ describe('AuthenticatedGuard', () => {
       mockCookieValue.value = subActorId
 
       let capturedActor: Actor | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
+      const handler = vi.fn().mockImplementation((_req, context) => {
         capturedActor = context.currentActor
         return NextResponse.json({ success: true }, { status: 200 })
       })
@@ -276,7 +276,7 @@ describe('AuthenticatedGuard', () => {
       mockCookieValue.value = 'invalid-actor-id'
 
       let capturedActor: Actor | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
+      const handler = vi.fn().mockImplementation((_req, context) => {
         capturedActor = context.currentActor
         return NextResponse.json({ success: true }, { status: 200 })
       })

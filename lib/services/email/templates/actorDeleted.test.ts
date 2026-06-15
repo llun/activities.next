@@ -2,8 +2,8 @@ import { Actor } from '@/lib/types/domain/actor'
 
 import { getHTMLContent, getSubject, getTextContent } from './actorDeleted'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'test.social'
   })
 }))

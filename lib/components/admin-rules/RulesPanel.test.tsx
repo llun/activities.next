@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -14,11 +14,11 @@ import {
 
 import { RulesPanel } from './RulesPanel'
 
-jest.mock('@/lib/client', () => ({
-  getServerRules: jest.fn(),
-  createServerRule: jest.fn(),
-  updateServerRule: jest.fn(),
-  deleteServerRule: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getServerRules: vi.fn(),
+  createServerRule: vi.fn(),
+  updateServerRule: vi.fn(),
+  deleteServerRule: vi.fn()
 }))
 
 const mockGet = getServerRules as jest.MockedFunction<typeof getServerRules>
@@ -46,7 +46,7 @@ const seed: ServerRule[] = [
 ]
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockGet.mockResolvedValue(seed)
 })
 

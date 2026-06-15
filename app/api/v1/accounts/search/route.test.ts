@@ -2,15 +2,15 @@ import { NextRequest } from 'next/server'
 
 import { GET } from './route'
 
-const mockSearchAccountIds = jest.fn()
-const mockGetMastodonActorsFromIds = jest.fn()
-const mockGetActorFromId = jest.fn()
-const mockGetActorFromUsername = jest.fn()
-const mockGetWebfingerSelf = jest.fn()
-const mockRecordActorIfNeeded = jest.fn()
-const mockIsCurrentActorFollowing = jest.fn()
-const mockGetServerSession = jest.fn()
-const mockStoredToken = jest.fn()
+const mockSearchAccountIds = vi.fn()
+const mockGetMastodonActorsFromIds = vi.fn()
+const mockGetActorFromId = vi.fn()
+const mockGetActorFromUsername = vi.fn()
+const mockGetWebfingerSelf = vi.fn()
+const mockRecordActorIfNeeded = vi.fn()
+const mockIsCurrentActorFollowing = vi.fn()
+const mockGetServerSession = vi.fn()
+const mockStoredToken = vi.fn()
 
 const oauthActor = {
   id: 'https://llun.test/users/oauth-user',
@@ -28,7 +28,7 @@ const oauthActor = {
   updatedAt: 1
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => ({
     searchAccountIds: mockSearchAccountIds,
     getMastodonActorsFromIds: mockGetMastodonActorsFromIds,
@@ -43,24 +43,24 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test' })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/activities/getWebfingerSelf', () => ({
+vi.mock('@/lib/activities/getWebfingerSelf', () => ({
   getWebfingerSelf: (...args: unknown[]) => mockGetWebfingerSelf(...args)
 }))
 
-jest.mock('@/lib/actions/utils', () => ({
+vi.mock('@/lib/actions/utils', () => ({
   recordActorIfNeeded: (...args: unknown[]) => mockRecordActorIfNeeded(...args)
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
@@ -68,7 +68,7 @@ const context = { params: Promise.resolve({}) }
 
 describe('GET /api/v1/accounts/search', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),

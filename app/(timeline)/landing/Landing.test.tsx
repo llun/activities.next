@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -10,7 +10,7 @@ import { Landing } from './Landing'
 
 // The public feed reuses the timeline `Posts` client component; stub it so the
 // test focuses on the landing's variant selection and prop forwarding.
-jest.mock('@/lib/components/posts/posts', () => ({
+vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     currentTime,
     statuses

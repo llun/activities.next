@@ -6,20 +6,20 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { GET } from './route'
 import { POST } from './votes/route'
 
-const mockGetMastodonStatus = jest.fn()
-const mockSendPollVotes = jest.fn()
-const mockCanActorReadStatus = jest.fn()
+const mockGetMastodonStatus = vi.fn()
+const mockSendPollVotes = vi.fn()
+const mockCanActorReadStatus = vi.fn()
 const mockDatabase = {
-  getStatus: jest.fn(),
-  createPollAnswer: jest.fn(),
-  incrementPollChoiceVotes: jest.fn(),
-  recordPollVotes: jest.fn()
+  getStatus: vi.fn(),
+  createPollAnswer: vi.fn(),
+  incrementPollChoiceVotes: vi.fn(),
+  recordPollVotes: vi.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
 }
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown,
@@ -58,16 +58,16 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   getMastodonStatus: (...params: unknown[]) => mockGetMastodonStatus(...params)
 }))
 
-jest.mock('@/lib/services/statusAccess', () => ({
+vi.mock('@/lib/services/statusAccess', () => ({
   canActorReadStatus: (...params: unknown[]) =>
     mockCanActorReadStatus(...params)
 }))
 
-jest.mock('@/lib/activities', () => ({
+vi.mock('@/lib/activities', () => ({
   sendPollVotes: (...params: unknown[]) => mockSendPollVotes(...params)
 }))
 
@@ -95,7 +95,7 @@ const mastodonPoll = {
 
 describe('Mastodon poll routes', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue(pollStatus)
     mockDatabase.recordPollVotes.mockResolvedValue(true)
     mockGetMastodonStatus.mockResolvedValue({ poll: mastodonPoll })

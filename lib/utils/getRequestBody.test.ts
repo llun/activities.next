@@ -26,15 +26,15 @@ const createMockRequest = (
   const request = {
     url,
     headers,
-    formData: jest
+    formData: vi
       .fn()
       .mockResolvedValue(
         new Map(
           entries.map(([key, value]) => [key, value as FormDataEntryValue])
         )
       ),
-    text: jest.fn().mockResolvedValue(rawText),
-    json: jest.fn().mockResolvedValue(body || {})
+    text: vi.fn().mockResolvedValue(rawText),
+    json: vi.fn().mockResolvedValue(body || {})
   } as unknown as NextRequest
 
   return request

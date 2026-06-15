@@ -34,7 +34,7 @@ const createAnnounceStatus = (
 describe('filterMutedStatuses', () => {
   it('returns statuses unchanged when no actorId is provided', async () => {
     const statuses = [createNoteStatus('one', mutedActorId)]
-    const getMuteRelations = jest.fn()
+    const getMuteRelations = vi.fn()
     const database = { getMuteRelations } as unknown as Database
 
     const result = await filterMutedStatuses(database, undefined, statuses)
@@ -44,7 +44,7 @@ describe('filterMutedStatuses', () => {
   })
 
   it('returns an empty array unchanged without querying mute relations', async () => {
-    const getMuteRelations = jest.fn()
+    const getMuteRelations = vi.fn()
     const database = { getMuteRelations } as unknown as Database
 
     const result = await filterMutedStatuses(database, readerActorId, [])
@@ -56,7 +56,7 @@ describe('filterMutedStatuses', () => {
   it('filters out statuses whose author the reader has muted', async () => {
     const mutedStatus = createNoteStatus('muted', mutedActorId)
     const visibleStatus = createNoteStatus('visible', friendActorId)
-    const getMuteRelations = jest.fn(
+    const getMuteRelations = vi.fn(
       async ({ actorIds, targetActorIds }: GetMuteRelationsParams) => {
         expect(actorIds).toEqual([readerActorId])
         const mutedActorIds = new Set([mutedActorId])
@@ -92,7 +92,7 @@ describe('filterMutedStatuses', () => {
       friendActorId,
       friendActorId
     )
-    const getMuteRelations = jest.fn(async () => [
+    const getMuteRelations = vi.fn(async () => [
       {
         actorId: readerActorId,
         targetActorId: mutedActorId,
@@ -112,7 +112,7 @@ describe('filterMutedStatuses', () => {
   it('keeps statuses whose authors are unrelated to any mute relation', async () => {
     const visibleA = createNoteStatus('a', friendActorId)
     const visibleB = createNoteStatus('b', readerActorId)
-    const getMuteRelations = jest.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
     const database = { getMuteRelations } as unknown as Database
 
     const result = await filterMutedStatuses(database, readerActorId, [
@@ -128,7 +128,7 @@ describe('filterMutedStatuses', () => {
 
   it('hides statuses even when mute has notifications=false (timeline ignores notifications flag)', async () => {
     const mutedStatus = createNoteStatus('muted', mutedActorId)
-    const getMuteRelations = jest.fn(async () => [
+    const getMuteRelations = vi.fn(async () => [
       {
         actorId: readerActorId,
         targetActorId: mutedActorId,
@@ -146,7 +146,7 @@ describe('filterMutedStatuses', () => {
 
   it('only queries directional relations (muter -> target) for the reader', async () => {
     const status = createNoteStatus('one', friendActorId)
-    const getMuteRelations = jest.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
     const database = { getMuteRelations } as unknown as Database
 
     await filterMutedStatuses(database, readerActorId, [status])
