@@ -1,3 +1,4 @@
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
@@ -25,9 +26,17 @@ export const POST = traceApiRoute(
   'sharedInbox',
   ActivityPubVerifySenderGuard(
     async (request, { activityBody, database, verifiedSenderActorId }) => {
-      const body = activityBody
-      const actor = isRecord(body)
-        ? extractActivityPubId(body.actor)
+      // Canonicalise the activity (and its embedded object) via JSON-LD
+      // compaction before matching on `type`/`object.type`, so dialect
+      // variations (array/IRI types, single vs array recipients, inline id
+      // references) collapse to the predictable shape the job matcher expects.
+      const body = await compactActivityPub(activityBody)
+      // Validate the sender identity from the original (pre-compaction) body. A
+      // malformed `actor` (empty string, number, bare object) must be rejected
+      // as a bad request rather than turned into a relative-reference artifact
+      // (e.g. `./`) by compaction's IRI resolution.
+      const actor = isRecord(activityBody)
+        ? extractActivityPubId(activityBody.actor)
         : undefined
 
       // The guard enforces signed POST actors; keep route validation before casting unknown JSON.

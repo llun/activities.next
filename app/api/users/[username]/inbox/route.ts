@@ -8,6 +8,7 @@ import { likeRequest } from '@/lib/actions/like'
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/followAction'
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
@@ -115,7 +116,10 @@ export const POST = traceApiRoute(
               })
             }
 
-            const parsed = Activity.safeParse(context.activityBody)
+            const compactedActivity = await compactActivityPub(
+              context.activityBody
+            )
+            const parsed = Activity.safeParse(compactedActivity)
             if (!parsed.success) {
               return apiResponse({
                 req,
