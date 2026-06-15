@@ -204,9 +204,9 @@ describe('registerAccount', () => {
   })
 
   it('does not send email when email service is not configured', async () => {
-    const { sendMail } = (await import('@/lib/services/email')) as unknown as {
-      sendMail: jest.Mock
-    }
+    const { sendMail } = await vi.importMock<{ sendMail: jest.Mock }>(
+      '@/lib/services/email'
+    )
 
     await registerAccount({
       database: mockDatabase as unknown as Database,
@@ -229,9 +229,9 @@ describe('registerAccount', () => {
       }
     } as never)
 
-    const { sendMail } = (await import('@/lib/services/email')) as unknown as {
-      sendMail: jest.Mock
-    }
+    const { sendMail } = await vi.importMock<{ sendMail: jest.Mock }>(
+      '@/lib/services/email'
+    )
 
     await registerAccount({
       database: mockDatabase as unknown as Database,
@@ -418,9 +418,9 @@ describe('registerAccount', () => {
       }
     } as never)
 
-    const { sendMail } = (await import('@/lib/services/email')) as unknown as {
-      sendMail: jest.Mock
-    }
+    const { sendMail } = await vi.importMock<{ sendMail: jest.Mock }>(
+      '@/lib/services/email'
+    )
     sendMail.mockRejectedValueOnce(new Error('SMTP failure'))
 
     const result = await registerAccount({

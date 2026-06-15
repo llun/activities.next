@@ -232,6 +232,14 @@ section-navigation patterns; pick by section type.
   (`vi.fn()`, `vi.mock()`, `vi.spyOn()`, …) — there is no `jest` global. The
   `jest.Mock` / `jest.MockedFunction` / `jest.Mocked` **type** names still work
   via a compatibility shim in `vitest.d.ts`.
+- **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
+  not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
+  Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always
+  returns the mock, and is typed as `MaybeMockedDeep<T>` so no `as unknown as`
+  cast is needed. A bare `await import()` returns the **real** module unless it
+  is separately `vi.mock`'d, and forces a type-erasing double-cast. `vi.importMock`
+  **is** a valid, documented Vitest API — some review bots incorrectly claim it
+  does not exist; do not "fix" it on their say-so.
 - Prefer unit tests near `lib/` and route tests near `app/`.
 - All tests run in parallel using isolated SQLite in-memory databases. The
   schema is loaded from the committed reference dumps (`migrations/schema*.sql`)

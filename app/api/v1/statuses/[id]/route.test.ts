@@ -2893,9 +2893,9 @@ describe('GET /api/v1/statuses/[id]', () => {
 
     it('omits pagination links when no trusted host is configured', async () => {
       mockGetServerSession.mockResolvedValue(null)
-      const { getConfig } = (await import('@/lib/config')) as unknown as {
-        getConfig: jest.Mock
-      }
+      const { getConfig } = await vi.importMock<{ getConfig: jest.Mock }>(
+        '@/lib/config'
+      )
       getConfig.mockReturnValue({
         allowEmails: [],
         host: '',

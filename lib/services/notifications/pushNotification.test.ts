@@ -9,9 +9,9 @@ vi.mock('web-push')
 const mockWebpush = webpush as jest.Mocked<typeof webpush>
 
 vi.mock('@/lib/config')
-const { getConfig } = (await import('@/lib/config')) as unknown as {
-  getConfig: jest.Mock
-}
+const { getConfig } = await vi.importMock<{ getConfig: jest.Mock }>(
+  '@/lib/config'
+)
 
 vi.mock('./pushNotificationSettings', async () => ({
   shouldSendPushForNotification: vi.fn().mockResolvedValue(true)

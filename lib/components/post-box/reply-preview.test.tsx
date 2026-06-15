@@ -126,10 +126,9 @@ describe('ReplyPreview', () => {
     })
 
     it('renders "No content preview" when text is empty', async () => {
-      const { processStatusText } =
-        (await import('@/lib/utils/text/processStatusText')) as unknown as {
-          processStatusText: jest.Mock
-        }
+      const { processStatusText } = await vi.importMock<{
+        processStatusText: jest.Mock
+      }>('@/lib/utils/text/processStatusText')
       processStatusText.mockReturnValueOnce('')
 
       const status = createMockStatus({ text: '' })
@@ -199,10 +198,9 @@ describe('ReplyPreview', () => {
     })
 
     it('renders boosted (Announce) status with original content', async () => {
-      const { processStatusText } =
-        (await import('@/lib/utils/text/processStatusText')) as unknown as {
-          processStatusText: jest.Mock
-        }
+      const { processStatusText } = await vi.importMock<{
+        processStatusText: jest.Mock
+      }>('@/lib/utils/text/processStatusText')
       processStatusText.mockReturnValueOnce(
         'This is the original boosted status'
       )
@@ -218,10 +216,9 @@ describe('ReplyPreview', () => {
 
   describe('text processing', () => {
     it('passes host and status to processStatusText', async () => {
-      const { processStatusText } =
-        (await import('@/lib/utils/text/processStatusText')) as unknown as {
-          processStatusText: jest.Mock
-        }
+      const { processStatusText } = await vi.importMock<{
+        processStatusText: jest.Mock
+      }>('@/lib/utils/text/processStatusText')
 
       const status = createMockStatus()
       render(<ReplyPreview host="my-server.com" status={status} />)
