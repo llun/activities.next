@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -9,17 +9,17 @@ import { search } from '@/lib/client'
 
 import { SearchPageClient } from './SearchPageClient'
 
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(),
-  useSearchParams: jest.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(),
+  useSearchParams: vi.fn()
 }))
 
-jest.mock('@/lib/client', () => ({
-  search: jest.fn(),
-  getTrendingTags: jest.fn().mockResolvedValue([])
+vi.mock('@/lib/client', () => ({
+  search: vi.fn(),
+  getTrendingTags: vi.fn().mockResolvedValue([])
 }))
 
-jest.mock('@/lib/components/posts/posts', () => ({
+vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({ statuses }: { statuses: { id: string }[] }) => (
     <div data-testid="search-posts">
       {statuses.map((status) => (
@@ -30,8 +30,8 @@ jest.mock('@/lib/components/posts/posts', () => ({
 }))
 
 const mockSearch = search as jest.Mock
-const replace = jest.fn()
-const push = jest.fn()
+const replace = vi.fn()
+const push = vi.fn()
 
 const currentActor = {
   id: 'https://local.example/users/searcher',

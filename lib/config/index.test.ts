@@ -1,7 +1,7 @@
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    error: jest.fn(),
-    warn: jest.fn()
+    error: vi.fn(),
+    warn: vi.fn()
   }
 }))
 
@@ -10,9 +10,9 @@ describe('Config', () => {
   const originalCwd = process.cwd()
 
   beforeEach(() => {
-    jest.resetModules()
-    jest.clearAllMocks()
-    jest.unmock('@/lib/config')
+    vi.resetModules()
+    vi.clearAllMocks()
+    vi.unmock('@/lib/config')
     process.env = { ...originalEnv }
     process.chdir(originalCwd)
   })

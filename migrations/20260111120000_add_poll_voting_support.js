@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   // Check for existing rows before deleting
   const result = await knex('poll_answers').count('* as count').first()
   const count = result ? parseInt(result.count, 10) : 0
@@ -24,7 +24,7 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('poll_answers', function (table) {
     table.dropIndex(['statusId', 'actorId'])
     table.dropColumn('statusId')

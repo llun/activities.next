@@ -8,12 +8,12 @@ import { seedDatabase } from '@/lib/stub/database'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/email', () => ({
-  sendMail: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/email', () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'test.social',
     email: {
       serviceFromAddress: 'noreply@test.social'
@@ -37,7 +37,7 @@ describe('deleteActorJob', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('deletes actor and all associated data', async () => {

@@ -15,46 +15,46 @@ import * as routeModule from './route'
 
 const { GET } = routeModule
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockGetConfig = jest.fn().mockReturnValue({
+const mockGetConfig = vi.fn().mockReturnValue({
   host: 'llun.test',
   allowEmails: [],
   fitnessStorage: {
     maxFileSize: 4_096
   }
 })
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-const mockGetFitnessFile = jest.fn()
-jest.mock('@/lib/services/fitness-files', () => ({
+const mockGetFitnessFile = vi.fn()
+vi.mock('@/lib/services/fitness-files', () => ({
   getFitnessFile: (...args: unknown[]) => mockGetFitnessFile(...args)
 }))
 
-const mockParseFitnessFile = jest.fn()
-jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
+const mockParseFitnessFile = vi.fn()
+vi.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
   parseFitnessFile: (...args: unknown[]) => mockParseFitnessFile(...args),
-  isParseableFitnessFileType: jest.fn().mockReturnValue(true)
+  isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
-const mockReadResponseArrayBufferWithLimit = jest.fn()
-jest.mock('@/lib/utils/streamLimit', () => ({
+const mockReadResponseArrayBufferWithLimit = vi.fn()
+vi.mock('@/lib/utils/streamLimit', () => ({
   readResponseArrayBufferWithLimit: (...args: unknown[]) =>
     mockReadResponseArrayBufferWithLimit(...args)
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
@@ -73,7 +73,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
@@ -696,7 +696,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       type: 'redirect',
       redirectUrl: 'https://storage.example/fitness/redirect-route-data.fit'
     })
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response('', {
         status: 200
       })

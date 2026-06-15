@@ -5,14 +5,14 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { DELETE, GET, POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-for-encryption',
     allowEmails: [],
@@ -32,35 +32,35 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
 
-const mockGetSubscription = jest.fn()
-const mockDeleteSubscription = jest.fn()
-jest.mock('@/lib/services/strava/webhookSubscription', () => ({
+const mockGetSubscription = vi.fn()
+const mockDeleteSubscription = vi.fn()
+vi.mock('@/lib/services/strava/webhookSubscription', () => ({
   getSubscription: (...args: unknown[]) => mockGetSubscription(...args),
   deleteSubscription: (...args: unknown[]) => mockDeleteSubscription(...args),
-  createSubscription: jest.fn(),
-  ensureWebhookSubscription: jest.fn().mockResolvedValue({ success: true })
+  createSubscription: vi.fn(),
+  ensureWebhookSubscription: vi.fn().mockResolvedValue({ success: true })
 }))
 
 describe('Strava Settings API', () => {
   // Mock database object
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessSettings: jest.fn(),
-    createFitnessSettings: jest.fn(),
-    deleteFitnessSettings: jest.fn(),
-    updateFitnessSettings: jest.fn(),
-    getAccountFromEmail: jest.fn(),
-    getActorsForAccount: jest.fn(),
-    getActorFromId: jest.fn()
+    getFitnessSettings: vi.fn(),
+    createFitnessSettings: vi.fn(),
+    deleteFitnessSettings: vi.fn(),
+    updateFitnessSettings: vi.fn(),
+    getAccountFromEmail: vi.fn(),
+    getActorsForAccount: vi.fn(),
+    getActorFromId: vi.fn()
   }
 
   beforeAll(async () => {
@@ -78,7 +78,7 @@ describe('Strava Settings API', () => {
     })
 
     // Reset mocks
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     // Default mock implementations
     mockDb.getFitnessSettings.mockResolvedValue(null)

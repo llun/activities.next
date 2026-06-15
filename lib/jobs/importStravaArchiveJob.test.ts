@@ -21,45 +21,45 @@ import {
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
 
-const mockQueuePublish = jest.fn()
-const mockS3Send = jest.fn()
+const mockQueuePublish = vi.fn()
+const mockS3Send = vi.fn()
 
-jest.mock('@aws-sdk/client-s3', () => ({
-  GetObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
-  S3Client: jest.fn().mockImplementation(() => ({
+vi.mock('@aws-sdk/client-s3', async () => ({
+  GetObjectCommand: vi.fn().mockImplementation((input) => ({ input })),
+  S3Client: vi.fn().mockImplementation(() => ({
     send: mockS3Send
   }))
 }))
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn()
+vi.mock('@/lib/config', async () => ({
+  getConfig: vi.fn()
 }))
 
-jest.mock('@/lib/services/fitness-files', () => ({
-  ...jest.requireActual('@/lib/services/fitness-files'),
-  saveFitnessFile: jest.fn(),
-  deleteFitnessFile: jest.fn()
+vi.mock('@/lib/services/fitness-files', async () => ({
+  ...(await vi.importActual('@/lib/services/fitness-files')),
+  saveFitnessFile: vi.fn(),
+  deleteFitnessFile: vi.fn()
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn(() => ({
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn(() => ({
     publish: mockQueuePublish
   }))
 }))
 
-jest.mock('@/lib/services/medias/index', () => ({
-  saveMedia: jest.fn()
+vi.mock('@/lib/services/medias/index', async () => ({
+  saveMedia: vi.fn()
 }))
 
-jest.mock('@/lib/services/strava/archiveReader', () => ({
-  StravaArchiveLimitError: jest.requireActual(
+vi.mock('@/lib/services/strava/archiveReader', async () => ({
+  StravaArchiveLimitError: await vi.importActual(
     '@/lib/services/strava/archiveReader'
   ).StravaArchiveLimitError,
   StravaArchiveReader: {
-    open: jest.fn()
+    open: vi.fn()
   },
-  toStravaArchiveFitnessFilePayload: jest.fn(),
-  getArchiveMediaMimeType: jest.fn().mockReturnValue('image/jpeg')
+  toStravaArchiveFitnessFilePayload: vi.fn(),
+  getArchiveMediaMimeType: vi.fn().mockReturnValue('image/jpeg')
 }))
 
 const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
@@ -95,20 +95,20 @@ type MockDatabase = Pick<
 
 describe('importStravaArchiveJob', () => {
   const database: jest.Mocked<MockDatabase> = {
-    getActorFromId: jest.fn(),
-    getFitnessFile: jest.fn(),
-    getFitnessFilesByBatchId: jest.fn(),
-    getFitnessFilesByIds: jest.fn(),
-    getStravaArchiveImportById: jest.fn(),
-    updateStravaArchiveImport: jest.fn(),
-    getAttachments: jest.fn(),
-    createAttachment: jest.fn(),
-    updateFitnessFileProcessingStatus: jest.fn(),
-    updateFitnessFileImportStatus: jest.fn()
+    getActorFromId: vi.fn(),
+    getFitnessFile: vi.fn(),
+    getFitnessFilesByBatchId: vi.fn(),
+    getFitnessFilesByIds: vi.fn(),
+    getStravaArchiveImportById: vi.fn(),
+    updateStravaArchiveImport: vi.fn(),
+    getAttachments: vi.fn(),
+    createAttachment: vi.fn(),
+    updateFitnessFileProcessingStatus: vi.fn(),
+    updateFitnessFileImportStatus: vi.fn()
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetConfig.mockReturnValue({
       fitnessStorage: {
         type: 'fs',
@@ -230,9 +230,9 @@ describe('importStravaArchiveJob', () => {
     })
 
     mockArchiveReaderOpen.mockResolvedValue({
-      close: jest.fn(),
-      hasEntry: jest.fn().mockReturnValue(true),
-      getActivities: jest.fn().mockResolvedValue([
+      close: vi.fn(),
+      hasEntry: vi.fn().mockReturnValue(true),
+      getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
           activityName: 'Morning Ride',
@@ -240,7 +240,7 @@ describe('importStravaArchiveJob', () => {
           mediaPaths: ['media/photo-1.jpg']
         }
       ]),
-      readEntryBuffer: jest
+      readEntryBuffer: vi
         .fn()
         .mockResolvedValueOnce(Buffer.from('fitness-file'))
         .mockResolvedValueOnce(Buffer.from('media-file'))
@@ -294,9 +294,9 @@ describe('importStravaArchiveJob', () => {
 
   it('saves the Strava activity URL as sourceUrl for a numeric activity id', async () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
-      close: jest.fn(),
-      hasEntry: jest.fn().mockReturnValue(true),
-      getActivities: jest.fn().mockResolvedValue([
+      close: vi.fn(),
+      hasEntry: vi.fn().mockReturnValue(true),
+      getActivities: vi.fn().mockResolvedValue([
         {
           activityId: '987654321',
           activityName: 'Morning Ride',
@@ -304,7 +304,7 @@ describe('importStravaArchiveJob', () => {
           mediaPaths: []
         }
       ]),
-      readEntryBuffer: jest
+      readEntryBuffer: vi
         .fn()
         .mockResolvedValueOnce(Buffer.from('fitness-file'))
     } as never)
@@ -411,7 +411,7 @@ describe('importStravaArchiveJob', () => {
 
   it('splits import into continuation when runtime budget is reached', async () => {
     let nowCall = 0
-    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => {
+    const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
       nowCall += 1
       if (nowCall <= 2) {
         return 0
@@ -420,9 +420,9 @@ describe('importStravaArchiveJob', () => {
     })
 
     mockArchiveReaderOpen.mockResolvedValueOnce({
-      close: jest.fn(),
-      hasEntry: jest.fn().mockReturnValue(true),
-      getActivities: jest.fn().mockResolvedValue([
+      close: vi.fn(),
+      hasEntry: vi.fn().mockReturnValue(true),
+      getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
           activityName: 'Morning Ride',
@@ -436,7 +436,7 @@ describe('importStravaArchiveJob', () => {
           mediaPaths: ['media/photo-2.jpg']
         }
       ]),
-      readEntryBuffer: jest.fn().mockResolvedValue(Buffer.from('fitness-file'))
+      readEntryBuffer: vi.fn().mockResolvedValue(Buffer.from('fitness-file'))
     } as never)
 
     mockSaveFitnessFile.mockResolvedValueOnce({
@@ -508,13 +508,13 @@ describe('importStravaArchiveJob', () => {
     )
 
     mockArchiveReaderOpen.mockResolvedValueOnce({
-      close: jest.fn(),
-      hasEntry: jest
+      close: vi.fn(),
+      hasEntry: vi
         .fn()
         .mockImplementation(
           (entryPath: string) => entryPath !== 'media/missing.jpg'
         ),
-      getActivities: jest.fn().mockResolvedValue([
+      getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
           activityName: 'Morning Ride',
@@ -522,7 +522,7 @@ describe('importStravaArchiveJob', () => {
           mediaPaths: ['media/missing.jpg', 'media/photo-2.jpg']
         }
       ]),
-      readEntryBuffer: jest
+      readEntryBuffer: vi
         .fn()
         .mockResolvedValueOnce(Buffer.from('fitness-file'))
         .mockResolvedValueOnce(Buffer.from('media-file'))
@@ -590,7 +590,7 @@ describe('importStravaArchiveJob', () => {
       Body: Readable.from([Buffer.from('partial-data')]),
       ContentLength: undefined
     })
-    const unlinkSpy = jest.spyOn(fs, 'unlink')
+    const unlinkSpy = vi.spyOn(fs, 'unlink')
 
     try {
       await importStravaArchiveJob(database as unknown as Database, {
@@ -772,9 +772,9 @@ describe('importStravaArchiveJob', () => {
 
   it('rolls back staged fitness files sequentially when import enqueue fails', async () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
-      close: jest.fn(),
-      hasEntry: jest.fn().mockReturnValue(true),
-      getActivities: jest.fn().mockResolvedValue([
+      close: vi.fn(),
+      hasEntry: vi.fn().mockReturnValue(true),
+      getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
           activityName: 'Morning Ride',
@@ -788,7 +788,7 @@ describe('importStravaArchiveJob', () => {
           mediaPaths: []
         }
       ]),
-      readEntryBuffer: jest.fn().mockResolvedValue(Buffer.from('fitness-file'))
+      readEntryBuffer: vi.fn().mockResolvedValue(Buffer.from('fitness-file'))
     } as never)
     mockSaveFitnessFile
       .mockResolvedValueOnce({
@@ -847,9 +847,9 @@ describe('importStravaArchiveJob', () => {
 
   it('rolls back earlier batch fitness files when a continuation hits an archive limit', async () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
-      close: jest.fn(),
-      hasEntry: jest.fn().mockReturnValue(true),
-      getActivities: jest.fn().mockResolvedValue([
+      close: vi.fn(),
+      hasEntry: vi.fn().mockReturnValue(true),
+      getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
           activityName: 'Earlier Ride',
@@ -869,7 +869,7 @@ describe('importStravaArchiveJob', () => {
           mediaPaths: []
         }
       ]),
-      readEntryBuffer: jest
+      readEntryBuffer: vi
         .fn()
         .mockResolvedValueOnce(Buffer.from('fitness-file'))
         .mockRejectedValueOnce(

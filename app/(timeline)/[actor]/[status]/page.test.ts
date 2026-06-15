@@ -1,34 +1,34 @@
 import { generateMetadata } from './page'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn()
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn()
 }))
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn()
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn()
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn()
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn()
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn()
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn()
 }))
 
-jest.mock('./Header', () => ({
+vi.mock('./Header', () => ({
   Header: () => null
 }))
 
-jest.mock('./RemoteStatusLoading', () => ({
+vi.mock('./RemoteStatusLoading', () => ({
   RemoteStatusLoading: () => null
 }))
 
-jest.mock('./StatusBox', () => ({
+vi.mock('./StatusBox', () => ({
   StatusBox: () => null
 }))
 

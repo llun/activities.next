@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -14,30 +14,30 @@ import {
 import { ReplyPreview } from './reply-preview'
 
 // Mock the processStatusText utility
-jest.mock('@/lib/utils/text/processStatusText', () => ({
-  processStatusText: jest.fn((host: string, status: StatusNote) => {
+vi.mock('@/lib/utils/text/processStatusText', async () => ({
+  processStatusText: vi.fn((host: string, status: StatusNote) => {
     if (status.type === 'Announce') {
       return (status as unknown as StatusAnnounce).originalStatus.text
     }
     return status.text
   }),
-  getActualStatus: jest.fn((status: StatusNote) => status)
+  getActualStatus: vi.fn((status: StatusNote) => status)
 }))
 
 // Mock the cleanClassName utility
-jest.mock('@/lib/utils/text/cleanClassName', () => ({
-  cleanClassName: jest.fn((text: string) => <span>{text}</span>)
+vi.mock('@/lib/utils/text/cleanClassName', async () => ({
+  cleanClassName: vi.fn((text: string) => <span>{text}</span>)
 }))
 
 // Mock the ActorInfo component
-jest.mock('@/lib/components/posts/actor', () => ({
+vi.mock('@/lib/components/posts/actor', async () => ({
   ActorInfo: ({ actor }: { actor: { name: string } }) => (
     <span data-testid="actor-info">{actor?.name || 'Unknown'}</span>
   )
 }))
 
 describe('ReplyPreview', () => {
-  const mockOnClose = jest.fn()
+  const mockOnClose = vi.fn()
 
   const createMockStatus = (
     overrides: Partial<StatusNote> = {}
@@ -105,7 +105,7 @@ describe('ReplyPreview', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('rendering', () => {
@@ -126,7 +126,7 @@ describe('ReplyPreview', () => {
     })
 
     it('renders "No content preview" when text is empty', () => {
-      const { processStatusText } = jest.requireMock(
+      const { processStatusText } = await vi.importMock(
         '../../utils/text/processStatusText'
       )
       processStatusText.mockReturnValueOnce('')
@@ -198,7 +198,7 @@ describe('ReplyPreview', () => {
     })
 
     it('renders boosted (Announce) status with original content', () => {
-      const { processStatusText } = jest.requireMock(
+      const { processStatusText } = await vi.importMock(
         '../../utils/text/processStatusText'
       )
       processStatusText.mockReturnValueOnce(
@@ -216,7 +216,7 @@ describe('ReplyPreview', () => {
 
   describe('text processing', () => {
     it('passes host and status to processStatusText', () => {
-      const { processStatusText } = jest.requireMock(
+      const { processStatusText } = await vi.importMock(
         '../../utils/text/processStatusText'
       )
 

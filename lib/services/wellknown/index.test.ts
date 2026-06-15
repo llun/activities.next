@@ -9,9 +9,9 @@ import {
   getWebFingerResponse
 } from './index'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'test.example.com' }),
-  getBaseURL: jest.fn().mockReturnValue('https://test.example.com')
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({ host: 'test.example.com' }),
+  getBaseURL: vi.fn().mockReturnValue('https://test.example.com')
 }))
 
 describe('wellknown services', () => {
@@ -181,11 +181,11 @@ describe('wellknown services', () => {
 describe('getWebFingerResponse', () => {
   // Mock database for webfinger tests
   const mockDatabase = {
-    getActorFromUsername: jest.fn()
+    getActorFromUsername: vi.fn()
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns null when resource format is invalid', async () => {

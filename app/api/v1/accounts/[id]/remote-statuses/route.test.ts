@@ -12,7 +12,7 @@ const mockCurrentActor = {
   id: 'https://local.example/users/me'
 }
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (_scopes: unknown, handle: CallableFunction) =>
     (req: NextRequest, context: { params: Promise<{ id: string }> }) =>
@@ -23,8 +23,8 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
-jest.mock('@/lib/activities/getActorPerson')
-jest.mock('@/lib/activities/getActorPosts')
+vi.mock('@/lib/activities/getActorPerson')
+vi.mock('@/lib/activities/getActorPosts')
 
 const actorId = 'https://remote.example/users/actor'
 const pageUrl = 'https://remote.example/users/actor/outbox?page=true&max_id=1'
@@ -36,7 +36,7 @@ const createRequest = (query = '') =>
 
 describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(getActorPerson as jest.Mock).mockResolvedValue({
       id: actorId,
       type: 'Person',

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -10,27 +10,27 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { MainPageTimeline } from './MainPageTimeline'
 
-jest.mock('@/lib/client', () => ({
-  getTimeline: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getTimeline: vi.fn()
 }))
 
-jest.mock('@/lib/components/announcements/AnnouncementBanner', () => ({
+vi.mock('@/lib/components/announcements/AnnouncementBanner', () => ({
   AnnouncementBanner: () => null
 }))
 
-jest.mock('@/lib/components/page-header', () => ({
+vi.mock('@/lib/components/page-header', () => ({
   PageHeader: () => null
 }))
 
-jest.mock('@/lib/components/post-box/post-box', () => ({
+vi.mock('@/lib/components/post-box/post-box', () => ({
   PostBox: () => null
 }))
 
-jest.mock('@/lib/components/scroll-to-top-button', () => ({
+vi.mock('@/lib/components/scroll-to-top-button', () => ({
   ScrollToTopButton: () => null
 }))
 
-jest.mock('@/lib/components/posts/posts', () => ({
+vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
     currentTime
@@ -47,7 +47,7 @@ jest.mock('@/lib/components/posts/posts', () => ({
   )
 }))
 
-jest.mock('@/lib/components/ui/tabs', () => ({
+vi.mock('@/lib/components/ui/tabs', () => ({
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -56,7 +56,7 @@ jest.mock('@/lib/components/ui/tabs', () => ({
   )
 }))
 
-jest.mock('@/lib/components/ui/button', () => ({
+vi.mock('@/lib/components/ui/button', () => ({
   Button: ({ children }: { children: ReactNode }) => <button>{children}</button>
 }))
 
@@ -118,7 +118,7 @@ describe('MainPageTimeline', () => {
     // and client-hydration output match. Computing Date.now() inside this
     // client component yields a different value on the client and breaks
     // hydration.
-    const dateNowSpy = jest
+    const dateNowSpy = vi
       .spyOn(Date, 'now')
       .mockReturnValue(FIXED_CURRENT_TIME + 5 * 60 * 1000)
 

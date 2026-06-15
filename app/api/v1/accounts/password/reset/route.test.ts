@@ -4,8 +4,8 @@ import { Database } from '@/lib/database/types'
 
 import { POST } from './route'
 
-const mockBcryptHash = jest.fn()
-jest.mock('bcrypt', () => ({
+const mockBcryptHash = vi.fn()
+vi.mock('bcrypt', () => ({
   __esModule: true,
   default: {
     hash: (...args: unknown[]) => mockBcryptHash(...args)
@@ -18,14 +18,14 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('POST /api/v1/accounts/password/reset', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    validatePasswordResetCode: jest.fn(),
-    resetPasswordWithCode: jest.fn()
+    validatePasswordResetCode: vi.fn(),
+    resetPasswordWithCode: vi.fn()
   }
 
   beforeAll(() => {
@@ -33,7 +33,7 @@ describe('POST /api/v1/accounts/password/reset', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockBcryptHash.mockResolvedValue('new-password-hash')
     mockDb.validatePasswordResetCode.mockResolvedValue('account-1')
     mockDb.resetPasswordWithCode.mockResolvedValue({

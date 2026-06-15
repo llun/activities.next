@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -17,66 +17,66 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import Page from './page'
 import { resolveStatusFromPath } from './resolveStatusFromPath'
 
-jest.mock('next/navigation', () => ({
-  notFound: jest.fn(() => {
+vi.mock('next/navigation', async () => ({
+  notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')
   })
 }))
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn(() => ({
+vi.mock('@/lib/config', async () => ({
+  getConfig: vi.fn(() => ({
     host: 'activities.local',
     fitnessStorage: undefined,
     mediaStorage: undefined
   }))
 }))
 
-const mockGetStatus = jest.fn()
-const mockGetStatusReplies = jest.fn()
-const mockGetAcceptedOrRequestedFollow = jest.fn()
+const mockGetStatus = vi.fn()
+const mockGetStatusReplies = vi.fn()
+const mockGetAcceptedOrRequestedFollow = vi.fn()
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn(() => ({
+vi.mock('@/lib/database', async () => ({
+  getDatabase: vi.fn(() => ({
     getStatus: mockGetStatus,
     getStatusReplies: mockGetStatusReplies,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow
   }))
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn()
+vi.mock('@/lib/services/auth/getSession', async () => ({
+  getServerAuthSession: vi.fn()
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn()
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn()
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn()
+vi.mock('@/lib/utils/getActorFromSession', async () => ({
+  getActorFromSession: vi.fn()
 }))
 
-jest.mock('@/lib/utils/mapbox', () => ({
-  getPublicMapboxAccessToken: jest.fn(() => undefined)
+vi.mock('@/lib/utils/mapbox', async () => ({
+  getPublicMapboxAccessToken: vi.fn(() => undefined)
 }))
 
-jest.mock('./resolveStatusFromPath', () => ({
-  ...jest.requireActual('./resolveStatusFromPath'),
-  resolveStatusFromPath: jest.fn()
+vi.mock('./resolveStatusFromPath', async () => ({
+  ...(await vi.importActual('./resolveStatusFromPath')),
+  resolveStatusFromPath: vi.fn()
 }))
 
-jest.mock('./Header', () => ({ Header: () => null }))
-jest.mock('./RemoteStatusLoading', () => ({ RemoteStatusLoading: () => null }))
+vi.mock('./Header', async () => ({ Header: () => null }))
+vi.mock('./RemoteStatusLoading', async () => ({ RemoteStatusLoading: () => null }))
 
 // Render each status as its id so we can assert which statuses reach the page.
-jest.mock('./StatusBox', () => ({
+vi.mock('./StatusBox', async () => ({
   StatusBox: ({ status }: { status: { id: string } }) => (
     <div data-testid={`status-${status.id}`} />
   )
 }))
 
-const mockResolveStatusFromPath = jest.mocked(resolveStatusFromPath)
-const mockGetServerAuthSession = jest.mocked(getServerAuthSession)
-const mockGetActorFromSession = jest.mocked(getActorFromSession)
+const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
+const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
+const mockGetActorFromSession = vi.mocked(getActorFromSession)
 
 const VIEWER_ID = 'https://activities.local/users/viewer'
 const AUTHOR_ID = 'https://activities.local/users/anna'
@@ -159,7 +159,7 @@ const renderPage = async () => {
 
 describe('Page visibility for logged-out visitors', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // clearAllMocks does not reset implementations; getStatus is only set by
     // individual ancestor tests, so reset it to avoid leaking across tests.
     mockGetStatus.mockReset()
@@ -358,7 +358,7 @@ describe('Page visibility for logged-out visitors', () => {
 
 describe('Page visibility for logged-in non-recipient viewers', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // clearAllMocks does not reset implementations; getStatus is only set by
     // individual ancestor tests, so reset it to avoid leaking across tests.
     mockGetStatus.mockReset()
@@ -710,7 +710,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
 
 describe('Page visibility for the focused-status author', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetStatus.mockReset()
     mockGetServerAuthSession.mockResolvedValue({} as never)
     // The signed-in viewer IS the author of the focused status.

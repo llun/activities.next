@@ -20,7 +20,7 @@ const getOriginalStatusIdFromAnnounceContent = (content) => {
   return null
 }
 
-exports.up = async (knex) => {
+export const up = async (knex) => {
   const hasOriginalStatusId = await knex.schema.hasColumn(
     'statuses',
     'originalStatusId'
@@ -53,7 +53,7 @@ exports.up = async (knex) => {
   })
 }
 
-exports.down = async (knex) => {
+export const down = async (knex) => {
   const hasOriginalStatusId = await knex.schema.hasColumn(
     'statuses',
     'originalStatusId'

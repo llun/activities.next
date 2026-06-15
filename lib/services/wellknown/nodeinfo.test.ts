@@ -14,24 +14,24 @@ const DEFAULT_CONFIG = {
   serviceDescription: 'Test description'
 }
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn(),
-  getBaseURL: jest.fn().mockReturnValue('https://test.example.com')
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn(),
+  getBaseURL: vi.fn().mockReturnValue('https://test.example.com')
 }))
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn()
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn()
 }))
 
-jest.mock('@/lib/utils/logger', () => ({
-  logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() }
+vi.mock('@/lib/utils/logger', () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() }
 }))
 
 const mockedGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 const mockedGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockedGetConfig.mockReturnValue(
     DEFAULT_CONFIG as unknown as ReturnType<typeof getConfig>
   )
@@ -78,7 +78,7 @@ describe('buildNodeInfo20', () => {
   })
 
   it('builds the document from database stats', async () => {
-    const getNodeInfoStats = jest.fn().mockResolvedValue(STATS)
+    const getNodeInfoStats = vi.fn().mockResolvedValue(STATS)
     mockedGetDatabase.mockReturnValue({
       getNodeInfoStats
     } as unknown as ReturnType<typeof getDatabase>)
@@ -102,7 +102,7 @@ describe('buildNodeInfo20', () => {
 
   it('returns null when the stats query throws', async () => {
     mockedGetDatabase.mockReturnValue({
-      getNodeInfoStats: jest.fn().mockRejectedValue(new Error('db down'))
+      getNodeInfoStats: vi.fn().mockRejectedValue(new Error('db down'))
     } as unknown as ReturnType<typeof getDatabase>)
 
     expect(await buildNodeInfo20()).toBeNull()

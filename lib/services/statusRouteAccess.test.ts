@@ -5,9 +5,9 @@ import type { Status } from '@/lib/types/domain/status'
 import { canActorReadStatus, isStatusPubliclyReadable } from './statusAccess'
 import { filterReadableStatuses } from './statusRouteAccess'
 
-jest.mock('./statusAccess', () => ({
-  canActorReadStatus: jest.fn(),
-  isStatusPubliclyReadable: jest.fn()
+vi.mock('./statusAccess', () => ({
+  canActorReadStatus: vi.fn(),
+  isStatusPubliclyReadable: vi.fn()
 }))
 
 const createStatus = (id: string) =>
@@ -17,14 +17,14 @@ const createStatus = (id: string) =>
   }) as Status
 
 describe('filterReadableStatuses', () => {
-  const getAcceptedFollowTargetActorIds = jest.fn()
+  const getAcceptedFollowTargetActorIds = vi.fn()
   const database = { getAcceptedFollowTargetActorIds } as unknown as Database
   const currentActor = {
     id: 'https://example.com/users/bob'
   } as Actor
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     getAcceptedFollowTargetActorIds.mockResolvedValue([
       'https://example.com/users/alice'
     ])

@@ -5,20 +5,20 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 import { GET } from './route'
 
 const mockDatabase = {
-  getBlockRelations: jest.fn(),
-  getMuteRelations: jest.fn(),
-  getStatusesByHashtag: jest.fn(),
-  isFollowingTag: jest.fn()
+  getBlockRelations: vi.fn(),
+  getMuteRelations: vi.fn(),
+  getStatusesByHashtag: vi.fn(),
+  isFollowingTag: vi.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
 }
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({ host: 'local.test' })
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OptionalOAuthGuard:
     (
       _scopes: unknown,
@@ -37,7 +37,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
         currentActor: mockCurrentActor,
         params: context.params
       }),
-  corsErrorResponse: jest.fn()
+  corsErrorResponse: vi.fn()
 }))
 
 const status = {
@@ -48,7 +48,7 @@ const status = {
 
 describe('GET /api/v1/tags/:tag', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getBlockRelations.mockResolvedValue([])
     mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])

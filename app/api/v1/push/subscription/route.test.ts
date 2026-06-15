@@ -9,11 +9,11 @@ import { DELETE, GET, POST, PUT } from './route'
 
 const mockGetConfig = getConfig as jest.Mock
 
-const mockOAuthGuard = jest.fn()
+const mockOAuthGuard = vi.fn()
 const mockCurrentActor = { ...seedActor1, id: ACTOR1_ID }
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
     allowActorDomains: [],
@@ -30,11 +30,11 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   corsErrorResponse: () => () => new Response(null, { status: 401 }),
   // Mirror the real parser in OAuthGuard.ts exactly (trim + split on \s+,
   // require exactly two parts, case-insensitive scheme) so the route tests
@@ -99,12 +99,12 @@ const storedSubscription = {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockDatabase = {
-    createPushSubscription: jest.fn().mockResolvedValue(storedSubscription),
-    updatePushSubscription: jest.fn().mockResolvedValue(storedSubscription),
-    deletePushSubscription: jest.fn().mockResolvedValue(undefined),
-    getPushSubscriptionForActor: jest.fn().mockResolvedValue(storedSubscription)
+    createPushSubscription: vi.fn().mockResolvedValue(storedSubscription),
+    updatePushSubscription: vi.fn().mockResolvedValue(storedSubscription),
+    deletePushSubscription: vi.fn().mockResolvedValue(undefined),
+    getPushSubscriptionForActor: vi.fn().mockResolvedValue(storedSubscription)
   }
 })
 
@@ -224,7 +224,7 @@ describe('GET /api/v1/push/subscription', () => {
   })
 
   it('returns 404 when there is no subscription', async () => {
-    mockDatabase!.getPushSubscriptionForActor = jest
+    mockDatabase!.getPushSubscriptionForActor = vi
       .fn()
       .mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription')
@@ -279,7 +279,7 @@ describe('PUT /api/v1/push/subscription', () => {
   })
 
   it('returns 404 when there is no subscription to update', async () => {
-    mockDatabase!.updatePushSubscription = jest.fn().mockResolvedValue(null)
+    mockDatabase!.updatePushSubscription = vi.fn().mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {
       method: 'PUT',
       body: JSON.stringify({ data: { policy: 'none' } }),
@@ -310,7 +310,7 @@ describe('DELETE /api/v1/push/subscription', () => {
   })
 
   it('returns an empty object even without an existing subscription', async () => {
-    mockDatabase!.getPushSubscriptionForActor = jest
+    mockDatabase!.getPushSubscriptionForActor = vi
       .fn()
       .mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {

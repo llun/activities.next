@@ -17,8 +17,8 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { getMastodonStatus, getMastodonStatuses } from './getMastodonStatus'
 
 // prettier-ignore
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'test.llun.dev' })
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({ host: 'test.llun.dev' })
 }))
 
 describe('getMastodonStatus', () => {
@@ -30,7 +30,7 @@ describe('getMastodonStatus', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   afterAll(async () => {
@@ -40,7 +40,7 @@ describe('getMastodonStatus', () => {
 
   describe('getMastodonStatuses resilience', () => {
     beforeEach(() => {
-      jest.spyOn(logger, 'warn').mockImplementation(() => undefined as never)
+      vi.spyOn(logger, 'warn').mockImplementation(() => undefined as never)
     })
 
     it('skips a status whose lookup-id collection throws and keeps the good one', async () => {
@@ -103,23 +103,23 @@ describe('getMastodonStatus', () => {
       const secondStatus = (await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-3`
       })) as Status
-      const getMastodonActorsFromIds = jest.spyOn(
+      const getMastodonActorsFromIds = vi.spyOn(
         database,
         'getMastodonActorsFromIds'
       )
-      const getStatusReblogsCounts = jest.spyOn(
+      const getStatusReblogsCounts = vi.spyOn(
         database,
         'getStatusReblogsCounts'
       )
-      const getStatusRepliesCounts = jest.spyOn(
+      const getStatusRepliesCounts = vi.spyOn(
         database,
         'getStatusRepliesCounts'
       )
-      const getStatusReblogsCount = jest.spyOn(
+      const getStatusReblogsCount = vi.spyOn(
         database,
         'getStatusReblogsCount'
       )
-      const getStatusRepliesCount = jest.spyOn(
+      const getStatusRepliesCount = vi.spyOn(
         database,
         'getStatusRepliesCount'
       )
@@ -250,7 +250,7 @@ describe('getMastodonStatus', () => {
       const secondStatus = (await database.getStatus({
         statusId: secondStatusId
       })) as Status
-      const getPinnedStatusIds = jest.spyOn(database, 'getPinnedStatusIds')
+      const getPinnedStatusIds = vi.spyOn(database, 'getPinnedStatusIds')
 
       try {
         const mastodonStatuses = await getMastodonStatuses(
@@ -314,12 +314,12 @@ describe('getMastodonStatus', () => {
       const secondPoll = (await database.getStatus({
         statusId: secondPollId
       })) as Status
-      const getActorPollVotesForStatuses = jest.spyOn(
+      const getActorPollVotesForStatuses = vi.spyOn(
         database,
         'getActorPollVotesForStatuses'
       )
-      const hasActorVoted = jest.spyOn(database, 'hasActorVoted')
-      const getActorPollVotes = jest.spyOn(database, 'getActorPollVotes')
+      const hasActorVoted = vi.spyOn(database, 'hasActorVoted')
+      const getActorPollVotes = vi.spyOn(database, 'getActorPollVotes')
 
       try {
         const mastodonStatuses = await getMastodonStatuses(
@@ -425,7 +425,7 @@ describe('getMastodonStatus', () => {
       if (!account) {
         throw new Error('Expected seed actor account')
       }
-      const getMastodonActorsFromIds = jest
+      const getMastodonActorsFromIds = vi
         .spyOn(database, 'getMastodonActorsFromIds')
         .mockResolvedValueOnce([
           {
@@ -433,7 +433,7 @@ describe('getMastodonStatus', () => {
             url: 'https://llun.test/@test1'
           }
         ])
-      const getMastodonActorFromId = jest.spyOn(
+      const getMastodonActorFromId = vi.spyOn(
         database,
         'getMastodonActorFromId'
       )
@@ -461,8 +461,8 @@ describe('getMastodonStatus', () => {
       const replyTwo = (await database.getStatus({
         statusId: `${ACTOR2_ID}/statuses/reply-1`
       })) as Status
-      const getStatusesByIds = jest.spyOn(database, 'getStatusesByIds')
-      const getStatus = jest.spyOn(database, 'getStatus')
+      const getStatusesByIds = vi.spyOn(database, 'getStatusesByIds')
+      const getStatus = vi.spyOn(database, 'getStatus')
 
       try {
         const mastodonStatuses = await getMastodonStatuses(
@@ -493,7 +493,7 @@ describe('getMastodonStatus', () => {
       const status = (await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`
       })) as Status
-      const getMastodonActorsFromIds = jest
+      const getMastodonActorsFromIds = vi
         .spyOn(database, 'getMastodonActorsFromIds')
         .mockResolvedValueOnce([
           {

@@ -6,9 +6,9 @@ import {
   createSafeRemoteFetch
 } from '@/lib/utils/safeRemoteFetch'
 
-const mockGotStream = jest.fn()
+const mockGotStream = vi.fn()
 
-jest.mock('got', () => ({
+vi.mock('got', () => ({
   __esModule: true,
   default: {
     stream: (url: string, options: unknown) => mockGotStream(url, options)
@@ -39,7 +39,7 @@ describe('safeRemoteFetch', () => {
   })
 
   it('rejects a redirect whose hostname resolves to a private IPv4 address', async () => {
-    const transport: SafeRemoteFetchTransport = jest.fn(async ({ url }) => {
+    const transport: SafeRemoteFetchTransport = vi.fn(async ({ url }) => {
       if (url.hostname === 'safe.example') {
         return {
           statusCode: 302,
@@ -134,7 +134,7 @@ describe('safeRemoteFetch', () => {
   })
 
   it('does not allow a configured redirect cap above three redirects', async () => {
-    const transport: SafeRemoteFetchTransport = jest.fn(async ({ url }) => {
+    const transport: SafeRemoteFetchTransport = vi.fn(async ({ url }) => {
       const redirectCount = Number(url.pathname.replace('/', '') || '0')
       return {
         statusCode: 302,
@@ -217,7 +217,7 @@ describe('safeRemoteFetch', () => {
   })
 
   it('allows NAT64 addresses when the embedded IPv4 address is safe', async () => {
-    const transport: SafeRemoteFetchTransport = jest.fn(async () =>
+    const transport: SafeRemoteFetchTransport = vi.fn(async () =>
       okResponse()
     )
     const safeRemoteFetch = createSafeRemoteFetch({
@@ -406,7 +406,7 @@ describe('safeRemoteFetch', () => {
 
   it('destroys redirect response bodies without buffering them', async () => {
     const redirectBody = streamFrom(['redirect body'])
-    const destroy = jest.spyOn(redirectBody, 'destroy')
+    const destroy = vi.spyOn(redirectBody, 'destroy')
     const safeRemoteFetch = createSafeRemoteFetch({
       resolveHost: async () => [SAFE_ADDRESS],
       transport: async ({ url }) => {

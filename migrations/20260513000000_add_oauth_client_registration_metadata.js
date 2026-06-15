@@ -32,7 +32,7 @@ const hasIndex = async (trx, tableName, indexName) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.transaction(async (trx) => {
     const hasReferenceId = await trx.schema.hasColumn(
       'oauthClient',
@@ -69,7 +69,7 @@ exports.up = async (knex) => {
 /**
  * @returns { Promise<void> }
  */
-exports.down = async () => {
+export const down = async () => {
   // Intentionally no-op: fresh databases may already have these columns from
   // the OAuth provider table migration, and current app code depends on them.
 }

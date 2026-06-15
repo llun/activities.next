@@ -8,7 +8,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.createTable('status_mutes', (table) => {
     table.string('actorId').notNullable()
     // The thread-root status id that identifies the muted conversation.
@@ -27,4 +27,4 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => knex.schema.dropTable('status_mutes')
+export const down = (knex) => knex.schema.dropTable('status_mutes')

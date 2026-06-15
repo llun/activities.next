@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -17,11 +17,11 @@ import { Poll } from './poll'
 import { TranslateContent } from './translate-content'
 import { TranslationProvider } from './translation-context'
 
-jest.mock('@/lib/client', () => ({
-  translateStatus: jest.fn(),
-  getTranslationCapability: jest.fn(),
-  getTranslationLanguages: jest.fn(),
-  votePoll: jest.fn()
+vi.mock('@/lib/client', () => ({
+  translateStatus: vi.fn(),
+  getTranslationCapability: vi.fn(),
+  getTranslationLanguages: vi.fn(),
+  votePoll: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -84,7 +84,7 @@ const translation: Translation = {
 
 describe('status translation', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(getTranslationCapability as jest.Mock).mockResolvedValue({
       enabled: true,
       defaultLanguage: 'en'

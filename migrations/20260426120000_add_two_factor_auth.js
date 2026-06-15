@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.transaction(async (trx) => {
     await trx.schema.alterTable('accounts', (table) => {
       table.boolean('twoFactorEnabled').notNullable().defaultTo(false)
@@ -28,7 +28,7 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.transaction(async (trx) => {
     await trx.schema.dropTableIfExists('twoFactor')
     await trx.schema.alterTable('accounts', (table) => {

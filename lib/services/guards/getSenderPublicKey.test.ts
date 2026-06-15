@@ -16,10 +16,10 @@ import { parse } from '@/lib/utils/signature'
 enableFetchMocks()
 
 const mockSpan = {
-  end: jest.fn(),
-  recordException: jest.fn()
+  end: vi.fn(),
+  recordException: vi.fn()
 }
-const mockStartActiveSpan = jest.fn((...params: unknown[]) => {
+const mockStartActiveSpan = vi.fn((...params: unknown[]) => {
   const callback = params[params.length - 1] as (
     span: typeof mockSpan
   ) => unknown
@@ -27,16 +27,16 @@ const mockStartActiveSpan = jest.fn((...params: unknown[]) => {
 })
 const mockWarn = logger.warn as jest.Mock
 
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    debug: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn()
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn()
   }
 }))
 
-jest.mock('@/lib/utils/trace', () => ({
+vi.mock('@/lib/utils/trace', () => ({
   getTracer: () => ({
     startActiveSpan: mockStartActiveSpan
   })

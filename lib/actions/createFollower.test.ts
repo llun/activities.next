@@ -8,8 +8,8 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
-jest.mock('@/lib/activities')
-jest.mock('@/lib/activities/getActorPerson')
+vi.mock('@/lib/activities')
+vi.mock('@/lib/activities/getActorPerson')
 
 describe('createFollower', () => {
   const database = getTestSQLDatabase()
@@ -37,7 +37,7 @@ describe('createFollower', () => {
 
   it('creates follower in database and send accept follow back when auto-accept is enabled', async () => {
     // Mock getActorSettings to return manuallyApprovesFollowers: false
-    getActorSettingsSpy = jest
+    getActorSettingsSpy = vi
       .spyOn(database, 'getActorSettings')
       .mockResolvedValueOnce({
         iconUrl: undefined,
@@ -71,7 +71,7 @@ describe('createFollower', () => {
 
   it('creates follower with Requested status when manual approval is enabled', async () => {
     // Mock getActorSettings to return manuallyApprovesFollowers: true
-    getActorSettingsSpy = jest
+    getActorSettingsSpy = vi
       .spyOn(database, 'getActorSettings')
       .mockResolvedValueOnce({
         iconUrl: undefined,

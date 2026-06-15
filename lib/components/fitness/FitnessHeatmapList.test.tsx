@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -32,8 +32,8 @@ describe('FitnessHeatmapList', () => {
     render(
       <FitnessHeatmapList
         heatmaps={[]}
-        onSelect={jest.fn()}
-        onRetry={jest.fn()}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -50,8 +50,8 @@ describe('FitnessHeatmapList', () => {
     render(
       <FitnessHeatmapList
         heatmaps={[generating, failed]}
-        onSelect={jest.fn()}
-        onRetry={jest.fn()}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -73,8 +73,8 @@ describe('FitnessHeatmapList', () => {
     render(
       <FitnessHeatmapList
         heatmaps={[completed]}
-        onSelect={jest.fn()}
-        onRetry={jest.fn()}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -95,14 +95,14 @@ describe('FitnessHeatmapList', () => {
   })
 
   it('clicking a row calls onSelect with that heatmap', () => {
-    const onSelect = jest.fn()
+    const onSelect = vi.fn()
     const heatmap = makeMockHeatmap({ id: 'heatmap-active', status: 'pending' })
 
     render(
       <FitnessHeatmapList
         heatmaps={[heatmap]}
         onSelect={onSelect}
-        onRetry={jest.fn()}
+        onRetry={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -116,8 +116,8 @@ describe('FitnessHeatmapList', () => {
   })
 
   it('clicking retry button calls onRetry and not onSelect', async () => {
-    const onSelect = jest.fn()
-    const onRetry = jest.fn().mockResolvedValue(undefined)
+    const onSelect = vi.fn()
+    const onRetry = vi.fn().mockResolvedValue(undefined)
     const heatmap = makeMockHeatmap({
       id: 'heatmap-fail',
       status: 'failed',
@@ -159,8 +159,8 @@ describe('FitnessHeatmapList', () => {
     render(
       <FitnessHeatmapList
         heatmaps={[heatmap]}
-        onSelect={jest.fn()}
-        onRetry={jest.fn()}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -169,8 +169,8 @@ describe('FitnessHeatmapList', () => {
   })
 
   it('labels capped completed heatmaps as partial with a resume action', async () => {
-    const onSelect = jest.fn()
-    const onRetry = jest.fn().mockResolvedValue(undefined)
+    const onSelect = vi.fn()
+    const onRetry = vi.fn().mockResolvedValue(undefined)
     const heatmap = makeMockHeatmap({
       id: 'heatmap-partial',
       status: 'completed',

@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.createTable('markers', (table) => {
     table.string('id').primary()
     table.string('actorId').notNullable()
@@ -23,4 +23,4 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => knex.schema.dropTable('markers')
+export const down = (knex) => knex.schema.dropTable('markers')

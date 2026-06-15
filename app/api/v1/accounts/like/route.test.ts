@@ -3,24 +3,24 @@ import { NextRequest } from 'next/server'
 import { DELETE, POST } from './route'
 
 const mockDatabase = {
-  getStatus: jest.fn(),
-  createLike: jest.fn(),
-  deleteLike: jest.fn()
+  getStatus: vi.fn(),
+  createLike: vi.fn(),
+  deleteLike: vi.fn()
 }
 
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun'
 }
 
-const mockSendLike = jest.fn()
-const mockSendUndoLike = jest.fn()
+const mockSendLike = vi.fn()
+const mockSendUndoLike = vi.fn()
 
-jest.mock('@/lib/activities', () => ({
+vi.mock('@/lib/activities', () => ({
   sendLike: (...args: unknown[]) => mockSendLike(...args),
   sendUndoLike: (...args: unknown[]) => mockSendUndoLike(...args)
 }))
 
-jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
+vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
   AuthenticatedGuard:
     (
       handle: (
@@ -42,7 +42,7 @@ jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
 
 describe('POST /api/v1/accounts/like', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns 422 when the request payload fails schema validation', async () => {
@@ -80,7 +80,7 @@ describe('POST /api/v1/accounts/like', () => {
 
 describe('DELETE /api/v1/accounts/like', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns 422 when the request payload fails schema validation', async () => {

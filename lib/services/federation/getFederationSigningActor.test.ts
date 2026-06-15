@@ -26,7 +26,7 @@ const userActor = {
 describe('getFederationSigningActor', () => {
   it('reuses an already resolved headless instance actor', async () => {
     const database = {
-      getFederationSigningActor: jest.fn()
+      getFederationSigningActor: vi.fn()
     } as unknown as Database
 
     await expect(
@@ -37,7 +37,7 @@ describe('getFederationSigningActor', () => {
 
   it('does not reuse a real user actor as the federation signing actor', async () => {
     const database = {
-      getFederationSigningActor: jest.fn().mockResolvedValue(serviceActor)
+      getFederationSigningActor: vi.fn().mockResolvedValue(serviceActor)
     } as unknown as Database
 
     await expect(getFederationSigningActor(database, userActor)).resolves.toBe(

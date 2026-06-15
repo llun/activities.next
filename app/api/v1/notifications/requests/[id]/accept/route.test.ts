@@ -5,20 +5,20 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { POST } from './route'
 
 const mockDatabase = {
-  getNotificationRequest: jest.fn(),
-  acceptNotificationRequests: jest.fn(),
-  getActorSettings: jest.fn().mockResolvedValue(undefined),
-  updateActor: jest.fn().mockResolvedValue(null)
+  getNotificationRequest: vi.fn(),
+  acceptNotificationRequests: vi.fn(),
+  getActorSettings: vi.fn().mockResolvedValue(undefined),
+  updateActor: vi.fn().mockResolvedValue(null)
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
 const SOURCE_ACTOR_ID = 'https://other.test/users/stranger'
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -36,7 +36,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('POST /api/v1/notifications/requests/[id]/accept', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('accepts the request and clears the filtered flag', async () => {

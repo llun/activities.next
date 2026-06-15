@@ -672,7 +672,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation()
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -747,7 +747,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation()
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -805,7 +805,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation()
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -863,7 +863,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = jest.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation()
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -1043,12 +1043,12 @@ describe('production archive scripts', () => {
 
     afterEach(() => {
       global.fetch = originalFetch
-      jest.useRealTimers()
+      vi.useRealTimers()
     })
 
     it('clears the response timeout after the public storage request starts', async () => {
-      jest.useFakeTimers()
-      global.fetch = jest.fn(async () => {
+      vi.useFakeTimers()
+      global.fetch = vi.fn(async () => {
         return new Response('ok')
       }) as typeof fetch
 
@@ -1063,7 +1063,7 @@ describe('production archive scripts', () => {
           signal: expect.any(AbortSignal)
         })
       )
-      expect(jest.getTimerCount()).toBe(0)
+      expect(vi.getTimerCount()).toBe(0)
     })
   })
 
@@ -1081,7 +1081,7 @@ describe('production archive scripts', () => {
     })
 
     it('removes partial files for allowed missing storage downloads', async () => {
-      const sendSpy = jest
+      const sendSpy = vi
         .spyOn(S3Client.prototype, 'send')
         .mockImplementation((async (command: { input?: { Key?: string } }) => {
           if (command.input?.Key === 'bad.txt') {
@@ -1097,8 +1097,8 @@ describe('production archive scripts', () => {
 
           return { Body: Readable.from([Buffer.from('ok')]) }
         }) as typeof S3Client.prototype.send)
-      const logSpy = jest.spyOn(console, 'log').mockImplementation()
-      const errorSpy = jest.spyOn(console, 'error').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation()
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation()
 
       try {
         await fs.mkdir(path.join(tempDir, 'storage', 'media', 'files'), {

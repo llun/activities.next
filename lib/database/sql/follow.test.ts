@@ -378,7 +378,7 @@ describe('FollowDatabase', () => {
           createLocalActor()
         ])
         const createRequestAt = async (actorId: string, createdAt: string) => {
-          jest.setSystemTime(new Date(createdAt))
+          vi.setSystemTime(new Date(createdAt))
           return database.createFollow({
             actorId,
             targetActorId: target,
@@ -389,7 +389,7 @@ describe('FollowDatabase', () => {
         }
 
         const created: Follow[] = []
-        jest.useFakeTimers({
+        vi.useFakeTimers({
           doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
@@ -397,7 +397,7 @@ describe('FollowDatabase', () => {
           created.push(await createRequestAt(middle, '2024-03-01T00:01:00Z'))
           created.push(await createRequestAt(newest, '2024-03-01T00:02:00Z'))
         } finally {
-          jest.useRealTimers()
+          vi.useRealTimers()
         }
         const middleRow = created[1]
 
@@ -453,11 +453,11 @@ describe('FollowDatabase', () => {
         ])
         const sharedTime = new Date('2024-04-01T00:00:00Z')
 
-        jest.useFakeTimers({
+        vi.useFakeTimers({
           doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
-          jest.setSystemTime(sharedTime)
+          vi.setSystemTime(sharedTime)
           for (const actorId of requesters) {
             await database.createFollow({
               actorId,
@@ -468,7 +468,7 @@ describe('FollowDatabase', () => {
             })
           }
         } finally {
-          jest.useRealTimers()
+          vi.useRealTimers()
         }
 
         const firstPage = await database.getFollowRequests({
@@ -505,7 +505,7 @@ describe('FollowDatabase', () => {
           createLocalActor()
         ])
         const createRequestAt = async (actorId: string, createdAt: string) => {
-          jest.setSystemTime(new Date(createdAt))
+          vi.setSystemTime(new Date(createdAt))
           return database.createFollow({
             actorId,
             targetActorId: target,
@@ -516,7 +516,7 @@ describe('FollowDatabase', () => {
         }
 
         let cursor: Follow
-        jest.useFakeTimers({
+        vi.useFakeTimers({
           doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
@@ -525,7 +525,7 @@ describe('FollowDatabase', () => {
           await createRequestAt(c, '2024-05-01T00:02:00Z')
           await createRequestAt(d, '2024-05-01T00:03:00Z')
         } finally {
-          jest.useRealTimers()
+          vi.useRealTimers()
         }
 
         // Two rows are newer than the cursor: c (00:02) and d (00:03).
@@ -556,11 +556,11 @@ describe('FollowDatabase', () => {
         ])
 
         let boundaryRow: Follow
-        jest.useFakeTimers({
+        vi.useFakeTimers({
           doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
-          jest.setSystemTime(new Date('2024-06-01T00:00:00Z'))
+          vi.setSystemTime(new Date('2024-06-01T00:00:00Z'))
           await database.createFollow({
             actorId: older,
             targetActorId: target,
@@ -568,7 +568,7 @@ describe('FollowDatabase', () => {
             sharedInbox: TEST_SHARED_INBOX,
             status: FollowStatus.enum.Requested
           })
-          jest.setSystemTime(new Date('2024-06-01T00:01:00Z'))
+          vi.setSystemTime(new Date('2024-06-01T00:01:00Z'))
           boundaryRow = await database.createFollow({
             actorId: boundary,
             targetActorId: target,
@@ -577,7 +577,7 @@ describe('FollowDatabase', () => {
             status: FollowStatus.enum.Requested
           })
         } finally {
-          jest.useRealTimers()
+          vi.useRealTimers()
         }
 
         // Authorize the boundary request, changing its status away from Requested.

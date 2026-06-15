@@ -1,7 +1,7 @@
-const { MOCK_SECRET_PHASES } = jest.requireActual('@/lib/stub/actor')
-const { TEST_DOMAIN } = jest.requireActual('@/lib/stub/const')
+const { MOCK_SECRET_PHASES } = await vi.importActual('@/lib/stub/actor')
+const { TEST_DOMAIN } = await vi.importActual('@/lib/stub/const')
 
-export const getConfig = jest.fn().mockReturnValue({
+export const getConfig = vi.fn().mockReturnValue({
   host: TEST_DOMAIN,
   database: {},
   allowEmails: [],
@@ -10,4 +10,4 @@ export const getConfig = jest.fn().mockReturnValue({
   auth: {}
 })
 
-export const getBaseURL = jest.fn().mockReturnValue(`https://${TEST_DOMAIN}`)
+export const getBaseURL = vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`)

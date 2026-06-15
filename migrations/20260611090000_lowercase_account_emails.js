@@ -76,7 +76,7 @@ const forEachChunk = async (trx, columns, handle) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.transaction(async (trx) => {
     // Pass 1 — detect collisions before writing anything, with a set-based SQL
     // aggregate so memory does not scale with the number of accounts. Any
@@ -175,6 +175,6 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } _knex
  * @returns { Promise<void> }
  */
-exports.down = async (_knex) => {
+export const down = async (_knex) => {
   // No-op: cannot restore original email casing.
 }

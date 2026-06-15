@@ -10,9 +10,9 @@ import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 // Mock the queue
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
@@ -39,7 +39,7 @@ describe('Undo Announce action', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('userUndoAnnounce', () => {

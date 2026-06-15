@@ -4,17 +4,17 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { GET } from './route'
 
-const mockGetMastodonStatuses = jest.fn()
+const mockGetMastodonStatuses = vi.fn()
 const mockDatabase = {
-  getBlockRelations: jest.fn(),
-  getMuteRelations: jest.fn(),
-  getStatusesByHashtag: jest.fn()
+  getBlockRelations: vi.fn(),
+  getMuteRelations: vi.fn(),
+  getStatusesByHashtag: vi.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
 }
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OptionalOAuthGuard:
     (
       _scopes: unknown,
@@ -33,10 +33,10 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
         currentActor: mockCurrentActor,
         params: context.params
       }),
-  corsErrorResponse: jest.fn()
+  corsErrorResponse: vi.fn()
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   getMastodonStatuses: (...params: unknown[]) =>
     mockGetMastodonStatuses(...params)
 }))
@@ -49,7 +49,7 @@ const status = {
 
 describe('GET /api/v1/timelines/tag/:hashtag', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getBlockRelations.mockResolvedValue([])
     mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])

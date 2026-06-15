@@ -4,25 +4,25 @@ import Page from './page'
 
 const mockDatabase = {}
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn(() => mockDatabase)
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(() => mockDatabase)
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue({
     user: { email: 'admin@llun.test' }
   })
 }))
 
-jest.mock('@/lib/utils/getAdminFromSession', () => ({
-  getAdminFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getAdminFromSession', () => ({
+  getAdminFromSession: vi.fn().mockResolvedValue({
     id: 'admin',
     email: 'admin@llun.test'
   })
 }))
 
-jest.mock('next/navigation', () => ({
-  redirect: jest.fn((path: string) => {
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((path: string) => {
     throw new Error(`Unexpected redirect to ${path}`)
   })
 }))

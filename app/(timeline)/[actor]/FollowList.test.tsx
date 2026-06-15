@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -8,7 +8,7 @@ import type { ActorProfile } from '@/lib/types/domain/actor'
 
 import { FollowList } from './FollowList'
 
-jest.mock('@/lib/components/follow-action/follow-action', () => ({
+vi.mock('@/lib/components/follow-action/follow-action', () => ({
   FollowAction: ({ targetActorId }: { targetActorId: string }) => (
     <button type="button">Follow {targetActorId}</button>
   )

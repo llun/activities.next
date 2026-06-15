@@ -17,7 +17,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function (knex) {
+export const up = function (knex) {
   return knex.schema.alterTable('push_subscriptions', function (table) {
     table.text('accessToken').nullable()
   })
@@ -27,7 +27,7 @@ exports.up = function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema.alterTable('push_subscriptions', function (table) {
     table.dropColumn('accessToken')
   })

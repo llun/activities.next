@@ -4,9 +4,9 @@ import { generateKeyPair, verify } from '@/lib/utils/signature'
 
 import { activityPubRequestHeaders } from './activityPubHeaders'
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', async () => ({
   getConfig: () => {
-    const { MOCK_SECRET_PHASES } = jest.requireActual('@/lib/stub/actor')
+    const { MOCK_SECRET_PHASES } = await vi.importActual('@/lib/stub/actor')
 
     return {
       host: 'local.test',

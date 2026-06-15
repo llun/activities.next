@@ -1,18 +1,18 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
 import { ActorsSection } from './ActorsSection'
 
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(() => ({
-    refresh: jest.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(() => ({
+    refresh: vi.fn()
   }))
 }))
 
-jest.mock('@/lib/components/actor-switcher', () => ({
+vi.mock('@/lib/components/actor-switcher', () => ({
   AddActorDialog: () => null
 }))
 

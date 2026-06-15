@@ -1,10 +1,10 @@
-exports.config = { transaction: false }
+export const config = { transaction: false }
 
 /**
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   const isPg =
     knex.client.config.client === 'pg' ||
     knex.client.config.client === 'postgresql'
@@ -194,7 +194,7 @@ exports.up = async function (knex) {
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function (knex) {
+export const down = async function (knex) {
   // Remove all bucket and servicestat counter rows
   await knex('counters')
     .where('id', 'like', 'bucket:%')

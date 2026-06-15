@@ -3,8 +3,8 @@ import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 
 import { getMastodonAnnouncement } from './getMastodonAnnouncement'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({ host: 'llun.test' })
 }))
 
 const baseAnnouncement: AnnouncementData = {

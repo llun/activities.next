@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -7,7 +7,7 @@ import { ReactNode } from 'react'
 
 import { ListSummary, ListsIndex } from './ListsIndex'
 
-jest.mock('@/lib/components/page-header', () => ({
+vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     title,
     description,

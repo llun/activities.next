@@ -95,10 +95,10 @@ describe('urlToId', () => {
     const originalAtob = globalThis.atob
     const actorId = 'https://bsky.brid.gy/ap/did:plc:abc123/statuses/post-1'
 
-    globalThis.btoa = jest.fn(() => {
+    globalThis.btoa = vi.fn(() => {
       throw new Error('btoa should not be used when Buffer is available')
     })
-    globalThis.atob = jest.fn(() => {
+    globalThis.atob = vi.fn(() => {
       throw new Error('atob should not be used when Buffer is available')
     })
 

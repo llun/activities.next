@@ -1,6 +1,6 @@
-const crypto = require('crypto')
+import crypto from 'node:crypto'
 
-exports.config = { transaction: false }
+export const config = { transaction: false }
 
 const parseStatusContent = (content) => {
   if (!content) return null
@@ -24,7 +24,7 @@ const getStatusUrlHash = (url) =>
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function up(knex) {
+export const up = async function up(knex) {
   const hasUrlColumn = await knex.schema.hasColumn('statuses', 'url')
   const hasUrlHashColumn = await knex.schema.hasColumn('statuses', 'urlHash')
 
@@ -109,7 +109,7 @@ exports.up = async function up(knex) {
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function down(knex) {
+export const down = async function down(knex) {
   const hasUrlHashColumn = await knex.schema.hasColumn('statuses', 'urlHash')
   const hasUrlColumn = await knex.schema.hasColumn('statuses', 'url')
 

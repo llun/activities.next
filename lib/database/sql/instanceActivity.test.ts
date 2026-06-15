@@ -259,7 +259,7 @@ describe('instance activity counters', () => {
   })
 
   it('logs weekly login recording failures with structured logger metadata', async () => {
-    const loggerErrorSpy = jest
+    const loggerErrorSpy = vi
       .spyOn(logger, 'error')
       .mockImplementation(() => undefined)
 

@@ -581,7 +581,7 @@ describe('ConversationDatabase', () => {
     })
 
     test('bounds fallback status hydration when membership last status is stale', async () => {
-      const getStatusesByIds = jest.fn(async ({ statusIds }) =>
+      const getStatusesByIds = vi.fn(async ({ statusIds }) =>
         statusIds
           .filter((statusId: string) => statusId === 'status-60')
           .map(statusForId)
@@ -647,7 +647,7 @@ describe('ConversationDatabase', () => {
     })
 
     test('hydrates stale fallbacks for multiple conversations in shared batches', async () => {
-      const getStatusesByIds = jest.fn(async ({ statusIds }) =>
+      const getStatusesByIds = vi.fn(async ({ statusIds }) =>
         statusIds
           .filter((statusId: string) =>
             ['conversation-a-status-2', 'conversation-b-status-3'].includes(
@@ -824,7 +824,7 @@ describe('ConversationDatabase', () => {
 
     test('preserves database row order when status hydration returns unordered results', async () => {
       const statusDatabase = {
-        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+        getStatusesByIds: vi.fn(async ({ statusIds }) =>
           statusIds.map(statusForId).reverse()
         )
       } as unknown as StatusDatabase
@@ -893,7 +893,7 @@ describe('ConversationDatabase', () => {
 
     test('orders conversation pages by hydratable last status instead of stale membership timestamps', async () => {
       const statusDatabase = {
-        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+        getStatusesByIds: vi.fn(async ({ statusIds }) =>
           statusIds
             .filter((statusId: string) => statusId !== 'stale-missing-status')
             .map(statusForId)
@@ -994,7 +994,7 @@ describe('ConversationDatabase', () => {
 
     test('continues scanning from the stored boundary when hydration rewrites a stale boundary row', async () => {
       const statusDatabase = {
-        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+        getStatusesByIds: vi.fn(async ({ statusIds }) =>
           statusIds
             .filter(
               (statusId: string) =>
@@ -1099,7 +1099,7 @@ describe('ConversationDatabase', () => {
 
     test('scans past invisible statuses to fill direct conversation status pages', async () => {
       const statusDatabase = {
-        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+        getStatusesByIds: vi.fn(async ({ statusIds }) =>
           statusIds
             .filter(
               (statusId: string) => !['status-4', 'status-2'].includes(statusId)
@@ -1192,12 +1192,12 @@ describe('ConversationDatabase', () => {
     test('resolves reply roots from lightweight status rows without full hydration', async () => {
       await createStatusLookupTables(knexDatabase)
       const parentUrl = 'https://remote.test/statuses/lightweight-parent'
-      const getStatus = jest.fn(async () => null)
-      const getStatusFromUrl = jest.fn(async () => null)
+      const getStatus = vi.fn(async () => null)
+      const getStatusFromUrl = vi.fn(async () => null)
       const statusDatabase = {
         getStatus,
         getStatusFromUrl,
-        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+        getStatusesByIds: vi.fn(async ({ statusIds }) =>
           statusIds.map(statusForId)
         )
       } as unknown as StatusDatabase
@@ -1264,10 +1264,10 @@ describe('ConversationDatabase', () => {
     })
 
     test('resolves reply roots from synced direct conversation rows before hydrating parents', async () => {
-      const getStatus = jest.fn()
+      const getStatus = vi.fn()
       const statusDatabase = {
         getStatus,
-        getStatusesByIds: jest.fn(async ({ statusIds }) =>
+        getStatusesByIds: vi.fn(async ({ statusIds }) =>
           statusIds.map(statusForId)
         )
       } as unknown as StatusDatabase

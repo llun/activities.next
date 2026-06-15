@@ -7,31 +7,31 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { PATCH } from './route'
 
-jest.mock('@/lib/services/medias', () => ({ saveMedia: jest.fn() }))
+vi.mock('@/lib/services/medias', () => ({ saveMedia: vi.fn() }))
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
@@ -53,7 +53,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -71,7 +71,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     // passed to NextRequest — mock formData() directly, matching the pattern
     // used in app/api/v1/statuses/route.test.ts.
     Object.defineProperty(req, 'formData', {
-      value: jest.fn().mockResolvedValue(form)
+      value: vi.fn().mockResolvedValue(form)
     })
     return req
   }
@@ -87,7 +87,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('updates display name and note and returns the credential account', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('display_name', 'New Name')
     form.set('note', 'New bio')
@@ -122,7 +122,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     const saveMediaMock = saveMedia as jest.Mock
     // Unconfigured storage: saveMedia yields nothing, so no icon/header URL.
     saveMediaMock.mockResolvedValue(null)
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('display_name', 'With Avatar')
     form.set(
@@ -149,7 +149,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('unlocks the account when locked=false', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('locked', 'false')
 
@@ -168,7 +168,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('accepts a JSON body with boolean locked', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -212,7 +212,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('ignores unknown/unexpected fields (no mass assignment)', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -253,7 +253,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('treats locked=on as locked (HTML checkbox form)', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('locked', 'on')
 
@@ -272,7 +272,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('treats locked=off as unlocked (HTML checkbox form)', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('locked', 'off')
 
@@ -295,7 +295,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     saveMediaMock
       .mockResolvedValueOnce({ url: 'https://llun.test/media/avatar.png' })
       .mockResolvedValueOnce({ url: 'https://llun.test/media/header.png' })
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
 
     const form = new FormData()
     form.set(
@@ -326,7 +326,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
 
   it('rejects an avatar file that fails media validation with 422', async () => {
     const saveMediaMock = saveMedia as jest.Mock
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     // text/plain is not an accepted media type, so MediaSchema rejects it.
     form.set(
@@ -346,7 +346,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('rejects more than four profile fields with 422', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     for (let i = 0; i < 5; i += 1) {
       form.set(`fields_attributes[${i}][name]`, `n${i}`)
@@ -363,7 +363,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('fields_attributes[0][name]', 'Website')
     form.set('fields_attributes[0][value]', 'https://example.com')
@@ -409,7 +409,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('accepts fields_attributes via a JSON body', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -436,7 +436,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('accepts an empty JSON body as a no-op (200)', async () => {
-    const updateActor = jest.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActor')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {

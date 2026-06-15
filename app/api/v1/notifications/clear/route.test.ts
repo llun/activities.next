@@ -4,8 +4,8 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({ host: 'llun.test' })
 }))
 
 /**

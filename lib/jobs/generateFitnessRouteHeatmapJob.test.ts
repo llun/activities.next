@@ -15,21 +15,21 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob'
 import { JOBS } from './index'
 
-jest.mock('@/lib/services/fitness-files', () => {
-  const actual = jest.requireActual('@/lib/services/fitness-files')
+vi.mock('@/lib/services/fitness-files', async () => {
+  const actual = await vi.importActual('@/lib/services/fitness-files')
   return {
     ...actual,
-    getFitnessFile: jest.fn()
+    getFitnessFile: vi.fn()
   }
 })
 
-jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
-  parseFitnessFile: jest.fn(),
-  isParseableFitnessFileType: jest.fn().mockReturnValue(true)
+vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => ({
+  parseFitnessFile: vi.fn(),
+  isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
-const mockPublish = jest.fn()
-jest.mock('@/lib/services/queue', () => ({
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', async () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
@@ -58,7 +58,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockPublish.mockResolvedValue(undefined)
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',
@@ -257,7 +257,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
 
     const requestedAt = Date.now() - 10_000
     const getByKey = database.getFitnessRouteHeatmapByKey.bind(database)
-    const deleteAfterRead = jest
+    const deleteAfterRead = vi
       .spyOn(database, 'getFitnessRouteHeatmapByKey')
       .mockImplementation(async (params) => {
         const heatmap = await getByKey(params)
@@ -559,7 +559,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
       'running',
       new Date('2026-07-16T07:00:00.000Z')
     )
-    const nowSpy = jest.spyOn(Date, 'now')
+    const nowSpy = vi.spyOn(Date, 'now')
     nowSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
 
     try {
@@ -659,7 +659,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
       startTime: new Date('2026-01-16T07:00:00.000Z')
     })
 
-    const nowSpy = jest.spyOn(Date, 'now')
+    const nowSpy = vi.spyOn(Date, 'now')
     nowSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
 
     try {
@@ -715,7 +715,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
       .mockRejectedValueOnce(new Error('temporary queue failure'))
       .mockRejectedValueOnce(new Error('temporary queue failure'))
       .mockResolvedValueOnce(undefined)
-    const nowSpy = jest.spyOn(Date, 'now')
+    const nowSpy = vi.spyOn(Date, 'now')
     nowSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
 
     try {
@@ -758,7 +758,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
       'running',
       new Date('2026-08-16T07:00:00.000Z')
     )
-    const timeoutSpy = jest.spyOn(Date, 'now')
+    const timeoutSpy = vi.spyOn(Date, 'now')
     timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
 
     try {
@@ -777,7 +777,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
     }
 
     mockPublish.mockClear()
-    const resumeSpy = jest.spyOn(Date, 'now').mockReturnValue(0)
+    const resumeSpy = vi.spyOn(Date, 'now').mockReturnValue(0)
 
     try {
       await generateFitnessRouteHeatmapJob(database, {
@@ -972,18 +972,18 @@ describe('generateFitnessRouteHeatmapJob', () => {
   })
 
   it('preserves the original failure when marking the cache as failed also fails', async () => {
-    const updateFitnessRouteHeatmapStatus = jest
+    const updateFitnessRouteHeatmapStatus = vi
       .fn()
       .mockResolvedValueOnce(true)
       .mockRejectedValueOnce(new Error('status update failed'))
     const mockDatabase = {
-      getActorFromId: jest.fn().mockResolvedValue(actor),
-      getFitnessRouteHeatmapByKey: jest.fn().mockResolvedValue(null),
-      createFitnessRouteHeatmap: jest
+      getActorFromId: vi.fn().mockResolvedValue(actor),
+      getFitnessRouteHeatmapByKey: vi.fn().mockResolvedValue(null),
+      createFitnessRouteHeatmap: vi
         .fn()
         .mockResolvedValue({ id: 'heatmap-failed' }),
       updateFitnessRouteHeatmapStatus,
-      getFitnessSettings: jest
+      getFitnessSettings: vi
         .fn()
         .mockRejectedValue(new Error('privacy settings failed'))
     } as unknown as Database

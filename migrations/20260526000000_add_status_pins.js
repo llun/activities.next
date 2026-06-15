@@ -4,7 +4,7 @@ const STATUS_PINS_TABLE = 'status_pins'
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.createTable(STATUS_PINS_TABLE, (table) => {
     table
       .string('actorId')
@@ -34,6 +34,6 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.schema.dropTableIfExists(STATUS_PINS_TABLE)
 }

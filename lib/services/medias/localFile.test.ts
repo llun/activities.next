@@ -7,12 +7,12 @@ import { Database } from '@/lib/database/types'
 
 import { LocalFileStorage } from './localFile'
 
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn()
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
   }
 }))
 

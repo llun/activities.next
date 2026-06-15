@@ -8,7 +8,7 @@ const COUNTER_PREFIXES = [
   'media-usage:'
 ]
 
-exports.config = { transaction: false }
+export const config = { transaction: false }
 
 const COUNTERS_TMP_TABLE = 'counters_tmp_new'
 
@@ -117,7 +117,7 @@ const upsertCounter = async (knex, id, value, currentTime) => {
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function up(knex) {
+export const up = async function up(knex) {
   console.log('Rebuilding counters table...')
   await rebuildCountersTable(knex)
 
@@ -244,7 +244,7 @@ exports.up = async function up(knex) {
  * @param { import('knex').Knex } _knex
  * @returns { Promise<void> }
  */
-exports.down = async function down(_knex) {
+export const down = async function down(_knex) {
   // Irreversible migration: this rebuilds the counters schema and overwrites
   // targeted counter values based on current data.
   throw new Error(

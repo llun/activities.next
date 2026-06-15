@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
+export const up = (knex) => {
   return knex.schema.alterTable('follows', function (table) {
     table.string('inbox')
     table.string('sharedInbox')
@@ -13,7 +13,7 @@ exports.up = (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('follows', function (table) {
     table.dropColumn('inbox')
     table.dropColumn('sharedInbox')

@@ -6,23 +6,23 @@ const toId = (url: string) =>
   url.replace(/https?:\/\//, '').replaceAll('/', ':')
 
 const mockDatabase = {
-  getNotifications: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
-  getActiveServerFilters: jest.fn().mockResolvedValue([]),
-  getStatusesByIds: jest.fn(),
-  getMastodonActorsFromIds: jest.fn()
+  getNotifications: vi.fn(),
+  getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
+  getActiveServerFilters: vi.fn().mockResolvedValue([]),
+  getStatusesByIds: vi.fn(),
+  getMastodonActorsFromIds: vi.fn()
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 // Resolve statuses/accounts so the envelope keeps (does not suppress) the groups
 // — the count then reflects visible unread groups.
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: jest
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+  getMastodonStatus: vi
     .fn()
     .mockImplementation((_db: unknown, domainStatus: { id: string }) =>
       Promise.resolve({
@@ -31,7 +31,7 @@ jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
     )
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -46,7 +46,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('GET /api/v2/notifications/unread_count', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getNotifications.mockResolvedValue([])
     mockDatabase.getStatusesByIds.mockImplementation(
       ({ statusIds }: { statusIds: string[] }) =>

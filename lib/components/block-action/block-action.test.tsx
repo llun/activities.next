@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import {
@@ -16,17 +16,17 @@ import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/
 
 import { BlockAction } from './block-action'
 
-const refresh = jest.fn()
+const refresh = vi.fn()
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     refresh
   })
 }))
 
-jest.mock('@/lib/client', () => ({
-  block: jest.fn(),
-  unblock: jest.fn()
+vi.mock('@/lib/client', () => ({
+  block: vi.fn(),
+  unblock: vi.fn()
 }))
 
 const relationship = (

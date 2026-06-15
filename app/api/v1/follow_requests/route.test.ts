@@ -24,13 +24,13 @@ const hashToken = (token: string) =>
 // Token store consulted by the guard's getKnex() lookup.
 const mockStoredTokens = new Map<string, Record<string, unknown>>()
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => (_table: string) => ({
     where: (_field: string, value: string) => ({
@@ -39,19 +39,19 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
@@ -76,7 +76,7 @@ describe('GET /api/v1/follow_requests', () => {
   // accepted follower), so it is a clean target to pin pagination behavior on.
   const createdFollowIds: string[] = []
   const createFollowRequest = async (actorId: string, createdAt?: Date) => {
-    if (createdAt) jest.setSystemTime(createdAt)
+    if (createdAt) vi.setSystemTime(createdAt)
     const follow = await database.createFollow({
       actorId,
       targetActorId: ACTOR4_ID,
@@ -89,7 +89,7 @@ describe('GET /api/v1/follow_requests', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockStoredTokens.clear()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor4.email }
@@ -171,14 +171,14 @@ describe('GET /api/v1/follow_requests', () => {
   })
 
   it('returns pending follow requests as accounts newest first', async () => {
-    jest.useFakeTimers({
+    vi.useFakeTimers({
       doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
       await createFollowRequest(ACTOR1_ID, new Date('2024-01-01T00:00:00Z'))
       await createFollowRequest(ACTOR2_ID, new Date('2024-01-01T00:01:00Z'))
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
 
     const response = await GET(createRequest(), {
@@ -194,7 +194,7 @@ describe('GET /api/v1/follow_requests', () => {
   })
 
   it('paginates with Mastodon Link headers using follow ids', async () => {
-    jest.useFakeTimers({
+    vi.useFakeTimers({
       doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
@@ -202,7 +202,7 @@ describe('GET /api/v1/follow_requests', () => {
       await createFollowRequest(ACTOR2_ID, new Date('2024-01-01T00:01:00Z'))
       await createFollowRequest(ACTOR5_ID, new Date('2024-01-01T00:02:00Z'))
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
 
     const firstResponse = await GET(createRequest('?limit=2'), {
@@ -237,7 +237,7 @@ describe('GET /api/v1/follow_requests', () => {
 
   it('returns newer requests after a since_id cursor', async () => {
     const created: { id: string }[] = []
-    jest.useFakeTimers({
+    vi.useFakeTimers({
       doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
@@ -251,7 +251,7 @@ describe('GET /api/v1/follow_requests', () => {
         await createFollowRequest(ACTOR5_ID, new Date('2024-01-01T00:02:00Z'))
       )
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
 
     const middleId = created[1].id
@@ -268,7 +268,7 @@ describe('GET /api/v1/follow_requests', () => {
 
   it('returns newer requests after a min_id cursor', async () => {
     const created: { id: string }[] = []
-    jest.useFakeTimers({
+    vi.useFakeTimers({
       doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
@@ -282,7 +282,7 @@ describe('GET /api/v1/follow_requests', () => {
         await createFollowRequest(ACTOR5_ID, new Date('2024-01-01T00:02:00Z'))
       )
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
 
     const middleId = created[1].id
@@ -303,7 +303,7 @@ describe('GET /api/v1/follow_requests', () => {
     // must drop it from the body yet still derive the Link cursor from the
     // follow rows so a full page still advertises rel="next".
     const ghostRequester = 'https://remote.test/users/ghost-follow-request'
-    jest.useFakeTimers({
+    vi.useFakeTimers({
       doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
@@ -313,7 +313,7 @@ describe('GET /api/v1/follow_requests', () => {
         new Date('2024-01-01T00:01:00Z')
       )
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
 
     const response = await GET(createRequest('?limit=2'), {

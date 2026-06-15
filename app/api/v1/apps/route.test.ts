@@ -3,10 +3,10 @@ import { NextRequest } from 'next/server'
 
 import { POST, resetAppRegistrationWarningStateForTests } from './route'
 
-const mockGetConfig = jest.fn(() => ({
+const mockGetConfig = vi.fn(() => ({
   secretPhase: 'registration-pepper-secret'
 }))
-const mockGetTrustProxyIpHeadersConfig = jest.fn(() => false)
+const mockGetTrustProxyIpHeadersConfig = vi.fn(() => false)
 
 const hashIpRegistrationKey = (ip: string) =>
   `ip:${crypto
@@ -14,33 +14,33 @@ const hashIpRegistrationKey = (ip: string) =>
     .update(ip)
     .digest('base64url')}`
 
-const mockCreateApplication = jest.fn()
-const mockLoggerWarn = jest.fn()
+const mockCreateApplication = vi.fn()
+const mockLoggerWarn = vi.fn()
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => ({})
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
-jest.mock('@/lib/config/trustProxyIpHeaders', () => ({
+vi.mock('@/lib/config/trustProxyIpHeaders', () => ({
   getTrustProxyIpHeadersConfig: () => mockGetTrustProxyIpHeadersConfig()
 }))
 
-jest.mock('@/lib/utils/logger', () => {
+vi.mock('@/lib/utils/logger', () => {
   const logger = {
     warn: (...args: unknown[]) => mockLoggerWarn(...args),
-    info: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
+    info: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
     child: () => logger
   }
   return { logger }
 })
 
-jest.mock('./createApplication', () => ({
+vi.mock('./createApplication', () => ({
   createApplication: (...args: unknown[]) => mockCreateApplication(...args)
 }))
 

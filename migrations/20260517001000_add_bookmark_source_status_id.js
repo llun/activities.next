@@ -1,6 +1,6 @@
 const SOURCE_STATUS_INDEX = 'bookmarks_actor_source_status'
 
-exports.up = async (knex) => {
+export const up = async (knex) => {
   const hasSourceStatusId = await knex.schema.hasColumn(
     'bookmarks',
     'sourceStatusId'
@@ -22,7 +22,7 @@ exports.up = async (knex) => {
   })
 }
 
-exports.down = async (knex) => {
+export const down = async (knex) => {
   const hasSourceStatusId = await knex.schema.hasColumn(
     'bookmarks',
     'sourceStatusId'

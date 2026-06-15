@@ -22,15 +22,15 @@ const createDatabase = (
   overrides: Partial<MockDb> = {}
 ): { database: Database; mock: MockDb } => {
   const mock: MockDb = {
-    getNotificationPolicy: jest
+    getNotificationPolicy: vi
       .fn()
       .mockResolvedValue({ ...DEFAULT_NOTIFICATION_POLICY, ...policy }),
     // Default: no accepted senders list.
-    getActorSettings: jest.fn().mockResolvedValue(undefined),
+    getActorSettings: vi.fn().mockResolvedValue(undefined),
     // Default: neither side follows the other.
-    isCurrentActorFollowing: jest.fn().mockResolvedValue(false),
-    getActorFromId: jest.fn().mockResolvedValue({ createdAt: 0 }),
-    getStatus: jest.fn().mockResolvedValue(null),
+    isCurrentActorFollowing: vi.fn().mockResolvedValue(false),
+    getActorFromId: vi.fn().mockResolvedValue({ createdAt: 0 }),
+    getStatus: vi.fn().mockResolvedValue(null),
     ...overrides
   }
   return { database: mock as unknown as Database, mock }
@@ -76,7 +76,7 @@ describe('evaluateNotificationPolicy', () => {
     const { database } = createDatabase(
       { for_not_following: 'drop' },
       {
-        isCurrentActorFollowing: jest
+        isCurrentActorFollowing: vi
           .fn()
           .mockImplementation(({ currentActorId }) =>
             Promise.resolve(currentActorId === RECIPIENT)
@@ -110,7 +110,7 @@ describe('evaluateNotificationPolicy', () => {
     const tenDaysAgo = NOW - 10 * 24 * 60 * 60 * 1000
     const { database } = createDatabase(
       { for_new_accounts: 'filter' },
-      { getActorFromId: jest.fn().mockResolvedValue({ createdAt: tenDaysAgo }) }
+      { getActorFromId: vi.fn().mockResolvedValue({ createdAt: tenDaysAgo }) }
     )
     const verdict = await evaluateNotificationPolicy(database, {
       actorId: RECIPIENT,
@@ -125,7 +125,7 @@ describe('evaluateNotificationPolicy', () => {
     const longAgo = NOW - 90 * 24 * 60 * 60 * 1000
     const { database } = createDatabase(
       { for_new_accounts: 'filter' },
-      { getActorFromId: jest.fn().mockResolvedValue({ createdAt: longAgo }) }
+      { getActorFromId: vi.fn().mockResolvedValue({ createdAt: longAgo }) }
     )
     const verdict = await evaluateNotificationPolicy(database, {
       actorId: RECIPIENT,
@@ -140,7 +140,7 @@ describe('evaluateNotificationPolicy', () => {
     const { database } = createDatabase(
       { for_private_mentions: 'filter' },
       {
-        getStatus: jest.fn().mockResolvedValue({ to: [RECIPIENT], cc: [] })
+        getStatus: vi.fn().mockResolvedValue({ to: [RECIPIENT], cc: [] })
       }
     )
     const verdict = await evaluateNotificationPolicy(database, {
@@ -157,7 +157,7 @@ describe('evaluateNotificationPolicy', () => {
     const { database } = createDatabase(
       { for_private_mentions: 'drop' },
       {
-        getStatus: jest.fn().mockResolvedValue({
+        getStatus: vi.fn().mockResolvedValue({
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: []
         })

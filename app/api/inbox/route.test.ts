@@ -2,20 +2,20 @@ import { NextRequest } from 'next/server'
 
 import { POST } from './route'
 
-const mockCanFederateWithDomain = jest.fn()
+const mockCanFederateWithDomain = vi.fn()
 const mockDatabase = {}
-const mockPublish = jest.fn()
+const mockPublish = vi.fn()
 const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
 let mockConsumeRequestBody = false
 let mockVerifiedSenderActorId = 'https://allowed.test/users/a'
 
-jest.mock('@/lib/services/federation/domainPolicy', () => ({
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
     mockCanFederateWithDomain(...params)
 }))
 
-jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
+vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
   ActivityPubVerifySenderGuard:
     (
       handle: (
@@ -50,7 +50,7 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
     }
 }))
 
-jest.mock('@/lib/services/queue', () => ({
+vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
@@ -87,7 +87,7 @@ const createRequest = (actor: unknown) => {
 
 describe('POST /api/inbox', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
     mockVerifiedSenderActorId = 'https://allowed.test/users/a'

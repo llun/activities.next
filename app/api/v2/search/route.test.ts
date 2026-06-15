@@ -2,25 +2,25 @@ import { NextRequest } from 'next/server'
 
 import { GET } from './route'
 
-const mockSearchAccountIds = jest.fn()
-const mockGetMastodonActorsFromIds = jest.fn()
-const mockSearchHashtags = jest.fn()
-const mockSearchStatusIds = jest.fn()
-const mockGetStatusesByIds = jest.fn()
-const mockGetActorFromId = jest.fn()
-const mockGetActorFromUsername = jest.fn()
-const mockIsCurrentActorFollowing = jest.fn()
-const mockGetStatus = jest.fn()
-const mockGetStatusFromUrl = jest.fn()
-const mockStoredToken = jest.fn()
-const mockGetServerSession = jest.fn()
-const mockGetMastodonStatuses = jest.fn()
-const mockCanActorReadStatus = jest.fn()
-const mockGetWebfingerSelf = jest.fn()
-const mockGetActorPerson = jest.fn()
-const mockRecordActorIfNeeded = jest.fn()
-const mockGetRemoteStatus = jest.fn()
-const mockLoggerWarn = jest.fn()
+const mockSearchAccountIds = vi.fn()
+const mockGetMastodonActorsFromIds = vi.fn()
+const mockSearchHashtags = vi.fn()
+const mockSearchStatusIds = vi.fn()
+const mockGetStatusesByIds = vi.fn()
+const mockGetActorFromId = vi.fn()
+const mockGetActorFromUsername = vi.fn()
+const mockIsCurrentActorFollowing = vi.fn()
+const mockGetStatus = vi.fn()
+const mockGetStatusFromUrl = vi.fn()
+const mockStoredToken = vi.fn()
+const mockGetServerSession = vi.fn()
+const mockGetMastodonStatuses = vi.fn()
+const mockCanActorReadStatus = vi.fn()
+const mockGetWebfingerSelf = vi.fn()
+const mockGetActorPerson = vi.fn()
+const mockRecordActorIfNeeded = vi.fn()
+const mockGetRemoteStatus = vi.fn()
+const mockLoggerWarn = vi.fn()
 
 const oauthActor = {
   id: 'https://llun.test/users/searcher',
@@ -38,7 +38,7 @@ const oauthActor = {
   updatedAt: 1
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => ({
     searchAccountIds: mockSearchAccountIds,
     getMastodonActorsFromIds: mockGetMastodonActorsFromIds,
@@ -58,44 +58,44 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test' })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   getMastodonStatuses: (...args: unknown[]) => mockGetMastodonStatuses(...args)
 }))
 
-jest.mock('@/lib/services/statusAccess', () => ({
+vi.mock('@/lib/services/statusAccess', () => ({
   canActorReadStatus: (...args: unknown[]) => mockCanActorReadStatus(...args)
 }))
 
-jest.mock('@/lib/activities/getWebfingerSelf', () => ({
+vi.mock('@/lib/activities/getWebfingerSelf', () => ({
   getWebfingerSelf: (...args: unknown[]) => mockGetWebfingerSelf(...args)
 }))
 
-jest.mock('@/lib/activities/getActorPerson', () => ({
+vi.mock('@/lib/activities/getActorPerson', () => ({
   getActorPerson: (...args: unknown[]) => mockGetActorPerson(...args)
 }))
 
-jest.mock('@/lib/activities/getRemoteStatus', () => ({
+vi.mock('@/lib/activities/getRemoteStatus', () => ({
   getRemoteStatus: (...args: unknown[]) => mockGetRemoteStatus(...args)
 }))
 
-jest.mock('@/lib/actions/utils', () => ({
+vi.mock('@/lib/actions/utils', () => ({
   recordActorIfNeeded: (...args: unknown[]) => mockRecordActorIfNeeded(...args)
 }))
 
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
     warn: (...args: unknown[]) => mockLoggerWarn(...args)
   }
@@ -105,7 +105,7 @@ const context = { params: Promise.resolve({}) }
 
 describe('GET /api/v2/search', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),

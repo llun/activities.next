@@ -8,7 +8,7 @@ describe('fetchTranslationHttpClient', () => {
   })
 
   it('returns the status code and streamed body', async () => {
-    global.fetch = jest
+    global.fetch = vi
       .fn()
       .mockResolvedValue(new Response('{"ok":true}', { status: 200 }))
 
@@ -24,7 +24,7 @@ describe('fetchTranslationHttpClient', () => {
   })
 
   it('rejects when content-length exceeds the cap before reading the body', async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    global.fetch = vi.fn().mockResolvedValue(
       new Response('small', {
         status: 200,
         headers: { 'content-length': String(8 * 1024 * 1024) }
@@ -45,7 +45,7 @@ describe('fetchTranslationHttpClient', () => {
     // 1.5 MB body with no content-length header, so the cap must be enforced
     // while streaming rather than from the declared length.
     const big = 'a'.repeat(1.5 * 1024 * 1024)
-    global.fetch = jest
+    global.fetch = vi
       .fn()
       .mockResolvedValue(new Response(big, { status: 200 }))
 
@@ -63,7 +63,7 @@ describe('fetchTranslationHttpClient', () => {
     // 600k '€' chars: 600k code units (under the 1 MB cap) but 1.8 MB of UTF-8
     // bytes (over it). A code-unit check would wrongly accept this.
     const multibyte = '€'.repeat(600 * 1024)
-    global.fetch = jest
+    global.fetch = vi
       .fn()
       .mockResolvedValue(new Response(multibyte, { status: 200 }))
 
@@ -78,7 +78,7 @@ describe('fetchTranslationHttpClient', () => {
   })
 
   it('wraps transport errors as TranslationProviderError', async () => {
-    global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'))
+    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
 
     await expect(
       fetchTranslationHttpClient({

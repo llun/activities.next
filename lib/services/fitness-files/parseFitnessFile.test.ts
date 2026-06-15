@@ -2,8 +2,8 @@ import FitParser from 'fit-file-parser'
 
 import { parseFitnessFile } from './parseFitnessFile'
 
-jest.mock('fit-file-parser', () => {
-  return jest.fn().mockImplementation(() => ({
+vi.mock('fit-file-parser', () => {
+  return vi.fn().mockImplementation(() => ({
     parse: (
       _buffer: Buffer,
       callback: (error: Error | null, data?: unknown) => void

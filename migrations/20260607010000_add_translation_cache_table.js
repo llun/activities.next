@@ -11,7 +11,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.createTable('translation_cache', (table) => {
     // Columns are sized so the 4-column composite primary key stays within
     // MySQL's 3072-byte index limit (191 + 16 + 16 + 64 chars). `sourceHash` is
@@ -38,4 +38,4 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => knex.schema.dropTable('translation_cache')
+export const down = (knex) => knex.schema.dropTable('translation_cache')

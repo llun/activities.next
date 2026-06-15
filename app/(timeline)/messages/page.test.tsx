@@ -4,28 +4,28 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import Page from './page'
 
-const mockGetConfig = jest.fn()
-const mockGetDatabase = jest.fn()
-const mockGetServerAuthSession = jest.fn()
-const mockGetActorFromSession = jest.fn()
+const mockGetConfig = vi.fn()
+const mockGetDatabase = vi.fn()
+const mockGetServerAuthSession = vi.fn()
+const mockGetActorFromSession = vi.fn()
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockGetDatabase()
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerAuthSession()
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
+vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-jest.mock('./MessagesPage', () => ({
+vi.mock('./MessagesPage', () => ({
   MessagesPage: () => null
 }))
 
@@ -106,7 +106,7 @@ const conversation = (
 
 describe('messages page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetConfig.mockReturnValue({ host: 'example.com' })
     mockGetServerAuthSession.mockResolvedValue({ user: { id: 'account-1' } })
     mockGetActorFromSession.mockResolvedValue(currentActor)
@@ -123,11 +123,11 @@ describe('messages page', () => {
     ]
     const accounts = [account('ada'), account('bea')]
     const database = {
-      getActorSettings: jest.fn().mockResolvedValue({ postLineLimit: 10 }),
-      getDirectConversations: jest.fn().mockResolvedValue(conversations),
-      getDirectConversationStatuses: jest.fn().mockResolvedValue([]),
-      getMastodonActorsFromIds: jest.fn().mockResolvedValue(accounts),
-      getMastodonActorFromId: jest.fn().mockResolvedValue(null)
+      getActorSettings: vi.fn().mockResolvedValue({ postLineLimit: 10 }),
+      getDirectConversations: vi.fn().mockResolvedValue(conversations),
+      getDirectConversationStatuses: vi.fn().mockResolvedValue([]),
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue(accounts),
+      getMastodonActorFromId: vi.fn().mockResolvedValue(null)
     }
     mockGetDatabase.mockReturnValue(database)
 
@@ -157,13 +157,13 @@ describe('messages page', () => {
       status(`status-${index}`)
     )
     const database = {
-      getActorSettings: jest.fn().mockResolvedValue({ postLineLimit: 10 }),
-      getDirectConversations: jest.fn().mockResolvedValue(conversations),
-      getDirectConversationStatuses: jest
+      getActorSettings: vi.fn().mockResolvedValue({ postLineLimit: 10 }),
+      getDirectConversations: vi.fn().mockResolvedValue(conversations),
+      getDirectConversationStatuses: vi
         .fn()
         .mockResolvedValue(initialStatusPage),
-      getMastodonActorsFromIds: jest.fn().mockResolvedValue([account('ada')]),
-      getMastodonActorFromId: jest.fn().mockResolvedValue(null)
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue([account('ada')]),
+      getMastodonActorFromId: vi.fn().mockResolvedValue(null)
     }
     mockGetDatabase.mockReturnValue(database)
 

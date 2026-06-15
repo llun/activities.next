@@ -8,17 +8,17 @@ type MockDatabase = Pick<Database, 'getActorFromUsername'>
 
 let mockDatabase: MockDatabase | null = null
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('GET /api/well-known/webfinger', () => {
   const database: jest.Mocked<MockDatabase> = {
-    getActorFromUsername: jest.fn()
+    getActorFromUsername: vi.fn()
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase = database
   })
 

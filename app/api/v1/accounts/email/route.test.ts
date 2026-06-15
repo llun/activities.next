@@ -5,19 +5,19 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockSendMail = jest.fn()
-jest.mock('@/lib/services/email', () => ({
+const mockSendMail = vi.fn()
+vi.mock('@/lib/services/email', () => ({
   sendMail: (...args: unknown[]) => mockSendMail(...args)
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
     allowActorDomains: [],
@@ -36,12 +36,12 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
@@ -69,10 +69,10 @@ const actor = {
 
 describe('POST /api/v1/accounts/email', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getAccountFromEmail: jest.fn(),
-    getActorsForAccount: jest.fn(),
-    getActorFromId: jest.fn(),
-    requestEmailChange: jest.fn()
+    getAccountFromEmail: vi.fn(),
+    getActorsForAccount: vi.fn(),
+    getActorFromId: vi.fn(),
+    requestEmailChange: vi.fn()
   }
 
   beforeAll(() => {
@@ -80,7 +80,7 @@ describe('POST /api/v1/accounts/email', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

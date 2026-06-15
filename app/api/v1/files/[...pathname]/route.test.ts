@@ -6,12 +6,12 @@ import { GET } from './route'
 
 const mockDatabase = { id: 'test-database' }
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn(() => mockDatabase)
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(() => mockDatabase)
 }))
 
-jest.mock('@/lib/services/medias', () => ({
-  getMedia: jest.fn()
+vi.mock('@/lib/services/medias', () => ({
+  getMedia: vi.fn()
 }))
 
 describe('GET /api/v1/files/[...pathname]', () => {

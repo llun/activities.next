@@ -36,7 +36,7 @@ const toDate = (value) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   const memberships = await knex('list_accounts').select(
     'listId',
     'actorId',
@@ -97,6 +97,6 @@ exports.up = async function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function (knex) {
+export const down = async function (knex) {
   await knex('timelines').where('timeline', 'like', 'list:%').delete()
 }

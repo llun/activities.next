@@ -14,9 +14,9 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
@@ -46,7 +46,7 @@ describe('Update note visibility action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('updateNoteVisibilityFromUserInput', () => {

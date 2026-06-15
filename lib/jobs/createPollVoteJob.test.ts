@@ -393,7 +393,7 @@ describe('createPollVoteJob', () => {
 
   it('rethrows vote persistence failures so the queue can retry', async () => {
     const error = new Error('database unavailable')
-    const recordPollVotesSpy = jest
+    const recordPollVotesSpy = vi
       .spyOn(database, 'recordPollVotes')
       .mockRejectedValueOnce(error)
     const voteNote = createVoteNote({

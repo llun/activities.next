@@ -3,23 +3,23 @@ import { NextRequest } from 'next/server'
 import { GET } from './route'
 
 const mockDatabase = {
-  getNotifications: jest.fn(),
-  getMastodonActorsFromIds: jest.fn(),
-  getStatus: jest.fn(),
-  getStatusesByIds: jest.fn(),
-  getActiveFiltersForActor: jest.fn().mockResolvedValue([]),
-  getActiveServerFilters: jest.fn().mockResolvedValue([])
+  getNotifications: vi.fn(),
+  getMastodonActorsFromIds: vi.fn(),
+  getStatus: vi.fn(),
+  getStatusesByIds: vi.fn(),
+  getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
+  getActiveServerFilters: vi.fn().mockResolvedValue([])
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   // Return id matching urlToId(domainStatus.id) so the hide-filter check works.
-  getMastodonStatus: jest
+  getMastodonStatus: vi
     .fn()
     .mockImplementation((_db: unknown, domainStatus: { id: string }) =>
       Promise.resolve({
@@ -28,7 +28,7 @@ jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
     )
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -46,7 +46,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('GET /api/v2/notifications', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // Return id in urlToId format so sample_account_ids filtering works.
     mockDatabase.getMastodonActorsFromIds.mockImplementation(
       ({ ids }: { ids: string[] }) =>

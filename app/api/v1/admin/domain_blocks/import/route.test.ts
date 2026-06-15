@@ -3,34 +3,34 @@ import { NextRequest } from 'next/server'
 import { POST } from './route'
 
 const mockDatabase = {
-  importDomainBlocks: jest.fn()
+  importDomainBlocks: vi.fn()
 }
-const mockDownloadKnownDomainBlocklist = jest.fn()
+const mockDownloadKnownDomainBlocklist = vi.fn()
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/services/auth/getSession', async () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue({
     user: { email: 'admin@llun.test' }
   })
 }))
 
-jest.mock('@/lib/utils/getAdminFromSession', () => ({
-  getAdminFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getAdminFromSession', async () => ({
+  getAdminFromSession: vi.fn().mockResolvedValue({
     id: 'admin',
     email: 'admin@llun.test'
   })
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', async () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test', allowEmails: [] })
 }))
 
-jest.mock('@/lib/services/federation/blocklistSources', () => {
-  const actual = jest.requireActual(
+vi.mock('@/lib/services/federation/blocklistSources', async () => {
+  const actual = await vi.importActual(
     '@/lib/services/federation/blocklistSources'
   )
 

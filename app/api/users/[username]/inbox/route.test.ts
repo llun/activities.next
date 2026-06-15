@@ -2,13 +2,13 @@ import { NextRequest } from 'next/server'
 
 import { POST } from './route'
 
-const mockCanFederateWithDomain = jest.fn()
-const mockCreateFollower = jest.fn()
-const mockDeleteLike = jest.fn()
-const mockApplyRemoteBlock = jest.fn()
-const mockApplyRemoteUnblock = jest.fn()
-const mockUndoFollowRequest = jest.fn()
-const mockVerifyAllows = jest.fn()
+const mockCanFederateWithDomain = vi.fn()
+const mockCreateFollower = vi.fn()
+const mockDeleteLike = vi.fn()
+const mockApplyRemoteBlock = vi.fn()
+const mockApplyRemoteUnblock = vi.fn()
+const mockUndoFollowRequest = vi.fn()
+const mockVerifyAllows = vi.fn()
 const mockDatabase = {
   deleteLike: (...params: unknown[]) => mockDeleteLike(...params)
 }
@@ -27,12 +27,12 @@ let mockActor: MockActor = {
   type: 'Person'
 }
 
-jest.mock('@/lib/services/federation/domainPolicy', () => ({
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
     mockCanFederateWithDomain(...params)
 }))
 
-jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
+vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
   ActivityPubVerifySenderGuard:
     (
       handle: (
@@ -74,7 +74,7 @@ jest.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
     }
 }))
 
-jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
+vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
   OnlyLocalUserGuard:
     (
       handle: (
@@ -97,32 +97,32 @@ jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
     }
 }))
 
-jest.mock('@/lib/actions/acceptFollowRequest', () => ({
-  acceptFollowRequest: jest.fn()
+vi.mock('@/lib/actions/acceptFollowRequest', () => ({
+  acceptFollowRequest: vi.fn()
 }))
 
-jest.mock('@/lib/actions/createFollower', () => ({
+vi.mock('@/lib/actions/createFollower', () => ({
   createFollower: (...params: unknown[]) => mockCreateFollower(...params)
 }))
 
-jest.mock('@/lib/actions/applyRemoteBlock', () => ({
+vi.mock('@/lib/actions/applyRemoteBlock', () => ({
   applyRemoteBlock: (...params: unknown[]) => mockApplyRemoteBlock(...params)
 }))
 
-jest.mock('@/lib/actions/applyRemoteUnblock', () => ({
+vi.mock('@/lib/actions/applyRemoteUnblock', () => ({
   applyRemoteUnblock: (...params: unknown[]) =>
     mockApplyRemoteUnblock(...params)
 }))
 
-jest.mock('@/lib/actions/like', () => ({
-  likeRequest: jest.fn()
+vi.mock('@/lib/actions/like', () => ({
+  likeRequest: vi.fn()
 }))
 
-jest.mock('@/lib/actions/rejectFollowRequest', () => ({
-  rejectFollowRequest: jest.fn()
+vi.mock('@/lib/actions/rejectFollowRequest', () => ({
+  rejectFollowRequest: vi.fn()
 }))
 
-jest.mock('@/lib/actions/undoFollowRequest', () => ({
+vi.mock('@/lib/actions/undoFollowRequest', () => ({
   undoFollowRequest: (...params: unknown[]) => mockUndoFollowRequest(...params)
 }))
 
@@ -152,7 +152,7 @@ const createActorInboxActivityRequest = (type: string) =>
 
 describe('POST /api/users/[username]/inbox', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockActor = {
       id: 'https://activities.local/users/llun',
       username: 'llun',

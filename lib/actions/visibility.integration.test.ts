@@ -12,13 +12,13 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/timelines', () => ({
-  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
@@ -43,7 +43,7 @@ describe('Visibility integration tests', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('createNote with visibility', () => {

@@ -6,14 +6,14 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
 
-const mockGetServerSession = jest.fn()
-const mockStoredToken = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+const mockStoredToken = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => () => ({
     where: () => ({
@@ -22,27 +22,27 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
   })
 }))
 
-const mockSaveMedia = jest.fn()
-jest.mock('@/lib/services/medias', () => ({
+const mockSaveMedia = vi.fn()
+vi.mock('@/lib/services/medias', () => ({
   saveMedia: (...args: unknown[]) => mockSaveMedia(...args)
 }))
 
@@ -76,7 +76,7 @@ const postRequest = (token?: string) => {
   // jest / undici cannot materialise a multipart body from a FormData passed to
   // NextRequest — mock formData() directly (see update_credentials route test).
   Object.defineProperty(req, 'formData', {
-    value: jest.fn().mockResolvedValue(buildForm())
+    value: vi.fn().mockResolvedValue(buildForm())
   })
   return req
 }
@@ -96,7 +96,7 @@ describe('POST /api/v1/media', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
     mockSaveMedia.mockResolvedValue(sampleAttachment)

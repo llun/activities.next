@@ -2,12 +2,12 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { getAccountFromSession } from '@/lib/utils/getActorFromSession'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn()
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn()
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({ get: () => undefined })
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({ get: () => undefined })
 }))
 
 const account = { id: 'account-1', email: 'user@example.com' }
@@ -16,17 +16,17 @@ const databaseWith = (getAccountFromEmail: jest.Mock) =>
   ({ getAccountFromEmail }) as unknown as Database
 
 const mockConfig = (allowEmails: string[]) => {
-  jest.mocked(getConfig).mockReturnValue({ allowEmails } as never)
+  vi.mocked(getConfig).mockReturnValue({ allowEmails } as never)
 }
 
 describe('getAccountFromSession', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns null when there is no signed-in email', async () => {
     mockConfig([])
-    const getAccountFromEmail = jest.fn()
+    const getAccountFromEmail = vi.fn()
     const result = await getAccountFromSession(
       databaseWith(getAccountFromEmail),
       null
@@ -37,7 +37,7 @@ describe('getAccountFromSession', () => {
 
   it('allows any signed-in email when the allowlist is empty', async () => {
     mockConfig([])
-    const getAccountFromEmail = jest.fn().mockResolvedValue(account)
+    const getAccountFromEmail = vi.fn().mockResolvedValue(account)
     const result = await getAccountFromSession(
       databaseWith(getAccountFromEmail),
       { user: { email: 'user@example.com' } }
@@ -60,7 +60,7 @@ describe('getAccountFromSession', () => {
     'allows the account when $description',
     async ({ allowEmails, sessionEmail }) => {
       mockConfig(allowEmails)
-      const getAccountFromEmail = jest.fn().mockResolvedValue(account)
+      const getAccountFromEmail = vi.fn().mockResolvedValue(account)
       const result = await getAccountFromSession(
         databaseWith(getAccountFromEmail),
         { user: { email: sessionEmail } }
@@ -72,7 +72,7 @@ describe('getAccountFromSession', () => {
 
   it('blocks an email that is not in the allowlist regardless of case', async () => {
     mockConfig(['allowed@example.com'])
-    const getAccountFromEmail = jest.fn()
+    const getAccountFromEmail = vi.fn()
     const result = await getAccountFromSession(
       databaseWith(getAccountFromEmail),
       { user: { email: 'Blocked@Example.com' } }

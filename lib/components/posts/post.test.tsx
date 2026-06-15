@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -14,39 +14,39 @@ import {
 
 import { Post } from './post'
 
-jest.mock('./collapsible-content', () => ({
+vi.mock('./collapsible-content', () => ({
   CollapsibleContent: ({ children }: { children: ReactNode }) => (
     <div data-testid="collapsible-content">{children}</div>
   )
 }))
 
-jest.mock('./poll', () => ({
+vi.mock('./poll', () => ({
   Poll: () => null
 }))
 
-jest.mock('./attachments', () => ({
+vi.mock('./attachments', () => ({
   Attachments: () => null
 }))
 
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: jest.fn() })
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() })
 }))
 
-jest.mock('@/lib/client', () => ({
-  bookmarkStatus: jest.fn(),
-  undoBookmarkStatus: jest.fn(),
-  deleteStatus: jest.fn(),
-  likeStatus: jest.fn(),
-  undoLikeStatus: jest.fn(),
-  repostStatus: jest.fn(),
-  undoRepostStatus: jest.fn(),
-  updateStatusVisibility: jest.fn(),
-  getRelationship: jest.fn().mockResolvedValue(null),
-  mute: jest.fn(),
-  unmute: jest.fn(),
-  block: jest.fn(),
-  unblock: jest.fn(),
-  createReport: jest.fn()
+vi.mock('@/lib/client', () => ({
+  bookmarkStatus: vi.fn(),
+  undoBookmarkStatus: vi.fn(),
+  deleteStatus: vi.fn(),
+  likeStatus: vi.fn(),
+  undoLikeStatus: vi.fn(),
+  repostStatus: vi.fn(),
+  undoRepostStatus: vi.fn(),
+  updateStatusVisibility: vi.fn(),
+  getRelationship: vi.fn().mockResolvedValue(null),
+  mute: vi.fn(),
+  unmute: vi.fn(),
+  block: vi.fn(),
+  unblock: vi.fn(),
+  createReport: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -140,7 +140,7 @@ const boostedStatus: StatusAnnounce = {
 
 describe('Post', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('does not nest long-post collapse inside expanded content warnings', () => {
@@ -151,7 +151,7 @@ describe('Post', () => {
         status={status}
         collapsible
         postLineLimit={1}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -166,7 +166,7 @@ describe('Post', () => {
         host="activities.local"
         currentTime={currentTime}
         status={boostedStatus}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -187,7 +187,7 @@ describe('Post', () => {
           actor: null,
           actorId: 'https://remote.example/@booster'
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -212,7 +212,7 @@ describe('Post', () => {
             }
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -239,7 +239,7 @@ describe('Post', () => {
             actor: null
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -268,7 +268,7 @@ describe('Post', () => {
             url: 'https://hackers.pub/@hongminhee/019dc9aa-ebc9-7059-8de2-f5850dbeea4e'
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -299,7 +299,7 @@ describe('Post', () => {
             url: 'https://hackers.pub/ap/notes/019dc9aa-ebc9-7059-8de2-f5850dbeea4e'
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -326,7 +326,7 @@ describe('Post', () => {
             url: 'https://bsky.brid.gy/r/https://bsky.app/profile/patak.cat/post/3mknrszqses2y'
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -354,7 +354,7 @@ describe('Post', () => {
             url: 'https://bsky.brid.gy/r/%E0%A4%A'
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -380,7 +380,7 @@ describe('Post', () => {
             url: 'https://example.com/posts/bsky.app/profile/notalice'
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -403,10 +403,10 @@ describe('Post', () => {
           ...status,
           edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
         }}
-        onEdit={jest.fn()}
-        onPostDeleted={jest.fn()}
-        onReply={jest.fn()}
-        onShowAttachment={jest.fn()}
+        onEdit={vi.fn()}
+        onPostDeleted={vi.fn()}
+        onReply={vi.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -437,7 +437,7 @@ describe('Post', () => {
   })
 
   it('keeps edit history panel open when interacting with panel content', () => {
-    const onShowEdits = jest.fn()
+    const onShowEdits = vi.fn()
 
     render(
       <Post
@@ -449,7 +449,7 @@ describe('Post', () => {
           ...status,
           edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
         onShowEdits={onShowEdits}
       />
     )
@@ -503,7 +503,7 @@ describe('Post', () => {
           ...status,
           edits
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -526,8 +526,8 @@ describe('Post', () => {
   })
 
   it('uses currentTime for edit history relative timestamps', () => {
-    jest.useFakeTimers()
-    jest.setSystemTime(currentTime + 7 * 24 * 60 * 60 * 1000)
+    vi.useFakeTimers()
+    vi.setSystemTime(currentTime + 7 * 24 * 60 * 60 * 1000)
 
     try {
       render(
@@ -542,7 +542,7 @@ describe('Post', () => {
               { text: 'Previous content', createdAt: currentTime - 60000 }
             ]
           }}
-          onShowAttachment={jest.fn()}
+          onShowAttachment={vi.fn()}
         />
       )
 
@@ -555,7 +555,7 @@ describe('Post', () => {
       expect(screen.getByText('1 minute')).toBeInTheDocument()
       expect(screen.queryByText('7 days')).not.toBeInTheDocument()
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
   })
 
@@ -571,7 +571,7 @@ describe('Post', () => {
         currentTime={currentTime}
         showActions
         status={status}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -592,9 +592,9 @@ describe('Post', () => {
         editable
         showActions
         status={status}
-        onEdit={jest.fn()}
-        onPostDeleted={jest.fn()}
-        onShowAttachment={jest.fn()}
+        onEdit={vi.fn()}
+        onPostDeleted={vi.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -630,10 +630,10 @@ describe('Post', () => {
           ...status,
           edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
         }}
-        onEdit={jest.fn()}
-        onPostDeleted={jest.fn()}
-        onReply={jest.fn()}
-        onShowAttachment={jest.fn()}
+        onEdit={vi.fn()}
+        onPostDeleted={vi.fn()}
+        onReply={vi.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -659,7 +659,7 @@ describe('Post', () => {
         editable
         showActions
         status={status}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -691,7 +691,7 @@ describe('Post', () => {
         currentTime={currentTime}
         showActions
         status={status}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -710,7 +710,7 @@ describe('Post', () => {
           isActorLiked: true,
           totalLikes: 2
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -737,7 +737,7 @@ describe('Post', () => {
         currentTime={currentTime}
         showActions
         status={status}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -755,7 +755,7 @@ describe('Post', () => {
           ...status,
           totalLikes: 4
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -793,7 +793,7 @@ describe('Post', () => {
           ],
           totalLikes: 3
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -821,7 +821,7 @@ describe('Post', () => {
           replies: [{ ...status, id: 'https://activities.local/replies/1' }],
           totalLikes: 1
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -848,7 +848,7 @@ describe('Post', () => {
           ...status,
           actorAnnounceStatusId: 'https://activities.local/announces/1'
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -872,7 +872,7 @@ describe('Post', () => {
           ...status,
           isActorBookmarked: true
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -904,7 +904,7 @@ describe('Post', () => {
             sourceUrl: 'https://www.strava.com/activities/123'
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 
@@ -929,7 +929,7 @@ describe('Post', () => {
             sourceUrl: 'javascript:alert(1)'
           }
         }}
-        onShowAttachment={jest.fn()}
+        onShowAttachment={vi.fn()}
       />
     )
 

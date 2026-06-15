@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function (knex) {
+export const up = function (knex) {
   return knex.schema.createTable('auth_codes', function (table) {
     table.string('code').primary()
 
@@ -26,6 +26,6 @@ exports.up = function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema.dropTable('auth_codes')
 }

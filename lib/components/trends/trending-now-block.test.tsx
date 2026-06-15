@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -8,8 +8,8 @@ import { getTrendingTags } from '@/lib/client'
 import { TrendingNowBlock } from '@/lib/components/trends/trending-now-block'
 import type { Tag } from '@/lib/types/mastodon/tag'
 
-jest.mock('@/lib/client', () => ({
-  getTrendingTags: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getTrendingTags: vi.fn()
 }))
 
 const mockGetTrendingTags = getTrendingTags as jest.Mock

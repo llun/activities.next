@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   // 1. Add mediaId column
   await knex.schema.alterTable('attachments', function (table) {
     table.string('mediaId')
@@ -51,7 +51,7 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('attachments', function (table) {
     table.dropIndex(['mediaId'], 'attachments_mediaId_idx')
     table.dropColumn('mediaId')

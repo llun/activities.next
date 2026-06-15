@@ -8,8 +8,8 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { GET } from './route'
 
 const mockDatabase = {
-  getActorStatusesCount: jest.fn(),
-  getActorStatuses: jest.fn()
+  getActorStatusesCount: vi.fn(),
+  getActorStatuses: vi.fn()
 }
 const mockActor: Actor = {
   id: 'https://example.com/users/test',
@@ -76,7 +76,7 @@ const createUnreadableAnnounceStatus = (
     updatedAt: createdAt
   }) as const
 
-jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
+vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
   OnlyLocalUserGuard:
     (
       handle: (...params: unknown[]) => Promise<Response> | Response,

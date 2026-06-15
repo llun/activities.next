@@ -10,10 +10,10 @@ import {
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
 
-jest.mock('yauzl', () => ({
+vi.mock('yauzl', () => ({
   __esModule: true,
   default: {
-    open: jest.fn()
+    open: vi.fn()
   }
 }))
 
@@ -24,13 +24,13 @@ const gzip = promisify(gzipCallback)
 
 describe('StravaArchiveReader.open', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   const mockZipFileWithEntries = (entries: yauzl.Entry[]) => {
     const zipFile = new EventEmitter() as unknown as yauzl.ZipFile
     let index = 0
-    zipFile.readEntry = jest.fn(() => {
+    zipFile.readEntry = vi.fn(() => {
       process.nextTick(() => {
         const entry = entries[index]
         index += 1
@@ -41,7 +41,7 @@ describe('StravaArchiveReader.open', () => {
         zipFile.emit('end')
       })
     })
-    zipFile.close = jest.fn()
+    zipFile.close = vi.fn()
     return zipFile
   }
 
@@ -175,7 +175,7 @@ describe('StravaArchiveReader.open', () => {
         relativeOffsetOfLocalHeader: localHeaderOffset
       })
     ])
-    const readMock = jest.fn(
+    const readMock = vi.fn(
       async (
         buffer: Buffer,
         offset: number,
@@ -190,8 +190,8 @@ describe('StravaArchiveReader.open', () => {
         return { bytesRead, buffer }
       }
     )
-    const closeMock = jest.fn().mockResolvedValue(undefined)
-    const openSpy = jest.spyOn(fs, 'open').mockResolvedValue({
+    const closeMock = vi.fn().mockResolvedValue(undefined)
+    const openSpy = vi.spyOn(fs, 'open').mockResolvedValue({
       read: readMock,
       close: closeMock
     } as never)

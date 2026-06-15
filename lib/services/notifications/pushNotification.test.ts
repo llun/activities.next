@@ -5,14 +5,14 @@ import { NotificationType } from '@/lib/types/database/operations'
 
 import { sendPushNotification } from './pushNotification'
 
-jest.mock('web-push')
+vi.mock('web-push')
 const mockWebpush = webpush as jest.Mocked<typeof webpush>
 
-jest.mock('@/lib/config')
-const { getConfig } = jest.requireMock<{ getConfig: jest.Mock }>('@/lib/config')
+vi.mock('@/lib/config')
+const { getConfig } = await vi.importMock<{ getConfig: jest.Mock }>('@/lib/config')
 
-jest.mock('./pushNotificationSettings', () => ({
-  shouldSendPushForNotification: jest.fn().mockResolvedValue(true)
+vi.mock('./pushNotificationSettings', async () => ({
+  shouldSendPushForNotification: vi.fn().mockResolvedValue(true)
 }))
 
 const pushConfig = {
@@ -26,7 +26,7 @@ const pushConfig = {
 
 const makeDb = (overrides: Partial<jest.Mocked<Database>> = {}) =>
   ({
-    getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+    getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
       {
         id: 'sub1',
         actorId: 'https://llun.test/users/test1',
@@ -37,7 +37,7 @@ const makeDb = (overrides: Partial<jest.Mocked<Database>> = {}) =>
         updatedAt: Date.now()
       }
     ]),
-    deletePushSubscription: jest.fn().mockResolvedValue(undefined),
+    deletePushSubscription: vi.fn().mockResolvedValue(undefined),
     ...overrides
   }) as unknown as Database
 
@@ -49,7 +49,7 @@ const sourceActor = {
 
 describe('sendPushNotification', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     getConfig.mockReturnValue(pushConfig)
     mockWebpush.setVapidDetails.mockReturnValue(undefined)
     mockWebpush.sendNotification.mockResolvedValue({} as never)
@@ -76,7 +76,7 @@ describe('sendPushNotification', () => {
 
   it('sends a Mastodon-compatible payload with the standard fields', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
         {
           id: 'sub1',
           actorId: 'https://llun.test/users/test1',
@@ -141,7 +141,7 @@ describe('sendPushNotification', () => {
 
   it('uses standard aes128gcm encoding when the subscription is standard', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
         {
           id: 'sub1',
           actorId: 'https://llun.test/users/test1',
@@ -173,7 +173,7 @@ describe('sendPushNotification', () => {
 
   it('uses legacy aesgcm encoding when the subscription is not standard', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
         {
           id: 'sub1',
           actorId: 'https://llun.test/users/test1',
@@ -205,7 +205,7 @@ describe('sendPushNotification', () => {
 
   it('skips a subscription whose policy is none', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
         {
           id: 'sub1',
           actorId: 'https://llun.test/users/test1',
@@ -232,7 +232,7 @@ describe('sendPushNotification', () => {
 
   it('skips a subscription that disabled the alert for this type', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
         {
           id: 'sub1',
           actorId: 'https://llun.test/users/test1',
@@ -260,7 +260,7 @@ describe('sendPushNotification', () => {
 
   it('sends when the alert for this type is enabled', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
         {
           id: 'sub1',
           actorId: 'https://llun.test/users/test1',
@@ -287,7 +287,7 @@ describe('sendPushNotification', () => {
 
   it('skips activity_import when the status alert is disabled', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
         {
           id: 'sub1',
           actorId: 'https://llun.test/users/test1',
@@ -316,7 +316,7 @@ describe('sendPushNotification', () => {
 
   it('skips sending when no subscriptions exist', async () => {
     const db = makeDb({
-      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([])
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([])
     } as never)
 
     await sendPushNotification({

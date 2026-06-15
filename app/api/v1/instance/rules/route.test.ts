@@ -5,13 +5,13 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { GET } from './route'
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => null
 }))
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret',
     allowEmails: []
@@ -74,7 +74,7 @@ describe('GET /api/v1/instance/rules', () => {
   })
 
   it('returns a JSON 500 when loading rules throws', async () => {
-    const spy = jest
+    const spy = vi
       .spyOn(database, 'getInstanceRules')
       .mockRejectedValueOnce(new Error('connection lost'))
     try {

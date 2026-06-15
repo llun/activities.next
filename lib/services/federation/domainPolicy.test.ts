@@ -7,8 +7,8 @@ import {
   isLocalFederationDomain
 } from './domainPolicy'
 
-const mockGetConfig = jest.fn()
-jest.mock('@/lib/config', () => ({
+const mockGetConfig = vi.fn()
+vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
@@ -49,16 +49,16 @@ const createDatabase = (params: { blocks?: string[]; allows?: string[] }) => {
   }
 
   return {
-    getDomainBlockForDomain: jest.fn(async (domain: string) =>
+    getDomainBlockForDomain: vi.fn(async (domain: string) =>
       findBlock(domain)
     ),
-    getDomainAllowForDomain: jest.fn(async (domain: string) =>
+    getDomainAllowForDomain: vi.fn(async (domain: string) =>
       findAllow(domain)
     ),
-    getDomainBlocksForDomains: jest.fn(async (domains: string[]) =>
+    getDomainBlocksForDomains: vi.fn(async (domains: string[]) =>
       Object.fromEntries(domains.map((domain) => [domain, findBlock(domain)]))
     ),
-    getDomainAllowsForDomains: jest.fn(async (domains: string[]) =>
+    getDomainAllowsForDomains: vi.fn(async (domains: string[]) =>
       Object.fromEntries(domains.map((domain) => [domain, findAllow(domain)]))
     )
   } as unknown as Database

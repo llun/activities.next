@@ -27,7 +27,7 @@ describe('getFollowListBlockedActorIds', () => {
     const blockedActorId = 'https://example.test/users/blocked'
     const blockingActorId = 'https://example.test/users/blocking'
     const unrelatedActorId = 'https://example.test/users/unrelated'
-    const getBlockRelations = jest.fn(async () => [
+    const getBlockRelations = vi.fn(async () => [
       {
         actorId: currentActorId,
         targetActorId: blockedActorId
@@ -61,7 +61,7 @@ describe('getFollowListBlockedActorIds', () => {
   })
 
   it('does not query block relations without a current actor or users', async () => {
-    const getBlockRelations = jest.fn()
+    const getBlockRelations = vi.fn()
     const database = { getBlockRelations } as unknown as Pick<
       Database,
       'getBlockRelations'

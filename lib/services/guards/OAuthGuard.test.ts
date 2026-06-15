@@ -15,8 +15,8 @@ import {
 } from './OAuthGuard'
 
 // Mock auth session
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
@@ -36,7 +36,7 @@ const hashToken = (token: string) =>
 const mockKnexQueryBuilder = (hashedToken: string) => ({
   first: () => Promise.resolve(mockStoredTokens.get(hashedToken) ?? null)
 })
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => (_table: string) => ({
     where: (_field: string, value: string) => mockKnexQueryBuilder(value)
@@ -45,8 +45,8 @@ jest.mock('@/lib/database', () => ({
 
 // Mock cookies from next/headers — controls which actor the cookie selects
 const mockCookieValue: { value?: string } = {}
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockImplementation(() =>
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockImplementation(() =>
     Promise.resolve({
       get: (name: string) => {
         if (name === 'activities.actor-id') {
@@ -61,7 +61,7 @@ jest.mock('next/headers', () => ({
 }))
 
 // Mock config
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: [],
     host: 'llun.test',
@@ -72,8 +72,8 @@ jest.mock('@/lib/config', () => ({
 }))
 
 // Mock verifyAccessToken from better-auth
-const mockVerifyAccessToken = jest.fn()
-jest.mock('better-auth/oauth2', () => ({
+const mockVerifyAccessToken = vi.fn()
+vi.mock('better-auth/oauth2', () => ({
   verifyAccessToken: (...args: unknown[]) => mockVerifyAccessToken(...args)
 }))
 
@@ -138,7 +138,7 @@ describe('OAuthGuard', () => {
     })
   }
 
-  const mockHandler = jest.fn().mockImplementation(() => {
+  const mockHandler = vi.fn().mockImplementation(() => {
     return NextResponse.json({ success: true }, { status: 200 })
   })
 
@@ -273,7 +273,7 @@ describe('OAuthGuard', () => {
       mockCookieValue.value = undefined
 
       let capturedActor: Actor | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
+      const handler = vi.fn().mockImplementation((_req, context) => {
         capturedActor = context.currentActor
         return NextResponse.json({ success: true }, { status: 200 })
       })
@@ -308,7 +308,7 @@ describe('OAuthGuard', () => {
       mockCookieValue.value = subActorId
 
       let capturedActor: Actor | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
+      const handler = vi.fn().mockImplementation((_req, context) => {
         capturedActor = context.currentActor
         return NextResponse.json({ success: true }, { status: 200 })
       })
@@ -329,7 +329,7 @@ describe('OAuthGuard', () => {
       mockCookieValue.value = 'invalid-actor-id-that-does-not-exist'
 
       let capturedActor: Actor | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
+      const handler = vi.fn().mockImplementation((_req, context) => {
         capturedActor = context.currentActor
         return NextResponse.json({ success: true }, { status: 200 })
       })
@@ -373,7 +373,7 @@ describe('OAuthGuard', () => {
     test('uses the provided errorResponse for auth failures', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
-      const errorResponse = jest
+      const errorResponse = vi
         .fn()
         .mockImplementation(
           (_req: NextRequest, status: number) =>
@@ -927,7 +927,7 @@ describe('OAuthGuard', () => {
 
     const captureHandler = () => {
       let captured: CapturedContext | undefined
-      const handler = jest.fn().mockImplementation((_req, context) => {
+      const handler = vi.fn().mockImplementation((_req, context) => {
         captured = {
           currentActor: context.currentActor,
           grantedScopes: context.grantedScopes

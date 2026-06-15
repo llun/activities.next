@@ -1,4 +1,4 @@
-export const getActorPerson = jest.fn().mockImplementation(({ actorId }) => {
+export const getActorPerson = vi.fn().mockImplementation(({ actorId }) => {
   // Extract username from actorId URL
   const username = actorId.split('/').pop() || 'friend'
   const domain = new URL(actorId).hostname

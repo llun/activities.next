@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function (knex) {
+export const up = function (knex) {
   return knex.schema
     .alterTable('applications', function (table) {
       table.renameColumn('clientName', 'name')
@@ -30,7 +30,7 @@ exports.up = function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema
     .renameTable('clients', 'applications')
     .alterTable('applications', function (table) {

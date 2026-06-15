@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.createTable('poll_voters', function (table) {
     table.increments('id').primary()
     table.string('statusId').notNullable()
@@ -63,6 +63,6 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.schema.dropTable('poll_voters')
 }

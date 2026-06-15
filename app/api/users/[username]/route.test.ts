@@ -23,7 +23,7 @@ let mockActor: Actor = {
   publicKey: 'public-key'
 }
 
-jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
+vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
   OnlyLocalUserGuard:
     (handle: (...params: unknown[]) => Promise<Response> | Response) =>
     (req: NextRequest, query: unknown) =>

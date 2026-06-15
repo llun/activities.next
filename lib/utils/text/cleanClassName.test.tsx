@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render } from '@testing-library/react'
@@ -22,7 +22,7 @@ describe('cleanClassName', () => {
       const html = '<a href="https://test.local/page">Link</a>'
       const result = cleanClassName(html)
 
-      const parentClickHandler = jest.fn()
+      const parentClickHandler = vi.fn()
       const { container } = render(
         <div onClick={parentClickHandler}>{result}</div>
       )
@@ -60,7 +60,7 @@ describe('cleanClassName', () => {
         '<a href="https://test.local/page"><span>Nested</span> content</a>'
       const result = cleanClassName(html)
 
-      const parentClickHandler = jest.fn()
+      const parentClickHandler = vi.fn()
       const { container } = render(
         <div onClick={parentClickHandler}>{result}</div>
       )
@@ -80,7 +80,7 @@ describe('cleanClassName', () => {
         '<p><a href="https://test.local/first">First</a> and <a href="https://test.local/second">Second</a></p>'
       const result = cleanClassName(html)
 
-      const parentClickHandler = jest.fn()
+      const parentClickHandler = vi.fn()
       const { container } = render(
         <div onClick={parentClickHandler}>{result}</div>
       )
@@ -184,7 +184,7 @@ describe('cleanClassName', () => {
         '<a href="https://test.local/page">Text <span class="invisible">hidden</span> <img class="emoji" src="emoji.png" alt="emoji"> more text</a>'
       const result = cleanClassName(html)
 
-      const parentClickHandler = jest.fn()
+      const parentClickHandler = vi.fn()
       const { container } = render(
         <div onClick={parentClickHandler}>{result}</div>
       )
@@ -213,7 +213,7 @@ describe('cleanClassName', () => {
         '<p>Check out <a href="https://test.local/link">this link</a> and <span class="invisible">hidden</span> <img class="emoji" src="emoji.png" alt="emoji"></p>'
       const result = cleanClassName(html)
 
-      const parentClickHandler = jest.fn()
+      const parentClickHandler = vi.fn()
       const { container } = render(
         <div onClick={parentClickHandler}>{result}</div>
       )

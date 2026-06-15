@@ -8,8 +8,8 @@ import { getQueue } from '@/lib/services/queue'
 
 import { GET, PATCH, POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
@@ -24,12 +24,12 @@ type MockDatabase = {
 }
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn().mockResolvedValue({
     id: 'https://llun.test/users/llun',
     username: 'llun',
     domain: 'llun.test',
@@ -50,20 +50,20 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
   })
 }))
 
-jest.mock('@/lib/services/fitness-files', () => ({
-  saveFitnessFile: jest.fn(),
-  deleteFitnessFile: jest.fn(),
-  verifyPresignedFitnessFileUpload: jest.fn()
+vi.mock('@/lib/services/fitness-files', () => ({
+  saveFitnessFile: vi.fn(),
+  deleteFitnessFile: vi.fn(),
+  verifyPresignedFitnessFileUpload: vi.fn()
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
@@ -81,17 +81,17 @@ const mockVerifyPresignedFitnessFileUpload =
 
 describe('Strava archive import route', () => {
   const db: MockDatabase = {
-    getActiveStravaArchiveImportByActor: jest.fn(),
-    createStravaArchiveImport: jest.fn(),
-    deleteStravaArchiveImport: jest.fn(),
-    getFitnessFile: jest.fn(),
-    updateStravaArchiveImport: jest.fn(),
-    updateFitnessFileImportStatus: jest.fn(),
-    updateFitnessFileProcessingStatus: jest.fn()
+    getActiveStravaArchiveImportByActor: vi.fn(),
+    createStravaArchiveImport: vi.fn(),
+    deleteStravaArchiveImport: vi.fn(),
+    getFitnessFile: vi.fn(),
+    updateStravaArchiveImport: vi.fn(),
+    updateFitnessFileImportStatus: vi.fn(),
+    updateFitnessFileProcessingStatus: vi.fn()
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })

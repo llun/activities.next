@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
+export const up = (knex) => {
   return knex.schema
     .alterTable('actors', function (table) {
       // Index for filtering actors by accountId in media queries
@@ -22,7 +22,7 @@ exports.up = (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema
     .alterTable('actors', function (table) {
       table.dropIndex(['accountId'], 'actors_accountId_idx')

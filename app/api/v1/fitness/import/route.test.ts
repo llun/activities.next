@@ -7,18 +7,18 @@ import { getQueue } from '@/lib/services/queue'
 
 import { POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: Record<string, unknown> | null = {}
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn().mockResolvedValue({
     id: 'https://llun.test/users/llun',
     username: 'llun',
     domain: 'llun.test',
@@ -34,19 +34,19 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
   })
 }))
 
-jest.mock('@/lib/services/fitness-files', () => ({
-  saveFitnessFile: jest.fn(),
-  deleteFitnessFile: jest.fn().mockResolvedValue(true)
+vi.mock('@/lib/services/fitness-files', () => ({
+  saveFitnessFile: vi.fn(),
+  deleteFitnessFile: vi.fn().mockResolvedValue(true)
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
@@ -60,7 +60,7 @@ const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
 
 describe('POST /api/v1/fitness/import', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })

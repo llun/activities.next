@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
+export const up = (knex) => {
   return knex.schema.alterTable('attachments', function (table) {
     table.string('actorId')
 
@@ -14,7 +14,7 @@ exports.up = (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('attachments', function (table) {
     table.dropIndex(['actorId'], 'attachments_actorId_idx')
     table.dropColumns('actorId')

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -14,7 +14,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   const originalGeolocation = global.navigator.geolocation
 
   afterEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
     Object.defineProperty(global.navigator, 'geolocation', {
       configurable: true,
       value: originalGeolocation
@@ -22,7 +22,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('shows manual coordinate mode when mapbox token is missing', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValue({
+    vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         privacyLocations: []
@@ -54,7 +54,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('adds a privacy location and saves the list payload', async () => {
-    const fetchMock = jest
+    const fetchMock = vi
       .spyOn(global, 'fetch')
       .mockImplementation(async (input, init) => {
         const method = init?.method ?? 'GET'
@@ -155,7 +155,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('fills coordinates from browser current location', async () => {
-    const getCurrentPosition = jest.fn(
+    const getCurrentPosition = vi.fn(
       (success: (position: GeolocationPosition) => void) => {
         success({
           coords: {
@@ -172,7 +172,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       }
     })
 
-    jest.spyOn(global, 'fetch').mockResolvedValue({
+    vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         privacyLocations: []
@@ -200,7 +200,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('retries with fallback geolocation options when first lookup fails', async () => {
-    const getCurrentPosition = jest.fn(
+    const getCurrentPosition = vi.fn(
       (
         success: (position: GeolocationPosition) => void,
         error?: (error: GeolocationPositionError) => void,
@@ -229,7 +229,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       }
     })
 
-    jest.spyOn(global, 'fetch').mockResolvedValue({
+    vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         privacyLocations: []
@@ -254,7 +254,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('persists clear all by posting an empty privacy locations list', async () => {
-    const fetchMock = jest
+    const fetchMock = vi
       .spyOn(global, 'fetch')
       .mockImplementation(async (input, init) => {
         const method = init?.method ?? 'GET'
@@ -316,7 +316,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('updates coordinates from browser location after clearing all', async () => {
-    const getCurrentPosition = jest.fn(
+    const getCurrentPosition = vi.fn(
       (success: (position: GeolocationPosition) => void) => {
         success({
           coords: {
@@ -333,7 +333,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       }
     })
 
-    jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const method = init?.method ?? 'GET'
 
       if (
@@ -394,7 +394,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       }>
     }> = []
 
-    jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const method = init?.method ?? 'GET'
 
       if (
@@ -464,7 +464,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('queues manual regeneration for old status map images', async () => {
-    const fetchMock = jest
+    const fetchMock = vi
       .spyOn(global, 'fetch')
       .mockImplementation(async (input, init) => {
         const method = init?.method ?? 'GET'

@@ -348,7 +348,7 @@ describe('createPollJob', () => {
   })
 
   it('batches hashtag search reindexing after hashtag tags are created', async () => {
-    const indexHashtagSearchDocuments = jest.spyOn(
+    const indexHashtagSearchDocuments = vi.spyOn(
       database,
       'indexHashtagSearchDocuments'
     )

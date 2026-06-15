@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -20,7 +20,7 @@ const customEmojis: CustomEmoji[] = [
 
 describe('EmojiPickerButton', () => {
   it('inserts the :shortcode: token when a custom emoji is picked', () => {
-    const onSelect = jest.fn()
+    const onSelect = vi.fn()
     render(
       <EmojiPickerButton customEmojis={customEmojis} onSelect={onSelect} />
     )
@@ -33,7 +33,7 @@ describe('EmojiPickerButton', () => {
   })
 
   it('inserts the unicode character when a system emoji is picked', () => {
-    const onSelect = jest.fn()
+    const onSelect = vi.fn()
     render(<EmojiPickerButton customEmojis={[]} onSelect={onSelect} />)
 
     fireEvent.click(screen.getByLabelText('Add emoji or sticker'))
@@ -47,7 +47,7 @@ describe('EmojiPickerButton', () => {
   })
 
   it('closes on Escape', () => {
-    render(<EmojiPickerButton customEmojis={[]} onSelect={jest.fn()} />)
+    render(<EmojiPickerButton customEmojis={[]} onSelect={vi.fn()} />)
     fireEvent.click(screen.getByLabelText('Add emoji or sticker'))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })

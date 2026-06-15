@@ -2,20 +2,20 @@ import { Client } from '@upstash/qstash'
 
 import { QStashQueue } from './qstash'
 
-jest.mock('@upstash/qstash')
-jest.mock('@/lib/utils/trace', () => ({
+vi.mock('@upstash/qstash')
+vi.mock('@/lib/utils/trace', () => ({
   getTracer: () => ({
-    startActiveSpan: jest.fn((name, callback) =>
+    startActiveSpan: vi.fn((name, callback) =>
       callback({
-        recordException: jest.fn(),
-        end: jest.fn()
+        recordException: vi.fn(),
+        end: vi.fn()
       })
     )
   })
 }))
 
 describe('QStashQueue', () => {
-  const mockPublishJSON = jest.fn()
+  const mockPublishJSON = vi.fn()
 
   beforeEach(() => {
     ;(Client as unknown as jest.Mock).mockImplementation(() => ({

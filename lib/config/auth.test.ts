@@ -2,9 +2,9 @@ import { logger } from '@/lib/utils/logger'
 
 import { AuthConfig, getAuthConfig } from './auth'
 
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    warn: jest.fn()
+    warn: vi.fn()
   }
 }))
 

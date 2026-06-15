@@ -579,8 +579,8 @@ describe('AccountDatabase', () => {
         try {
           await sqlDatabase.migrate()
 
-          jest.useFakeTimers()
-          jest.setSystemTime(new Date('2026-01-08T10:00:00.000Z'))
+          vi.useFakeTimers()
+          vi.setSystemTime(new Date('2026-01-08T10:00:00.000Z'))
 
           const accountId = await sqlDatabase.createAccount({
             email: `login-${crypto.randomUUID()}@${TEST_DOMAIN}`,
@@ -602,7 +602,7 @@ describe('AccountDatabase', () => {
             expireAt: Date.now() + 120_000
           })
 
-          jest.setSystemTime(new Date('2026-01-13T10:00:00.000Z'))
+          vi.setSystemTime(new Date('2026-01-13T10:00:00.000Z'))
           await sqlDatabase.createAccountSession({
             accountId,
             token: 'login-week-two',
@@ -622,7 +622,7 @@ describe('AccountDatabase', () => {
             }
           ])
         } finally {
-          jest.useRealTimers()
+          vi.useRealTimers()
           await knexDatabase.destroy()
         }
       })
@@ -636,7 +636,7 @@ describe('AccountDatabase', () => {
           }
         })
         const sqlDatabase = getSQLDatabase(knexDatabase)
-        const errorSpy = jest
+        const errorSpy = vi
           .spyOn(logger, 'error')
           .mockImplementation(() => undefined)
 

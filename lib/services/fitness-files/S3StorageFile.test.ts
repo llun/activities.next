@@ -6,15 +6,15 @@ import { S3FitnessStorage } from '@/lib/services/fitness-files/S3StorageFile'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 
-jest.mock('@aws-sdk/client-s3', () => {
+vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
-    jest.fn().mockImplementation(function command(input) {
+    vi.fn().mockImplementation(function command(input) {
       this.input = input
       this.name = name
     })
 
   return {
-    S3Client: jest.fn(),
+    S3Client: vi.fn(),
     HeadObjectCommand: makeCommand('HeadObjectCommand'),
     DeleteObjectCommand: makeCommand('DeleteObjectCommand'),
     GetObjectCommand: makeCommand('GetObjectCommand'),
@@ -23,7 +23,7 @@ jest.mock('@aws-sdk/client-s3', () => {
 })
 
 describe('S3FitnessStorage presigned upload verification', () => {
-  const send = jest.fn()
+  const send = vi.fn()
   const actor = { id: 'actor-1' } as Actor
   const fitnessFile = {
     id: 'fitness-file-1',
@@ -35,11 +35,11 @@ describe('S3FitnessStorage presigned upload verification', () => {
     bytes: 1024
   } as FitnessFile
   const database = {
-    deleteFitnessFile: jest.fn()
+    deleteFitnessFile: vi.fn()
   } as unknown as jest.Mocked<Database>
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       () => ({ send }) as unknown as S3Client
     )

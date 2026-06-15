@@ -5,8 +5,8 @@ import { Status } from '@/lib/types/domain/status'
 
 import { getFederatedStatusDeliveryInboxes } from './statusDelivery'
 
-jest.mock('@/lib/activities/getActorPerson', () => ({
-  getActorPerson: jest.fn()
+vi.mock('@/lib/activities/getActorPerson', () => ({
+  getActorPerson: vi.fn()
 }))
 
 const makeActor = (id: string, overrides: Partial<Actor> = {}): Actor => ({
@@ -58,16 +58,16 @@ const makeStatus = (overrides: Partial<Status>): Status =>
 
 const makeDatabase = (overrides: Partial<Database>): Database =>
   ({
-    getActorsFromIds: jest.fn().mockResolvedValue([]),
-    getFollowersInbox: jest.fn().mockResolvedValue([]),
-    getDomainBlocksForDomains: jest.fn().mockResolvedValue({}),
-    getDomainAllowsForDomains: jest.fn().mockResolvedValue({}),
+    getActorsFromIds: vi.fn().mockResolvedValue([]),
+    getFollowersInbox: vi.fn().mockResolvedValue([]),
+    getDomainBlocksForDomains: vi.fn().mockResolvedValue({}),
+    getDomainAllowsForDomains: vi.fn().mockResolvedValue({}),
     ...overrides
   }) as Database
 
 describe('getFederatedStatusDeliveryInboxes', () => {
   beforeEach(() => {
-    jest.mocked(getActorPerson).mockResolvedValue(null)
+    vi.mocked(getActorPerson).mockResolvedValue(null)
   })
 
   it('delivers direct statuses only to explicit remote recipients', async () => {
@@ -79,7 +79,7 @@ describe('getFederatedStatusDeliveryInboxes', () => {
       privateKey: 'private-key'
     })
     const database = makeDatabase({
-      getActorsFromIds: jest.fn(async ({ ids }) => {
+      getActorsFromIds: vi.fn(async ({ ids }) => {
         return ids
           .map((id) => {
             if (id === remoteActor.id) return remoteActor
@@ -111,7 +111,7 @@ describe('getFederatedStatusDeliveryInboxes', () => {
       (_, index) => `https://remote-${index}.test/users/bob`
     )
     const database = makeDatabase({
-      getActorsFromIds: jest.fn(async ({ ids }) => ids.map(makeActor))
+      getActorsFromIds: vi.fn(async ({ ids }) => ids.map(makeActor))
     })
 
     await getFederatedStatusDeliveryInboxes({
@@ -136,9 +136,9 @@ describe('getFederatedStatusDeliveryInboxes', () => {
     let activeLookups = 0
     let maxActiveLookups = 0
     const database = makeDatabase({
-      getActorsFromIds: jest.fn().mockResolvedValue([])
+      getActorsFromIds: vi.fn().mockResolvedValue([])
     })
-    jest.mocked(getActorPerson).mockImplementation(async ({ actorId }) => {
+    vi.mocked(getActorPerson).mockImplementation(async ({ actorId }) => {
       activeLookups += 1
       maxActiveLookups = Math.max(maxActiveLookups, activeLookups)
       await new Promise((resolve) => setTimeout(resolve, 1))

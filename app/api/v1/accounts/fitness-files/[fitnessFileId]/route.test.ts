@@ -6,23 +6,23 @@ import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/service
 
 import { DELETE } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockGetActorFromSession = jest.fn()
-jest.mock('@/lib/utils/getActorFromSession', () => ({
+const mockGetActorFromSession = vi.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-const mockPublish = jest.fn()
-jest.mock('@/lib/services/queue', () => ({
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
-jest.mock('@/lib/services/fitness-files', () => ({
-  deleteFitnessFile: jest.fn()
+vi.mock('@/lib/services/fitness-files', () => ({
+  deleteFitnessFile: vi.fn()
 }))
 
 type MockDatabase = Pick<
@@ -34,7 +34,7 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
@@ -45,10 +45,10 @@ const mockDeleteFitnessFileFromStorage =
 
 describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessFile: jest.fn(),
-    getActorFromId: jest.fn(),
-    getDistinctRouteHeatmapRegionsForActor: jest.fn(),
-    getFitnessRouteHeatmapByKey: jest.fn()
+    getFitnessFile: vi.fn(),
+    getActorFromId: vi.fn(),
+    getDistinctRouteHeatmapRegionsForActor: vi.fn(),
+    getFitnessRouteHeatmapByKey: vi.fn()
   }
 
   beforeAll(() => {
@@ -56,7 +56,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({ user: { email: 'owner@test' } })
     mockGetActorFromSession.mockResolvedValue({
       id: 'actor-1',

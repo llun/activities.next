@@ -35,40 +35,40 @@ import { POST as unmuteStatus } from './unmute/route'
 import { POST as unpinStatus } from './unpin/route'
 import { POST as unreblogStatus } from './unreblog/route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', async () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', async () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', async () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/activities', () => ({
-  sendLike: jest.fn().mockResolvedValue(undefined),
-  sendUndoLike: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/activities', async () => ({
+  sendLike: vi.fn().mockResolvedValue(undefined),
+  sendUndoLike: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', async () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
@@ -120,7 +120,7 @@ describe('GET /api/v1/statuses/[id]', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -1198,7 +1198,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
       await database.createBookmark({ actorId: ACTOR2_ID, statusId })
 
-      const getStatusSpy = jest.spyOn(database, 'getStatus')
+      const getStatusSpy = vi.spyOn(database, 'getStatus')
       getStatusSpy.mockResolvedValueOnce(status)
       getStatusSpy.mockResolvedValueOnce(null)
 
@@ -2893,7 +2893,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
     it('omits pagination links when no trusted host is configured', async () => {
       mockGetServerSession.mockResolvedValue(null)
-      const { getConfig } = jest.requireMock('@/lib/config') as {
+      const { getConfig } = await vi.importMock('@/lib/config') as {
         getConfig: jest.Mock
       }
       getConfig.mockReturnValue({

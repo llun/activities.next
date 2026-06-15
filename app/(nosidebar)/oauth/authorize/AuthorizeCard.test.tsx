@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -10,10 +10,10 @@ import { Client } from '@/lib/types/oauth2/client'
 import { AuthorizeCard, getConsentRedirectUrl } from './AuthorizeCard'
 import { SearchParams } from './types'
 
-const mockPush = jest.fn()
-const mockNavigate = jest.fn()
+const mockPush = vi.fn()
+const mockNavigate = vi.fn()
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush })
 }))
 
@@ -69,14 +69,14 @@ describe('AuthorizeCard', () => {
     mockPush.mockReset()
     mockNavigate.mockReset()
     window.history.replaceState({}, '', '/')
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({})
     }) as jest.Mock
   })
 
   afterEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
   })
 
   it('submits selected Phanpy scopes with the signed Better Auth query', async () => {

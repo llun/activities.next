@@ -2,36 +2,36 @@ import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 
 import { POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', async () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 const mockDatabase = {
-  getActiveStravaArchiveImportByActor: jest.fn().mockResolvedValue(null)
+  getActiveStravaArchiveImportByActor: vi.fn().mockResolvedValue(null)
 }
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getActorFromSession', async () => ({
+  getActorFromSession: vi.fn().mockResolvedValue({
     id: 'https://llun.test/users/llun',
     username: 'llun',
     domain: 'llun.test'
   })
 }))
 
-jest.mock('@/lib/services/fitness-files', () => ({
-  getPresignedFitnessFileUrl: jest.fn()
+vi.mock('@/lib/services/fitness-files', async () => ({
+  getPresignedFitnessFileUrl: vi.fn()
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({ get: () => undefined })
+vi.mock('next/headers', async () => ({
+  cookies: vi.fn().mockResolvedValue({ get: () => undefined })
 }))
 
-jest.mock('@/lib/services/strava/archiveImport', () => ({
-  getStravaArchiveSourceBatchId: jest.fn(
+vi.mock('@/lib/services/strava/archiveImport', async () => ({
+  getStravaArchiveSourceBatchId: vi.fn(
     (id: string) => `strava-archive-source:${id}`
   )
 }))
@@ -43,7 +43,7 @@ const mockGetPresignedFitnessFileUrl =
 
 describe('Strava archive presigned URL endpoint', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })
@@ -122,7 +122,7 @@ describe('Strava archive presigned URL endpoint', () => {
   })
 
   it('returns 413 when storage quota is exceeded', async () => {
-    const { QuotaExceededError } = jest.requireActual(
+    const { QuotaExceededError } = await vi.importActual(
       '@/lib/services/fitness-files/errors'
     ) as typeof import('@/lib/services/fitness-files/errors')
 

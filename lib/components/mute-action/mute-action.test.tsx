@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import {
@@ -16,17 +16,17 @@ import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/
 
 import { MuteAction } from './mute-action'
 
-const refresh = jest.fn()
+const refresh = vi.fn()
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     refresh
   })
 }))
 
-jest.mock('@/lib/client', () => ({
-  mute: jest.fn(),
-  unmute: jest.fn()
+vi.mock('@/lib/client', () => ({
+  mute: vi.fn(),
+  unmute: vi.fn()
 }))
 
 const relationship = (

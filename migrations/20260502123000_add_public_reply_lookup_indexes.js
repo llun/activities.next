@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.alterTable('recipients', function (table) {
     table.index(['actorId', 'statusId'], 'recipients_actorId_statusId_idx')
   })
@@ -16,7 +16,7 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.schema.alterTable('statuses', function (table) {
     table.dropIndex(['reply', 'type'], 'statuses_reply_type_idx')
   })

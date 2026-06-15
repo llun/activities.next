@@ -13,21 +13,21 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { GET } from './route'
 
 // Mock auth session
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 // Mock cookies from next/headers
 const mockCookieValue: { value?: string } = {}
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockImplementation(() =>
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockImplementation(() =>
     Promise.resolve({
       get: (name: string) => {
         if (name === 'activities.actor-id') {
@@ -42,12 +42,12 @@ jest.mock('next/headers', () => ({
 }))
 
 // Mock better-auth/oauth2 (ESM-only module, not needed for session-based tests)
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
 // Mock config
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: [],
     host: 'llun.test',
@@ -570,7 +570,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       })
       const sinceUrl = 'https://llun.test/users/test1/statuses/since-cursor'
       const minUrl = 'https://llun.test/users/test1/statuses/min-cursor'
-      const spy = jest.spyOn(database, 'getTimeline').mockResolvedValue([])
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
 
       await GET(
         createRequest({
@@ -606,7 +606,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       } as unknown as Status
-      const spy = jest
+      const spy = vi
         .spyOn(database, 'getTimeline')
         .mockResolvedValue([goodStatus, brokenStatus])
 

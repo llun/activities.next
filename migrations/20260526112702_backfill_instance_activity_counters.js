@@ -479,7 +479,7 @@ const setLoginMarker = (counters, accountId, weekKey, existingWeek) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   const currentTime = new Date()
   const backfillEnd = await getExistingActivityCounterCutoff(knex, currentTime)
   const counters = new Map()
@@ -511,7 +511,7 @@ exports.up = async function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function (knex) {
+export const down = async function (knex) {
   await knex('counters')
     .where('id', 'like', 'bucket:local-statuses:%')
     .orWhere('id', 'like', 'bucket:logins:%')
@@ -520,6 +520,6 @@ exports.down = async function (knex) {
     .delete()
 }
 
-exports.buildMySQLBucketCounterUpsertQuery = buildMySQLBucketCounterUpsertQuery
-exports.buildMySQLLoginMarkerUpsertQuery = buildMySQLLoginMarkerUpsertQuery
-exports.config = { transaction: false }
+export { buildMySQLBucketCounterUpsertQuery }
+export { buildMySQLLoginMarkerUpsertQuery }
+export const config = { transaction: false }

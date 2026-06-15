@@ -13,23 +13,23 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/services/fitness-files', () => {
-  const actual = jest.requireActual('@/lib/services/fitness-files')
+vi.mock('@/lib/services/fitness-files', async () => {
+  const actual = await vi.importActual('@/lib/services/fitness-files')
   return {
     ...actual,
-    getFitnessFile: jest.fn()
+    getFitnessFile: vi.fn()
   }
 })
 
-jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
-  parseFitnessFile: jest.fn(),
-  isParseableFitnessFileType: jest.fn().mockReturnValue(true)
+vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => ({
+  parseFitnessFile: vi.fn(),
+  isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
 const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
@@ -57,7 +57,7 @@ describe('importFitnessFilesJob', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',
@@ -436,11 +436,11 @@ describe('importFitnessFilesJob', () => {
     expect(file).toBeDefined()
 
     const missingFileId = 'fitness-file-missing-id'
-    const importStatusSpy = jest.spyOn(
+    const importStatusSpy = vi.spyOn(
       database,
       'updateFitnessFileImportStatus'
     )
-    const processingStatusSpy = jest.spyOn(
+    const processingStatusSpy = vi.spyOn(
       database,
       'updateFitnessFileProcessingStatus'
     )

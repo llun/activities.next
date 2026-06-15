@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -9,11 +9,11 @@ import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
 import { Poll } from './poll'
 
-jest.mock('@/lib/client', () => ({
-  votePoll: jest.fn()
+vi.mock('@/lib/client', () => ({
+  votePoll: vi.fn()
 }))
 
-const mockVotePoll = jest.mocked(votePoll)
+const mockVotePoll = vi.mocked(votePoll)
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
 
@@ -61,12 +61,12 @@ const pollStatus: StatusPoll = {
 
 describe('Poll', () => {
   beforeEach(() => {
-    jest.useFakeTimers()
-    jest.setSystemTime(new Date(currentTime))
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(currentTime))
   })
 
   afterEach(() => {
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('shows an error and keeps the selection when voting fails', async () => {
@@ -103,18 +103,18 @@ describe('Poll', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Vote' })).toBeInTheDocument()
-    expect(jest.getTimerCount()).toBe(1)
+    expect(vi.getTimerCount()).toBe(1)
 
     act(() => {
-      jest.setSystemTime(new Date(pollStatus.endAt))
-      jest.advanceTimersByTime(pollStatus.endAt - currentTime)
+      vi.setSystemTime(new Date(pollStatus.endAt))
+      vi.advanceTimersByTime(pollStatus.endAt - currentTime)
     })
 
     expect(screen.getByText('Poll closed')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Vote' })
     ).not.toBeInTheDocument()
-    expect(jest.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('syncs poll availability when currentTime prop changes', () => {
@@ -155,6 +155,6 @@ describe('Poll', () => {
     )
 
     expect(screen.getByText('Poll closed')).toBeInTheDocument()
-    expect(jest.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

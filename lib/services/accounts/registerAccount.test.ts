@@ -11,13 +11,13 @@ const DEFAULT_CONFIG = {
   email: null
 }
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn(),
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test')
+vi.mock('@/lib/config', async () => ({
+  getConfig: vi.fn(),
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test')
 }))
 
-jest.mock('@/lib/services/email', () => ({
-  sendMail: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/email', async () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined)
 }))
 
 type MockDatabase = Pick<
@@ -28,21 +28,21 @@ type MockDatabase = Pick<
 let mockDatabase: MockDatabase
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   // registerAccount and the shared confirmation-mail helper each read config via
   // getConfig(), so use a stable mockReturnValue (not mockReturnValueOnce) that
   // every call within a single registration resolves to.
-  jest.mocked(getConfig).mockReturnValue(DEFAULT_CONFIG as never)
+  vi.mocked(getConfig).mockReturnValue(DEFAULT_CONFIG as never)
   mockDatabase = {
-    isAccountExists: jest.fn().mockResolvedValue(false),
-    isUsernameExists: jest.fn().mockResolvedValue(false),
-    createAccount: jest.fn().mockResolvedValue('new-account-id')
+    isAccountExists: vi.fn().mockResolvedValue(false),
+    isUsernameExists: vi.fn().mockResolvedValue(false),
+    createAccount: vi.fn().mockResolvedValue('new-account-id')
   }
 })
 
 describe('registerAccount', () => {
   it('returns registration_closed when registration is disabled', async () => {
-    jest.mocked(getConfig).mockReturnValue({
+    vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: false,
@@ -62,7 +62,7 @@ describe('registerAccount', () => {
   })
 
   it('returns email_not_allowed when email is not on the allow-list', async () => {
-    jest.mocked(getConfig).mockReturnValue({
+    vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: ['allowed@example.com'],
       registrationOpen: true,
@@ -82,7 +82,7 @@ describe('registerAccount', () => {
   })
 
   it('returns email_not_allowed only when the allow-list is non-empty and the email is absent', async () => {
-    jest.mocked(getConfig).mockReturnValue({
+    vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: true,
@@ -204,7 +204,7 @@ describe('registerAccount', () => {
   })
 
   it('does not send email when email service is not configured', async () => {
-    const { sendMail } = jest.requireMock('@/lib/services/email')
+    const { sendMail } = await vi.importMock('@/lib/services/email')
 
     await registerAccount({
       database: mockDatabase as unknown as Database,
@@ -217,7 +217,7 @@ describe('registerAccount', () => {
   })
 
   it('sends a verification email when email service is configured', async () => {
-    jest.mocked(getConfig).mockReturnValue({
+    vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: true,
@@ -227,7 +227,7 @@ describe('registerAccount', () => {
       }
     } as never)
 
-    const { sendMail } = jest.requireMock('@/lib/services/email')
+    const { sendMail } = await vi.importMock('@/lib/services/email')
 
     await registerAccount({
       database: mockDatabase as unknown as Database,
@@ -249,12 +249,12 @@ describe('registerAccount', () => {
     // Both pre-checks pass (the racing request inserted after them), so the
     // collision only surfaces at createAccount; the re-check then identifies
     // email as the now-taken field.
-    mockDatabase.createAccount = jest.fn().mockRejectedValue(
+    mockDatabase.createAccount = vi.fn().mockRejectedValue(
       Object.assign(new Error('UNIQUE constraint failed: accounts.email'), {
         code: 'SQLITE_CONSTRAINT_UNIQUE'
       })
     )
-    mockDatabase.isAccountExists = jest
+    mockDatabase.isAccountExists = vi
       .fn()
       .mockResolvedValueOnce(false) // pre-check
       .mockResolvedValueOnce(true) // re-check after the collision
@@ -275,13 +275,13 @@ describe('registerAccount', () => {
   })
 
   it('maps a raced username-constraint collision on createAccount to a 422 username error', async () => {
-    mockDatabase.createAccount = jest.fn().mockRejectedValue(
+    mockDatabase.createAccount = vi.fn().mockRejectedValue(
       Object.assign(new Error('UNIQUE constraint failed: actors.username'), {
         code: 'SQLITE_CONSTRAINT_UNIQUE'
       })
     )
     // Email is free on the re-check; the username is the colliding field.
-    mockDatabase.isUsernameExists = jest
+    mockDatabase.isUsernameExists = vi
       .fn()
       .mockResolvedValueOnce(false) // pre-check
       .mockResolvedValueOnce(true) // re-check after the collision
@@ -306,7 +306,7 @@ describe('registerAccount', () => {
   it('falls back to a generic email 422 when a raced constraint matches neither re-check', async () => {
     // The constraint fired (e.g. on an unexpected unique column) but both
     // re-checks come back free; the caller must still get a 422, not a 500.
-    mockDatabase.createAccount = jest.fn().mockRejectedValue(
+    mockDatabase.createAccount = vi.fn().mockRejectedValue(
       Object.assign(new Error('UNIQUE constraint failed: accounts.something'), {
         code: 'SQLITE_CONSTRAINT_UNIQUE'
       })
@@ -330,7 +330,7 @@ describe('registerAccount', () => {
   })
 
   it('rethrows a non-unique-constraint error from createAccount', async () => {
-    mockDatabase.createAccount = jest
+    mockDatabase.createAccount = vi
       .fn()
       .mockRejectedValue(new Error('connection reset'))
 
@@ -345,7 +345,7 @@ describe('registerAccount', () => {
   })
 
   it('matches the allow-list case-insensitively when the entry differs in case', async () => {
-    jest.mocked(getConfig).mockReturnValue({
+    vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: ['Allowed@Example.com'],
       registrationOpen: true,
@@ -367,7 +367,7 @@ describe('registerAccount', () => {
   })
 
   it('blocks an email not on the allow-list regardless of case', async () => {
-    jest.mocked(getConfig).mockReturnValue({
+    vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: ['allowed@example.com'],
       registrationOpen: true,
@@ -404,7 +404,7 @@ describe('registerAccount', () => {
   })
 
   it('still returns success if email sending fails', async () => {
-    jest.mocked(getConfig).mockReturnValue({
+    vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: true,
@@ -414,7 +414,7 @@ describe('registerAccount', () => {
       }
     } as never)
 
-    const { sendMail } = jest.requireMock('@/lib/services/email')
+    const { sendMail } = await vi.importMock('@/lib/services/email')
     sendMail.mockRejectedValueOnce(new Error('SMTP failure'))
 
     const result = await registerAccount({

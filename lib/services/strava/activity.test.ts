@@ -7,7 +7,7 @@ import {
   getStravaUpload
 } from './activity'
 
-const mockFetch = jest.fn()
+const mockFetch = vi.fn()
 global.fetch = mockFetch
 
 describe('getStravaUpload', () => {
