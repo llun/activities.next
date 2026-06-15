@@ -2893,7 +2893,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
     it('omits pagination links when no trusted host is configured', async () => {
       mockGetServerSession.mockResolvedValue(null)
-      const { getConfig } = (await vi.importMock('@/lib/config')) as {
+      const { getConfig } = (await import('@/lib/config')) as unknown as {
         getConfig: jest.Mock
       }
       getConfig.mockReturnValue({
