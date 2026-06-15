@@ -1,7 +1,10 @@
 import { z } from 'zod'
 
 import { ALL_PUSH_ALERTS_ENABLED } from '@/lib/database/sql/pushSubscription'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuard,
+  getTokenFromHeader
+} from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -45,7 +48,11 @@ export const POST = traceApiRoute(
       // These subscriptions come from the browser PushManager and were always
       // delivered with the standard `aes128gcm` encoding; mark them `standard`
       // so delivery keeps using it now that encoding follows this flag.
-      standard: true
+      standard: true,
+      // Store the bearer token (when present) so a native client subscribing via
+      // this legacy route still receives the Mastodon `access_token` in payloads.
+      accessToken:
+        getTokenFromHeader(req.headers.get('Authorization')) ?? undefined
     })
 
     return apiResponse({

@@ -2424,6 +2424,11 @@ export interface PushSubscription {
   alerts: PushAlerts
   policy: PushPolicy
   standard: boolean
+  // The plaintext OAuth access token tied to this subscription, when it was
+  // created via a bearer token. Included in the Mastodon Web Push payload so
+  // native clients can attribute the push and fetch the full notification.
+  // Null for browser PushManager subscriptions (web-session auth, no token).
+  accessToken?: string
   createdAt: number
   updatedAt: number
 }
@@ -2436,6 +2441,7 @@ export type CreatePushSubscriptionParams = {
   alerts?: Partial<PushAlerts>
   policy?: PushPolicy
   standard?: boolean
+  accessToken?: string
 }
 
 export type UpdatePushSubscriptionParams = {

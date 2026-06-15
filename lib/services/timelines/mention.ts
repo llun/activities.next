@@ -95,7 +95,8 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             replyNotificationCreated = true
             if (replyNotification && !replyNotification.filtered) {
               const replyEvent: NotificationEvent = {
-                type: NotificationType.enum.reply
+                type: NotificationType.enum.reply,
+                notificationId: replyNotification.id
               }
               // Carry the reply email on the surviving reply event. The mention
               // branch below — which used to attach the email for a
@@ -163,7 +164,8 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
 
           if (mentionNotification && !mentionNotification.filtered) {
             const mentionEvent: NotificationEvent = {
-              type: NotificationType.enum.mention
+              type: NotificationType.enum.mention,
+              notificationId: mentionNotification.id
             }
             if (config.email && account && status.actor) {
               mentionEvent.emailContent = {

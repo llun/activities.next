@@ -19,6 +19,10 @@ export interface EmailContent {
 export interface NotificationEvent {
   type: NotificationType
   emailContent?: EmailContent
+  // The id of the persisted notification record this event corresponds to.
+  // Forwarded into the Mastodon Web Push payload as `notification_id` so native
+  // clients can fetch the full notification via `GET /api/v1/notifications/:id`.
+  notificationId?: string
 }
 
 export interface SendNotificationAlertsParams {
@@ -73,6 +77,7 @@ export const sendNotificationAlerts = (
             type: event.type,
             sourceActor,
             statusId,
+            notificationId: event.notificationId,
             skipSettingsCheck: true
           })
           return

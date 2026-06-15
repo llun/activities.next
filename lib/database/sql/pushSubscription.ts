@@ -24,6 +24,7 @@ interface SQLPushSubscription {
   alerts: string | null
   policy: string | null
   standard: boolean | number | null
+  accessToken: string | null
   createdAt: number | Date
   updatedAt: number | Date
 }
@@ -99,6 +100,7 @@ const fixPushSubscription = (row: SQLPushSubscription): PushSubscription => ({
   alerts: parseStoredAlerts(row.alerts),
   policy: (row.policy as PushPolicy) ?? 'all',
   standard: Boolean(row.standard),
+  accessToken: row.accessToken ?? undefined,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -113,13 +115,31 @@ export const PushSubscriptionSQLDatabaseMixin = (
     auth,
     alerts,
     policy,
-    standard
+    standard,
+    accessToken
   }: CreatePushSubscriptionParams): Promise<PushSubscription> {
     const id = randomUUID()
     const now = new Date()
     const alertsValue = JSON.stringify(normalizeAlerts(alerts))
     const policyValue = policy ?? 'all'
     const standardValue = standard ?? false
+
+    const mergeValues: Record<string, unknown> = {
+      actorId,
+      p256dh,
+      auth,
+      alerts: alertsValue,
+      policy: policyValue,
+      standard: standardValue,
+      updatedAt: now
+    }
+    // Only overwrite the stored access token when a new one is supplied. A
+    // tokenless re-subscribe of the same endpoint (e.g. a web-session request)
+    // must not wipe a token a native client previously registered, or its
+    // subsequent payloads would lose `access_token`.
+    if (accessToken) {
+      mergeValues.accessToken = accessToken
+    }
 
     await database('push_subscriptions')
       .insert({
@@ -131,19 +151,12 @@ export const PushSubscriptionSQLDatabaseMixin = (
         alerts: alertsValue,
         policy: policyValue,
         standard: standardValue,
+        accessToken: accessToken ?? null,
         createdAt: now,
         updatedAt: now
       })
       .onConflict('endpoint')
-      .merge({
-        actorId,
-        p256dh,
-        auth,
-        alerts: alertsValue,
-        policy: policyValue,
-        standard: standardValue,
-        updatedAt: now
-      })
+      .merge(mergeValues)
 
     const row = await database<SQLPushSubscription>('push_subscriptions')
       .where({ endpoint })
