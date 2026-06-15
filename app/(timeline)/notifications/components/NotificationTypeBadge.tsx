@@ -12,7 +12,12 @@ interface Props {
 // The per-type glyph badge that leads every notification row. Decorative — the
 // row text already names the notification — so it is hidden from assistive tech.
 export const NotificationTypeBadge: FC<Props> = ({ type }) => {
-  const cfg = NOTIFICATION_TYPE_CONFIG[type]
+  const cfg = NOTIFICATION_TYPE_CONFIG[type] as
+    | (typeof NOTIFICATION_TYPE_CONFIG)[NotificationType]
+    | undefined
+  // Defensive: render nothing for an unrecognized type rather than throwing,
+  // even though callers only mount this for configured types.
+  if (!cfg) return null
   const Icon = cfg.icon
 
   return (
