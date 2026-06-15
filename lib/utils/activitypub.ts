@@ -16,6 +16,27 @@ export const normalizeActivityPubUri = (uri: string | null | undefined) => {
 export const normalizeActorId = (actorId: string | null | undefined) =>
   normalizeActivityPubUri(actorId?.split('#')[0])
 
+const ACTIVITY_STREAMS_NAMESPACE = 'https://www.w3.org/ns/activitystreams#'
+
+/**
+ * Canonicalises a JSON-LD `type` value to a bare term. `type` may legitimately
+ * arrive as an array, a compact CURIE (`as:Note`) or a fully expanded IRI
+ * (`https://www.w3.org/ns/activitystreams#Note`); all collapse to `Note`. This
+ * mirrors what JSON-LD compaction does and is used as a fallback for inputs
+ * that were not compacted (for example when compaction failed).
+ */
+export const normalizeActivityPubType = (
+  value: unknown
+): string | undefined => {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (typeof raw !== 'string') return undefined
+  if (raw.startsWith(ACTIVITY_STREAMS_NAMESPACE)) {
+    return raw.slice(ACTIVITY_STREAMS_NAMESPACE.length)
+  }
+  if (raw.startsWith('as:')) return raw.slice('as:'.length)
+  return raw
+}
+
 export const extractActivityPubId = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value
   if (Array.isArray(value)) {
@@ -62,6 +83,7 @@ export const normalizeActivityPubAnnounce = (data: unknown) => {
   if (!isRecord(data)) return data
   return {
     ...data,
+    type: normalizeActivityPubType(data.type) ?? data.type,
     actor: extractActivityPubId(data.actor) ?? data.actor,
     object: extractActivityPubId(data.object) ?? data.object,
     to: normalizeActivityPubRecipients(data.to) ?? data.to,
@@ -73,6 +95,7 @@ export const normalizeActivityPubContent = (data: unknown) => {
   if (!isRecord(data)) return data
   return {
     ...data,
+    type: normalizeActivityPubType(data.type) ?? data.type,
     attributedTo: extractActivityPubId(data.attributedTo) ?? data.attributedTo,
     inReplyTo: extractActivityPubId(data.inReplyTo) ?? data.inReplyTo,
     url: extractActivityPubId(data.url) ?? data.url,

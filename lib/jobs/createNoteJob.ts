@@ -110,6 +110,7 @@ export const createNoteJob = createJobHandle(
     await Promise.all(
       tags.map(async (item) => {
         if (item.type === 'Emoji') {
+          if (!item.name || !item.icon?.url) return
           return database.createTag({
             statusId: note.id,
             name: item.name,

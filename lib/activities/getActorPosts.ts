@@ -1,4 +1,5 @@
 import { getNote } from '@/lib/activities'
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/activitypub'
 import {
@@ -122,9 +123,19 @@ export const getActorPosts: GetActorPostsFunction = async ({
           items.map(async (item) => {
             // This should be impossible for status api
             if (typeof item === 'string') return null
-            if (item.type === AnnounceAction) {
+
+            // Canonicalise the activity (and any embedded object) via JSON-LD
+            // compaction before validating, so dialect variations in `type`,
+            // recipients and id references collapse to a predictable shape.
+            const activity = (await compactActivityPub(item)) as {
+              type?: string
+              object?: unknown
+              [key: string]: unknown
+            }
+
+            if (activity.type === AnnounceAction) {
               const announceResult = Announce.safeParse(
-                normalizeActivityPubAnnounce(item)
+                normalizeActivityPubAnnounce(activity)
               )
               if (!announceResult.success) return null
 
@@ -167,10 +178,14 @@ export const getActorPosts: GetActorPostsFunction = async ({
             }
 
             // Unsupported activity
-            if (item.type !== CreateAction) return null
+            if (activity.type !== CreateAction) return null
             // Unsupported Object
-            if (!item.object || typeof item.object === 'string') return null
-            const obj = item.object as { type?: string; [key: string]: unknown }
+            if (!activity.object || typeof activity.object === 'string')
+              return null
+            const obj = activity.object as {
+              type?: string
+              [key: string]: unknown
+            }
             if (obj.type !== 'Note') return null
 
             const noteResult = Note.safeParse(normalizeActivityPubContent(obj))
