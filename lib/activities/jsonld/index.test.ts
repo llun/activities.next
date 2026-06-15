@@ -89,6 +89,38 @@ describe('compactActivityPub', () => {
     expect(announce.object).toBe('https://other.example/notes/9')
   })
 
+  it('keeps a custom emoji tag with a bare Emoji type', async () => {
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          { toot: 'http://joinmastodon.org/ns#', Emoji: 'toot:Emoji' }
+        ],
+        id: 'https://remote.example/notes/1',
+        type: 'Note',
+        attributedTo: 'https://remote.example/users/alice',
+        published: '2026-01-01T00:00:00Z',
+        tag: [
+          {
+            type: 'Emoji',
+            name: ':blobcat:',
+            updated: '2026-01-01T00:00:00Z',
+            icon: {
+              type: 'Image',
+              mediaType: 'image/png',
+              url: 'https://remote.example/emoji/blobcat.png'
+            }
+          }
+        ]
+      })
+    )
+
+    const tags = result.tag as Array<Record<string, unknown>>
+    expect(tags).toHaveLength(1)
+    expect(tags[0].type).toBe('Emoji')
+    expect(tags[0].name).toBe(':blobcat:')
+  })
+
   it('injects a default context for documents that omit @context', async () => {
     const result = asRecord(
       await compactActivityPub({

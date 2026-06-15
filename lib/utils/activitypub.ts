@@ -1,7 +1,12 @@
 import { isRecord } from '@/lib/utils/typeGuards'
 
+// JSON-LD blank node identifiers (`_:b0`, `_:foo`) are document-local artifacts
+// of the JSON-LD processor and are never valid, resolvable ActivityPub ids.
+const isBlankNodeId = (value: string) => value.startsWith('_:')
+
 export const normalizeActivityPubUri = (uri: string | null | undefined) => {
   if (!uri) return null
+  if (isBlankNodeId(uri)) return null
 
   try {
     const url = new URL(uri)
@@ -38,7 +43,7 @@ export const normalizeActivityPubType = (
 }
 
 export const extractActivityPubId = (value: unknown): string | undefined => {
-  if (typeof value === 'string') return value
+  if (typeof value === 'string') return isBlankNodeId(value) ? undefined : value
   if (Array.isArray(value)) {
     for (const item of value) {
       const id = extractActivityPubId(item)
@@ -47,9 +52,9 @@ export const extractActivityPubId = (value: unknown): string | undefined => {
     return
   }
   if (!isRecord(value)) return
-  if (typeof value.id === 'string') return value.id
-  if (typeof value.href === 'string') return value.href
-  if (typeof value.url === 'string') return value.url
+  if (typeof value.id === 'string') return extractActivityPubId(value.id)
+  if (typeof value.href === 'string') return extractActivityPubId(value.href)
+  if (typeof value.url === 'string') return extractActivityPubId(value.url)
   return
 }
 
