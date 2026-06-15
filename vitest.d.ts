@@ -15,7 +15,6 @@ declare global {
   // Jest-compatible global assertion helper provided by vitest.setup.ts.
   function fail(message?: string): never
 
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace jest {
     type Mock<T extends (...args: any[]) => any = (...args: any[]) => any> =
       ViMock<T>

@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 import * as matchers from 'jest-extended'
 import fetchMock from 'jest-fetch-mock'
 import { TextDecoder, TextEncoder } from 'node:util'
