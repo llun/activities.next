@@ -71,7 +71,13 @@ describe('note entity utilities', () => {
         type: 'Note',
         id: 'https://example.com/note/1',
         content: 'Test',
-        attachment: [{ type: 'Document', url: 'https://example.com/image.jpg' }]
+        attachment: [
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://example.com/image.jpg'
+          }
+        ]
       } as BaseNote
 
       const result = getAttachments(note)
@@ -85,7 +91,11 @@ describe('note entity utilities', () => {
         type: 'Note',
         id: 'https://example.com/note/1',
         content: 'Test',
-        attachment: { type: 'Document', url: 'https://example.com/image.jpg' }
+        attachment: {
+          type: 'Document',
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/image.jpg'
+        }
       } as BaseNote
 
       const result = getAttachments(note)
@@ -177,8 +187,16 @@ describe('note entity utilities', () => {
       const note = {
         type: 'Note',
         tag: [
-          { type: 'Hashtag', name: '#test' },
-          { type: 'Mention', href: 'https://example.com/users/someone' }
+          {
+            type: 'Hashtag',
+            name: '#test',
+            href: 'https://example.com/tags/test'
+          },
+          {
+            type: 'Mention',
+            name: '@someone',
+            href: 'https://example.com/users/someone'
+          }
         ]
       } as unknown as BaseNote
 
@@ -190,7 +208,11 @@ describe('note entity utilities', () => {
     it('wraps single tag in array', () => {
       const note = {
         type: 'Note',
-        tag: { type: 'Hashtag', name: '#single' }
+        tag: {
+          type: 'Hashtag',
+          name: '#single',
+          href: 'https://example.com/tags/single'
+        }
       } as unknown as BaseNote
 
       const result = getTags(note)

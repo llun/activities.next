@@ -1,9 +1,13 @@
 import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import {
   ArticleContent,
+  type Attachment,
+  Document,
   ImageContent,
+  KnownTag,
   Note,
   PageContent,
+  type Tag,
   VideoContent
 } from '@/lib/types/activitypub'
 
@@ -33,14 +37,18 @@ export const getReply = (reply: ReplyValue): string | undefined => {
   return reply?.id
 }
 
-export const getAttachments = (object: BaseNote) => {
-  const attachments = []
+const isDocument = (attachment: Attachment): attachment is Document =>
+  Document.safeParse(attachment).success
+
+export const getAttachments = (object: BaseNote): Document[] => {
+  const attachments: Document[] = []
   if (object.attachment) {
-    if (Array.isArray(object.attachment)) {
-      attachments.push(...object.attachment)
-    } else {
-      attachments.push(object.attachment)
-    }
+    const list = Array.isArray(object.attachment)
+      ? object.attachment
+      : [object.attachment]
+    // Keep only Document attachments; other/unknown attachment kinds (tolerated
+    // as loose objects by the schema) are not media and are dropped here.
+    attachments.push(...list.filter(isDocument))
   }
 
   if (['Image', 'Video'].includes(object.type)) {
@@ -64,10 +72,16 @@ export const getAttachments = (object: BaseNote) => {
   return attachments
 }
 
-export const getTags = (object: BaseNote) => {
+const isKnownTag = (tag: Tag): tag is KnownTag =>
+  KnownTag.safeParse(tag).success
+
+export const getTags = (object: BaseNote): KnownTag[] => {
   if (!object.tag) return []
-  if (Array.isArray(object.tag)) return object.tag
-  return [object.tag]
+  const tags = Array.isArray(object.tag) ? object.tag : [object.tag]
+  // Keep only fully-valid known tags. Unknown/future or malformed tag kinds
+  // (which the schema now tolerates as loose objects so they don't reject the
+  // whole note) are dropped here, so consumers get guaranteed tag shapes.
+  return tags.filter(isKnownTag)
 }
 
 export const getContent = (object: BaseNote) => {
