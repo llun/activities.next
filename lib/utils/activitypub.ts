@@ -1,3 +1,7 @@
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 import { isRecord } from '@/lib/utils/typeGuards'
 
 // JSON-LD blank node identifiers (`_:b0`, `_:foo`) are document-local artifacts
@@ -70,6 +74,14 @@ export const normalizeActivityPubRecipients = (
   return extractActivityPubId(value)
 }
 
+// JSON-LD compaction emits the public collection as the compact alias
+// `as:Public`; persist it as the full IRI so stored recipients have one
+// canonical form (matching locally-authored statuses).
+const canonicalizePublicRecipient = (recipient: string) =>
+  recipient === ACTIVITY_STREAM_PUBLIC_COMPACT
+    ? ACTIVITY_STREAM_PUBLIC
+    : recipient
+
 /**
  * Coerces an ActivityPub `to`/`cc` value into a string array: a single
  * recipient is wrapped, and empty or non-string entries are dropped. Mirrors the
@@ -78,11 +90,12 @@ export const normalizeActivityPubRecipients = (
 export const toRecipientArray = (
   value: string | string[] | undefined | null
 ): string[] =>
-  Array.isArray(value)
+  (Array.isArray(value)
     ? value
     : [value].filter(
         (item): item is string => typeof item === 'string' && item !== ''
       )
+  ).map(canonicalizePublicRecipient)
 
 export const normalizeActivityPubAnnounce = (data: unknown) => {
   if (!isRecord(data)) return data

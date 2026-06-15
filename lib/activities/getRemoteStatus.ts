@@ -1,6 +1,5 @@
 import { getNote } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
-import { compactActivityPub } from '@/lib/activities/jsonld'
 import { Note } from '@/lib/types/activitypub/objects'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { getActorProfileFromPerson } from '@/lib/utils/activitypubActor'
@@ -46,8 +45,8 @@ export const getRemoteStatus = async ({
   }
   if (!remoteNote) return null
 
-  const compactedNote = await compactActivityPub(remoteNote)
-  const noteResult = Note.safeParse(normalizeActivityPubContent(compactedNote))
+  // getNote already canonicalises the fetched note via JSON-LD compaction.
+  const noteResult = Note.safeParse(normalizeActivityPubContent(remoteNote))
   if (!noteResult.success) {
     logger.error(`[getRemoteStatus] ${noteResult.error.message}`)
     return null

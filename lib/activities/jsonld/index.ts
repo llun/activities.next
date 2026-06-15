@@ -134,7 +134,11 @@ const CANONICAL_CONTEXT = {
 export const offlineDocumentLoader = async (
   url: Url
 ): Promise<RemoteDocument> => {
-  const document = BUNDLED_CONTEXTS[url] ?? EMPTY_CONTEXT_DOCUMENT
+  // Normalise a trailing slash or hash fragment so dialect variations of a
+  // known context URL (e.g. `…/activitystreams#`) still resolve to the bundled
+  // document instead of falling back to an empty context.
+  const lookupUrl = typeof url === 'string' ? url.replace(/[/#]+$/, '') : url
+  const document = BUNDLED_CONTEXTS[lookupUrl] ?? EMPTY_CONTEXT_DOCUMENT
   return {
     contextUrl: undefined,
     documentUrl: url,

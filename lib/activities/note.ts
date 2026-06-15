@@ -38,7 +38,7 @@ export const getReply = (reply: ReplyValue): string | undefined => {
 }
 
 const isDocument = (attachment: Attachment): attachment is Document =>
-  (attachment as { type?: unknown }).type === 'Document'
+  Document.safeParse(attachment).success
 
 export const getAttachments = (object: BaseNote): Document[] => {
   const attachments: Document[] = []
@@ -72,19 +72,15 @@ export const getAttachments = (object: BaseNote): Document[] => {
   return attachments
 }
 
-const KNOWN_TAG_TYPES = new Set(['Mention', 'Emoji', 'Hashtag'])
-
-const isKnownTag = (tag: Tag): tag is KnownTag => {
-  const type = (tag as { type?: unknown }).type
-  return typeof type === 'string' && KNOWN_TAG_TYPES.has(type)
-}
+const isKnownTag = (tag: Tag): tag is KnownTag =>
+  KnownTag.safeParse(tag).success
 
 export const getTags = (object: BaseNote): KnownTag[] => {
   if (!object.tag) return []
   const tags = Array.isArray(object.tag) ? object.tag : [object.tag]
-  // Keep tags whose type we recognise. Unknown/future tag kinds (which the
-  // schema now tolerates as loose objects so they don't reject the whole note)
-  // are dropped here so consumers only deal with known tag shapes.
+  // Keep only fully-valid known tags. Unknown/future or malformed tag kinds
+  // (which the schema now tolerates as loose objects so they don't reject the
+  // whole note) are dropped here, so consumers get guaranteed tag shapes.
   return tags.filter(isKnownTag)
 }
 

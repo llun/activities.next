@@ -9,6 +9,7 @@ import { CreateStatus } from '@/lib/activities/createStatus'
 import { DeleteStatus } from '@/lib/activities/deleteStatus'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { RejectFollow } from '@/lib/activities/rejectFollow'
 import { UndoBlock } from '@/lib/activities/undoBlock'
@@ -117,7 +118,9 @@ export const getNote = async ({
           })
         })
         if (statusCode !== 200) return null
-        return JSON.parse(body)
+        // Canonicalise the fetched note via JSON-LD compaction so every caller
+        // (including boosted-note resolution) gets a predictable shape.
+        return compactActivityPub(JSON.parse(body))
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         if (nodeError.code === 'ETIMEDOUT') {
