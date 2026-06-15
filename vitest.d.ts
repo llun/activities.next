@@ -25,6 +25,12 @@ declare global {
     type SpyInstance<
       T extends (...args: any[]) => any = (...args: any[]) => any
     > = ViMockInstance<T>
+    // jest's MockInstance is parameterised by <TReturn, TArgs>; map it onto
+    // Vitest's function-typed MockInstance. Used by jest-fetch-mock's types.
+    type MockInstance<
+      TReturn = any,
+      TArgs extends any[] = any[]
+    > = ViMockInstance<(...args: TArgs) => TReturn>
   }
 }
 
