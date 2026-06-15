@@ -149,6 +149,13 @@ describe('offlineDocumentLoader', () => {
     )
   })
 
+  it('serves bundled contexts referenced over http', async () => {
+    const loaded = await offlineDocumentLoader('http://w3id.org/security/v1')
+    const document = loaded.document as { '@context': Record<string, unknown> }
+    expect(document['@context']).toBeDefined()
+    expect(document['@context'].publicKey).toBeDefined()
+  })
+
   it('returns an empty context for unknown URLs instead of fetching', async () => {
     const loaded = await offlineDocumentLoader(
       'https://malicious.example/ctx.jsonld'

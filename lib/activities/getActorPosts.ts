@@ -127,11 +127,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
             // Canonicalise the activity (and any embedded object) via JSON-LD
             // compaction before validating, so dialect variations in `type`,
             // recipients and id references collapse to a predictable shape.
-            const activity = (await compactActivityPub(item)) as {
-              type?: string
-              object?: unknown
-              [key: string]: unknown
-            }
+            const activity = await compactActivityPub(item)
 
             if (activity.type === AnnounceAction) {
               const announceResult = Announce.safeParse(

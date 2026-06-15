@@ -33,9 +33,11 @@ const SCHEMA_NAMESPACE = 'http://schema.org#'
 
 const BUNDLED_CONTEXTS: Record<string, unknown> = {
   [ACTIVITY_STREAMS_CONTEXT_URL]: activityStreamsContext,
-  // Some peers reference the activitystreams context over http.
+  // Some peers reference these contexts over http instead of https; map both so
+  // their terms (e.g. publicKey) are not dropped.
   'http://www.w3.org/ns/activitystreams': activityStreamsContext,
-  [SECURITY_V1_CONTEXT_URL]: securityV1Context
+  [SECURITY_V1_CONTEXT_URL]: securityV1Context,
+  'http://w3id.org/security/v1': securityV1Context
 }
 
 const EMPTY_CONTEXT_DOCUMENT = { '@context': {} }
@@ -177,8 +179,12 @@ const withInputContext = (input: Record<string, unknown>) =>
  * unchanged, and any processing error falls back to the original input so a
  * malformed `@context` can never make inbound handling worse than the previous
  * plain-JSON behaviour.
+ *
+ * Compaction preserves the document's logical shape (it only canonicalises how
+ * existing fields are represented), so the result is typed as the input type.
+ * This lets callers keep their existing typings without an extra cast.
  */
-export const compactActivityPub = async (input: unknown): Promise<unknown> => {
+export const compactActivityPub = async <T>(input: T): Promise<T> => {
   if (!isRecord(input)) return input
 
   try {
@@ -188,7 +194,7 @@ export const compactActivityPub = async (input: unknown): Promise<unknown> => {
       CANONICAL_CONTEXT as unknown as ContextDefinition,
       { documentLoader: offlineDocumentLoader }
     )
-    return stripJsonLdArtifacts(compacted)
+    return stripJsonLdArtifacts(compacted) as T
   } catch (error) {
     logger.warn({
       message: 'Failed to compact ActivityPub document, using raw input',
