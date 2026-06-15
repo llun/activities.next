@@ -17,14 +17,12 @@ interface NotificationWithData extends GroupedNotification {
 
 interface Props {
   notifications: NotificationWithData[]
-  currentActorId: string
   host: string
   currentTime: number
 }
 
 export const NotificationsList = ({
   notifications,
-  currentActorId,
   host,
   currentTime
 }: Props) => {
@@ -143,23 +141,26 @@ export const NotificationsList = ({
   )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {markReadError ? (
         <p className="text-sm text-destructive" role="alert">
           Notifications could not be marked as read.
         </p>
       ) : null}
-      {notifications.map((notification) => (
-        <NotificationItem
-          key={notification.id}
-          notification={notification}
-          currentActorId={currentActorId}
-          host={host}
-          isRead={notification.isRead || readNotifications.has(notification.id)}
-          currentTime={currentTime}
-          observeElement={observeElement}
-        />
-      ))}
+      <div className="divide-y divide-border overflow-hidden rounded-xl border bg-card shadow-sm">
+        {notifications.map((notification) => (
+          <NotificationItem
+            key={notification.id}
+            notification={notification}
+            host={host}
+            isRead={
+              notification.isRead || readNotifications.has(notification.id)
+            }
+            currentTime={currentTime}
+            observeElement={observeElement}
+          />
+        ))}
+      </div>
     </div>
   )
 }

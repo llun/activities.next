@@ -10,6 +10,10 @@ import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { NotificationItem } from './NotificationItem'
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() })
+}))
+
 const currentTime = new Date('2026-05-10T09:19:26.175Z').getTime()
 type NotificationItemNotification = ComponentProps<
   typeof NotificationItem
@@ -97,7 +101,6 @@ const renderNotificationItem = (notification: NotificationItemNotification) => {
 const renderNotificationItemWithOptions = (
   notification: NotificationItemNotification,
   options: {
-    currentActorId?: string
     isRead?: boolean
     observeElement?: (element: HTMLElement | null) => void
   } = {}
@@ -105,7 +108,6 @@ const renderNotificationItemWithOptions = (
   return render(
     <NotificationItem
       notification={notification}
-      currentActorId={options.currentActorId ?? notification.actorId}
       host="llun.social"
       isRead={options.isRead ?? true}
       currentTime={currentTime}
@@ -114,73 +116,48 @@ const renderNotificationItemWithOptions = (
   )
 }
 
+// The whole-row overlay link is the only `<a>` styled absolute inset-0.
+const overlayLink = (container: HTMLElement) =>
+  container.querySelector('a.absolute')
+
 describe('NotificationItem', () => {
-  it('renders activity import notifications with linked activity content', () => {
+  it.each([
+    ['like', 'liked your post'],
+    ['reblog', 'boosted your post'],
+    ['mention', 'mentioned you'],
+    ['reply', 'replied to your post']
+  ] as const)(
+    'renders the %s verb on line 1 with the actor and quoted post below',
+    (type, verb) => {
+      renderNotificationItem({
+        id: `notification-${type}`,
+        actorId: 'https://llun.social/users/llun',
+        type,
+        sourceActorId: account.id,
+        statusId: status.id,
+        isRead: true,
+        createdAt: currentTime,
+        updatedAt: currentTime,
+        account,
+        status
+      })
+
+      expect(screen.getByText(verb)).toBeInTheDocument()
+      // Actor name on its own line, linking to the profile.
+      expect(screen.getByRole('link', { name: 'Ride' })).toHaveAttribute(
+        'href',
+        '/@ride@llun.social'
+      )
+      // The quoted subject post.
+      expect(screen.getByText(/Morning Ride/)).toBeInTheDocument()
+    }
+  )
+
+  it('renders a type badge glyph for each notification', () => {
     const { container } = renderNotificationItem({
-      id: 'notification-1',
-      actorId: account.id,
-      type: 'activity_import',
-      sourceActorId: account.id,
-      statusId: status.id,
-      isRead: true,
-      createdAt: currentTime,
-      updatedAt: currentTime,
-      account: accountWithAvatar,
-      status
-    })
-
-    expect(
-      screen.getByText(/Your fitness activity was imported/)
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'View activity' })).toHaveAttribute(
-      'href',
-      expect.stringContaining('/@ride@llun.social/')
-    )
-    expect(screen.getByText(/Morning Ride/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /strava.com/ })).toHaveAttribute(
-      'href',
-      'https://www.strava.com/activities/123'
-    )
-    container.querySelectorAll('a').forEach((link) => {
-      expect(link.querySelector('a')).toBeNull()
-    })
-    const activityImportRow = container.querySelector('.flex.items-start.gap-4')
-    expect(activityImportRow).toBeInTheDocument()
-    expect(
-      activityImportRow?.querySelector('[aria-hidden="true"]')
-    ).toHaveClass('size-12', 'shrink-0')
-    expect(container.querySelector('img')).toBeNull()
-  })
-
-  it('renders grouped activity import notifications as multiple imports', () => {
-    renderNotificationItem({
-      id: 'notification-1',
-      actorId: account.id,
-      type: 'activity_import',
-      sourceActorId: account.id,
-      statusId: status.id,
-      isRead: true,
-      createdAt: currentTime,
-      updatedAt: currentTime,
-      account,
-      status,
-      groupedCount: 2,
-      groupedIds: ['notification-1', 'notification-2']
-    })
-
-    expect(
-      screen.getByText(/Your fitness activities were imported/)
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'View latest activity' })
-    ).toHaveAttribute('href', expect.stringContaining('/@ride@llun.social/'))
-  })
-
-  it('renders reblog notifications instead of an empty card', () => {
-    renderNotificationItem({
-      id: 'notification-2',
+      id: 'notification-badge',
       actorId: 'https://llun.social/users/llun',
-      type: 'reblog',
+      type: 'like',
       sourceActorId: account.id,
       statusId: status.id,
       isRead: true,
@@ -190,26 +167,19 @@ describe('NotificationItem', () => {
       status
     })
 
-    expect(screen.getByText(/reblogged your/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Ride' })).toHaveAttribute(
-      'href',
-      '/@ride@llun.social'
-    )
-    expect(screen.getByRole('link', { name: 'post' })).toHaveAttribute(
-      'href',
-      expect.stringContaining('/@ride@llun.social/')
-    )
-    expect(screen.getByText(/Morning Ride/)).toBeInTheDocument()
+    expect(
+      container.querySelector('span[aria-hidden="true"] svg')
+    ).toBeInTheDocument()
   })
 
   it.each([
-    ['like', /and 2 others liked your/],
-    ['reply', /and 2 others replied to your/],
-    ['mention', /and 2 others mentioned you in a/],
-    ['reblog', /and 2 others reblogged your/]
+    ['like', 'liked your post'],
+    ['reply', 'replied to your post'],
+    ['mention', 'mentioned you'],
+    ['reblog', 'boosted your post']
   ] as const)(
-    'renders grouped %s notifications without grouped account data',
-    (type, expectedText) => {
+    'collapses grouped %s notifications onto the actor line',
+    (type, verb) => {
       renderNotificationItem({
         id: `notification-${type}`,
         actorId: 'https://llun.social/users/llun',
@@ -224,9 +194,35 @@ describe('NotificationItem', () => {
         groupedCount: 3
       })
 
-      expect(screen.getByText(expectedText)).toBeInTheDocument()
+      expect(screen.getByText(verb)).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Ride and 2 others' })
+      ).toBeInTheDocument()
     }
   )
+
+  it('renders a follow notification with inline text and a follow-back action', () => {
+    renderNotificationItem({
+      id: 'notification-follow',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow',
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account
+    })
+
+    expect(screen.getByText(/followed you/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ride' })).toHaveAttribute(
+      'href',
+      '/@ride@llun.social'
+    )
+    expect(screen.getByText('@ride@llun.social')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Follow back' })
+    ).toBeInTheDocument()
+  })
 
   it('renders grouped follow notifications without grouped account data', () => {
     renderNotificationItem({
@@ -241,12 +237,72 @@ describe('NotificationItem', () => {
       groupedCount: 3
     })
 
+    expect(screen.getByText(/followed you/)).toBeInTheDocument()
     expect(
-      screen.getByText(/and 2 others started following you/)
+      screen.getByRole('link', { name: 'Ride and 2 others' })
     ).toBeInTheDocument()
   })
 
-  it('renders grouped activity import notifications with generic import copy', () => {
+  // Regression: a follow request must always read as a follow request, with the
+  // actor named, even before/without the action buttons (the old card showed an
+  // empty avatar + buttons with no text).
+  it('renders a follow-request notification with descriptive text and actions', () => {
+    renderNotificationItem({
+      id: 'notification-follow-request',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow_request',
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account
+    })
+
+    expect(screen.getByText(/requested to follow you/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ride' })).toHaveAttribute(
+      'href',
+      '/@ride@llun.social'
+    )
+    expect(screen.getByText('@ride@llun.social')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument()
+  })
+
+  it('renders activity import notifications with the fitness card and a view link', () => {
+    const { container } = renderNotificationItem({
+      id: 'notification-activity-import',
+      actorId: account.id,
+      type: 'activity_import',
+      sourceActorId: account.id,
+      statusId: status.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account: accountWithAvatar,
+      status
+    })
+
+    expect(
+      screen.getByText('Your fitness activity is ready')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View activity' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/@ride@llun.social/')
+    )
+    expect(screen.getByText(/Morning Ride/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /strava.com/ })).toHaveAttribute(
+      'href',
+      'https://www.strava.com/activities/123'
+    )
+    // No nested anchors anywhere in the row.
+    container.querySelectorAll('a').forEach((link) => {
+      expect(link.querySelector('a')).toBeNull()
+    })
+    // System rows have no avatar image.
+    expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('renders grouped activity import notifications with a latest-activity link', () => {
     renderNotificationItem({
       id: 'notification-activity-import',
       actorId: account.id,
@@ -258,12 +314,16 @@ describe('NotificationItem', () => {
       updatedAt: currentTime,
       account,
       status,
-      groupedCount: 3
+      groupedCount: 2,
+      groupedIds: ['notification-1', 'notification-2']
     })
 
     expect(
-      screen.getByText(/Your fitness activities were imported/)
+      screen.getByText('Your fitness activity is ready')
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'View latest activity' })
+    ).toHaveAttribute('href', expect.stringContaining('/@ride@llun.social/'))
   })
 
   it.each([
@@ -363,13 +423,8 @@ describe('NotificationItem', () => {
     ).toBeInTheDocument()
   })
 
-  // The whole-row overlay link is aria-hidden + tabIndex={-1}, so role queries
-  // can't see it; query the DOM directly.
-  const overlayLink = (container: HTMLElement) =>
-    container.querySelector('a[aria-hidden="true"]')
-
   it.each(['like', 'reply', 'mention', 'reblog'] as const)(
-    'renders a hidden whole-row overlay link to the status for %s notifications',
+    'renders a focusable whole-row link to the status for %s notifications',
     (type) => {
       const { container } = renderNotificationItem({
         id: `notification-overlay-${type}`,
@@ -386,13 +441,37 @@ describe('NotificationItem', () => {
 
       const overlay = overlayLink(container)
       expect(overlay).not.toBeNull()
-      expect(overlay).toHaveAttribute('tabindex', '-1')
+      // Status rows have no inner post link, so the overlay stays focusable.
+      expect(overlay).not.toHaveAttribute('tabindex', '-1')
+      expect(overlay).not.toHaveAttribute('aria-hidden', 'true')
       expect(overlay).toHaveAttribute(
         'href',
         expect.stringContaining('/@ride@llun.social/')
       )
     }
   )
+
+  it('renders a hidden whole-row link for activity import notifications', () => {
+    const { container } = renderNotificationItem({
+      id: 'notification-overlay-activity',
+      actorId: account.id,
+      type: 'activity_import',
+      sourceActorId: account.id,
+      statusId: status.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account,
+      status
+    })
+
+    const overlay = overlayLink(container)
+    expect(overlay).not.toBeNull()
+    // The explicit "View activity" link is the accessible target, so the
+    // overlay is hidden from the tab order / assistive tech.
+    expect(overlay).toHaveAttribute('tabindex', '-1')
+    expect(overlay).toHaveAttribute('aria-hidden', 'true')
+  })
 
   it('renders no whole-row overlay link for follow notifications', () => {
     const { container } = renderNotificationItem({

@@ -12,38 +12,34 @@ interface Props {
   notification: NotificationWithStatus
 }
 
+// The body of an activity-import (system) notification: an inline fitness card
+// with the imported activity and a link straight to the workout. The bold
+// "Your fitness activity is ready" headline lives in NotificationItem.
 export const ActivityImportNotification: FC<Props> = ({
   host,
   notification
 }) => {
-  const { status } = notification
-
-  const hasMultiple = notification.groupedCount && notification.groupedCount > 1
+  const { status, groupedCount } = notification
+  const hasMultiple = (groupedCount ?? 0) > 1
   const statusUrl = getNotificationStatusPath(status)
 
   return (
-    <div className="flex items-start gap-4">
-      <div
+    <div className="mt-2 flex items-center gap-3 rounded-xl border bg-background p-2.5">
+      <span
         aria-hidden="true"
-        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
       >
-        <Activity className="size-5" />
+        <Activity className="size-[18px]" />
+      </span>
+      <div className="min-w-0 flex-1 line-clamp-2 text-[13px] leading-snug text-foreground [&_br]:hidden [&_p]:inline">
+        {cleanClassName(processStatusText(host, status))}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm">
-          {hasMultiple
-            ? 'Your fitness activities were imported.'
-            : 'Your fitness activity was imported.'}{' '}
-          <Link href={statusUrl} className="text-primary hover:underline">
-            {hasMultiple ? 'View latest activity' : 'View activity'}
-          </Link>
-        </p>
-        <div className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-          <div className="line-clamp-2 [&_p]:inline [&_br]:hidden">
-            {cleanClassName(processStatusText(host, status))}
-          </div>
-        </div>
-      </div>
+      <Link
+        href={statusUrl}
+        className="shrink-0 text-[13px] font-medium text-primary hover:underline"
+      >
+        {hasMultiple ? 'View latest activity' : 'View activity'}
+      </Link>
     </div>
   )
 }
