@@ -1013,15 +1013,15 @@ __metadata:
   linkType: hard
 
 "@csstools/css-color-parser@npm:^4.1.0":
-  version: 4.1.5
-  resolution: "@csstools/css-color-parser@npm:4.1.5"
+  version: 4.1.6
+  resolution: "@csstools/css-color-parser@npm:4.1.6"
   dependencies:
     "@csstools/color-helpers": "npm:^6.0.2"
     "@csstools/css-calc": "npm:^3.2.1"
   peerDependencies:
     "@csstools/css-parser-algorithms": ^4.0.0
     "@csstools/css-tokenizer": ^4.0.0
-  checksum: 10c0/4e530a43571b1982e635f65497b60e19700cd43dc4417c22ea8d3722b5e13c8759f81334b978f99616aea806b039eeefe27b24b84e2f636f8ddfe20f2dcf0c5c
+  checksum: 10c0/0193e1e9c7266d702fe898424d33ae151af4c028613fa1483f2dca29ae0b33872734b8fb9692cfa553fb971ae60b6057523e7567ad8018b87a5e75eeaa11e969
   languageName: node
   linkType: hard
 
@@ -1057,6 +1057,16 @@ __metadata:
   version: 2.1.1
   resolution: "@date-fns/utc@npm:2.1.1"
   checksum: 10c0/796eaf66d4f2945ff336edad29714f5f6b3c64090f534febe0ca8359a61fba521076dd4974fe3a35ce8aeb964bf73d372a87eef5c2900d3334bcaa36fa1f0dd2
+  languageName: node
+  linkType: hard
+
+"@digitalbazaar/http-client@npm:^4.2.0":
+  version: 4.3.0
+  resolution: "@digitalbazaar/http-client@npm:4.3.0"
+  dependencies:
+    ky: "npm:^1.14.2"
+    undici: "npm:^6.23.0"
+  checksum: 10c0/97bcba6774a80b8f5a311ab1465ac94934ae01c2a985fd7d68af0d033cf1623ec4912a28bd98ffbae52e82f238291ebfff2f5ecd33d4cda9f1e0b660e9040bb5
   languageName: node
   linkType: hard
 
@@ -4076,6 +4086,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/jsonld@npm:^1.5.15":
+  version: 1.5.15
+  resolution: "@types/jsonld@npm:1.5.15"
+  checksum: 10c0/d01fbf07c10f4fc53a5b85f28a5691cf7cea4f5f041e0266c5e8d9e4ca94cd410ef427129b2bd930065f675104cbf0a36a7792ba42d3c9b0ec7305c9f01d34c4
+  languageName: node
+  linkType: hard
+
 "@types/lodash@npm:^4.17.24":
   version: 4.17.24
   resolution: "@types/lodash@npm:4.17.24"
@@ -4833,6 +4850,7 @@ __metadata:
     "@trivago/prettier-plugin-sort-imports": "npm:^6.0.2"
     "@types/bcrypt": "npm:^6.0.0"
     "@types/content-type": "npm:^2.0.0"
+    "@types/jsonld": "npm:^1.5.15"
     "@types/lodash": "npm:^4.17.24"
     "@types/mime-types": "npm:^3.0.1"
     "@types/node": "npm:^25.9.2"
@@ -4878,6 +4896,7 @@ __metadata:
     jest-fetch-mock: "npm:^3.0.3"
     jose: "npm:^6.2.3"
     jsdom: "npm:^29.1.1"
+    jsonld: "npm:^9.0.0"
     knex: "npm:^3.2.10"
     kysely: "npm:^0.29.2"
     lodash: "npm:^4.18.1"
@@ -5613,6 +5632,15 @@ __metadata:
   version: 1.0.30001770
   resolution: "caniuse-lite@npm:1.0.30001770"
   checksum: 10c0/02d15a8b723af65318cb4d888a52bb090076898da7b0de99e8676d537f8d1d2ae4797e81518e1e30cbfe84c33b048c322e8bfafc5b23cfee8defb0d2bf271149
+  languageName: node
+  linkType: hard
+
+"canonicalize@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "canonicalize@npm:2.1.0"
+  bin:
+    canonicalize: bin/canonicalize.js
+  checksum: 10c0/3b1ec612765851e71eeff2868f5ccbf0a06ffd8db8deef36efda89167527f96803b555c4ca8b5f5230f0a13badeeac5541c9244c8996fea97d00cee8dca2bf35
   languageName: node
   linkType: hard
 
@@ -8497,6 +8525,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jsonld@npm:^9.0.0":
+  version: 9.0.0
+  resolution: "jsonld@npm:9.0.0"
+  dependencies:
+    "@digitalbazaar/http-client": "npm:^4.2.0"
+    canonicalize: "npm:^2.1.0"
+    lru-cache: "npm:^6.0.0"
+    rdf-canonize: "npm:^5.0.0"
+  checksum: 10c0/51231e81d86c0acc33af533db8670a24877eb135657f3e31686b297bf8b87530b04678599ffce20d0887bc62f309453f2bc3cdaacb4c006bda3bd12c7a6c8fc4
+  languageName: node
+  linkType: hard
+
 "jsx-ast-utils@npm:^2.4.1 || ^3.0.0, jsx-ast-utils@npm:^3.3.5":
   version: 3.3.5
   resolution: "jsx-ast-utils@npm:3.3.5"
@@ -8588,6 +8628,13 @@ __metadata:
   bin:
     knex: bin/cli.js
   checksum: 10c0/b2dbb6a01f520a5775e6885ae09d9e35f998e1d0eea9aa283e5125d563ebade39b69d9e362368384415195f3db9cb3ac415b97875532e2ad3099d0f9685a6a37
+  languageName: node
+  linkType: hard
+
+"ky@npm:^1.14.2":
+  version: 1.14.3
+  resolution: "ky@npm:1.14.3"
+  checksum: 10c0/8e91c9512c8f1501201108ad58ed437eaf3f5b0a0da842bd846d785932426e84a31cf51d0fffce1921d4e70e26465a9b2b89ed2477822975568258a1fa68a740
   languageName: node
   linkType: hard
 
@@ -8851,6 +8898,15 @@ __metadata:
   dependencies:
     yallist: "npm:^3.0.2"
   checksum: 10c0/89b2ef2ef45f543011e38737b8a8622a2f8998cddf0e5437174ef8f1f70a8b9d14a918ab3e232cb3ba343b7abddffa667f0b59075b2b80e6b4d63c3de6127482
+  languageName: node
+  linkType: hard
+
+"lru-cache@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "lru-cache@npm:6.0.0"
+  dependencies:
+    yallist: "npm:^4.0.0"
+  checksum: 10c0/cb53e582785c48187d7a188d3379c181b5ca2a9c78d2bce3e7dee36f32761d1c42983da3fe12b55cb74e1779fa94cdc2e5367c028a9b35317184ede0c07a30a9
   languageName: node
   linkType: hard
 
@@ -10730,6 +10786,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"rdf-canonize@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "rdf-canonize@npm:5.0.0"
+  dependencies:
+    setimmediate: "npm:^1.0.5"
+  checksum: 10c0/3d2811b43fe0890d15bffbbb74e62b4f890e649cd54ac989cbd11b334662012b852bdc96eda41bf620c125256965760208826895be1bbacc9f268c724f10303e
+  languageName: node
+  linkType: hard
+
 "react-dom@npm:^19.2.7":
   version: 19.2.7
   resolution: "react-dom@npm:19.2.7"
@@ -11433,6 +11498,13 @@ __metadata:
     es-errors: "npm:^1.3.0"
     es-object-atoms: "npm:^1.0.0"
   checksum: 10c0/ca5c3ccbba479d07c30460e367e66337cec825560b11e8ba9c5ebe13a2a0d6021ae34eddf94ff3dfe17a3104dc1f191519cb6c48378b503e5c3f36393938776a
+  languageName: node
+  linkType: hard
+
+"setimmediate@npm:^1.0.5":
+  version: 1.0.5
+  resolution: "setimmediate@npm:1.0.5"
+  checksum: 10c0/5bae81bfdbfbd0ce992893286d49c9693c82b1bcc00dcaaf3a09c8f428fdeacf4190c013598b81875dfac2b08a572422db7df779a99332d0fce186d15a3e4d49
   languageName: node
   linkType: hard
 
@@ -12409,6 +12481,13 @@ __metadata:
   version: 7.24.6
   resolution: "undici-types@npm:7.24.6"
   checksum: 10c0/d9cd8befb643ac904615c280a095ba4240531f6bb4a5e75a22a7483630ca8d3f1016d2ab6ace6ceda1f63b3a2db2fe037fafe121d6917a0187573aa548ff78ca
+  languageName: node
+  linkType: hard
+
+"undici@npm:^6.23.0":
+  version: 6.26.0
+  resolution: "undici@npm:6.26.0"
+  checksum: 10c0/cf2b4caf58c33d6582970991290cc7a6486d6e738845f25dcdd16952d708ec844815c6d30362919764fcaf30f719891289341f1ada496f003ce2700310453a47
   languageName: node
   linkType: hard
 

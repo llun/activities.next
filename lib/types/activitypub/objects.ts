@@ -66,14 +66,23 @@ export const Emoji = z.object({
 
 export type Emoji = z.infer<typeof Emoji>
 
-export const Tag = z.union([Mention, Emoji, HashTag])
+// The tag kinds we understand and act on.
+export const KnownTag = z.union([Mention, Emoji, HashTag])
+export type KnownTag = z.infer<typeof KnownTag>
+
+// Unknown or future tag kinds fall back to a loose object so a single
+// unrecognised tag never rejects the whole object that carries it. Known tag
+// types are matched first; the loose object only catches the remainder.
+export const Tag = z.union([Mention, Emoji, HashTag, z.looseObject({})])
 export type Tag = z.infer<typeof Tag>
 
 // ============================================================================
 // Attachments
 // ============================================================================
 
-export const Attachment = z.union([PropertyValue, Document])
+// As with tags, an unrecognised attachment kind degrades to a loose object
+// instead of failing validation for the entire object.
+export const Attachment = z.union([PropertyValue, Document, z.looseObject({})])
 export type Attachment = z.infer<typeof Attachment>
 
 // ============================================================================

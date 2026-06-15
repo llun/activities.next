@@ -45,6 +45,7 @@ export const getRemoteStatus = async ({
   }
   if (!remoteNote) return null
 
+  // getNote already canonicalises the fetched note via JSON-LD compaction.
   const noteResult = Note.safeParse(normalizeActivityPubContent(remoteNote))
   if (!noteResult.success) {
     logger.error(`[getRemoteStatus] ${noteResult.error.message}`)

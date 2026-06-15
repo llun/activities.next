@@ -2,8 +2,46 @@ import {
   extractActivityPubId,
   normalizeActivityPubAnnounce,
   normalizeActivityPubContent,
-  normalizeActivityPubRecipients
+  normalizeActivityPubRecipients,
+  normalizeActivityPubType
 } from './activitypub'
+
+describe('normalizeActivityPubType', () => {
+  it.each([
+    {
+      description: 'returns a bare term unchanged',
+      input: 'Note',
+      expected: 'Note'
+    },
+    {
+      description: 'takes the first entry of an array type',
+      input: ['Note', 'Object'],
+      expected: 'Note'
+    },
+    {
+      description: 'strips the as: CURIE prefix',
+      input: 'as:Create',
+      expected: 'Create'
+    },
+    {
+      description: 'strips the expanded ActivityStreams IRI',
+      input: 'https://www.w3.org/ns/activitystreams#Announce',
+      expected: 'Announce'
+    },
+    {
+      description: 'returns undefined for non-string values',
+      input: 42,
+      expected: undefined
+    },
+    {
+      description: 'returns undefined for an empty array',
+      input: [],
+      expected: undefined
+    }
+  ])('$description', ({ input, expected }) => {
+    expect(normalizeActivityPubType(input)).toEqual(expected)
+  })
+})
 
 describe('extractActivityPubId', () => {
   it('returns string value directly', () => {
