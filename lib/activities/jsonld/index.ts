@@ -93,10 +93,12 @@ const CANONICAL_CONTEXT = {
       toot: MASTODON_NAMESPACE,
       schema: SCHEMA_NAMESPACE,
 
-      // Extension *types* we match on, aliased so they compact to bare terms
-      // (e.g. a custom emoji's `http://joinmastodon.org/ns#Emoji` would
-      // otherwise compact to the CURIE `toot:Emoji` and be dropped).
+      // Extension *types* we match on, aliased so they compact to bare terms.
+      // These are not defined in the bundled ActivityStreams context, so without
+      // an alias they would compact to a CURIE (e.g. `toot:Emoji`, `as:Hashtag`)
+      // and be dropped by the strict `type` validators downstream.
       Emoji: 'toot:Emoji',
+      Hashtag: 'as:Hashtag',
 
       // Extension terms we read, mapped to their canonical IRIs so they survive
       // compaction as bare property names instead of being dropped.

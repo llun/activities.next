@@ -121,6 +121,30 @@ describe('compactActivityPub', () => {
     expect(tags[0].name).toBe(':blobcat:')
   })
 
+  it('keeps a hashtag tag with a bare Hashtag type', async () => {
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [ACTIVITY_STREAMS_CONTEXT_URL, { Hashtag: 'as:Hashtag' }],
+        id: 'https://remote.example/notes/1',
+        type: 'Note',
+        attributedTo: 'https://remote.example/users/alice',
+        published: '2026-01-01T00:00:00Z',
+        tag: [
+          {
+            type: 'Hashtag',
+            href: 'https://remote.example/tags/fediverse',
+            name: '#fediverse'
+          }
+        ]
+      })
+    )
+
+    const tags = result.tag as Array<Record<string, unknown>>
+    expect(tags).toHaveLength(1)
+    expect(tags[0].type).toBe('Hashtag')
+    expect(tags[0].name).toBe('#fediverse')
+  })
+
   it('injects a default context for documents that omit @context', async () => {
     const result = asRecord(
       await compactActivityPub({
