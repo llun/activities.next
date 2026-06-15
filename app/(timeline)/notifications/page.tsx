@@ -48,7 +48,11 @@ const Page = async ({ searchParams }: Props) => {
   const params = await searchParams
   const tab: NotificationTab = params.type === 'mentions' ? 'mentions' : 'all'
   const types = tab === 'mentions' ? MENTION_TYPES : undefined
-  const currentPage = parseInt(params.page || '1', 10)
+  // Guard against missing / non-numeric / out-of-range `?page=` values, which
+  // would otherwise produce a NaN or negative offset.
+  const parsedPage = parseInt(params.page ?? '1', 10)
+  const currentPage =
+    Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const offset = (currentPage - 1) * ITEMS_PER_PAGE
 
   const [notifications, totalCount] = await Promise.all([
