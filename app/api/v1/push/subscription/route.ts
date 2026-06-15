@@ -1,7 +1,11 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { OAuthGuard, corsErrorResponse } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuard,
+  corsErrorResponse,
+  getTokenFromHeader
+} from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -82,7 +86,11 @@ export const POST = traceApiRoute(
         auth: parsed.auth,
         alerts: parsed.alerts,
         policy: parsed.policy,
-        standard: parsed.standard
+        standard: parsed.standard,
+        // Store the bearer token so the Mastodon Web Push payload can include
+        // it as `access_token`. Null for web-session requests (no bearer token).
+        accessToken:
+          getTokenFromHeader(req.headers.get('Authorization')) ?? undefined
       })
 
       return apiResponse({

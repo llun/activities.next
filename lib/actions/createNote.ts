@@ -557,10 +557,21 @@ export const createNoteFromUserInput = async ({
     notificationEntries
       .filter((_, i) => {
         const n = notificationResults[i]
-        return n !== null && !n.filtered
+        return n && !n.filtered
       })
       .map(([actorId]) => actorId)
   )
+  // Map each alerted actor to its accepted notification id so the Mastodon Web
+  // Push payload can carry `notification_id`. Each actor has at most one
+  // accepted notification here (reply and mention to the same actor are deduped
+  // above), so a last-write-wins map is sufficient.
+  const notificationIdByActorId = new Map<string, string>()
+  notificationEntries.forEach(([actorId], i) => {
+    const n = notificationResults[i]
+    if (n && !n.filtered) {
+      notificationIdByActorId.set(actorId, n.id)
+    }
+  })
 
   const status = (await database.getStatus({
     statusId,
@@ -596,6 +607,7 @@ export const createNoteFromUserInput = async ({
           events: [
             {
               type: NotificationType.enum.reply,
+              notificationId: notificationIdByActorId.get(replyStatus.actorId),
               emailContent: targetActor?.account
                 ? {
                     recipientEmail: targetActor.account.email,
@@ -633,6 +645,7 @@ export const createNoteFromUserInput = async ({
             events: [
               {
                 type: NotificationType.enum.mention,
+                notificationId: notificationIdByActorId.get(mentionedActorId),
                 emailContent: targetActor?.account
                   ? {
                       recipientEmail: targetActor.account.email,

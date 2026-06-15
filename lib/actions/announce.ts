@@ -123,6 +123,7 @@ export const userAnnounce = async ({
               events: [
                 {
                   type: NotificationType.enum.reblog,
+                  notificationId: reblogNotification?.id,
                   emailContent: targetActor?.account
                     ? {
                         recipientEmail: targetActor.account.email,

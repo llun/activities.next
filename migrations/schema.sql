@@ -708,7 +708,8 @@ CREATE TABLE public.push_subscriptions (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     alerts text,
     policy character varying(255) DEFAULT 'all'::character varying NOT NULL,
-    standard boolean DEFAULT true NOT NULL
+    standard boolean DEFAULT true NOT NULL,
+    "accessToken" text
 );
 
 CREATE TABLE public.recipients (

@@ -74,6 +74,71 @@ describe('sendPushNotification', () => {
     )
   })
 
+  it('sends a Mastodon-compatible payload with the standard fields', async () => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: jest.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint: 'https://push.example.com/endpoint/abc',
+          p256dh: 'key1',
+          auth: 'auth1',
+          policy: 'all',
+          alerts: { favourite: true },
+          standard: true,
+          accessToken: 'token-abc',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    } as never)
+
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor: {
+        id: 'https://llun.test/users/source',
+        username: 'source',
+        name: 'Source User',
+        iconUrl: 'https://llun.test/avatars/source.png'
+      } as never,
+      notificationId: 'notification-123'
+    })
+
+    expect(mockWebpush.sendNotification).toHaveBeenCalledTimes(1)
+    const payload = JSON.parse(
+      mockWebpush.sendNotification.mock.calls[0][1] as string
+    )
+    expect(payload).toMatchObject({
+      access_token: 'token-abc',
+      preferred_locale: 'en',
+      notification_id: 'notification-123',
+      // `like` maps to the Mastodon `favourite` notification type.
+      notification_type: 'favourite',
+      icon: 'https://llun.test/avatars/source.png',
+      title: 'New Like',
+      body: 'Source User liked your post'
+    })
+  })
+
+  it('falls back to an empty access_token and notification_id when absent', async () => {
+    const db = makeDb()
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    const payload = JSON.parse(
+      mockWebpush.sendNotification.mock.calls[0][1] as string
+    )
+    expect(payload.access_token).toBe('')
+    expect(payload.notification_id).toBe('')
+    expect(payload.notification_type).toBe('favourite')
+  })
+
   it('uses standard aes128gcm encoding when the subscription is standard', async () => {
     const db = makeDb({
       getPushSubscriptionsForActor: jest.fn().mockResolvedValue([

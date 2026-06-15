@@ -36,6 +36,15 @@ jest.mock('@/lib/database', () => ({
 
 jest.mock('@/lib/services/guards/OAuthGuard', () => ({
   corsErrorResponse: () => () => new Response(null, { status: 401 }),
+  // Mirror the real parser in OAuthGuard.ts exactly (trim + split on \s+,
+  // require exactly two parts, case-insensitive scheme) so the route tests
+  // exercise the same token-extraction behavior as production.
+  getTokenFromHeader: (header: string | null) => {
+    if (!header) return null
+    const parts = header.trim().split(/\s+/)
+    if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') return null
+    return parts[1] || null
+  },
   OAuthGuard:
     (
       scopes: Scope[],
@@ -181,6 +190,25 @@ describe('POST /api/v1/push/subscription', () => {
         standard: true,
         policy: 'followed'
       })
+    )
+  })
+
+  it('stores the bearer token as the subscription access token', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: { endpoint, keys: { p256dh, auth }, standard: true }
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost',
+        Authorization: 'Bearer device-access-token'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+    expect(mockDatabase!.createPushSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'device-access-token' })
     )
   })
 })
