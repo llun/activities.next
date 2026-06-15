@@ -169,7 +169,7 @@ export const NotificationItem = ({
           <Link
             href={statusPath}
             aria-label={overlayLabel}
-            className="absolute inset-0"
+            className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
           />
         ) : (
           <Link
@@ -194,7 +194,10 @@ export const NotificationItem = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 text-sm leading-snug">{line1}</div>
-            <time className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+            <time
+              dateTime={new Date(notification.createdAt).toISOString()}
+              className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground"
+            >
               {relativeCreatedAt}
             </time>
           </div>

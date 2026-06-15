@@ -20,8 +20,12 @@ export const FollowNotification: FC<Props> = ({ account }) => {
 
   const handleFollowBack = async () => {
     setState('loading')
-    const ok = await follow({ targetActorId: account.id })
-    setState(ok ? 'done' : 'error')
+    try {
+      const ok = await follow({ targetActorId: account.id })
+      setState(ok ? 'done' : 'error')
+    } catch {
+      setState('error')
+    }
   }
 
   return (

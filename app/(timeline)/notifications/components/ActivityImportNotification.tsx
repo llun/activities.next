@@ -24,7 +24,7 @@ export const ActivityImportNotification: FC<Props> = ({
   const statusUrl = getNotificationStatusPath(status)
 
   return (
-    <div className="mt-2 flex items-center gap-3 rounded-xl border bg-background p-2.5">
+    <div className="mt-2 flex items-center gap-3 rounded-xl border bg-background p-2.5 dark:bg-card">
       <span
         aria-hidden="true"
         className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"

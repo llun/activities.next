@@ -70,7 +70,9 @@ export const FollowRequestNotification: FC<Props> = ({ account }) => {
           <span
             className={cn(
               'shrink-0 text-[13px] font-medium',
-              status === 'accepted' ? 'text-green-600' : 'text-muted-foreground'
+              status === 'accepted'
+                ? 'text-green-600 dark:text-green-500'
+                : 'text-muted-foreground'
             )}
           >
             {status === 'accepted' ? 'Approved' : 'Rejected'}

@@ -51,15 +51,14 @@ const Page = async ({ searchParams }: Props) => {
   const currentPage = parseInt(params.page || '1', 10)
   const offset = (currentPage - 1) * ITEMS_PER_PAGE
 
-  const [notifications, totalCount, unreadCount] = await Promise.all([
+  const [notifications, totalCount] = await Promise.all([
     database.getNotifications({
       actorId: actor.id,
       limit: ITEMS_PER_PAGE,
       offset,
       types
     }),
-    database.getNotificationsCount({ actorId: actor.id, types }),
-    database.getNotificationsCount({ actorId: actor.id, onlyUnread: true })
+    database.getNotificationsCount({ actorId: actor.id, types })
   ])
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
@@ -90,17 +89,21 @@ const Page = async ({ searchParams }: Props) => {
     })
   )
 
-  // Unread notification ids on this page (expanded to grouped ids) for the
-  // mark-all-read action.
+  // The unread rows in the loaded feed drive both the mark-all-read action
+  // (expanded to grouped ids) and the count badge, so the label, the count, and
+  // what the button clears all describe the same set. The global unread total
+  // is surfaced on the sidebar bell instead.
+  const unreadNotifications = notificationsWithData.filter(
+    (notification) => !notification.isRead
+  )
+  const unreadCount = unreadNotifications.length
   const unreadIds = Array.from(
     new Set(
-      notificationsWithData
-        .filter((notification) => !notification.isRead)
-        .flatMap((notification) =>
-          notification.groupedIds && notification.groupedIds.length > 0
-            ? notification.groupedIds
-            : [notification.id]
-        )
+      unreadNotifications.flatMap((notification) =>
+        notification.groupedIds && notification.groupedIds.length > 0
+          ? notification.groupedIds
+          : [notification.id]
+      )
     )
   )
 

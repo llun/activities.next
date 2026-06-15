@@ -35,7 +35,7 @@ export interface NotificationTypeConfig {
 
 const RELATIONSHIP_BADGE =
   'bg-[hsl(210_90%_96%)] text-[hsl(210_80%_45%)] dark:bg-[hsl(210_80%_45%/0.16)] dark:text-[hsl(210_75%_68%)]'
-const PRIMARY_BADGE = 'bg-primary/10 text-primary'
+const PRIMARY_BADGE = 'bg-primary/[0.12] text-primary'
 
 export const NOTIFICATION_TYPE_CONFIG: Record<
   NotificationType,
@@ -97,10 +97,15 @@ export const getGroupedName = (name: string, groupedCount?: number) => {
 }
 
 // Two-letter monogram for the avatar fallback: initials of the first two words,
-// or the first two letters of a single-word name.
+// or the first two letters of a single-word name. Uses Array.from so emoji /
+// multi-byte code points (common in Fediverse display names) are not split.
 export const getInitials = (name: string) => {
   const words = name.trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return '?'
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[1][0]).toUpperCase()
+  if (words.length === 1) {
+    return Array.from(words[0]).slice(0, 2).join('').toUpperCase()
+  }
+  const firstInitial = Array.from(words[0])[0] ?? ''
+  const secondInitial = Array.from(words[1])[0] ?? ''
+  return (firstInitial + secondInitial).toUpperCase()
 }
