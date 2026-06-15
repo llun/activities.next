@@ -45,9 +45,7 @@ describe('fetchTranslationHttpClient', () => {
     // 1.5 MB body with no content-length header, so the cap must be enforced
     // while streaming rather than from the declared length.
     const big = 'a'.repeat(1.5 * 1024 * 1024)
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response(big, { status: 200 }))
+    global.fetch = vi.fn().mockResolvedValue(new Response(big, { status: 200 }))
 
     await expect(
       fetchTranslationHttpClient({

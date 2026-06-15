@@ -217,9 +217,7 @@ describe('safeRemoteFetch', () => {
   })
 
   it('allows NAT64 addresses when the embedded IPv4 address is safe', async () => {
-    const transport: SafeRemoteFetchTransport = vi.fn(async () =>
-      okResponse()
-    )
+    const transport: SafeRemoteFetchTransport = vi.fn(async () => okResponse())
     const safeRemoteFetch = createSafeRemoteFetch({
       transport
     })

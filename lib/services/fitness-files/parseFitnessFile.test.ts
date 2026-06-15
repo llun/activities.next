@@ -3,12 +3,14 @@ import FitParser from 'fit-file-parser'
 import { parseFitnessFile } from './parseFitnessFile'
 
 vi.mock('fit-file-parser', () => {
-  return vi.fn().mockImplementation(() => ({
-    parse: (
-      _buffer: Buffer,
-      callback: (error: Error | null, data?: unknown) => void
-    ) => callback(null, {})
-  }))
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      parse: (
+        _buffer: Buffer,
+        callback: (error: Error | null, data?: unknown) => void
+      ) => callback(null, {})
+    }))
+  }
 })
 
 const FitParserMock = FitParser as unknown as jest.Mock

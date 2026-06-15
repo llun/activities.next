@@ -65,7 +65,9 @@ vi.mock('./resolveStatusFromPath', async () => ({
 }))
 
 vi.mock('./Header', async () => ({ Header: () => null }))
-vi.mock('./RemoteStatusLoading', async () => ({ RemoteStatusLoading: () => null }))
+vi.mock('./RemoteStatusLoading', async () => ({
+  RemoteStatusLoading: () => null
+}))
 
 // Render each status as its id so we can assert which statuses reach the page.
 vi.mock('./StatusBox', async () => ({

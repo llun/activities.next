@@ -122,9 +122,9 @@ describe('Strava archive presigned URL endpoint', () => {
   })
 
   it('returns 413 when storage quota is exceeded', async () => {
-    const { QuotaExceededError } = await vi.importActual(
+    const { QuotaExceededError } = (await vi.importActual(
       '@/lib/services/fitness-files/errors'
-    ) as typeof import('@/lib/services/fitness-files/errors')
+    )) as typeof import('@/lib/services/fitness-files/errors')
 
     mockGetPresignedFitnessFileUrl.mockRejectedValue(
       new QuotaExceededError('Quota exceeded', 1000, 500)

@@ -52,8 +52,10 @@ vi.mock('@/lib/services/medias/index', async () => ({
 }))
 
 vi.mock('@/lib/services/strava/archiveReader', async () => ({
-  StravaArchiveLimitError: await vi.importActual(
-    '@/lib/services/strava/archiveReader'
+  StravaArchiveLimitError: (
+    await vi.importActual<typeof import('@/lib/services/strava/archiveReader')>(
+      '@/lib/services/strava/archiveReader'
+    )
   ).StravaArchiveLimitError,
   StravaArchiveReader: {
     open: vi.fn()

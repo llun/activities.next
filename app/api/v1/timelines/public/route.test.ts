@@ -114,9 +114,10 @@ describe('GET /api/v1/timelines/public', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     } as unknown as Status
-    vi
-      .spyOn(database, 'getTimeline')
-      .mockResolvedValue([publicStatus, brokenStatus])
+    vi.spyOn(database, 'getTimeline').mockResolvedValue([
+      publicStatus,
+      brokenStatus
+    ])
 
     const response = await GET(request(), {
       params: Promise.resolve({})

@@ -13,12 +13,12 @@ vi.mock('got', async () => {
     headers?: Record<string, string>
   }
 
-  const { Buffer } = await vi.importActual(
+  const { Buffer } = (await vi.importActual(
     'node:buffer'
-  ) as typeof import('node:buffer')
-  const { Readable } = await vi.importActual(
+  )) as typeof import('node:buffer')
+  const { Readable } = (await vi.importActual(
     'node:stream'
-  ) as typeof import('node:stream')
+  )) as typeof import('node:stream')
 
   const readResponse = async (url: string, options: GotMockOptions) => {
     const response = await fetch(url, {
@@ -81,7 +81,7 @@ vi.mock('got', async () => {
     }
   )
 
-  return gotMock
+  return { default: gotMock }
 })
 
 enableFetchMocks()
@@ -635,7 +635,9 @@ describe('request utility', () => {
       expect(scheduledDelays).toEqual([1100, 2100, 4100, 8100, 16100, 30000])
 
       await vi.advanceTimersByTimeAsync(30000)
-      await expect(responsePromise).resolves.toThrow('dns lookup timed out')
+      // responsePromise resolves to the caught error (see `.catch` above).
+      const settledError = (await responsePromise) as Error
+      expect(settledError.message).toContain('dns lookup timed out')
       expect(fetchMock).toHaveBeenCalledTimes(7)
     })
   })

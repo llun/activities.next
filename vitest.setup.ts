@@ -107,7 +107,9 @@ vi.mock('got', async () => {
         stream.push(Buffer.from(body))
         stream.push(null)
       } catch (error) {
-        stream.destroy(error instanceof Error ? error : new Error(String(error)))
+        stream.destroy(
+          error instanceof Error ? error : new Error(String(error))
+        )
       }
     })()
 
@@ -117,20 +119,19 @@ vi.mock('got', async () => {
   return { default: gotMock }
 })
 
-vi.mock('node:dns/promises', () => ({
-  lookup: vi.fn(async (_hostname, options) => {
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async (_hostname, options) => {
     const address = { address: '93.184.216.34', family: 4 }
     return options?.all ? [address] : address
   })
-}))
+  return { default: { lookup }, lookup }
+})
 
 vi.mock('@/lib/config', async () => {
-  const { TEST_DOMAIN } = await vi.importActual<typeof import('@/lib/stub/const')>(
-    '@/lib/stub/const'
-  )
-  const { MOCK_SECRET_PHASES } = await vi.importActual<
-    typeof import('@/lib/stub/actor')
-  >('@/lib/stub/actor')
+  const { TEST_DOMAIN } =
+    await vi.importActual<typeof import('@/lib/stub/const')>('@/lib/stub/const')
+  const { MOCK_SECRET_PHASES } =
+    await vi.importActual<typeof import('@/lib/stub/actor')>('@/lib/stub/actor')
   return {
     getBaseURL: vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`),
     getConfig: vi.fn().mockReturnValue({

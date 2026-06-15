@@ -462,9 +462,9 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   )
 
   it('returns 403 when registration is closed', async () => {
-    vi
-      .mocked(registerAccount)
-      .mockResolvedValueOnce({ type: 'registration_closed' })
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'registration_closed'
+    })
     const res = await postRegister(
       APP_TOKEN,
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
@@ -473,9 +473,9 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   })
 
   it('returns 403 when the email is not allowed to register', async () => {
-    vi
-      .mocked(registerAccount)
-      .mockResolvedValueOnce({ type: 'email_not_allowed' })
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'email_not_allowed'
+    })
     const res = await postRegister(
       APP_TOKEN,
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`

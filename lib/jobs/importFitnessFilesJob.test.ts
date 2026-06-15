@@ -436,10 +436,7 @@ describe('importFitnessFilesJob', () => {
     expect(file).toBeDefined()
 
     const missingFileId = 'fitness-file-missing-id'
-    const importStatusSpy = vi.spyOn(
-      database,
-      'updateFitnessFileImportStatus'
-    )
+    const importStatusSpy = vi.spyOn(database, 'updateFitnessFileImportStatus')
     const processingStatusSpy = vi.spyOn(
       database,
       'updateFitnessFileProcessingStatus'

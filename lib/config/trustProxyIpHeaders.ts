@@ -11,7 +11,7 @@ export const getTrustProxyIpHeadersConfig = (): boolean => {
 }
 
 export const resetTrustProxyIpHeadersConfigCacheForTests = () => {
-  if (process.env.NODE_ENV !== 'test') {
+  if (!process.env.VITEST) {
     throw new Error('resetTrustProxyIpHeadersConfigCacheForTests is test-only')
   }
 

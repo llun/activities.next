@@ -125,7 +125,7 @@ describe('ReplyPreview', () => {
       expect(screen.getByText('Hello world!')).toBeInTheDocument()
     })
 
-    it('renders "No content preview" when text is empty', () => {
+    it('renders "No content preview" when text is empty', async () => {
       const { processStatusText } = await vi.importMock(
         '../../utils/text/processStatusText'
       )
@@ -197,7 +197,7 @@ describe('ReplyPreview', () => {
       expect(screen.getByText('This is a note')).toBeInTheDocument()
     })
 
-    it('renders boosted (Announce) status with original content', () => {
+    it('renders boosted (Announce) status with original content', async () => {
       const { processStatusText } = await vi.importMock(
         '../../utils/text/processStatusText'
       )
@@ -215,7 +215,7 @@ describe('ReplyPreview', () => {
   })
 
   describe('text processing', () => {
-    it('passes host and status to processStatusText', () => {
+    it('passes host and status to processStatusText', async () => {
       const { processStatusText } = await vi.importMock(
         '../../utils/text/processStatusText'
       )

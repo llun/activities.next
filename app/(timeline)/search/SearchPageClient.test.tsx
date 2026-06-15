@@ -683,7 +683,10 @@ describe('SearchPageClient', () => {
 
       renderSearchPage('q=trail')
 
-      expect(await screen.findByText('Searching...')).toBeInTheDocument()
+      // findByText asserts the loading state appeared; chaining
+      // toBeInTheDocument races with React detaching the node once the aborted
+      // search settles, so rely on findByText alone here.
+      await screen.findByText('Searching...')
       await waitFor(() => {
         expect(screen.queryByText('Searching...')).not.toBeInTheDocument()
       })

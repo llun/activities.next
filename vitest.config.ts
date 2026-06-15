@@ -1,5 +1,4 @@
 import { fileURLToPath } from 'node:url'
-
 import { defineConfig } from 'vitest/config'
 
 const resolvePath = (relativePath: string) =>
@@ -8,11 +7,6 @@ const resolvePath = (relativePath: string) =>
 export default defineConfig({
   resolve: {
     alias: [
-      // Route the legacy jest-fetch-mock import to a Vitest-backed shim.
-      {
-        find: /^jest-fetch-mock$/,
-        replacement: resolvePath('./vitest-shims/jest-fetch-mock.ts')
-      },
       { find: /^@\/app\/(.*)$/, replacement: `${resolvePath('./app')}/$1` },
       { find: /^@\/lib\/(.*)$/, replacement: `${resolvePath('./lib')}/$1` },
       { find: /^@\/pages\/(.*)$/, replacement: `${resolvePath('./pages')}/$1` },
@@ -24,7 +18,12 @@ export default defineConfig({
     environment: 'node',
     // Component tests render against jsdom; pure logic tests stay on node.
     environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
-    setupFiles: ['./vitest.setup.ts'],
+    environmentOptions: {
+      jsdom: { url: 'http://localhost:3000' }
+    },
+    // jest-global.ts must run first: it installs the minimal global `jest`
+    // shim that jest-fetch-mock (imported by vitest.setup.ts) relies on.
+    setupFiles: ['./vitest-shims/jest-global.ts', './vitest.setup.ts'],
     include: ['**/*.test.{ts,tsx}'],
     exclude: [
       '**/node_modules/**',

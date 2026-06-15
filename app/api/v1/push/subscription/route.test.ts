@@ -224,9 +224,7 @@ describe('GET /api/v1/push/subscription', () => {
   })
 
   it('returns 404 when there is no subscription', async () => {
-    mockDatabase!.getPushSubscriptionForActor = vi
-      .fn()
-      .mockResolvedValue(null)
+    mockDatabase!.getPushSubscriptionForActor = vi.fn().mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription')
     const res = await GET(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(404)
@@ -310,9 +308,7 @@ describe('DELETE /api/v1/push/subscription', () => {
   })
 
   it('returns an empty object even without an existing subscription', async () => {
-    mockDatabase!.getPushSubscriptionForActor = vi
-      .fn()
-      .mockResolvedValue(null)
+    mockDatabase!.getPushSubscriptionForActor = vi.fn().mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {
       method: 'DELETE',
       headers: { Origin: 'http://localhost' }

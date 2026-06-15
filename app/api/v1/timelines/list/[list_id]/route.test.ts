@@ -170,9 +170,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     } as unknown as Status
-    vi
-      .spyOn(database, 'getListTimeline')
-      .mockResolvedValue([listStatus, brokenStatus])
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+      listStatus,
+      brokenStatus
+    ])
 
     const response = await GET(request(), {
       params: Promise.resolve({ list_id: listId })
@@ -237,9 +238,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     })
 
     it('drops hide-filtered statuses from the Mastodon format', async () => {
-      vi
-        .spyOn(database, 'getListTimeline')
-        .mockResolvedValue([listStatus, spoilerStatus])
+      vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+        listStatus,
+        spoilerStatus
+      ])
 
       const response = await GET(request(), {
         params: Promise.resolve({ list_id: listId })
@@ -252,9 +254,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     })
 
     it('drops hide-filtered statuses from the activities_next format', async () => {
-      vi
-        .spyOn(database, 'getListTimeline')
-        .mockResolvedValue([listStatus, spoilerStatus])
+      vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+        listStatus,
+        spoilerStatus
+      ])
 
       const response = await GET(request({ format: 'activities_next' }), {
         params: Promise.resolve({ list_id: listId })
@@ -287,9 +290,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     })
 
     it('keeps warn-filtered statuses, annotating them on the Mastodon path only', async () => {
-      vi
-        .spyOn(database, 'getListTimeline')
-        .mockResolvedValue([listStatus, warnStatus])
+      vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+        listStatus,
+        warnStatus
+      ])
 
       // Mastodon: warn matches are kept and annotated via `filtered`.
       const mastodon = await GET(request(), {

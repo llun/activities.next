@@ -103,7 +103,7 @@ const getRemoteMediaCspSources = (
 let cachedContentSecurityPolicy: string | null = null
 
 export const resetContentSecurityPolicyCacheForTests = () => {
-  if (process.env.NODE_ENV !== 'test') {
+  if (!process.env.VITEST) {
     throw new Error('resetContentSecurityPolicyCacheForTests is test-only')
   }
 

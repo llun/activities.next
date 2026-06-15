@@ -115,14 +115,8 @@ describe('getMastodonStatus', () => {
         database,
         'getStatusRepliesCounts'
       )
-      const getStatusReblogsCount = vi.spyOn(
-        database,
-        'getStatusReblogsCount'
-      )
-      const getStatusRepliesCount = vi.spyOn(
-        database,
-        'getStatusRepliesCount'
-      )
+      const getStatusReblogsCount = vi.spyOn(database, 'getStatusReblogsCount')
+      const getStatusRepliesCount = vi.spyOn(database, 'getStatusRepliesCount')
 
       const mastodonStatuses = await getMastodonStatuses(database, [
         firstStatus,

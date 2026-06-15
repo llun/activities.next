@@ -49,12 +49,8 @@ const createDatabase = (params: { blocks?: string[]; allows?: string[] }) => {
   }
 
   return {
-    getDomainBlockForDomain: vi.fn(async (domain: string) =>
-      findBlock(domain)
-    ),
-    getDomainAllowForDomain: vi.fn(async (domain: string) =>
-      findAllow(domain)
-    ),
+    getDomainBlockForDomain: vi.fn(async (domain: string) => findBlock(domain)),
+    getDomainAllowForDomain: vi.fn(async (domain: string) => findAllow(domain)),
     getDomainBlocksForDomains: vi.fn(async (domains: string[]) =>
       Object.fromEntries(domains.map((domain) => [domain, findBlock(domain)]))
     ),

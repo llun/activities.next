@@ -42,20 +42,16 @@ const mockS3Storage = {
   deleteFile: mockDeleteFile
 }
 
-vi
-  .spyOn(LocalFileStorage.LocalFileStorage, 'getStorage')
-  .mockReturnValue(
-    mockLocalStorage as unknown as ReturnType<
-      typeof LocalFileStorage.LocalFileStorage.getStorage
-    >
-  )
-vi
-  .spyOn(S3FileStorage.S3FileStorage, 'getStorage')
-  .mockReturnValue(
-    mockS3Storage as unknown as ReturnType<
-      typeof S3FileStorage.S3FileStorage.getStorage
-    >
-  )
+vi.spyOn(LocalFileStorage.LocalFileStorage, 'getStorage').mockReturnValue(
+  mockLocalStorage as unknown as ReturnType<
+    typeof LocalFileStorage.LocalFileStorage.getStorage
+  >
+)
+vi.spyOn(S3FileStorage.S3FileStorage, 'getStorage').mockReturnValue(
+  mockS3Storage as unknown as ReturnType<
+    typeof S3FileStorage.S3FileStorage.getStorage
+  >
+)
 
 describe('Media Storage Service', () => {
   const mockDatabase = {} as unknown as Database

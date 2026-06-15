@@ -8,7 +8,9 @@ import { shouldSendPushForNotification } from './pushNotificationSettings'
 import { sendNotificationAlerts } from './sendNotificationAlerts'
 
 vi.mock('@/lib/config')
-const { getConfig } = await vi.importMock<{ getConfig: jest.Mock }>('@/lib/config')
+const { getConfig } = await vi.importMock<{ getConfig: jest.Mock }>(
+  '@/lib/config'
+)
 
 vi.mock('./pushNotification', async () => ({
   sendPushNotification: vi.fn().mockResolvedValue(undefined)
