@@ -90,12 +90,9 @@ const canonicalizePublicRecipient = (recipient: string) =>
 export const toRecipientArray = (
   value: string | string[] | undefined | null
 ): string[] =>
-  (Array.isArray(value)
-    ? value
-    : [value].filter(
-        (item): item is string => typeof item === 'string' && item !== ''
-      )
-  ).map(canonicalizePublicRecipient)
+  (Array.isArray(value) ? value : [value])
+    .filter((item): item is string => typeof item === 'string' && item !== '')
+    .map(canonicalizePublicRecipient)
 
 export const normalizeActivityPubAnnounce = (data: unknown) => {
   if (!isRecord(data)) return data
