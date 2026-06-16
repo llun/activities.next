@@ -1,0 +1,27 @@
+lib/actions/acceptRelayRequest.ts
+  s_4940650f85d4fc::t_58ac2b622cfde3 3
+  s_4940650f85d4fc::t_39f7f232f73555 38-44,50-52,56,61-62,68
+lib/actions/acceptRelayRequest.test.ts
+  s_4940650f85d4fc::t_33f241560a9f8f 7
+  s_4940650f85d4fc::t_6821ef5774431a 74-104
+app/(timeline)/admin/relays/actions.test.ts
+  s_4940650f85d4fc::t_9cd309670d029e 159-160
+app/(timeline)/admin/relays/actions.ts
+  s_4940650f85d4fc::t_a1481260fd2e88 97-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "330be53d2465a28d843d597fe353ebf832c10764",
+  "prompts": {},
+  "sessions": {
+    "s_4940650f85d4fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63651c7d-28cf-4c4f-879c-781d84ce90aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
