@@ -28,6 +28,7 @@ import {
 import { Actor } from '@/lib/types/domain/actor'
 import { Block as DomainBlock } from '@/lib/types/domain/block'
 import { Follow } from '@/lib/types/domain/follow'
+import { Relay } from '@/lib/types/domain/relay'
 import {
   Status,
   StatusAnnounce,
@@ -445,6 +446,77 @@ export const unfollow = async (
         currentActor,
         activity,
         logPrefix: 'unfollow'
+      })
+      span.end()
+      return statusCode === 202
+    }
+  )
+
+// Subscribe to a relay: send a Follow whose object is the ActivityStreams
+// Public collection (the LitePub convention) to the relay's inbox, signed by
+// the instance/federation signing actor. Returns the generated Follow id (to
+// persist so the relay's Accept can be matched back) and whether the relay
+// inbox accepted delivery (HTTP 202). The relay confirms the subscription
+// asynchronously with its own Accept.
+export const followRelay = async (
+  relay: Relay,
+  signingActor: Actor
+): Promise<{ followActivityId: string; ok: boolean }> =>
+  getTracer().startActiveSpan(
+    'activities.followRelay',
+    { attributes: { relayId: relay.id, inbox: relay.inboxUrl } },
+    async (span) => {
+      const followActivityId = `https://${signingActor.domain}/${crypto.randomUUID()}`
+      const activity: FollowRequest = {
+        '@context': ACTIVITY_STREAM_URL,
+        id: followActivityId,
+        type: 'Follow',
+        actor: signingActor.id,
+        object: ACTIVITY_STREAM_PUBLIC
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: relay.inboxUrl,
+        currentActor: signingActor,
+        activity,
+        logPrefix: 'followRelay'
+      })
+      span.end()
+      return { followActivityId, ok: statusCode === 202 }
+    }
+  )
+
+// Unsubscribe from a relay: send Undo(Follow) reusing the Follow id we sent
+// (relay.followActivityId), signed by the instance/federation signing actor.
+export const unfollowRelay = async (
+  relay: Relay,
+  signingActor: Actor
+): Promise<boolean> =>
+  getTracer().startActiveSpan(
+    'activities.unfollowRelay',
+    { attributes: { relayId: relay.id, inbox: relay.inboxUrl } },
+    async (span) => {
+      const followActivityId =
+        relay.followActivityId ??
+        `https://${signingActor.domain}/${crypto.randomUUID()}`
+      const activity: UndoFollow = {
+        '@context': ACTIVITY_STREAM_URL,
+        id: `${followActivityId}/undo`,
+        type: 'Undo',
+        actor: signingActor.id,
+        object: {
+          id: followActivityId,
+          type: 'Follow',
+          actor: signingActor.id,
+          object: ACTIVITY_STREAM_PUBLIC
+        }
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: relay.inboxUrl,
+        currentActor: signingActor,
+        activity,
+        logPrefix: 'unfollowRelay'
       })
       span.end()
       return statusCode === 202

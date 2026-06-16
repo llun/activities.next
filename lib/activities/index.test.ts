@@ -5,13 +5,15 @@ import {
   acceptFollow,
   deleteStatus,
   follow,
+  followRelay,
   getNote,
   rejectFollow,
   sendAnnounce,
   sendLike,
   sendNote,
   sendUndoLike,
-  unfollow
+  unfollow,
+  unfollowRelay
 } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -21,7 +23,22 @@ import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { Relay } from '@/lib/types/domain/relay'
 import { StatusType } from '@/lib/types/domain/status'
+
+const ACTIVITY_STREAM_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
+
+const mockRelay = (overrides: Partial<Relay> = {}): Relay => ({
+  id: 'relay-1',
+  inboxUrl: 'https://relay.example/inbox',
+  actorId: null,
+  state: 'idle',
+  followActivityId: null,
+  lastError: null,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  ...overrides
+})
 
 enableFetchMocks()
 
@@ -238,6 +255,53 @@ describe('activities', () => {
       const body = JSON.parse(undoCall![1]?.body as string)
       expect(body.type).toEqual('Undo')
       expect(body.object.type).toEqual('Follow')
+    })
+  })
+
+  describe('followRelay', () => {
+    it('sends a Follow of the Public collection to the relay inbox', async () => {
+      const signingActor = MockActor({})
+      const relay = mockRelay()
+
+      fetchMock.mockResponseOnce('', { status: 202 })
+      const result = await followRelay(relay, signingActor)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [url, options] = fetchMock.mock.lastCall as any
+      expect(url).toEqual(relay.inboxUrl)
+      expect(options.method).toEqual('POST')
+
+      const body = JSON.parse(options.body)
+      expect(body.type).toEqual('Follow')
+      expect(body.actor).toEqual(signingActor.id)
+      expect(body.object).toEqual(ACTIVITY_STREAM_PUBLIC)
+      expect(body.id).toEqual(result.followActivityId)
+      expect(result.ok).toBe(true)
+    })
+  })
+
+  describe('unfollowRelay', () => {
+    it('sends Undo(Follow) reusing the stored follow id', async () => {
+      const signingActor = MockActor({})
+      const relay = mockRelay({
+        actorId: 'https://relay.example/actor',
+        state: 'accepted',
+        followActivityId: 'https://llun.test/relay-follow-1'
+      })
+
+      fetchMock.mockResponseOnce('', { status: 202 })
+      const ok = await unfollowRelay(relay, signingActor)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [url, options] = fetchMock.mock.lastCall as any
+      expect(url).toEqual(relay.inboxUrl)
+
+      const body = JSON.parse(options.body)
+      expect(body.type).toEqual('Undo')
+      expect(body.object.type).toEqual('Follow')
+      expect(body.object.id).toEqual('https://llun.test/relay-follow-1')
+      expect(body.object.object).toEqual(ACTIVITY_STREAM_PUBLIC)
+      expect(ok).toBe(true)
     })
   })
 
