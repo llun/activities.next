@@ -1,0 +1,21 @@
+app/(timeline)/settings/account/TwoFactorManager.test.tsx
+  s_47fb9e2ae4330b::t_7913d1c234c02f 177-179
+  s_47fb9e2ae4330b::t_83adfced7b5e8e 120-121,123,125
+  s_47fb9e2ae4330b::t_7083f47eb11978 148-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "2f4662f3ae2b5367abe9dcac55183b65695f8124",
+  "prompts": {},
+  "sessions": {
+    "s_47fb9e2ae4330b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "365e3ed6-1ed5-4e33-a0b9-794593e3cf76",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
