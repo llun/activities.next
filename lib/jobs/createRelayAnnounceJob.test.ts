@@ -69,6 +69,31 @@ describe('createRelayAnnounceJob', () => {
     expect(announce).toBeNull()
   })
 
+  it('does not federate a non-public (followers-only) relayed note', async () => {
+    const followersOnly = 'https://somewhere.test/statuses/followers-only'
+    // Pre-store the note so the job uses the existing status and reaches the
+    // public-audience gate without re-fetching.
+    await database.createNote({
+      id: followersOnly,
+      url: followersOnly,
+      actorId: 'https://somewhere.test/users/bob',
+      text: 'followers only',
+      to: ['https://somewhere.test/users/bob/followers'],
+      cc: []
+    })
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-priv',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(followersOnly, `${RELAY_ACTOR}/announce/priv`)
+    })
+
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).not.toContain(followersOnly)
+  })
+
   it('skips our own posts echoed back through the relay (self-echo guard)', async () => {
     const localNote = 'https://test.llun.dev/users/test1/statuses/local-echo'
     await createRelayAnnounceJob(database, {
