@@ -12,6 +12,7 @@ import {
 } from '@/lib/services/timelines/request'
 import { Timeline } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
+import { Status } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -20,6 +21,25 @@ import { urlToId } from '@/lib/utils/urlToId'
 export const dynamic = 'force-dynamic'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+// Merge local-public and federated (relay-sourced) statuses into one page,
+// newest first, matching getTimeline's (createdAt, id) ordering. The two
+// sources are disjoint by author locality, but dedupe by id defensively.
+const mergePublicStatuses = (
+  local: Status[],
+  remote: Status[],
+  limit: number
+): Status[] => {
+  const byId = new Map<string, Status>()
+  for (const status of [...local, ...remote]) byId.set(status.id, status)
+  return [...byId.values()]
+    .sort((a, b) => {
+      if (b.createdAt !== a.createdAt) return b.createdAt - a.createdAt
+      if (a.id === b.id) return 0
+      return a.id < b.id ? 1 : -1
+    })
+    .slice(0, limit)
+}
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -42,6 +62,58 @@ export const GET = traceApiRoute(
         })
       }
       const pageLimit = parsedQuery.query.limit
+      const { local, remote } = parsedQuery.query
+
+      // Mastodon scope: local=true → local only, remote=true → federated only,
+      // neither (default) → the federated view (local + relay-sourced remote).
+      const fetchBatch =
+        local && !remote
+          ? ({
+              maxStatusId,
+              limit
+            }: {
+              maxStatusId: string | null
+              limit: number
+            }) =>
+              database.getTimeline({
+                timeline: Timeline.LOCAL_PUBLIC,
+                maxStatusId,
+                limit
+              })
+          : remote && !local
+            ? ({
+                maxStatusId,
+                limit
+              }: {
+                maxStatusId: string | null
+                limit: number
+              }) =>
+                database.getTimeline({
+                  timeline: Timeline.FEDERATED_PUBLIC,
+                  maxStatusId,
+                  limit
+                })
+            : async ({
+                maxStatusId,
+                limit
+              }: {
+                maxStatusId: string | null
+                limit: number
+              }) => {
+                const [localStatuses, remoteStatuses] = await Promise.all([
+                  database.getTimeline({
+                    timeline: Timeline.LOCAL_PUBLIC,
+                    maxStatusId,
+                    limit
+                  }),
+                  database.getTimeline({
+                    timeline: Timeline.FEDERATED_PUBLIC,
+                    maxStatusId,
+                    limit
+                  })
+                ])
+                return mergePublicStatuses(localStatuses, remoteStatuses, limit)
+              }
 
       const { statuses, nextMaxStatusId, filterRecords } =
         await getFilteredStatusPage({
@@ -50,12 +122,7 @@ export const GET = traceApiRoute(
           maxStatusId: parsedQuery.query.maxStatusId,
           limit: pageLimit,
           filterContext: currentActor ? 'public' : undefined,
-          fetchBatch: ({ maxStatusId, limit }) =>
-            database.getTimeline({
-              timeline: Timeline.LOCAL_PUBLIC,
-              maxStatusId,
-              limit
-            })
+          fetchBatch
         })
       const mastodonStatuses = await getMastodonStatuses(
         database,
@@ -71,8 +138,10 @@ export const GET = traceApiRoute(
       // Only `next` (older) is emitted: the public timeline query pages forward
       // by `max_id` only and has no lower-bound cursor, so a `prev`/`min_id`
       // link would not actually page to newer statuses.
+      const scopeParam = local && !remote ? '&local=true' : ''
+      const remoteScopeParam = remote && !local ? '&remote=true' : ''
       const nextLink = nextMaxStatusId
-        ? `<https://${host}/api/v1/timelines/public?limit=${pageLimit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
+        ? `<https://${host}/api/v1/timelines/public?limit=${pageLimit}&max_id=${urlToId(nextMaxStatusId)}${scopeParam}${remoteScopeParam}>; rel="next"`
         : null
       const links = [nextLink].filter(Boolean).join(', ')
       return apiResponse({

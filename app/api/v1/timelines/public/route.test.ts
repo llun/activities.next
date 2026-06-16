@@ -141,4 +141,35 @@ describe('GET /api/v1/timelines/public', () => {
     expect(await response.json()).toEqual([])
     expect(response.headers.get('Link')).toBeNull()
   })
+
+  describe('local/remote scope', () => {
+    const timelinesQueried = () => {
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+      return { spy }
+    }
+
+    it('reads both local and federated sources by default (federated view)', async () => {
+      const { spy } = timelinesQueried()
+      await GET(request(), { params: Promise.resolve({}) })
+      const queried = spy.mock.calls.map((call) => call[0].timeline)
+      expect(queried).toContain('local-public')
+      expect(queried).toContain('federated-public')
+    })
+
+    it('reads only the local source when local=true', async () => {
+      const { spy } = timelinesQueried()
+      await GET(request({ local: 'true' }), { params: Promise.resolve({}) })
+      const queried = spy.mock.calls.map((call) => call[0].timeline)
+      expect(queried).toContain('local-public')
+      expect(queried).not.toContain('federated-public')
+    })
+
+    it('reads only the federated source when remote=true', async () => {
+      const { spy } = timelinesQueried()
+      await GET(request({ remote: 'true' }), { params: Promise.resolve({}) })
+      const queried = spy.mock.calls.map((call) => call[0].timeline)
+      expect(queried).toContain('federated-public')
+      expect(queried).not.toContain('local-public')
+    })
+  })
 })
