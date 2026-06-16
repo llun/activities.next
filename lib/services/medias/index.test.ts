@@ -60,10 +60,11 @@ describe('Media Storage Service', () => {
     vi.clearAllMocks()
     mockDeleteFile.mockReset()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
-      () =>
-        ({
+      function () {
+        return {
           send: mockS3Send
-        }) as unknown as S3Client
+        } as unknown as S3Client
+      }
     )
   })
 
