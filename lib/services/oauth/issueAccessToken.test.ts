@@ -15,27 +15,27 @@ const mockKnex = knex({
 })
 const mockDatabase = getSQLDatabase(mockKnex)
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => mockKnex
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn().mockResolvedValue(null)
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue(null)
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
 // Opaque tokens never reach better-auth's verifier, but the guard imports it.
-jest.mock('better-auth/oauth2', () => ({ verifyAccessToken: jest.fn() }))
+vi.mock('better-auth/oauth2', () => ({ verifyAccessToken: vi.fn() }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'

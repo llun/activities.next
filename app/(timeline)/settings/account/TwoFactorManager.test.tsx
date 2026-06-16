@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -10,26 +10,26 @@ import { authClient } from '@/lib/services/auth/auth-client'
 
 import { TwoFactorManager } from './TwoFactorManager'
 
-const mockRefresh = jest.fn()
+const mockRefresh = vi.fn()
 
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn()
 }))
 
-jest.mock('qrcode', () => ({
+vi.mock('qrcode', () => ({
   __esModule: true,
   default: {
-    toDataURL: jest.fn()
+    toDataURL: vi.fn()
   }
 }))
 
-jest.mock('@/lib/services/auth/auth-client', () => ({
+vi.mock('@/lib/services/auth/auth-client', () => ({
   authClient: {
     twoFactor: {
-      enable: jest.fn(),
-      disable: jest.fn(),
-      generateBackupCodes: jest.fn(),
-      verifyTotp: jest.fn()
+      enable: vi.fn(),
+      disable: vi.fn(),
+      generateBackupCodes: vi.fn(),
+      verifyTotp: vi.fn()
     }
   }
 }))

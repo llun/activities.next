@@ -12,8 +12,8 @@ import {
 } from '@/lib/stub/seed/external1'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
-jest.mock('@/lib/activities', () => ({
-  unfollow: jest.fn()
+vi.mock('@/lib/activities', () => ({
+  unfollow: vi.fn()
 }))
 
 describe('sendUndoFollowJob', () => {

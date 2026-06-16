@@ -8,21 +8,21 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
 import { DELETE, GET, PATCH, PUT } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockSaveMediaThumbnail = jest.fn()
-const mockDeleteMediaFile = jest.fn()
-jest.mock('@/lib/services/medias', () => ({
+const mockSaveMediaThumbnail = vi.fn()
+const mockDeleteMediaFile = vi.fn()
+vi.mock('@/lib/services/medias', () => ({
   saveMediaThumbnail: (...args: unknown[]) => mockSaveMediaThumbnail(...args),
   deleteMediaFile: (...args: unknown[]) => mockDeleteMediaFile(...args)
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-const mockStoredToken = jest.fn()
-jest.mock('@/lib/database', () => ({
+const mockStoredToken = vi.fn()
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => () => ({
     where: () => ({
@@ -31,19 +31,19 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
@@ -65,7 +65,7 @@ describe('/api/v1/media/[id]', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -338,7 +338,7 @@ describe('/api/v1/media/[id]', () => {
     // jest / undici cannot materialise a multipart body from a FormData passed
     // to NextRequest — mock formData() directly (see update_credentials test).
     Object.defineProperty(request, 'formData', {
-      value: jest.fn().mockResolvedValue(form)
+      value: vi.fn().mockResolvedValue(form)
     })
 
     const response = await PUT(request, { params: Promise.resolve({ id }) })
@@ -372,7 +372,7 @@ describe('/api/v1/media/[id]', () => {
       headers: { origin: 'https://llun.test' }
     })
     Object.defineProperty(request, 'formData', {
-      value: jest.fn().mockResolvedValue(form)
+      value: vi.fn().mockResolvedValue(form)
     })
 
     const response = await PUT(request, { params: Promise.resolve({ id }) })
@@ -393,7 +393,7 @@ describe('/api/v1/media/[id]', () => {
       headers: { origin: 'https://llun.test' }
     })
     Object.defineProperty(request, 'formData', {
-      value: jest.fn().mockResolvedValue(form)
+      value: vi.fn().mockResolvedValue(form)
     })
 
     const response = await PUT(request, { params: Promise.resolve({ id }) })

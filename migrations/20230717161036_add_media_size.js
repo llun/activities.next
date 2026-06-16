@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
+export const up = (knex) => {
   return knex.schema.alterTable('medias', function (table) {
     table.string('accountId')
     table.string('mimeType')
@@ -17,7 +17,7 @@ exports.up = (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('medias', function (table) {
     table.dropIndex(['accountId', 'mimeType'], 'medias_accountId_mimeType_idx')
     table.dropIndex(['actorId', 'mimeType'], 'medias_actorId_mimeType_idx')

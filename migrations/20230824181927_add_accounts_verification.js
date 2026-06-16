@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
+export const up = (knex) => {
   return knex.schema.alterTable('accounts', function (table) {
     table.string('verificationCode')
     table.timestamp('verifiedAt', { useTz: true }).defaultTo(knex.fn.now())
@@ -15,7 +15,7 @@ exports.up = (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
+export const down = (knex) => {
   return knex.schema.alterTable('accounts', function (table) {
     table.dropIndex('verificationCode', 'verificationCodeIndex')
     table.dropColumns('verificationCode', 'verifiedAt')

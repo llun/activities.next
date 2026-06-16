@@ -3,29 +3,29 @@ import { NextRequest } from 'next/server'
 import { GET, POST } from './route'
 
 const mockDatabase = {
-  getDomainAllows: jest.fn(),
-  getDomainFederationRuleStats: jest.fn(),
-  createDomainAllow: jest.fn()
+  getDomainAllows: vi.fn(),
+  getDomainFederationRuleStats: vi.fn(),
+  createDomainAllow: vi.fn()
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue({
     user: { email: 'admin@llun.test' }
   })
 }))
 
-jest.mock('@/lib/utils/getAdminFromSession', () => ({
-  getAdminFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getAdminFromSession', () => ({
+  getAdminFromSession: vi.fn().mockResolvedValue({
     id: 'admin',
     email: 'admin@llun.test'
   })
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test', allowEmails: [] })
 }))

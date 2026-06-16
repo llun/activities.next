@@ -6,15 +6,15 @@ import { Scope } from '@/lib/types/database/operations'
 
 import { DELETE, POST } from './route'
 
-const mockGetServerSession = jest.fn()
-const mockOAuthGuard = jest.fn()
+const mockGetServerSession = vi.fn()
+const mockOAuthGuard = vi.fn()
 const mockCurrentActor = { ...seedActor1, id: ACTOR1_ID }
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
     allowActorDomains: []
@@ -31,11 +31,11 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   // Mirror the real parser in OAuthGuard.ts exactly (trim + split on \s+,
   // require exactly two parts, case-insensitive scheme) so the route tests
   // exercise the same token-extraction behavior as production.
@@ -67,8 +67,8 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
     }
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
@@ -79,19 +79,19 @@ const auth = 'test-auth-key'
 
 describe('POST /api/v1/push/subscribe', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase = {
-      getAccountFromEmail: jest.fn().mockResolvedValue({
+      getAccountFromEmail: vi.fn().mockResolvedValue({
         id: 'account1',
         email: 'test@example.com'
       }),
-      getActorsForAccount: jest
+      getActorsForAccount: vi
         .fn()
         .mockResolvedValue([{ ...seedActor1, id: ACTOR1_ID }]),
-      getActorFromId: jest
+      getActorFromId: vi
         .fn()
         .mockResolvedValue({ ...seedActor1, id: ACTOR1_ID }),
-      createPushSubscription: jest.fn().mockResolvedValue({
+      createPushSubscription: vi.fn().mockResolvedValue({
         id: 'sub1',
         actorId: ACTOR1_ID,
         endpoint,
@@ -100,7 +100,7 @@ describe('POST /api/v1/push/subscribe', () => {
         createdAt: Date.now(),
         updatedAt: Date.now()
       }),
-      deletePushSubscription: jest.fn().mockResolvedValue(undefined)
+      deletePushSubscription: vi.fn().mockResolvedValue(undefined)
     }
 
     mockGetServerSession.mockResolvedValue({
@@ -155,20 +155,20 @@ describe('POST /api/v1/push/subscribe', () => {
 
 describe('DELETE /api/v1/push/subscribe', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase = {
-      getAccountFromEmail: jest.fn().mockResolvedValue({
+      getAccountFromEmail: vi.fn().mockResolvedValue({
         id: 'account1',
         email: 'test@example.com'
       }),
-      getActorsForAccount: jest
+      getActorsForAccount: vi
         .fn()
         .mockResolvedValue([{ ...seedActor1, id: ACTOR1_ID }]),
-      getActorFromId: jest
+      getActorFromId: vi
         .fn()
         .mockResolvedValue({ ...seedActor1, id: ACTOR1_ID }),
-      createPushSubscription: jest.fn(),
-      deletePushSubscription: jest.fn().mockResolvedValue(undefined)
+      createPushSubscription: vi.fn(),
+      deletePushSubscription: vi.fn().mockResolvedValue(undefined)
     }
 
     mockGetServerSession.mockResolvedValue({

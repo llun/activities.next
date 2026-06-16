@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -21,11 +21,11 @@ class ResizeObserverMock {
     resizeObserverInstances.push(this)
   }
 
-  observe = jest.fn((element: Element) => {
+  observe = vi.fn((element: Element) => {
     this.observedElements.push(element)
   })
 
-  disconnect = jest.fn()
+  disconnect = vi.fn()
 
   trigger() {
     this.callback([], this)

@@ -1,9 +1,9 @@
-const crypto = require('crypto')
+import crypto from 'node:crypto'
 
 const REPLY_HASH_INDEX = 'statusesReplyHashIndex'
 const BATCH_SIZE = 500
 
-exports.config = { transaction: false }
+export const config = { transaction: false }
 
 const getReplyHash = (reply) =>
   reply ? crypto.createHash('sha256').update(reply).digest('hex') : null
@@ -40,7 +40,7 @@ const hasIndex = async (knex, tableName, indexName) => {
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function up(knex) {
+export const up = async function up(knex) {
   const hasReplyHashColumn = await knex.schema.hasColumn(
     'statuses',
     'replyHash'
@@ -85,7 +85,7 @@ exports.up = async function up(knex) {
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function down(knex) {
+export const down = async function down(knex) {
   const hasReplyHashColumn = await knex.schema.hasColumn(
     'statuses',
     'replyHash'

@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -16,45 +16,45 @@ import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
 import { PostBox } from './post-box'
 
-jest.mock('@/lib/client', () => ({
-  createNote: jest.fn(),
-  createPoll: jest.fn(),
-  deleteFitnessFile: jest.fn(),
-  getCustomEmojis: jest.fn().mockResolvedValue([]),
-  updateNote: jest.fn(),
-  uploadAttachment: jest.fn(),
-  uploadFitnessFile: jest.fn()
+vi.mock('@/lib/client', () => ({
+  createNote: vi.fn(),
+  createPoll: vi.fn(),
+  deleteFitnessFile: vi.fn(),
+  getCustomEmojis: vi.fn().mockResolvedValue([]),
+  updateNote: vi.fn(),
+  uploadAttachment: vi.fn(),
+  uploadFitnessFile: vi.fn()
 }))
 
-const mockReactMarkdown = jest.fn(
+const mockReactMarkdown = vi.fn(
   ({ children }: { children: string; remarkPlugins?: unknown[] }) => (
     <div>{children}</div>
   )
 )
 
-jest.mock('react-markdown', () => ({
+vi.mock('react-markdown', () => ({
   __esModule: true,
   default: (props: { children: string; remarkPlugins?: unknown[] }) =>
     mockReactMarkdown(props)
 }))
 
-jest.mock('rehype-sanitize', () => ({
+vi.mock('rehype-sanitize', () => ({
   __esModule: true,
-  default: jest.fn()
+  default: vi.fn()
 }))
 
-jest.mock('remark-breaks', () => ({
+vi.mock('remark-breaks', () => ({
   __esModule: true,
-  default: jest.fn()
+  default: vi.fn()
 }))
 
-jest.mock('remark-gfm', () => ({
+vi.mock('remark-gfm', () => ({
   __esModule: true,
-  default: jest.fn()
+  default: vi.fn()
 }))
 
-jest.mock('@/lib/utils/resizeImage', () => ({
-  resizeImage: jest.fn((file) => Promise.resolve(file))
+vi.mock('@/lib/utils/resizeImage', () => ({
+  resizeImage: vi.fn((file) => Promise.resolve(file))
 }))
 
 const updateNoteMock = updateNote as jest.MockedFunction<typeof updateNote>
@@ -139,10 +139,10 @@ const editStatus: EditableStatus = {
 
 describe('PostBox edit media', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    global.URL.createObjectURL = jest.fn(() => 'blob:new-media')
-    global.URL.revokeObjectURL = jest.fn()
-    global.crypto.randomUUID = jest.fn(() => 'temporary-media-id')
+    vi.clearAllMocks()
+    global.URL.createObjectURL = vi.fn(() => 'blob:new-media')
+    global.URL.revokeObjectURL = vi.fn()
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
     uploadAttachmentMock.mockResolvedValue({
       type: 'upload',
       id: 'uploaded-media',
@@ -194,10 +194,10 @@ describe('PostBox edit media', () => {
         host="activities.local"
         profile={profile}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -250,10 +250,10 @@ describe('PostBox edit media', () => {
         host="activities.local"
         profile={profile}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -289,10 +289,10 @@ describe('PostBox edit media', () => {
         host="activities.local"
         profile={profile}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -331,10 +331,10 @@ describe('PostBox edit media', () => {
           text: 'a & b < c > d'
         }}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -367,10 +367,10 @@ describe('PostBox edit media', () => {
           attachments: [legacyAttachmentWithoutMediaId]
         }}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -420,7 +420,7 @@ describe('PostBox edit media', () => {
   })
 
   it('uses concrete media types when reconciling unmatched server attachments', async () => {
-    const onPostUpdated = jest.fn()
+    const onPostUpdated = vi.fn()
     updateNoteMock.mockResolvedValueOnce({
       content: '<p>Updated post text</p>',
       spoilerText: '',
@@ -479,10 +479,10 @@ describe('PostBox edit media', () => {
           attachments: []
         }}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
         onPostUpdated={onPostUpdated}
-        onDiscardEdit={jest.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -512,10 +512,10 @@ describe('PostBox edit media', () => {
         profile={profile}
         editStatus={editStatus}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -540,10 +540,10 @@ describe('PostBox edit media', () => {
         profile={profile}
         editStatus={editStatus}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -569,7 +569,7 @@ describe('PostBox edit media', () => {
   })
 
   it('shows an edit-specific alert when updating a post fails', async () => {
-    const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {})
+    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     updateNoteMock.mockRejectedValueOnce(new Error('update failed'))
 
     try {
@@ -579,10 +579,10 @@ describe('PostBox edit media', () => {
           profile={profile}
           editStatus={editStatus}
           isMediaUploadEnabled
-          onDiscardReply={jest.fn()}
-          onPostCreated={jest.fn()}
-          onPostUpdated={jest.fn()}
-          onDiscardEdit={jest.fn()}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
         />
       )
 
@@ -600,7 +600,7 @@ describe('PostBox edit media', () => {
   })
 
   it('shows media upload failure details when edit media upload fails', async () => {
-    const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {})
+    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     uploadAttachmentMock.mockRejectedValueOnce(new Error('unsupported file'))
 
     try {
@@ -610,10 +610,10 @@ describe('PostBox edit media', () => {
           profile={profile}
           editStatus={editStatus}
           isMediaUploadEnabled
-          onDiscardReply={jest.fn()}
-          onPostCreated={jest.fn()}
-          onPostUpdated={jest.fn()}
-          onDiscardEdit={jest.fn()}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
         />
       )
 
@@ -657,10 +657,10 @@ describe('PostBox edit media', () => {
         profile={profile}
         editStatus={editStatus}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -687,7 +687,7 @@ describe('PostBox edit media', () => {
   })
 
   it('enables update and uploads media when only edit attachments change', async () => {
-    const onPostUpdated = jest.fn()
+    const onPostUpdated = vi.fn()
 
     render(
       <PostBox
@@ -695,10 +695,10 @@ describe('PostBox edit media', () => {
         profile={profile}
         editStatus={editStatus}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
         onPostUpdated={onPostUpdated}
-        onDiscardEdit={jest.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -770,7 +770,7 @@ describe('PostBox edit media', () => {
   })
 
   it('preserves fitness attachments in the locally updated status', async () => {
-    const onPostUpdated = jest.fn()
+    const onPostUpdated = vi.fn()
     updateNoteMock.mockResolvedValueOnce({
       content: '<p>Updated post text</p>',
       spoilerText: '',
@@ -793,10 +793,10 @@ describe('PostBox edit media', () => {
           attachments: [fitnessAttachment]
         }}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
         onPostUpdated={onPostUpdated}
-        onDiscardEdit={jest.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -823,7 +823,7 @@ describe('PostBox edit media', () => {
   })
 
   it('does not duplicate preserved attachments already returned by the update response', async () => {
-    const onPostUpdated = jest.fn()
+    const onPostUpdated = vi.fn()
     updateNoteMock.mockResolvedValueOnce({
       content: '<p>Updated post text</p>',
       spoilerText: '',
@@ -864,10 +864,10 @@ describe('PostBox edit media', () => {
           attachments: [legacyAttachmentWithoutMediaId]
         }}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
         onPostUpdated={onPostUpdated}
-        onDiscardEdit={jest.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -904,10 +904,10 @@ describe('PostBox edit media', () => {
         profile={profile}
         editStatus={editStatus}
         isMediaUploadEnabled
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -959,7 +959,7 @@ describe('PostBox edit media', () => {
 
 describe('PostBox markdown preview', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('renders custom emoji shortcodes as inline images in the preview', async () => {
@@ -977,10 +977,10 @@ describe('PostBox markdown preview', () => {
       <PostBox
         host="activities.local"
         profile={profile}
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 
@@ -1000,10 +1000,10 @@ describe('PostBox markdown preview', () => {
       <PostBox
         host="activities.local"
         profile={profile}
-        onDiscardReply={jest.fn()}
-        onPostCreated={jest.fn()}
-        onPostUpdated={jest.fn()}
-        onDiscardEdit={jest.fn()}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
       />
     )
 

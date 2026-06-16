@@ -11,12 +11,12 @@ import { POST } from './route'
 const mockDatabase = {}
 const mockCurrentActor = { id: 'https://local.test/users/me' }
 
-const mockGetTranslationProvider = jest.fn()
-const mockTranslateStatus = jest.fn()
-const mockGetReadableStatus = jest.fn()
-const mockGetMastodonStatus = jest.fn()
+const mockGetTranslationProvider = vi.fn()
+const mockTranslateStatus = vi.fn()
+const mockGetReadableStatus = vi.fn()
+const mockGetMastodonStatus = vi.fn()
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuardAnyScope:
     (
       _scopes: unknown,
@@ -37,23 +37,23 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({ languages: ['en'] })
 }))
 
-jest.mock('@/lib/services/translation', () => ({
+vi.mock('@/lib/services/translation', () => ({
   getTranslationProvider: () => mockGetTranslationProvider()
 }))
 
-jest.mock('@/lib/services/translation/translateStatus', () => ({
+vi.mock('@/lib/services/translation/translateStatus', () => ({
   translateStatus: (...args: unknown[]) => mockTranslateStatus(...args)
 }))
 
-jest.mock('@/lib/services/statusRouteAccess', () => ({
+vi.mock('@/lib/services/statusRouteAccess', () => ({
   getReadableStatus: (...args: unknown[]) => mockGetReadableStatus(...args)
 }))
 
-jest.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
   getMastodonStatus: (...args: unknown[]) => mockGetMastodonStatus(...args)
 }))
 
@@ -86,7 +86,7 @@ const translation = {
 
 describe('POST /api/v1/statuses/:id/translate', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetTranslationProvider.mockReturnValue({})
     mockGetReadableStatus.mockResolvedValue({ id: statusId })
     mockGetMastodonStatus.mockResolvedValue(publicStatus)

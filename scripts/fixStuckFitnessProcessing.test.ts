@@ -4,12 +4,12 @@ import { regenerateFitnessMapsJob } from '@/lib/jobs/regenerateFitnessMapsJob'
 
 import { fixStuckFitnessProcessing } from './fixStuckFitnessProcessing'
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn()
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn()
 }))
 
-jest.mock('@/lib/jobs/regenerateFitnessMapsJob', () => ({
-  regenerateFitnessMapsJob: jest.fn()
+vi.mock('@/lib/jobs/regenerateFitnessMapsJob', () => ({
+  regenerateFitnessMapsJob: vi.fn()
 }))
 
 const mockGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>
@@ -22,19 +22,19 @@ describe('fixStuckFitnessProcessing', () => {
   const statusHash = 'a'.repeat(64)
 
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.spyOn(console, 'log').mockImplementation(() => undefined)
-    jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.clearAllMocks()
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
   })
 
   afterEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
   })
 
   it('regenerates the route map when completing parsed stuck files', async () => {
     const database = {
-      getStatusFromUrlHash: jest.fn().mockResolvedValue({ id: 'status-1' }),
-      getFitnessFileByStatus: jest.fn().mockResolvedValue({
+      getStatusFromUrlHash: vi.fn().mockResolvedValue({ id: 'status-1' }),
+      getFitnessFileByStatus: vi.fn().mockResolvedValue({
         id: 'fitness-file-1',
         actorId: 'actor-1',
         statusId: 'status-1',
@@ -45,11 +45,11 @@ describe('fixStuckFitnessProcessing', () => {
         processingStatus: 'processing',
         totalDistanceMeters: 1200
       }),
-      getFitnessFile: jest.fn().mockResolvedValue({
+      getFitnessFile: vi.fn().mockResolvedValue({
         id: 'fitness-file-1',
         processingStatus: 'completed'
       }),
-      updateFitnessFileProcessingStatus: jest.fn()
+      updateFitnessFileProcessingStatus: vi.fn()
     } as unknown as ReturnType<typeof getDatabase>
 
     mockGetDatabase.mockReturnValue(database)

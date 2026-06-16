@@ -5,19 +5,19 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { GET } from './route'
 
 const mockDatabase = {
-  getNotificationsCount: jest.fn(),
-  getNotifications: jest.fn()
+  getNotificationsCount: vi.fn(),
+  getNotifications: vi.fn()
 }
 
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun'
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -38,7 +38,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('GET /api/v1/notifications/unread_count', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns the unread count capped at the default limit of 100', async () => {

@@ -5,6 +5,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+import packageJson from '@/package.json'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,7 @@ const Page = async () => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  const version = (require('@/package.json') as { version: string }).version
+  const version = packageJson.version
   const pushEnabled = Boolean(getConfig().push)
 
   return (

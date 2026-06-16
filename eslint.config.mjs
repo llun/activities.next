@@ -2,7 +2,6 @@ import js from '@eslint/js'
 import nextPlugin from '@next/eslint-plugin-next'
 import typescriptPlugin from '@typescript-eslint/eslint-plugin'
 import typescriptParser from '@typescript-eslint/parser'
-import jestPlugin from 'eslint-plugin-jest'
 import unusedImportsPlugin from 'eslint-plugin-unused-imports'
 import globals from 'globals'
 
@@ -32,8 +31,7 @@ const eslintConfig = [
     plugins: {
       '@next/next': nextPlugin,
       '@typescript-eslint': typescriptPlugin,
-      'unused-imports': unusedImportsPlugin,
-      jest: jestPlugin
+      'unused-imports': unusedImportsPlugin
     },
     languageOptions: {
       parser: typescriptParser,
@@ -85,6 +83,7 @@ const eslintConfig = [
     ],
     languageOptions: {
       globals: {
+        vi: true,
         jest: true,
         describe: true,
         it: true,

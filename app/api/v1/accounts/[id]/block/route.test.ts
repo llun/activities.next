@@ -15,9 +15,9 @@ const mockCurrentActor = {
   id: 'https://local.test/users/me',
   domain: 'local.test'
 }
-const mockPublish = jest.fn()
+const mockPublish = vi.fn()
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', async () => ({
   OAuthGuard:
     (
       _scopes: unknown,
@@ -38,23 +38,23 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
-jest.mock('@/lib/actions/applyBlock', () => ({
-  applyBlock: jest.fn()
+vi.mock('@/lib/actions/applyBlock', async () => ({
+  applyBlock: vi.fn()
 }))
 
-jest.mock('@/lib/actions/utils', () => {
-  const actual = jest.requireActual('@/lib/actions/utils')
+vi.mock('@/lib/actions/utils', async () => {
+  const actual = await vi.importActual('@/lib/actions/utils')
   return {
     ...actual,
-    recordActorIfNeeded: jest.fn()
+    recordActorIfNeeded: vi.fn()
   }
 })
 
-jest.mock('@/lib/services/accounts/relationship', () => ({
-  getRelationship: jest.fn()
+vi.mock('@/lib/services/accounts/relationship', async () => ({
+  getRelationship: vi.fn()
 }))
 
-jest.mock('@/lib/services/queue', () => ({
+vi.mock('@/lib/services/queue', async () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
@@ -70,7 +70,7 @@ describe('POST /api/v1/accounts/:id/block', () => {
   const getRelationshipMock = getRelationship as jest.Mock
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns forbidden when the target actor domain is blocked', async () => {

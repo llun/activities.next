@@ -59,15 +59,15 @@ const createDatabase = ({
   batches: Map<string | null, Bookmark[]>
   statuses: Status[]
 }) => {
-  const getBookmarks = jest.fn(
+  const getBookmarks = vi.fn(
     async ({ maxId }: { maxId?: string | null }) =>
       batches.get(maxId ?? null) ?? []
   )
-  const getStatusesByIds = jest.fn(
+  const getStatusesByIds = vi.fn(
     async ({ statusIds }: { statusIds: string[] }) =>
       statuses.filter((status) => statusIds.includes(status.id))
   )
-  const getAcceptedFollowTargetActorIds = jest.fn(async () => [])
+  const getAcceptedFollowTargetActorIds = vi.fn(async () => [])
 
   return {
     database: {

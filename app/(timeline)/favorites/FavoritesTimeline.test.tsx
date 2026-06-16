@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -9,19 +9,19 @@ import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { FavoritesTimeline } from './FavoritesTimeline'
 
-jest.mock('@/lib/client', () => ({
-  bookmarkStatus: jest.fn(),
-  getFavourites: jest.fn(),
-  likeStatus: jest.fn(),
-  repostStatus: jest.fn(),
-  undoBookmarkStatus: jest.fn(),
-  undoLikeStatus: jest.fn(),
-  undoRepostStatus: jest.fn()
+vi.mock('@/lib/client', () => ({
+  bookmarkStatus: vi.fn(),
+  getFavourites: vi.fn(),
+  likeStatus: vi.fn(),
+  repostStatus: vi.fn(),
+  undoBookmarkStatus: vi.fn(),
+  undoLikeStatus: vi.fn(),
+  undoRepostStatus: vi.fn()
 }))
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: jest.fn()
+    push: vi.fn()
   })
 }))
 
@@ -84,10 +84,10 @@ describe('FavoritesTimeline', () => {
   let intersectionObserverObserve: jest.Mock
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     intersectionObserverCallback = null
-    intersectionObserverDisconnect = jest.fn()
-    intersectionObserverObserve = jest.fn()
+    intersectionObserverDisconnect = vi.fn()
+    intersectionObserverObserve = vi.fn()
     ;(undoLikeStatus as jest.Mock).mockResolvedValue(true)
     ;(getFavourites as jest.Mock).mockResolvedValue({
       statuses: [],
@@ -96,7 +96,7 @@ describe('FavoritesTimeline', () => {
     })
     Object.defineProperty(globalThis, 'IntersectionObserver', {
       configurable: true,
-      value: jest.fn().mockImplementation((callback) => {
+      value: vi.fn().mockImplementation((callback) => {
         intersectionObserverCallback = callback
         return {
           disconnect: intersectionObserverDisconnect,
@@ -106,9 +106,9 @@ describe('FavoritesTimeline', () => {
     })
     Object.defineProperty(globalThis, 'ResizeObserver', {
       configurable: true,
-      value: jest.fn().mockImplementation(() => ({
-        disconnect: jest.fn(),
-        observe: jest.fn()
+      value: vi.fn().mockImplementation(() => ({
+        disconnect: vi.fn(),
+        observe: vi.fn()
       }))
     })
   })

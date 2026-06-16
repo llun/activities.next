@@ -9,14 +9,22 @@ interface Props {
   currentPage: number
   totalPages: number
   basePath: string
+  // Extra query params to preserve on every page link (e.g. an active filter).
+  query?: Record<string, string>
 }
 
 export const Pagination: FC<Props> = ({
   currentPage,
   totalPages,
-  basePath
+  basePath,
+  query
 }) => {
   if (totalPages <= 1) return null
+
+  const hrefForPage = (page: number) => {
+    const params = new URLSearchParams({ ...query, page: String(page) })
+    return `${basePath}?${params.toString()}`
+  }
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = []
@@ -64,7 +72,7 @@ export const Pagination: FC<Props> = ({
     >
       {currentPage > 1 && (
         <Link
-          href={`${basePath}?page=${currentPage - 1}`}
+          href={hrefForPage(currentPage - 1)}
           className={cn(
             'px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors',
             'border border-input bg-background'
@@ -78,7 +86,7 @@ export const Pagination: FC<Props> = ({
         typeof page === 'number' ? (
           <Link
             key={page}
-            href={`${basePath}?page=${page}`}
+            href={hrefForPage(page)}
             className={cn(
               'px-3 py-2 text-sm rounded-md transition-colors',
               page === currentPage
@@ -100,7 +108,7 @@ export const Pagination: FC<Props> = ({
 
       {currentPage < totalPages && (
         <Link
-          href={`${basePath}?page=${currentPage + 1}`}
+          href={hrefForPage(currentPage + 1)}
           className={cn(
             'px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors',
             'border border-input bg-background'

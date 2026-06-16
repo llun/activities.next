@@ -7,25 +7,27 @@ import { sendPushNotification } from './pushNotification'
 import { shouldSendPushForNotification } from './pushNotificationSettings'
 import { sendNotificationAlerts } from './sendNotificationAlerts'
 
-jest.mock('@/lib/config')
-const { getConfig } = jest.requireMock<{ getConfig: jest.Mock }>('@/lib/config')
+vi.mock('@/lib/config')
+const { getConfig } = await vi.importMock<{ getConfig: jest.Mock }>(
+  '@/lib/config'
+)
 
-jest.mock('./pushNotification', () => ({
-  sendPushNotification: jest.fn().mockResolvedValue(undefined)
+vi.mock('./pushNotification', async () => ({
+  sendPushNotification: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('./pushNotificationSettings', () => ({
-  shouldSendPushForNotification: jest.fn().mockResolvedValue(true)
+vi.mock('./pushNotificationSettings', async () => ({
+  shouldSendPushForNotification: vi.fn().mockResolvedValue(true)
 }))
 
-jest.mock('./emailNotificationSettings', () => ({
-  shouldSendEmailForNotification: jest.fn().mockResolvedValue(true)
+vi.mock('./emailNotificationSettings', async () => ({
+  shouldSendEmailForNotification: vi.fn().mockResolvedValue(true)
 }))
 
-jest.mock('@/lib/services/email', () => ({
-  sendMail: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/email', async () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined)
 }))
-const { sendMail } = jest.requireMock<{ sendMail: jest.Mock }>(
+const { sendMail } = await vi.importMock<{ sendMail: jest.Mock }>(
   '@/lib/services/email'
 )
 
@@ -48,7 +50,7 @@ const sourceActor = {
 
 const makeDb = (overrides: Partial<jest.Mocked<Database>> = {}) =>
   ({
-    getActorFromId: jest.fn().mockResolvedValue(sourceActor),
+    getActorFromId: vi.fn().mockResolvedValue(sourceActor),
     ...overrides
   }) as unknown as Database
 
@@ -64,7 +66,7 @@ const flushPromises = () =>
 
 describe('sendNotificationAlerts', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     getConfig.mockReturnValue(emailConfig)
   })
 
@@ -317,7 +319,7 @@ describe('sendNotificationAlerts', () => {
 
   it('skips push when sourceActor is not found', async () => {
     const db = makeDb({
-      getActorFromId: jest.fn().mockResolvedValue(undefined)
+      getActorFromId: vi.fn().mockResolvedValue(undefined)
     } as never)
     sendNotificationAlerts({
       database: db,

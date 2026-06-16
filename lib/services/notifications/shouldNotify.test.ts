@@ -11,8 +11,8 @@ interface MockDatabaseOverrides {
 }
 
 const makeDatabase = ({
-  isEitherBlocking = jest.fn(async () => false),
-  getMute = jest.fn(async () => null)
+  isEitherBlocking = vi.fn(async () => false),
+  getMute = vi.fn(async () => null)
 }: MockDatabaseOverrides = {}) =>
   ({
     isEitherBlocking,
@@ -21,8 +21,8 @@ const makeDatabase = ({
 
 describe('shouldCreateNotification', () => {
   it('returns false when recipient and source are the same actor', async () => {
-    const isEitherBlocking = jest.fn(async () => false)
-    const getMute = jest.fn(async () => null)
+    const isEitherBlocking = vi.fn(async () => false)
+    const getMute = vi.fn(async () => null)
     const database = makeDatabase({ isEitherBlocking, getMute })
 
     const result = await shouldCreateNotification(
@@ -37,8 +37,8 @@ describe('shouldCreateNotification', () => {
   })
 
   it('returns false when either party blocks the other (without consulting mute)', async () => {
-    const isEitherBlocking = jest.fn(async () => true)
-    const getMute = jest.fn(async () => null)
+    const isEitherBlocking = vi.fn(async () => true)
+    const getMute = vi.fn(async () => null)
     const database = makeDatabase({ isEitherBlocking, getMute })
 
     const result = await shouldCreateNotification(
@@ -65,7 +65,7 @@ describe('shouldCreateNotification', () => {
 
   it('returns false when the recipient mutes the source with notifications=true', async () => {
     const database = makeDatabase({
-      getMute: jest.fn(async () => ({
+      getMute: vi.fn(async () => ({
         id: 'mute-1',
         actorId: recipientActorId,
         actorHost: 'llun.test',
@@ -89,7 +89,7 @@ describe('shouldCreateNotification', () => {
 
   it('returns true when the recipient mutes the source with notifications=false', async () => {
     const database = makeDatabase({
-      getMute: jest.fn(async () => ({
+      getMute: vi.fn(async () => ({
         id: 'mute-2',
         actorId: recipientActorId,
         actorHost: 'llun.test',
@@ -113,7 +113,7 @@ describe('shouldCreateNotification', () => {
 
   it('returns true when getMute returns null (expired mute is filtered by impl)', async () => {
     const database = makeDatabase({
-      getMute: jest.fn(async () => null)
+      getMute: vi.fn(async () => null)
     })
 
     const result = await shouldCreateNotification(

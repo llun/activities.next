@@ -39,7 +39,7 @@
 - Prettier enforces no semicolons, single quotes, and import sorting (`.prettierrc.yml`).
 - Use absolute imports (for example `@/lib/...`) for anything outside the current directory.
 - Relative imports are allowed only for files in the same directory (for example `./helper`), and `../` imports are not allowed.
-- Apply the same import-path rule to `jest.mock(...)` module paths.
+- Apply the same import-path rule to `vi.mock(...)` module paths.
 - ESLint (Next + TypeScript) runs via `yarn lint`; unused vars should be prefixed with `_`.
 - Tests are co-located with code and named `*.test.ts`/`*.test.tsx`.
 
@@ -227,9 +227,24 @@ section-navigation patterns; pick by section type.
 
 ## Testing Guidelines
 
-- Jest is configured via `jest.config.mjs` with SWC transforms.
+- Vitest is configured via `vitest.config.ts`. The project is ESM-only
+  (`"type": "module"`), so tests run as native ES modules. Use the Vitest API
+  (`vi.fn()`, `vi.mock()`, `vi.spyOn()`, …) — there is no `jest` global. The
+  `jest.Mock` / `jest.MockedFunction` / `jest.Mocked` **type** names still work
+  via a compatibility shim in `vitest.d.ts`.
+- **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
+  not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
+  Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always
+  returns the mock, and is typed as `MaybeMockedDeep<T>` so no `as unknown as`
+  cast is needed. A bare `await import()` returns the **real** module unless it
+  is separately `vi.mock`'d, and forces a type-erasing double-cast. `vi.importMock`
+  **is** a valid, documented Vitest API — some review bots incorrectly claim it
+  does not exist; do not "fix" it on their say-so.
 - Prefer unit tests near `lib/` and route tests near `app/`.
-- All tests run in parallel using isolated SQLite in-memory databases.
+- All tests run in parallel using isolated SQLite in-memory databases. The
+  schema is loaded from the committed reference dumps (`migrations/schema*.sql`)
+  via `lib/database/testUtils.ts` rather than by running the Knex migration
+  chain, so the dumps MUST stay in lockstep with the migrations.
 - **`describe` / `it` names use plain descriptive text — do not prefix them.**
   Name the function or method under test directly (`describe('getVisibility', …)`,
   not `describe('#getVisibility', …)`), and do not use a leading `#` or `.`
@@ -283,8 +298,9 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    # The mock scripts run via swc-node, which does NOT auto-load .env.local.
    # Export the vars into the shell first, then run them:
    set -a; . ./.env.local; set +a
-   node -r @swc-node/register scripts/createMockUser.ts      # testuser / test@example.com / testpassword123
-   node -r @swc-node/register scripts/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
+   # The project is ESM-only, so load swc-node's ESM register hook via --import.
+   node --import @swc-node/register/esm-register scripts/createMockUser.ts      # testuser / test@example.com / testpassword123
+   node --import @swc-node/register/esm-register scripts/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
    ```
 
    The mock user is created already email-verified, so credential sign-in works.

@@ -18,31 +18,31 @@ import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/services/fitness-files', () => {
-  const actual = jest.requireActual('@/lib/services/fitness-files')
+vi.mock('@/lib/services/fitness-files', async () => {
+  const actual = await vi.importActual('@/lib/services/fitness-files')
   return {
     ...actual,
-    getFitnessFile: jest.fn()
+    getFitnessFile: vi.fn()
   }
 })
 
-jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
-  parseFitnessFile: jest.fn(),
-  isParseableFitnessFileType: jest.fn().mockReturnValue(true)
+vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => ({
+  parseFitnessFile: vi.fn(),
+  isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
-jest.mock('@/lib/services/fitness-files/generateMapImage', () => ({
-  generateMapImage: jest.fn()
+vi.mock('@/lib/services/fitness-files/generateMapImage', async () => ({
+  generateMapImage: vi.fn()
 }))
 
-jest.mock('@/lib/services/medias', () => ({
-  saveMedia: jest.fn()
+vi.mock('@/lib/services/medias', async () => ({
+  saveMedia: vi.fn()
 }))
 
 const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
@@ -115,7 +115,7 @@ describe('processFitnessFileJob', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',

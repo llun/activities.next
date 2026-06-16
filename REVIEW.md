@@ -144,11 +144,18 @@ change doesn't touch.
 - TypeScript + React, 2-space indent; Prettier (no semicolons, single quotes,
   import sorting) is clean. Unused vars are `_`-prefixed.
 - Absolute imports (`@/lib/...`) for anything outside the current directory;
-  same-directory `./` only, no `../`. The same rule applies to `jest.mock(...)`
+  same-directory `./` only, no `../`. The same rule applies to `vi.mock(...)`
   paths.
 - Tests are co-located, named `*.test.ts(x)`. `describe`/`it` names are plain
   descriptive text — no `#`/`.` sigil — and read as behavior statements.
   Input/expected-only variations use a table-driven `it.each([...])`.
+- Tests run on **Vitest** (`vi.*`, not `jest.*`). To read a mocked module and
+  configure it, prefer **`vi.importMock<T>('@/path')`** over
+  `(await import('@/path')) as unknown as T`. `vi.importMock` is purpose-built,
+  returns a typed `MaybeMockedDeep<T>` (no `as unknown as` cast needed), and
+  always yields the mock; bare `await import()` returns the real module unless it
+  is separately `vi.mock`'d. (Some review bots wrongly flag `vi.importMock` as
+  non-existent — it is a valid, documented Vitest API.)
 
 ## Docs hygiene
 

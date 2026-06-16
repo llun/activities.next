@@ -27,7 +27,7 @@ describe('NoQueue', () => {
         data: { key: 'value' },
         delaySeconds: 600
       }
-      const handle = jest.spyOn(queue, 'handle')
+      const handle = vi.spyOn(queue, 'handle')
 
       await expect(queue.publish(message)).resolves.toBeUndefined()
       expect(handle).not.toHaveBeenCalled()

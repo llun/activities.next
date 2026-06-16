@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -15,17 +15,17 @@ import { ListEntity } from '@/lib/types/mastodon/list'
 
 import { ListEditor, ListMember } from './ListEditor'
 
-jest.mock('@/lib/client', () => ({
-  addListAccounts: jest.fn(),
-  createList: jest.fn(),
-  deleteList: jest.fn(),
-  removeListAccounts: jest.fn(),
-  updateList: jest.fn()
+vi.mock('@/lib/client', () => ({
+  addListAccounts: vi.fn(),
+  createList: vi.fn(),
+  deleteList: vi.fn(),
+  removeListAccounts: vi.fn(),
+  updateList: vi.fn()
 }))
 
-const mockPush = jest.fn()
-const mockRefresh = jest.fn()
-jest.mock('next/navigation', () => ({
+const mockPush = vi.fn()
+const mockRefresh = vi.fn()
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh })
 }))
 
@@ -50,7 +50,7 @@ const suggestion: ListMember = {
 
 describe('ListEditor', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(createList as jest.Mock).mockResolvedValue({ ...list, id: 'new-list' })
     ;(updateList as jest.Mock).mockResolvedValue(list)
     ;(addListAccounts as jest.Mock).mockResolvedValue(true)

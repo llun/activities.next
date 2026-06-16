@@ -2,8 +2,8 @@ import { FeaturedTagWithStats } from '@/lib/types/database/operations'
 
 import { getMastodonFeaturedTag } from './getMastodonFeaturedTag'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({ host: 'llun.test' })
 }))
 
 const baseTag: FeaturedTagWithStats = {

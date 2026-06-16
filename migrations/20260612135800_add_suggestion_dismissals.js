@@ -11,7 +11,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.createTable('suggestion_dismissals', (table) => {
     table.string('actorId').notNullable()
     table.string('targetActorId').notNullable()
@@ -24,6 +24,6 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.schema.dropTableIfExists('suggestion_dismissals')
 }

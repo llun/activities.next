@@ -9,30 +9,30 @@ import * as S3FileStorage from './S3StorageFile'
 import { deleteMediaFile } from './index'
 import * as LocalFileStorage from './localFile'
 
-jest.mock('fs', () => ({
+vi.mock('fs', () => ({
   promises: {
-    unlink: jest.fn()
+    unlink: vi.fn()
   }
 }))
 
-jest.mock('@aws-sdk/client-s3')
-jest.mock('@/lib/config')
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@aws-sdk/client-s3')
+vi.mock('@/lib/config')
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn()
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
   }
 }))
 
-jest.mock('@/lib/services/medias/localFile')
-jest.mock('@/lib/services/medias/S3StorageFile')
+vi.mock('@/lib/services/medias/localFile')
+vi.mock('@/lib/services/medias/S3StorageFile')
 
 const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 const mockUnlink = fs.unlink as jest.MockedFunction<typeof fs.unlink>
-const mockS3Send = jest.fn()
-const mockDeleteFile = jest.fn()
+const mockS3Send = vi.fn()
+const mockDeleteFile = vi.fn()
 
 // Mock the storage getStorage methods
 const mockLocalStorage = {
@@ -42,26 +42,22 @@ const mockS3Storage = {
   deleteFile: mockDeleteFile
 }
 
-jest
-  .spyOn(LocalFileStorage.LocalFileStorage, 'getStorage')
-  .mockReturnValue(
-    mockLocalStorage as unknown as ReturnType<
-      typeof LocalFileStorage.LocalFileStorage.getStorage
-    >
-  )
-jest
-  .spyOn(S3FileStorage.S3FileStorage, 'getStorage')
-  .mockReturnValue(
-    mockS3Storage as unknown as ReturnType<
-      typeof S3FileStorage.S3FileStorage.getStorage
-    >
-  )
+vi.spyOn(LocalFileStorage.LocalFileStorage, 'getStorage').mockReturnValue(
+  mockLocalStorage as unknown as ReturnType<
+    typeof LocalFileStorage.LocalFileStorage.getStorage
+  >
+)
+vi.spyOn(S3FileStorage.S3FileStorage, 'getStorage').mockReturnValue(
+  mockS3Storage as unknown as ReturnType<
+    typeof S3FileStorage.S3FileStorage.getStorage
+  >
+)
 
 describe('Media Storage Service', () => {
   const mockDatabase = {} as unknown as Database
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDeleteFile.mockReset()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       () =>

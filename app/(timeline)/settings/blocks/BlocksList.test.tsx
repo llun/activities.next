@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import {
@@ -16,9 +16,9 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { BlocksList } from './BlocksList'
 
-jest.mock('@/lib/client', () => ({
-  getBlocks: jest.fn(),
-  unblock: jest.fn()
+vi.mock('@/lib/client', () => ({
+  getBlocks: vi.fn(),
+  unblock: vi.fn()
 }))
 
 const createAccount = (

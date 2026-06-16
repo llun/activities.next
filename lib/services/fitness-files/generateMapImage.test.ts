@@ -4,8 +4,8 @@ import { getConfig } from '@/lib/config'
 
 import { generateMapImage } from './generateMapImage'
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn()
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn()
 }))
 
 const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
@@ -15,7 +15,7 @@ describe('generateMapImage', () => {
 
   afterEach(() => {
     global.fetch = originalFetch
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('returns null for empty coordinates', async () => {
@@ -35,7 +35,7 @@ describe('generateMapImage', () => {
       }
     } as ReturnType<typeof getConfig>)
 
-    global.fetch = jest.fn().mockResolvedValue(
+    global.fetch = vi.fn().mockResolvedValue(
       new Response(mapboxBuffer, {
         status: 200,
         headers: {
@@ -74,7 +74,7 @@ describe('generateMapImage', () => {
       .png()
       .toBuffer()
 
-    global.fetch = jest.fn().mockImplementation(async () => {
+    global.fetch = vi.fn().mockImplementation(async () => {
       return new Response(Buffer.from(tileBuffer), {
         status: 200,
         headers: {
@@ -104,7 +104,7 @@ describe('generateMapImage', () => {
       }
     } as ReturnType<typeof getConfig>)
 
-    global.fetch = jest.fn().mockResolvedValue(
+    global.fetch = vi.fn().mockResolvedValue(
       new Response(mapboxBuffer, {
         status: 200,
         headers: {

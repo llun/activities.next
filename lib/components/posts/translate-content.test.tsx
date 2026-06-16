@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -13,10 +13,10 @@ import { Translation } from '@/lib/types/mastodon/translation'
 
 import { TranslateContent } from './translate-content'
 
-jest.mock('@/lib/client', () => ({
-  translateStatus: jest.fn(),
-  getTranslationCapability: jest.fn(),
-  getTranslationLanguages: jest.fn()
+vi.mock('@/lib/client', () => ({
+  translateStatus: vi.fn(),
+  getTranslationCapability: vi.fn(),
+  getTranslationLanguages: vi.fn()
 }))
 
 const translation: Translation = {
@@ -56,7 +56,7 @@ const findTranslateButton = () =>
 
 describe('TranslateContent', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockLanguages({})
   })
 

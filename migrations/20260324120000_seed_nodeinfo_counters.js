@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   const currentTime = new Date()
 
   // Count total local users (actors with an accountId)
@@ -95,7 +95,7 @@ exports.up = async function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function (knex) {
+export const down = async function (knex) {
   await knex('counters')
     .whereIn('id', [
       'nodeinfo:total-users',

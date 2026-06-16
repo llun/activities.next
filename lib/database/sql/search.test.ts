@@ -64,21 +64,21 @@ const insertRowsInChunks = async (
 describe('SearchDatabase foundation', () => {
   const createTableMock = () => {
     const column = {
-      defaultTo: jest.fn(() => column),
-      notNullable: jest.fn(() => column),
-      nullable: jest.fn(() => column),
-      primary: jest.fn(() => column)
+      defaultTo: vi.fn(() => column),
+      notNullable: vi.fn(() => column),
+      nullable: vi.fn(() => column),
+      primary: vi.fn(() => column)
     }
     return {
-      boolean: jest.fn(() => column),
-      charset: jest.fn(),
-      collate: jest.fn(),
-      index: jest.fn(),
-      integer: jest.fn(() => column),
-      string: jest.fn(() => column),
-      text: jest.fn(() => column),
-      timestamp: jest.fn(() => column),
-      unique: jest.fn()
+      boolean: vi.fn(() => column),
+      charset: vi.fn(),
+      collate: vi.fn(),
+      index: vi.fn(),
+      integer: vi.fn(() => column),
+      string: vi.fn(() => column),
+      text: vi.fn(() => column),
+      timestamp: vi.fn(() => column),
+      unique: vi.fn()
     }
   }
 
@@ -504,7 +504,7 @@ describe('SearchDatabase foundation', () => {
 
   it('uses the MySQL LIKE fallback for tokens below the active full-text minimum', async () => {
     const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = jest.fn().mockResolvedValue([
+    const raw = vi.fn().mockResolvedValue([
       [
         {
           innodbFtMinTokenSize: 4,
@@ -538,7 +538,7 @@ describe('SearchDatabase foundation', () => {
 
   it('retries MySQL full-text minimum lookup after a transient failure', async () => {
     const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = jest
+    const raw = vi
       .fn()
       .mockRejectedValueOnce(new Error('temporary variables unavailable'))
       .mockResolvedValueOnce([
@@ -582,7 +582,7 @@ describe('SearchDatabase foundation', () => {
 
   it('cools down repeated MySQL full-text minimum lookup failures', async () => {
     const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = jest.fn().mockRejectedValue(new Error('variables unavailable'))
+    const raw = vi.fn().mockRejectedValue(new Error('variables unavailable'))
     const mysqlConfigDatabase = {
       client: mysqlDatabase.client,
       raw
@@ -671,7 +671,7 @@ describe('SearchDatabase foundation', () => {
 
   it('skips one-character MySQL LIKE fallback tokens', async () => {
     const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = jest.fn().mockResolvedValue([
+    const raw = vi.fn().mockResolvedValue([
       [
         {
           innodbFtMinTokenSize: 4,
@@ -710,7 +710,7 @@ describe('SearchDatabase foundation', () => {
 
   it('uses the InnoDB MySQL full-text minimum when it differs from MyISAM', async () => {
     const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = jest.fn().mockResolvedValue([
+    const raw = vi.fn().mockResolvedValue([
       [
         {
           innodbFtMinTokenSize: 3,
@@ -767,24 +767,24 @@ describe('SearchDatabase foundation', () => {
     const migration =
       await import('@/migrations/20260523000000_add_search_documents.js')
 
-    const pgRaw = jest.fn().mockResolvedValue(undefined)
+    const pgRaw = vi.fn().mockResolvedValue(undefined)
     const pgSchema = {
-      createTable: jest.fn().mockResolvedValue(undefined)
+      createTable: vi.fn().mockResolvedValue(undefined)
     }
     await migration.up({
       client: { config: { client: 'pg' } },
       schema: pgSchema,
       raw: pgRaw,
-      fn: { now: jest.fn() }
+      fn: { now: vi.fn() }
     })
     expect(pgRaw).toHaveBeenCalledWith(
       `CREATE INDEX search_documents_document_text_fts ON search_documents USING GIN (to_tsvector('simple', "documentText"))`
     )
 
-    const mysqlRaw = jest.fn().mockResolvedValue(undefined)
+    const mysqlRaw = vi.fn().mockResolvedValue(undefined)
     const mysqlTable = createTableMock()
     const mysqlSchema = {
-      createTable: jest.fn(async (_tableName, callback) => {
+      createTable: vi.fn(async (_tableName, callback) => {
         callback(mysqlTable)
       })
     }
@@ -792,7 +792,7 @@ describe('SearchDatabase foundation', () => {
       client: { config: { client: 'mysql2' } },
       schema: mysqlSchema,
       raw: mysqlRaw,
-      fn: { now: jest.fn() }
+      fn: { now: vi.fn() }
     })
     expect(mysqlRaw).toHaveBeenCalledWith(
       expect.stringContaining('FULLTEXT INDEX')
@@ -810,15 +810,15 @@ describe('SearchDatabase foundation', () => {
     const migration =
       await import('@/migrations/20260523000000_add_search_documents.js')
 
-    const raw = jest.fn().mockResolvedValue(undefined)
+    const raw = vi.fn().mockResolvedValue(undefined)
     const schema = {
-      createTable: jest.fn().mockResolvedValue(undefined)
+      createTable: vi.fn().mockResolvedValue(undefined)
     }
     await migration.up({
       client: { config: { client: 'pgcluster' } },
       schema,
       raw,
-      fn: { now: jest.fn() }
+      fn: { now: vi.fn() }
     })
     expect(raw).not.toHaveBeenCalled()
   })

@@ -4,21 +4,21 @@ import { PresignedUploadValidationError } from '@/lib/services/medias'
 
 import { PATCH } from './route'
 
-const mockCompletePresignedMediaUpload = jest.fn()
+const mockCompletePresignedMediaUpload = vi.fn()
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun',
   account: { id: 'account-1' }
 }
 const mockDatabase = {}
 
-jest.mock('@/lib/services/medias', () => ({
+vi.mock('@/lib/services/medias', () => ({
   completePresignedMediaUpload: (...params: unknown[]) =>
     mockCompletePresignedMediaUpload(...params),
-  getPresignedUrl: jest.fn(),
+  getPresignedUrl: vi.fn(),
   PresignedUploadValidationError: class PresignedUploadValidationError extends Error {}
 }))
 
-jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
+vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
   AuthenticatedGuard:
     (
       handle: (
@@ -38,7 +38,7 @@ jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
 
 describe('PATCH /api/v1/medias/presigned', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   const createRequest = (body: string) =>

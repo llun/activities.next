@@ -13,7 +13,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) =>
+export const up = (knex) =>
   knex.schema.createTable('customEmojis', (table) => {
     table.string('id').primary()
     // Shortcode without surrounding colons, validated `^[a-zA-Z0-9_]+$`.
@@ -31,4 +31,4 @@ exports.up = (knex) =>
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => knex.schema.dropTable('customEmojis')
+export const down = (knex) => knex.schema.dropTable('customEmojis')

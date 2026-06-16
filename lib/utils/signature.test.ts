@@ -2,7 +2,7 @@ import { Actor } from '@/lib/types/domain/actor'
 
 import { generateKeyPair, parse, signedHeaders, verify } from './signature'
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     secretPhase: 'secret',
     host: 'local.test',

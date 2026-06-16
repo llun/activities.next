@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -9,8 +9,8 @@ import { ScrollToTopButton } from './scroll-to-top-button'
 
 describe('ScrollToTopButton', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
 
     // Reset scroll position
     Object.defineProperty(window, 'scrollY', {
@@ -20,14 +20,14 @@ describe('ScrollToTopButton', () => {
     })
 
     // Mock window.scrollTo
-    window.scrollTo = jest.fn()
+    window.scrollTo = vi.fn()
   })
 
   afterEach(() => {
     act(() => {
-      jest.runOnlyPendingTimers()
+      vi.runOnlyPendingTimers()
     })
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('should not render button when scroll position is less than 300px', () => {
@@ -105,7 +105,7 @@ describe('ScrollToTopButton', () => {
 
     // Fast-forward throttle timeout
     await act(async () => {
-      jest.advanceTimersByTime(100)
+      vi.advanceTimersByTime(100)
     })
 
     expect(screen.getByRole('button', { name: 'Scroll to top' })).toHaveClass(
@@ -127,7 +127,7 @@ describe('ScrollToTopButton', () => {
 
     // Fast-forward throttle timeout
     await act(async () => {
-      jest.advanceTimersByTime(100)
+      vi.advanceTimersByTime(100)
     })
 
     expect(
@@ -160,7 +160,7 @@ describe('ScrollToTopButton', () => {
 
     // Only the first event should trigger an update after throttle timeout
     await act(async () => {
-      jest.advanceTimersByTime(100)
+      vi.advanceTimersByTime(100)
     })
 
     const button = screen.getByRole('button', { name: 'Scroll to top' })
@@ -175,7 +175,7 @@ describe('ScrollToTopButton', () => {
 
     // After throttle timeout, should update
     await act(async () => {
-      jest.advanceTimersByTime(100)
+      vi.advanceTimersByTime(100)
     })
     expect(
       screen.queryByRole('button', { name: 'Scroll to top' })
@@ -184,7 +184,7 @@ describe('ScrollToTopButton', () => {
 
   it('should clean up event listener and timeout on unmount', () => {
     Object.defineProperty(window, 'scrollY', { value: 0 })
-    const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener')
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
 
     const { unmount } = render(<ScrollToTopButton />)
 
@@ -200,7 +200,7 @@ describe('ScrollToTopButton', () => {
     )
 
     // Advance timers to ensure no errors after unmount
-    jest.advanceTimersByTime(100)
+    vi.advanceTimersByTime(100)
 
     removeEventListenerSpy.mockRestore()
   })

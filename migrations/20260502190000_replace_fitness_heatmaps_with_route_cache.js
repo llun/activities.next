@@ -16,7 +16,7 @@ const addLargeTextColumn = (knex, table, columnName) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function (knex) {
+export const up = async function (knex) {
   await knex.transaction(async (trx) => {
     const hasOldHeatmaps = await trx.schema.hasTable('fitness_heatmaps')
     const hasLegacyCleanup = await trx.schema.hasTable(
@@ -106,7 +106,7 @@ exports.up = async function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function (knex) {
+export const down = async function (knex) {
   await knex.transaction(async (trx) => {
     await trx.schema.dropTableIfExists('fitness_route_heatmaps')
     await trx.schema.dropTableIfExists('legacy_fitness_heatmap_media_cleanup')

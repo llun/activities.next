@@ -3,28 +3,28 @@ import { NextRequest } from 'next/server'
 import { DELETE, OPTIONS, PATCH, PUT } from './route'
 
 const mockDatabase = {
-  deleteDomainBlock: jest.fn(),
-  updateDomainBlock: jest.fn()
+  deleteDomainBlock: vi.fn(),
+  updateDomainBlock: vi.fn()
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue({
     user: { email: 'admin@llun.test' }
   })
 }))
 
-jest.mock('@/lib/utils/getAdminFromSession', () => ({
-  getAdminFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getAdminFromSession', () => ({
+  getAdminFromSession: vi.fn().mockResolvedValue({
     id: 'admin',
     email: 'admin@llun.test'
   })
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test', allowEmails: [] })
 }))

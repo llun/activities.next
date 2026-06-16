@@ -4,32 +4,32 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { DELETE, POST } from './route'
 
-const mockCreateNoteFromUserInput = jest.fn()
-const mockCreatePollFromUserInput = jest.fn()
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/actions/createNote', () => ({
+const mockCreateNoteFromUserInput = vi.fn()
+const mockCreatePollFromUserInput = vi.fn()
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/actions/createNote', () => ({
   createNoteFromUserInput: (...args: unknown[]) =>
     mockCreateNoteFromUserInput(...args)
 }))
-jest.mock('@/lib/actions/createPoll', () => ({
+vi.mock('@/lib/actions/createPoll', () => ({
   createPollFromUserInput: (...args: unknown[]) =>
     mockCreatePollFromUserInput(...args)
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => ({})
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn().mockResolvedValue(seedActor1)
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn().mockResolvedValue(seedActor1)
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))

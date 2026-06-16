@@ -5,13 +5,13 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { DELETE, GET } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockGetActorFromSession = jest.fn()
-jest.mock('@/lib/utils/getActorFromSession', () => ({
+const mockGetActorFromSession = vi.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
@@ -22,14 +22,14 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    deleteFitnessRouteHeatmapsForActor: jest.fn(),
-    getFitnessRouteHeatmapSummariesForActor: jest.fn()
+    deleteFitnessRouteHeatmapsForActor: vi.fn(),
+    getFitnessRouteHeatmapSummariesForActor: vi.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -40,7 +40,7 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

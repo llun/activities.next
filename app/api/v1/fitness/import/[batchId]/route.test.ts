@@ -3,8 +3,8 @@ import { getQueue } from '@/lib/services/queue'
 
 import { GET, POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
@@ -19,12 +19,12 @@ type MockDatabase = {
 }
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn().mockResolvedValue({
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn().mockResolvedValue({
     id: 'https://llun.test/users/llun',
     username: 'llun',
     domain: 'llun.test',
@@ -45,23 +45,23 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
   })
 }))
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
 
 describe('fitness import batch route', () => {
   const db: MockDatabase = {
-    getFitnessFilesByBatchId: jest.fn(),
-    getStravaArchiveImportByBatchId: jest.fn().mockResolvedValue(null),
-    getActorsForAccount: jest.fn().mockResolvedValue([
+    getFitnessFilesByBatchId: vi.fn(),
+    getStravaArchiveImportByBatchId: vi.fn().mockResolvedValue(null),
+    getActorsForAccount: vi.fn().mockResolvedValue([
       {
         id: 'https://llun.test/users/llun'
       },
@@ -69,14 +69,14 @@ describe('fitness import batch route', () => {
         id: 'https://llun.test/users/testactor2'
       }
     ]),
-    updateFitnessFilesImportStatus: jest.fn().mockResolvedValue(1),
-    updateFitnessFilesProcessingStatus: jest.fn().mockResolvedValue(1),
-    updateFitnessFileImportStatus: jest.fn().mockResolvedValue(true),
-    updateFitnessFileProcessingStatus: jest.fn().mockResolvedValue(true)
+    updateFitnessFilesImportStatus: vi.fn().mockResolvedValue(1),
+    updateFitnessFilesProcessingStatus: vi.fn().mockResolvedValue(1),
+    updateFitnessFileImportStatus: vi.fn().mockResolvedValue(true),
+    updateFitnessFileProcessingStatus: vi.fn().mockResolvedValue(true)
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })

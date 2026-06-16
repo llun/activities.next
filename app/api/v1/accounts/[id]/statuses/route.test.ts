@@ -14,14 +14,14 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
-const mockGetServerSession = jest.fn()
-const mockStoredToken = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+const mockStoredToken = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => () => ({
     where: () => ({
@@ -30,19 +30,19 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
@@ -73,7 +73,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
   })
@@ -325,7 +325,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       updatedAt: now + 1,
       originalStatus: privateOriginal
     } as Status
-    const getActorStatuses = jest
+    const getActorStatuses = vi
       .spyOn(database, 'getActorStatuses')
       .mockResolvedValue([unreadableAnnounce])
 
@@ -599,7 +599,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     const now = Date.now() + 70_000
     const pinnedStatusId = `${ACTOR1_ID}/statuses/account-pinned-status`
     const unpinnedStatusId = `${ACTOR1_ID}/statuses/account-unpinned-status`
-    const getPinnedStatusIds = jest.spyOn(database, 'getPinnedStatusIds')
+    const getPinnedStatusIds = vi.spyOn(database, 'getPinnedStatusIds')
 
     await database.createNote({
       id: pinnedStatusId,

@@ -5,26 +5,26 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { GET } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockGetActorFromSession = jest.fn()
-jest.mock('@/lib/utils/getActorFromSession', () => ({
+const mockGetActorFromSession = vi.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
 type MockDatabase = Pick<Database, 'getDistinctActivityTypesForActor'>
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('GET /api/v1/accounts/[id]/fitness-activity-types', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getDistinctActivityTypesForActor: jest.fn()
+    getDistinctActivityTypesForActor: vi.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -35,7 +35,7 @@ describe('GET /api/v1/accounts/[id]/fitness-activity-types', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

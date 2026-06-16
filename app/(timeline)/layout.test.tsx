@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -9,41 +9,41 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Layout from './layout'
 
-const mockGetActorsForAccount = jest.fn()
-const mockGetNotificationsCount = jest.fn()
-const mockGetLists = jest.fn()
+const mockGetActorsForAccount = vi.fn()
+const mockGetNotificationsCount = vi.fn()
+const mockGetLists = vi.fn()
 
-jest.mock('@/lib/database', () => ({
-  getDatabase: jest.fn(() => ({
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(() => ({
     getActorsForAccount: mockGetActorsForAccount,
     getNotificationsCount: mockGetNotificationsCount,
     getLists: mockGetLists
   }))
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn()
 }))
 
-jest.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: jest.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn()
 }))
 
-jest.mock('@/lib/types/domain/actor', () => ({
+vi.mock('@/lib/types/domain/actor', () => ({
   getActorProfile: (actor: unknown) => actor,
   getMention: () => '@testuser@localhost'
 }))
 
-jest.mock('@/app/Modal', () => ({ Modal: () => <div data-testid="modal" /> }))
-jest.mock('@/lib/components/layout/sidebar', () => ({
+vi.mock('@/app/Modal', () => ({ Modal: () => <div data-testid="modal" /> }))
+vi.mock('@/lib/components/layout/sidebar', () => ({
   Sidebar: () => <div data-testid="sidebar" />
 }))
-jest.mock('@/lib/components/layout/mobile-nav', () => ({
+vi.mock('@/lib/components/layout/mobile-nav', () => ({
   MobileNav: () => <div data-testid="mobile-nav" />
 }))
 
-const mockGetServerAuthSession = jest.mocked(getServerAuthSession)
-const mockGetActorFromSession = jest.mocked(getActorFromSession)
+const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
+const mockGetActorFromSession = vi.mocked(getActorFromSession)
 
 const renderLayout = async () => {
   const element = await Layout({
@@ -54,7 +54,7 @@ const renderLayout = async () => {
 
 describe('(timeline) Layout', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorsForAccount.mockResolvedValue([])
     mockGetNotificationsCount.mockResolvedValue(0)

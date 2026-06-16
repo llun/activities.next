@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -12,13 +12,13 @@ import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { UploadMediaButton } from './upload-media-button'
 
-jest.mock('@/lib/utils/resizeImage')
-jest.mock('@/lib/utils/logger', () => ({
+vi.mock('@/lib/utils/resizeImage')
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn()
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
   }
 }))
 
@@ -26,26 +26,26 @@ const mockResizeImage = resizeImage as jest.MockedFunction<typeof resizeImage>
 const mockLogger = logger as jest.Mocked<typeof logger>
 
 describe('UploadMediaButton', () => {
-  const mockOnAddAttachment = jest.fn()
-  const mockOnDuplicateError = jest.fn()
-  const mockOnUploadStart = jest.fn()
-  const mockOnBeforeAddAttachments = jest.fn()
+  const mockOnAddAttachment = vi.fn()
+  const mockOnDuplicateError = vi.fn()
+  const mockOnUploadStart = vi.fn()
+  const mockOnBeforeAddAttachments = vi.fn()
 
   const createMockFile = (name: string, type = 'image/jpeg') => {
     return new File(['test'], name, { type })
   }
 
   beforeEach(() => {
-    jest.resetAllMocks()
+    vi.resetAllMocks()
     mockResizeImage.mockImplementation((file) => Promise.resolve(file))
 
     // Mock crypto.randomUUID
     let counter = 0
-    global.crypto.randomUUID = jest.fn(() => `uuid-${counter++}`)
+    global.crypto.randomUUID = vi.fn(() => `uuid-${counter++}`)
 
     // Mock URL.createObjectURL
-    global.URL.createObjectURL = jest.fn(() => 'blob:test-url')
-    global.URL.revokeObjectURL = jest.fn()
+    global.URL.createObjectURL = vi.fn(() => 'blob:test-url')
+    global.URL.revokeObjectURL = vi.fn()
   })
 
   describe('MAX_ATTACHMENTS enforcement', () => {

@@ -5,9 +5,9 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
 
-const mockBcryptCompare = jest.fn()
-const mockBcryptHash = jest.fn()
-jest.mock('bcrypt', () => ({
+const mockBcryptCompare = vi.fn()
+const mockBcryptHash = vi.fn()
+vi.mock('bcrypt', () => ({
   __esModule: true,
   default: {
     compare: (...args: unknown[]) => mockBcryptCompare(...args),
@@ -15,14 +15,14 @@ jest.mock('bcrypt', () => ({
   }
 }))
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
     allowActorDomains: []
@@ -35,12 +35,12 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: () => undefined
   })
 }))
@@ -69,9 +69,9 @@ const actor = {
 
 describe('POST /api/v1/accounts/password', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    changePassword: jest.fn(),
-    getAccountFromEmail: jest.fn(),
-    getActorsForAccount: jest.fn()
+    changePassword: vi.fn(),
+    getAccountFromEmail: vi.fn(),
+    getActorsForAccount: vi.fn()
   }
 
   beforeAll(() => {
@@ -79,7 +79,7 @@ describe('POST /api/v1/accounts/password', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

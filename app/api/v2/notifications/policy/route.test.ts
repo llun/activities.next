@@ -5,15 +5,15 @@ import { DEFAULT_NOTIFICATION_POLICY } from '@/lib/types/database/operations'
 import { GET, PATCH } from './route'
 
 const mockDatabase = {
-  getNotificationPolicy: jest.fn(),
-  updateNotificationPolicy: jest.fn(),
-  getNotificationsCount: jest.fn(),
-  getNotificationRequestsCount: jest.fn()
+  getNotificationPolicy: vi.fn(),
+  updateNotificationPolicy: vi.fn(),
+  getNotificationsCount: vi.fn(),
+  getNotificationRequestsCount: vi.fn()
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
 
-jest.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (
       _scopes: unknown[],
@@ -36,7 +36,7 @@ jest.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 describe('/api/v2/notifications/policy', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getNotificationPolicy.mockResolvedValue({
       ...DEFAULT_NOTIFICATION_POLICY
     })

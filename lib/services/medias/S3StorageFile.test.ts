@@ -11,15 +11,15 @@ import { Database } from '@/lib/database/types'
 import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
 import { Actor } from '@/lib/types/domain/actor'
 
-jest.mock('@aws-sdk/client-s3', () => {
+vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
-    jest.fn().mockImplementation(function command(input) {
+    vi.fn().mockImplementation(function command(input) {
       this.input = input
       this.name = name
     })
 
   return {
-    S3Client: jest.fn(),
+    S3Client: vi.fn(),
     HeadObjectCommand: makeCommand('HeadObjectCommand'),
     DeleteObjectCommand: makeCommand('DeleteObjectCommand'),
     GetObjectCommand: makeCommand('GetObjectCommand'),
@@ -27,12 +27,12 @@ jest.mock('@aws-sdk/client-s3', () => {
   }
 })
 
-jest.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: jest.fn().mockResolvedValue('https://storage.example/upload')
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn().mockResolvedValue('https://storage.example/upload')
 }))
 
 describe('S3FileStorage presigned upload completion', () => {
-  const send = jest.fn()
+  const send = vi.fn()
   const actor = {
     id: 'actor-1',
     account: { id: 'account-1' }
@@ -41,17 +41,17 @@ describe('S3FileStorage presigned upload completion', () => {
   const checksumBase64 = Buffer.from(checksumHex, 'hex').toString('base64')
 
   const database = {
-    createMedia: jest.fn(),
-    getActorFromId: jest.fn(),
-    getFitnessStorageUsageForAccount: jest.fn(),
-    getMediaByIdForAccount: jest.fn(),
-    getStorageUsageForAccount: jest.fn(),
-    markMediaUploadVerified: jest.fn(),
-    deleteMedia: jest.fn()
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn(),
+    getMediaByIdForAccount: vi.fn(),
+    getStorageUsageForAccount: vi.fn(),
+    markMediaUploadVerified: vi.fn(),
+    deleteMedia: vi.fn()
   } as unknown as jest.Mocked<Database>
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       () => ({ send }) as unknown as S3Client
     )

@@ -1,12 +1,12 @@
 import { sanitizeFormBody, sanitizeHeaders, sanitizeParams } from './logging'
 
-jest.mock('@/lib/utils/logger', () => {
+vi.mock('@/lib/utils/logger', () => {
   const logger = {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-    child: jest.fn(() => logger)
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn(() => logger)
   }
   return { logger }
 })

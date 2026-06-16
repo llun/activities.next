@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function (knex) {
+export const up = function (knex) {
   return knex.schema.alterTable('timelines', function (table) {
     table.index(
       ['actorId', 'timeline', 'createdAt'],
@@ -15,7 +15,7 @@ exports.up = function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema.alterTable('timelines', function (table) {
     table.dropIndex(
       ['actorId', 'timeline', 'createdAt'],

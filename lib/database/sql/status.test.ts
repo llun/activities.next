@@ -268,12 +268,12 @@ describe('StatusDatabase', () => {
       const onQuery = (query: { sql: string }) => queries.push(query.sql)
 
       postgresDatabase.on('query', onQuery)
-      postgresDatabase.client.acquireConnection = jest.fn().mockResolvedValue({
-        query: jest.fn((_queryConfig, callback) => {
+      postgresDatabase.client.acquireConnection = vi.fn().mockResolvedValue({
+        query: vi.fn((_queryConfig, callback) => {
           callback(null, { command: 'SELECT', rows: [] })
         })
       })
-      postgresDatabase.client.releaseConnection = jest.fn()
+      postgresDatabase.client.releaseConnection = vi.fn()
 
       try {
         await sqlDatabase.getStatusesByIds({

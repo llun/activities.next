@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 
 import { GET } from './route'
 
-const mockGetConfig = jest.fn()
-jest.mock('@/lib/config', () => ({
+const mockGetConfig = vi.fn()
+vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 

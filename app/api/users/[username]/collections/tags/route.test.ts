@@ -26,7 +26,7 @@ const mockActor: Actor = {
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 
-jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
+vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
   OnlyLocalUserGuard:
     (
       handle: (...params: unknown[]) => Promise<Response> | Response,

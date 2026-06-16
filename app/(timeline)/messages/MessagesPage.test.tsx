@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import {
@@ -26,16 +26,16 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { MessagesPage } from './MessagesPage'
 
-jest.mock('@/lib/client', () => ({
-  createDirectMessage: jest.fn(),
-  getConversationStatuses: jest.fn(),
-  getConversations: jest.fn(),
-  hideConversation: jest.fn(),
-  markConversationRead: jest.fn(),
-  searchAccounts: jest.fn()
+vi.mock('@/lib/client', () => ({
+  createDirectMessage: vi.fn(),
+  getConversationStatuses: vi.fn(),
+  getConversations: vi.fn(),
+  hideConversation: vi.fn(),
+  markConversationRead: vi.fn(),
+  searchAccounts: vi.fn()
 }))
 
-jest.mock('@/lib/components/posts/posts', () => ({
+vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({ statuses }: { statuses: Status[] }) => (
     <div>
       {statuses.map((status) => (
@@ -163,7 +163,7 @@ const renderMessagesPage = (
 
 describe('MessagesPage', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(createDirectMessage as jest.Mock).mockResolvedValue({})
     ;(getConversations as jest.Mock).mockResolvedValue({ conversations: [] })
     ;(hideConversation as jest.Mock).mockResolvedValue(true)
@@ -641,7 +641,7 @@ describe('MessagesPage', () => {
   })
 
   it('searches recipients as the query changes without a search button', async () => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     try {
       ;(getConversationStatuses as jest.Mock).mockResolvedValue({
         statuses: [],
@@ -663,7 +663,7 @@ describe('MessagesPage', () => {
       )
 
       await act(async () => {
-        jest.advanceTimersByTime(300)
+        vi.advanceTimersByTime(300)
         await Promise.resolve()
         await Promise.resolve()
       })
@@ -692,12 +692,12 @@ describe('MessagesPage', () => {
 
       expect(screen.queryByText('Ada')).not.toBeInTheDocument()
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
   })
 
   it('shows and clears not-found feedback for debounced recipient searches', async () => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     try {
       ;(getConversationStatuses as jest.Mock).mockResolvedValue({
         statuses: [],
@@ -714,7 +714,7 @@ describe('MessagesPage', () => {
       fireEvent.change(recipientInput, { target: { value: 'missing' } })
 
       await act(async () => {
-        jest.advanceTimersByTime(300)
+        vi.advanceTimersByTime(300)
         await Promise.resolve()
         await Promise.resolve()
       })
@@ -726,12 +726,12 @@ describe('MessagesPage', () => {
 
       expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
   })
 
   it('cancels the pending debounced recipient search when Enter searches immediately', async () => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     try {
       ;(getConversationStatuses as jest.Mock).mockResolvedValue({
         statuses: [],
@@ -765,19 +765,19 @@ describe('MessagesPage', () => {
       )
 
       await act(async () => {
-        jest.advanceTimersByTime(300)
+        vi.advanceTimersByTime(300)
         await Promise.resolve()
         await Promise.resolve()
       })
 
       expect(searchAccounts).toHaveBeenCalledTimes(1)
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
   })
 
   it('cancels a pending recipient search when selecting an existing conversation', async () => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     try {
       ;(getConversationStatuses as jest.Mock).mockResolvedValue({
         statuses: [],
@@ -797,7 +797,7 @@ describe('MessagesPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /Ada/ }))
 
       await act(async () => {
-        jest.advanceTimersByTime(300)
+        vi.advanceTimersByTime(300)
         await Promise.resolve()
         await Promise.resolve()
       })
@@ -805,12 +805,12 @@ describe('MessagesPage', () => {
       expect(searchAccounts).not.toHaveBeenCalled()
       expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
   })
 
   it('ignores stale recipient search results when the query changes during an in-flight lookup', async () => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     try {
       ;(getConversationStatuses as jest.Mock).mockResolvedValue({
         statuses: [],
@@ -830,7 +830,7 @@ describe('MessagesPage', () => {
       fireEvent.change(recipientInput, { target: { value: 'ada' } })
 
       await act(async () => {
-        jest.advanceTimersByTime(300)
+        vi.advanceTimersByTime(300)
         await Promise.resolve()
       })
 
@@ -858,7 +858,7 @@ describe('MessagesPage', () => {
       expect(screen.queryByText('Ada')).not.toBeInTheDocument()
 
       await act(async () => {
-        jest.advanceTimersByTime(300)
+        vi.advanceTimersByTime(300)
         await Promise.resolve()
       })
 
@@ -880,7 +880,7 @@ describe('MessagesPage', () => {
       expect(screen.getByText('Bob')).toBeInTheDocument()
       expect(screen.queryByText('Ada')).not.toBeInTheDocument()
     } finally {
-      jest.useRealTimers()
+      vi.useRealTimers()
     }
   })
 

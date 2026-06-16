@@ -5,19 +5,19 @@ import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/sta
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 
-jest.mock('@/lib/activities', () => ({
-  deleteStatus: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/activities', () => ({
+  deleteStatus: vi.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('@/lib/services/federation/statusDelivery', () => ({
-  getFederatedStatusDeliveryInboxes: jest
+vi.mock('@/lib/services/federation/statusDelivery', () => ({
+  getFederatedStatusDeliveryInboxes: vi
     .fn()
     .mockResolvedValue(['https://remote.test/inbox'])
 }))
 
 describe('deleteStatusFromUserInput', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('preserves direct status cc recipients on federated delete activities', async () => {
@@ -31,8 +31,8 @@ describe('deleteStatusFromUserInput', () => {
       cc: ['https://remote.test/users/copied']
     } as Status
     const database = {
-      getStatus: jest.fn().mockResolvedValue(status),
-      deleteStatus: jest.fn().mockResolvedValue(undefined)
+      getStatus: vi.fn().mockResolvedValue(status),
+      deleteStatus: vi.fn().mockResolvedValue(undefined)
     } as unknown as Database
 
     await deleteStatusFromUserInput({
@@ -70,8 +70,8 @@ describe('deleteStatusFromUserInput', () => {
       cc: []
     } as Status
     const database = {
-      getStatus: jest.fn().mockResolvedValue(status),
-      deleteStatus: jest.fn().mockResolvedValue(undefined)
+      getStatus: vi.fn().mockResolvedValue(status),
+      deleteStatus: vi.fn().mockResolvedValue(undefined)
     } as unknown as Database
 
     await deleteStatusFromUserInput({

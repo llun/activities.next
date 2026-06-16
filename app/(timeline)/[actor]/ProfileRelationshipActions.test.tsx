@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
@@ -11,19 +11,19 @@ import {
   isBlockedRelationship
 } from './ProfileRelationshipActions'
 
-jest.mock('@/lib/components/follow-action/follow-action', () => ({
+vi.mock('@/lib/components/follow-action/follow-action', () => ({
   FollowAction: ({ targetActorId }: { targetActorId: string }) => (
     <div data-testid="follow-action">{targetActorId}</div>
   )
 }))
 
-jest.mock('@/lib/components/block-action/block-action', () => ({
+vi.mock('@/lib/components/block-action/block-action', () => ({
   BlockAction: ({ targetActorId }: { targetActorId: string }) => (
     <div data-testid="block-action">{targetActorId}</div>
   )
 }))
 
-jest.mock('@/lib/components/mute-action/mute-action', () => ({
+vi.mock('@/lib/components/mute-action/mute-action', () => ({
   MuteAction: ({ targetActorId }: { targetActorId: string }) => (
     <div data-testid="mute-action">{targetActorId}</div>
   )

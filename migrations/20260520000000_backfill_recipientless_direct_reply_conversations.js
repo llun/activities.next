@@ -1,4 +1,4 @@
-const crypto = require('crypto')
+import crypto from 'node:crypto'
 
 const DIRECT_STATUS_BATCH_SIZE = 500
 const DIRECT_TIMELINE = 'direct'
@@ -403,7 +403,7 @@ const syncRecipientlessDirectReply = async ({
   }
 }
 
-exports.up = async (knex) => {
+export const up = async (knex) => {
   while (true) {
     const directReplies = await getNextRecipientlessDirectReplyBatch(knex)
     if (directReplies.length === 0) break
@@ -417,6 +417,6 @@ exports.up = async (knex) => {
   }
 }
 
-exports.down = async () => {
+export const down = async () => {
   // Backfilled conversations cannot be distinguished from later legitimate syncs.
 }

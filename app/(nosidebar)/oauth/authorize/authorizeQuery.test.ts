@@ -18,11 +18,11 @@ const unsignedParams: SearchParams = {
 
 describe('OAuth authorize query helpers', () => {
   beforeEach(() => {
-    jest.spyOn(Date, 'now').mockImplementation(() => 1700000000000)
+    vi.spyOn(Date, 'now').mockImplementation(() => 1700000000000)
   })
 
   afterEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
   })
 
   it('delegates unsigned Mastodon-compatible authorize requests to Better Auth', () => {

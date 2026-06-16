@@ -12,7 +12,7 @@ import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/http-header
 import nextConfig from './next.config'
 
 const loadNextConfig = async () => {
-  jest.resetModules()
+  vi.resetModules()
   return import('./next.config')
 }
 
@@ -89,7 +89,7 @@ describe('next config runtime isolation', () => {
   afterEach(() => {
     process.chdir(originalCwd)
     fs.rmSync(tempDirectory, { force: true, recursive: true })
-    jest.resetModules()
+    vi.resetModules()
 
     for (const [key, value] of Object.entries(originalEnv)) {
       if (value === undefined) {

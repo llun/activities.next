@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function (knex) {
+export const up = function (knex) {
   return knex.schema.alterTable('actors', function (table) {
     table.string('type').notNullable().defaultTo('Person')
   })
@@ -12,7 +12,7 @@ exports.up = function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema.alterTable('actors', function (table) {
     table.dropColumn('type')
   })

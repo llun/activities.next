@@ -2,7 +2,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function (knex) {
+export const up = function (knex) {
   return knex.schema.createTable('fitness_heatmaps', function (table) {
     table.string('id').primary()
     table.string('actorId').notNullable().references('id').inTable('actors')
@@ -28,6 +28,6 @@ exports.up = function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema.dropTable('fitness_heatmaps')
 }

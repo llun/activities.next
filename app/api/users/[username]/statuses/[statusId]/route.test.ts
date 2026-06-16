@@ -6,8 +6,8 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { GET } from './route'
 
 const mockDatabase = {
-  getStatus: jest.fn(),
-  getStatusReplies: jest.fn()
+  getStatus: vi.fn(),
+  getStatusReplies: vi.fn()
 }
 const mockActor: Actor = {
   id: 'https://example.com/users/test',
@@ -26,17 +26,17 @@ const mockActor: Actor = {
   updatedAt: 1,
   publicKey: 'public-key'
 }
-const mockToActivityPubObject = jest.fn()
+const mockToActivityPubObject = vi.fn()
 
-jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
+vi.mock('@/lib/services/guards/OnlyLocalUserGuard', async () => ({
   OnlyLocalUserGuard:
     (handle: (...params: unknown[]) => Promise<Response> | Response) =>
     (req: NextRequest, query: unknown) =>
       handle(mockDatabase, mockActor, req, query)
 }))
 
-jest.mock('@/lib/types/domain/status', () => {
-  const actual = jest.requireActual('@/lib/types/domain/status')
+vi.mock('@/lib/types/domain/status', async () => {
+  const actual = await vi.importActual('@/lib/types/domain/status')
   return {
     ...actual,
     toActivityPubObject: (...params: unknown[]) =>
@@ -51,7 +51,7 @@ const createRequest = (accept: string) =>
 
 describe('GET /api/users/[username]/statuses/[statusId]', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue({
       id: 'https://example.com/users/test/statuses/123',
       url: 'https://example.com/users/test/statuses/123',

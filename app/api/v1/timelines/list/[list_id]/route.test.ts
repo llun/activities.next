@@ -9,29 +9,29 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockImplementation(() =>
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockImplementation(() =>
     Promise.resolve({
       get: () => undefined
     })
   )
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: [],
     host: 'llun.test',
@@ -71,7 +71,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
   })
 
   beforeEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -86,7 +86,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
   }
 
   it('returns the list timeline for a valid request with Link headers', async () => {
-    jest.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
 
     const response = await GET(request(), {
       params: Promise.resolve({ list_id: listId })
@@ -103,7 +103,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
   })
 
   it('returns the activities_next domain shape when format=activities_next', async () => {
-    jest.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
 
     const response = await GET(request({ format: 'activities_next' }), {
       params: Promise.resolve({ list_id: listId })
@@ -147,7 +147,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
   it('uses min_id over since_id for the lower-bound cursor', async () => {
     const minUrl = 'https://llun.test/users/test1/statuses/min-cursor'
     const sinceUrl = 'https://llun.test/users/test1/statuses/since-cursor'
-    const spy = jest.spyOn(database, 'getListTimeline').mockResolvedValue([])
+    const spy = vi.spyOn(database, 'getListTimeline').mockResolvedValue([])
 
     await GET(
       request({ min_id: urlToId(minUrl), since_id: urlToId(sinceUrl) }),
@@ -170,9 +170,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     } as unknown as Status
-    jest
-      .spyOn(database, 'getListTimeline')
-      .mockResolvedValue([listStatus, brokenStatus])
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+      listStatus,
+      brokenStatus
+    ])
 
     const response = await GET(request(), {
       params: Promise.resolve({ list_id: listId })
@@ -186,7 +187,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
   })
 
   it('returns an empty array and no Link header when there are no statuses', async () => {
-    jest.spyOn(database, 'getListTimeline').mockResolvedValue([])
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([])
 
     const response = await GET(request(), {
       params: Promise.resolve({ list_id: listId })
@@ -237,9 +238,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     })
 
     it('drops hide-filtered statuses from the Mastodon format', async () => {
-      jest
-        .spyOn(database, 'getListTimeline')
-        .mockResolvedValue([listStatus, spoilerStatus])
+      vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+        listStatus,
+        spoilerStatus
+      ])
 
       const response = await GET(request(), {
         params: Promise.resolve({ list_id: listId })
@@ -252,9 +254,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     })
 
     it('drops hide-filtered statuses from the activities_next format', async () => {
-      jest
-        .spyOn(database, 'getListTimeline')
-        .mockResolvedValue([listStatus, spoilerStatus])
+      vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+        listStatus,
+        spoilerStatus
+      ])
 
       const response = await GET(request({ format: 'activities_next' }), {
         params: Promise.resolve({ list_id: listId })
@@ -268,7 +271,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     })
 
     it('keeps the next cursor when the whole page is hidden (no premature stop)', async () => {
-      jest.spyOn(database, 'getListTimeline').mockResolvedValue([spoilerStatus])
+      vi.spyOn(database, 'getListTimeline').mockResolvedValue([spoilerStatus])
 
       // Mastodon: empty body but a next Link so pagination reaches older posts.
       const mastodon = await GET(request(), {
@@ -287,9 +290,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     })
 
     it('keeps warn-filtered statuses, annotating them on the Mastodon path only', async () => {
-      jest
-        .spyOn(database, 'getListTimeline')
-        .mockResolvedValue([listStatus, warnStatus])
+      vi.spyOn(database, 'getListTimeline').mockResolvedValue([
+        listStatus,
+        warnStatus
+      ])
 
       // Mastodon: warn matches are kept and annotated via `filtered`.
       const mastodon = await GET(request(), {

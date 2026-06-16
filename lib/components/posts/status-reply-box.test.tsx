@@ -1,5 +1,5 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -10,9 +10,9 @@ import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { StatusReplyBox } from './status-reply-box'
 
-jest.mock('@/lib/client', () => ({
-  createNote: jest.fn(),
-  uploadAttachment: jest.fn()
+vi.mock('@/lib/client', () => ({
+  createNote: vi.fn(),
+  uploadAttachment: vi.fn()
 }))
 
 const createNoteMock = createNote as jest.MockedFunction<typeof createNote>
@@ -67,7 +67,7 @@ describe('StatusReplyBox', () => {
   })
 
   afterEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('does not submit hidden content warning text', async () => {
@@ -75,8 +75,8 @@ describe('StatusReplyBox', () => {
       <StatusReplyBox
         profile={profile}
         replyStatus={replyStatus}
-        onCancel={jest.fn()}
-        onPostCreated={jest.fn()}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
       />
     )
 

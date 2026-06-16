@@ -20,8 +20,8 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { mentionTimelineRule } from './mention'
 import { Timeline } from './types'
 
-jest.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
-  sendNotificationAlerts: jest.fn()
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: vi.fn()
 }))
 
 const mockSendAlerts = sendNotificationAlerts as jest.MockedFunction<

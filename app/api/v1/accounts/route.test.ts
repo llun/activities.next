@@ -11,9 +11,9 @@ import { Scope } from '@/lib/types/database/operations'
 
 import { GET, POST } from './route'
 
-jest.mock('@/lib/config', () => ({
-  getBaseURL: jest.fn().mockReturnValue('https://llun.test'),
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: [],
     registrationOpen: true,
@@ -21,29 +21,29 @@ jest.mock('@/lib/config', () => ({
   })
 }))
 
-jest.mock('@/lib/services/accounts/registerAccount', () => ({
-  registerAccount: jest.fn()
+vi.mock('@/lib/services/accounts/registerAccount', () => ({
+  registerAccount: vi.fn()
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: jest.fn().mockResolvedValue(null)
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue(null)
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(undefined)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
   })
 }))
 
 // Opaque tokens never reach better-auth's verifier, but the guard imports it.
-jest.mock('better-auth/oauth2', () => ({ verifyAccessToken: jest.fn() }))
+vi.mock('better-auth/oauth2', () => ({ verifyAccessToken: vi.fn() }))
 
 // getDatabase/getKnex are read through mutable bindings so the hand-rolled mock
 // (GET + web-form tests) and the real SQLite database (Bearer API tests) can
 // each install themselves per describe block.
 let mockDatabase: unknown = null
 let mockKnex: unknown = undefined
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => mockKnex
 }))
@@ -56,14 +56,14 @@ const mastodonAccount = {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 describe('GET /api/v1/accounts', () => {
   beforeEach(() => {
     mockKnex = undefined
     mockDatabase = {
-      getMastodonActorsFromIds: jest.fn().mockResolvedValue([mastodonAccount])
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount])
     }
   })
 
@@ -107,12 +107,12 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   beforeEach(() => {
     mockKnex = undefined
     mockDatabase = {
-      getMastodonActorsFromIds: jest.fn().mockResolvedValue([mastodonAccount])
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount])
     }
   })
 
   it('declines JSON API clients with 501 and does not create an account', async () => {
-    const createAccount = jest.fn()
+    const createAccount = vi.fn()
     mockDatabase = { ...(mockDatabase as object), createAccount }
     const req = new NextRequest('http://localhost/api/v1/accounts', {
       method: 'POST',
@@ -129,7 +129,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('declines form-encoded API clients (no text/html Accept) with 501', async () => {
-    const createAccount = jest.fn()
+    const createAccount = vi.fn()
     mockDatabase = { ...(mockDatabase as object), createAccount }
     const req = new NextRequest('http://localhost/api/v1/accounts', {
       method: 'POST',
@@ -145,12 +145,12 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('rejects web sign-up with 403 when registration is closed', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    vi.mocked(getConfig).mockReturnValueOnce({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: false
     } as never)
-    const createAccount = jest.fn()
+    const createAccount = vi.fn()
     mockDatabase = { ...(mockDatabase as object), createAccount }
     const req = new NextRequest('http://localhost/api/v1/accounts', {
       method: 'POST',
@@ -166,12 +166,12 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('returns 403 for closed registration even when the body is invalid', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    vi.mocked(getConfig).mockReturnValueOnce({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: false
     } as never)
-    const createAccount = jest.fn()
+    const createAccount = vi.fn()
     mockDatabase = { ...(mockDatabase as object), createAccount }
     // Deliberately malformed/schema-invalid body — missing required fields.
     const req = new NextRequest('http://localhost/api/v1/accounts', {
@@ -188,7 +188,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('returns 422 with an accurate message when the email is not allowed', async () => {
-    jest.mocked(registerAccount).mockResolvedValueOnce({
+    vi.mocked(registerAccount).mockResolvedValueOnce({
       type: 'email_not_allowed'
     })
     const req = new NextRequest('http://localhost/api/v1/accounts', {
@@ -216,7 +216,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('returns 422 with field details when registration validation fails', async () => {
-    jest.mocked(registerAccount).mockResolvedValueOnce({
+    vi.mocked(registerAccount).mockResolvedValueOnce({
       type: 'validation_failed',
       details: {
         username: [
@@ -245,7 +245,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('redirects to /auth/signin with 307 on successful registration', async () => {
-    jest.mocked(registerAccount).mockResolvedValueOnce({
+    vi.mocked(registerAccount).mockResolvedValueOnce({
       type: 'success',
       accountId: 'new-account-id',
       username: 'alice',
@@ -265,7 +265,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('lowercases the submitted email via the schema before registering', async () => {
-    jest.mocked(registerAccount).mockResolvedValueOnce({
+    vi.mocked(registerAccount).mockResolvedValueOnce({
       type: 'success',
       accountId: 'new-account-id',
       username: 'alice',
@@ -381,7 +381,7 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     )
 
   it('registers an account and returns a usable user token', async () => {
-    jest.mocked(registerAccount).mockResolvedValueOnce({
+    vi.mocked(registerAccount).mockResolvedValueOnce({
       type: 'success',
       accountId,
       username: NEW_USERNAME,
@@ -452,7 +452,7 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     'returns 422 for $description',
     async ({ body, registerResult, detailKey }) => {
       if (registerResult) {
-        jest.mocked(registerAccount).mockResolvedValueOnce(registerResult)
+        vi.mocked(registerAccount).mockResolvedValueOnce(registerResult)
       }
       const res = await postRegister(APP_TOKEN, body)
       expect(res.status).toBe(422)
@@ -462,9 +462,9 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   )
 
   it('returns 403 when registration is closed', async () => {
-    jest
-      .mocked(registerAccount)
-      .mockResolvedValueOnce({ type: 'registration_closed' })
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'registration_closed'
+    })
     const res = await postRegister(
       APP_TOKEN,
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
@@ -473,9 +473,9 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   })
 
   it('returns 403 when the email is not allowed to register', async () => {
-    jest
-      .mocked(registerAccount)
-      .mockResolvedValueOnce({ type: 'email_not_allowed' })
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'email_not_allowed'
+    })
     const res = await postRegister(
       APP_TOKEN,
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
@@ -484,7 +484,7 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   })
 
   it('returns 403 for closed registration before parsing the body', async () => {
-    jest.mocked(getConfig).mockReturnValueOnce({
+    vi.mocked(getConfig).mockReturnValueOnce({
       host: 'llun.test',
       allowEmails: [],
       registrationOpen: false,

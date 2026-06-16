@@ -2,13 +2,13 @@ import { NextRequest } from 'next/server'
 
 import { GET } from './route'
 
-const mockGetActorFromUsername = jest.fn()
-const mockGetActorFromId = jest.fn()
-const mockGetMastodonActorFromId = jest.fn()
-const mockGetWebfingerSelf = jest.fn()
-const mockRecordActorIfNeeded = jest.fn()
-const mockGetServerSession = jest.fn()
-const mockStoredToken = jest.fn()
+const mockGetActorFromUsername = vi.fn()
+const mockGetActorFromId = vi.fn()
+const mockGetMastodonActorFromId = vi.fn()
+const mockGetWebfingerSelf = vi.fn()
+const mockRecordActorIfNeeded = vi.fn()
+const mockGetServerSession = vi.fn()
+const mockStoredToken = vi.fn()
 const oauthActor = {
   id: 'https://llun.test/users/oauth-user',
   username: 'oauth-user',
@@ -25,7 +25,7 @@ const oauthActor = {
   updatedAt: 1
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => ({
     getActorFromUsername: mockGetActorFromUsername,
     getActorFromId: mockGetActorFromId,
@@ -38,30 +38,30 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({ host: 'llun.test' })
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/activities/getWebfingerSelf', () => ({
+vi.mock('@/lib/activities/getWebfingerSelf', () => ({
   getWebfingerSelf: (...args: unknown[]) => mockGetWebfingerSelf(...args)
 }))
 
-jest.mock('@/lib/actions/utils', () => ({
+vi.mock('@/lib/actions/utils', () => ({
   recordActorIfNeeded: (...args: unknown[]) => mockRecordActorIfNeeded(...args)
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 describe('GET /api/v1/accounts/lookup', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
   })

@@ -3,17 +3,17 @@ import { NextRequest } from 'next/server'
 import { GET } from './route'
 
 const mockDatabase = {
-  getActorFromId: jest.fn(),
-  getAttachmentsForActor: jest.fn()
+  getActorFromId: vi.fn(),
+  getAttachmentsForActor: vi.fn()
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('GET /api/v1/accounts/:id/media', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://llun.test/users/llun'
     })

@@ -9,29 +9,29 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockImplementation(() =>
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockImplementation(() =>
     Promise.resolve({
       get: () => undefined
     })
   )
 }))
 
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: [],
     host: 'llun.test',
@@ -62,7 +62,7 @@ describe('GET /api/v1/timelines/public', () => {
   })
 
   beforeEach(() => {
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
     // No session → optional auth resolves currentActor = null (anonymous).
     mockGetServerSession.mockResolvedValue(null)
   })
@@ -76,7 +76,7 @@ describe('GET /api/v1/timelines/public', () => {
   }
 
   it('returns the public timeline for a valid request', async () => {
-    jest.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+    vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
 
     const response = await GET(request(), {
       params: Promise.resolve({})
@@ -114,9 +114,10 @@ describe('GET /api/v1/timelines/public', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     } as unknown as Status
-    jest
-      .spyOn(database, 'getTimeline')
-      .mockResolvedValue([publicStatus, brokenStatus])
+    vi.spyOn(database, 'getTimeline').mockResolvedValue([
+      publicStatus,
+      brokenStatus
+    ])
 
     const response = await GET(request(), {
       params: Promise.resolve({})
@@ -130,7 +131,7 @@ describe('GET /api/v1/timelines/public', () => {
   })
 
   it('returns an empty array and no Link header when there are no statuses', async () => {
-    jest.spyOn(database, 'getTimeline').mockResolvedValue([])
+    vi.spyOn(database, 'getTimeline').mockResolvedValue([])
 
     const response = await GET(request(), {
       params: Promise.resolve({})

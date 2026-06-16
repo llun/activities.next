@@ -1,6 +1,6 @@
 const COUNTER_PREFIX = 'total-media:'
 
-exports.config = { transaction: false }
+export const config = { transaction: false }
 
 const parseInteger = (input) => {
   if (input === null || input === undefined) return 0
@@ -12,7 +12,7 @@ const parseInteger = (input) => {
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function up(knex) {
+export const up = async function up(knex) {
   console.log('Backfilling total-media counters...')
 
   // Get all accounts with their media counts
@@ -48,7 +48,7 @@ exports.up = async function up(knex) {
  * @param { import('knex').Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function down(knex) {
+export const down = async function down(knex) {
   // Delete all total-media counters
   await knex('counters').where('id', 'like', `${COUNTER_PREFIX}%`).delete()
 }

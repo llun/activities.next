@@ -7,7 +7,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.createTable('server_filters', (table) => {
     table.string('id').primary()
     table.string('title').notNullable()
@@ -42,7 +42,7 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   await knex.schema.dropTableIfExists('server_filter_keywords')
   await knex.schema.dropTableIfExists('server_filters')
 }

@@ -12,23 +12,23 @@ import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { getProfileData } from './getProfileData'
 
 // Mock dependencies via Jest module name mapper aliases
-jest.mock('@/lib/activities/getActorFollowers')
-jest.mock('@/lib/activities/getActorFollowing')
-jest.mock('@/lib/activities/getActorPerson')
-jest.mock('@/lib/activities/getActorPosts')
-jest.mock('@/lib/activities/getWebfingerSelf')
-jest.mock('@/lib/utils/getPersonFromActor')
+vi.mock('@/lib/activities/getActorFollowers')
+vi.mock('@/lib/activities/getActorFollowing')
+vi.mock('@/lib/activities/getActorPerson')
+vi.mock('@/lib/activities/getActorPosts')
+vi.mock('@/lib/activities/getWebfingerSelf')
+vi.mock('@/lib/utils/getPersonFromActor')
 
 describe('getProfileData', () => {
   const mockDatabase = {
-    getActorFromUsername: jest.fn(),
-    getActorStatuses: jest.fn(),
-    getActorStatusesCount: jest.fn(),
-    getAttachmentsForActor: jest.fn(),
-    getActorFollowingCount: jest.fn(),
-    getActorFollowersCount: jest.fn(),
-    getActorHasFitnessData: jest.fn(),
-    updateActor: jest.fn()
+    getActorFromUsername: vi.fn(),
+    getActorStatuses: vi.fn(),
+    getActorStatusesCount: vi.fn(),
+    getAttachmentsForActor: vi.fn(),
+    getActorFollowingCount: vi.fn(),
+    getActorFollowersCount: vi.fn(),
+    getActorHasFitnessData: vi.fn(),
+    updateActor: vi.fn()
   } as unknown as Database
 
   const mockLocalActor = {
@@ -73,7 +73,7 @@ describe('getProfileData', () => {
   const mockAttachments: Attachment[] = []
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ;(mockDatabase.getActorStatuses as jest.Mock).mockResolvedValue(
       mockStatuses
     )

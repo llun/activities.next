@@ -23,43 +23,43 @@ import {
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-jest.mock('node:dns/promises', () => ({
-  lookup: jest.fn()
+vi.mock('node:dns/promises', async () => ({
+  lookup: vi.fn()
 }))
 
-jest.mock('@/lib/services/fitness-files', () => ({
-  saveFitnessFile: jest.fn()
+vi.mock('@/lib/services/fitness-files', async () => ({
+  saveFitnessFile: vi.fn()
 }))
 
-jest.mock('@/lib/services/medias/index', () => ({
-  saveMedia: jest.fn()
+vi.mock('@/lib/services/medias/index', async () => ({
+  saveMedia: vi.fn()
 }))
 
-jest.mock('@/lib/jobs/importFitnessFilesJob', () => ({
-  importFitnessFilesJob: jest.fn()
+vi.mock('@/lib/jobs/importFitnessFilesJob', async () => ({
+  importFitnessFilesJob: vi.fn()
 }))
 
-jest.mock('@/lib/services/strava/activity', () => {
-  const actual = jest.requireActual('@/lib/services/strava/activity')
+vi.mock('@/lib/services/strava/activity', async () => {
+  const actual = await vi.importActual('@/lib/services/strava/activity')
   return {
     ...actual,
-    buildGpxFromStravaStreams: jest.fn(),
-    buildTcxFromStravaStreams: jest.fn(),
-    getStravaActivity: jest.fn(),
-    getStravaActivityPhotos: jest.fn(),
-    getStravaActivityStreams: jest.fn(),
-    getValidStravaAccessToken: jest.fn()
+    buildGpxFromStravaStreams: vi.fn(),
+    buildTcxFromStravaStreams: vi.fn(),
+    getStravaActivity: vi.fn(),
+    getStravaActivityPhotos: vi.fn(),
+    getStravaActivityStreams: vi.fn(),
+    getValidStravaAccessToken: vi.fn()
   }
 })
 
-jest.mock('@/lib/services/queue', () => ({
-  getQueue: jest.fn().mockReturnValue({
-    publish: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('@/lib/services/timelines', () => ({
-  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/timelines', async () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
 const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
@@ -116,26 +116,26 @@ type MockDatabase = Pick<
 
 describe('importStravaActivityJob', () => {
   const database: jest.Mocked<MockDatabase> = {
-    getActorFromId: jest.fn(),
-    getFitnessSettings: jest.fn(),
-    getFitnessFilesByBatchId: jest.fn(),
-    getFitnessFile: jest.fn(),
-    getFitnessFilesByActor: jest.fn(),
-    updateFitnessFileActivityData: jest.fn(),
-    getStatus: jest.fn(),
-    updateNote: jest.fn(),
-    getAttachments: jest.fn(),
-    createAttachment: jest.fn(),
-    updateFitnessSettings: jest.fn(),
-    createNote: jest.fn(),
-    createNotification: jest.fn(),
+    getActorFromId: vi.fn(),
+    getFitnessSettings: vi.fn(),
+    getFitnessFilesByBatchId: vi.fn(),
+    getFitnessFile: vi.fn(),
+    getFitnessFilesByActor: vi.fn(),
+    updateFitnessFileActivityData: vi.fn(),
+    getStatus: vi.fn(),
+    updateNote: vi.fn(),
+    getAttachments: vi.fn(),
+    createAttachment: vi.fn(),
+    updateFitnessSettings: vi.fn(),
+    createNote: vi.fn(),
+    createNotification: vi.fn(),
     // createNotificationWithPolicy checks the recipient's conversation-mute
     // list before persisting; the importer's recipients have none.
-    getActorMutedConversationRootIds: jest.fn().mockResolvedValue([])
+    getActorMutedConversationRootIds: vi.fn().mockResolvedValue([])
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     database.getActorFromId.mockResolvedValue({
       id: 'actor-1',
@@ -253,7 +253,7 @@ describe('importStravaActivityJob', () => {
     mockImportFitnessFilesJob.mockResolvedValue(undefined)
     mockGetStravaActivityPhotos.mockResolvedValue([])
     mockGetQueue.mockReturnValue({
-      publish: jest.fn().mockResolvedValue(undefined)
+      publish: vi.fn().mockResolvedValue(undefined)
     } as never)
   })
 
@@ -585,7 +585,7 @@ describe('importStravaActivityJob', () => {
   })
 
   it('dedupes fallback note photo attachments and skips unsafe photo URLs', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
         headers: {
@@ -646,7 +646,7 @@ describe('importStravaActivityJob', () => {
   })
 
   it('skips oversized Strava photos without buffering or storing them', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
         status: 200,
         headers: {
@@ -950,7 +950,7 @@ describe('importStravaActivityJob', () => {
       text: 'Already imported'
     } as never)
 
-    const publishMock = jest.fn().mockResolvedValue(undefined)
+    const publishMock = vi.fn().mockResolvedValue(undefined)
     mockGetQueue.mockReturnValueOnce({ publish: publishMock } as never)
 
     await importStravaActivityJob(database as unknown as Database, {

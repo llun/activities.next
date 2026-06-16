@@ -5,7 +5,7 @@ import { type Actor } from '@/lib/types/domain/actor'
 import { GET } from './route'
 
 const mockDatabase = {
-  getActorFollowingCount: jest.fn()
+  getActorFollowingCount: vi.fn()
 }
 const mockActor: Actor = {
   id: 'https://example.com/users/test',
@@ -25,7 +25,7 @@ const mockActor: Actor = {
   publicKey: 'public-key'
 }
 
-jest.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
+vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
   OnlyLocalUserGuard:
     (
       handle: (...params: unknown[]) => Promise<Response> | Response,

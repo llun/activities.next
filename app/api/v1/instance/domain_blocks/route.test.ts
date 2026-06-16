@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { GET } from './route'
 
-const mockGetDatabase = jest.fn()
-jest.mock('@/lib/database', () => ({
+const mockGetDatabase = vi.fn()
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockGetDatabase()
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({ host: 'llun.test', allowEmails: [] })
 }))
 
@@ -17,7 +17,7 @@ describe('GET /api/v1/instance/domain_blocks', () => {
   })
 
   it('returns paginated public Mastodon-shaped domain blocks', async () => {
-    const getDomainBlocks = jest.fn().mockResolvedValue([
+    const getDomainBlocks = vi.fn().mockResolvedValue([
       {
         id: '1',
         type: 'block',
@@ -33,7 +33,7 @@ describe('GET /api/v1/instance/domain_blocks', () => {
         updatedAt: 0
       }
     ])
-    const getDomainFederationRuleStats = jest.fn().mockResolvedValue({
+    const getDomainFederationRuleStats = vi.fn().mockResolvedValue({
       blocks: 42,
       suspendBlocks: 7,
       allows: 0
@@ -74,10 +74,10 @@ describe('GET /api/v1/instance/domain_blocks', () => {
   })
 
   it('rejects invalid pagination parameters', async () => {
-    const getDomainBlocks = jest.fn()
+    const getDomainBlocks = vi.fn()
     mockGetDatabase.mockReturnValue({
       getDomainBlocks,
-      getDomainFederationRuleStats: jest.fn()
+      getDomainFederationRuleStats: vi.fn()
     })
 
     const response = await GET(

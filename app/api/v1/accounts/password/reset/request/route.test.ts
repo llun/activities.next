@@ -4,22 +4,22 @@ import { Database } from '@/lib/database/types'
 
 import { POST } from './route'
 
-const mockSendMail = jest.fn()
-jest.mock('@/lib/services/email', () => ({
+const mockSendMail = vi.fn()
+vi.mock('@/lib/services/email', () => ({
   sendMail: (...args: unknown[]) => mockSendMail(...args)
 }))
 
-const mockLoggerError = jest.fn()
-const mockLoggerWarn = jest.fn()
-jest.mock('@/lib/utils/logger', () => ({
+const mockLoggerError = vi.fn()
+const mockLoggerWarn = vi.fn()
+vi.mock('@/lib/utils/logger', () => ({
   logger: {
     error: (...args: unknown[]) => mockLoggerError(...args),
     warn: (...args: unknown[]) => mockLoggerWarn(...args)
   }
 }))
 
-jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-phase',
     email: {
@@ -34,14 +34,14 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('POST /api/v1/accounts/password/reset/request', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getAccountFromEmail: jest.fn(),
-    requestPasswordReset: jest.fn()
+    getAccountFromEmail: vi.fn(),
+    requestPasswordReset: vi.fn()
   }
   const buildRequest = (body: unknown) =>
     new NextRequest('http://llun.test/api/v1/accounts/password/reset/request', {
@@ -68,7 +68,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockSendMail.mockResolvedValue(undefined)
     mockDb.getAccountFromEmail.mockResolvedValue({
       id: 'account-1',

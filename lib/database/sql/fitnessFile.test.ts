@@ -83,8 +83,8 @@ describe('FitnessFileDatabase', () => {
       })
 
       it('uses a deterministic id tiebreaker when files share createdAt', async () => {
-        jest.useFakeTimers()
-        jest.setSystemTime(new Date('2030-01-01T00:00:00.000Z'))
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'))
 
         try {
           const first = await database.createFitnessFile({
@@ -125,7 +125,7 @@ describe('FitnessFileDatabase', () => {
             [first!.id, second!.id, third!.id].sort().reverse()
           )
         } finally {
-          jest.useRealTimers()
+          vi.useRealTimers()
         }
       })
     })

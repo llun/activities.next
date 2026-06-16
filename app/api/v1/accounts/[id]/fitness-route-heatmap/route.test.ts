@@ -7,31 +7,31 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { GET, POST } from './route'
 
-const mockGetServerSession = jest.fn()
-jest.mock('@/lib/services/auth/getSession', () => ({
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockGetActorFromSession = jest.fn()
-jest.mock('@/lib/utils/getActorFromSession', () => ({
+const mockGetActorFromSession = vi.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-const mockPublish = jest.fn()
-jest.mock('@/lib/services/queue', () => ({
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
 type MockDatabase = Pick<Database, 'getFitnessRouteHeatmapByKey'>
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessRouteHeatmapByKey: jest.fn()
+    getFitnessRouteHeatmapByKey: vi.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -42,7 +42,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   })
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -293,7 +293,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
 
   it('uses a unique retry job id for existing non-resumable caches', async () => {
     const retryNonce = '00000000-0000-4000-8000-000000000000'
-    const randomUUIDSpy = jest
+    const randomUUIDSpy = vi
       .spyOn(crypto, 'randomUUID')
       .mockReturnValue(retryNonce)
     const updatedTime = Date.now()
@@ -354,7 +354,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   })
 
   it('keeps the deterministic job id for non-retry refreshes of existing caches', async () => {
-    const randomUUIDSpy = jest.spyOn(crypto, 'randomUUID')
+    const randomUUIDSpy = vi.spyOn(crypto, 'randomUUID')
     const updatedTime = Date.now()
     mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
       id: 'route-heatmap-completed',

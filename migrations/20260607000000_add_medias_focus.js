@@ -7,7 +7,7 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function (knex) {
+export const up = function (knex) {
   return knex.schema.alterTable('medias', function (table) {
     table.double('focusX').nullable()
     table.double('focusY').nullable()
@@ -18,7 +18,7 @@ exports.up = function (knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function (knex) {
+export const down = function (knex) {
   return knex.schema.alterTable('medias', function (table) {
     table.dropColumn('focusX')
     table.dropColumn('focusY')

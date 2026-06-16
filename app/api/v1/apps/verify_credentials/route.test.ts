@@ -20,8 +20,8 @@ const mockStoredTokens = new Map<string, Record<string, unknown>>()
 // Clients resolved by getClientFromId, keyed by clientId.
 const mockClients = new Map<string, Client>()
 
-const mockGetActorFromId = jest.fn().mockResolvedValue(null)
-const mockGetClientFromId = jest
+const mockGetActorFromId = vi.fn().mockResolvedValue(null)
+const mockGetClientFromId = vi
   .fn()
   .mockImplementation(({ clientId }: { clientId: string }) =>
     Promise.resolve(mockClients.get(clientId) ?? null)
@@ -32,7 +32,7 @@ const mockDatabase = {
   getClientFromId: mockGetClientFromId
 }
 
-jest.mock('@/lib/database', () => ({
+vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => (_table: string) => ({
     where: (_field: string, value: string) => ({
@@ -41,17 +41,17 @@ jest.mock('@/lib/database', () => ({
   })
 }))
 
-jest.mock('@/lib/services/auth/getSession', () => ({
+vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => Promise.resolve(null)
 }))
 
 // All tokens under test are opaque, so verifyAccessToken is never invoked; the
 // mock just keeps the better-auth ESM module out of the transform path.
-jest.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: jest.fn()
+vi.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: vi.fn()
 }))
 
-jest.mock('@/lib/config', () => ({
+vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     host: 'llun.test',
     push: { vapidPublicKey: 'vapid-public-key' }

@@ -579,7 +579,7 @@ describe('createNoteJob', () => {
 
   it('batches hashtag search reindexing after hashtag tags are created', async () => {
     const noteId = `https://${actor1!.domain}/notes/batched-hashtag-test-${Date.now()}`
-    const indexHashtagSearchDocuments = jest.spyOn(
+    const indexHashtagSearchDocuments = vi.spyOn(
       database,
       'indexHashtagSearchDocuments'
     )

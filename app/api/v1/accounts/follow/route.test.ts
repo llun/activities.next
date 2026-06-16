@@ -4,9 +4,9 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 
 import { DELETE, POST } from './route'
 
-const mockFollow = jest.fn()
-const mockUnfollow = jest.fn()
-const mockCanFederateWithDomain = jest.fn()
+const mockFollow = vi.fn()
+const mockUnfollow = vi.fn()
+const mockCanFederateWithDomain = vi.fn()
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun',
   domain: 'llun.test'
@@ -19,26 +19,26 @@ const mockSigningActor = {
   privateKey: 'instance-key'
 }
 const mockDatabase = {
-  getAcceptedOrRequestedFollow: jest.fn(),
-  updateFollowStatus: jest.fn(),
-  getFederationSigningActor: jest.fn()
+  getAcceptedOrRequestedFollow: vi.fn(),
+  updateFollowStatus: vi.fn(),
+  getFederationSigningActor: vi.fn()
 }
 
-jest.mock('@/lib/activities', () => ({
+vi.mock('@/lib/activities', () => ({
   follow: (...params: unknown[]) => mockFollow(...params),
   unfollow: (...params: unknown[]) => mockUnfollow(...params)
 }))
 
-jest.mock('@/lib/activities/getActorPerson', () => ({
-  getActorPerson: jest.fn()
+vi.mock('@/lib/activities/getActorPerson', () => ({
+  getActorPerson: vi.fn()
 }))
 
-jest.mock('@/lib/services/federation/domainPolicy', () => ({
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
     mockCanFederateWithDomain(...params)
 }))
 
-jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
+vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
   AuthenticatedGuard:
     (
       handle: (
@@ -60,7 +60,7 @@ jest.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
 
 describe('DELETE /api/v1/accounts/follow', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue({
       id: 'follow-1',
       actorId: mockCurrentActor.id,

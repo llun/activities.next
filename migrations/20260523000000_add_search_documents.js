@@ -17,7 +17,7 @@ const isMySQL = (knex) => MYSQL_CLIENTS.has(getClientName(knex))
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async (knex) => {
+export const up = async (knex) => {
   await knex.schema.createTable(SEARCH_DOCUMENTS_TABLE, (table) => {
     if (isMySQL(knex)) {
       table.charset('utf8mb4')
@@ -86,7 +86,7 @@ exports.up = async (knex) => {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async (knex) => {
+export const down = async (knex) => {
   if (isSQLite(knex)) {
     await knex.raw('DROP TRIGGER IF EXISTS search_documents_au')
     await knex.raw('DROP TRIGGER IF EXISTS search_documents_ad')
