@@ -36,6 +36,15 @@ const isLocalUrl = (value: string, host: string): boolean => {
   }
 }
 
+const isHttpUrl = (value: string): boolean => {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 const getAnnouncedObjectId = (object: unknown): string | null => {
   if (typeof object === 'string') return object
   if (object && typeof (object as { id?: unknown }).id === 'string') {
@@ -67,7 +76,9 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
     const parsed = RelayAnnounce.safeParse(message.data)
     if (!parsed.success) return
     const objectId = getAnnouncedObjectId(parsed.data.object)
-    if (!objectId) return
+    // Guard against a malformed/non-URL object id so we never make a junk
+    // origin fetch for it.
+    if (!objectId || !isHttpUrl(objectId)) return
 
     const { host } = getConfig()
     // Skip our own posts relayed back to us.

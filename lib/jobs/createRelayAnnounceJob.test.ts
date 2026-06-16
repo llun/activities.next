@@ -132,6 +132,21 @@ describe('createRelayAnnounceJob', () => {
     expect(federated.map((status) => status.id)).toContain(note)
   })
 
+  it('ignores an Announce whose object is not an http(s) URL', async () => {
+    await createRelayAnnounceJob(database, {
+      id: 'job-bad',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf('not-a-valid-url', `${RELAY_ACTOR}/announce/bad`)
+    })
+
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).not.toContain(
+      'not-a-valid-url'
+    )
+  })
+
   it('is idempotent across repeated relay deliveries of the same note', async () => {
     const note = 'https://somewhere.test/statuses/relayed-dedupe'
     await createRelayAnnounceJob(database, {
