@@ -1,9 +1,12 @@
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { StatusActivity } from '@/lib/activities/statusAction'
+import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
+import { AnnounceAction } from '@/lib/types/activitypub/activities'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_202,
@@ -62,6 +65,30 @@ export const POST = traceApiRoute(
           data: ERROR_403,
           responseStatusCode: 403
         })
+      }
+
+      // A relay forwards third-party posts as an Announce signed by the relay
+      // itself (so the signer === actor check already passed). When the verified
+      // sender is an accepted relay, route its Announce to the relay-ingest job
+      // (which re-fetches the wrapped note from origin and federates it) instead
+      // of the normal boost path — we never want a relay-attributed Announce row.
+      if (activity.type === AnnounceAction) {
+        const relay = await database.getRelayByActorId({
+          actorId: verifiedSenderActorId
+        })
+        if (relay?.state === 'accepted') {
+          await getQueue().publish({
+            id: getHashFromString(activity.id),
+            name: RELAY_ANNOUNCE_JOB_NAME,
+            data: activity
+          })
+          return apiResponse({
+            req: request,
+            allowedMethods: CORS_HEADERS,
+            data: DEFAULT_202,
+            responseStatusCode: 202
+          })
+        }
       }
 
       const jobMessage = getJobMessage(activity, verifiedSenderActorId)

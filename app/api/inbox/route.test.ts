@@ -3,7 +3,10 @@ import { NextRequest } from 'next/server'
 import { POST } from './route'
 
 const mockCanFederateWithDomain = vi.fn()
-const mockDatabase = {}
+const mockGetRelayByActorId = vi.fn()
+const mockDatabase = {
+  getRelayByActorId: (...params: unknown[]) => mockGetRelayByActorId(...params)
+}
 const mockPublish = vi.fn()
 const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
@@ -91,6 +94,78 @@ describe('POST /api/inbox', () => {
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
     mockVerifiedSenderActorId = 'https://allowed.test/users/a'
+    mockGetRelayByActorId.mockResolvedValue(null)
+  })
+
+  describe('relay Announce routing', () => {
+    const RELAY_ACTOR = 'https://relay.example/actor'
+    const relayAnnounceBody = {
+      id: `${RELAY_ACTOR}/announce/1`,
+      type: 'Announce',
+      actor: RELAY_ACTOR,
+      published: '2024-01-01T00:00:00Z',
+      object: 'https://somewhere.test/statuses/relayed',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: []
+    }
+
+    it('routes an accepted relay Announce to the relay ingest job', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockVerifiedSenderActorId = RELAY_ACTOR
+      mockActivityBody = relayAnnounceBody
+      mockGetRelayByActorId.mockResolvedValue({
+        id: 'relay-1',
+        actorId: RELAY_ACTOR,
+        state: 'accepted'
+      })
+
+      const response = await POST(createRequest(RELAY_ACTOR), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockGetRelayByActorId).toHaveBeenCalledWith({
+        actorId: RELAY_ACTOR
+      })
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'RelayAnnounceJob' })
+      )
+    })
+
+    it('does not route an Announce from a non-relay sender to the relay ingest job', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockVerifiedSenderActorId = RELAY_ACTOR
+      mockActivityBody = relayAnnounceBody
+      mockGetRelayByActorId.mockResolvedValue(null)
+
+      const response = await POST(createRequest(RELAY_ACTOR), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'CreateAnnounceJob' })
+      )
+    })
+
+    it('does not route a pending relay Announce to the relay ingest job', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockVerifiedSenderActorId = RELAY_ACTOR
+      mockActivityBody = relayAnnounceBody
+      mockGetRelayByActorId.mockResolvedValue({
+        id: 'relay-1',
+        actorId: RELAY_ACTOR,
+        state: 'pending'
+      })
+
+      await POST(createRequest(RELAY_ACTOR), {
+        params: Promise.resolve({})
+      })
+
+      expect(mockPublish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'RelayAnnounceJob' })
+      )
+    })
   })
 
   it('rejects activities from blocked actor domains', async () => {
