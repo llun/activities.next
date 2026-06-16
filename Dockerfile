@@ -9,11 +9,20 @@ ENV ACTIVITIES_HOST=${ACTIVITIES_HOST}
 ENV ACTIVITIES_DATABASE_TYPE=${ACTIVITIES_DATABASE_TYPE}
 ENV ACTIVITIES_DATABASE_CLIENT=${ACTIVITIES_DATABASE_CLIENT}
 ENV ACTIVITIES_DATABASE_SQLITE_FILENAME=${ACTIVITIES_DATABASE_SQLITE_FILENAME}
+# Keep Corepack's download cache outside the project tree. The app user's HOME is
+# /opt/activities.next (the project root), so the default COREPACK_HOME of
+# $HOME/.cache/node/corepack would place the downloaded yarn.js inside a package
+# whose package.json has "type": "module". Node would then load Corepack's
+# CommonJS yarn bundle as ESM and fail with `Dynamic require of "util" is not
+# supported`. Pointing COREPACK_HOME at a directory with no "type": "module"
+# ancestor lets Node load yarn as CommonJS.
+ENV COREPACK_HOME="/opt/corepack"
 RUN apk add ffmpeg
 RUN \
-  mkdir -p /opt/activities.next; \
+  mkdir -p /opt/activities.next /opt/corepack; \
   addgroup --system --gid "${GID}" app; \
-  adduser --system --uid "${UID}" --home /opt/activities.next app
+  adduser --system --uid "${UID}" --home /opt/activities.next app; \
+  chown app:app /opt/corepack
 RUN corepack enable
 WORKDIR /opt/activities.next
 USER app
