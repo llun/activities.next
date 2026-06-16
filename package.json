@@ -84,7 +84,7 @@
     "remark-gfm": "^4.0.1",
     "resend": "^6.12.4",
     "sanitize-html": "^2.17.5",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.1",
     "tailwind-merge": "^3.6.0",
     "web-push": "^3.6.7",
     "yauzl": "^3.3.2",
