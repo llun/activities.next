@@ -96,7 +96,7 @@ describe('BookmarksTimeline', () => {
     })
     Object.defineProperty(globalThis, 'IntersectionObserver', {
       configurable: true,
-      value: vi.fn().mockImplementation((callback) => {
+      value: vi.fn().mockImplementation(function (callback) {
         intersectionObserverCallback = callback
         return {
           disconnect: intersectionObserverDisconnect,
@@ -106,10 +106,12 @@ describe('BookmarksTimeline', () => {
     })
     Object.defineProperty(globalThis, 'ResizeObserver', {
       configurable: true,
-      value: vi.fn().mockImplementation(() => ({
-        disconnect: vi.fn(),
-        observe: vi.fn()
-      }))
+      value: vi.fn().mockImplementation(function () {
+        return {
+          disconnect: vi.fn(),
+          observe: vi.fn()
+        }
+      })
     })
   })
 

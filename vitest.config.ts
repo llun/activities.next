@@ -15,9 +15,11 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // Default environment is node; component tests opt into jsdom per file via
+    // a `@vitest-environment jsdom` docblock (vitest 4 removed
+    // `environmentMatchGlobs`). `environmentOptions` still applies to whichever
+    // environment a test selects, so jsdom tests get the localhost:3000 URL.
     environment: 'node',
-    // Component tests render against jsdom; pure logic tests stay on node.
-    environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
     environmentOptions: {
       jsdom: { url: 'http://localhost:3000' }
     },

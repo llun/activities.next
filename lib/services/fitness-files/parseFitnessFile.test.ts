@@ -4,12 +4,14 @@ import { parseFitnessFile } from './parseFitnessFile'
 
 vi.mock('fit-file-parser', () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      parse: (
-        _buffer: Buffer,
-        callback: (error: Error | null, data?: unknown) => void
-      ) => callback(null, {})
-    }))
+    default: vi.fn().mockImplementation(function () {
+      return {
+        parse: (
+          _buffer: Buffer,
+          callback: (error: Error | null, data?: unknown) => void
+        ) => callback(null, {})
+      }
+    })
   }
 })
 
@@ -100,37 +102,39 @@ describe('parseFitnessFile', () => {
   })
 
   it('parses FIT data from fit-file-parser output', async () => {
-    FitParserMock.mockImplementation(() => ({
-      parse: (
-        _buffer: Buffer,
-        callback: (error: Error | null, data?: unknown) => void
-      ) =>
-        callback(null, {
-          sessions: [
-            {
-              total_distance: 5_000,
-              total_elapsed_time: 1_500,
-              total_ascent: 140,
-              sport: 'running',
-              start_time: '2026-01-03T06:00:00Z'
-            }
-          ],
-          records: [
-            {
-              position_lat: 37.78,
-              position_long: -122.42,
-              altitude: 10,
-              timestamp: '2026-01-03T06:00:00Z'
-            },
-            {
-              position_lat: 37.79,
-              position_long: -122.41,
-              altitude: 20,
-              timestamp: '2026-01-03T06:25:00Z'
-            }
-          ]
-        })
-    }))
+    FitParserMock.mockImplementation(function () {
+      return {
+        parse: (
+          _buffer: Buffer,
+          callback: (error: Error | null, data?: unknown) => void
+        ) =>
+          callback(null, {
+            sessions: [
+              {
+                total_distance: 5_000,
+                total_elapsed_time: 1_500,
+                total_ascent: 140,
+                sport: 'running',
+                start_time: '2026-01-03T06:00:00Z'
+              }
+            ],
+            records: [
+              {
+                position_lat: 37.78,
+                position_long: -122.42,
+                altitude: 10,
+                timestamp: '2026-01-03T06:00:00Z'
+              },
+              {
+                position_lat: 37.79,
+                position_long: -122.41,
+                altitude: 20,
+                timestamp: '2026-01-03T06:25:00Z'
+              }
+            ]
+          })
+      }
+    })
 
     const parsed = await parseFitnessFile({
       fileType: 'fit',
@@ -146,12 +150,14 @@ describe('parseFitnessFile', () => {
   })
 
   it('throws when FIT parser reports an error', async () => {
-    FitParserMock.mockImplementation(() => ({
-      parse: (
-        _buffer: Buffer,
-        callback: (error: Error | null, data?: unknown) => void
-      ) => callback(new Error('failed to parse fit'))
-    }))
+    FitParserMock.mockImplementation(function () {
+      return {
+        parse: (
+          _buffer: Buffer,
+          callback: (error: Error | null, data?: unknown) => void
+        ) => callback(new Error('failed to parse fit'))
+      }
+    })
 
     await expect(
       parseFitnessFile({
