@@ -17,7 +17,11 @@ const TimelineQuerySchema = z.object({
   limit: z.string().optional(),
   max_id: z.string().optional(),
   min_id: z.string().optional(),
-  since_id: z.string().optional()
+  since_id: z.string().optional(),
+  // Mastodon's public-timeline scope filters. Only the public timeline reads
+  // them; other endpoints ignore them.
+  local: z.string().optional(),
+  remote: z.string().optional()
 })
 
 export interface ParsedTimelineQuery {
@@ -27,7 +31,14 @@ export interface ParsedTimelineQuery {
   maxStatusId: string | null
   minStatusId: string | null
   sinceStatusId: string | null
+  // Public-timeline scope (Mastodon `local`/`remote`). Coerced from the truthy
+  // string forms Mastodon accepts (`true`/`1`).
+  local: boolean
+  remote: boolean
 }
+
+const isTruthyParam = (value: string | undefined): boolean =>
+  value === 'true' || value === '1'
 
 export type ParseTimelineQueryResult =
   | { ok: true; query: ParsedTimelineQuery }
@@ -52,7 +63,9 @@ export const parseTimelineQuery = (
     limit: searchParams.get('limit') || undefined,
     max_id: searchParams.get('max_id') || undefined,
     min_id: searchParams.get('min_id') || undefined,
-    since_id: searchParams.get('since_id') || undefined
+    since_id: searchParams.get('since_id') || undefined,
+    local: searchParams.get('local') || undefined,
+    remote: searchParams.get('remote') || undefined
   })
   if (!parsed.success) return { ok: false }
 
@@ -81,7 +94,9 @@ export const parseTimelineQuery = (
       limit: pageLimit,
       maxStatusId: maxStatusId ?? null,
       minStatusId: minStatusId ?? null,
-      sinceStatusId: sinceStatusId ?? null
+      sinceStatusId: sinceStatusId ?? null,
+      local: isTruthyParam(parsed.data.local),
+      remote: isTruthyParam(parsed.data.remote)
     }
   }
 }

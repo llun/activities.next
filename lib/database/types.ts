@@ -29,6 +29,7 @@ import {
   NotificationDatabase,
   OAuthDatabase,
   PushSubscriptionDatabase,
+  RelayDatabase,
   ReportDatabase,
   ScheduledStatusDatabase,
   SearchDatabase,
@@ -70,6 +71,7 @@ export type Database = AccountDatabase &
   NotificationDatabase &
   OAuthDatabase &
   PushSubscriptionDatabase &
+  RelayDatabase &
   ReportDatabase &
   ScheduledStatusDatabase &
   SearchDatabase &

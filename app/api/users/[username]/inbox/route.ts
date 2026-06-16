@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
+import {
+  acceptRelayRequest,
+  rejectRelayRequest
+} from '@/lib/actions/acceptRelayRequest'
 import { applyRemoteBlock } from '@/lib/actions/applyRemoteBlock'
 import { applyRemoteUnblock } from '@/lib/actions/applyRemoteUnblock'
 import { createFollower } from '@/lib/actions/createFollower'
@@ -72,6 +76,18 @@ const Activity = z.union([
   GracefullyAcceptedActivity
 ])
 
+// An Accept/Reject delivered to the instance/federation signing actor is a
+// relay handshake response. Parse it leniently: relays echo the Follow we sent
+// either as the full object or as a bare id string.
+const RelayHandshake = z
+  .object({
+    id: z.string(),
+    actor: z.string(),
+    type: z.enum(['Accept', 'Reject']),
+    object: z.union([z.string(), z.object({ id: z.string() }).passthrough()])
+  })
+  .passthrough()
+
 const actorIdsMatch = (firstActorId: string, secondActorId: string) => {
   const normalizedFirstActorId = normalizeActorId(firstActorId)
   const normalizedSecondActorId = normalizeActorId(secondActorId)
@@ -108,6 +124,24 @@ export const POST = traceApiRoute(
         async (database, actor, req) => {
           try {
             if (isFederationSigningActor(actor)) {
+              // The instance/federation signing actor only ever sends relay
+              // Follows, so an Accept/Reject delivered here is a relay handshake
+              // response. The HTTP-signature guard already verified the sender
+              // is the relay (signer === activity.actor). Anything else is
+              // accepted without side effects, preserving prior behaviour.
+              const compactedHandshake = await compactActivityPub(
+                context.activityBody
+              )
+              const relayHandshake =
+                RelayHandshake.safeParse(compactedHandshake)
+              if (relayHandshake.success) {
+                const activity = relayHandshake.data
+                if (activity.type === 'Accept') {
+                  await acceptRelayRequest({ activity, database })
+                } else {
+                  await rejectRelayRequest({ activity, database })
+                }
+              }
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,

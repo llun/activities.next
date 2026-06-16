@@ -6,6 +6,7 @@ import {
   Globe,
   Hash,
   Megaphone,
+  Rss,
   Scale,
   Settings,
   Smile,
@@ -34,6 +35,7 @@ const tabs: SectionNavTab[] = [
   { name: 'Rules', url: '/admin/rules', icon: Scale },
   { name: 'Announcements', url: '/admin/announcements', icon: Megaphone },
   { name: 'Federation', url: '/admin/federation', icon: Globe },
+  { name: 'Relays', url: '/admin/relays', icon: Rss },
   { name: 'Custom emojis', url: '/admin/emojis', icon: Smile },
   { name: 'System', url: '/admin/system', icon: Settings }
 ]

@@ -8,7 +8,10 @@ export enum Timeline {
   NOANNOUNCE = 'noannounce',
   MENTION = 'mention',
   DIRECT = 'direct',
-  LOCAL_PUBLIC = 'local-public'
+  LOCAL_PUBLIC = 'local-public',
+  // The "whole known network" feed: remote public statuses ingested from
+  // accepted relays, materialized into the `federated_timeline` table.
+  FEDERATED_PUBLIC = 'federated-public'
 }
 
 // List feeds are materialized into the same `timelines` table as the fixed feeds

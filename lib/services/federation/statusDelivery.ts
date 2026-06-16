@@ -114,6 +114,15 @@ export const getFederatedStatusDeliveryInboxes = async ({
     )
   }
 
+  // Public posts are also forwarded to every accepted relay's inbox so the
+  // relay can redistribute them. Relays only carry public activities, so this
+  // is gated on a public audience. The Set dedup + domain-policy filter below
+  // cover relay inboxes too.
+  if (hasPublicAudience(status)) {
+    const relays = await database.getAcceptedRelays()
+    inboxes.push(...relays.map((relay) => relay.inboxUrl))
+  }
+
   const explicitRecipientActorIds = getExplicitRecipientActorIds(status).filter(
     (actorId) => actorId !== currentActor.id
   )

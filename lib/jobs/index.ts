@@ -4,6 +4,7 @@ import { createAnnounceJob } from './createAnnounceJob'
 import { createNoteJob } from './createNoteJob'
 import { createPollJob } from './createPollJob'
 import { createPollVoteJob } from './createPollVoteJob'
+import { createRelayAnnounceJob } from './createRelayAnnounceJob'
 import { deleteActorJob } from './deleteActorJob'
 import { deleteObjectJob } from './deleteObjectJob'
 import { fetchRemoteStatusJob } from './fetchRemoteStatusJob'
@@ -27,6 +28,7 @@ import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
+  RELAY_ANNOUNCE_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
   SEND_BLOCK_JOB_NAME,
   SEND_NOTE_JOB_NAME,
@@ -57,6 +59,7 @@ export const JOBS: Record<string, JobHandle> = {
   [CREATE_NOTE_JOB_NAME]: createNoteJob,
   [UPDATE_NOTE_JOB_NAME]: updateNoteJob,
   [CREATE_ANNOUNCE_JOB_NAME]: createAnnounceJob,
+  [RELAY_ANNOUNCE_JOB_NAME]: createRelayAnnounceJob,
   [CREATE_POLL_JOB_NAME]: createPollJob,
   [CREATE_POLL_VOTE_JOB_NAME]: createPollVoteJob,
   [UPDATE_POLL_JOB_NAME]: updatePollJob,

@@ -277,6 +277,12 @@ CREATE TABLE public.featured_tags (
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.federated_timeline (
+    "statusId" character varying(255) NOT NULL,
+    "statusActorId" character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.filter_keywords (
     id character varying(255) NOT NULL,
     "filterId" character varying(255) NOT NULL,
@@ -721,6 +727,17 @@ CREATE TABLE public.recipients (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.relays (
+    id character varying(255) NOT NULL,
+    "inboxUrl" character varying(255) NOT NULL,
+    "actorId" character varying(255),
+    state character varying(255) DEFAULT 'idle'::character varying NOT NULL,
+    "followActivityId" character varying(255),
+    "lastError" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.reports (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1060,6 +1077,9 @@ ALTER TABLE ONLY public.featured_tags
 ALTER TABLE ONLY public.featured_tags
     ADD CONSTRAINT featured_tags_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.federated_timeline
+    ADD CONSTRAINT federated_timeline_pkey PRIMARY KEY ("statusId");
+
 ALTER TABLE ONLY public.filter_keywords
     ADD CONSTRAINT filter_keywords_filter_keyword_unique UNIQUE ("filterId", keyword);
 
@@ -1192,6 +1212,12 @@ ALTER TABLE ONLY public.push_subscriptions
 ALTER TABLE ONLY public.recipients
     ADD CONSTRAINT recipients_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.relays
+    ADD CONSTRAINT relays_inboxurl_unique UNIQUE ("inboxUrl");
+
+ALTER TABLE ONLY public.relays
+    ADD CONSTRAINT relays_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_pkey PRIMARY KEY (id);
 
@@ -1304,6 +1330,8 @@ CREATE INDEX domain_federation_rules_type_idx ON public.domain_federation_rules 
 
 CREATE INDEX featured_tags_name ON public.featured_tags USING btree ("nameNormalized");
 
+CREATE INDEX federated_timeline_status_actor_id ON public.federated_timeline USING btree ("statusActorId");
+
 CREATE INDEX filter_keywords_filter_id ON public.filter_keywords USING btree ("filterId");
 
 CREATE INDEX filter_statuses_filter_id ON public.filter_statuses USING btree ("filterId");
@@ -1382,6 +1410,10 @@ CREATE INDEX "recipients_actorId_statusId_idx" ON public.recipients USING btree 
 
 CREATE INDEX recipients_type_actor_created_status_idx ON public.recipients USING btree (type, "actorId", "createdAt", "statusId");
 
+CREATE INDEX relays_actor_id ON public.relays USING btree ("actorId");
+
+CREATE INDEX relays_state ON public.relays USING btree (state);
+
 CREATE INDEX reports_actor_created ON public.reports USING btree ("actorId", "createdAt");
 
 CREATE INDEX reports_target ON public.reports USING btree ("targetActorId");
@@ -1455,6 +1487,9 @@ CREATE INDEX verification_identifier_index ON public.verification USING btree (i
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_accountid_foreign FOREIGN KEY ("accountId") REFERENCES public.accounts(id);
 
+ALTER TABLE ONLY public.federated_timeline
+    ADD CONSTRAINT federated_timeline_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
@@ -1508,3 +1543,4 @@ ALTER TABLE ONLY public.status_pins
 
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT twofactor_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id) ON DELETE CASCADE;
+
