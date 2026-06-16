@@ -1,0 +1,19 @@
+Dockerfile
+  s_17b20ad0d9af2f::t_d5f35dfa80e5d6 12-19,22,24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "44a680c72750bb1335bb4fa8bc1357f2a66bb594",
+  "prompts": {},
+  "sessions": {
+    "s_17b20ad0d9af2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "770b927d-936c-4e5b-9f97-2c542586f70c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
