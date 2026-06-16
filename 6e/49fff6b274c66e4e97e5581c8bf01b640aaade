@@ -1,0 +1,47 @@
+lib/services/fitness-files/S3StorageFile.test.ts
+  s_47fb9e2ae4330b::t_2e7c162f0516bf 44-46
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  s_47fb9e2ae4330b::t_f976aecc72e963 99,109-114
+package.json
+  s_47fb9e2ae4330b::t_41ff8320e1f9f3 122
+  s_47fb9e2ae4330b::t_72c8b10a7758f9 143-144
+lib/jobs/importStravaArchiveJob.test.ts
+  s_47fb9e2ae4330b::t_240afc8e86186d 28-35
+lib/services/queue/qstash.test.ts
+  s_47fb9e2ae4330b::t_a13fb733d93456 21-25
+lib/services/fitness-files/parseFitnessFile.test.ts
+  s_47fb9e2ae4330b::t_5f9e8a2b44d378 112-135
+  s_47fb9e2ae4330b::t_b6b6dd19183be0 105-111
+  s_47fb9e2ae4330b::t_48f7b22396e4a2 7-14
+  s_47fb9e2ae4330b::t_1a327564aab250 136-137
+  s_47fb9e2ae4330b::t_063733db606361 153-160
+lib/services/medias/S3StorageFile.test.ts
+  s_47fb9e2ae4330b::t_3565aa2800ca80 56-58
+lib/components/admin-announcements/AnnouncementsPanel.test.tsx
+  s_47fb9e2ae4330b::t_64772c06a06a72 54-60
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_47fb9e2ae4330b::t_40a4e8097251ff 480-490,604-614
+  s_47fb9e2ae4330b::t_0ae48c5dfcece4 513-525,574-586
+vitest.config.ts
+  s_47fb9e2ae4330b::t_13ebd036349601 18-21
+yarn.lock
+  s_47fb9e2ae4330b::t_866ca77dc8e894 757,837-846,1120,1130,1622,1848-1854,3036-3038,3043-3045,3050-3052,3057-3059,3064-3067,3071-3073,3078-3080,3085-3087,3092-3094,3099-3101,3106-3108,3113-3115,3120-3127,3131-3134,3138-3140,3145-3148,4451-4453,4456-4457,4460-4467,4471,4475-4477,4479,4481-4485,4489-4491,4493,4495,4498,4504,4508-4510,4512-4513,4517-4519,4521,4523,4527-4529,4531-4533,4535,4539-4542,4546-4548,4550-4553,4643,4703-4704,4930-4932,4937,5408-5411,5702,6182-6185,6683,6937,6947,7900,8341,8498,8507-8509,8511-8514,9204,9280,9635-9641,10012,10786-10806,10808,10810,10812,10814,10816,10818,10820,10822,10824,10826,10828,10830,10832,10834,10836,10839-10840,11239,11310-11313,11327,11437,11652-11655,11669,11679-11682,12196-12198,12201-12205,12208-12209,12225-12228,12249,12262-12264,12266-12276,12278-12279,12281-12284,12288-12295,12298,12302,12306-12314,12322-12323,12325-12326
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  s_47fb9e2ae4330b::t_7d673f354a2f0e 99,109-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "6e49fff6b274c66e4e97e5581c8bf01b640aaade",
+  "prompts": {},
+  "sessions": {
+    "s_47fb9e2ae4330b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "365e3ed6-1ed5-4e33-a0b9-794593e3cf76",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
