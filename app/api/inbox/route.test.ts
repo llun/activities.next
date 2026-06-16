@@ -148,7 +148,7 @@ describe('POST /api/inbox', () => {
       )
     })
 
-    it('does not route a pending relay Announce to the relay ingest job', async () => {
+    it('acknowledges a known-but-not-accepted relay Announce without boosting it', async () => {
       mockCanFederateWithDomain.mockResolvedValue(true)
       mockVerifiedSenderActorId = RELAY_ACTOR
       mockActivityBody = relayAnnounceBody
@@ -158,13 +158,14 @@ describe('POST /api/inbox', () => {
         state: 'pending'
       })
 
-      await POST(createRequest(RELAY_ACTOR), {
+      const response = await POST(createRequest(RELAY_ACTOR), {
         params: Promise.resolve({})
       })
 
-      expect(mockPublish).not.toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'RelayAnnounceJob' })
-      )
+      // A known relay's Announce must never fall through to the boost path, so
+      // no job (relay ingest OR CreateAnnounce) is enqueued.
+      expect(response.status).toBe(202)
+      expect(mockPublish).not.toHaveBeenCalled()
     })
   })
 

@@ -76,12 +76,19 @@ export const POST = traceApiRoute(
         const relay = await database.getRelayByActorId({
           actorId: verifiedSenderActorId
         })
-        if (relay?.state === 'accepted') {
-          await getQueue().publish({
-            id: getHashFromString(activity.id),
-            name: RELAY_ANNOUNCE_JOB_NAME,
-            data: activity
-          })
+        // Any Announce from a KNOWN relay is relay traffic, never a normal
+        // boost. Accepted relays are ingested into the Federated timeline; a
+        // known-but-not-accepted relay (pending/rejected/unsubscribed) is
+        // acknowledged without falling through to the boost path, so it can
+        // never create a relay-attributed Announce row.
+        if (relay) {
+          if (relay.state === 'accepted') {
+            await getQueue().publish({
+              id: getHashFromString(activity.id),
+              name: RELAY_ANNOUNCE_JOB_NAME,
+              data: activity
+            })
+          }
           return apiResponse({
             req: request,
             allowedMethods: CORS_HEADERS,
