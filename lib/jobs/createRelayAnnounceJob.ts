@@ -79,6 +79,9 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
     })
     if (!status) {
       const signingActor = await getFederationSigningActor(database)
+      // Without the instance signing actor we cannot make the signed origin
+      // fetch most servers require, so skip rather than fetch unsigned.
+      if (!signingActor) return
       const note = await getNote({ statusId: objectId, signingActor })
       if (!note) return
       // createNoteJob enforces the note author's federation policy and persists
