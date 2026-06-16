@@ -117,10 +117,12 @@ describe('TwoFactorManager', () => {
     await waitFor(() => {
       expect(mockVerifyTotp).toHaveBeenCalledWith({ code: '654321' })
     })
-    expect(mockRefresh).toHaveBeenCalled()
+    // Wait for the post-verify re-render before asserting on rendered text and
+    // the refresh() call that follows setEnabled() in the same handler.
     expect(
-      screen.getByText('Two-factor authentication is on')
+      await screen.findByText('Two-factor authentication is on')
     ).toBeInTheDocument()
+    expect(mockRefresh).toHaveBeenCalled()
     expect(screen.getByText('Save your backup codes')).toBeInTheDocument()
     expect(screen.getByText('backup-after-verify')).toBeInTheDocument()
   })
@@ -143,7 +145,10 @@ describe('TwoFactorManager', () => {
     await waitFor(() => {
       expect(mockDisable).toHaveBeenCalledWith({ password: 'password' })
     })
-    expect(screen.getByText('2FA is off')).toBeInTheDocument()
+    // The "2FA is off" label renders only after the awaited disable() resolves
+    // and React re-renders; use findByText so the assertion waits for that
+    // re-render instead of racing it.
+    expect(await screen.findByText('2FA is off')).toBeInTheDocument()
     expect(mockRefresh).toHaveBeenCalled()
   })
 
@@ -169,7 +174,9 @@ describe('TwoFactorManager', () => {
         password: 'password'
       })
     })
-    expect(screen.getByText('new-backup-one')).toBeInTheDocument()
+    // Codes render after the awaited generateBackupCodes() resolves; wait for
+    // that re-render rather than reading synchronously.
+    expect(await screen.findByText('new-backup-one')).toBeInTheDocument()
     expect(screen.getByText('new-backup-two')).toBeInTheDocument()
   })
 })

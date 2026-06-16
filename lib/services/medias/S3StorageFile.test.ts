@@ -53,7 +53,9 @@ describe('S3FileStorage presigned upload completion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
-      () => ({ send }) as unknown as S3Client
+      function () {
+        return { send } as unknown as S3Client
+      }
     )
     database.createMedia.mockResolvedValue({
       id: 'media-1',
