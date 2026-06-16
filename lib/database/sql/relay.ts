@@ -6,6 +6,7 @@ import {
   CreateRelayParams,
   DeleteRelayParams,
   GetRelayByActorIdParams,
+  GetRelayByFollowActivityIdParams,
   GetRelayByIdParams,
   GetRelayByInboxUrlParams,
   RelayData,
@@ -106,6 +107,15 @@ export const RelaySQLDatabaseMixin = (database: Knex): RelayDatabase => ({
 
   async getRelayByActorId({ actorId }: GetRelayByActorIdParams) {
     const row = await database<SQLRelay>('relays').where({ actorId }).first()
+    return row ? toRelay(row) : null
+  },
+
+  async getRelayByFollowActivityId({
+    followActivityId
+  }: GetRelayByFollowActivityIdParams) {
+    const row = await database<SQLRelay>('relays')
+      .where({ followActivityId })
+      .first()
     return row ? toRelay(row) : null
   },
 

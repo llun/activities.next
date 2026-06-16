@@ -1554,6 +1554,7 @@ export type DeleteRelayParams = { id: string }
 export type GetRelayByIdParams = { id: string }
 export type GetRelayByInboxUrlParams = { inboxUrl: string }
 export type GetRelayByActorIdParams = { actorId: string }
+export type GetRelayByFollowActivityIdParams = { followActivityId: string }
 
 export interface RelayDatabase {
   // Creates a relay row in the `idle` state. Throws on a duplicate inboxUrl.
@@ -1573,6 +1574,11 @@ export interface RelayDatabase {
   // Resolve a relay by its actor id (used to recognise an inbound
   // relay-forwarded activity's HTTP signer). Returns null when unknown.
   getRelayByActorId(params: GetRelayByActorIdParams): Promise<RelayData | null>
+  // Resolve a relay by the Follow id we sent (used to match the relay's
+  // Accept/Reject back to the subscription). Returns null when unknown.
+  getRelayByFollowActivityId(
+    params: GetRelayByFollowActivityIdParams
+  ): Promise<RelayData | null>
   // Accepted relays only — the fan-out targets for local public posts.
   getAcceptedRelays(): Promise<RelayData[]>
 }
