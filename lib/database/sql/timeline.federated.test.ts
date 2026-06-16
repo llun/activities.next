@@ -109,6 +109,32 @@ describe('Timeline.FEDERATED_PUBLIC', () => {
     })
   })
 
+  it('excludes replies (top-level posts only, like LOCAL_PUBLIC)', async () => {
+    await withFreshDatabase(async (database) => {
+      const topLevel = await seedFederatedStatus(database, 1)
+
+      const replyId = `${REMOTE}/statuses/relayed-reply`
+      const reply = await database.createNote({
+        id: replyId,
+        url: replyId,
+        actorId: REMOTE,
+        text: 'a relayed reply',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        reply: `${REMOTE}/statuses/some-parent`
+      })
+      await database.addStatusToFederatedTimeline({
+        statusId: reply.id,
+        statusActorId: REMOTE
+      })
+
+      const statuses = await database.getTimeline({
+        timeline: Timeline.FEDERATED_PUBLIC
+      })
+      expect(statuses.map((status) => status.id)).toEqual([topLevel.id])
+    })
+  })
+
   it('returns an empty list when nothing has been federated', async () => {
     await withFreshDatabase(async (database) => {
       expect(

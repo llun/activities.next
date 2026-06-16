@@ -110,6 +110,9 @@ export const TimelineSQLDatabaseMixin = (
         let query = database('federated_timeline')
           .select('statuses.id as statusId')
           .innerJoin('statuses', 'federated_timeline.statusId', 'statuses.id')
+          // Top-level posts only, matching LOCAL_PUBLIC and Mastodon's public
+          // timeline semantics (replies are excluded).
+          .where('statuses.reply', '')
           .limit(limit)
 
         if (maxRow) {
