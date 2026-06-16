@@ -156,7 +156,8 @@ describe('unsubscribeRelayAction', () => {
     )
     expect(mockDatabase.updateRelay).toHaveBeenCalledWith({
       id: 'relay-1',
-      state: 'idle'
+      state: 'idle',
+      followActivityId: null
     })
   })
 })

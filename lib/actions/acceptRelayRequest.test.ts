@@ -4,6 +4,7 @@ import {
 } from '@/lib/actions/acceptRelayRequest'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 
 const FOLLOW_ID = 'https://instance.example/relay-follow-1'
 const RELAY_ACTOR = 'https://relay.example/actor'
@@ -68,6 +69,37 @@ describe('acceptRelayRequest', () => {
         database
       })
       expect(updated).toBeNull()
+    })
+  })
+
+  it('does not resurrect an unsubscribed (idle) relay', async () => {
+    await withFreshDatabase(async (database) => {
+      const relay = await database.createRelay({
+        inboxUrl: 'https://relay.example/inbox'
+      })
+      // Idle (never subscribed / after an Undo) but the Follow id still matches.
+      await database.updateRelay({ id: relay.id, followActivityId: FOLLOW_ID })
+
+      const updated = await acceptRelayRequest({
+        activity: { actor: RELAY_ACTOR, object: { id: FOLLOW_ID } },
+        database
+      })
+      expect(updated).toBeNull()
+
+      const after = await database.getRelayById({ id: relay.id })
+      expect(after?.state).toBe('idle')
+    })
+  })
+
+  it('normalizes the stored relay actor id', async () => {
+    await withFreshDatabase(async (database) => {
+      await seedPendingRelay(database)
+      // A non-canonical actor id (bare host, no trailing slash).
+      const updated = await acceptRelayRequest({
+        activity: { actor: 'https://relay.example', object: { id: FOLLOW_ID } },
+        database
+      })
+      expect(updated?.actorId).toBe(normalizeActorId('https://relay.example'))
     })
   })
 })

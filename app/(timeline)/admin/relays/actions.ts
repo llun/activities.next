@@ -94,7 +94,9 @@ export async function unsubscribeRelayAction(formData: FormData) {
   if (relay) {
     const signingActor = await getFederationSigningActor(database)
     if (signingActor) await unfollowRelay(relay, signingActor)
-    await database.updateRelay({ id, state: 'idle' })
+    // Clear the Follow id so a stale/late Accept cannot re-match and resurrect
+    // the subscription (acceptRelayRequest also guards on the pending state).
+    await database.updateRelay({ id, state: 'idle', followActivityId: null })
   }
 
   redirectWithStatus('relay-unsubscribed')
