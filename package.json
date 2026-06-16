@@ -147,6 +147,7 @@
     "node": "24.x"
   },
   "resolutions": {
+    "esbuild": "0.28.1",
     "postcss": "8.5.15"
   },
   "packageManager": "yarn@4.15.0"
