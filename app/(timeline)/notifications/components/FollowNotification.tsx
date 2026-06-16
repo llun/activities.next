@@ -1,59 +1,60 @@
-import Image from 'next/image'
-import Link from 'next/link'
-import { FC } from 'react'
+'use client'
 
-import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import { FC, useState } from 'react'
+
+import { follow } from '@/lib/client'
+import { Button } from '@/lib/components/ui/button'
 import type { Mastodon } from '@/lib/types/activitypub'
 
-interface NotificationWithAccount extends GroupedNotification {
+interface Props {
   account: Mastodon.Account
 }
 
-interface Props {
-  notification: NotificationWithAccount
-}
+// The body of a follow (new follower) notification: the actor handle plus a
+// "Follow back" action. The "<name> followed you" headline lives in
+// NotificationItem.
+export const FollowNotification: FC<Props> = ({ account }) => {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(
+    'idle'
+  )
 
-export const FollowNotification: FC<Props> = ({ notification }) => {
-  const { account, groupedCount } = notification
-  const hasMultiple = groupedCount && groupedCount > 1
+  const handleFollowBack = async () => {
+    setState('loading')
+    try {
+      const ok = await follow({ targetActorId: account.id })
+      setState(ok ? 'done' : 'error')
+    } catch {
+      setState('error')
+    }
+  }
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="relative size-12 shrink-0">
-        {account.avatar && (
-          <Image
-            src={account.avatar}
-            alt={account.display_name || account.username}
-            fill
-            className="rounded-full object-cover"
-          />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        {hasMultiple ? (
-          <p className="text-sm">
-            <Link
-              href={`/@${account.acct}`}
-              className="font-medium hover:underline"
-            >
-              {account.display_name || account.username}
-            </Link>
-            {groupedCount > 2 && ` and ${groupedCount - 1} others`}
-            {groupedCount === 2 && ' and 1 other'} started following you
-          </p>
+    <div className="mt-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate text-[13px] text-muted-foreground">
+          @{account.acct}
+        </span>
+        {state === 'done' ? (
+          <span className="shrink-0 text-[13px] font-medium text-muted-foreground">
+            Following
+          </span>
         ) : (
-          <p className="text-sm">
-            <Link
-              href={`/@${account.acct}`}
-              className="font-medium hover:underline"
-            >
-              {account.display_name || account.username}
-            </Link>{' '}
-            started following you
-          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={handleFollowBack}
+            disabled={state === 'loading'}
+          >
+            Follow back
+          </Button>
         )}
-        <p className="text-xs text-muted-foreground">@{account.acct}</p>
       </div>
+      {state === 'error' && (
+        <p className="mt-1 text-xs text-destructive" role="alert">
+          Couldn&apos;t follow back. Please try again.
+        </p>
+      )}
     </div>
   )
 }

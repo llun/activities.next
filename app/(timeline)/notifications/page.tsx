@@ -1,15 +1,22 @@
+import { Bell } from 'lucide-react'
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import { PageHeader } from '@/lib/components/page-header'
+import { PageHeader, PageSubnavProvider } from '@/lib/components/page-header'
 import { Pagination } from '@/lib/components/pagination/Pagination'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
+import type { NotificationType } from '@/lib/types/database/operations'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { NotificationsList } from './NotificationsList'
+import { MarkAllReadButton } from './components/MarkAllReadButton'
+import {
+  NotificationFilterTabs,
+  type NotificationTab
+} from './components/NotificationFilterTabs'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,9 +25,11 @@ export const metadata: Metadata = {
 }
 
 const ITEMS_PER_PAGE = 25
+// Mastodon's "Mentions" tab covers both mentions and replies.
+const MENTION_TYPES: NotificationType[] = ['mention', 'reply']
 
 interface Props {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; type?: string }>
 }
 
 const Page = async ({ searchParams }: Props) => {
@@ -37,16 +46,23 @@ const Page = async ({ searchParams }: Props) => {
   }
 
   const params = await searchParams
-  const currentPage = parseInt(params.page || '1', 10)
+  const tab: NotificationTab = params.type === 'mentions' ? 'mentions' : 'all'
+  const types = tab === 'mentions' ? MENTION_TYPES : undefined
+  // Guard against missing / non-numeric / out-of-range `?page=` values, which
+  // would otherwise produce a NaN or negative offset.
+  const parsedPage = parseInt(params.page ?? '1', 10)
+  const currentPage =
+    Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const offset = (currentPage - 1) * ITEMS_PER_PAGE
 
   const [notifications, totalCount] = await Promise.all([
     database.getNotifications({
       actorId: actor.id,
       limit: ITEMS_PER_PAGE,
-      offset
+      offset,
+      types
     }),
-    database.getNotificationsCount({ actorId: actor.id })
+    database.getNotificationsCount({ actorId: actor.id, types })
   ])
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
@@ -77,36 +93,69 @@ const Page = async ({ searchParams }: Props) => {
     })
   )
 
+  // The unread rows in the loaded feed drive both the mark-all-read action
+  // (expanded to grouped ids) and the count badge, so the label, the count, and
+  // what the button clears all describe the same set. The global unread total
+  // is surfaced on the sidebar bell instead.
+  const unreadNotifications = notificationsWithData.filter(
+    (notification) => !notification.isRead
+  )
+  const unreadCount = unreadNotifications.length
+  const unreadIds = Array.from(
+    new Set(
+      unreadNotifications.flatMap((notification) =>
+        notification.groupedIds && notification.groupedIds.length > 0
+          ? notification.groupedIds
+          : [notification.id]
+      )
+    )
+  )
+
   return (
-    <div className="space-y-6">
+    <PageSubnavProvider subnav={<NotificationFilterTabs active={tab} />}>
       <PageHeader
         title="Notifications"
         description="Recent follows, replies, mentions and activity updates."
+        actions={
+          <MarkAllReadButton unreadIds={unreadIds} unreadCount={unreadCount} />
+        }
       />
 
-      {notificationsWithData.length === 0 ? (
-        <div className="rounded-xl border bg-background/80 p-8 text-center text-muted-foreground">
-          No notifications yet
-        </div>
-      ) : (
-        <>
-          <NotificationsList
-            notifications={notificationsWithData}
-            currentActorId={actor.id}
-            host={host}
-            currentTime={Date.now()}
-          />
-
-          {totalPages > 1 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              basePath="/notifications"
+      <div className="space-y-4 pt-4">
+        {notificationsWithData.length === 0 ? (
+          <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+            <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Bell className="size-5" />
+              </span>
+              <p className="text-sm font-medium">You&apos;re all caught up</p>
+              <p className="max-w-[28ch] text-sm text-muted-foreground">
+                {tab === 'mentions'
+                  ? 'No mentions or replies yet.'
+                  : 'New activity will show up here.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <NotificationsList
+              notifications={notificationsWithData}
+              host={host}
+              currentTime={Date.now()}
             />
-          )}
-        </>
-      )}
-    </div>
+
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                basePath="/notifications"
+                query={tab === 'mentions' ? { type: 'mentions' } : undefined}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </PageSubnavProvider>
   )
 }
 

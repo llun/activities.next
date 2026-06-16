@@ -1,53 +1,89 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { acceptFollowRequest, rejectFollowRequest } from '@/lib/client'
-import { FollowRequestCard } from '@/lib/components/follow-request-card/FollowRequestCard'
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Mastodon } from '@/lib/types/activitypub'
+import { Button } from '@/lib/components/ui/button'
+import type { Mastodon } from '@/lib/types/activitypub'
+import { cn } from '@/lib/utils'
 
-interface NotificationWithAccount extends GroupedNotification {
+interface Props {
   account: Mastodon.Account
 }
 
-interface Props {
-  notification: NotificationWithAccount
-  currentActorId: string
-}
-
-export const FollowRequestNotification: FC<Props> = ({
-  notification,
-  currentActorId: _currentActorId
-}) => {
+// The body of a follow-request notification: the actor handle plus Approve /
+// Reject actions. The "<name> requested to follow you" headline lives in
+// NotificationItem, so the row always reads as a follow request even before the
+// actions.
+export const FollowRequestNotification: FC<Props> = ({ account }) => {
   const router = useRouter()
+  const [status, setStatus] = useState<'pending' | 'accepted' | 'rejected'>(
+    'pending'
+  )
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleAccept = async (accountId: string) => {
-    const ok = await acceptFollowRequest({ id: accountId })
-
-    if (!ok) {
-      throw new Error('Failed to accept follow request')
+  const respond = async (action: 'accept' | 'reject') => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const ok =
+        action === 'accept'
+          ? await acceptFollowRequest({ id: account.url })
+          : await rejectFollowRequest({ id: account.url })
+      if (!ok) throw new Error('request failed')
+      setStatus(action === 'accept' ? 'accepted' : 'rejected')
+      router.refresh()
+    } catch {
+      setError(`Failed to ${action} follow request. Please try again.`)
+    } finally {
+      setIsLoading(false)
     }
-
-    router.refresh()
-  }
-
-  const handleReject = async (accountId: string) => {
-    const ok = await rejectFollowRequest({ id: accountId })
-
-    if (!ok) {
-      throw new Error('Failed to reject follow request')
-    }
-
-    router.refresh()
   }
 
   return (
-    <FollowRequestCard
-      account={notification.account}
-      onAccept={handleAccept}
-      onReject={handleReject}
-    />
+    <div className="mt-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate text-[13px] text-muted-foreground">
+          @{account.acct}
+        </span>
+        {status === 'pending' ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => respond('accept')}
+              disabled={isLoading}
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => respond('reject')}
+              disabled={isLoading}
+            >
+              Reject
+            </Button>
+          </div>
+        ) : (
+          <span
+            className={cn(
+              'shrink-0 text-[13px] font-medium',
+              status === 'accepted'
+                ? 'text-green-600 dark:text-green-500'
+                : 'text-muted-foreground'
+            )}
+          >
+            {status === 'accepted' ? 'Approved' : 'Rejected'}
+          </span>
+        )}
+      </div>
+      {error && (
+        <p className="mt-1 text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
