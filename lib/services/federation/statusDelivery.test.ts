@@ -77,15 +77,13 @@ describe('getFederatedStatusDeliveryInboxes', () => {
       privateKey: 'private-key'
     })
     const database = makeDatabase({
-      getAcceptedRelays: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            id: 'r1',
-            inboxUrl: 'https://relay.example/inbox',
-            state: 'accepted'
-          }
-        ])
+      getAcceptedRelays: vi.fn().mockResolvedValue([
+        {
+          id: 'r1',
+          inboxUrl: 'https://relay.example/inbox',
+          state: 'accepted'
+        }
+      ])
     })
 
     const inboxes = await getFederatedStatusDeliveryInboxes({
