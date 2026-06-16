@@ -1,0 +1,19 @@
+lib/services/medias/index.test.ts
+  s_47fb9e2ae4330b::t_00c51d5ff68765 63-64,66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "083ae556cdd6bcbe6670b00a7b26099ba3fd644e",
+  "prompts": {},
+  "sessions": {
+    "s_47fb9e2ae4330b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "365e3ed6-1ed5-4e33-a0b9-794593e3cf76",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
