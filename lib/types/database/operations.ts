@@ -2763,6 +2763,10 @@ export type CreateTimelineStatusParams = {
   actorId: string
   status: Status
 }
+export type AddStatusToFederatedTimelineParams = {
+  statusId: string
+  statusActorId: string
+}
 
 export interface TimelineDatabase {
   getTimeline({
@@ -2773,6 +2777,15 @@ export interface TimelineDatabase {
     limit
   }: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
+  /**
+   * Appends a remote, relay-ingested status to the materialized
+   * `federated_timeline` (the Federated / "whole known network" feed). Idempotent
+   * — a status already present is left untouched. The timeline read for
+   * `Timeline.FEDERATED_PUBLIC` joins these rows back to `statuses`.
+   */
+  addStatusToFederatedTimeline(
+    params: AddStatusToFederatedTimelineParams
+  ): Promise<void>
   /**
    * Number of statuses visible on the local public timeline (the same set
    * `getTimeline({ timeline: LOCAL_PUBLIC })` pages over). Used to decide

@@ -85,6 +85,65 @@ export const TimelineSQLDatabaseMixin = (
         })
         return statuses
       }
+      case Timeline.FEDERATED_PUBLIC: {
+        // Remote public statuses ingested from accepted relays. Materialized in
+        // `federated_timeline`; we join back to `statuses` and page with the
+        // same (createdAt, id) keyset the LOCAL_PUBLIC branch uses.
+        const lookupCursor = async (
+          statusId: string
+        ): Promise<{ id: string; createdAt: Date } | null> => {
+          const statusRow = await database('statuses')
+            .where('id', statusId)
+            .select('id', 'createdAt')
+            .first<{ id: string; createdAt: Date }>()
+          return statusRow ?? null
+        }
+
+        const [maxRow, minRow] = await Promise.all([
+          maxStatusId ? lookupCursor(maxStatusId) : null,
+          minStatusId ? lookupCursor(minStatusId) : null
+        ])
+
+        if (maxStatusId && !maxRow) return []
+        if (minStatusId && !minRow) return []
+
+        let query = database('federated_timeline')
+          .select('statuses.id as statusId')
+          .innerJoin('statuses', 'federated_timeline.statusId', 'statuses.id')
+          .limit(limit)
+
+        if (maxRow) {
+          query = query.where((wb) => {
+            wb.where('statuses.createdAt', '<', maxRow.createdAt).orWhere(
+              (wb2) => {
+                wb2
+                  .where('statuses.createdAt', '=', maxRow.createdAt)
+                  .where('statuses.id', '<', maxRow.id)
+              }
+            )
+          })
+        }
+
+        if (minRow) {
+          query = query.where((wb) => {
+            wb.where('statuses.createdAt', '>', minRow.createdAt).orWhere(
+              (wb2) => {
+                wb2
+                  .where('statuses.createdAt', '=', minRow.createdAt)
+                  .where('statuses.id', '>', minRow.id)
+              }
+            )
+          })
+        }
+
+        const rows = await query
+          .orderBy('statuses.createdAt', 'desc')
+          .orderBy('statuses.id', 'desc')
+        const statuses = await statusDatabase.getStatusesByIds({
+          statusIds: rows.map((item) => item.statusId)
+        })
+        return statuses
+      }
       case Timeline.MAIN:
       case Timeline.HOME:
       case Timeline.MENTION:
@@ -242,5 +301,18 @@ export const TimelineSQLDatabaseMixin = (
         updatedAt: new Date()
       })
     })
+  },
+
+  async addStatusToFederatedTimeline({ statusId, statusActorId }) {
+    // Idempotent append — a relay can forward the same public status more than
+    // once (e.g. via multiple relays), so ignore a duplicate primary key.
+    await database('federated_timeline')
+      .insert({
+        statusId,
+        statusActorId,
+        createdAt: new Date()
+      })
+      .onConflict('statusId')
+      .ignore()
   }
 })
