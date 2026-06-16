@@ -1,0 +1,26 @@
+lib/services/timelines/types.ts
+  s_4940650f85d4fc::t_c51529413b3553 11-14
+lib/database/sql/timeline.federated.test.ts
+  s_4940650f85d4fc::t_843abd86864892 1-119
+lib/database/sql/timeline.ts
+  s_4940650f85d4fc::t_d32db60b174b22 304-316
+  s_4940650f85d4fc::t_bd2e8eec7aeb8b 88-146
+lib/types/database/operations.ts
+  s_4940650f85d4fc::t_c499ecfdfbcb0e 2766-2769,2780-2788
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "9274f3cd5beeab9dbdb709797209cf72e48a0f0a",
+  "prompts": {},
+  "sessions": {
+    "s_4940650f85d4fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63651c7d-28cf-4c4f-879c-781d84ce90aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
