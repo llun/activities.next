@@ -89,8 +89,11 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
         name: CREATE_NOTE_JOB_NAME,
         data: note
       })
+      // Look the stored status up by the note's canonical id — a remote server
+      // may canonicalize the requested object id (trailing slash, protocol,
+      // redirect), and createNoteJob persists it under note.id.
       status = await database.getStatus({
-        statusId: objectId,
+        statusId: note.id,
         withReplies: false
       })
     }
