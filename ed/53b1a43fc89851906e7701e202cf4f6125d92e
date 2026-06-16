@@ -1,0 +1,19 @@
+lib/services/federation/statusDelivery.test.ts
+  s_4940650f85d4fc::t_9ae54647c017b1 80-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "ed53b1a43fc89851906e7701e202cf4f6125d92e",
+  "prompts": {},
+  "sessions": {
+    "s_4940650f85d4fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63651c7d-28cf-4c4f-879c-781d84ce90aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
