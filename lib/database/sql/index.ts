@@ -28,6 +28,7 @@ import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscription'
+import { RelaySQLDatabaseMixin } from '@/lib/database/sql/relay'
 import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
 import { ScheduledStatusSQLDatabaseMixin } from '@/lib/database/sql/scheduledStatus'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
@@ -71,6 +72,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
   const pushSubscriptionDatabase = PushSubscriptionSQLDatabaseMixin(database)
+  const relayDatabase = RelaySQLDatabaseMixin(database)
   const reportDatabase = ReportSQLDatabaseMixin(database)
   const scheduledStatusDatabase = ScheduledStatusSQLDatabaseMixin(database)
   const oauthDatabase = OAuthSQLDatabaseMixin(database)
@@ -139,6 +141,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...mediaDatabase,
     ...notificationDatabase,
     ...pushSubscriptionDatabase,
+    ...relayDatabase,
     ...reportDatabase,
     ...scheduledStatusDatabase,
     ...oauthDatabase,

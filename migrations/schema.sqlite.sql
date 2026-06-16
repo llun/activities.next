@@ -211,3 +211,9 @@ CREATE TABLE `announcements` (`id` varchar(255), `text` text not null, `publishe
 CREATE TABLE `announcement_reads` (`announcementId` varchar(255) not null, `actorId` varchar(255) not null, `createdAt` datetime not null, primary key (`announcementId`, `actorId`));
 CREATE TABLE `announcement_reactions` (`announcementId` varchar(255) not null, `actorId` varchar(255) not null, `name` varchar(255) not null, `createdAt` datetime not null, primary key (`announcementId`, `actorId`, `name`));
 CREATE INDEX `timelinesActorTimelineStatusActorIndex` on `timelines` (`actorId`, `timeline`, `statusActorId`);
+CREATE TABLE `relays` (`id` varchar(255), `inboxUrl` varchar(255) not null, `actorId` varchar(255) null, `state` varchar(255) not null default 'idle', `followActivityId` varchar(255) null, `lastError` text null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
+CREATE UNIQUE INDEX `relays_inboxurl_unique` on `relays` (`inboxUrl`);
+CREATE INDEX `relays_actor_id` on `relays` (`actorId`);
+CREATE INDEX `relays_state` on `relays` (`state`);
+CREATE TABLE `federated_timeline` (`statusId` varchar(255), `statusActorId` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, foreign key(`statusId`) references `statuses`(`id`) on delete CASCADE, primary key (`statusId`));
+CREATE INDEX `federated_timeline_status_actor_id` on `federated_timeline` (`statusActorId`);

@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import { POST } from './route'
 
 const mockCanFederateWithDomain = vi.fn()
+const mockAcceptRelayRequest = vi.fn()
+const mockRejectRelayRequest = vi.fn()
 const mockCreateFollower = vi.fn()
 const mockDeleteLike = vi.fn()
 const mockApplyRemoteBlock = vi.fn()
@@ -101,6 +103,13 @@ vi.mock('@/lib/actions/acceptFollowRequest', () => ({
   acceptFollowRequest: vi.fn()
 }))
 
+vi.mock('@/lib/actions/acceptRelayRequest', () => ({
+  acceptRelayRequest: (...params: unknown[]) =>
+    mockAcceptRelayRequest(...params),
+  rejectRelayRequest: (...params: unknown[]) =>
+    mockRejectRelayRequest(...params)
+}))
+
 vi.mock('@/lib/actions/createFollower', () => ({
   createFollower: (...params: unknown[]) => mockCreateFollower(...params)
 }))
@@ -193,6 +202,90 @@ describe('POST /api/users/[username]/inbox', () => {
     expect(mockVerifyAllows).toHaveBeenCalled()
     expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
     expect(mockCreateFollower).not.toHaveBeenCalled()
+  })
+
+  describe('relay handshake on the signer inbox', () => {
+    const asSigner = () => {
+      mockActor = {
+        id: 'https://activities.local/users/__instance__',
+        username: '__instance__',
+        type: 'Service',
+        privateKey: 'private-key'
+      }
+    }
+    const handshakeRequest = (type: 'Accept' | 'Reject', object: unknown) =>
+      new NextRequest('https://activities.local/api/users/__instance__/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `https://relay.example/activities/${type.toLowerCase()}`,
+          type,
+          actor: 'https://relay.example/actor',
+          object
+        })
+      })
+
+    it('routes a verified Accept to acceptRelayRequest (object as object)', async () => {
+      asSigner()
+      const response = await POST(
+        handshakeRequest('Accept', {
+          id: 'https://activities.local/relay-follow-1',
+          type: 'Follow',
+          actor: 'https://activities.local/users/__instance__',
+          object: 'https://www.w3.org/ns/activitystreams#Public'
+        }),
+        { params: Promise.resolve({ username: '__instance__' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockAcceptRelayRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          database: mockDatabase,
+          activity: expect.objectContaining({ type: 'Accept' })
+        })
+      )
+      expect(mockRejectRelayRequest).not.toHaveBeenCalled()
+    })
+
+    it('routes a verified Accept whose object is a bare Follow id string', async () => {
+      asSigner()
+      const response = await POST(
+        handshakeRequest('Accept', 'https://activities.local/relay-follow-1'),
+        { params: Promise.resolve({ username: '__instance__' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockAcceptRelayRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('routes a verified Reject to rejectRelayRequest', async () => {
+      asSigner()
+      const response = await POST(
+        handshakeRequest('Reject', {
+          id: 'https://activities.local/relay-follow-1',
+          type: 'Follow',
+          actor: 'https://activities.local/users/__instance__',
+          object: 'https://www.w3.org/ns/activitystreams#Public'
+        }),
+        { params: Promise.resolve({ username: '__instance__' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockRejectRelayRequest).toHaveBeenCalledTimes(1)
+      expect(mockAcceptRelayRequest).not.toHaveBeenCalled()
+    })
+
+    it('accepts a non-handshake activity on the signer inbox without relay side effects', async () => {
+      asSigner()
+      const response = await POST(createActorInboxActivityRequest('Like'), {
+        params: Promise.resolve({ username: '__instance__' })
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockAcceptRelayRequest).not.toHaveBeenCalled()
+      expect(mockRejectRelayRequest).not.toHaveBeenCalled()
+    })
   })
 
   it('rejects requests before processing when sender verification fails', async () => {

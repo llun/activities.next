@@ -21,7 +21,9 @@ describe('parseTimelineQuery', () => {
         limit: PER_PAGE_LIMIT,
         maxStatusId: null,
         minStatusId: null,
-        sinceStatusId: null
+        sinceStatusId: null,
+        local: false,
+        remote: false
       }
     })
   })
@@ -40,7 +42,9 @@ describe('parseTimelineQuery', () => {
         limit: PER_PAGE_LIMIT,
         maxStatusId: realStatusUrl,
         minStatusId: realStatusUrl,
-        sinceStatusId: realStatusUrl
+        sinceStatusId: realStatusUrl,
+        local: false,
+        remote: false
       }
     })
   })
@@ -55,9 +59,53 @@ describe('parseTimelineQuery', () => {
         limit: PER_PAGE_LIMIT,
         maxStatusId: null,
         minStatusId: null,
-        sinceStatusId: null
+        sinceStatusId: null,
+        local: false,
+        remote: false
       }
     })
+  })
+
+  it.each([
+    {
+      description: 'local=true sets local scope',
+      param: 'local',
+      value: 'true',
+      field: 'local'
+    },
+    {
+      description: 'local=1 sets local scope',
+      param: 'local',
+      value: '1',
+      field: 'local'
+    },
+    {
+      description: 'remote=true sets remote scope',
+      param: 'remote',
+      value: 'true',
+      field: 'remote'
+    },
+    {
+      description: 'remote=1 sets remote scope',
+      param: 'remote',
+      value: '1',
+      field: 'remote'
+    }
+  ])('$description', ({ param, value, field }) => {
+    const result = parseTimelineQuery(params({ [param]: value }))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.query[field as 'local' | 'remote']).toBe(true)
+    }
+  })
+
+  it('treats a non-truthy local/remote value as false', () => {
+    const result = parseTimelineQuery(params({ local: 'false', remote: 'no' }))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.query.local).toBe(false)
+      expect(result.query.remote).toBe(false)
+    }
   })
 
   // limit is clamped, never rejected (Mastodon clamps out-of-range values).

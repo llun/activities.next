@@ -6,6 +6,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
+import { waitFor } from '@/lib/utils/waitFor'
 
 import { GET } from './route'
 
@@ -140,5 +141,99 @@ describe('GET /api/v1/timelines/public', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
     expect(response.headers.get('Link')).toBeNull()
+  })
+
+  describe('local/remote scope', () => {
+    const timelinesQueried = () => {
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+      return { spy }
+    }
+
+    it('reads both local and federated sources by default (federated view)', async () => {
+      const { spy } = timelinesQueried()
+      await GET(request(), { params: Promise.resolve({}) })
+      const queried = spy.mock.calls.map((call) => call[0].timeline)
+      expect(queried).toContain('local-public')
+      expect(queried).toContain('federated-public')
+    })
+
+    it('reads only the local source when local=true', async () => {
+      const { spy } = timelinesQueried()
+      await GET(request({ local: 'true' }), { params: Promise.resolve({}) })
+      const queried = spy.mock.calls.map((call) => call[0].timeline)
+      expect(queried).toContain('local-public')
+      expect(queried).not.toContain('federated-public')
+    })
+
+    it('reads only the federated source when remote=true', async () => {
+      const { spy } = timelinesQueried()
+      await GET(request({ remote: 'true' }), { params: Promise.resolve({}) })
+      const queried = spy.mock.calls.map((call) => call[0].timeline)
+      expect(queried).toContain('federated-public')
+      expect(queried).not.toContain('local-public')
+    })
+  })
+
+  describe('merged default scope and Link scope', () => {
+    const REMOTE_ACTOR = 'https://somewhere.test/users/bob'
+
+    beforeAll(async () => {
+      await database.createActor({
+        actorId: REMOTE_ACTOR,
+        username: 'bob',
+        domain: 'somewhere.test',
+        followersUrl: `${REMOTE_ACTOR}/followers`,
+        inboxUrl: `${REMOTE_ACTOR}/inbox`,
+        sharedInboxUrl: 'https://somewhere.test/inbox',
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
+    })
+
+    const seedFederated = async (suffix: string) => {
+      const id = `https://somewhere.test/statuses/fed-${suffix}`
+      const status = await database.createNote({
+        id,
+        url: id,
+        actorId: REMOTE_ACTOR,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: `federated ${suffix}`
+      })
+      await database.addStatusToFederatedTimeline({
+        statusId: status.id,
+        statusActorId: status.actorId
+      })
+      return status
+    }
+
+    it('merges local and federated statuses newest-first in the default scope', async () => {
+      const federated = await seedFederated('merge-1')
+
+      const response = await GET(request(), { params: Promise.resolve({}) })
+      expect(response.status).toBe(200)
+      const ids = (await response.json()).map(
+        (status: { id: string }) => status.id
+      )
+      // Both sources present; the federated post (seeded last) is newest-first.
+      expect(ids).toContain(urlToId(federated.id))
+      expect(ids).toContain(urlToId(publicStatus.id))
+      expect(ids[0]).toBe(urlToId(federated.id))
+    })
+
+    it('carries the remote scope into the next Link when paginating', async () => {
+      await seedFederated('link-1')
+      await waitFor(5)
+      await seedFederated('link-2')
+
+      const response = await GET(request({ remote: 'true', limit: '1' }), {
+        params: Promise.resolve({})
+      })
+      expect(response.status).toBe(200)
+      const link = response.headers.get('Link')
+      expect(link).toContain('rel="next"')
+      expect(link).toContain('remote=true')
+      expect(link).not.toContain('local=true')
+    })
   })
 })
