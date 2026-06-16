@@ -83,6 +83,30 @@ describe('createRelayAnnounceJob', () => {
     expect(federated.map((status) => status.id)).not.toContain(localNote)
   })
 
+  it('accepts a minimal relay Announce that omits published and cc', async () => {
+    const note = 'https://somewhere.test/statuses/relayed-minimal'
+    // The shape barkshark/Pleroma relays actually send: no published, no cc.
+    await createRelayAnnounceJob(database, {
+      id: 'job-min',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${RELAY_ACTOR}/announce/minimal`,
+        type: 'Announce',
+        actor: RELAY_ACTOR,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        object: note
+      }
+    })
+
+    const stored = await database.getStatus({ statusId: note })
+    expect(stored).toBeDefined()
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).toContain(note)
+  })
+
   it('is idempotent across repeated relay deliveries of the same note', async () => {
     const note = 'https://somewhere.test/statuses/relayed-dedupe'
     await createRelayAnnounceJob(database, {

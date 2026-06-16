@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { getNote } from '@/lib/activities'
 import { getConfig } from '@/lib/config'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
@@ -5,8 +7,21 @@ import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME, RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
-import { Announce } from '@/lib/types/activitypub'
-import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'
+
+// Relays forward third-party posts as a MINIMAL Announce. The common
+// Announce-style relays (Pleroma `relay`, barkshark ActivityRelay) send only
+// `{ @context, id, type, actor, object }` — no `published`, often no `cc` — so
+// the strict AS `Announce` schema (which requires published/to/cc) would reject
+// them and drop every relayed post. Model only the fields this job consumes and
+// stay liberal in what we accept (AGENTS.md).
+const RelayAnnounce = z
+  .object({
+    id: z.string(),
+    type: z.literal('Announce'),
+    actor: z.string(),
+    object: z.union([z.string(), z.object({ id: z.string() }).passthrough()])
+  })
+  .passthrough()
 
 const isLocalUrl = (value: string, host: string): boolean => {
   try {
@@ -33,8 +48,9 @@ const getAnnouncedObjectId = (object: unknown): string | null => {
 export const createRelayAnnounceJob: JobHandle = createJobHandle(
   RELAY_ANNOUNCE_JOB_NAME,
   async (database, message) => {
-    const announce = Announce.parse(normalizeActivityPubAnnounce(message.data))
-    const objectId = getAnnouncedObjectId(announce.object)
+    const parsed = RelayAnnounce.safeParse(message.data)
+    if (!parsed.success) return
+    const objectId = getAnnouncedObjectId(parsed.data.object)
     if (!objectId) return
 
     const { host } = getConfig()
