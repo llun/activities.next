@@ -477,15 +477,17 @@ describe('RouteHeatmapMap', () => {
   })
 
   it('uses Mapbox when a token is configured', async () => {
-    const mapConstructor = vi.fn().mockImplementation(() => ({
-      on: (_event: string, callback: () => void) => callback(),
-      remove: vi.fn(),
-      resize: vi.fn(),
-      addSource: vi.fn(),
-      addLayer: vi.fn(),
-      getSource: vi.fn(),
-      fitBounds: vi.fn()
-    }))
+    const mapConstructor = vi.fn().mockImplementation(function () {
+      return {
+        on: (_event: string, callback: () => void) => callback(),
+        remove: vi.fn(),
+        resize: vi.fn(),
+        addSource: vi.fn(),
+        addLayer: vi.fn(),
+        getSource: vi.fn(),
+        fitBounds: vi.fn()
+      }
+    })
     mockLoadMapboxModule.mockResolvedValue({
       Map: mapConstructor
     })
@@ -508,17 +510,19 @@ describe('RouteHeatmapMap', () => {
   })
 
   it('falls back with a diagnostic reason when Mapbox setup fails', async () => {
-    const mapConstructor = vi.fn().mockImplementation(() => ({
-      on: (_event: string, callback: () => void) => callback(),
-      remove: vi.fn(),
-      resize: vi.fn(),
-      addSource: vi.fn(() => {
-        throw new Error('source unavailable')
-      }),
-      addLayer: vi.fn(),
-      getSource: vi.fn(),
-      fitBounds: vi.fn()
-    }))
+    const mapConstructor = vi.fn().mockImplementation(function () {
+      return {
+        on: (_event: string, callback: () => void) => callback(),
+        remove: vi.fn(),
+        resize: vi.fn(),
+        addSource: vi.fn(() => {
+          throw new Error('source unavailable')
+        }),
+        addLayer: vi.fn(),
+        getSource: vi.fn(),
+        fitBounds: vi.fn()
+      }
+    })
     mockLoadMapboxModule.mockResolvedValue({
       Map: mapConstructor
     })
@@ -567,17 +571,19 @@ describe('RouteHeatmapMap', () => {
   })
 
   it('retries Mapbox when the same route cache is regenerated', async () => {
-    const failingMapConstructor = vi.fn().mockImplementation(() => ({
-      on: (_event: string, callback: () => void) => callback(),
-      remove: vi.fn(),
-      resize: vi.fn(),
-      addSource: vi.fn(() => {
-        throw new Error('source unavailable')
-      }),
-      addLayer: vi.fn(),
-      getSource: vi.fn(),
-      fitBounds: vi.fn()
-    }))
+    const failingMapConstructor = vi.fn().mockImplementation(function () {
+      return {
+        on: (_event: string, callback: () => void) => callback(),
+        remove: vi.fn(),
+        resize: vi.fn(),
+        addSource: vi.fn(() => {
+          throw new Error('source unavailable')
+        }),
+        addLayer: vi.fn(),
+        getSource: vi.fn(),
+        fitBounds: vi.fn()
+      }
+    })
     mockLoadMapboxModule.mockResolvedValue({
       Map: failingMapConstructor
     })
@@ -595,15 +601,17 @@ describe('RouteHeatmapMap', () => {
       ).toBeInTheDocument()
     )
 
-    const workingMapConstructor = vi.fn().mockImplementation(() => ({
-      on: (_event: string, callback: () => void) => callback(),
-      remove: vi.fn(),
-      resize: vi.fn(),
-      addSource: vi.fn(),
-      addLayer: vi.fn(),
-      getSource: vi.fn(),
-      fitBounds: vi.fn()
-    }))
+    const workingMapConstructor = vi.fn().mockImplementation(function () {
+      return {
+        on: (_event: string, callback: () => void) => callback(),
+        remove: vi.fn(),
+        resize: vi.fn(),
+        addSource: vi.fn(),
+        addLayer: vi.fn(),
+        getSource: vi.fn(),
+        fitBounds: vi.fn()
+      }
+    })
     mockLoadMapboxModule.mockResolvedValue({
       Map: workingMapConstructor
     })

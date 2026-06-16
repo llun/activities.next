@@ -25,10 +25,14 @@ const mockQueuePublish = vi.fn()
 const mockS3Send = vi.fn()
 
 vi.mock('@aws-sdk/client-s3', async () => ({
-  GetObjectCommand: vi.fn().mockImplementation((input) => ({ input })),
-  S3Client: vi.fn().mockImplementation(() => ({
-    send: mockS3Send
-  }))
+  GetObjectCommand: vi.fn().mockImplementation(function (input) {
+    return { input }
+  }),
+  S3Client: vi.fn().mockImplementation(function () {
+    return {
+      send: mockS3Send
+    }
+  })
 }))
 
 vi.mock('@/lib/config', async () => ({

@@ -18,9 +18,11 @@ describe('QStashQueue', () => {
   const mockPublishJSON = vi.fn()
 
   beforeEach(() => {
-    ;(Client as unknown as jest.Mock).mockImplementation(() => ({
-      publishJSON: mockPublishJSON
-    }))
+    ;(Client as unknown as jest.Mock).mockImplementation(function () {
+      return {
+        publishJSON: mockPublishJSON
+      }
+    })
     mockPublishJSON.mockClear()
   })
 
