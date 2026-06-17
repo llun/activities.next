@@ -1,0 +1,31 @@
+docs/environment-variables.md
+  s_387448deee3bd0::t_76c5dab15c2630 18
+package.json
+  s_387448deee3bd0::t_784c267581e517 27,31
+yarn.lock
+  s_387448deee3bd0::t_9bab9a2521f156 1018-1024,5051,5055
+app/api/v2/search/route.test.ts
+  s_387448deee3bd0::t_76c5dab15c2630 63
+lib/services/wellknown/webfinger.ts
+  s_387448deee3bd0::t_76c5dab15c2630 47
+app/api/v1/accounts/lookup/route.test.ts
+  s_387448deee3bd0::t_76c5dab15c2630 43
+.github/dependabot.yml
+  s_387448deee3bd0::t_9b9f3e56801256 7-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "fb354f0cb1e75f35373db04f0b10b67b87ea0da6",
+  "prompts": {},
+  "sessions": {
+    "s_387448deee3bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a408259-c9fb-418d-8bf3-e7d041371398",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
