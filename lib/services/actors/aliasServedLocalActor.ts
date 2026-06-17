@@ -60,17 +60,21 @@ export const aliasServedLocalActor = async ({
   for (const rule of servedRules) {
     const hostPart = rule.split(',')[0]?.trim() ?? ''
     const servedHost = normalizeHost(hostPart, { allowWildcard: false })
-    if (!servedHost || seen.has(servedHost)) continue
-    seen.add(servedHost)
-    lookupHosts.push(servedHost)
+    if (!servedHost) continue
 
-    if (
-      hostPart !== servedHost &&
-      hostPart.toLowerCase() === servedHost &&
-      !seen.has(hostPart)
-    ) {
-      seen.add(hostPart)
-      lookupHosts.push(hostPart)
+    // Each rule contributes its normalized host and — when the rule is a
+    // pure-case variant — its as-configured casing. Filter each variant against
+    // `seen` independently: a rule whose normalized form equals the queried
+    // domain must still contribute its mixed-case variant (and vice versa),
+    // since the caller only tried the exact `domain` string.
+    const variants = [servedHost]
+    if (hostPart !== servedHost && hostPart.toLowerCase() === servedHost) {
+      variants.push(hostPart)
+    }
+    for (const variant of variants) {
+      if (seen.has(variant)) continue
+      seen.add(variant)
+      lookupHosts.push(variant)
     }
   }
 

@@ -184,6 +184,29 @@ describe('aliasServedLocalActor', () => {
     expect(actor?.domain).toBe('alias.example')
   })
 
+  it('resolves a lowercase queried domain to an actor stored under its mixed-case configured host', async () => {
+    // Mirror of the mixed-case-query case: ACTIVITIES_HOST is configured
+    // mixed-case and the actor row lives under that exact casing, but the
+    // client queries the conventional lowercase form. The normalized host
+    // equals the queried domain, so the rule must still contribute its
+    // as-configured (mixed-case) variant rather than being skipped wholesale.
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'Canonical.Example',
+      trustedHosts: ['alias.example']
+    } as ReturnType<typeof getConfig>)
+    const database = databaseWith([
+      { username: 'alice', domain: 'Canonical.Example', local: true }
+    ])
+
+    const actor = await aliasServedLocalActor({
+      database,
+      username: 'alice',
+      domain: 'canonical.example'
+    })
+
+    expect(actor?.domain).toBe('Canonical.Example')
+  })
+
   it('does not alias when the username is ambiguous across served hosts', async () => {
     vi.mocked(getConfig).mockReturnValue({
       host: 'canonical.example',
