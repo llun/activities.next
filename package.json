@@ -48,7 +48,7 @@
     "@simplewebauthn/server": "^13.3.1",
     "@upstash/qstash": "^2.11.0",
     "bcrypt": "^6.0.0",
-    "better-auth": "1.6.15",
+    "better-auth": "1.6.19",
     "better-call": "2.0.3",
     "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
