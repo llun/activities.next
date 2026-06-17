@@ -4,7 +4,6 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { aliasServedLocalActor } from '@/lib/services/actors/aliasServedLocalActor'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   OptionalOAuthGuard,
@@ -90,13 +89,6 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
 
   const { username, domain } = handle
   let actor = await database.getActorFromUsername({ username, domain })
-  // No local actor on the queried domain: if it is a host this instance serves
-  // as (a trusted alias), resolve to the canonical local actor before treating
-  // the handle as remote. `?? actor` keeps a genuinely-remote row untouched.
-  if (!actor || !actor.privateKey) {
-    actor =
-      (await aliasServedLocalActor({ database, username, domain })) ?? actor
-  }
   if (!actor && resolve && domain !== config.host) {
     const hasBearerAuthorization = isBearerAuthorizationHeader(
       req.headers.get('Authorization')
