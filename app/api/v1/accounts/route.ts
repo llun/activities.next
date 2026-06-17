@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import {
   OAuthAppGuard,
@@ -10,6 +11,7 @@ import {
   isBearerAuthorizationHeader
 } from '@/lib/services/guards/OAuthGuard'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
@@ -73,7 +75,7 @@ export const GET = traceApiRoute(
     return apiResponse({
       req: request,
       allowedMethods: CORS_HEADERS,
-      data: accounts
+      data: localizeAccounts(accounts, headerHost(request.headers))
     })
   }
 )

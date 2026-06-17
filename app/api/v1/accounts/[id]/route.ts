@@ -1,7 +1,9 @@
+import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import {
   OptionalOAuthGuard,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -33,7 +35,11 @@ export const GET = traceApiRoute(
       const id = idToUrl(encodedAccountId)
       const actor = await database.getMastodonActorFromId({ id })
       if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
-      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: actor })
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: localizeAccount(actor, headerHost(req.headers))
+      })
     },
     { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }
   ),
