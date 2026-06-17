@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { aliasServedLocalActor } from '@/lib/services/actors/aliasServedLocalActor'
 
 export interface WebFingerLink {
   rel: string
@@ -44,7 +45,7 @@ export const getWebFingerResponse = async ({
   const account = getAccountFromResource(resource)
   if (!account) return null
 
-  const actor =
+  let actor =
     (await database.getActorFromUsername({
       username: account.username,
       domain: account.domain
@@ -55,6 +56,20 @@ export const getWebFingerResponse = async ({
           username: account.username,
           domain: account.normalizedDomain
         }))
+
+  // No local actor on the queried domain: if that domain is a host this
+  // instance serves as (a trusted alias of the canonical host), resolve to the
+  // canonical local actor instead of 404ing. The privateKey check (not just
+  // !actor) means a non-local record on the alias host does not block aliasing;
+  // `?? actor` keeps the original row when there is no alias to resolve to.
+  if (!actor?.privateKey) {
+    actor =
+      (await aliasServedLocalActor({
+        database,
+        username: account.username,
+        domain: account.normalizedDomain
+      })) ?? actor
+  }
 
   // This is not local actors
   if (!actor?.privateKey) return null
