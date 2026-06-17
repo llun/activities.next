@@ -4502,12 +4502,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/yauzl@npm:^2.10.3":
-  version: 2.10.3
-  resolution: "@types/yauzl@npm:2.10.3"
+"@types/yauzl@npm:^3.4.0":
+  version: 3.4.0
+  resolution: "@types/yauzl@npm:3.4.0"
   dependencies:
     "@types/node": "npm:*"
-  checksum: 10c0/f1b7c1b99fef9f2fe7f1985ef7426d0cebe48cd031f1780fcdc7451eec7e31ac97028f16f50121a59bcf53086a1fc8c856fd5b7d3e00970e43d92ae27d6b43dc
+  checksum: 10c0/9992cf7bf129466016baa4e99e05ad524afe2ff6e5d84e7408f2a7123bc4af3b4bfb639237308574b80e7e435571b6e1af6113910d166e8ea8b80da422ba8ecb
   languageName: node
   linkType: hard
 
@@ -5122,7 +5122,7 @@ __metadata:
     "@types/react-modal": "npm:^3.16.3"
     "@types/sanitize-html": "npm:^2.16.1"
     "@types/web-push": "npm:^3.6.4"
-    "@types/yauzl": "npm:^2.10.3"
+    "@types/yauzl": "npm:^3.4.0"
     "@typescript-eslint/eslint-plugin": "npm:^8.60.0"
     "@typescript-eslint/parser": "npm:^8.60.0"
     "@upstash/qstash": "npm:^2.11.0"
@@ -5190,7 +5190,7 @@ __metadata:
     vitest: "npm:^4.1.9"
     vitest-fetch-mock: "npm:^0.4.5"
     web-push: "npm:^3.6.7"
-    yauzl: "npm:^3.3.2"
+    yauzl: "npm:^3.4.0"
     zod: "npm:^4.4.3"
   languageName: unknown
   linkType: soft
@@ -13196,12 +13196,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yauzl@npm:^3.3.2":
-  version: 3.3.2
-  resolution: "yauzl@npm:3.3.2"
+"yauzl@npm:^3.4.0":
+  version: 3.4.0
+  resolution: "yauzl@npm:3.4.0"
   dependencies:
     pend: "npm:~1.2.0"
-  checksum: 10c0/92e93b5162ad27a1b3088742fd613c90158553f9ce957ef40bad117c13b25476ea2992a825a7b45eed23924a355991253e60cdeb9b7dea63771de83710dd856f
+  checksum: 10c0/17a98c42c0065e8af429eb8a61f7a0e4562181ed54080366b838f34f741b6829f167f804787c86b7646bb042707f35871739f053de0548285e405a2eae4da025
   languageName: node
   linkType: hard
 
