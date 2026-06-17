@@ -9,6 +9,7 @@ const mockGetWebfingerSelf = vi.fn()
 const mockRecordActorIfNeeded = vi.fn()
 const mockGetServerSession = vi.fn()
 const mockStoredToken = vi.fn()
+const mockGetConfig = vi.fn()
 const oauthActor = {
   id: 'https://llun.test/users/oauth-user',
   username: 'oauth-user',
@@ -40,7 +41,7 @@ vi.mock('@/lib/database', () => ({
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
-  getConfig: () => ({ host: 'llun.test' })
+  getConfig: () => mockGetConfig()
 }))
 
 vi.mock('better-auth/oauth2', () => ({
@@ -64,6 +65,43 @@ describe('GET /api/v1/accounts/lookup', () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
+    mockGetConfig.mockReturnValue({ host: 'llun.test' })
+  })
+
+  it('aliases a trusted-host handle to the canonical local actor', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['alias.llun.test']
+    })
+    mockGetActorFromUsername.mockImplementation(
+      async ({ username, domain }: { username: string; domain: string }) =>
+        username === 'test' && domain === 'llun.test'
+          ? {
+              id: 'https://llun.test/users/test',
+              username: 'test',
+              domain: 'llun.test',
+              privateKey: 'private-key'
+            }
+          : null
+    )
+    mockGetMastodonActorFromId.mockResolvedValue({
+      id: 'llun.test:users:test',
+      username: 'test',
+      acct: 'test'
+    })
+
+    const response = await GET(
+      new NextRequest(
+        'https://alias.llun.test/api/v1/accounts/lookup?acct=test@alias.llun.test'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    // Resolved to the canonical actor without any remote webfinger call.
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(mockGetMastodonActorFromId).toHaveBeenCalledWith({
+      id: 'https://llun.test/users/test'
+    })
   })
 
   it('uses the normalized username for @user local lookup', async () => {
