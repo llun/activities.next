@@ -4,6 +4,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { aliasServedLocalActor } from '@/lib/services/actors/aliasServedLocalActor'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -38,10 +39,21 @@ export const getProfileData = async (
   options: ProfileDataOptions = {}
 ): Promise<ProfileData | null> => {
   const [username, domain] = actorHandle.split('@').slice(1)
-  const persistedActor = await database.getActorFromUsername({
+  let persistedActor = await database.getActorFromUsername({
     username,
     domain
   })
+
+  // No local actor on the queried domain: if it is a host this instance serves
+  // as (a trusted alias of the canonical host), resolve to the canonical local
+  // actor before falling through to a remote fetch. Mirrors the
+  // WebFinger/lookup/search routes; `?? persistedActor` keeps a genuinely-remote
+  // row untouched.
+  if (!persistedActor?.account) {
+    persistedActor =
+      (await aliasServedLocalActor({ database, username, domain })) ??
+      persistedActor
+  }
 
   if (persistedActor?.account) {
     const [

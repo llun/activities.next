@@ -7,7 +7,9 @@ import {
 } from '@/lib/utils/host'
 
 interface AliasServedLocalActorParams {
-  database: Database
+  // Only the username lookup is needed; accept any database-shaped object that
+  // provides it so web-UI callers holding a `Pick<Database, …>` can reuse this.
+  database: Pick<Database, 'getActorFromUsername'>
   username: string
   domain: string
 }

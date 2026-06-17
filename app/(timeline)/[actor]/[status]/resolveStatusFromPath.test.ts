@@ -1,9 +1,20 @@
+import { aliasServedLocalActor } from '@/lib/services/actors/aliasServedLocalActor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { resolveStatusFromPath } from './resolveStatusFromPath'
 
+vi.mock('@/lib/services/actors/aliasServedLocalActor', () => ({
+  aliasServedLocalActor: vi.fn()
+}))
+
 describe('resolveStatusFromPath', () => {
+  beforeEach(() => {
+    // Default the alias fallback to a miss; individual tests opt into a hit.
+    vi.mocked(aliasServedLocalActor).mockReset()
+    vi.mocked(aliasServedLocalActor).mockResolvedValue(null)
+  })
+
   const originalActorId = 'https://remote.example/users/original'
   const boosterActorId = 'https://boost.example/users/booster'
   const secondBoosterActorId = 'https://other.example/users/booster'
@@ -268,6 +279,118 @@ describe('resolveStatusFromPath', () => {
     expect(database.getStatus).toHaveBeenCalledWith({
       statusId: originalStatus.id,
       withReplies: false
+    })
+  })
+
+  describe('trusted-host alias resolution', () => {
+    const canonicalStatusId =
+      'https://canonical.example/users/alice/statuses/123'
+    const canonicalActorId = 'https://canonical.example/users/alice'
+    // Shape mirrors the local actor row `aliasServedLocalActor` returns: a
+    // canonical id/domain/username plus the privateKey that marks it local.
+    const aliasCanonicalActor = {
+      id: canonicalActorId,
+      username: 'alice',
+      domain: 'canonical.example',
+      privateKey: 'private-key'
+    } as unknown as Awaited<ReturnType<typeof aliasServedLocalActor>>
+
+    it('rebuilds the canonical status id from the resolved actor domain, not the alias host', async () => {
+      const database = createDatabase()
+      database.getActorFromUsername.mockResolvedValue(null)
+      vi.mocked(aliasServedLocalActor).mockResolvedValueOnce(
+        aliasCanonicalActor
+      )
+      const canonicalStatus = {
+        ...originalStatus,
+        id: canonicalStatusId,
+        actorId: canonicalActorId
+      } as Status
+      database.getStatus.mockResolvedValueOnce(canonicalStatus)
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@alice@alias.example',
+          statusParam: '123'
+        })
+      ).resolves.toEqual({
+        fullStatusId: canonicalStatusId,
+        isStatusHash: false,
+        status: canonicalStatus,
+        statusId: canonicalStatus.id
+      })
+
+      expect(aliasServedLocalActor).toHaveBeenCalledWith({
+        database,
+        username: 'alice',
+        domain: 'alias.example'
+      })
+      expect(database.getStatus).toHaveBeenCalledWith({
+        statusId: canonicalStatusId,
+        withReplies: false
+      })
+    })
+
+    it('scopes the hash lookup to the resolved canonical actor id', async () => {
+      const database = createDatabase()
+      database.getActorFromUsername.mockResolvedValue(null)
+      vi.mocked(aliasServedLocalActor).mockResolvedValueOnce(
+        aliasCanonicalActor
+      )
+      const canonicalStatus = {
+        ...originalStatus,
+        id: canonicalStatusId,
+        actorId: canonicalActorId
+      } as Status
+      const hash = getHashFromString('https://canonical.example/@alice/123')
+      database.getStatusFromUrlHash.mockResolvedValueOnce(canonicalStatus)
+
+      const result = await resolveStatusFromPath({
+        database,
+        actorParam: '@alice@alias.example',
+        statusParam: hash
+      })
+
+      expect(result?.status).toEqual(canonicalStatus)
+      expect(database.getStatusFromUrlHash).toHaveBeenCalledWith({
+        urlHash: hash,
+        actorId: canonicalActorId
+      })
+    })
+
+    it('does not consult the alias fallback when the path actor is a local match', async () => {
+      const database = createDatabase()
+      database.getActorFromUsername.mockResolvedValue({
+        id: canonicalActorId,
+        username: 'alice',
+        domain: 'canonical.example',
+        privateKey: 'private-key'
+      })
+
+      await resolveStatusFromPath({
+        database,
+        actorParam: '@alice@canonical.example',
+        statusParam: '123'
+      })
+
+      expect(aliasServedLocalActor).not.toHaveBeenCalled()
+    })
+
+    it('falls back to the queried domain when neither the strict lookup nor the alias resolves an actor', async () => {
+      const database = createDatabase()
+      database.getActorFromUsername.mockResolvedValue(null)
+      database.getStatus.mockResolvedValue(null)
+
+      const result = await resolveStatusFromPath({
+        database,
+        actorParam: '@alice@alias.example',
+        statusParam: '123'
+      })
+
+      expect(result?.fullStatusId).toBe(
+        'https://alias.example/users/alice/statuses/123'
+      )
     })
   })
 })

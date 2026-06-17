@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { aliasServedLocalActor } from '@/lib/services/actors/aliasServedLocalActor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 interface ResolveStatusFromPathParams {
@@ -54,20 +55,37 @@ export const resolveStatusFromPath = async ({
   }
 
   const [username, domain] = parts
-  const actorFromPath = await database.getActorFromUsername({
+  let actorFromPath = await database.getActorFromUsername({
     username,
     domain
   })
+
+  // No local actor on the queried domain: if it is a host this instance serves
+  // as (a trusted alias of the canonical host), resolve to the canonical local
+  // actor. Mirrors the WebFinger/lookup/search routes; `?? actorFromPath` keeps
+  // a genuinely-remote row untouched.
+  if (!actorFromPath?.privateKey) {
+    actorFromPath =
+      (await aliasServedLocalActor({ database, username, domain })) ??
+      actorFromPath
+  }
+
   const actorIdFromPath = actorFromPath?.id
   const isStatusHash = /^[a-f0-9]{64}$/i.test(decodedStatusParam)
 
-  const protocol = domain.startsWith('localhost') ? 'http' : 'https'
+  // Build the canonical status URL from the RESOLVED actor's domain/username,
+  // not the host the request came in on: an alias host would otherwise produce a
+  // URL no getStatus lookup can match. Fall back to the queried path when no
+  // actor resolved.
+  const canonicalUsername = actorFromPath?.username ?? username
+  const canonicalDomain = actorFromPath?.domain ?? domain
+  const protocol = canonicalDomain.startsWith('localhost') ? 'http' : 'https'
   const isFullStatusUrl = /^https?:\/\//.test(decodedStatusParam)
   const fullStatusId = isStatusHash
     ? ''
     : isFullStatusUrl
       ? decodedStatusParam
-      : `${protocol}://${domain}/users/${username}/statuses/${decodedStatusParam}`
+      : `${protocol}://${canonicalDomain}/users/${canonicalUsername}/statuses/${decodedStatusParam}`
 
   let status: Status | null = null
 

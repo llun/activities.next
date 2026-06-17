@@ -4,6 +4,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { aliasServedLocalActor } from '@/lib/services/actors/aliasServedLocalActor'
 import { Actor } from '@/lib/types/activitypub'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
@@ -17,6 +18,9 @@ vi.mock('@/lib/activities/getActorFollowing')
 vi.mock('@/lib/activities/getActorPerson')
 vi.mock('@/lib/activities/getActorPosts')
 vi.mock('@/lib/activities/getWebfingerSelf')
+vi.mock('@/lib/services/actors/aliasServedLocalActor', () => ({
+  aliasServedLocalActor: vi.fn()
+}))
 vi.mock('@/lib/utils/getPersonFromActor')
 
 describe('getProfileData', () => {
@@ -74,6 +78,8 @@ describe('getProfileData', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default the alias fallback to a miss; the alias tests opt into a hit.
+    vi.mocked(aliasServedLocalActor).mockResolvedValue(null)
     ;(mockDatabase.getActorStatuses as jest.Mock).mockResolvedValue(
       mockStatuses
     )
@@ -282,6 +288,105 @@ describe('getProfileData', () => {
       expect(result).toBeNull()
       // Should not call remote APIs for anonymous user
       expect(getWebfingerSelf).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when actor is addressed via a trusted-host alias', () => {
+    // The canonical local actor lives on canonical.example; the client addresses
+    // it via the served alias host alias.example, where no actor row exists.
+    const mockAliasResolvedActor = {
+      id: 'canonical-actor-id',
+      username: 'localuser',
+      domain: 'canonical.example',
+      account: { email: 'user@canonical.example' },
+      privateKey: 'private-key',
+      name: 'Local User'
+    }
+
+    it('resolves the canonical local actor and renders it as an internal account', async () => {
+      ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(null)
+      vi.mocked(aliasServedLocalActor).mockResolvedValue(
+        mockAliasResolvedActor as unknown as Awaited<
+          ReturnType<typeof aliasServedLocalActor>
+        >
+      )
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@alias.example',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.isInternalAccount).toBe(true)
+      expect(aliasServedLocalActor).toHaveBeenCalledWith({
+        database: mockDatabase,
+        username: 'localuser',
+        domain: 'alias.example'
+      })
+      // The canonical actor id (not the alias query) drives the local lookups.
+      expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith({
+        actorId: 'canonical-actor-id'
+      })
+      // Should not fall through to the remote-fetch path.
+      expect(getWebfingerSelf).not.toHaveBeenCalled()
+      expect(getActorPerson).not.toHaveBeenCalled()
+    })
+
+    it('resolves the alias for an anonymous viewer without remote calls', async () => {
+      ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(null)
+      vi.mocked(aliasServedLocalActor).mockResolvedValue(
+        mockAliasResolvedActor as unknown as Awaited<
+          ReturnType<typeof aliasServedLocalActor>
+        >
+      )
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@alias.example',
+        false
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.isInternalAccount).toBe(true)
+      expect(getWebfingerSelf).not.toHaveBeenCalled()
+    })
+
+    it('falls through to the remote path when the alias fallback also misses', async () => {
+      ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(null)
+      vi.mocked(aliasServedLocalActor).mockResolvedValue(null)
+      ;(getWebfingerSelf as jest.Mock).mockResolvedValue(null)
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@alias.example',
+        true
+      )
+
+      expect(result).toBeNull()
+      expect(aliasServedLocalActor).toHaveBeenCalledWith({
+        database: mockDatabase,
+        username: 'localuser',
+        domain: 'alias.example'
+      })
+      expect(getWebfingerSelf).toHaveBeenCalledWith({
+        account: 'localuser@alias.example'
+      })
+    })
+
+    it('does not consult the alias fallback when the strict lookup finds a local actor', async () => {
+      ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+        mockLocalActor
+      )
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@example.com',
+        true
+      )
+
+      expect(result?.isInternalAccount).toBe(true)
+      expect(aliasServedLocalActor).not.toHaveBeenCalled()
     })
   })
 
