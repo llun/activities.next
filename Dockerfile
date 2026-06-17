@@ -41,6 +41,15 @@ COPY --from=build --chown=app:app /opt/activities.next/.next/standalone /opt/act
 COPY --from=build --chown=app:app /opt/activities.next/public /opt/activities.next/public/
 COPY --from=build --chown=app:app /opt/activities.next/.next/static /opt/activities.next/.next/static
 COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activities.next/data.sqlite
+# The Next.js standalone tracer (@vercel/nft) copies sharp's native *.node
+# binary but cannot follow the libvips shared library it dlopen's via native
+# RPATH. Since sharp 0.35 the runtime @img/sharp-libvips-* package is no longer
+# require()d from JS, so the tracer drops it and libvips-cpp.so.* never reaches
+# the image. Without it the instrumentation hook fails to load and every
+# request 500s. Re-copy the full sharp install so the .node binary and its
+# sibling libvips .so ship together with their original layout intact.
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/sharp /opt/activities.next/node_modules/sharp
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/@img /opt/activities.next/node_modules/@img
 RUN rm -rf /opt/activities.next/.yarn
 EXPOSE 3000
 CMD ["node", "server.js"]
