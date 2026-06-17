@@ -4,12 +4,14 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   OptionalOAuthGuard,
   corsErrorResponse,
   isBearerAuthorizationHeader
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -133,5 +135,9 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       responseStatusCode: 404
     })
 
-  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: mastodonActor })
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: localizeAccount(mastodonActor, headerHost(req.headers))
+  })
 })
