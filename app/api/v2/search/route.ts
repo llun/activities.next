@@ -7,6 +7,7 @@ import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { aliasServedLocalActor } from '@/lib/services/actors/aliasServedLocalActor'
 import {
   OptionalOAuthGuard,
   corsErrorResponse
@@ -295,6 +296,18 @@ const resolveAccountId = async ({
   if (!handle) return null
 
   let actor = await database.getActorFromUsername(handle)
+  // No local actor on the queried domain: if it is a host this instance serves
+  // as (a trusted alias), resolve to the canonical local actor before falling
+  // back to an external WebFinger loopback. `?? actor` keeps a genuinely-remote
+  // row untouched.
+  if (!actor || !actor.privateKey) {
+    actor =
+      (await aliasServedLocalActor({
+        database,
+        username: handle.username,
+        domain: handle.domain
+      })) ?? actor
+  }
   if (!actor && query.includes('@')) {
     const actorId = await getWebfingerSelf({
       account: `${handle.username}@${handle.domain}`

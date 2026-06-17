@@ -4,6 +4,14 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    ignore:
+      # @better-fetch/fetch must stay locked to the version required as a peer
+      # dependency by the better-auth stack (@better-auth/core and
+      # @better-auth/passkey require exactly 1.1.21). Bumping it independently
+      # breaks the auth client's type inference (e.g. authClient.signIn.passkey
+      # disappears, failing `next build`). It should only ever move together
+      # with a better-auth upgrade. See PRs #1003 (the breaking bump) and #1010.
+      - dependency-name: '@better-fetch/fetch'
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
