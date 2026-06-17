@@ -46,30 +46,31 @@ export const aliasServedLocalActor = async ({
   const servedRules = getTrustedHostRules(getConfig())
   if (!isHostTrustedByRules(queriedHost, servedRules)) return null
 
-  // The caller already missed on the queried domain, so skip it and look for the
-  // canonical local actor under the OTHER hosts this instance serves as. Drop
-  // wildcards (which cannot be a concrete lookup domain) and dedupe by the
-  // normalized host. Actor `domain` columns are matched case-sensitively on
+  // Look for the canonical local actor under the hosts this instance serves as.
+  // Seed the dedupe set with the EXACT domain the caller already strict-looked-up
+  // (which may be mixed-case) rather than its normalized form, so a mixed-case
+  // query such as `Alias.Example` still tries the normalized `alias.example` the
+  // caller never attempted. Drop wildcards (which cannot be a concrete lookup
+  // domain). Actor `domain` columns are matched case-sensitively on
   // PostgreSQL/SQLite, so — mirroring the WebFinger strict-lookup convention —
   // also query the as-configured casing whenever a rule is a pure-case variant
   // of its normalized form (e.g. `MyInstance.com` vs `myinstance.com`).
-  const seen = new Set([queriedHost])
+  const seen = new Set([domain])
   const lookupHosts: string[] = []
   for (const rule of servedRules) {
-    const servedHost = normalizeHost(rule, { allowWildcard: false })
+    const hostPart = rule.split(',')[0]?.trim() ?? ''
+    const servedHost = normalizeHost(hostPart, { allowWildcard: false })
     if (!servedHost || seen.has(servedHost)) continue
     seen.add(servedHost)
     lookupHosts.push(servedHost)
 
-    const configuredHost = rule.split(',')[0]?.trim() ?? ''
     if (
-      configuredHost &&
-      configuredHost !== servedHost &&
-      configuredHost.toLowerCase() === servedHost &&
-      !seen.has(configuredHost)
+      hostPart !== servedHost &&
+      hostPart.toLowerCase() === servedHost &&
+      !seen.has(hostPart)
     ) {
-      seen.add(configuredHost)
-      lookupHosts.push(configuredHost)
+      seen.add(hostPart)
+      lookupHosts.push(hostPart)
     }
   }
 
