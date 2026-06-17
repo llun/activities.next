@@ -2567,19 +2567,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-context@npm:1.1.3":
-  version: 1.1.3
-  resolution: "@radix-ui/react-context@npm:1.1.3"
-  peerDependencies:
-    "@types/react": "*"
-    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
-  peerDependenciesMeta:
-    "@types/react":
-      optional: true
-  checksum: 10c0/0f271b4100dbb007ad2675f2529453f07454f214b7ce796d72680bf2dff050d0719083ee6e8962919a74048ff853eff2e50de07d8f8c674d6be91bfa76204cc2
-  languageName: node
-  linkType: hard
-
 "@radix-ui/react-context@npm:1.1.4":
   version: 1.1.4
   resolution: "@radix-ui/react-context@npm:1.1.4"
@@ -3033,12 +3020,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-progress@npm:^1.1.8":
-  version: 1.1.8
-  resolution: "@radix-ui/react-progress@npm:1.1.8"
+"@radix-ui/react-progress@npm:^1.1.10":
+  version: 1.1.10
+  resolution: "@radix-ui/react-progress@npm:1.1.10"
   dependencies:
-    "@radix-ui/react-context": "npm:1.1.3"
-    "@radix-ui/react-primitive": "npm:2.1.4"
+    "@radix-ui/react-context": "npm:1.1.4"
+    "@radix-ui/react-primitive": "npm:2.1.6"
   peerDependencies:
     "@types/react": "*"
     "@types/react-dom": "*"
@@ -3049,7 +3036,7 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/6be47bd35f168e7ed8f7b3e76d944e79d995c60596c7b8e6eb824a0a27f9e6322bb92c8eab4ae1e49c205ee75aa09e6e70570128b0af987f83c05a4d53c6c3cf
+  checksum: 10c0/30297f48cd0978aad2cf2e095d4d4209df43b9be8596126d5c5e034a4b1ca92295c308e25e7434bbeb863d88ee1fd739b97e3b7beff266defc44410578eab196
   languageName: node
   linkType: hard
 
@@ -5175,7 +5162,7 @@ __metadata:
     "@radix-ui/react-dialog": "npm:^1.1.15"
     "@radix-ui/react-dropdown-menu": "npm:^2.1.16"
     "@radix-ui/react-label": "npm:^2.1.10"
-    "@radix-ui/react-progress": "npm:^1.1.8"
+    "@radix-ui/react-progress": "npm:^1.1.10"
     "@radix-ui/react-radio-group": "npm:^1.4.1"
     "@radix-ui/react-scroll-area": "npm:^1.2.12"
     "@radix-ui/react-separator": "npm:^1.1.8"
