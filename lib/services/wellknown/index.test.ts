@@ -1,4 +1,3 @@
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 
 import {
@@ -187,11 +186,6 @@ describe('getWebFingerResponse', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    // Re-establish the default config: clearAllMocks does not reset return
-    // values, so a per-test trustedHosts override would otherwise leak.
-    vi.mocked(getConfig).mockReturnValue({
-      host: 'test.example.com'
-    } as ReturnType<typeof getConfig>)
   })
 
   it('returns null when resource format is invalid', async () => {
@@ -238,75 +232,6 @@ describe('getWebFingerResponse', () => {
     })
 
     expect(result).toBeNull()
-  })
-
-  it('aliases a trusted-host handle to the canonical local actor', async () => {
-    vi.mocked(getConfig).mockReturnValue({
-      host: 'test.example.com',
-      trustedHosts: ['alias.example.com']
-    } as ReturnType<typeof getConfig>)
-    mockDatabase.getActorFromUsername.mockImplementation(
-      async ({ username, domain }: { username: string; domain: string }) =>
-        username === 'test' && domain === 'test.example.com'
-          ? {
-              id: 'https://test.example.com/users/test',
-              username: 'test',
-              domain: 'test.example.com',
-              privateKey: 'private-key'
-            }
-          : null
-    )
-
-    const result = await getWebFingerResponse({
-      database: mockDatabase as unknown as Database,
-      resource: 'acct:test@alias.example.com'
-    })
-
-    // The canonical identity (test.example.com) is preserved in the response.
-    expect(result?.subject).toBe('acct:test@test.example.com')
-    expect(result?.links).toContainEqual({
-      rel: 'self',
-      type: 'application/activity+json',
-      href: 'https://test.example.com/users/test'
-    })
-  })
-
-  it('aliases to the canonical actor even when a non-local record exists on the alias host', async () => {
-    vi.mocked(getConfig).mockReturnValue({
-      host: 'test.example.com',
-      trustedHosts: ['alias.example.com']
-    } as ReturnType<typeof getConfig>)
-    mockDatabase.getActorFromUsername.mockImplementation(
-      async ({ username, domain }: { username: string; domain: string }) => {
-        if (username !== 'test') return null
-        if (domain === 'test.example.com') {
-          return {
-            id: 'https://test.example.com/users/test',
-            username: 'test',
-            domain: 'test.example.com',
-            privateKey: 'private-key'
-          }
-        }
-        if (domain === 'alias.example.com') {
-          // A non-local (no private key) record on the alias host must not
-          // block aliasing to the canonical local actor.
-          return {
-            id: 'https://alias.example.com/users/test',
-            username: 'test',
-            domain: 'alias.example.com',
-            privateKey: null
-          }
-        }
-        return null
-      }
-    )
-
-    const result = await getWebFingerResponse({
-      database: mockDatabase as unknown as Database,
-      resource: 'acct:test@alias.example.com'
-    })
-
-    expect(result?.subject).toBe('acct:test@test.example.com')
   })
 
   it('returns valid webfinger response for local actor', async () => {

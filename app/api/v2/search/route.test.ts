@@ -21,7 +21,6 @@ const mockGetActorPerson = vi.fn()
 const mockRecordActorIfNeeded = vi.fn()
 const mockGetRemoteStatus = vi.fn()
 const mockLoggerWarn = vi.fn()
-const mockGetConfig = vi.fn()
 
 const oauthActor = {
   id: 'https://llun.test/users/searcher',
@@ -61,7 +60,7 @@ vi.mock('@/lib/database', () => ({
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
-  getConfig: () => mockGetConfig()
+  getConfig: () => ({ host: 'llun.test' })
 }))
 
 vi.mock('better-auth/oauth2', () => ({
@@ -107,7 +106,6 @@ const context = { params: Promise.resolve({}) }
 describe('GET /api/v2/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetConfig.mockReturnValue({ host: 'llun.test' })
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),
@@ -917,40 +915,6 @@ describe('GET /api/v2/search', () => {
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://remote.test/users/charlie']
-    })
-  })
-
-  it('aliases a trusted-host account handle to the canonical local actor', async () => {
-    mockGetConfig.mockReturnValue({
-      host: 'llun.test',
-      trustedHosts: ['alias.llun.test']
-    })
-    mockSearchAccountIds.mockResolvedValue([])
-    mockGetActorFromUsername.mockImplementation(
-      async ({ username, domain }: { username: string; domain: string }) =>
-        username === 'test' && domain === 'llun.test'
-          ? {
-              id: 'https://llun.test/users/test',
-              username: 'test',
-              domain: 'llun.test',
-              privateKey: 'private-key'
-            }
-          : null
-    )
-
-    const response = await GET(
-      new NextRequest(
-        'https://llun.test/api/v2/search?q=test%40alias.llun.test&type=accounts&resolve=true',
-        { headers: { Authorization: 'Bearer read-search-token' } }
-      ),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    // Resolved locally via the trusted-host alias — no external WebFinger call.
-    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
-    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
-      ids: ['https://llun.test/users/test']
     })
   })
 

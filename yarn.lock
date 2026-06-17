@@ -728,19 +728,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/core@npm:1.6.14":
-  version: 1.6.14
-  resolution: "@better-auth/core@npm:1.6.14"
+"@better-auth/core@npm:1.6.19":
+  version: 1.6.19
+  resolution: "@better-auth/core@npm:1.6.19"
   dependencies:
     "@opentelemetry/semantic-conventions": "npm:^1.39.0"
     "@standard-schema/spec": "npm:^1.1.0"
     zod: "npm:^4.3.6"
   peerDependencies:
-    "@better-auth/utils": 0.4.1
-    "@better-fetch/fetch": 1.1.21
+    "@better-auth/utils": 0.4.2
+    "@better-fetch/fetch": 1.3.1
     "@cloudflare/workers-types": ">=4"
     "@opentelemetry/api": ^1.9.0
-    better-call: 1.3.5
+    better-call: 1.3.6
     jose: ^6.1.0
     kysely: ^0.28.5 || ^0.29.0
     nanostores: ^1.0.1
@@ -749,46 +749,21 @@ __metadata:
       optional: true
     "@opentelemetry/api":
       optional: true
-  checksum: 10c0/a8a3d101cab199d0493764e3a92f17a1f173ee9378fb08efc84804a961a253ef6edae377df58c694fe47a2b4aaea377d5a8199ab73a6c6f55a626c6f913565f3
+  checksum: 10c0/ba296b6b6d1b7757c6d806b1bfba62b8f358e4e38a31a14b608575b5fc2fd4c90e9fd556972e88c7c009c4aea2aebb337f8b33e3745076a5b174ca481b5bece7
   languageName: node
   linkType: hard
 
-"@better-auth/core@npm:1.6.15":
-  version: 1.6.15
-  resolution: "@better-auth/core@npm:1.6.15"
-  dependencies:
-    "@opentelemetry/semantic-conventions": "npm:^1.39.0"
-    "@standard-schema/spec": "npm:^1.1.0"
-    zod: "npm:^4.3.6"
+"@better-auth/drizzle-adapter@npm:1.6.19":
+  version: 1.6.19
+  resolution: "@better-auth/drizzle-adapter@npm:1.6.19"
   peerDependencies:
-    "@better-auth/utils": 0.4.1
-    "@better-fetch/fetch": 1.1.21
-    "@cloudflare/workers-types": ">=4"
-    "@opentelemetry/api": ^1.9.0
-    better-call: 1.3.5
-    jose: ^6.1.0
-    kysely: ^0.28.5 || ^0.29.0
-    nanostores: ^1.0.1
-  peerDependenciesMeta:
-    "@cloudflare/workers-types":
-      optional: true
-    "@opentelemetry/api":
-      optional: true
-  checksum: 10c0/e13563dcc92a7d355abf6da1ee6e638e4352d5d432daf9320eb0d8364084668caacf2dc8f5125fe68fcd625c79045d84c28f3ec91ae25884922bf59d9cb30b9c
-  languageName: node
-  linkType: hard
-
-"@better-auth/drizzle-adapter@npm:1.6.15":
-  version: 1.6.15
-  resolution: "@better-auth/drizzle-adapter@npm:1.6.15"
-  peerDependencies:
-    "@better-auth/core": ^1.6.15
-    "@better-auth/utils": 0.4.1
+    "@better-auth/core": ^1.6.19
+    "@better-auth/utils": 0.4.2
     drizzle-orm: ^0.45.2
   peerDependenciesMeta:
     drizzle-orm:
       optional: true
-  checksum: 10c0/fd305148b35088e87559cd1fefe409ccec83778d93f5507a0b6bcda2f2764d17669feca177be517d11fc0abcee297cb468b8463ad2d23def471675df90ed42c0
+  checksum: 10c0/0e65355acdc9f177b25bf5f0151588a94d94b450c5c30aa96beaacaa50acf2d46e8deee258646d2682fd2c4b647ab6846430c5043f38c6d5e1f24862d50ae8f5
   languageName: node
   linkType: hard
 
@@ -809,41 +784,41 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/kysely-adapter@npm:1.6.15":
-  version: 1.6.15
-  resolution: "@better-auth/kysely-adapter@npm:1.6.15"
+"@better-auth/kysely-adapter@npm:1.6.19":
+  version: 1.6.19
+  resolution: "@better-auth/kysely-adapter@npm:1.6.19"
   peerDependencies:
-    "@better-auth/core": ^1.6.15
-    "@better-auth/utils": 0.4.1
+    "@better-auth/core": ^1.6.19
+    "@better-auth/utils": 0.4.2
     kysely: ^0.28.17 || ^0.29.0
   peerDependenciesMeta:
     kysely:
       optional: true
-  checksum: 10c0/54618e44fb3874510f606f1826a78c06c3ad3a6f5f61a3135d723f33f550dce915239ad7621b4cc0a2177797bfe1d7464f9753eaeecf06bec88bac521092cf20
+  checksum: 10c0/0da484ff8e572326e7d3ba7820550b3470e541a710c899bbf9fe277bbe965666339c8f3c895fc751ca86d7cfe124b5ed186bbdadbb160a5dfbf46594d8ff072e
   languageName: node
   linkType: hard
 
-"@better-auth/memory-adapter@npm:1.6.15":
-  version: 1.6.15
-  resolution: "@better-auth/memory-adapter@npm:1.6.15"
+"@better-auth/memory-adapter@npm:1.6.19":
+  version: 1.6.19
+  resolution: "@better-auth/memory-adapter@npm:1.6.19"
   peerDependencies:
-    "@better-auth/core": ^1.6.15
-    "@better-auth/utils": 0.4.1
-  checksum: 10c0/1fd16cf39a92cf133c8a1002c376948acc0e1cca1aa6624ab5a8b64dd06d56ae316f44e452b811cb7bfd33691c105152657b67fd3cd9216eddf5f65e1a1f85c1
+    "@better-auth/core": ^1.6.19
+    "@better-auth/utils": 0.4.2
+  checksum: 10c0/ee82ae8b20a449935e0412cfea81ef220224b5cdca668412d1938293756567deca4d7a8e108b8eb8d0bf67dd7c231a002f0a843cab91c82199d63b890839f30a
   languageName: node
   linkType: hard
 
-"@better-auth/mongo-adapter@npm:1.6.15":
-  version: 1.6.15
-  resolution: "@better-auth/mongo-adapter@npm:1.6.15"
+"@better-auth/mongo-adapter@npm:1.6.19":
+  version: 1.6.19
+  resolution: "@better-auth/mongo-adapter@npm:1.6.19"
   peerDependencies:
-    "@better-auth/core": ^1.6.15
-    "@better-auth/utils": 0.4.1
+    "@better-auth/core": ^1.6.19
+    "@better-auth/utils": 0.4.2
     mongodb: ^6.0.0 || ^7.0.0
   peerDependenciesMeta:
     mongodb:
       optional: true
-  checksum: 10c0/6fed46f91d98b16ac33e1fa31024a636ab7a9464e66ebe5efd40437f3988a92e0443cec493462e93f35b96231d8b62794a79f545a895ec9cce76e9b00e8ce4c3
+  checksum: 10c0/6c98eb8789c6d0cc586388b1850e0e49c97ea074e12c3a56380b7a27ac8e4e1bf4d7dd5a3172df57ac4aa2ca468f8c2550160cf751b5b98ed92dbd32f5c76ed4
   languageName: node
   linkType: hard
 
@@ -881,12 +856,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/prisma-adapter@npm:1.6.15":
-  version: 1.6.15
-  resolution: "@better-auth/prisma-adapter@npm:1.6.15"
+"@better-auth/prisma-adapter@npm:1.6.19":
+  version: 1.6.19
+  resolution: "@better-auth/prisma-adapter@npm:1.6.19"
   peerDependencies:
-    "@better-auth/core": ^1.6.15
-    "@better-auth/utils": 0.4.1
+    "@better-auth/core": ^1.6.19
+    "@better-auth/utils": 0.4.2
     "@prisma/client": ^5.0.0 || ^6.0.0 || ^7.0.0
     prisma: ^5.0.0 || ^6.0.0 || ^7.0.0
   peerDependenciesMeta:
@@ -894,7 +869,7 @@ __metadata:
       optional: true
     prisma:
       optional: true
-  checksum: 10c0/f49c02894d88d42ecde9ed71fee20ca0295a2a6c0091f29721797e1d320adec198e8d543bfd829ed88d4530a1c89085a724c7cede0589a6bef25de2b41167e41
+  checksum: 10c0/4ce2f6d58d72705cc04d9bfcc39106b0812b41950551760e039aeafb0402aaf2bdcff83a1b8b7faea8005cada30b73db4da72bee840643b08a1e69ad94093ccd
   languageName: node
   linkType: hard
 
@@ -917,14 +892,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/telemetry@npm:1.6.15":
-  version: 1.6.15
-  resolution: "@better-auth/telemetry@npm:1.6.15"
+"@better-auth/telemetry@npm:1.6.19":
+  version: 1.6.19
+  resolution: "@better-auth/telemetry@npm:1.6.19"
   peerDependencies:
-    "@better-auth/core": ^1.6.15
-    "@better-auth/utils": 0.4.1
-    "@better-fetch/fetch": 1.1.21
-  checksum: 10c0/23cb5f1a67e201bc57d3fe9c73b7425d6cb148b76045a70747e3c7b556c3d89d4557a5d7537c470205ab44805b2b22c2e8da11028155ee04cbc0d79978feda66
+    "@better-auth/core": ^1.6.19
+    "@better-auth/utils": 0.4.2
+    "@better-fetch/fetch": 1.3.1
+  checksum: 10c0/0cc303c6ad7d4292db2cb4195616022206f4a043504f2488743e2c99c86f2a1b6f0cc6932de29ad0c482b7cbe6fb9186dacccd16a51a4539f9cfbdeacbf5d4a6
   languageName: node
   linkType: hard
 
@@ -937,10 +912,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-fetch/fetch@npm:1.1.21":
-  version: 1.1.21
-  resolution: "@better-fetch/fetch@npm:1.1.21"
-  checksum: 10c0/b23355b9eb397a4e6d3b269b027f19c44e3348b42640fa8f133ea4ca9c07e1d289781d2b18477f56883040e7401fcc751c52a6f0b56ea619bdd3132fff3cbb43
+"@better-auth/utils@npm:0.4.2":
+  version: 0.4.2
+  resolution: "@better-auth/utils@npm:0.4.2"
+  dependencies:
+    "@noble/hashes": "npm:^2.0.1"
+  checksum: 10c0/1c39491a44ecfec5e54fc981f9f09f0c76fc8102b06b31fec1bdf4b7c53714f3a6929412af3075248a852df1268043eaab283f698e859542ee79a366f162aabf
+  languageName: node
+  linkType: hard
+
+"@better-fetch/fetch@npm:1.3.1":
+  version: 1.3.1
+  resolution: "@better-fetch/fetch@npm:1.3.1"
+  checksum: 10c0/efb7f90af218aa152e8055225c3998294237128066234f82d3002c7eb383e04554262e30353dba5b021fb927b36e0aa3f64f85505e8f651a1c42e3b4f55d9702
   languageName: node
   linkType: hard
 
@@ -3595,6 +3579,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@radix-ui/react-arrow@npm:1.1.10":
+  version: 1.1.10
+  resolution: "@radix-ui/react-arrow@npm:1.1.10"
+  dependencies:
+    "@radix-ui/react-primitive": "npm:2.1.6"
+  peerDependencies:
+    "@types/react": "*"
+    "@types/react-dom": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: 10c0/a364da644694318ee0d557e7ed60ff8e8af5c9021825218b310b29502463b2982fde70c1d9e2bc3d53ec3141ebe94b6a9fd58b95f493fdc359b8ee83da3d8332
+  languageName: node
+  linkType: hard
+
 "@radix-ui/react-arrow@npm:1.1.9":
   version: 1.1.9
   resolution: "@radix-ui/react-arrow@npm:1.1.9"
@@ -3614,12 +3617,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-avatar@npm:^1.1.11":
-  version: 1.1.12
-  resolution: "@radix-ui/react-avatar@npm:1.1.12"
+"@radix-ui/react-avatar@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "@radix-ui/react-avatar@npm:1.2.0"
   dependencies:
     "@radix-ui/react-context": "npm:1.1.4"
-    "@radix-ui/react-primitive": "npm:2.1.5"
+    "@radix-ui/react-primitive": "npm:2.1.6"
     "@radix-ui/react-use-callback-ref": "npm:1.1.2"
     "@radix-ui/react-use-is-hydrated": "npm:0.1.1"
     "@radix-ui/react-use-layout-effect": "npm:1.1.2"
@@ -3633,7 +3636,7 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/7bfb81421ae46ebeaa494fe1d11585e2b8089052e7293e6e4b8f7a8e1e5b16a0595f58bd8576df00ddbcac87c0343621ed1c15ca5d3f1f4d737b6dc1a2756877
+  checksum: 10c0/5a6782293c23a36197df857ca74ec67975d846784410ef1b06c0edeb06c3cbeabadae0f801699b85e44bfad342d2124173e86c56a5701e495f36a507cd2dbf26
   languageName: node
   linkType: hard
 
@@ -3775,6 +3778,29 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@radix-ui/react-dismissable-layer@npm:1.1.13":
+  version: 1.1.13
+  resolution: "@radix-ui/react-dismissable-layer@npm:1.1.13"
+  dependencies:
+    "@radix-ui/primitive": "npm:1.1.4"
+    "@radix-ui/react-compose-refs": "npm:1.1.3"
+    "@radix-ui/react-primitive": "npm:2.1.6"
+    "@radix-ui/react-use-callback-ref": "npm:1.1.2"
+    "@radix-ui/react-use-escape-keydown": "npm:1.1.2"
+  peerDependencies:
+    "@types/react": "*"
+    "@types/react-dom": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: 10c0/800a96e82b3719511c40cfdace1a7250690cf38eae2a0114ddc8e980a76756993b8f898359ed296e15b18a60b319b4700e7c8fb6206a6fef66b3907fbbcebef6
+  languageName: node
+  linkType: hard
+
 "@radix-ui/react-dropdown-menu@npm:^2.1.16":
   version: 2.1.17
   resolution: "@radix-ui/react-dropdown-menu@npm:2.1.17"
@@ -3849,11 +3875,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-label@npm:^2.1.9":
-  version: 2.1.9
-  resolution: "@radix-ui/react-label@npm:2.1.9"
+"@radix-ui/react-label@npm:^2.1.10":
+  version: 2.1.10
+  resolution: "@radix-ui/react-label@npm:2.1.10"
   dependencies:
-    "@radix-ui/react-primitive": "npm:2.1.5"
+    "@radix-ui/react-primitive": "npm:2.1.6"
   peerDependencies:
     "@types/react": "*"
     "@types/react-dom": "*"
@@ -3864,7 +3890,7 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/dbdf1d0e5adf948eb2cba04e191983f5084475a11612720de732047589261854b87473063b419661a592a091c1861f17b065dc38e19c5baf0b783dea41d82f4a
+  checksum: 10c0/07fd6353c8da26745e2f2779b15f81736611eb148f6c4073b686fb5c3b9c068b89f0e9690d2f70733f1e662faf07b3cbfb461df6bea11d97c31b2f372080993e
   languageName: node
   linkType: hard
 
@@ -3932,6 +3958,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@radix-ui/react-popper@npm:1.3.1":
+  version: 1.3.1
+  resolution: "@radix-ui/react-popper@npm:1.3.1"
+  dependencies:
+    "@floating-ui/react-dom": "npm:^2.0.0"
+    "@radix-ui/react-arrow": "npm:1.1.10"
+    "@radix-ui/react-compose-refs": "npm:1.1.3"
+    "@radix-ui/react-context": "npm:1.1.4"
+    "@radix-ui/react-primitive": "npm:2.1.6"
+    "@radix-ui/react-use-callback-ref": "npm:1.1.2"
+    "@radix-ui/react-use-layout-effect": "npm:1.1.2"
+    "@radix-ui/react-use-rect": "npm:1.1.2"
+    "@radix-ui/react-use-size": "npm:1.1.2"
+    "@radix-ui/rect": "npm:1.1.2"
+  peerDependencies:
+    "@types/react": "*"
+    "@types/react-dom": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: 10c0/1ec118d66d437835a771ef166b2847931fbe02ded0dd342aa2a5b04643cd001a036f74a7924a2f357ac602e01b1ad3cc4e2c1b8a2bd24ca8417621cf9e56fb1d
+  languageName: node
+  linkType: hard
+
 "@radix-ui/react-portal@npm:1.1.11":
   version: 1.1.11
   resolution: "@radix-ui/react-portal@npm:1.1.11"
@@ -3949,6 +4003,26 @@ __metadata:
     "@types/react-dom":
       optional: true
   checksum: 10c0/fa5942bbdff1baec9df4238f77a23d36d5e3716ae6b558aa7f9e91b795d4ba4208355ea0770e2f6300678fda6aa7b26fd1e10cdf3f227a6af67e0429a271a1f2
+  languageName: node
+  linkType: hard
+
+"@radix-ui/react-portal@npm:1.1.12":
+  version: 1.1.12
+  resolution: "@radix-ui/react-portal@npm:1.1.12"
+  dependencies:
+    "@radix-ui/react-primitive": "npm:2.1.6"
+    "@radix-ui/react-use-layout-effect": "npm:1.1.2"
+  peerDependencies:
+    "@types/react": "*"
+    "@types/react-dom": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: 10c0/9b1bcfdb0577c0972f09c44d9f55fc365ab18f7777cc412fc993e733318cf08c382824ab8d8bc1eb2305b7d2eb8d4e478900b610f8a7f5ea233ffc3cc14d1427
   languageName: node
   linkType: hard
 
@@ -4111,9 +4185,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-scroll-area@npm:^1.2.10":
-  version: 1.2.11
-  resolution: "@radix-ui/react-scroll-area@npm:1.2.11"
+"@radix-ui/react-scroll-area@npm:^1.2.12":
+  version: 1.2.12
+  resolution: "@radix-ui/react-scroll-area@npm:1.2.12"
   dependencies:
     "@radix-ui/number": "npm:1.1.2"
     "@radix-ui/primitive": "npm:1.1.4"
@@ -4121,7 +4195,7 @@ __metadata:
     "@radix-ui/react-context": "npm:1.1.4"
     "@radix-ui/react-direction": "npm:1.1.2"
     "@radix-ui/react-presence": "npm:1.1.6"
-    "@radix-ui/react-primitive": "npm:2.1.5"
+    "@radix-ui/react-primitive": "npm:2.1.6"
     "@radix-ui/react-use-callback-ref": "npm:1.1.2"
     "@radix-ui/react-use-layout-effect": "npm:1.1.2"
   peerDependencies:
@@ -4134,7 +4208,7 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/4adb41515d882bbf5dc4a7b5d2e8ec21b16a5aa758f598cb46392e975dcd2f6b423cb102d51dc9b6229378f5519203c66c1c82b90901eff3ac0f8fb916c0f98b
+  checksum: 10c0/7903de7ab46d439c15296172765d71a55d43675a04ba9709af2b61ecf3556aacf999a25a4bee8068c6c1dc7a83bef7c28aa0d06a66308656821bc1ff391388d4
   languageName: node
   linkType: hard
 
@@ -4259,22 +4333,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-tooltip@npm:^1.2.8":
-  version: 1.2.9
-  resolution: "@radix-ui/react-tooltip@npm:1.2.9"
+"@radix-ui/react-tooltip@npm:^1.2.10":
+  version: 1.2.10
+  resolution: "@radix-ui/react-tooltip@npm:1.2.10"
   dependencies:
     "@radix-ui/primitive": "npm:1.1.4"
     "@radix-ui/react-compose-refs": "npm:1.1.3"
     "@radix-ui/react-context": "npm:1.1.4"
-    "@radix-ui/react-dismissable-layer": "npm:1.1.12"
+    "@radix-ui/react-dismissable-layer": "npm:1.1.13"
     "@radix-ui/react-id": "npm:1.1.2"
-    "@radix-ui/react-popper": "npm:1.3.0"
-    "@radix-ui/react-portal": "npm:1.1.11"
+    "@radix-ui/react-popper": "npm:1.3.1"
+    "@radix-ui/react-portal": "npm:1.1.12"
     "@radix-ui/react-presence": "npm:1.1.6"
-    "@radix-ui/react-primitive": "npm:2.1.5"
-    "@radix-ui/react-slot": "npm:1.2.5"
+    "@radix-ui/react-primitive": "npm:2.1.6"
+    "@radix-ui/react-slot": "npm:1.3.0"
     "@radix-ui/react-use-controllable-state": "npm:1.2.3"
-    "@radix-ui/react-visually-hidden": "npm:1.2.5"
+    "@radix-ui/react-visually-hidden": "npm:1.2.6"
   peerDependencies:
     "@types/react": "*"
     "@types/react-dom": "*"
@@ -4285,7 +4359,7 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/fc109d0967485b21d8360a3d5a193102bd8281e45eda3dd4db7735ac3d4ad18269cac5c320641950be413575f6d466c02e8f10e3fd8a9bfca33dd4816bb260fd
+  checksum: 10c0/2fd70fbd660ec8d3b13949bb3020166a14394b422ff992b8f5eb50a3f4b17444282f88cba350f22d398e5370c098c986f0236b29ab6e2451d73bf75ae3498fb9
   languageName: node
   linkType: hard
 
@@ -4417,11 +4491,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-visually-hidden@npm:1.2.5":
-  version: 1.2.5
-  resolution: "@radix-ui/react-visually-hidden@npm:1.2.5"
+"@radix-ui/react-visually-hidden@npm:1.2.6":
+  version: 1.2.6
+  resolution: "@radix-ui/react-visually-hidden@npm:1.2.6"
   dependencies:
-    "@radix-ui/react-primitive": "npm:2.1.5"
+    "@radix-ui/react-primitive": "npm:2.1.6"
   peerDependencies:
     "@types/react": "*"
     "@types/react-dom": "*"
@@ -4432,7 +4506,7 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/9d0169a1950cbc4a9c47893e7101fc1286bfec85489665692f818c4322a8614dcccab873ce06099220c20dc454d978153e29fc6fb23d37bc89c10b8ed4f037db
+  checksum: 10c0/24f8bbf63d007a34af9c816558019d0e9f3db89aa9de0b29bdd8f86647a351db9d82ed8510bbb5e4c122afaf3606b9bfcd626c3757c56927819e9e4ea8feb6e1
   languageName: node
   linkType: hard
 
@@ -4848,7 +4922,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@swc/core@npm:^1.15.40":
+"@swc/core@npm:^1.15.41":
   version: 1.15.41
   resolution: "@swc/core@npm:1.15.41"
   dependencies:
@@ -5498,12 +5572,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/yauzl@npm:^2.10.3":
-  version: 2.10.3
-  resolution: "@types/yauzl@npm:2.10.3"
+"@types/yauzl@npm:^3.4.0":
+  version: 3.4.0
+  resolution: "@types/yauzl@npm:3.4.0"
   dependencies:
     "@types/node": "npm:*"
-  checksum: 10c0/f1b7c1b99fef9f2fe7f1985ef7426d0cebe48cd031f1780fcdc7451eec7e31ac97028f16f50121a59bcf53086a1fc8c856fd5b7d3e00970e43d92ae27d6b43dc
+  checksum: 10c0/9992cf7bf129466016baa4e99e05ad524afe2ff6e5d84e7408f2a7123bc4af3b4bfb639237308574b80e7e435571b6e1af6113910d166e8ea8b80da422ba8ecb
   languageName: node
   linkType: hard
 
@@ -6132,13 +6206,13 @@ __metadata:
     "@aws-sdk/s3-presigned-post": "npm:^3.1056.0"
     "@aws-sdk/s3-request-presigner": "npm:^3.1056.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
-    "@better-auth/core": "npm:1.6.14"
+    "@better-auth/core": "npm:1.6.19"
     "@better-auth/infra": "npm:^0.1.12"
     "@better-auth/oauth-provider": "npm:^1.6.15"
     "@better-auth/passkey": "npm:^1.6.11"
     "@better-auth/sso": "npm:^1.5.5"
     "@better-auth/utils": "npm:0.4.1"
-    "@better-fetch/fetch": "npm:1.1.21"
+    "@better-fetch/fetch": "npm:1.3.1"
     "@date-fns/utc": "npm:^2.1.1"
     "@eslint/eslintrc": "npm:^3.3.5"
     "@eslint/js": "npm:^10.0.1"
@@ -6162,23 +6236,23 @@ __metadata:
     "@opentelemetry/sdk-node": "npm:^0.213.0"
     "@opentelemetry/sdk-trace-base": "npm:^2.6.0"
     "@opentelemetry/semantic-conventions": "npm:^1.40.0"
-    "@radix-ui/react-avatar": "npm:^1.1.11"
+    "@radix-ui/react-avatar": "npm:^1.2.0"
     "@radix-ui/react-dialog": "npm:^1.1.15"
     "@radix-ui/react-dropdown-menu": "npm:^2.1.16"
-    "@radix-ui/react-label": "npm:^2.1.9"
+    "@radix-ui/react-label": "npm:^2.1.10"
     "@radix-ui/react-progress": "npm:^1.1.8"
     "@radix-ui/react-radio-group": "npm:^1.4.1"
-    "@radix-ui/react-scroll-area": "npm:^1.2.10"
+    "@radix-ui/react-scroll-area": "npm:^1.2.12"
     "@radix-ui/react-separator": "npm:^1.1.8"
     "@radix-ui/react-slot": "npm:^1.2.5"
     "@radix-ui/react-switch": "npm:^1.2.6"
     "@radix-ui/react-tabs": "npm:^1.1.15"
     "@radix-ui/react-toggle": "npm:^1.1.10"
-    "@radix-ui/react-tooltip": "npm:^1.2.8"
+    "@radix-ui/react-tooltip": "npm:^1.2.10"
     "@simplewebauthn/browser": "npm:^13.3.0"
     "@simplewebauthn/server": "npm:^13.3.1"
     "@swc-node/register": "npm:^1.11.1"
-    "@swc/core": "npm:^1.15.40"
+    "@swc/core": "npm:^1.15.41"
     "@tailwindcss/postcss": "npm:^4.3.0"
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/jest-dom": "npm:^6.9.1"
@@ -6198,14 +6272,14 @@ __metadata:
     "@types/react-modal": "npm:^3.16.3"
     "@types/sanitize-html": "npm:^2.16.1"
     "@types/web-push": "npm:^3.6.4"
-    "@types/yauzl": "npm:^2.10.3"
+    "@types/yauzl": "npm:^3.4.0"
     "@typescript-eslint/eslint-plugin": "npm:^8.60.0"
     "@typescript-eslint/parser": "npm:^8.60.0"
     "@upstash/qstash": "npm:^2.11.0"
     "@vercel/otel": "npm:^2.1.1"
     "@vitest/coverage-v8": "npm:^4.1.9"
     bcrypt: "npm:^6.0.0"
-    better-auth: "npm:1.6.15"
+    better-auth: "npm:1.6.19"
     better-call: "npm:2.0.3"
     better-sqlite3: "npm:^12.10.0"
     class-variance-authority: "npm:^0.7.1"
@@ -6267,7 +6341,7 @@ __metadata:
     vitest: "npm:^4.1.9"
     vitest-fetch-mock: "npm:^0.4.5"
     web-push: "npm:^3.6.7"
-    yauzl: "npm:^3.3.2"
+    yauzl: "npm:^3.4.0"
     zod: "npm:^4.4.3"
   languageName: unknown
   linkType: soft
@@ -6632,22 +6706,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"better-auth@npm:1.6.15":
-  version: 1.6.15
-  resolution: "better-auth@npm:1.6.15"
+"better-auth@npm:1.6.19":
+  version: 1.6.19
+  resolution: "better-auth@npm:1.6.19"
   dependencies:
-    "@better-auth/core": "npm:1.6.15"
-    "@better-auth/drizzle-adapter": "npm:1.6.15"
-    "@better-auth/kysely-adapter": "npm:1.6.15"
-    "@better-auth/memory-adapter": "npm:1.6.15"
-    "@better-auth/mongo-adapter": "npm:1.6.15"
-    "@better-auth/prisma-adapter": "npm:1.6.15"
-    "@better-auth/telemetry": "npm:1.6.15"
-    "@better-auth/utils": "npm:0.4.1"
-    "@better-fetch/fetch": "npm:1.1.21"
+    "@better-auth/core": "npm:1.6.19"
+    "@better-auth/drizzle-adapter": "npm:1.6.19"
+    "@better-auth/kysely-adapter": "npm:1.6.19"
+    "@better-auth/memory-adapter": "npm:1.6.19"
+    "@better-auth/mongo-adapter": "npm:1.6.19"
+    "@better-auth/prisma-adapter": "npm:1.6.19"
+    "@better-auth/telemetry": "npm:1.6.19"
+    "@better-auth/utils": "npm:0.4.2"
+    "@better-fetch/fetch": "npm:1.3.1"
     "@noble/ciphers": "npm:^2.1.1"
     "@noble/hashes": "npm:^2.0.1"
-    better-call: "npm:1.3.5"
+    better-call: "npm:1.3.6"
     defu: "npm:^6.1.4"
     jose: "npm:^6.1.3"
     kysely: "npm:^0.28.17 || ^0.29.0"
@@ -6712,13 +6786,13 @@ __metadata:
       optional: true
     vue:
       optional: true
-  checksum: 10c0/95054b947e98d760fdaf906a11e9f071e87357d7ec1d01394d4a2041da1214e1ae39ae325af93861dbc66ab178faeb0b71024e8fee0044198296cdcd48aba377
+  checksum: 10c0/68685121bcdf4953dab56f0fa48cefb360dd68de140dc278bb6f3f9043ad3c430305bf81adb603170f7ba7f9bb83abdf34f7226436f76de98c62a3f132796d5f
   languageName: node
   linkType: hard
 
-"better-call@npm:1.3.5":
-  version: 1.3.5
-  resolution: "better-call@npm:1.3.5"
+"better-call@npm:1.3.6, better-call@npm:^1.3.3":
+  version: 1.3.6
+  resolution: "better-call@npm:1.3.6"
   dependencies:
     "@better-auth/utils": "npm:^0.4.0"
     "@better-fetch/fetch": "npm:^1.1.21"
@@ -6729,7 +6803,7 @@ __metadata:
   peerDependenciesMeta:
     zod:
       optional: true
-  checksum: 10c0/2b629138301b2cf34c3c7c808f658d77510123fd31c0e30622981608c6f8e5571187f0919af37951f92c66f0cbfaa67bc07c5c16139fdf7e5f8e6616964b1628
+  checksum: 10c0/94044551dbb851e526b9942aefc60b90afe66d93049a5b2091f8833981b992dab19c3596fba511b1291749b19d38f81b2c020656a920a6b3f0e47001d9d7b81a
   languageName: node
   linkType: hard
 
@@ -6747,23 +6821,6 @@ __metadata:
     zod:
       optional: true
   checksum: 10c0/2f59e03cf38e9f1b174747dce1bb343e683d80ab276f82dd2353c254079359f53d1790a96f370a690550f2135081114af771c21f703d47c9160b66b960de8b0f
-  languageName: node
-  linkType: hard
-
-"better-call@npm:^1.3.3":
-  version: 1.3.6
-  resolution: "better-call@npm:1.3.6"
-  dependencies:
-    "@better-auth/utils": "npm:^0.4.0"
-    "@better-fetch/fetch": "npm:^1.1.21"
-    rou3: "npm:^0.7.12"
-    set-cookie-parser: "npm:^3.0.1"
-  peerDependencies:
-    zod: ^4.0.0
-  peerDependenciesMeta:
-    zod:
-      optional: true
-  checksum: 10c0/94044551dbb851e526b9942aefc60b90afe66d93049a5b2091f8833981b992dab19c3596fba511b1291749b19d38f81b2c020656a920a6b3f0e47001d9d7b81a
   languageName: node
   linkType: hard
 
@@ -14616,7 +14673,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yauzl@npm:^3.3.2":
+"yauzl@npm:^3.4.0":
   version: 3.4.0
   resolution: "yauzl@npm:3.4.0"
   dependencies:
