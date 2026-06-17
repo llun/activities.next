@@ -87,7 +87,7 @@
     "sharp": "^0.35.1",
     "tailwind-merge": "^3.6.0",
     "web-push": "^3.6.7",
-    "yauzl": "^3.3.2",
+    "yauzl": "^3.4.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -116,7 +116,7 @@
     "@types/react-modal": "^3.16.3",
     "@types/sanitize-html": "^2.16.1",
     "@types/web-push": "^3.6.4",
-    "@types/yauzl": "^2.10.3",
+    "@types/yauzl": "^3.4.0",
     "@typescript-eslint/eslint-plugin": "^8.60.0",
     "@typescript-eslint/parser": "^8.60.0",
     "@vitest/coverage-v8": "^4.1.9",
