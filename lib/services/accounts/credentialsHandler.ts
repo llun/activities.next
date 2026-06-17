@@ -1,8 +1,10 @@
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
+import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse } from '@/lib/utils/response'
@@ -29,10 +31,16 @@ export const getCredentialAccountHandler = (corsHeaders: HttpMethod[]) =>
           responseStatusCode: 500
         })
       }
+      // Render the current user's acct relative to the domain they connected
+      // through, so a client on a non-ACTIVITIES_HOST domain sees its own
+      // account as local (bare acct) rather than as a foreign one.
       return apiResponse({
         req,
         allowedMethods: corsHeaders,
-        data: buildCredentialAccount({ account, followRequestsCount })
+        data: buildCredentialAccount({
+          account: localizeAccount(account, headerHost(req.headers)),
+          followRequestsCount
+        })
       })
     },
     { errorResponse: corsErrorResponse(corsHeaders) }

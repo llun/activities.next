@@ -690,12 +690,14 @@ describe('GET /api/v2/search', () => {
       {
         id: 'https://remote.test/users/resolved',
         url: accountUrl,
-        username: 'resolved'
+        username: 'resolved',
+        acct: 'resolved@remote.test'
       },
       {
         id: 'https://remote.test/users/indexed',
         url: 'https://remote.test/@indexed',
-        username: 'indexed'
+        username: 'indexed',
+        acct: 'indexed@remote.test'
       }
     ])
   })
@@ -741,7 +743,8 @@ describe('GET /api/v2/search', () => {
       {
         id: 'https://remote.test/users/remote-resolved',
         url: accountUrl,
-        username: 'remote-resolved'
+        username: 'remote-resolved',
+        acct: 'remote-resolved@remote.test'
       }
     ])
   })
@@ -784,7 +787,8 @@ describe('GET /api/v2/search', () => {
       {
         id: canonicalActorId,
         url: accountUrl,
-        username: 'remote-resolved'
+        username: 'remote-resolved',
+        acct: 'remote-resolved@remote.test'
       }
     ])
   })

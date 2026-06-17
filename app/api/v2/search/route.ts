@@ -7,10 +7,12 @@ import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import {
   OptionalOAuthGuard,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
@@ -603,7 +605,7 @@ export const GET = traceApiRoute(
         req,
         allowedMethods: CORS_HEADERS,
         data: {
-          accounts,
+          accounts: localizeAccounts(accounts, headerHost(req.headers)),
           statuses,
           hashtags
         }
