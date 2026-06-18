@@ -45,12 +45,13 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // from getBaseURL() to inherit the configured scheme (http for
   // ACTIVITIES_INSECURE_AUTH) and swap in the request host via the URL API.
   const requestHost = headerHost(await headers())
-  const requestBaseUrl = new URL(getBaseURL())
-  requestBaseUrl.host = requestHost
-  // The `.host` setter keeps the base port when requestHost omits one; the
-  // request host is authoritative, so drop any inherited port in that case.
-  if (requestBaseUrl.host !== requestHost) requestBaseUrl.port = ''
-  const requestBaseURL = requestBaseUrl.toString()
+  const requestUrl = new URL(getBaseURL())
+  requestUrl.host = requestHost
+  // The `.host` setter keeps the base port when requestHost omits one (verified
+  // on Node/V8: it does not clear an existing port); the request host is
+  // authoritative, so drop any inherited port in that case.
+  if (requestUrl.host !== requestHost) requestUrl.port = ''
+  const requestBaseURL = requestUrl.toString()
 
   if (!actor || !actor.account) {
     const url = new URL('/auth/signin', requestBaseURL)
