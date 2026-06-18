@@ -1,5 +1,6 @@
-import { getConfig } from '@/lib/config'
+import { getBaseURL, getConfig } from '@/lib/config'
 import { TEST_DOMAIN } from '@/lib/stub/const'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
 
@@ -39,35 +40,66 @@ const searchParams = {
   response_type: 'code' as const
 }
 
-describe('/oauth/authorize sign-in redirect host', () => {
+describe('/oauth/authorize redirect host', () => {
   beforeEach(() => {
     redirectMock.mockClear()
     vi.mocked(getConfig).mockReturnValue({
       host: TEST_DOMAIN,
       trustedHosts: [ALIAS_HOST]
     } as ReturnType<typeof getConfig>)
+    vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
+    vi.mocked(getActorFromSession).mockResolvedValue(null)
   })
 
-  it('keeps an unauthenticated login on the trusted request host', async () => {
-    headersMock.mockReturnValue(new Headers({ 'x-forwarded-host': ALIAS_HOST }))
-
-    await Page({ searchParams: Promise.resolve(searchParams) })
-
-    expect(redirectMock).toHaveBeenCalledTimes(1)
-    const target = new URL(redirectMock.mock.calls[0][0])
-    expect(target.host).toBe(ALIAS_HOST)
-    expect(target.pathname).toBe('/auth/signin')
-  })
-
-  it('falls back to the configured host for an untrusted request host', async () => {
+  it.each([
+    {
+      description: 'keeps an unauthenticated login on the trusted request host',
+      requestHost: ALIAS_HOST,
+      expectedHost: ALIAS_HOST
+    },
+    {
+      description:
+        'falls back to the configured host for an untrusted request host',
+      requestHost: 'evil.example',
+      expectedHost: TEST_DOMAIN
+    }
+  ])('sign-in redirect $description', async ({ requestHost, expectedHost }) => {
     headersMock.mockReturnValue(
-      new Headers({ 'x-forwarded-host': 'evil.example' })
+      new Headers({ 'x-forwarded-host': requestHost })
     )
 
     await Page({ searchParams: Promise.resolve(searchParams) })
 
     expect(redirectMock).toHaveBeenCalledTimes(1)
     const target = new URL(redirectMock.mock.calls[0][0])
-    expect(target.host).toBe(TEST_DOMAIN)
+    expect(target.host).toBe(expectedHost)
+    expect(target.pathname).toBe('/auth/signin')
+  })
+
+  it('uses the configured scheme rather than hardcoding https', async () => {
+    vi.mocked(getBaseURL).mockReturnValue(`http://${TEST_DOMAIN}`)
+    headersMock.mockReturnValue(new Headers({ 'x-forwarded-host': ALIAS_HOST }))
+
+    await Page({ searchParams: Promise.resolve(searchParams) })
+
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.protocol).toBe('http:')
+    expect(target.host).toBe(ALIAS_HOST)
+  })
+
+  it('delegates an authenticated consent redirect to the trusted request host', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'actor-id',
+      account: { id: 'account-id' }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+    headersMock.mockReturnValue(new Headers({ 'x-forwarded-host': ALIAS_HOST }))
+
+    // No sig/exp -> shouldDelegateToBetterAuth is true.
+    await Page({ searchParams: Promise.resolve(searchParams) })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.host).toBe(ALIAS_HOST)
+    expect(target.pathname).toBe('/api/auth/oauth2/authorize')
   })
 })
