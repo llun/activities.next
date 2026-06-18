@@ -5,6 +5,7 @@ import {
   normalizeInputContext,
   offlineDocumentLoader
 } from '@/lib/activities/jsonld'
+import { BaseNote, getContent, getLanguage } from '@/lib/activities/note'
 
 const asRecord = (value: unknown) => value as Record<string, unknown>
 
@@ -377,5 +378,52 @@ describe('normalizeInputContext', () => {
 
     expect(context).toContain(null)
     expect(context).toContainEqual(['nested'])
+  })
+
+  it('does not mutate the caller input or its inline context objects', () => {
+    const inlineContext = { '@language': 'und', '@direction': 'ltr' }
+    const input = {
+      '@context': [ACTIVITY_STREAMS_CONTEXT_URL, inlineContext],
+      id: 'https://remote.example/users/a'
+    }
+
+    normalizeInputContext(input)
+
+    // The original input and its nested context object are untouched.
+    expect(input['@context']).toEqual([
+      ACTIVITY_STREAMS_CONTEXT_URL,
+      inlineContext
+    ])
+    expect(inlineContext).toEqual({ '@language': 'und', '@direction': 'ltr' })
+  })
+})
+
+describe('compactActivityPub note language handling', () => {
+  const noteWithContextLanguage = (language: string) => ({
+    '@context': [ACTIVITY_STREAMS_CONTEXT_URL, { '@language': language }],
+    id: 'https://remote.example/notes/1',
+    type: 'Note',
+    attributedTo: 'https://remote.example/users/alice',
+    content: '<p>hello</p>',
+    published: '2026-01-01T00:00:00Z'
+  })
+
+  it('keeps content readable and language null for an undetermined default', async () => {
+    const note = (await compactActivityPub(
+      noteWithContextLanguage('und')
+    )) as unknown as BaseNote
+
+    expect(getContent(note)).toBe('<p>hello</p>')
+    // "und" carries no real language, so detection stays null (no regression).
+    expect(getLanguage(note)).toBeNull()
+  })
+
+  it('preserves a meaningful default language for detection', async () => {
+    const note = (await compactActivityPub(
+      noteWithContextLanguage('th')
+    )) as unknown as BaseNote
+
+    expect(getContent(note)).toBe('<p>hello</p>')
+    expect(getLanguage(note)).toBe('th')
   })
 })
