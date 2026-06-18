@@ -41,10 +41,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   // Keep sign-in/consent redirects on the host the request actually arrived on
   // (a trusted alias domain falls back to the configured host otherwise) so a
-  // login started on a custom domain isn't bounced to ACTIVITIES_HOST. Reuse
-  // getBaseURL() only for the configured scheme (http for ACTIVITIES_INSECURE_AUTH).
-  const requestHost = headerHost(await headers())
-  const requestBaseURL = `${new URL(getBaseURL()).protocol}//${requestHost}`
+  // login started on a custom domain isn't bounced to ACTIVITIES_HOST. Start
+  // from getBaseURL() to inherit the configured scheme (http for
+  // ACTIVITIES_INSECURE_AUTH) and swap only the host via the URL API.
+  const requestBaseUrl = new URL(getBaseURL())
+  requestBaseUrl.host = headerHost(await headers())
+  const requestBaseURL = requestBaseUrl.toString()
 
   if (!actor || !actor.account) {
     const url = new URL('/auth/signin', requestBaseURL)
