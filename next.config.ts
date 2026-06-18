@@ -8,6 +8,18 @@ import { getStaticSecurityHeaders } from '@/lib/utils/http-headers/static'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
+  // sharp's native *.node binary dlopen's its libvips shared library via a
+  // native RPATH, which the standalone tracer (@vercel/nft) cannot follow.
+  // Since sharp 0.35 the runtime @img/sharp-libvips-* package is no longer
+  // require()d from JS, so the tracer drops libvips-cpp.so from the standalone
+  // output and sharp fails to load at runtime. Force the full sharp + @img
+  // install (both the top-level and the copy nested under node_modules/sharp,
+  // which "node_modules/sharp/**" also covers) into the trace. The Dockerfile
+  // re-copies these as a guaranteed fallback in case hoisting or glob matching
+  // ever changes.
+  outputFileTracingIncludes: {
+    '/**/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*']
+  },
   assetPrefix: '/activities',
   allowedDevOrigins:
     process.env.NODE_ENV === 'development' ? ['activities.local'] : undefined,
