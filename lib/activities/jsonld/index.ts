@@ -242,9 +242,13 @@ export const normalizeInputContext = (input: Record<string, unknown>) => {
     // rather than allocating a copy for every inbound document.
     if (!dropDirection && !dropLanguage) return entry
     // Rebuild without the dropped keys instead of using `delete`, which can
-    // push the object into V8's slow dictionary mode on this hot path.
+    // push the object into V8's slow dictionary mode on this hot path. Never
+    // write `@language` back as `undefined` (the key was simply absent): that
+    // is invalid JSON-LD (`@language` must be a string or null) and would make
+    // the whole compaction throw and fall back to the raw document.
     const { '@direction': _direction, '@language': language, ...rest } = entry
-    return dropLanguage ? rest : { ...rest, '@language': language }
+    if (dropLanguage || language === undefined) return rest
+    return { ...rest, '@language': language }
   })
 
   // Prepend (rather than append) so security/v1 has the LOWEST precedence:

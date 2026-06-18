@@ -181,6 +181,30 @@ describe('compactActivityPub', () => {
     expect(result.id).toBe('https://remote.example/notes/1')
   })
 
+  it('still compacts when an inline context sets @direction but no @language', async () => {
+    // Regression: dropping @direction must not synthesize an `@language:
+    // undefined` key, which is invalid JSON-LD and would make compaction throw
+    // and silently return the raw, un-normalized input. We assert compaction
+    // actually ran by checking a side effect of it (recipients arrayified,
+    // @context stripped) rather than a field that survives the raw fallback.
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          { '@direction': 'ltr', htmlMfm: 'https://w3id.org/fep/c16b#htmlMfm' }
+        ],
+        id: 'https://remote.example/notes/1',
+        type: 'Note',
+        attributedTo: 'https://remote.example/users/alice',
+        published: '2026-01-01T00:00:00Z',
+        to: 'https://www.w3.org/ns/activitystreams#Public'
+      })
+    )
+
+    expect(result.to).toEqual(['as:Public'])
+    expect(result['@context']).toBeUndefined()
+  })
+
   it('keeps scalar actor fields as strings despite a document default language', async () => {
     // Akkoma/Pleroma (litepub) actors set a document-level default language in
     // their inline @context. Left untouched, JSON-LD wraps every scalar string
