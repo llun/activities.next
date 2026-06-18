@@ -43,9 +43,13 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // (a trusted alias domain falls back to the configured host otherwise) so a
   // login started on a custom domain isn't bounced to ACTIVITIES_HOST. Start
   // from getBaseURL() to inherit the configured scheme (http for
-  // ACTIVITIES_INSECURE_AUTH) and swap only the host via the URL API.
+  // ACTIVITIES_INSECURE_AUTH) and swap in the request host via the URL API.
+  const requestHost = headerHost(await headers())
   const requestBaseUrl = new URL(getBaseURL())
-  requestBaseUrl.host = headerHost(await headers())
+  requestBaseUrl.host = requestHost
+  // The `.host` setter keeps the base port when requestHost omits one; the
+  // request host is authoritative, so drop any inherited port in that case.
+  if (requestBaseUrl.host !== requestHost) requestBaseUrl.port = ''
   const requestBaseURL = requestBaseUrl.toString()
 
   if (!actor || !actor.account) {

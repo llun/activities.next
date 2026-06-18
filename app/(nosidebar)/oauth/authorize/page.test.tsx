@@ -87,6 +87,21 @@ describe('/oauth/authorize redirect host', () => {
     expect(target.host).toBe(ALIAS_HOST)
   })
 
+  it('does not carry over the configured host port to a portless request host', async () => {
+    vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}:8443`)
+    vi.mocked(getConfig).mockReturnValue({
+      host: `${TEST_DOMAIN}:8443`,
+      trustedHosts: [ALIAS_HOST]
+    } as ReturnType<typeof getConfig>)
+    headersMock.mockReturnValue(new Headers({ 'x-forwarded-host': ALIAS_HOST }))
+
+    await Page({ searchParams: Promise.resolve(searchParams) })
+
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.host).toBe(ALIAS_HOST)
+    expect(target.port).toBe('')
+  })
+
   it('delegates an authenticated consent redirect to the trusted request host', async () => {
     vi.mocked(getActorFromSession).mockResolvedValue({
       id: 'actor-id',
