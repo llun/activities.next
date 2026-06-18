@@ -188,13 +188,16 @@ const stripBlankNodePrefix = (value: unknown): unknown => {
  * default. Documents that carry their own context are normalised so the
  * subsequent expansion does not mangle data we depend on:
  *
- * - **Strip the document-level default language/direction.** Akkoma/Pleroma
- *   (litepub) actors set `{"@language":"und"}` in their inline context. Left in
- *   place, JSON-LD attaches that language tag to every scalar string, so
- *   `preferredUsername` expands to a `{@value,@language}` object and
+ * - **Drop a non-informative document-level default language/direction.**
+ *   Akkoma/Pleroma (litepub) actors set `{"@language":"und"}` in their inline
+ *   context. Left in place, JSON-LD attaches that language tag to every scalar
+ *   string, so `preferredUsername` expands to a `{@value,@language}` object and
  *   `name`/`summary` collapse into `*Map` language containers — none of which
- *   satisfy the strict Actor schema. We never consume these language tags, so
- *   we drop `@language`/`@direction` from inline context objects.
+ *   satisfy the strict Actor schema. We drop the base `@direction` (never
+ *   consumed) and an *undetermined* `@language` (`"und"`), which carries no real
+ *   language. A *meaningful* default language is kept untouched: note language
+ *   detection (`getLanguage`, which reads the `content`/`summary` language maps)
+ *   depends on it, so removing it would silently lose a note's language.
  * - **Ensure `security/v1` is available.** `publicKey` is defined by the litepub
  *   context, which our offline loader cannot resolve, and these actors do not
  *   list `security/v1` themselves — so the key would be dropped during
@@ -215,6 +218,12 @@ const referencesSecurityV1Context = (entry: unknown): boolean =>
   typeof entry === 'string' &&
   SECURITY_V1_CONTEXT_URLS.has(entry.replace(/[/#]+$/, ''))
 
+// A BCP 47 "und" (or empty) default language conveys no real language, so it is
+// safe to drop. Anything else is meaningful and must be preserved.
+const isUndeterminedLanguage = (language: unknown): boolean =>
+  typeof language === 'string' &&
+  (language.trim() === '' || language.trim().toLowerCase() === 'und')
+
 export const normalizeInputContext = (input: Record<string, unknown>) => {
   const context = input['@context']
   if (!context) {
@@ -224,9 +233,13 @@ export const normalizeInputContext = (input: Record<string, unknown>) => {
   const entries = Array.isArray(context) ? context : [context]
   const sanitized = entries.map((entry) => {
     if (!isRecord(entry)) return entry
-    // Keep every inline term definition (e.g. `htmlMfm`); only drop the
-    // document-level language/direction defaults.
-    const { '@language': _language, '@direction': _direction, ...rest } = entry
+    // Keep every inline term definition (e.g. `htmlMfm`) and any meaningful
+    // default language; only drop the base text direction (never consumed) and
+    // an undetermined default language ("und").
+    const { '@direction': _direction, ...rest } = entry
+    if (isUndeterminedLanguage(rest['@language'])) {
+      delete rest['@language']
+    }
     return rest
   })
 

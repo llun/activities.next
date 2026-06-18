@@ -297,7 +297,7 @@ describe('normalizeInputContext', () => {
     ])
   })
 
-  it('strips default language/direction but keeps inline term definitions', () => {
+  it('drops an undetermined default language and base direction but keeps inline terms', () => {
     const context = contextOf({
       '@context': [
         ACTIVITY_STREAMS_CONTEXT_URL,
@@ -311,6 +311,19 @@ describe('normalizeInputContext', () => {
 
     expect(context).toContainEqual({ htmlMfm: 'https://x.example#m' })
     expect(JSON.stringify(context)).not.toContain('@language')
+    expect(JSON.stringify(context)).not.toContain('@direction')
+  })
+
+  it('preserves a meaningful default language (note language detection relies on it)', () => {
+    const context = contextOf({
+      '@context': [
+        ACTIVITY_STREAMS_CONTEXT_URL,
+        { '@language': 'th', '@direction': 'ltr' }
+      ]
+    }) as unknown[]
+
+    // The real language stays; only the base direction is dropped.
+    expect(context).toContainEqual({ '@language': 'th' })
     expect(JSON.stringify(context)).not.toContain('@direction')
   })
 
