@@ -181,8 +181,46 @@ const stripBlankNodePrefix = (value: unknown): unknown => {
   return value
 }
 
-const withInputContext = (input: Record<string, unknown>) =>
-  input['@context'] ? input : { ...input, '@context': DEFAULT_INPUT_CONTEXT }
+/**
+ * Prepare an inbound document's `@context` for expansion.
+ *
+ * Documents that omit `@context` entirely get the ActivityStreams + security
+ * default. Documents that carry their own context are normalised so the
+ * subsequent expansion does not mangle data we depend on:
+ *
+ * - **Strip the document-level default language/direction.** Akkoma/Pleroma
+ *   (litepub) actors set `{"@language":"und"}` in their inline context. Left in
+ *   place, JSON-LD attaches that language tag to every scalar string, so
+ *   `preferredUsername` expands to a `{@value,@language}` object and
+ *   `name`/`summary` collapse into `*Map` language containers — none of which
+ *   satisfy the strict Actor schema. We never consume these language tags, so
+ *   we drop `@language`/`@direction` from inline context objects.
+ * - **Ensure `security/v1` is available.** `publicKey` is defined by the litepub
+ *   context, which our offline loader cannot resolve, and these actors do not
+ *   list `security/v1` themselves — so the key would be dropped during
+ *   expansion. Appending the (bundled) security context keeps it intact.
+ */
+const normalizeInputContext = (input: Record<string, unknown>) => {
+  const context = input['@context']
+  if (!context) {
+    return { ...input, '@context': DEFAULT_INPUT_CONTEXT }
+  }
+
+  const entries = Array.isArray(context) ? context : [context]
+  const sanitized = entries.map((entry) => {
+    if (!isRecord(entry)) return entry
+    // Keep every inline term definition (e.g. `htmlMfm`); only drop the
+    // document-level language/direction defaults.
+    const { '@language': _language, '@direction': _direction, ...rest } = entry
+    return rest
+  })
+
+  if (!sanitized.includes(SECURITY_V1_CONTEXT_URL)) {
+    sanitized.push(SECURITY_V1_CONTEXT_URL)
+  }
+
+  return { ...input, '@context': sanitized }
+}
 
 /**
  * Canonicalise an inbound ActivityPub document by compacting it against the
@@ -201,7 +239,7 @@ export const compactActivityPub = async <T>(input: T): Promise<T> => {
   try {
     const jsonld = await getProcessor()
     const compacted = await jsonld.compact(
-      withInputContext(input) as JsonLdDocument,
+      normalizeInputContext(input) as JsonLdDocument,
       CANONICAL_CONTEXT as unknown as ContextDefinition,
       { documentLoader: offlineDocumentLoader }
     )

@@ -178,6 +178,70 @@ describe('compactActivityPub', () => {
     expect(result.id).toBe('https://remote.example/notes/1')
   })
 
+  it('keeps scalar actor fields as strings despite a document default language', async () => {
+    // Akkoma/Pleroma (litepub) actors set a document-level default language in
+    // their inline @context. Left untouched, JSON-LD wraps every scalar string
+    // into a language-tagged value object (and maps name/summary into
+    // *Map containers), which breaks the strict Actor schema. The compactor
+    // must strip the default language so these stay plain strings.
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          'https://litepub.example/schemas/litepub-0.1.jsonld',
+          { '@language': 'und', htmlMfm: 'https://w3id.org/fep/c16b#htmlMfm' }
+        ],
+        id: 'https://litepub.example/users/sukino',
+        type: 'Person',
+        preferredUsername: 'sukino',
+        name: 'Sukino VERSE',
+        summary: 'a litepub actor',
+        inbox: 'https://litepub.example/users/sukino/inbox',
+        outbox: 'https://litepub.example/users/sukino/outbox'
+      })
+    )
+
+    expect(result.preferredUsername).toBe('sukino')
+    expect(result.name).toBe('Sukino VERSE')
+    expect(result.summary).toBe('a litepub actor')
+    expect(result.nameMap).toBeUndefined()
+    expect(result.summaryMap).toBeUndefined()
+  })
+
+  it('recovers an actor public key defined only via a litepub context', async () => {
+    // litepub defines publicKey, but our offline loader cannot resolve the
+    // remote litepub context, and these actors do not list security/v1
+    // themselves. Ensuring security/v1 is part of the expansion context keeps
+    // the publicKey from being dropped.
+    const publicKeyPem =
+      '-----BEGIN PUBLIC KEY-----\nMIIBexample\n-----END PUBLIC KEY-----\n'
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          'https://litepub.example/schemas/litepub-0.1.jsonld',
+          { '@language': 'und' }
+        ],
+        id: 'https://litepub.example/users/sukino',
+        type: 'Person',
+        preferredUsername: 'sukino',
+        inbox: 'https://litepub.example/users/sukino/inbox',
+        outbox: 'https://litepub.example/users/sukino/outbox',
+        publicKey: {
+          id: 'https://litepub.example/users/sukino#main-key',
+          owner: 'https://litepub.example/users/sukino',
+          publicKeyPem
+        }
+      })
+    )
+
+    expect(result.publicKey).toMatchObject({
+      id: 'https://litepub.example/users/sukino#main-key',
+      owner: 'https://litepub.example/users/sukino',
+      publicKeyPem
+    })
+  })
+
   it('returns non-object input unchanged', async () => {
     await expect(
       compactActivityPub('https://remote.example/notes/1')
