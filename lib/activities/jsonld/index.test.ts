@@ -1,6 +1,8 @@
 import {
   ACTIVITY_STREAMS_CONTEXT_URL,
+  SECURITY_V1_CONTEXT_URL,
   compactActivityPub,
+  normalizeInputContext,
   offlineDocumentLoader
 } from '@/lib/activities/jsonld'
 
@@ -281,5 +283,86 @@ describe('offlineDocumentLoader', () => {
       'https://malicious.example/ctx.jsonld'
     )
     expect(loaded.document).toEqual({ '@context': {} })
+  })
+})
+
+describe('normalizeInputContext', () => {
+  const contextOf = (input: Record<string, unknown>) =>
+    normalizeInputContext(input)['@context']
+
+  it('applies the default context when @context is absent', () => {
+    expect(contextOf({ id: 'https://remote.example/notes/1' })).toEqual([
+      ACTIVITY_STREAMS_CONTEXT_URL,
+      SECURITY_V1_CONTEXT_URL
+    ])
+  })
+
+  it('strips default language/direction but keeps inline term definitions', () => {
+    const context = contextOf({
+      '@context': [
+        ACTIVITY_STREAMS_CONTEXT_URL,
+        {
+          '@language': 'und',
+          '@direction': 'ltr',
+          htmlMfm: 'https://x.example#m'
+        }
+      ]
+    }) as unknown[]
+
+    expect(context).toContainEqual({ htmlMfm: 'https://x.example#m' })
+    expect(JSON.stringify(context)).not.toContain('@language')
+    expect(JSON.stringify(context)).not.toContain('@direction')
+  })
+
+  it('adds security/v1 as the lowest-precedence fallback', () => {
+    const context = contextOf({
+      '@context': [
+        ACTIVITY_STREAMS_CONTEXT_URL,
+        { foo: 'https://x.example#foo' }
+      ]
+    }) as unknown[]
+
+    // Prepended, so a sender's own contexts/terms still override it.
+    expect(context[0]).toBe(SECURITY_V1_CONTEXT_URL)
+    expect(context).toContain(ACTIVITY_STREAMS_CONTEXT_URL)
+  })
+
+  it('does not duplicate security/v1 when the sender already lists it', () => {
+    const context = contextOf({
+      '@context': [ACTIVITY_STREAMS_CONTEXT_URL, SECURITY_V1_CONTEXT_URL]
+    }) as unknown[]
+
+    expect(
+      context.filter((entry) => entry === SECURITY_V1_CONTEXT_URL)
+    ).toHaveLength(1)
+  })
+
+  it.each([
+    ['http scheme', 'http://w3id.org/security/v1'],
+    ['trailing slash', 'https://w3id.org/security/v1/'],
+    ['http scheme with trailing slash', 'http://w3id.org/security/v1/']
+  ])('does not add a second security/v1 for the %s variant', (_label, url) => {
+    const context = contextOf({
+      '@context': [ACTIVITY_STREAMS_CONTEXT_URL, url]
+    }) as unknown[]
+
+    expect(context).not.toContain(SECURITY_V1_CONTEXT_URL)
+    expect(context).toContain(url)
+  })
+
+  it('wraps a single string @context into an array with the fallback', () => {
+    expect(contextOf({ '@context': ACTIVITY_STREAMS_CONTEXT_URL })).toEqual([
+      SECURITY_V1_CONTEXT_URL,
+      ACTIVITY_STREAMS_CONTEXT_URL
+    ])
+  })
+
+  it('passes non-object context entries through untouched', () => {
+    const context = contextOf({
+      '@context': [ACTIVITY_STREAMS_CONTEXT_URL, null, ['nested']]
+    }) as unknown[]
+
+    expect(context).toContain(null)
+    expect(context).toContainEqual(['nested'])
   })
 })

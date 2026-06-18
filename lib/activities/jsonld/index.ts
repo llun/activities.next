@@ -198,9 +198,24 @@ const stripBlankNodePrefix = (value: unknown): unknown => {
  * - **Ensure `security/v1` is available.** `publicKey` is defined by the litepub
  *   context, which our offline loader cannot resolve, and these actors do not
  *   list `security/v1` themselves — so the key would be dropped during
- *   expansion. Appending the (bundled) security context keeps it intact.
+ *   expansion. The (bundled) security context is added as a low-precedence
+ *   fallback so it fills the gap without overriding any term the sender
+ *   defines for itself.
  */
-const normalizeInputContext = (input: Record<string, unknown>) => {
+// Recognise an existing security/v1 reference across the dialect variations
+// peers use (http/https scheme, trailing slash or hash) via exact equality on
+// the normalised value — never a substring match — so we neither add a
+// duplicate nor mistake an unrelated URL that merely contains this string.
+const SECURITY_V1_CONTEXT_URLS = new Set([
+  'https://w3id.org/security/v1',
+  'http://w3id.org/security/v1'
+])
+
+const referencesSecurityV1Context = (entry: unknown): boolean =>
+  typeof entry === 'string' &&
+  SECURITY_V1_CONTEXT_URLS.has(entry.replace(/[/#]+$/, ''))
+
+export const normalizeInputContext = (input: Record<string, unknown>) => {
   const context = input['@context']
   if (!context) {
     return { ...input, '@context': DEFAULT_INPUT_CONTEXT }
@@ -215,8 +230,11 @@ const normalizeInputContext = (input: Record<string, unknown>) => {
     return rest
   })
 
-  if (!sanitized.includes(SECURITY_V1_CONTEXT_URL)) {
-    sanitized.push(SECURITY_V1_CONTEXT_URL)
+  // Prepend (rather than append) so security/v1 has the LOWEST precedence:
+  // in JSON-LD later contexts win, so a sender that defines its own
+  // `publicKey`/`owner`/etc. inline must still override our fallback.
+  if (!sanitized.some(referencesSecurityV1Context)) {
+    sanitized.unshift(SECURITY_V1_CONTEXT_URL)
   }
 
   return { ...input, '@context': sanitized }
