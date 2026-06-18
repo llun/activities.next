@@ -236,11 +236,15 @@ export const normalizeInputContext = (input: Record<string, unknown>) => {
     // Keep every inline term definition (e.g. `htmlMfm`) and any meaningful
     // default language; only drop the base text direction (never consumed) and
     // an undetermined default language ("und").
-    const { '@direction': _direction, ...rest } = entry
-    if (isUndeterminedLanguage(rest['@language'])) {
-      delete rest['@language']
-    }
-    return rest
+    const dropDirection = Object.hasOwn(entry, '@direction')
+    const dropLanguage = isUndeterminedLanguage(entry['@language'])
+    // Fast path for the common case (nothing to strip): reuse the entry as-is
+    // rather than allocating a copy for every inbound document.
+    if (!dropDirection && !dropLanguage) return entry
+    // Rebuild without the dropped keys instead of using `delete`, which can
+    // push the object into V8's slow dictionary mode on this hot path.
+    const { '@direction': _direction, '@language': language, ...rest } = entry
+    return dropLanguage ? rest : { ...rest, '@language': language }
   })
 
   // Prepend (rather than append) so security/v1 has the LOWEST precedence:
