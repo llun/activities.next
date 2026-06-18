@@ -1,9 +1,11 @@
+import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -37,14 +39,21 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   const actor = await getActorFromSession(database, session)
 
+  // Keep sign-in/consent redirects on the host the request actually arrived on
+  // (a trusted alias domain falls back to the configured host otherwise) so a
+  // login started on a custom domain isn't bounced to ACTIVITIES_HOST. Reuse
+  // getBaseURL() only for the configured scheme (http for ACTIVITIES_INSECURE_AUTH).
+  const requestHost = headerHost(await headers())
+  const requestBaseURL = `${new URL(getBaseURL()).protocol}//${requestHost}`
+
   if (!actor || !actor.account) {
-    const url = new URL('/auth/signin', getBaseURL())
+    const url = new URL('/auth/signin', requestBaseURL)
     url.searchParams.append('redirectBack', buildOAuthAuthorizePath(params))
     return redirect(url.toString())
   }
 
   if (shouldDelegateToBetterAuth(params)) {
-    return redirect(buildBetterAuthAuthorizeUrl(params, getBaseURL()))
+    return redirect(buildBetterAuthAuthorizeUrl(params, requestBaseURL))
   }
 
   const client = await database.getClientFromId({ clientId: params.client_id })
