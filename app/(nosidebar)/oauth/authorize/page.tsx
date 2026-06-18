@@ -41,17 +41,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   // Keep sign-in/consent redirects on the host the request actually arrived on
   // (a trusted alias domain falls back to the configured host otherwise) so a
-  // login started on a custom domain isn't bounced to ACTIVITIES_HOST. Start
-  // from getBaseURL() to inherit the configured scheme (http for
-  // ACTIVITIES_INSECURE_AUTH) and swap in the request host via the URL API.
+  // login started on a custom domain isn't bounced to ACTIVITIES_HOST. Inherit
+  // only the configured scheme (http for ACTIVITIES_INSECURE_AUTH) from
+  // getBaseURL(); the validated request host is authoritative for host+port.
   const requestHost = headerHost(await headers())
-  const requestUrl = new URL(getBaseURL())
-  requestUrl.host = requestHost
-  // The `.host` setter keeps the base port when requestHost omits one (verified
-  // on Node/V8: it does not clear an existing port); the request host is
-  // authoritative, so drop any inherited port in that case.
-  if (requestUrl.host !== requestHost) requestUrl.port = ''
-  const requestBaseURL = requestUrl.toString()
+  const { protocol } = new URL(getBaseURL())
+  const requestBaseURL = `${protocol}//${requestHost}`
 
   if (!actor || !actor.account) {
     const url = new URL('/auth/signin', requestBaseURL)
