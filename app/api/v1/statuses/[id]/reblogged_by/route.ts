@@ -4,6 +4,7 @@ import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
+import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -23,7 +24,7 @@ interface Params {
 }
 
 const RebloggedByQueryParams = z.object({
-  limit: z.coerce.number().int().min(1).max(80).default(40),
+  limit: clampedLimit(80, 40),
   max_id: z.string().min(1).optional(),
   min_id: z.string().min(1).optional(),
   since_id: z.string().min(1).optional()

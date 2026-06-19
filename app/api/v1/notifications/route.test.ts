@@ -41,18 +41,36 @@ describe('GET /api/v1/notifications', () => {
     vi.clearAllMocks()
   })
 
-  it('returns 422 when notification query parameters fail schema validation', async () => {
+  it('clamps an out-of-range limit up to the minimum instead of rejecting it', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
     const request = new NextRequest(
       'https://llun.test/api/v1/notifications?limit=0',
       { method: 'GET' }
     )
 
     const response = await GET(request, { params: Promise.resolve({}) })
-    const data = await response.json()
 
-    expect(response.status).toBe(422)
-    expect(data.status).toBe('Unprocessable entity')
-    expect(mockDatabase.getNotifications).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1 })
+    )
+  })
+
+  it('clamps an above-max limit down to the maximum instead of rejecting it', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v1/notifications?limit=100',
+      { method: 'GET' }
+    )
+
+    const response = await GET(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 80 })
+    )
   })
 
   it('normalizes a single types[] query parameter to an array', async () => {

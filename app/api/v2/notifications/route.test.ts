@@ -109,15 +109,17 @@ describe('GET /api/v2/notifications', () => {
     )
   })
 
-  it('returns 422 for an invalid limit', async () => {
+  it('clamps an out-of-range limit instead of rejecting it', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
     const request = new NextRequest(
       'https://llun.test/api/v2/notifications?limit=0',
       { method: 'GET' }
     )
     const response = await GET(request, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(422)
-    expect(mockDatabase.getNotifications).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getNotifications).toHaveBeenCalled()
   })
 
   it('anchors the next (max_id) Link on the last returned group most-recent id', async () => {

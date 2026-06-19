@@ -343,19 +343,21 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
   })
 
   it('returns bad request for invalid query params', async () => {
-    const response = await GET(createRequest('?limit=0'), {
+    const response = await GET(createRequest('?only_media=maybe'), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
     })
 
     expect(response.status).toBe(400)
   })
 
-  it('rejects limits above the Mastodon account statuses cap', async () => {
-    const response = await GET(createRequest('?limit=41'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
-    })
+  it('clamps out-of-range limits instead of rejecting them', async () => {
+    for (const query of ['?limit=0', '?limit=41', '?limit=100&pinned=true']) {
+      const response = await GET(createRequest(query), {
+        params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      })
 
-    expect(response.status).toBe(400)
+      expect(response.status).toBe(200)
+    }
   })
 
   it('allows OAuth tokens with read:statuses to read private owner statuses', async () => {

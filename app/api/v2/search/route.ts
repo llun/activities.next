@@ -22,6 +22,7 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -77,7 +78,7 @@ const SearchParams = z.object({
   account_id: z.string().optional(),
   max_id: z.string().optional(),
   min_id: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(40).optional(),
+  limit: clampedLimit(40, 20),
   offset: z.coerce.number().int().min(0).optional()
 })
 

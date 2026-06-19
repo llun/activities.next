@@ -108,15 +108,17 @@ describe('GET /api/v2/notifications/unread_count', () => {
     )
   })
 
-  it('returns 422 for invalid limit', async () => {
+  it('clamps an out-of-range limit instead of rejecting it', async () => {
     const request = new NextRequest(
       'https://llun.test/api/v2/notifications/unread_count?limit=0',
       { method: 'GET' }
     )
     const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
 
-    expect(response.status).toBe(422)
-    expect(mockDatabase.getNotifications).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(data.count).toBe(0)
+    expect(mockDatabase.getNotifications).toHaveBeenCalled()
   })
 
   it('filters by account_id', async () => {

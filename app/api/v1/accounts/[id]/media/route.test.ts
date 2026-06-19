@@ -19,7 +19,8 @@ describe('GET /api/v1/accounts/:id/media', () => {
     })
   })
 
-  it('returns 422 when media query parameters fail schema validation', async () => {
+  it('clamps an out-of-range limit instead of rejecting the request', async () => {
+    mockDatabase.getAttachmentsForActor.mockResolvedValue([])
     const request = new NextRequest(
       'https://llun.test/api/v1/accounts/llun.test:users:llun/media?limit=0',
       { method: 'GET' }
@@ -28,10 +29,10 @@ describe('GET /api/v1/accounts/:id/media', () => {
     const response = await GET(request, {
       params: Promise.resolve({ id: 'llun.test:users:llun' })
     })
-    const data = await response.json()
 
-    expect(response.status).toBe(422)
-    expect(data.status).toBe('Unprocessable entity')
-    expect(mockDatabase.getAttachmentsForActor).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1 })
+    )
   })
 })

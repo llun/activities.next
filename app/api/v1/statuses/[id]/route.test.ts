@@ -2766,7 +2766,7 @@ describe('GET /api/v1/statuses/[id]', () => {
     })
 
     it.each(['0', '81', 'abc'])(
-      'returns bad request for invalid limit=%s',
+      'clamps out-of-range limit=%s instead of rejecting it',
       async (limit) => {
         mockGetServerSession.mockResolvedValue(null)
 
@@ -2780,7 +2780,7 @@ describe('GET /api/v1/statuses/[id]', () => {
           { params: Promise.resolve({ id: urlToId(statusId) }) }
         )
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(200)
       }
     )
 

@@ -6,6 +6,23 @@ import { FC, useState } from 'react'
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 
+// better-auth's passkey client always sets `message` to "Auth cancelled"
+// regardless of the real failure and only varies the `code`, so the raw message
+// is misleading. Map the meaningful WebAuthn error codes to actionable text, and
+// stay silent only when the user genuinely dismissed the system prompt.
+const passkeyErrorMessage = (code?: string): string | null => {
+  switch (code) {
+    case 'AUTH_CANCELLED':
+    case 'ERROR_CEREMONY_ABORTED':
+      return null
+    case 'ERROR_INVALID_RP_ID':
+    case 'ERROR_INVALID_DOMAIN':
+      return 'This passkey cannot be used on this domain. Sign in with your email and password instead.'
+    default:
+      return 'Passkey sign in failed. Please try again.'
+  }
+}
+
 export const PasskeySigninButton: FC = () => {
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(false)
@@ -21,14 +38,9 @@ export const PasskeySigninButton: FC = () => {
     try {
       const result = await authClient.signIn.passkey({ autoFill: false })
       if (!result || result.error) {
-        const error = result?.error as
-          | { code?: string; message?: unknown }
-          | undefined
-        const code = error?.code
-        const msg = error?.message
-        if (code !== 'AUTH_CANCELLED' && typeof msg === 'string') {
-          setError(msg)
-        }
+        const code = (result?.error as { code?: string } | undefined)?.code
+        const message = passkeyErrorMessage(code)
+        if (message) setError(message)
         setLoading(false)
         return
       }

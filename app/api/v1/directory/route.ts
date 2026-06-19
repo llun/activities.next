@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
+import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -12,8 +13,8 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const DirectoryParams = z.object({
-  offset: z.coerce.number().int().min(0).default(0),
-  limit: z.coerce.number().int().min(1).max(80).default(40),
+  offset: clampedOffset(),
+  limit: clampedLimit(80, 40),
   order: z.enum(['active', 'new']).default('active'),
   local: z
     .enum(['true', 'false'])

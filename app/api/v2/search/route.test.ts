@@ -1045,13 +1045,23 @@ describe('GET /api/v2/search', () => {
     )
   })
 
-  it('rejects invalid search parameters', async () => {
+  it('clamps an over-range limit to the maximum instead of rejecting', async () => {
     const response = await GET(
       new NextRequest('https://llun.test/api/v2/search?q=trail&limit=100'),
       context
     )
 
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ status: 'Bad Request' })
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 40,
+      offset: 0
+    })
+    expect(mockSearchHashtags).toHaveBeenCalledWith({
+      q: 'trail',
+      limit: 40,
+      offset: 0,
+      excludeUnreviewed: false
+    })
   })
 })
