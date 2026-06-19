@@ -186,10 +186,15 @@ const buildAuth = (baseURL: string) => {
 
 // Cache one better-auth instance per resolved base URL. Instances differ only in
 // their passkey rpID/origin; everything else (database, secret, trusted-origin
-// union) is shared, so they all read/write the same sessions and accounts. The
-// number of distinct keys is bounded by the configured host plus
-// ACTIVITIES_TRUSTED_HOSTS, since `resolveAuthBaseURL` only ever yields a
-// trusted host.
+// union) is shared, so they all read/write the same sessions and accounts.
+//
+// The cache is LRU-bounded: with a concrete ACTIVITIES_TRUSTED_HOSTS list the key
+// set is small, but a wildcard entry (e.g. `*.example.com`) lets
+// `resolveAuthBaseURL` yield a different concrete subdomain per request — and the
+// host is request-influenced — so an unbounded map would be a memory-exhaustion
+// vector. Capping with oldest-entry eviction keeps it bounded while still serving
+// every legitimately-used domain.
+const MAX_AUTH_INSTANCES = 32
 const authInstances = new Map<string, ReturnType<typeof buildAuth>>()
 
 // Get the auth instance for a base URL, defaulting to the configured host. Pass
@@ -198,7 +203,17 @@ const authInstances = new Map<string, ReturnType<typeof buildAuth>>()
 // OAuth handling can omit it and use the configured host.
 export const getAuth = (baseURL: string = getBaseURL()) => {
   const cached = authInstances.get(baseURL)
-  if (cached) return cached
+  if (cached) {
+    // Refresh recency so the most-used domains survive eviction.
+    authInstances.delete(baseURL)
+    authInstances.set(baseURL, cached)
+    return cached
+  }
+
+  if (authInstances.size >= MAX_AUTH_INSTANCES) {
+    const oldest = authInstances.keys().next().value
+    if (oldest !== undefined) authInstances.delete(oldest)
+  }
 
   const instance = buildAuth(baseURL)
   authInstances.set(baseURL, instance)

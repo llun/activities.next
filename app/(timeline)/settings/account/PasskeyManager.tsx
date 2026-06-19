@@ -106,8 +106,9 @@ const DomainOption: FC<{
 }> = ({ domain, handlePrefix, selected, onSelect }) => (
   <button
     type="button"
+    role="radio"
+    aria-checked={selected}
     onClick={() => onSelect(domain.domain)}
-    aria-pressed={selected}
     className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
       selected ? 'border-primary bg-primary/5 ring-primary ring-1' : ''
     }`}
@@ -297,8 +298,12 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
 
           {multiDomain && (
             <div className="space-y-2">
-              <Label>Domain</Label>
-              <div className="space-y-2">
+              <Label id="passkey-domain-label">Domain</Label>
+              <div
+                role="radiogroup"
+                aria-labelledby="passkey-domain-label"
+                className="space-y-2"
+              >
                 {domains.map((domain) => (
                   <DomainOption
                     key={domain.domain}
@@ -327,6 +332,10 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
               A label to help you recognize this device later.
             </p>
           </div>
+
+          {/* Surface failures inside the dialog — the page-level message below
+              sits behind the modal overlay while the dialog is open. */}
+          {error && <p className="text-destructive text-sm">{error}</p>}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
