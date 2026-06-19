@@ -26,7 +26,7 @@ export const LandingPublicFeed: FC<LandingPublicFeedProps> = ({
   // Absolute URL on the configured host (ACTIVITIES_HOST) so the logo resolves
   // against the canonical origin even when served behind a CDN on an alias
   // domain, where a root-relative `/logo-nav.png` may be redirected away.
-  const logoSrc = `${getBaseURL()}/logo-nav.png`
+  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
     <div className="flex h-full flex-col">
       <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b bg-background/70 px-5 py-3.5 backdrop-blur">

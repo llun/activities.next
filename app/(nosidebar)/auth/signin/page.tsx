@@ -40,7 +40,7 @@ const Page: FC = async () => {
   // resolves against the canonical origin instead of the request host. When the
   // instance is served behind a CDN on an alias domain, a root-relative
   // `/logo-nav.png` can be intercepted and redirected away from the app origin.
-  const logoSrc = `${getBaseURL()}/logo-nav.png`
+  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
 
   return (
     <Card>

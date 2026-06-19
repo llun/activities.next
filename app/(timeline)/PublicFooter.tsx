@@ -10,7 +10,7 @@ export const PublicFooter: FC = () => {
   // Absolute URL on the configured host (ACTIVITIES_HOST) so the logo resolves
   // against the canonical origin even when served behind a CDN on an alias
   // domain, where a root-relative `/logo-nav.png` may be redirected away.
-  const logoSrc = `${getBaseURL()}/logo-nav.png`
+  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
     <footer className="mx-auto w-full max-w-[680px] px-4 py-8">
       <div className="rounded-xl border bg-background/70 px-5 py-4">
