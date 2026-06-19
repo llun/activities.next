@@ -65,7 +65,9 @@ describe('wellknown services', () => {
       const config = getOpenIDConfiguration()
 
       expect(config).toMatchObject({
-        issuer: 'https://test.example.com',
+        // Better Auth signs id_tokens with iss = baseURL + basePath
+        // (`/api/auth`), so discovery must advertise that same issuer.
+        issuer: 'https://test.example.com/api/auth',
         authorization_endpoint:
           'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',
@@ -81,6 +83,26 @@ describe('wellknown services', () => {
         ],
         code_challenge_methods_supported: ['S256']
       })
+    })
+
+    it('advertises the basePath issuer that Better Auth stamps on id_tokens', () => {
+      const config = getOpenIDConfiguration()
+
+      // The id_token `iss` is baseURL + basePath; discovery must match it
+      // exactly or a strict OIDC relying party rejects the token.
+      expect(config.issuer).toBe('https://test.example.com/api/auth')
+    })
+
+    it('keeps a distinct issuer from the RFC 8414 OAuth metadata (bare origin)', () => {
+      // OAuth2 access tokens carry no `iss`, so the authorization-server
+      // metadata intentionally keeps the bare origin for Mastodon compatibility.
+      // Only the OIDC discovery issuer gains the `/api/auth` basePath.
+      const oidc = getOpenIDConfiguration()
+      const oauth = getOAuthAuthorizationServerMetadata()
+
+      expect(oauth.issuer).toBe('https://test.example.com')
+      expect(oidc.issuer).not.toBe(oauth.issuer)
+      expect(oidc.issuer).toBe(`${oauth.issuer}/api/auth`)
     })
 
     it('includes OIDC scopes and claims', () => {
