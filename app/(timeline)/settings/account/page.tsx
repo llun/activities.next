@@ -12,7 +12,10 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
-import { getServedDomains } from '@/lib/services/auth/servedDomains'
+import {
+  ensureDomainListed,
+  getServedDomains
+} from '@/lib/services/auth/servedDomains'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ChangeEmailForm } from './ChangeEmailForm'
@@ -51,9 +54,15 @@ const Page = async ({
   // Passkeys are scoped per domain; offer the domains this instance serves and
   // tell the manager which one the user is currently on so it can register here
   // directly and send cross-domain registrations to the right origin.
-  const servedDomains = getServedDomains(config)
   const currentDomain = new URL(resolveAuthBaseURL(await headers(), config))
     .hostname
+  // A wildcard trusted host resolves to a concrete subdomain that the served
+  // list (which drops wildcards) won't include, so make sure the current domain
+  // is always a chooser option.
+  const servedDomains = ensureDomainListed(
+    getServedDomains(config),
+    currentDomain
+  )
 
   return (
     <div className="space-y-6">

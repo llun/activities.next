@@ -121,6 +121,25 @@ describe('GET /api/v1/passkeys', () => {
     expect(body[0].name).toBeNull()
   })
 
+  it('normalizes a zone-less SQLite createdAt string to ISO UTC', async () => {
+    mockRows = [
+      {
+        id: 'pk4',
+        name: 'Key',
+        rpID: 'primary.example',
+        deviceType: 'singleDevice',
+        backedUp: 0,
+        createdAt: '2026-04-12 08:09:10',
+        aaguid: null
+      }
+    ]
+
+    const response = await GET(createRequest(), { params: Promise.resolve({}) })
+    const body = await response.json()
+
+    expect(body[0].createdAt).toBe('2026-04-12T08:09:10.000Z')
+  })
+
   it('serializes a Date createdAt to an ISO string', async () => {
     mockRows = [
       {

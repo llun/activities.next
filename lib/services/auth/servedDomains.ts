@@ -51,3 +51,16 @@ export const getServedDomains = (
 
   return result
 }
+
+// Ensure the domain the request arrived on is one of the chooser options. A
+// wildcard ACTIVITIES_TRUSTED_HOSTS entry (e.g. `*.example.com`) is trusted by
+// `selectHeaderHost` but dropped by `getServedDomains`, so a request on a
+// concrete subdomain would otherwise leave the chooser with no option selected.
+// The current host is trusted by construction, so it is safe to add.
+export const ensureDomainListed = (
+  domains: ServedDomain[],
+  domain: string
+): ServedDomain[] => {
+  if (!domain || domains.some((d) => d.domain === domain)) return domains
+  return [...domains, { domain, primary: false }]
+}

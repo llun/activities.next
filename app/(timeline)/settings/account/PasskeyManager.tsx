@@ -33,9 +33,16 @@ const getErrorMessage = (error: {
 }
 
 const formatAddedDate = (value: string): string => {
-  const date = new Date(value)
+  // The API returns ISO-8601, but normalize defensively: a zone-less
+  // `YYYY-MM-DD HH:MM:SS` string parses as local time (and Safari may reject it),
+  // so coerce it to UTC before parsing. Use the browser locale, not a pinned one.
+  const normalized =
+    value.includes('T') || value.endsWith('Z')
+      ? value
+      : `${value.replace(' ', 'T')}Z`
+  const date = new Date(normalized)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(undefined, {
     month: 'short',
     day: '2-digit',
     year: 'numeric'

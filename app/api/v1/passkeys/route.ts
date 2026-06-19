@@ -17,6 +17,19 @@ type PasskeyRow = {
   aaguid: string | null
 }
 
+// Return a stable ISO-8601 UTC string. Postgres yields a Date; SQLite yields a
+// zone-less `YYYY-MM-DD HH:MM:SS` string which a bare `new Date(...)` would parse
+// as local time (and Safari may reject), so normalize it to UTC first.
+const toIsoCreatedAt = (value: string | Date): string => {
+  if (value instanceof Date) return value.toISOString()
+  const normalized =
+    value.includes('T') || value.endsWith('Z')
+      ? value
+      : `${value.replace(' ', 'T')}Z`
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? value : date.toISOString()
+}
+
 // List the signed-in account's passkeys, each labelled with the domain it was
 // created on. better-auth's own list endpoint does not expose the rpID, so this
 // reads the column directly. Rows created before multi-domain support (rpID is
@@ -47,10 +60,7 @@ export const GET = traceApiRoute(
       domain: row.rpID || primaryDomain,
       deviceType: row.deviceType,
       backedUp: Boolean(row.backedUp),
-      createdAt:
-        row.createdAt instanceof Date
-          ? row.createdAt.toISOString()
-          : row.createdAt,
+      createdAt: toIsoCreatedAt(row.createdAt),
       aaguid: row.aaguid ?? null
     }))
 

@@ -1,4 +1,4 @@
-import { getServedDomains } from './servedDomains'
+import { ensureDomainListed, getServedDomains } from './servedDomains'
 
 describe('getServedDomains', () => {
   it('returns just the primary host when there are no trusted hosts', () => {
@@ -42,5 +42,27 @@ describe('getServedDomains', () => {
       { domain: 'llun.social', primary: true },
       { domain: 'llun.photos', primary: false }
     ])
+  })
+})
+
+describe('ensureDomainListed', () => {
+  const domains = [
+    { domain: 'llun.social', primary: true },
+    { domain: 'llun.photos', primary: false }
+  ]
+
+  it('returns the list unchanged when the domain is already present', () => {
+    expect(ensureDomainListed(domains, 'llun.photos')).toBe(domains)
+  })
+
+  it('appends a wildcard-matched current host that is not listed', () => {
+    expect(ensureDomainListed(domains, 'foo.llun.dev')).toEqual([
+      ...domains,
+      { domain: 'foo.llun.dev', primary: false }
+    ])
+  })
+
+  it('returns the list unchanged for an empty domain', () => {
+    expect(ensureDomainListed(domains, '')).toBe(domains)
   })
 })
