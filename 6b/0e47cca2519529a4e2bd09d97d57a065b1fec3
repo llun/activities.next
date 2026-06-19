@@ -1,0 +1,23 @@
+lib/utils/http-headers/csp.test.ts
+  s_e4efa862839776::t_e6b927baa7bb74 1-40,42-47,51-52
+  s_e4efa862839776::t_e4c060fb3afefd 41,48-50
+lib/utils/clampedLimit.test.ts
+  s_e4efa862839776::t_501355e133d618 66,77-79
+  s_e4efa862839776::t_1755caca9582ea 45-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "6b0e47cca2519529a4e2bd09d97d57a065b1fec3",
+  "prompts": {},
+  "sessions": {
+    "s_e4efa862839776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f18127f-264a-416b-b190-6b6fab05d514",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
