@@ -1,0 +1,36 @@
+lib/utils/clampedLimit.ts
+  s_e4efa862839776::t_d7ddbb83825bf1 54-55,59
+  s_e4efa862839776::t_aa252a64e3158d 29-32,36
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_e4efa862839776::t_1d0ea729068641 20-21,28
+app/api/v1/statuses/[id]/route.test.ts
+  s_e4efa862839776::t_f19e61af6027cd 3347-3377
+app/api/v2/notifications/unread_count/route.test.ts
+  s_e4efa862839776::t_5a61353ce69ace 112-145,154-155
+lib/utils/http-headers/csp.ts
+  s_e4efa862839776::t_7bc8020c1dd194 1
+  s_e4efa862839776::t_ff497e12165992 134-139
+app/(timeline)/landing/LandingHero.tsx
+  s_e4efa862839776::t_4a0a90a6907c4f 5-6
+  s_e4efa862839776::t_f72b3eae7d56ea 16-30,32
+  s_e4efa862839776::t_c2888c50099810 35-37,40-63,65-75
+  s_e4efa862839776::t_80b21c92ec3811 77-78
+app/api/v2/search/route.test.ts
+  s_e4efa862839776::t_2ffdeeacc59012 1067-1078
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ac6056cd8ed217a1651bb463accbc1caa718aca0",
+  "prompts": {},
+  "sessions": {
+    "s_e4efa862839776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f18127f-264a-416b-b190-6b6fab05d514",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
