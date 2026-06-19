@@ -1,6 +1,5 @@
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
-import { urlToId } from '@/lib/utils/urlToId'
 
 export interface UserInfoBase {
   sub: string
@@ -24,7 +23,7 @@ export type UserInfo = UserInfoBase &
 
 interface GetUserInfoOptions {
   actor: Actor
-  account?: Account | null
+  account: Account
   scopes?: string[]
 }
 
@@ -36,10 +35,15 @@ export const getUserInfo = ({
   const includeProfile =
     !scopes || scopes.includes('profile') || scopes.includes('read')
   const includeEmail = !scopes || scopes.includes('email')
-  const email = account?.email
+  const email = account.email
 
   return {
-    sub: urlToId(actor.id),
+    // OIDC §5.3.2 requires the userinfo `sub` to equal the id_token `sub`. Better
+    // Auth signs the id_token with `sub = account id` (the user record id), so the
+    // canonical subject here is the owning account id — one OIDC subject per human,
+    // regardless of how many ActivityPub actors that account owns. Profile fields
+    // below stay actor-sourced (the actor selected for this session/token).
+    sub: account.id,
     ...(includeProfile && {
       ...(actor.name != null ? { name: actor.name } : {}),
       preferred_username: actor.username,
@@ -50,7 +54,7 @@ export const getUserInfo = ({
       ? {
           email,
           email_verified:
-            account?.verifiedAt != null || account?.emailVerifiedAt != null
+            account.verifiedAt != null || account.emailVerifiedAt != null
         }
       : {})
   }

@@ -22,7 +22,13 @@ export interface OpenIDConfiguration {
 export const getOpenIDConfiguration = (): OpenIDConfiguration => {
   const baseURL = getBaseURL()
   return {
-    issuer: baseURL,
+    // Better Auth signs id_tokens with `iss = baseURL + basePath` (the auth
+    // basePath is `/api/auth`), so the discovery `issuer` MUST match that value
+    // — a strict OIDC relying party rejects an id_token whose `iss` differs from
+    // the issuer it discovered here. The RFC 8414 OAuth metadata
+    // (oauthAuthorizationServer.ts) intentionally keeps the bare origin for
+    // Mastodon compatibility; OAuth2 access tokens carry no `iss` to reconcile.
+    issuer: `${baseURL}/api/auth`,
     authorization_endpoint: `${baseURL}/api/auth/oauth2/authorize`,
     token_endpoint: `${baseURL}/oauth/token`,
     userinfo_endpoint: `${baseURL}/oauth/userinfo`,

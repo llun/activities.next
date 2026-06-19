@@ -22,27 +22,72 @@ const makeActor = (overrides: Partial<Actor> = {}): Actor => ({
   ...overrides
 })
 
-describe('getUserInfo', () => {
-  it('returns all claims when no scopes specified (legacy/session)', () => {
-    const userInfo = getUserInfo({ actor: makeActor() })
+const makeAccount = (overrides: Partial<Account> = {}): Account => {
+  const now = Date.now()
+  return {
+    // Better Auth account ids are short nanoids, deliberately unlike the
+    // actor's URL id so the `sub = account.id` assertions are meaningful.
+    id: 'lfpCbM75O9OcBmxgq9JI',
+    email: 'test@example.com',
+    emailVerifiedAt: now,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides
+  }
+}
 
-    expect(userInfo.sub).toBeString()
+describe('getUserInfo', () => {
+  it('uses the account id as the sub claim, not the actor id', () => {
+    const account = makeAccount({ id: 'account-sub-123' })
+    const userInfo = getUserInfo({ actor: makeActor(), account })
+
+    // OIDC §5.3.2: the userinfo sub MUST match the id_token sub. Better Auth
+    // signs the id_token with the account (user) id, so the canonical subject
+    // here is the account id — never the actor URL id.
+    expect(userInfo.sub).toBe('account-sub-123')
+    expect(userInfo.sub).not.toBe(makeActor().id)
+  })
+
+  it('returns a sub equal to the id_token sub (account id) for the same session', () => {
+    const account = makeAccount({ id: 'shared-subject-id' })
+
+    // Better Auth resolves the id_token `sub` via resolveSubjectIdentifier,
+    // which (with subject_types_supported: ['public'], no pairwise secret)
+    // returns user.id — the Better Auth account id. Mirror that here so the
+    // assertion documents the cross-endpoint invariant.
+    const idTokenSub = account.id
+
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      account,
+      scopes: ['openid']
+    })
+
+    expect(userInfo.sub).toBe(idTokenSub)
+  })
+
+  it('returns sub, profile and email claims when no scopes are specified (legacy/session)', () => {
+    const account = makeAccount({ id: 'account-1' })
+    const userInfo = getUserInfo({ actor: makeActor(), account })
+
+    expect(userInfo.sub).toBe('account-1')
     expect(userInfo.name).toBe('Test User')
     expect(userInfo.preferred_username).toBe('testuser')
     expect(userInfo.picture).toBe('https://example.com/avatar.png')
     expect(userInfo.profile).toBe('https://example.com/users/testuser')
-    // No account provided, so email claims are omitted
-    expect(userInfo).not.toHaveProperty('email')
-    expect(userInfo).not.toHaveProperty('email_verified')
+    expect(userInfo.email).toBe('test@example.com')
+    expect(userInfo.email_verified).toBe(true)
   })
 
   it('returns only sub for openid-only scope', () => {
+    const account = makeAccount({ id: 'account-1' })
     const userInfo = getUserInfo({
       actor: makeActor(),
+      account,
       scopes: ['openid']
     })
 
-    expect(userInfo.sub).toBeTruthy()
+    expect(userInfo.sub).toBe('account-1')
     expect(userInfo).not.toHaveProperty('name')
     expect(userInfo).not.toHaveProperty('preferred_username')
     expect(userInfo).not.toHaveProperty('email')
@@ -50,12 +95,14 @@ describe('getUserInfo', () => {
   })
 
   it('includes profile claims when profile scope is granted', () => {
+    const account = makeAccount()
     const userInfo = getUserInfo({
       actor: makeActor(),
+      account,
       scopes: ['openid', 'profile']
     })
 
-    expect(userInfo.sub).toBeTruthy()
+    expect(userInfo.sub).toBe(account.id)
     expect(userInfo.name).toBe('Test User')
     expect(userInfo.preferred_username).toBe('testuser')
     expect(userInfo.picture).toBe('https://example.com/avatar.png')
@@ -66,6 +113,7 @@ describe('getUserInfo', () => {
   it('includes profile claims when read scope is granted', () => {
     const userInfo = getUserInfo({
       actor: makeActor(),
+      account: makeAccount(),
       scopes: ['read']
     })
 
@@ -76,6 +124,7 @@ describe('getUserInfo', () => {
   it('omits name and picture when actor has null values', () => {
     const userInfo = getUserInfo({
       actor: makeActor({ name: null, iconUrl: null }),
+      account: makeAccount(),
       scopes: ['openid', 'profile']
     })
 
@@ -86,14 +135,11 @@ describe('getUserInfo', () => {
   })
 
   it('includes email claims when email scope is granted', () => {
-    const now = Date.now()
-    const account: Account = {
+    const account = makeAccount({
       id: 'account-1',
       email: 'test@example.com',
-      emailVerifiedAt: now,
-      createdAt: now,
-      updatedAt: now
-    }
+      emailVerifiedAt: Date.now()
+    })
 
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
@@ -107,14 +153,11 @@ describe('getUserInfo', () => {
   })
 
   it('omits email claims when email scope is not granted', () => {
-    const now = Date.now()
-    const account: Account = {
+    const account = makeAccount({
       id: 'account-1',
       email: 'test@example.com',
-      emailVerifiedAt: now,
-      createdAt: now,
-      updatedAt: now
-    }
+      emailVerifiedAt: Date.now()
+    })
 
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
@@ -126,26 +169,13 @@ describe('getUserInfo', () => {
     expect(userInfo).not.toHaveProperty('email_verified')
   })
 
-  it('omits email claims when account has no email', () => {
-    const userInfo = getUserInfo({
-      actor: makeActor(),
-      scopes: ['openid', 'email']
-    })
-
-    expect(userInfo).not.toHaveProperty('email')
-    expect(userInfo).not.toHaveProperty('email_verified')
-  })
-
   it('returns email_verified true when verifiedAt is set', () => {
-    const now = Date.now()
-    const account: Account = {
+    const account = makeAccount({
       id: 'account-3',
       email: 'verified@example.com',
       emailVerifiedAt: null,
-      verifiedAt: now,
-      createdAt: now,
-      updatedAt: now
-    }
+      verifiedAt: Date.now()
+    })
 
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
@@ -157,15 +187,30 @@ describe('getUserInfo', () => {
     expect(userInfo.email_verified).toBe(true)
   })
 
+  it('returns email_verified true when emailVerifiedAt is set', () => {
+    const account = makeAccount({
+      id: 'account-4',
+      email: 'verified@example.com',
+      emailVerifiedAt: Date.now(),
+      verifiedAt: undefined
+    })
+
+    const userInfo = getUserInfo({
+      actor: makeActor({ account }),
+      account,
+      scopes: ['openid', 'email']
+    })
+
+    expect(userInfo.email_verified).toBe(true)
+  })
+
   it('returns email_verified false when neither verifiedAt nor emailVerifiedAt is set', () => {
-    const now = Date.now()
-    const account: Account = {
+    const account = makeAccount({
       id: 'account-2',
       email: 'unverified@example.com',
       emailVerifiedAt: null,
-      createdAt: now,
-      updatedAt: now
-    }
+      verifiedAt: undefined
+    })
 
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
@@ -175,12 +220,5 @@ describe('getUserInfo', () => {
 
     expect(userInfo.email).toBe('unverified@example.com')
     expect(userInfo.email_verified).toBe(false)
-  })
-
-  it('encodes actor ID as sub claim', () => {
-    const userInfo = getUserInfo({ actor: makeActor() })
-
-    expect(userInfo.sub).toBeTruthy()
-    expect(typeof userInfo.sub).toBe('string')
   })
 })
