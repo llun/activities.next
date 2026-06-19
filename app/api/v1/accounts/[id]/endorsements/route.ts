@@ -6,6 +6,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
+import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -28,7 +29,7 @@ const EndorsementsQueryParams = z.object({
   max_id: z.string().optional(),
   since_id: z.string().optional(),
   min_id: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(80).default(40)
+  limit: clampedLimit(80, 40)
 })
 
 // GET /api/v1/accounts/:id/endorsements — accounts the given account features.

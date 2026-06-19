@@ -10,6 +10,7 @@ import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
+import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -33,7 +34,7 @@ const StatusQueryParams = z.object({
   max_id: z.string().optional(),
   since_id: z.string().optional(),
   min_id: z.string().optional(),
-  limit: z.coerce.number().min(1).max(40).default(20),
+  limit: clampedLimit(40, 20),
   only_media: z
     .enum(['true', 'false', '1', '0'])
     .transform((val) => val === 'true' || val === '1')
@@ -80,7 +81,7 @@ export const GET = traceApiRoute(
       const parsedParams = parsed.data
 
       const {
-        limit = 20,
+        limit,
         max_id: maxId,
         min_id: minId,
         since_id: sinceId

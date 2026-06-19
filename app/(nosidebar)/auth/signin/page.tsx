@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle
 } from '@/lib/components/ui/card'
-import { getConfig } from '@/lib/config'
+import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
@@ -36,11 +36,17 @@ const Page: FC = async () => {
   const { auth, serviceName, registrationOpen } = getConfig()
   const credentialEnabled = auth?.enableCredential !== false
 
+  // Use an absolute URL on the configured host (ACTIVITIES_HOST) so the logo
+  // resolves against the canonical origin instead of the request host. When the
+  // instance is served behind a CDN on an alias domain, a root-relative
+  // `/logo-nav.png` can be intercepted and redirected away from the app origin.
+  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
+
   return (
     <Card>
       <CardHeader className="items-center text-center">
         <Image
-          src="/logo-nav.png"
+          src={logoSrc}
           alt=""
           aria-hidden="true"
           width={48}

@@ -8,6 +8,7 @@ import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
+import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -18,8 +19,8 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const SearchParams = z.object({
   q: z.string(),
-  limit: z.coerce.number().int().min(1).max(80).default(40).optional(),
-  offset: z.coerce.number().int().min(0).max(10000).default(0).optional(),
+  limit: clampedLimit(80, 40),
+  offset: clampedOffset(10000),
   resolve: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -55,8 +56,8 @@ export const GET = traceApiRoute(
 
       const {
         q,
-        limit = 40,
-        offset = 0,
+        limit,
+        offset,
         resolve = false,
         following = false
       } = parsedParams.data

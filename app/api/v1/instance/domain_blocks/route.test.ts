@@ -73,11 +73,15 @@ describe('GET /api/v1/instance/domain_blocks', () => {
     ])
   })
 
-  it('rejects invalid pagination parameters', async () => {
-    const getDomainBlocks = vi.fn()
+  it('clamps an out-of-range limit instead of rejecting it', async () => {
+    const getDomainBlocks = vi.fn().mockResolvedValue([])
     mockGetDatabase.mockReturnValue({
       getDomainBlocks,
-      getDomainFederationRuleStats: vi.fn()
+      getDomainFederationRuleStats: vi.fn().mockResolvedValue({
+        blocks: 0,
+        suspendBlocks: 0,
+        allows: 0
+      })
     })
 
     const response = await GET(
@@ -87,7 +91,11 @@ describe('GET /api/v1/instance/domain_blocks', () => {
       { params: Promise.resolve({}) }
     )
 
-    expect(response.status).toBe(400)
-    expect(getDomainBlocks).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(getDomainBlocks).toHaveBeenCalledWith({
+      limit: 1000,
+      offset: 0,
+      severity: 'suspend'
+    })
   })
 })
