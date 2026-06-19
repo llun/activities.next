@@ -1,0 +1,33 @@
+app/(timeline)/PublicTopBar.tsx
+  s_e4efa862839776::t_d43aad2b85346a 14-16,20
+  s_e4efa862839776::t_58edb92ee614d2 6
+app/api/v1/accounts/[id]/followers/route.test.ts
+  s_e4efa862839776::t_97fa48b386a834 120
+lib/components/layout/logo.tsx
+  s_e4efa862839776::t_a7579955683f34 23-24,33
+  s_e4efa862839776::t_fa2c05b76d60e3 8-11
+lib/utils/clampedLimit.ts
+  s_e4efa862839776::t_99196061053672 54,60-61
+  s_e4efa862839776::t_bee055f53e337d 35,58
+  s_e4efa862839776::t_f0545c00ecd3bc 29-31,37-38
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_e4efa862839776::t_111e1265632925 360-362,368-373
+app/api/v1/statuses/[id]/route.test.ts
+  s_e4efa862839776::t_9de3e47c5a6e31 2768-2774,2776,2778,2791-2795
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "f507d4601875e7445802fd64274fae6699055be9",
+  "prompts": {},
+  "sessions": {
+    "s_e4efa862839776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f18127f-264a-416b-b190-6b6fab05d514",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
