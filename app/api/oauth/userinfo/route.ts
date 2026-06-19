@@ -4,7 +4,7 @@ import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getUserInfo } from '@/lib/services/oauth/userinfo'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -20,9 +20,24 @@ const respondWithUserInfo = OAuthGuardAnyScope(
   async (req: NextRequest, context) => {
     const { currentActor, grantedScopes } = context
 
+    // The OIDC `sub` is the owning account id, so the actor resolved from the
+    // access token must carry its account. A token issued through the OAuth
+    // consent flow always maps to a local actor with an account; a missing one
+    // is an unexpected state we fail closed on rather than emit a `sub`-less
+    // (spec-invalid) userinfo response.
+    const account = currentActor.account
+    if (!account) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'invalid_token' },
+        responseStatusCode: HTTP_STATUS.UNAUTHORIZED
+      })
+    }
+
     const userInfo = getUserInfo({
       actor: currentActor,
-      account: currentActor.account,
+      account,
       scopes: grantedScopes
     })
 
