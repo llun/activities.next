@@ -3,7 +3,6 @@ import { passkey } from '@better-auth/passkey'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
 import { jwt, twoFactor } from 'better-auth/plugins'
-import memoize from 'lodash/memoize'
 
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
@@ -16,12 +15,12 @@ import { buildTrustedOrigins } from './trustedOrigins'
 export const AUTH_COOKIE_PREFIX = 'better-auth'
 export const AUTH_SESSION_COOKIE_NAME = 'session_token'
 
-export const getAuth = memoize(() => {
+const buildAuth = (baseURL: string) => {
   const config = getConfig()
   const database = getDatabase()
   const db = getKnex()
 
-  const baseURL = getBaseURL()
+  const rpID = new URL(baseURL).hostname
 
   return betterAuth({
     logger: {
@@ -31,16 +30,24 @@ export const getAuth = memoize(() => {
     baseURL,
     // Trust the configured host plus any ACTIVITIES_TRUSTED_HOSTS so a Mastodon
     // client logging into a served alias/custom domain isn't rejected with
-    // `403 Invalid origin` on credential sign-in.
-    trustedOrigins: buildTrustedOrigins(baseURL, config.trustedHosts ?? []),
+    // `403 Invalid origin` on credential sign-in. The union is the same for
+    // every per-host instance (it already contains this instance's origin) so a
+    // request handled by any instance can sign in from any served domain.
+    trustedOrigins: buildTrustedOrigins(
+      getBaseURL(),
+      config.trustedHosts ?? []
+    ),
     basePath: '/api/auth',
-    database: knexAdapter(db),
+    database: knexAdapter(db, { passkeyRpID: rpID }),
     disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;
     // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
     plugins: [
       jwt(),
+      // rpID/origin are derived from this instance's resolved host so passkey
+      // ceremonies run against the domain the request actually arrived on. See
+      // `getAuth` and `resolveAuthBaseURL` for how the host is chosen per request.
       passkey({
-        rpID: new URL(baseURL).hostname,
+        rpID,
         rpName: config.serviceName ?? 'Activities.next',
         origin: new URL(baseURL).origin
       }),
@@ -175,4 +182,40 @@ export const getAuth = memoize(() => {
       }
     }
   })
-})
+}
+
+// Cache one better-auth instance per resolved base URL. Instances differ only in
+// their passkey rpID/origin; everything else (database, secret, trusted-origin
+// union) is shared, so they all read/write the same sessions and accounts.
+//
+// The cache is LRU-bounded: with a concrete ACTIVITIES_TRUSTED_HOSTS list the key
+// set is small, but a wildcard entry (e.g. `*.example.com`) lets
+// `resolveAuthBaseURL` yield a different concrete subdomain per request — and the
+// host is request-influenced — so an unbounded map would be a memory-exhaustion
+// vector. Capping with oldest-entry eviction keeps it bounded while still serving
+// every legitimately-used domain.
+const MAX_AUTH_INSTANCES = 32
+const authInstances = new Map<string, ReturnType<typeof buildAuth>>()
+
+// Get the auth instance for a base URL, defaulting to the configured host. Pass
+// a per-request base URL (from `resolveAuthBaseURL`) for passkey ceremonies so
+// they use the domain the request arrived on; callers that only need session or
+// OAuth handling can omit it and use the configured host.
+export const getAuth = (baseURL: string = getBaseURL()) => {
+  const cached = authInstances.get(baseURL)
+  if (cached) {
+    // Refresh recency so the most-used domains survive eviction.
+    authInstances.delete(baseURL)
+    authInstances.set(baseURL, cached)
+    return cached
+  }
+
+  if (authInstances.size >= MAX_AUTH_INSTANCES) {
+    const oldest = authInstances.keys().next().value
+    if (oldest !== undefined) authInstances.delete(oldest)
+  }
+
+  const instance = buildAuth(baseURL)
+  authInstances.set(baseURL, instance)
+  return instance
+}

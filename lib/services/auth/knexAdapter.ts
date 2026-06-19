@@ -197,7 +197,18 @@ const applyWhere = (
   return query
 }
 
-export const knexAdapter = (db: Knex) =>
+type KnexAdapterOptions = {
+  // The WebAuthn rpID this auth instance serves. better-auth's passkey plugin
+  // does not persist the rpID a credential was created with (its schema can't be
+  // extended), so we stamp it onto the row at creation time. Each per-host auth
+  // instance constructs its adapter with its own rpID, making passkeys
+  // per-domain. See `lib/services/auth/auth.ts`.
+  passkeyRpID?: string
+}
+
+const PASSKEY_TABLE = 'passkey'
+
+export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
   createAdapterFactory({
     config: {
       adapterId: 'knex',
@@ -219,6 +230,17 @@ export const knexAdapter = (db: Knex) =>
             data as Record<string, unknown>
           )
           const id = record.id as string
+
+          // Stamp the serving domain onto new passkeys so the settings page can
+          // show which domain each credential belongs to. `rpID` is not part of
+          // better-auth's passkey schema, so it never arrives in `data`.
+          if (
+            tableName === PASSKEY_TABLE &&
+            options.passkeyRpID &&
+            record.rpID == null
+          ) {
+            record.rpID = options.passkeyRpID
+          }
 
           if (model === 'session' || tableName === 'sessions') {
             const accountId = getSessionAccountId(record, model)

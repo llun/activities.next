@@ -133,6 +133,10 @@ vi.mock('@/lib/config', async () => {
     await vi.importActual<typeof import('@/lib/stub/actor')>('@/lib/stub/actor')
   return {
     getBaseURL: vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`),
+    getAuthScheme: vi.fn().mockReturnValue('https'),
+    buildBaseURL: vi.fn((host: string) =>
+      host.includes('://') ? host : `https://${host}`
+    ),
     getConfig: vi.fn().mockReturnValue({
       serviceName: 'activities.next',
       host: TEST_DOMAIN,
