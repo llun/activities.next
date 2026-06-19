@@ -56,8 +56,8 @@ export const GET = traceApiRoute(
 
       const {
         q,
-        limit = 40,
-        offset = 0,
+        limit,
+        offset,
         resolve = false,
         following = false
       } = parsedParams.data

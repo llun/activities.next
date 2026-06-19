@@ -86,4 +86,21 @@ describe('GET /api/v1/accounts/:id/endorsements', () => {
     })
     expect(response.status).toBe(404)
   })
+
+  it.each([
+    ['limit=100', '?limit=100', 80],
+    ['limit=0', '?limit=0', 1]
+  ])(
+    'clamps out-of-range %s instead of rejecting it',
+    async (_label, query, expectedLimit) => {
+      const getEndorsements = vi.spyOn(database, 'getEndorsements')
+      const response = await GET(createRequest(ACTOR3_ID, query), {
+        params: Promise.resolve({ id: urlToId(ACTOR3_ID) })
+      })
+      expect(response.status).toBe(200)
+      expect(getEndorsements).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: expectedLimit })
+      )
+    }
+  )
 })

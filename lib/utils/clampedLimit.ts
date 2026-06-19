@@ -17,20 +17,23 @@ const blankToUndefined = (value: unknown) =>
  * clients that ask for more rows than the cap (e.g. iOS apps sending
  * `limit=100` to `/api/v1/accounts/:id/statuses`, whose cap is 40).
  *
+ * Callers must pass `min <= max` and `min <= fallback <= max`.
+ *
  * @param max The maximum number of rows the endpoint allows.
  * @param fallback The default used when `limit` is absent or non-numeric.
  * @param min The minimum allowed value (Mastodon clamps up to 1).
  */
-export const clampedLimit = (max: number, fallback: number, min = 1) =>
-  z
+export const clampedLimit = (max: number, fallback: number, min = 1) => {
+  const clamp = (value: number) =>
+    Math.min(Math.max(Math.trunc(value), min), max)
+  return z
     .preprocess(blankToUndefined, z.coerce.number())
     .transform((value) =>
-      Number.isFinite(value)
-        ? Math.min(Math.max(Math.trunc(value), min), max)
-        : fallback
+      Number.isFinite(value) ? clamp(value) : clamp(fallback)
     )
     .catch(fallback)
     .default(fallback)
+}
 
 /**
  * Zod schema for a Mastodon-style `offset` query parameter that CLAMPS into
@@ -38,16 +41,18 @@ export const clampedLimit = (max: number, fallback: number, min = 1) =>
  * instead of rejecting out-of-range values, for the same reason as
  * {@link clampedLimit}.
  *
+ * Callers must pass `0 <= fallback <= max`.
+ *
  * @param max The maximum offset the endpoint allows.
  * @param fallback The default used when `offset` is absent or non-numeric.
  */
-export const clampedOffset = (max = Number.MAX_SAFE_INTEGER, fallback = 0) =>
-  z
+export const clampedOffset = (max = Number.MAX_SAFE_INTEGER, fallback = 0) => {
+  const clamp = (value: number) => Math.min(Math.max(Math.trunc(value), 0), max)
+  return z
     .preprocess(blankToUndefined, z.coerce.number())
     .transform((value) =>
-      Number.isFinite(value)
-        ? Math.min(Math.max(Math.trunc(value), 0), max)
-        : fallback
+      Number.isFinite(value) ? clamp(value) : clamp(fallback)
     )
     .catch(fallback)
     .default(fallback)
+}

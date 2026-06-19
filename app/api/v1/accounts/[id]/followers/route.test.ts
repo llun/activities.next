@@ -113,6 +113,27 @@ describe('GET /api/v1/accounts/:id/followers', () => {
     expect(link).toContain('rel="prev"')
   })
 
+  it.each([
+    { query: '?limit=100', expectedLimit: 80 },
+    { query: '?limit=0', expectedLimit: 1 }
+  ])(
+    'clamps an out-of-range $query to 200 (limit $expectedLimit) instead of 400',
+    async ({ query, expectedLimit }) => {
+      const getFollowersSpy = vi.spyOn(database, 'getFollowers')
+
+      const response = await GET(createRequest(ACTOR2_ID, query), {
+        params: Promise.resolve({ id: urlToId(ACTOR2_ID) })
+      })
+
+      expect(response.status).toBe(200)
+      expect(getFollowersSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: expectedLimit })
+      )
+
+      getFollowersSpy.mockRestore()
+    }
+  )
+
   it('returns 404 for an unknown account', async () => {
     const unknown = 'https://llun.test/users/nope'
     const response = await GET(createRequest(unknown), {

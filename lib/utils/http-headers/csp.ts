@@ -1,3 +1,4 @@
+import { getProxyHostConfig } from '@/lib/config/host'
 import { getSecurityHeaderConfig } from '@/lib/config/securityHeaders'
 
 import { type SecurityHeader, getStaticSecurityHeaders } from './static'
@@ -130,6 +131,11 @@ export const getContentSecurityPolicy = () => {
   const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
   const serviceMediaSources = getConfiguredCspSources(allowMediaDomains)
   const remoteMediaSources = getRemoteMediaCspSources(allowRemoteMediaDomains)
+  // The canonical app origin (ACTIVITIES_HOST). Server-rendered pages load the
+  // logo from this absolute origin so it resolves even when the page is served
+  // on a CDN alias domain; allow it explicitly so an operator with a strict
+  // ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS allowlist doesn't block the logo.
+  const appOriginSource = getCspSource(getProxyHostConfig().host)
   const connectSources = Array.from(
     new Set([
       "'self'",
@@ -148,6 +154,7 @@ export const getContentSecurityPolicy = () => {
       "'self'",
       'data:',
       'blob:',
+      ...(appOriginSource ? [appOriginSource] : []),
       ...remoteMediaSources,
       ...serviceMediaSources,
       ...(mediaStorageSource ? [mediaStorageSource] : [])

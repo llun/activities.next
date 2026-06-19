@@ -102,7 +102,7 @@ export const GET = traceApiRoute(
     }
 
     const {
-      limit = DEFAULT_LIMIT,
+      limit,
       max_id: maxId,
       min_id: minId,
       since_id: sinceId,

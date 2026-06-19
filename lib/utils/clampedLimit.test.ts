@@ -8,6 +8,7 @@ describe('clampedLimit', () => {
   it.each([
     ['absent (undefined)', undefined, 20],
     ['empty string', '', 20],
+    ['whitespace only', '   ', 20],
     ['non-numeric', 'abc', 20],
     ['within range', '30', 30],
     ['at the max', '40', 40],
@@ -15,7 +16,11 @@ describe('clampedLimit', () => {
     ['far above the max clamps down', '100', 40],
     ['below the min clamps up', '0', 1],
     ['negative clamps up', '-5', 1],
-    ['fractional truncates', '40.9', 40]
+    ['fractional truncates', '40.9', 40],
+    ['infinity falls back', 'Infinity', 20],
+    ['negative infinity falls back', '-Infinity', 20],
+    ['overflow to infinity falls back', '1e500', 20],
+    ['NaN string falls back', 'NaN', 20]
   ])('clamps %s to %d', (_label, input, expected) => {
     expect(schema.parse(input)).toBe(expected)
   })
@@ -44,11 +49,15 @@ describe('clampedOffset', () => {
 
   it.each([
     ['absent (undefined)', undefined, 0],
+    ['empty string', '', 0],
+    ['whitespace only', '   ', 0],
     ['non-numeric', 'abc', 0],
     ['within range', '40', 40],
     ['at the max', '10000', 10000],
     ['above the max clamps down', '10001', 10000],
-    ['negative clamps up', '-1', 0]
+    ['negative clamps up', '-1', 0],
+    ['infinity falls back', 'Infinity', 0],
+    ['NaN string falls back', 'NaN', 0]
   ])('clamps %s to %d', (_label, input, expected) => {
     expect(schema.parse(input)).toBe(expected)
   })

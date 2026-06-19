@@ -84,7 +84,7 @@ export const GET = traceApiRoute(
     }
 
     const {
-      limit = DEFAULT_LIMIT,
+      limit,
       types,
       exclude_types: excludeTypes,
       grouped_types: groupedTypesMastodon,

@@ -77,7 +77,7 @@ export const GET = traceApiRoute(
     }
 
     const {
-      limit = DEFAULT_LIMIT,
+      limit,
       types,
       exclude_types: excludeTypes,
       account_id: accountId

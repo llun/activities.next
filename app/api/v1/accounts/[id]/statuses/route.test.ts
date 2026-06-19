@@ -350,15 +350,24 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     expect(response.status).toBe(400)
   })
 
-  it('clamps out-of-range limits instead of rejecting them', async () => {
-    for (const query of ['?limit=0', '?limit=41', '?limit=100&pinned=true']) {
+  it.each([
+    // limit=0 clamps up to the minimum (1); the rest clamp down to the cap (40).
+    ['?limit=0', 1],
+    ['?limit=41', 40],
+    ['?limit=100&pinned=true', 40]
+  ])(
+    'clamps out-of-range %s instead of rejecting it',
+    async (query, maxLength) => {
       const response = await GET(createRequest(query), {
         params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
       })
 
       expect(response.status).toBe(200)
+      const data = (await response.json()) as unknown[]
+      // The clamped limit caps how many statuses can come back.
+      expect(data.length).toBeLessThanOrEqual(maxLength)
     }
-  })
+  )
 
   it('allows OAuth tokens with read:statuses to read private owner statuses', async () => {
     mockStoredToken.mockResolvedValue({

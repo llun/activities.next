@@ -76,7 +76,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    const { limit = 25, max_created_at: maxCreatedAt } = parsedParams.data
+    const { limit, max_created_at: maxCreatedAt } = parsedParams.data
 
     const attachments = await database.getAttachmentsForActor({
       actorId: id,

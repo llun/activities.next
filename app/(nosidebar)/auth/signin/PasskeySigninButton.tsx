@@ -12,8 +12,14 @@ import { authClient } from '@/lib/services/auth/auth-client'
 // stay silent only when the user genuinely dismissed the system prompt.
 const passkeyErrorMessage = (code?: string): string | null => {
   switch (code) {
+    // Genuine user dismissal/timeout: @simplewebauthn maps the browser's
+    // NotAllowedError to ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY (not
+    // ERROR_CEREMONY_ABORTED, which is only a programmatic abort), and
+    // better-auth reports AUTH_CANCELLED when no WebAuthnError is thrown. Stay
+    // silent for all of these so dismissing the prompt isn't shown as an error.
     case 'AUTH_CANCELLED':
     case 'ERROR_CEREMONY_ABORTED':
+    case 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY':
       return null
     case 'ERROR_INVALID_RP_ID':
     case 'ERROR_INVALID_DOMAIN':

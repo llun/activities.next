@@ -81,7 +81,7 @@ export const GET = traceApiRoute(
       const parsedParams = parsed.data
 
       const {
-        limit = 20,
+        limit,
         max_id: maxId,
         min_id: minId,
         since_id: sinceId
