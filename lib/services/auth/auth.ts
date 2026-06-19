@@ -2,7 +2,7 @@ import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
-import { jwt, twoFactor } from 'better-auth/plugins'
+import { type Jwk, jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
@@ -14,6 +14,23 @@ import { buildTrustedOrigins } from './trustedOrigins'
 
 export const AUTH_COOKIE_PREFIX = 'better-auth'
 export const AUTH_SESSION_COOKIE_NAME = 'session_token'
+
+// The jwt plugin is configured for RS256 below, which can only sign with an RSA
+// key. A deployment that issued tokens before the RS256 switch still has the
+// plugin's old Ed25519/OKP key sitting in the `jwks` table, and because that
+// table has no per-key `alg` column, better-auth resolves the signing algorithm
+// from the config (RS256) and then tries to load that stale key as RS256. jose
+// rejects the mismatch with `Invalid or unsupported JWK "alg" (Algorithm)
+// Parameter value`, which 500s every authenticated request (the `/get-session`
+// hook signs a JWT on each session read). Keep only RSA keys so any stale key is
+// ignored rather than signed.
+const isRsaJwk = (key: Pick<Jwk, 'publicKey'>): boolean => {
+  try {
+    return (JSON.parse(key.publicKey) as { kty?: unknown }).kty === 'RSA'
+  } catch {
+    return false
+  }
+}
 
 const buildAuth = (baseURL: string) => {
   const config = getConfig()
@@ -42,25 +59,30 @@ const buildAuth = (baseURL: string) => {
     disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;
     // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
     plugins: [
-      // Sign the JWKS key (and therefore the OIDC id_tokens the oauthProvider
-      // signs via this plugin) with RS256 so the published JWKS matches the
-      // `id_token_signing_alg_values_supported: ['RS256']` advertised in the
-      // OpenID discovery document. Without this the plugin defaults to
-      // EdDSA/Ed25519 and a strict RS256 relying party (e.g. mozilla-django-oidc
-      // with OIDC_RP_SIGN_ALGO=RS256) cannot verify the id_token signature.
-      //
-      // Rollout note: this `jwks` table has no per-key `alg` column (and the
-      // plugin's jwks schema declares none), so better-auth resolves the signing
-      // and JWKS `alg` from THIS config, not from each stored key. A fresh
-      // deployment generates an RSA key on the first sign / first /api/auth/jwks
-      // request and is consistent. A deployment that already signed a token (an
-      // Ed25519 key already sits in `jwks`) must have that row cleared once on
-      // rollout so a fresh RSA key is generated — otherwise the plugin loads the
-      // stale Ed25519 key and tries to sign it as RS256, which throws. This does
-      // not affect Mastodon OAuth2 clients: they use opaque access tokens
-      // verified against the database (not the JWKS), and id_tokens are
-      // short-lived, so no long-lived token depends on the retired EdDSA key.
-      jwt({ jwks: { keyPairConfig: { alg: 'RS256', modulusLength: 2048 } } }),
+      jwt({
+        // Sign the JWKS key (and therefore the OIDC id_tokens the oauthProvider
+        // signs via this plugin) with RS256 so the published JWKS matches the
+        // `id_token_signing_alg_values_supported: ['RS256']` advertised in the
+        // OpenID discovery document. Without this the plugin defaults to
+        // EdDSA/Ed25519 and a strict RS256 relying party (e.g. mozilla-django-oidc
+        // with OIDC_RP_SIGN_ALGO=RS256) cannot verify the id_token signature.
+        // Mastodon OAuth2 clients are unaffected — they use opaque access tokens
+        // verified against the database, not the JWKS.
+        jwks: { keyPairConfig: { alg: 'RS256', modulusLength: 2048 } },
+        // Only ever hand better-auth RSA keys (see isRsaJwk). With any stale
+        // pre-RS256 Ed25519 key filtered out, getLatestKey() finds no usable key
+        // and better-auth generates a fresh RSA key, while the JWKS endpoint and
+        // JWT verification only ever see RSA keys. This self-heals an upgraded
+        // database without a manual cleanup or migration — the retired EdDSA key
+        // is harmless since Mastodon clients use opaque tokens and id_tokens are
+        // short-lived.
+        adapter: {
+          getJwks: async (ctx) =>
+            (await ctx.context.adapter.findMany<Jwk>({ model: 'jwks' })).filter(
+              isRsaJwk
+            )
+        }
+      }),
       // rpID/origin are derived from this instance's resolved host so passkey
       // ceremonies run against the domain the request actually arrived on. See
       // `getAuth` and `resolveAuthBaseURL` for how the host is chosen per request.
