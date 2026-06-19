@@ -183,6 +183,19 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
     setDialogOpen(true)
   }, [])
 
+  // Clear the create error when the dialog closes so a dismissed failure does
+  // not re-surface on the settings page (where it sat behind the overlay).
+  const handleDialogOpenChange = (open: boolean) => {
+    setDialogOpen(open)
+    if (!open) setError(undefined)
+  }
+
+  // Switching the target domain invalidates an error tied to the previous one.
+  const handleSelectDomain = (domain: string) => {
+    setError(undefined)
+    setSelectedDomain(domain)
+  }
+
   // Resume an add-passkey flow that started on another domain: when this domain
   // matches the `add-passkey` query param, open the dialog preselected to it,
   // then strip the param so a refresh doesn't reopen the dialog.
@@ -280,7 +293,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
         Add passkey
       </Button>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="flex-row items-start gap-3 space-y-0 text-left">
             <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
@@ -310,7 +323,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
                     domain={domain}
                     handlePrefix={handlePrefix}
                     selected={selectedDomain === domain.domain}
-                    onSelect={setSelectedDomain}
+                    onSelect={handleSelectDomain}
                   />
                 ))}
               </div>
@@ -338,7 +351,10 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
           {error && <p className="text-destructive text-sm">{error}</p>}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => handleDialogOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleCreate} disabled={createDisabled}>
