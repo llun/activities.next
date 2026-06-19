@@ -1,0 +1,20 @@
+lib/utils/clampedLimit.ts
+  s_e4efa862839776::t_0de6750bacf1b2 30-33,36
+  s_e4efa862839776::t_d577d6d4080eab 55-56,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "dfe587ccf0c051a91d035bd93dbd176b659bd9bc",
+  "prompts": {},
+  "sessions": {
+    "s_e4efa862839776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f18127f-264a-416b-b190-6b6fab05d514",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
