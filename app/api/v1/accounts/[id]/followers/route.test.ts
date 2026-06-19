@@ -117,7 +117,7 @@ describe('GET /api/v1/accounts/:id/followers', () => {
     { query: '?limit=100', expectedLimit: 80 },
     { query: '?limit=0', expectedLimit: 1 }
   ])(
-    'clamps an out-of-range $query to 200 (limit $expectedLimit) instead of 400',
+    'clamps an out-of-range $query to limit $expectedLimit instead of rejecting it',
     async ({ query, expectedLimit }) => {
       const getFollowersSpy = vi.spyOn(database, 'getFollowers')
 

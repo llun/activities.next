@@ -2765,10 +2765,17 @@ describe('GET /api/v1/statuses/[id]', () => {
       ])
     })
 
-    it.each(['0', '81', 'abc'])(
+    it.each([
+      // The route requests limit + 1 to detect a next page, so the clamped
+      // limit (1 / 80 / fallback 40) reaches the DB as 2 / 81 / 41.
+      ['0', 2],
+      ['81', 81],
+      ['abc', 41]
+    ])(
       'clamps out-of-range limit=%s instead of rejecting it',
-      async (limit) => {
+      async (limit, expectedDbLimit) => {
         mockGetServerSession.mockResolvedValue(null)
+        const getRebloggedBySpy = vi.spyOn(database, 'getRebloggedBy')
 
         const statusId = `${ACTOR1_ID}/statuses/post-1`
         const response = await getStatusRebloggedBy(
@@ -2781,6 +2788,11 @@ describe('GET /api/v1/statuses/[id]', () => {
         )
 
         expect(response.status).toBe(200)
+        expect(getRebloggedBySpy).toHaveBeenCalledWith(
+          expect.objectContaining({ limit: expectedDbLimit })
+        )
+
+        getRebloggedBySpy.mockRestore()
       }
     )
 

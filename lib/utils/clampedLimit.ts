@@ -26,13 +26,16 @@ const blankToUndefined = (value: unknown) =>
 export const clampedLimit = (max: number, fallback: number, min = 1) => {
   const clamp = (value: number) =>
     Math.min(Math.max(Math.trunc(value), min), max)
+  // Clamp the fallback once so every branch (transform else, catch, default)
+  // yields an in-range value even if a caller violates the precondition.
+  const safeFallback = clamp(fallback)
   return z
     .preprocess(blankToUndefined, z.coerce.number())
     .transform((value) =>
-      Number.isFinite(value) ? clamp(value) : clamp(fallback)
+      Number.isFinite(value) ? clamp(value) : safeFallback
     )
-    .catch(fallback)
-    .default(fallback)
+    .catch(safeFallback)
+    .default(safeFallback)
 }
 
 /**
@@ -48,11 +51,12 @@ export const clampedLimit = (max: number, fallback: number, min = 1) => {
  */
 export const clampedOffset = (max = Number.MAX_SAFE_INTEGER, fallback = 0) => {
   const clamp = (value: number) => Math.min(Math.max(Math.trunc(value), 0), max)
+  const safeFallback = clamp(fallback)
   return z
     .preprocess(blankToUndefined, z.coerce.number())
     .transform((value) =>
-      Number.isFinite(value) ? clamp(value) : clamp(fallback)
+      Number.isFinite(value) ? clamp(value) : safeFallback
     )
-    .catch(fallback)
-    .default(fallback)
+    .catch(safeFallback)
+    .default(safeFallback)
 }

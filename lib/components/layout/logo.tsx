@@ -5,6 +5,10 @@ interface LogoProps {
   showText?: boolean
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  // Server callers can pass an absolute URL (e.g. built from ACTIVITIES_HOST) so
+  // the logo resolves against the canonical origin behind a CDN alias. Client
+  // callers omit it and use the root-relative default.
+  src?: string
 }
 
 const sizes = {
@@ -16,7 +20,8 @@ const sizes = {
 export function Logo({
   showText = true,
   size = 'md',
-  className = ''
+  className = '',
+  src = '/logo-nav.png'
 }: LogoProps) {
   return (
     <Link
@@ -25,7 +30,7 @@ export function Logo({
       className={`inline-flex items-center gap-2 font-semibold tracking-tight ${sizes[size]} ${className}`}
     >
       <Image
-        src="/logo-nav.png"
+        src={src}
         alt=""
         aria-hidden="true"
         width={32}

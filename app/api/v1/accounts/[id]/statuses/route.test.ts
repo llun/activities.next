@@ -357,15 +357,20 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     ['?limit=100&pinned=true', 40]
   ])(
     'clamps out-of-range %s instead of rejecting it',
-    async (query, maxLength) => {
+    async (query, expectedLimit) => {
+      const getActorStatusesSpy = vi.spyOn(database, 'getActorStatuses')
+
       const response = await GET(createRequest(query), {
         params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
       })
 
       expect(response.status).toBe(200)
-      const data = (await response.json()) as unknown[]
-      // The clamped limit caps how many statuses can come back.
-      expect(data.length).toBeLessThanOrEqual(maxLength)
+      // The clamped limit is what reaches the DB layer.
+      expect(getActorStatusesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: expectedLimit })
+      )
+
+      getActorStatusesSpy.mockRestore()
     }
   )
 
