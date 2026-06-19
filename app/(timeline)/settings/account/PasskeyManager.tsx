@@ -214,9 +214,12 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
   const handleCreate = async () => {
     // Passkeys are bound to the origin that creates them, so a credential for
     // another domain must be minted on that domain. Send the user there and
-    // resume the dialog on arrival.
+    // resume the dialog on arrival. Preserve a non-standard port (served domains
+    // share this server's port) so the redirect resolves in local/dev setups
+    // instead of falling back to 80/443.
     if (selectedDomain !== currentDomain) {
-      window.location.href = `${window.location.protocol}//${selectedDomain}/settings/account?${RESUME_PARAM}=${encodeURIComponent(selectedDomain)}`
+      const port = window.location.port ? `:${window.location.port}` : ''
+      window.location.href = `${window.location.protocol}//${selectedDomain}${port}/settings/account?${RESUME_PARAM}=${encodeURIComponent(selectedDomain)}`
       return
     }
 
