@@ -80,7 +80,7 @@ CREATE TABLE `oauthAccessToken` (`id` varchar(255), `token` text not null, `clie
 CREATE UNIQUE INDEX `oauthaccesstoken_token_unique` on `oauthAccessToken` (`token`);
 CREATE TABLE `oauthConsent` (`id` varchar(255), `clientId` varchar(255) not null, `userId` varchar(255) null, `referenceId` varchar(255) null, `scopes` text not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, foreign key(`clientId`) references `oauthClient`(`clientId`), foreign key(`userId`) references `accounts`(`id`), primary key (`id`));
 CREATE TABLE `jwks` (`id` varchar(255), `publicKey` text not null, `privateKey` text not null, `createdAt` datetime not null default CURRENT_TIMESTAMP, `expiresAt` datetime null, primary key (`id`));
-CREATE TABLE `passkey` (`id` varchar(255), `name` varchar(255) null, `publicKey` text not null, `userId` varchar(255) not null, `credentialID` text not null, `counter` integer not null default '0', `deviceType` varchar(255) not null, `backedUp` boolean not null default '0', `transports` varchar(255) null, `aaguid` varchar(255) null, `createdAt` datetime not null default CURRENT_TIMESTAMP, foreign key(`userId`) references `accounts`(`id`) on delete CASCADE, primary key (`id`));
+CREATE TABLE `passkey` (`id` varchar(255), `name` varchar(255) null, `publicKey` text not null, `userId` varchar(255) not null, `credentialID` text not null, `counter` integer not null default '0', `deviceType` varchar(255) not null, `backedUp` boolean not null default '0', `transports` varchar(255) null, `aaguid` varchar(255) null, `createdAt` datetime not null default CURRENT_TIMESTAMP, `rpID` varchar(255) null, foreign key(`userId`) references `accounts`(`id`) on delete CASCADE, primary key (`id`));
 CREATE INDEX `passkey_userid_index` on `passkey` (`userId`);
 CREATE UNIQUE INDEX `passkey_credentialid_unique` on `passkey` (`credentialID`);
 CREATE INDEX `counters_bucket_hour_index` on `counters` (`bucketHour`);
@@ -217,3 +217,4 @@ CREATE INDEX `relays_actor_id` on `relays` (`actorId`);
 CREATE INDEX `relays_state` on `relays` (`state`);
 CREATE TABLE `federated_timeline` (`statusId` varchar(255), `statusActorId` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, foreign key(`statusId`) references `statuses`(`id`) on delete CASCADE, primary key (`statusId`));
 CREATE INDEX `federated_timeline_status_actor_id` on `federated_timeline` (`statusActorId`);
+CREATE INDEX `passkey_userid_rpid_index` on `passkey` (`userId`, `rpID`);

@@ -1,19 +1,26 @@
 'use client'
 
-import { FC, useEffect, useState } from 'react'
+import { Check, Fingerprint, Globe, Plus } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { FC, useCallback, useEffect, useState } from 'react'
 
+import { type Passkey, getPasskeys } from '@/lib/client'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
+import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
+import type { ServedDomain } from '@/lib/services/auth/servedDomains'
 
-interface PasskeyItem {
-  id: string
-  name?: string
-  createdAt: Date | string
-  deviceType: string
-  backedUp: boolean
-}
-
+const RESUME_PARAM = 'add-passkey'
 const CANCEL_CODES = new Set(['AUTH_CANCELLED', 'ERROR_CEREMONY_ABORTED'])
 
 const getErrorMessage = (error: {
@@ -25,41 +32,173 @@ const getErrorMessage = (error: {
   return error.message
 }
 
-export const PasskeyManager: FC = () => {
-  const [passkeys, setPasskeys] = useState<PasskeyItem[]>([])
+const formatAddedDate = (value: string): string => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric'
+  })
+}
+
+interface PasskeyManagerProps {
+  // Domains this instance serves; a passkey is bound to exactly one of them.
+  domains: ServedDomain[]
+  // The domain the user is currently viewing the settings on.
+  currentDomain: string
+  // The account's local username, shown as `handle@domain` in the chooser.
+  handlePrefix?: string
+}
+
+const DomainPill: FC<{ domain: string }> = ({ domain }) => (
+  <span className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+    <Globe className="size-3" />
+    {domain}
+  </span>
+)
+
+const PasskeyRow: FC<{
+  passkey: Passkey
+  showDomain: boolean
+  isPrimary: boolean
+  onRemove: (id: string) => void
+}> = ({ passkey, showDomain, isPrimary, onRemove }) => {
+  const added = formatAddedDate(passkey.createdAt)
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <Fingerprint className="text-muted-foreground size-5 shrink-0" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">
+            {passkey.name || 'Unnamed passkey'}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {showDomain && <DomainPill domain={passkey.domain} />}
+            {showDomain && isPrimary && <Badge tone="gray">Primary</Badge>}
+            {added && (
+              <span className="text-muted-foreground text-xs">
+                Added {added}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <Button variant="outline" size="sm" onClick={() => onRemove(passkey.id)}>
+        Remove
+      </Button>
+    </div>
+  )
+}
+
+const DomainOption: FC<{
+  domain: ServedDomain
+  handlePrefix: string
+  selected: boolean
+  onSelect: (domain: string) => void
+}> = ({ domain, handlePrefix, selected, onSelect }) => (
+  <button
+    type="button"
+    onClick={() => onSelect(domain.domain)}
+    aria-pressed={selected}
+    className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+      selected ? 'border-primary bg-primary/5 ring-primary ring-1' : ''
+    }`}
+  >
+    <span className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
+      <Globe className="size-[18px]" />
+    </span>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <span className="truncate">{domain.domain}</span>
+        {domain.primary && <Badge tone="gray">Primary</Badge>}
+      </div>
+      <div className="text-muted-foreground truncate text-xs">
+        {handlePrefix}@{domain.domain}
+      </div>
+    </div>
+    <span
+      className={`shrink-0 ${selected ? 'text-primary' : 'text-muted-foreground/40'}`}
+    >
+      {selected ? (
+        <Check className="size-[18px]" />
+      ) : (
+        <span className="inline-block size-[18px] rounded-full border" />
+      )}
+    </span>
+  </button>
+)
+
+export const PasskeyManager: FC<PasskeyManagerProps> = ({
+  domains,
+  currentDomain,
+  handlePrefix = 'you'
+}) => {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const [passkeys, setPasskeys] = useState<Passkey[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedDomain, setSelectedDomain] = useState(currentDomain)
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string>()
   const [success, setSuccess] = useState<string>()
 
-  const loadPasskeys = async () => {
+  const multiDomain = domains.length > 1
+  const primaryDomains = new Set(
+    domains.filter((d) => d.primary).map((d) => d.domain)
+  )
+
+  const loadPasskeys = useCallback(async () => {
     setLoading(true)
     setError(undefined)
     try {
-      const res = await fetch('/api/auth/passkey/list-user-passkeys', {
-        method: 'GET',
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setPasskeys(Array.isArray(data) ? data : [])
-      } else {
-        setError('Failed to load passkeys')
-        setPasskeys([])
-      }
+      setPasskeys(await getPasskeys())
     } catch {
       setError('Failed to load passkeys')
       setPasskeys([])
     }
     setLoading(false)
-  }
+  }, [])
 
   useEffect(() => {
     loadPasskeys()
+  }, [loadPasskeys])
+
+  const openDialog = useCallback((domain: string) => {
+    setError(undefined)
+    setSuccess(undefined)
+    setNewName('')
+    setSelectedDomain(domain)
+    setDialogOpen(true)
   }, [])
 
-  const handleAdd = async () => {
+  // Resume an add-passkey flow that started on another domain: when this domain
+  // matches the `add-passkey` query param, open the dialog preselected to it,
+  // then strip the param so a refresh doesn't reopen the dialog.
+  useEffect(() => {
+    const resume = searchParams.get(RESUME_PARAM)
+    if (
+      resume &&
+      resume === currentDomain &&
+      domains.some((d) => d.domain === resume)
+    ) {
+      openDialog(resume)
+      router.replace('/settings/account')
+    }
+  }, [searchParams, currentDomain, domains, openDialog, router])
+
+  const handleCreate = async () => {
+    // Passkeys are bound to the origin that creates them, so a credential for
+    // another domain must be minted on that domain. Send the user there and
+    // resume the dialog on arrival.
+    if (selectedDomain !== currentDomain) {
+      window.location.href = `${window.location.protocol}//${selectedDomain}/settings/account?${RESUME_PARAM}=${encodeURIComponent(selectedDomain)}`
+      return
+    }
+
     setError(undefined)
     setSuccess(undefined)
     setAdding(true)
@@ -68,11 +207,11 @@ export const PasskeyManager: FC = () => {
         name: newName.trim() || undefined
       })
       if (result?.error) {
-        const msg = getErrorMessage(result.error)
-        if (msg) setError(msg)
+        const message = getErrorMessage(result.error)
+        if (message) setError(message)
       } else {
         setSuccess('Passkey added successfully')
-        setNewName('')
+        setDialogOpen(false)
         await loadPasskeys()
       }
     } catch {
@@ -97,55 +236,106 @@ export const PasskeyManager: FC = () => {
     }
   }
 
+  const createDisabled = adding && selectedDomain === currentDomain
+
   return (
     <div className="space-y-4">
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
       {success && <p className="text-sm text-green-600">{success}</p>}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading passkeys…</p>
+        <p className="text-muted-foreground text-sm">Loading passkeys…</p>
       ) : passkeys.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           No passkeys registered yet.
         </p>
       ) : (
-        <ul className="space-y-2">
-          {passkeys.map((pk) => (
-            <li key={pk.id} className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">
-                  {pk.name || 'Unnamed passkey'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {pk.deviceType === 'multiDevice' ? 'Synced' : 'Device-bound'}
-                  {pk.backedUp ? ' · Backed up' : ''}
-                  {' · Added '}
-                  {new Date(pk.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleDelete(pk.id)}
-              >
-                Remove
-              </Button>
-            </li>
+        <div className="space-y-2">
+          {passkeys.map((passkey) => (
+            <PasskeyRow
+              key={passkey.id}
+              passkey={passkey}
+              showDomain={multiDomain}
+              isPrimary={primaryDomains.has(passkey.domain)}
+              onRemove={handleDelete}
+            />
           ))}
-        </ul>
+        </div>
       )}
 
-      <div className="flex gap-2">
-        <Input
-          placeholder="Passkey name (optional)"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          className="max-w-xs"
-        />
-        <Button onClick={handleAdd} disabled={adding}>
-          {adding ? 'Adding…' : 'Add Passkey'}
-        </Button>
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => openDialog(currentDomain)}
+      >
+        <Plus className="size-4" />
+        Add passkey
+      </Button>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="flex-row items-start gap-3 space-y-0 text-left">
+            <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+              <Fingerprint className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-base">Add a passkey</DialogTitle>
+              <DialogDescription>
+                {multiDomain
+                  ? 'Choose the domain this passkey will sign you in to, then follow your browser’s prompt.'
+                  : 'Follow your browser’s prompt to create a passkey for this site.'}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          {multiDomain && (
+            <div className="space-y-2">
+              <Label>Domain</Label>
+              <div className="space-y-2">
+                {domains.map((domain) => (
+                  <DomainOption
+                    key={domain.domain}
+                    domain={domain}
+                    handlePrefix={handlePrefix}
+                    selected={selectedDomain === domain.domain}
+                    onSelect={setSelectedDomain}
+                  />
+                ))}
+              </div>
+              <p className="text-muted-foreground text-[0.8rem]">
+                Passkeys only work on the domain they were created for.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="passkey-name">Passkey name</Label>
+            <Input
+              id="passkey-name"
+              value={newName}
+              placeholder="e.g. iPhone 15 · Face ID"
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <p className="text-muted-foreground text-[0.8rem]">
+              A label to help you recognize this device later.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={createDisabled}>
+              <Fingerprint className="size-4" />
+              {selectedDomain !== currentDomain
+                ? `Continue on ${selectedDomain}`
+                : adding
+                  ? 'Creating…'
+                  : 'Create passkey'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -77,6 +77,12 @@ describe('knexAdapter', () => {
       table.timestamp('updatedAt', { useTz: true })
     })
 
+    await db.schema.createTable('passkey', (table) => {
+      table.string('id').primary()
+      table.string('userId')
+      table.string('rpID').nullable()
+    })
+
     // The mock createAdapterFactory above uses identity getModelName/getFieldName.
     // This means table names = model names and field names are used as-is,
     // which lets us test the raw adapter CRUD logic and where-clause operators.
@@ -94,6 +100,47 @@ describe('knexAdapter', () => {
     await db('sessions').delete()
     await db('accounts').delete()
     await db('users').delete()
+    await db('passkey').delete()
+  })
+
+  describe('passkey rpID stamping', () => {
+    it('stamps the instance rpID onto a new passkey row', async () => {
+      const adapterWithRpID = knexAdapter(db, {
+        passkeyRpID: 'social.example'
+      })({} as any)
+
+      await adapterWithRpID.create({
+        model: 'passkey',
+        data: { id: 'pk1', userId: 'u1' }
+      })
+
+      const row = await db('passkey').where('id', 'pk1').first()
+      expect(row.rpID).toBe('social.example')
+    })
+
+    it('does not overwrite an rpID already present in the data', async () => {
+      const adapterWithRpID = knexAdapter(db, {
+        passkeyRpID: 'social.example'
+      })({} as any)
+
+      await adapterWithRpID.create({
+        model: 'passkey',
+        data: { id: 'pk2', userId: 'u1', rpID: 'photos.example' }
+      })
+
+      const row = await db('passkey').where('id', 'pk2').first()
+      expect(row.rpID).toBe('photos.example')
+    })
+
+    it('leaves rpID null when the adapter has no configured rpID', async () => {
+      await adapter.create({
+        model: 'passkey',
+        data: { id: 'pk3', userId: 'u1' }
+      })
+
+      const row = await db('passkey').where('id', 'pk3').first()
+      expect(row.rpID).toBeNull()
+    })
   })
 
   describe('create', () => {

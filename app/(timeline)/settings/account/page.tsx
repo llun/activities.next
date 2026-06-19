@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { LogoutButton } from '@/app/(timeline)/settings/LogoutButton'
@@ -10,6 +11,8 @@ import { Label } from '@/lib/components/ui/label'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
+import { getServedDomains } from '@/lib/services/auth/servedDomains'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ChangeEmailForm } from './ChangeEmailForm'
@@ -42,7 +45,15 @@ const Page = async ({
 
   const account = actor.account
   const { error } = await searchParams
-  const { serviceName } = getConfig()
+  const config = getConfig()
+  const { serviceName } = config
+
+  // Passkeys are scoped per domain; offer the domains this instance serves and
+  // tell the manager which one the user is currently on so it can register here
+  // directly and send cross-domain registrations to the right origin.
+  const servedDomains = getServedDomains(config)
+  const currentDomain = new URL(resolveAuthBaseURL(await headers(), config))
+    .hostname
 
   return (
     <div className="space-y-6">
@@ -139,10 +150,15 @@ const Page = async ({
         <div>
           <h2 className="text-lg font-semibold">Passkeys</h2>
           <p className="text-sm text-muted-foreground">
-            Use biometrics or a hardware key to sign in without a password.
+            Use biometrics or a hardware key to sign in without a password. Each
+            passkey works only on the domain it was created for.
           </p>
         </div>
-        <PasskeyManager />
+        <PasskeyManager
+          domains={servedDomains}
+          currentDomain={currentDomain}
+          handlePrefix={actor.username}
+        />
       </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">

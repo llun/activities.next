@@ -645,7 +645,8 @@ CREATE TABLE public.passkey (
     "backedUp" boolean DEFAULT false NOT NULL,
     transports character varying(255),
     aaguid character varying(255),
-    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "rpID" character varying(255)
 );
 
 CREATE TABLE public.poll_answers (
@@ -1393,6 +1394,8 @@ CREATE INDEX notifications_status_id ON public.notifications USING btree ("statu
 CREATE INDEX oauth_client_reference_id_idx ON public."oauthClient" USING btree ("referenceId");
 
 CREATE INDEX passkey_userid_index ON public.passkey USING btree ("userId");
+
+CREATE INDEX passkey_userid_rpid_index ON public.passkey USING btree ("userId", "rpID");
 
 CREATE INDEX "passwordResetCodeIndex" ON public.accounts USING btree ("passwordResetCode");
 

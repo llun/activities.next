@@ -171,10 +171,19 @@ export const getConfig = memoize((): Config => {
   throw new Error('Fail to read Activities.next config')
 })
 
-export const getBaseURL = (): string => {
-  const config = getConfig()
-  if (config.host.includes('://')) return config.host
-  const scheme =
-    process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'
-  return `${scheme}://${config.host}`
+// The scheme auth/base-URL derivation uses. `ACTIVITIES_INSECURE_AUTH=true`
+// allows local `http` sign-in; everything else assumes `https`. Kept here so the
+// `ACTIVITIES_*` read stays inside `lib/config`.
+export const getAuthScheme = (): 'http' | 'https' =>
+  process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'
+
+// Build a base URL for an arbitrary host. A host that already carries a scheme
+// is returned unchanged; otherwise the configured auth scheme is prefixed. Used
+// both for the configured host (`getBaseURL`) and for a per-request trusted host
+// when resolving the auth instance for multi-domain passkeys.
+export const buildBaseURL = (host: string): string => {
+  if (host.includes('://')) return host
+  return `${getAuthScheme()}://${host}`
 }
+
+export const getBaseURL = (): string => buildBaseURL(getConfig().host)
