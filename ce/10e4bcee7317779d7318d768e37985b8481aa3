@@ -1,0 +1,28 @@
+lib/utils/clampedLimit.ts
+  s_e4efa862839776::t_fb32edbca1eb92 3-5,7-9
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_e4efa862839776::t_aab4745bb5f762 9
+app/(nosidebar)/auth/signin/passkeyErrorMessage.test.ts
+  s_e4efa862839776::t_b997d2ca7408ee 1-30
+lib/utils/clampedLimit.test.ts
+  s_e4efa862839776::t_e97544be519960 60
+  s_e4efa862839776::t_753156517f3eff 10
+app/(nosidebar)/auth/signin/passkeyErrorMessage.ts
+  s_e4efa862839776::t_7acb540809b09f 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ce10e4bcee7317779d7318d768e37985b8481aa3",
+  "prompts": {},
+  "sessions": {
+    "s_e4efa862839776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f18127f-264a-416b-b190-6b6fab05d514",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
