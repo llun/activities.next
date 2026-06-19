@@ -1,0 +1,35 @@
+lib/services/auth/auth.ts
+  s_a4da5f18ceb2f9::t_c2e57f37cd17d1 45,52-62
+  s_a4da5f18ceb2f9::t_ba56a81dfec493 46-51,63
+lib/services/oauth/userinfo.test.ts
+  s_a4da5f18ceb2f9::t_e279e8f4abf714 25-38,40-71,73,78-79,83,86,90,98,101,105,116,127,138,141-142,156,159-160,172-179,181-182,186-187,190-192,194-196,208,212-213
+lib/services/auth/jwks.test.ts
+  s_a4da5f18ceb2f9::t_fec21d0b479328 1-79,81-104
+  s_a4da5f18ceb2f9::t_ded855e5384688 80
+lib/services/wellknown/openidConfiguration.ts
+  s_a4da5f18ceb2f9::t_67a261b910336e 25-31
+lib/services/wellknown/index.test.ts
+  s_a4da5f18ceb2f9::t_6f4bdf559a63be 68-70
+  s_a4da5f18ceb2f9::t_352cb30aabdf0c 88-107
+lib/services/oauth/userinfo.ts
+  s_a4da5f18ceb2f9::t_75868118fcd811 26,38,41-46,57
+app/api/oauth/userinfo/route.ts
+  s_a4da5f18ceb2f9::t_be93a67def60fa 7
+  s_a4da5f18ceb2f9::t_0b002704eac728 23-37,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "1c215f67d34c6f7bc4c06c233d3119c65a05a522",
+  "prompts": {},
+  "sessions": {
+    "s_a4da5f18ceb2f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3fc4b457-744e-4b14-b679-fdc8d407ccf7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
