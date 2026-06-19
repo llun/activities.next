@@ -109,6 +109,40 @@ describe('GET /api/v2/notifications/unread_count', () => {
   })
 
   it('clamps an out-of-range limit instead of rejecting it', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'n1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'n2',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      },
+      {
+        id: 'n3',
+        type: 'follow',
+        sourceActorId: 'https://other.test/users/carol',
+        isRead: false,
+        filtered: false,
+        createdAt: 3000,
+        updatedAt: 3000
+      }
+    ])
+
     const request = new NextRequest(
       'https://llun.test/api/v2/notifications/unread_count?limit=0',
       { method: 'GET' }
@@ -117,7 +151,8 @@ describe('GET /api/v2/notifications/unread_count', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(data.count).toBe(0)
+    // 2 surviving groups, but limit=0 clamps up to min 1 → count = min(2, 1) = 1
+    expect(data.count).toBe(1)
     expect(mockDatabase.getNotifications).toHaveBeenCalled()
   })
 

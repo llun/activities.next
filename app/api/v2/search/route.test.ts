@@ -1064,4 +1064,16 @@ describe('GET /api/v2/search', () => {
       excludeUnreviewed: false
     })
   })
+
+  it('rejects an invalid search type with a bad request', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail&type=bogus'),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(mockSearchHashtags).not.toHaveBeenCalled()
+    expect(mockSearchStatusIds).not.toHaveBeenCalled()
+  })
 })

@@ -17,13 +17,15 @@ const passkeyErrorMessage = (code?: string): string | null => {
     // ERROR_CEREMONY_ABORTED, which is only a programmatic abort), and
     // better-auth reports AUTH_CANCELLED when no WebAuthnError is thrown. Stay
     // silent for all of these so dismissing the prompt isn't shown as an error.
+    // (AUTH_CANCELLED is also reused for a rare post-ceremony network failure of
+    // verify-authentication; we accept staying silent there too.)
     case 'AUTH_CANCELLED':
     case 'ERROR_CEREMONY_ABORTED':
     case 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY':
       return null
     case 'ERROR_INVALID_RP_ID':
     case 'ERROR_INVALID_DOMAIN':
-      return 'This passkey cannot be used on this domain. Sign in with your email and password instead.'
+      return 'This passkey cannot be used on this domain. Please use another sign-in method.'
     default:
       return 'Passkey sign in failed. Please try again.'
   }
