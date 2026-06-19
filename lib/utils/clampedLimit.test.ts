@@ -42,6 +42,13 @@ describe('clampedLimit', () => {
     const minTwo = clampedLimit(80, 40, 2)
     expect(minTwo.parse('1')).toBe(2)
   })
+
+  it('clamps an out-of-range fallback into [min, max]', () => {
+    // The absent-value path returns the (clamped) fallback even if a caller
+    // passes one outside [min, max].
+    expect(clampedLimit(40, 1000).parse(undefined)).toBe(40)
+    expect(clampedLimit(40, 0).parse(undefined)).toBe(1)
+  })
 })
 
 describe('clampedOffset', () => {
@@ -56,6 +63,7 @@ describe('clampedOffset', () => {
     ['at the max', '10000', 10000],
     ['above the max clamps down', '10001', 10000],
     ['negative clamps up', '-1', 0],
+    ['fractional truncates', '40.9', 40],
     ['infinity falls back', 'Infinity', 0],
     ['NaN string falls back', 'NaN', 0]
   ])('clamps %s to %d', (_label, input, expected) => {
@@ -65,5 +73,9 @@ describe('clampedOffset', () => {
   it('defaults to no maximum when none is given', () => {
     const unbounded = clampedOffset()
     expect(unbounded.parse('999999')).toBe(999999)
+  })
+
+  it('clamps an out-of-range fallback into [0, max]', () => {
+    expect(clampedOffset(100, 500).parse(undefined)).toBe(100)
   })
 })
