@@ -1,9 +1,12 @@
 import { z } from 'zod'
 
-// Treat an absent or blank query value as "not provided" so it resolves to the
-// fallback rather than coercing an empty string to `0`.
+// Treat an absent (undefined/null) or blank query value as "not provided" so it
+// resolves to the fallback rather than coercing `null`/`''` to `0`. `null` is the
+// idiomatic absent value from `URLSearchParams.get()`.
 const blankToUndefined = (value: unknown) =>
-  typeof value === 'string' && value.trim() === '' ? undefined : value
+  value === null || (typeof value === 'string' && value.trim() === '')
+    ? undefined
+    : value
 
 /**
  * Zod schema for a Mastodon-style `limit` query parameter that CLAMPS

@@ -7,6 +7,7 @@ describe('clampedLimit', () => {
 
   it.each([
     ['absent (undefined)', undefined, 20],
+    ['null', null, 20],
     ['empty string', '', 20],
     ['whitespace only', '   ', 20],
     ['non-numeric', 'abc', 20],
@@ -56,6 +57,7 @@ describe('clampedOffset', () => {
 
   it.each([
     ['absent (undefined)', undefined, 0],
+    ['null', null, 0],
     ['empty string', '', 0],
     ['whitespace only', '   ', 0],
     ['non-numeric', 'abc', 0],
