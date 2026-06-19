@@ -1,0 +1,19 @@
+app/api/oauth/userinfo/route.test.ts
+  s_a4da5f18ceb2f9::t_afc990a99776b7 1-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "dc689a7ab6ed0a20ea4a3bc9b45e1467c168bcbf",
+  "prompts": {},
+  "sessions": {
+    "s_a4da5f18ceb2f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3fc4b457-744e-4b14-b679-fdc8d407ccf7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
