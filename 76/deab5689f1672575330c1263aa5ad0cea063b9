@@ -1,0 +1,97 @@
+lib/utils/clampedLimit.ts
+  s_e4efa862839776::t_0c51474928da0d 3-7
+  s_e4efa862839776::t_ca3b5f5c2d071c 45-46,48-50
+  s_e4efa862839776::t_e2a5e45f0cf8b9 25-26
+  s_e4efa862839776::t_e567a3b2728244 44
+  s_e4efa862839776::t_c967250ac1e2f4 1-2,8-24,27-43,47,51-53
+app/api/v1/notifications/unread_count/route.test.ts
+  s_e4efa862839776::t_006669e066e889 117-119,126,128-132
+  s_e4efa862839776::t_0e7cd9c673c6d1 66-68,75,77-81
+app/api/v1/accounts/[id]/media/route.test.ts
+  s_e4efa862839776::t_c6b344f64edfb4 22-23,33-36
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_e4efa862839776::t_2751fd6f2695d0 27
+  s_e4efa862839776::t_5fc409ed95dad5 7
+app/api/v1/directory/route.ts
+  s_e4efa862839776::t_a335d26310047b 6
+  s_e4efa862839776::t_113946c36fe1d1 16-17
+app/api/v1/endorsements/route.ts
+  s_e4efa862839776::t_1c1f62c8f9bac1 9
+  s_e4efa862839776::t_4f9ae33da3c4ed 22
+app/api/v1/statuses/[id]/favourited_by/route.ts
+  s_e4efa862839776::t_c3d5250864787d 28
+  s_e4efa862839776::t_4f111b47a3782c 8
+app/api/v1/statuses/[id]/route.test.ts
+  s_e4efa862839776::t_0d425417ceeb34 2769,2783
+app/api/v1/instance/domain_blocks/route.ts
+  s_e4efa862839776::t_05fcaf7c64d6ea 13-14
+  s_e4efa862839776::t_752c495ff98dcc 6
+app/api/v1/accounts/[id]/endorsements/route.ts
+  s_e4efa862839776::t_e567a3b2728244 9
+  s_e4efa862839776::t_8fcf17a69250f1 32
+app/api/v1/notifications/unread_count/route.ts
+  s_e4efa862839776::t_1526f9e9ff0a69 7
+  s_e4efa862839776::t_5d65dc15866054 26
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_e4efa862839776::t_c3f73960dad958 37
+  s_e4efa862839776::t_1a50adf9a4ec76 13
+app/api/v2/notifications/route.ts
+  s_e4efa862839776::t_16c207b1822242 17
+  s_e4efa862839776::t_d5061f0abc5718 46
+app/api/v2/search/route.ts
+  s_e4efa862839776::t_62380f02edabdf 81
+  s_e4efa862839776::t_1d0502074c0665 25
+app/api/v1/accounts/[id]/media/route.ts
+  s_e4efa862839776::t_54af5945add97e 7
+  s_e4efa862839776::t_210d8709e22c9f 30
+lib/utils/clampedLimit.test.ts
+  s_e4efa862839776::t_5410efdaaf41ae 1-60
+app/api/v2/search/route.test.ts
+  s_e4efa862839776::t_0b197cc5aa5540 1048,1054-1065
+app/api/v2/notifications/unread_count/route.ts
+  s_e4efa862839776::t_cc8d4d3ee07996 13
+  s_e4efa862839776::t_3bfdf38654896f 34
+app/api/v2/notifications/unread_count/route.test.ts
+  s_e4efa862839776::t_7bf2d663759d5c 111,117,119-121
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_e4efa862839776::t_a794afab343755 346,353-357,359-360
+app/api/v1/accounts/search/route.test.ts
+  s_e4efa862839776::t_65e7cb24eda606 209,218-225
+app/api/v1/accounts/[id]/following/route.ts
+  s_e4efa862839776::t_c369ae94bf88c6 33
+  s_e4efa862839776::t_3a68b00978030d 9
+app/api/v1/instance/domain_blocks/route.test.ts
+  s_e4efa862839776::t_aafc36226c5e75 76-77,80-84,94-99
+app/api/v1/accounts/[id]/followers/route.ts
+  s_e4efa862839776::t_c543323990763d 33
+  s_e4efa862839776::t_e567a3b2728244 9
+app/api/v2/notifications/route.test.ts
+  s_e4efa862839776::t_f6f308389aeb3d 112-114,121-122
+app/api/v1/accounts/search/route.ts
+  s_e4efa862839776::t_53efec2475bc59 11
+  s_e4efa862839776::t_6660798e602c33 22-23
+app/api/v1/notifications/route.ts
+  s_e4efa862839776::t_ce04822f222915 11
+  s_e4efa862839776::t_2e21144f34591f 37
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_e4efa862839776::t_706d26194e29e2 41-43
+  s_e4efa862839776::t_212281ccd41453 9-25
+app/api/v1/notifications/route.test.ts
+  s_e4efa862839776::t_ba3a9d5b72efa3 44-46,54-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "76deab5689f1672575330c1263aa5ad0cea063b9",
+  "prompts": {},
+  "sessions": {
+    "s_e4efa862839776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f18127f-264a-416b-b190-6b6fab05d514",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
